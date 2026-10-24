@@ -13,6 +13,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { VirtualList } from '@oxy.so/bloom/list';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -27,7 +28,6 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import type { CustomFeedListResponse } from '@mention/shared-types';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -465,7 +465,8 @@ function FeedMarketplaceScreen() {
           {ListFooter}
         </ScreenScrollView>
       ) : (
-        <ScreenFlashList
+        <VirtualList
+          screen={{}}
           data={feeds}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
@@ -477,7 +478,7 @@ function FeedMarketplaceScreen() {
           onEndReachedThreshold={0.4}
           onRefresh={handleRefresh}
           refreshing={refreshing}
-          showsVerticalScrollIndicator={false}
+          scrollbar="never"
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         />

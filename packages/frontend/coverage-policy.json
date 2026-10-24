@@ -313,6 +313,24 @@
       "metric": "lines",
       "date": "2026-10-24",
       "reason": "Reselect, web list virtualization, screen visibility, Back, page actions, the drawer state and the icon translation layer moved into Bloom (reselect, VirtualList, useScreenVisible, BloomProvider back, Screen primaryAction, AppShell, icons; tested there); Mention's copies (ScreenReselectContext, DocumentScroll, useOwnerVirtualizer, LoadMoreSentinel, useSafeBack, PageAction, DrawerContext, Ionicons, the EmptyState name table) were deleted, which lowers the overall ratio by about a tenth of a point."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-24",
+      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
+    },
+    {
+      "path": "total",
+      "metric": "branches",
+      "date": "2026-10-24",
+      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
     }
   ],
   "globalDriftAllowancePoints": 0.75,

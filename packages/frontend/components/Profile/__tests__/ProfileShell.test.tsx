@@ -30,9 +30,7 @@ const mockList = jest.fn();
 const mockDock = jest.fn();
 const mockSticky = jest.fn();
 const mockCover = jest.fn();
-let mockDockInset = 84;
 
-jest.mock('@/lib/navigation/router', () => ({ useIsFocused: () => true }));
 jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('@oxy.so/bloom/layout', () => ({
   HeaderDockProvider: (props: { children: React.ReactNode }) => {
@@ -43,7 +41,6 @@ jest.mock('@oxy.so/bloom/layout', () => ({
     mockSticky(props);
     return props.children;
   },
-  useHeaderDockInset: () => mockDockInset,
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: (props: object) => {
@@ -87,7 +84,7 @@ jest.mock('../ProfileTabs', () => ({
     );
   },
 }));
-jest.mock('@/components/common/ScreenFlashList', () => {
+jest.mock('@oxy.so/bloom/list', () => {
   const React_ = require('react') as typeof React;
   type MockProps = {
     ListHeaderComponent?: React.ReactNode;
@@ -95,7 +92,7 @@ jest.mock('@/components/common/ScreenFlashList', () => {
     renderItem: (info: { item: string }) => React.ReactNode;
   };
   return {
-    ScreenFlashList: (props: MockProps) => {
+    VirtualList: (props: MockProps) => {
       mockList(props);
       return (
         <>
@@ -144,7 +141,6 @@ function renderShell(props: ProfileShellProps) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockDockInset = 84;
 });
 
 test('non-feed tabs have one list owner and measure docking from its header', () => {
@@ -157,11 +153,9 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
   });
   expect(mockList.mock.calls.at(-1)?.[0]).toMatchObject({
     stickyHeaderIndices: [0],
-    stickyHeaderConfig: { offset: 84 },
     onEndReached: props.chrome.loadMore,
   });
   // The strip's dock target is its Y in the list: the measured header block.
-  // The header inset is the list's sticky clearance, not the strip's position.
   expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBeUndefined();
   const header = tree.root
     .findAllByType(View)
@@ -170,7 +164,6 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
     header!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 357 } } });
   });
   expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBe(357);
-  expect(mockList.mock.calls.at(-1)?.[0].stickyHeaderConfig).toEqual({ offset: 84 });
   act(() => tree.unmount());
 });
 
@@ -228,12 +221,10 @@ test('banner, summary and tabs are one block painted in the surface fill', () =>
   act(() => tree.unmount());
 });
 
-test('a channel without media keeps its inline header and Bloom zero inset', () => {
-  mockDockInset = 0;
+test('a channel without media keeps its inline header', () => {
   const tree = renderShell({ ...makeProps(), banner: null });
   expect(mockCover).not.toHaveBeenCalled();
   expect(mockScreen.mock.calls.at(-1)?.[0].headerPlacement).toBe('inset');
-  expect(mockList.mock.calls.at(-1)?.[0].stickyHeaderConfig).toEqual({ offset: 0 });
   act(() => tree.unmount());
 });
 

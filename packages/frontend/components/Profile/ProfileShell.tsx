@@ -3,8 +3,8 @@ import type React from 'react';
 import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
 import { Platform, View, type ViewProps } from 'react-native';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
-import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
+import { VirtualList } from '@oxy.so/bloom/list';
+import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
@@ -122,7 +122,6 @@ function ProfileShellBody({
   colorPreset,
 }: ProfileShellProps & Pick<ViewProps, 'style'> & Pick<ScreenProps, 'colorPreset'>) {
   const surfaceFill = useSurfaceFill();
-  const headerInset = useHeaderDockInset();
   const [summaryHeight, setSummaryHeight] = useState<number>();
 
   const nativeFeedOwnsScroll = tabs
@@ -175,8 +174,8 @@ function ProfileShellBody({
       // Native: the strip's Y in the list content, which is the measured header
       // block above it. Bloom docks the page header when the strip reaches its
       // bottom edge. Passing the header inset instead made the dock progress 1
-      // at rest, so the header drew docked over the banner. The list's own
-      // sticky clearance is `headerInset`, below. Web measures itself.
+      // at rest, so the header drew docked over the banner. The list pins the
+      // strip below the header itself. Web measures itself.
       offset={IS_WEB ? undefined : summaryHeight}
     >
       {tabBar}
@@ -233,18 +232,18 @@ function ProfileShellBody({
               />
             </View>
           ) : (
-            <ScreenFlashList
+            <VirtualList
+              screen={{}}
               data={['tabs', 'content'] as const}
               keyExtractor={(item) => item}
               renderItem={({ item }) => (item === 'tabs' ? stickyTabs : nativeContent)}
               ListHeaderComponent={listHeader}
               ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
               onEndReached={chrome.loadMore}
-              showsVerticalScrollIndicator={false}
-              // The tabs are the first data row; FlashList keeps ListHeaderComponent
-              // outside the data index space.
+              scrollbar="never"
+              // The tabs are the first data row; ListHeaderComponent sits outside
+              // the data index space.
               stickyHeaderIndices={tabBar ? [0] : undefined}
-              stickyHeaderConfig={{ offset: headerInset }}
             />
           )}
         </>

@@ -103,7 +103,6 @@ function providerFor(showUrl?: string): Provider | null {
   return null;
 }
 
-
 const ProviderRow = ({ provider, className }: { provider: Provider; className?: string }) => (
   <View className={cn('flex-row items-center gap-1', className)}>
     {provider.glyph === 'spotify' ? (

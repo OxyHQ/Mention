@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { ScreenScrollView, useScreenReselectHandler } from '@oxy.so/bloom/screen';
+import { VirtualList } from '@oxy.so/bloom/list';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +11,6 @@ import { useRouter } from '@/lib/navigation/router';
 
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
 import { EmptyState } from '@/components/common/EmptyState';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
@@ -302,7 +302,8 @@ export default function ExploreTrendingScreen() {
   }
 
   return (
-    <ScreenFlashList
+    <VirtualList
+      screen={{}}
       data={rows}
       renderItem={({ item }) => renderRow(item)}
       getItemType={(row) => row.kind}

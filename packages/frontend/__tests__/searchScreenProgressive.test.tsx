@@ -166,10 +166,10 @@ interface MockListProps {
   ListHeaderComponent?: import('react').ReactNode;
 }
 
-jest.mock('@/components/common/ScreenFlashList', () => {
+jest.mock('@oxy.so/bloom/list', () => {
   const React_ = jest.requireActual<typeof import('react')>('react');
   return {
-    ScreenFlashList: (props: MockListProps) => (
+    VirtualList: (props: MockListProps) => (
       <>
         {props.ListHeaderComponent}
         {props.data.map((item) => (

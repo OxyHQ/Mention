@@ -46,7 +46,7 @@ import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
+import { VirtualList } from '@oxy.so/bloom/list';
 import {
   ProfileCard,
   ProfileCardSkeletonList,
@@ -1471,14 +1471,15 @@ function SearchIndex() {
                     the first keystroke) and the suggestions have no focus-bound
                     lifecycle to get wrong. */}
         <View className="flex-1 min-h-0">
-          <ScreenFlashList
+          <VirtualList
+            screen={{}}
             data={rows}
             keyExtractor={keyExtractor}
             getItemType={getItemType}
             renderItem={renderRow}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            showsVerticalScrollIndicator={false}
+            scrollbar="never"
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.5}
             ListHeaderComponent={renderListHeader()}
