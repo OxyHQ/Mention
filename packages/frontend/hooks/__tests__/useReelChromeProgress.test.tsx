@@ -46,7 +46,10 @@ jest.mock('expo-keep-awake', () => ({
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
-jest.mock('@/context/VideoPlaybackContext', () => ({
+jest.mock('@oxy.so/bloom/video-playback', () => ({
+  // The real per-player control, which applies the decision below to the player.
+  useVideoPlaybackControl: jest.requireActual('@oxy.so/bloom/video-playback')
+    .useVideoPlaybackControl,
   useVideoPlayback: () => ({
     shouldPlay: true,
     claimActive: () => {},

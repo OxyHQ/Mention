@@ -19,7 +19,7 @@ import { createElement } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import type { VideoPlayer } from 'expo-video';
-import { useVideoPlaybackControl } from '@/stores/video-playback-control';
+import { useVideoPlaybackControl } from '@oxy.so/bloom/video-playback';
 import { needsJsHlsDecoder, playProgressiveInstead, useHlsPlayback } from '../hlsPlayback.web';
 
 interface MockDecoder {

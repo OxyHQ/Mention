@@ -1,7 +1,15 @@
-import { Linking, Pressable, Text, View, type DimensionValue } from 'react-native';
+import { useRef } from 'react';
+import {
+  Linking,
+  Pressable,
+  Text,
+  View,
+  type DimensionValue,
+  type ViewInstance,
+} from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getHomiioCaseUrl } from '@mention/shared-types/homiio';
-import { useReferenceVisibility } from '@/hooks/useReferenceVisibility';
+import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { homiioCases } from '@/lib/references/homiioCases';
 
@@ -18,12 +26,13 @@ export function HomiioCaseCard({
   height?: number;
 }) {
   const { t } = useTranslation();
-  const { nativeID, visible } = useReferenceVisibility(postId);
+  const cardRef = useRef<ViewInstance>(null);
+  const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
   const state = useVisibleReference(homiioCases, caseId, visible);
   const value = state.status === 'ready' ? state.value : undefined;
   return (
     <View
-      nativeID={nativeID}
+      ref={cardRef}
       testID="homiio-case-card"
       style={{ width, height }}
       className="rounded-2xl border border-border bg-card p-4 overflow-hidden"

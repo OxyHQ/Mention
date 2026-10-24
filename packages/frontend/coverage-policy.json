@@ -234,6 +234,30 @@
     {
       "path": "total",
       "metric": "statements",
+      "date": "2026-10-24",
+      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
+    },
+    {
+      "path": "total",
+      "metric": "branches",
+      "date": "2026-10-24",
+      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
+    },
+    {
+      "path": "total",
+      "metric": "functions",
+      "date": "2026-10-24",
+      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
       "date": "2026-10-23",
       "reason": "Opening Allo (the links, app vs install offer vs web) moved to Allo's own @oxy.so/allo-sdk/links (0.3.0, tested there); Mention's fully covered copy, lib/alloDirectMessage.ts, and its tests were deleted, which lowers the overall ratio by under 0.1 point."
     },
@@ -354,8 +378,8 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 311,
-    "pins": 306,
+    "domainFiles": 309,
+    "pins": 304,
     "unenforceable": 5,
     "belowBarExemptions": 7,
     "criticalPaths": 36,

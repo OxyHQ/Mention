@@ -13,8 +13,8 @@ jest.mock('@/lib/references/homiioCases', () => {
     ),
   };
 });
-jest.mock('@/hooks/useReferenceVisibility', () => ({
-  useReferenceVisibility: () => ({ nativeID: 'test-card', visible: mockVisible }),
+jest.mock('@oxy.so/bloom/video-playback', () => ({
+  useViewableVisible: () => mockVisible,
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

@@ -5,7 +5,7 @@ import type { VideoPlayer } from 'expo-video';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { acquireVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { PlaybackVideoView } from '../PlaybackVideoView';
-import { useVideoPlaybackControl } from '@/stores/video-playback-control';
+import { useVideoPlaybackControl } from '@oxy.so/bloom/video-playback';
 
 const mockAttached = jest.fn();
 const mockDetached = jest.fn();

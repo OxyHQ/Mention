@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import type { VideoPlayer, VideoViewProps } from 'expo-video';
 import { VideoView, type VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { needsJsHlsDecoder, useHlsPlayback } from '@/lib/hlsPlayback';
-import { setVideoHasRenderedFrame } from '@/stores/video-playback-control';
+import { setVideoHasRenderedFrame } from '@oxy.so/bloom/video-playback';
 
 import { acquireVideoPlayer, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { videoSourceFor } from '@/utils/videoSource';

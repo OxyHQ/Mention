@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import type HlsJs from 'hls.js';
 import type { VideoPlayer } from 'expo-video';
-import { subscribeVideoLoadingDemand } from '@/stores/video-playback-control';
+import { subscribeVideoLoadingDemand } from '@oxy.so/bloom/video-playback';
 import { createLogger } from '@oxy.so/core/logger';
 import { isHlsSource } from '@/utils/hlsSource';
 
