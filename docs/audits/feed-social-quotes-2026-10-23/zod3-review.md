@@ -1,8 +1,10 @@
 # Temporary Zod 3 dependency review — 24 October 2026
 
 This is a bounded risk acceptance, **not a claim that Zod 3 is patched**. It
-expires on 27 October 2026 and applies only to the four exact lockfile resolutions
-and their pinned immediate consumers in `security-audit-exceptions.json`.
+expires on 27 October 2026. **As of 25 October, its scope is only the exact
+`@expo/cli/zod` 3.25.76 resolution under Expo CLI 58.1.15** in
+`security-audit-exceptions.json`. The four-consumer review below records the
+original 24 October state; it is retained as historical evidence.
 `audit:security` fails if the vulnerable range, installed vulnerable version,
 resolution path or consumer version changes, or this proof is absent. A newly
 introduced vulnerable Zod 4 or nested Zod 3 copy is not covered. Upstream migration
@@ -15,7 +17,20 @@ checks array, set and map upper bounds before walking their elements, in Zod 4.
 It does not turn arbitrary unconstrained collections into bounded schemas. No
 patched Zod 3 release was available in the npm registry at this review.
 
-## Remediations and compatibility
+## Current scope — 25 October
+
+A separate, subsequently merged [SDK adoption change (#1620)](https://github.com/OxyHQ/Mention/pull/1620)
+moved Mention to core 7.2.0, contracts 6.0.0 and protocol 1.5.1. The lockfile at
+`7332b08ecf953bc88a145a7b72bc1935f25451e8` contains only root Zod 4.6.7 and
+`@expo/cli/zod` 3.25.76. The exact-resolution guard was narrowed accordingly;
+there are no remaining Oxy runtime Zod 3 resolutions in that graph. Expo CLI
+58.1.15's two reviewed Zod consumers (`start/server/DevToolsPlugin.schema.js`
+and `start/server/createMCPDevToolsExtensionSchema.js`) and their dependency
+range were recorded as byte-identical to 58.1.13 in the preceding tooling update.
+The expiry has not been extended. This corrects the current scope; it does not
+retroactively describe PR #1601 as having performed that later SDK migration.
+
+## Original remediations and compatibility — 24 October
 
 Mention's own schemas already resolve Zod 4.6.7. Kaana SDK 3.2.1 and contracts
 8.0.1 now remove the old nested Zod 4.4.3 resolution. Mention uses the public
@@ -33,9 +48,9 @@ The remaining Oxy runtime consumers have published major upgrades coupled to a
 separate first-party authority migration. They cannot safely be replaced by a
 forced Zod 4 transitive override.
 
-## Reviewed current call paths
+## Original reviewed call paths — 24 October
 
-| Remaining consumer | Mention use and compensating boundary |
+| Consumer in the original review | Mention use and compensating boundary |
 | --- | --- |
 | `@expo/cli` 58.1.15 | Developer/CI Expo tooling; not a backend request or shipped application schema. Its inputs are the repository's build configuration. Re-reviewed for 58.1.15 (from 58.1.13): the same two Zod consumers (`start/server/DevToolsPlugin.schema.js`, `start/server/createMCPDevToolsExtensionSchema.js`), byte-identical, and the same `zod` range. |
 | `@oxy.so/core` 6.17.0 | Its direct Zod schema is scalar app-assertion claims, with a 4096-byte token cap. Capability tickets verify the trusted signature before parsing claims. The actor chain comes from the session authority and contains scalars. Service scope options are application-owned, not request-body arrays. |
@@ -51,7 +66,7 @@ pinned SDK's `server/capabilityTicket.ts`, `server/appAssertion.ts` and
 trusted Oxy event channels. The unused agency issuance, purchase and messaging
 SDK APIs are not assumed safe simply because they share the dependency.
 
-## Residual risk and limits
+## Original residual runtime risk and limits
 
 Configured-authority responses are a trust boundary, not a guarantee that every
 response is small. A compromised authority, an unexpected oversized response,
@@ -73,5 +88,6 @@ chunking and actual Oxy DID-resolution path before approving this short exceptio
 The exact-resolution matcher has negative tests for unreviewed versions, paths,
 consumers, advisory ranges, missing proof and expiry. Those guards detect graph
 changes; future application call-site changes still require normal security
-review. The lasting remedy remains upgrading the owning Oxy contracts/SDK and
-removing old Zod copies, with the separate tooling dependency tracked honestly.
+review. The Oxy runtime remedy subsequently landed in PR #1620 as recorded above.
+The remaining Expo tooling resolution is still unpatched and separately guarded
+until its expiry; the original runtime-risk discussion is historical.
