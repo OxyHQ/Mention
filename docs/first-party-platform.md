@@ -179,3 +179,15 @@ variables or managed-deployment identity variables. Managed operators must set
 starting this release; it must not use the public Mention receiver identity.
 This inventory is a dated configuration check, not evidence of this branch's
 runtime deployment or completion of the rollout canaries.
+
+
+## Alia client transport
+
+The frontend source uses the published `@alia.onl/sdk` 22.0.0 with the existing
+Core 7.3 / services 13 stack. Alia owns conversation, history, streaming and audio
+transport through the shared Oxy session; the app keeps its existing provider,
+agent selection and UI. No app-local bearer refresh or internal permission prompt
+is introduced. Package installation was checked against the published artifact;
+source adoption and deployment are separate rollout steps.
+
+The backend pins the same SDK major for its isolated CSP helper.

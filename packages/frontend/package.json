@@ -102,7 +102,7 @@
     }
   },
   "dependencies": {
-    "@alia.onl/sdk": "21.5.2",
+    "@alia.onl/sdk": "22.0.0",
     "@clarity.surf/sdk": "0.10.0",
     "@expo/app-integrity": "~58.0.2",
     "@expo/vector-icons": "^15.1.1",
