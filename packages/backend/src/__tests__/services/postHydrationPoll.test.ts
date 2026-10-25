@@ -1,3 +1,8 @@
+// This domain fixture already replaces Oxy identity. Community notes are a
+// separate network boundary; the workload transport has its own real HTTP gate.
+vi.mock('../../services/moderation/crowdSourceClient', () => ({
+  getCrowdSourceClient: () => ({ communityNotes: { shown: async () => [] } }),
+}));
 import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * A poll created by the composer must come back on the post's DTO.
