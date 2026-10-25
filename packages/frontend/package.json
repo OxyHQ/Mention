@@ -102,7 +102,7 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "21.5.2",
-    "@clarity.surf/sdk": "0.9.0",
+    "@clarity.surf/sdk": "0.10.0",
     "@expo/app-integrity": "~58.0.2",
     "@expo/vector-icons": "^15.1.1",
     "@livekit/react-native": "^3.1.0",

@@ -66,7 +66,7 @@ reuse the own path or infer an account from a header.
 | Mention frontend → Clarity | `clarityForOxySession`, shared linked client; published SDK 0.10 | Final frontend composition/build/deployment |
 | Mention media cache → Oxy | Shared workload transport and replayable disk body factory | Core 7.3 includes streaming; verify live cancellation/outbox retry after deployment |
 | Mention backend → Kaana | Published SDK 3.3 own factory and immutable attribution | Producer receiver live; verify one-dispatch ledger and app-paid accounting |
-| Mention frontend → Syra | Linked-session factory, lazy client-only entry | SDK 0.23 release PR 255: verify published artifact before pinning; 0.22 is the older artifact |
+| Mention frontend → Syra | Linked-session factory, lazy client-only entry | Published SDK 0.23 pinned and artifact verified; account-switch runtime canary remains |
 | Mention frontend → Alia | Existing product SDK client; no backend Alia proxy found | Coordinate SDK update with Alia owner; do not infer adoption from the foundation version |
 | Schedio → Mention | Own publishing adapter and published SDK 0.2; original automation root | Schedio PR 71 has public pins and green CI; receiver before caller, external Mastodon OAuth retained |
 
@@ -134,7 +134,7 @@ not requester authority over personal Files. The purge script's preflight also
 uses the shared v2 workload transport. No production backend manual service-token
 calls remain in this branch.
 
-## Final composition in progress, 2026-10-25
+## Published registry composition, 2026-10-25
 
 Public core 7.3.0 includes the streaming transport introduced in 7.1; ordinary
 core 7.0 fetch cannot replay streams. Contracts 6.0.0 uses patched Zod 4.
@@ -152,9 +152,13 @@ not the full CI suite. The import fixture preserves the real external authority
 projection, so branded external credentials reach the own-only policy rejection
 without a forged first-party introspection result.
 
-Final frontend types and lock composition wait for the actual Syra 0.23 package:
-the older registry 0.22 artifact lacks `syraForOxySession`, despite later source
-using that version. Do not substitute a copied implementation or claim a local
-candidate is published. Complete its pin, frozen install, artifact audit and
-frontend typecheck before declaring the runtime PR ready. Deployment and live
-canaries remain distinct acceptance steps.
+Syra SDK 0.23 is now published and pinned. Its tarball integrity and actual
+`syraForOxySession` JavaScript/types plus `/client`, `/live` and `/upload` exports
+were verified; installed source/build files match the registry artifact. The
+older 0.22 artifact is not used. Frozen installation, final frontend TypeScript
+and all eight affected frontend tests pass. All package references are public
+registry versions; no local override is committed.
+
+This completes the source composition prerequisite. Full runtime CI, deployment
+and live cross-product/account-revocation canaries remain separate acceptance
+steps. Deploy this receiver before enabling Move PR47 and Schedio PR71.
