@@ -42,7 +42,6 @@ jest.mock('@/stores/threadHoverStore', () => ({
     selector({ setHoveredSlice: () => undefined, hoveredSliceKey: null }),
 }));
 
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
@@ -89,7 +88,7 @@ jest.mock('@/hooks/usePostLanguage', () => ({
 }));
 
 jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: () => undefined }));
-jest.mock('@/components/common/ContentDialog', () => ({ showContentDialog: () => undefined }));
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
 jest.mock('@/utils/feedTelemetry', () => ({ reportFeedInteraction: () => undefined }));
 
 jest.mock('@oxy.so/core', () => ({

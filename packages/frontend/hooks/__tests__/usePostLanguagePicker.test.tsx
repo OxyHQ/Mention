@@ -31,22 +31,12 @@ jest.mock('@oxy.so/bloom/icons', () => {
   return { RiCheckboxCircleFill: () => <View testID="icon" /> };
 });
 
-/**
- * The picker lands in the app's shared bottom sheet. Mocked at the context
- * module: the real one pulls in Bloom's `BottomSheet`, which ships untranspiled.
- */
-const mockSetBottomSheetContent = jest.fn();
-const mockOpenBottomSheet = jest.fn();
-jest.mock('@/context/BottomSheetContext', () => {
-  const { createContext } = jest.requireActual<typeof import('react')>('react');
-  return {
-    BottomSheetContext: createContext({
-      setBottomSheetContent: (...args: unknown[]) => mockSetBottomSheetContent(...args),
-      openBottomSheet: (...args: unknown[]) => mockOpenBottomSheet(...args),
-      bottomSheetRef: { current: null },
-    }),
-  };
-});
+/** The picker is presented on the app's surface stack; the surface is a stub. */
+const mockPresentSheet = jest.fn();
+const mockDismiss = jest.fn();
+jest.mock('@/utils/sheet', () => ({
+  presentSheet: (...args: unknown[]) => mockPresentSheet(...args),
+}));
 
 const spanish: PostLanguageOption = { tag: 'es-ES', source: 'author', text: 'Hola mundo' };
 const english: PostLanguageOption = { tag: 'en', source: 'author', text: 'Hello world' };
@@ -70,12 +60,13 @@ function mountPicker(
   return { renderer, onSelect };
 }
 
-/** The sheet the hook handed to the shared bottom sheet, rendered. */
+/** The sheet the hook presented, rendered. */
 function sheet(): TestRenderer.ReactTestRenderer {
-  const content = mockSetBottomSheetContent.mock.calls.at(-1)?.[0] as
-    | React.ReactElement
+  const render = mockPresentSheet.mock.calls.at(-1)?.[0] as
+    | ((surface: { dismiss: () => void }) => React.ReactElement)
     | undefined;
-  if (!content) throw new Error('nothing was handed to the bottom sheet');
+  if (!render) throw new Error('nothing was presented');
+  const content = render({ dismiss: mockDismiss });
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(content);
@@ -92,25 +83,25 @@ function sheetTexts(): string[] {
 
 describe('the language picker', () => {
   beforeEach(() => {
-    mockOpenBottomSheet.mockReset();
-    mockSetBottomSheetContent.mockReset();
+    mockPresentSheet.mockReset();
+    mockDismiss.mockReset();
   });
 
   it('renders nothing of its own and opens nothing until it is asked to', () => {
     const { renderer } = mountPicker([spanish, english], 'es-ES');
 
     expect(renderer.toJSON()).toBeNull();
-    expect(mockOpenBottomSheet).not.toHaveBeenCalled();
+    expect(mockPresentSheet).not.toHaveBeenCalled();
   });
 
-  it('opens the shared sheet on demand', () => {
+  it('opens the sheet on demand', () => {
     mountPicker([spanish, english], 'es-ES');
 
     act(() => {
       openPicker();
     });
 
-    expect(mockOpenBottomSheet).toHaveBeenCalledWith(true);
+    expect(mockPresentSheet).toHaveBeenCalledTimes(1);
   });
 
   it('offers the whole catalog, not just what the post already has', () => {
@@ -157,7 +148,6 @@ describe('the language picker', () => {
     });
 
     expect(onSelect).toHaveBeenCalledWith('en');
-    expect(mockOpenBottomSheet).toHaveBeenLastCalledWith(false);
-    expect(mockSetBottomSheetContent).toHaveBeenLastCalledWith(null);
+    expect(mockDismiss).toHaveBeenCalled();
   });
 });

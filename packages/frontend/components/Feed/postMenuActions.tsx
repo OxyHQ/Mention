@@ -11,7 +11,7 @@ import { confirmDialog } from '@/utils/alerts';
 import { Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
-import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { FeedItem } from '@/db';
@@ -54,8 +54,8 @@ import { postPermalink } from '@/utils/postPermalink';
  *
  * The five sheets below are LAZY because the feed chunk imports this module.
  *
- * Every one of them is only ever mounted from an `onPress`, into
- * `bottomSheet.setBottomSheetContent`. Imported statically they were pulled into
+ * Every one of them is only ever mounted from an `onPress`, through
+ * `presentSheet`. Imported statically they were pulled into
  * the feed chunk anyway, together with their service graphs (`insightsService`,
  * `muteService`, `reportService`, `lanesService`, `listsService`) — and
  * `PostItem` was already declaring `lazy(() => import(…))` for
@@ -94,7 +94,6 @@ export interface PostMenuDeps {
   router: ReturnType<typeof useRouter>;
   /** The app's Back, to leave a post's own page once it is deleted. */
   back: (() => void) | undefined;
-  bottomSheet: BottomSheetContextProps;
   queryClient: QueryClient;
 }
 
@@ -151,7 +150,7 @@ export function buildPostMenuActions(
     onOpenArticle,
     onOpenSources,
   }: PostMenuParams,
-  { theme, t, viewerId, canUsePrivateApi, router, back, bottomSheet, queryClient }: PostMenuDeps,
+  { theme, t, viewerId, canUsePrivateApi, router, back, queryClient }: PostMenuDeps,
 ): PostMenuActions {
   const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
   {
@@ -207,15 +206,11 @@ export function buildPostMenuActions(
             icon: <RiBarChartBoxLine width={20} height={20} fill={theme.colors.textSecondary} />,
             label: t('postActions.insights'),
             onPress: () => {
-              bottomSheet.setBottomSheetContent(
+              void presentSheet((surface) => (
                 <Suspense fallback={null}>
-                  <PostInsightsSheet
-                    postId={postId || null}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                  />
-                </Suspense>,
-              );
-              bottomSheet.openBottomSheet(true);
+                  <PostInsightsSheet postId={postId || null} onClose={() => surface.dismiss()} />
+                </Suspense>
+              ));
             },
           },
         ]
@@ -310,7 +305,7 @@ export function buildPostMenuActions(
         icon: <RiNodeTree width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('lanes.postActions.moveToLane', { defaultValue: 'Move to lane…' }),
         onPress: () => {
-          bottomSheet.setBottomSheetContent(
+          void presentSheet((surface) => (
             <Suspense fallback={null}>
               <LanePickerSheet
                 selectedLaneId={viewPost?.lane?.id ?? null}
@@ -336,11 +331,10 @@ export function buildPostMenuActions(
                     );
                   }
                 }}
-                onClose={() => bottomSheet.openBottomSheet(false)}
+                onClose={() => surface.dismiss()}
               />
-            </Suspense>,
-          );
-          bottomSheet.openBottomSheet(true);
+            </Suspense>
+          ));
         },
       });
     }
@@ -372,7 +366,7 @@ export function buildPostMenuActions(
         icon: <RiArrowRightSLine width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.replyOptions'),
         onPress: () => {
-          bottomSheet.setBottomSheetContent(
+          void presentSheet((surface) => (
             <Suspense fallback={null}>
               <ReplySettingsSheet
                 replyPermission={viewPost?.metadata?.replyPermission ?? ['anyone']}
@@ -399,11 +393,10 @@ export function buildPostMenuActions(
                     toast(t('postActions.failedToUpdateQuoteSettings'), { type: 'error' });
                   }
                 }}
-                onClose={() => bottomSheet.openBottomSheet(false)}
+                onClose={() => surface.dismiss()}
               />
-            </Suspense>,
-          );
-          bottomSheet.openBottomSheet(true);
+            </Suspense>
+          ));
         },
       });
     }
@@ -512,11 +505,11 @@ export function buildPostMenuActions(
     };
 
     const handleReportPost = () => {
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
           <ReportModal
             visible={true}
-            onClose={() => bottomSheet.openBottomSheet(false)}
+            onClose={() => surface.dismiss()}
             onSubmit={async (categories, details) => {
               const success = await reportService.reportPost(postId, categories, details);
               if (success) {
@@ -526,9 +519,8 @@ export function buildPostMenuActions(
               }
             }}
           />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+        </Suspense>
+      ));
     };
 
     const postLane = viewPost?.lane;
@@ -619,16 +611,15 @@ export function buildPostMenuActions(
         icon: <RiListUnordered width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
         onPress: () => {
-          bottomSheet.setBottomSheetContent(
+          void presentSheet((surface) => (
             <Suspense fallback={null}>
               <AddToListSheet
                 targetUserId={authorId}
                 targetLabel={authorHandle ? `@${authorHandle}` : undefined}
-                onClose={() => bottomSheet.openBottomSheet(false)}
+                onClose={() => surface.dismiss()}
               />
-            </Suspense>,
-          );
-          bottomSheet.openBottomSheet(true);
+            </Suspense>
+          ));
         },
       });
     }

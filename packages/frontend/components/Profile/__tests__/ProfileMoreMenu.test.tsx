@@ -23,15 +23,7 @@ jest.mock('react-i18next', () => ({
 }));
 // The sheets the rows open are never rendered here; stubbing them keeps their
 // service graphs out of the test.
-jest.mock('@/context/BottomSheetContext', () => {
-  const { createContext } = jest.requireActual('react');
-  return {
-    BottomSheetContext: createContext({
-      setBottomSheetContent: jest.fn(),
-      openBottomSheet: jest.fn(),
-    }),
-  };
-});
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
 jest.mock('@/components/report/ReportModal', () => ({ ReportModal: () => null }));
 jest.mock('@/components/Lists/AddToListSheet', () => ({ AddToListSheet: () => null }));
 jest.mock('@/components/AddToStarterPackSheet', () => ({ AddToStarterPackSheet: () => null }));

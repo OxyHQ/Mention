@@ -1,11 +1,11 @@
 import type React from 'react';
-import { useCallback, useContext } from 'react';
+import { useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { ProfileSong } from '../ProfileSong';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { MediaPickerSheet } from '../MediaPickerSheet';
@@ -21,14 +21,12 @@ export const PinnedMediaSection: React.FC = () => {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const media = useAppearanceStore((state) => state.mySettings?.profileMedia ?? null);
-  const bottomSheet = useContext(BottomSheetContext);
 
   const openPicker = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
-      <MediaPickerSheet currentMedia={media} onClose={() => bottomSheet.openBottomSheet(false)} />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, media]);
+    void presentSheet((surface) => (
+      <MediaPickerSheet currentMedia={media} onClose={() => surface.dismiss()} />
+    ));
+  }, [media]);
 
   if (!media) {
     return (

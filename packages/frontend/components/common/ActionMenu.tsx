@@ -2,9 +2,10 @@ import { memo } from 'react';
 import { View } from 'react-native';
 
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
-import { present, type SurfaceControls } from '@oxy.so/bloom/surfaces';
+import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 
 import { buildMenuGroups, type ActionMenuAction } from '@/components/common/actionMenuGroups';
+import { presentSheet } from '@/utils/sheet';
 
 interface ActionMenuGroupProps {
   actions: ActionMenuAction[];
@@ -59,7 +60,7 @@ let activeMenu: SurfaceControls | null = null;
 export function showActionMenu(request: ActionMenuRequest): void {
   activeMenu?.dismiss();
   let own: SurfaceControls | null = null;
-  void present(
+  void presentSheet(
     (surface) => {
       own = surface;
       activeMenu = surface;
@@ -72,13 +73,7 @@ export function showActionMenu(request: ActionMenuRequest): void {
         </View>
       );
     },
-    {
-      label: request.label,
-      placement: { base: 'bottom', md: 'center' },
-      // The cards own their gutter; the Dialog's default 20px inset would
-      // double it.
-      contentPadding: 0,
-    },
+    { label: request.label },
   ).then(() => {
     if (activeMenu === own) activeMenu = null;
   });

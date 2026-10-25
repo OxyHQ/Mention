@@ -1,12 +1,9 @@
 import { DetailSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Pressable } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, Share, Pressable } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
-import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
@@ -21,7 +18,7 @@ import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { FollowButton } from '@/components/FollowButton';
+import { ProfileCard } from '@/components/ProfileCard';
 import Feed from '@/components/Feed/Feed';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -33,7 +30,12 @@ import { Divider } from '@oxy.so/bloom/divider';
 import { EmptyState } from '@/components/common/EmptyState';
 import { toast } from '@oxy.so/bloom/toast';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
+import {
+  Dialog,
+  useDialogControl,
+  type DialogAction,
+  type DialogControlProps,
+} from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -173,7 +175,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   );
 });
 
-// Feed info bottom sheet content matching Bluesky's DialogInner
+// Feed info dialog content matching Bluesky's DialogInner
 const FeedInfoContent = React.memo(function FeedInfoContent({
   feed,
   subscriberCount,
@@ -200,7 +202,6 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const theme = useTheme();
   const { t } = useTranslation();
   const creatorHandle = profileHandle(feed.owner);
 
@@ -214,17 +215,19 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
             {feed.title}
           </Text>
           {creatorHandle ? (
-            <TouchableOpacity
-              onPress={() => {
-                onClose();
-                router.push(`/${creatorHandle}`);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text className="text-sm leading-relaxed text-muted-foreground">
-                By <Text className="underline text-muted-foreground">{creatorHandle}</Text>
+            <Text className="text-sm leading-relaxed text-muted-foreground">
+              By{' '}
+              <Text
+                className="underline text-muted-foreground"
+                accessibilityRole="link"
+                onPress={() => {
+                  onClose();
+                  router.push(`/${creatorHandle}`);
+                }}
+              >
+                {creatorHandle}
               </Text>
-            </TouchableOpacity>
+            </Text>
           ) : null}
         </View>
         <Button
@@ -251,83 +254,52 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 
       {/* Action buttons */}
       <View className="flex-row gap-2.5 pt-1">
-        <TouchableOpacity
-          className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
-          style={{ backgroundColor: theme.colors.backgroundSecondary }}
+        <FeedSubscribeButton
+          isSubscribed={isSubscribed}
+          isSubscribing={isSubscribing}
           onPress={onToggleSubscribe}
-          disabled={isSubscribing}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityState={{ selected: isSubscribed, busy: isSubscribing }}
-        >
-          {isSubscribing ? (
-            <SpinnerIcon size={16} className="text-foreground" />
-          ) : (
-            <>
-              {isSubscribed ? (
-                <RiCheckLine width={18} height={18} fill={theme.colors.primary} />
-              ) : (
-                <RiAddLine width={18} height={18} fill={theme.colors.text} />
-              )}
-              <Text className="text-[15px] font-medium text-foreground">
-                {isSubscribed ? t('feeds.subscribed') : t('feeds.subscribe')}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
-          style={{
-            backgroundColor: isPinned ? theme.colors.primary : theme.colors.backgroundSecondary,
-          }}
+        />
+        <Button
+          className="flex-1"
+          appearance={isPinned ? 'solid' : 'subtle'}
+          tone={isPinned ? 'accent' : 'neutral'}
+          leadingIcon={isPinned ? RiPushpinFill : RiPushpinLine}
           onPress={onTogglePin}
-          activeOpacity={0.7}
         >
-          {isPinned ? (
-            <RiPushpinFill width={18} height={18} fill="#fff" />
-          ) : (
-            <RiPushpinLine width={18} height={18} fill={theme.colors.text} />
-          )}
-          <Text
-            className="text-[15px] font-medium"
-            style={{ color: isPinned ? '#fff' : theme.colors.text }}
-          >
-            {isPinned ? 'Unpin feed' : 'Pin feed'}
-          </Text>
-        </TouchableOpacity>
+          {isPinned ? 'Unpin feed' : 'Pin feed'}
+        </Button>
       </View>
 
       {/* Owner-only edit */}
       {isOwner ? (
-        <TouchableOpacity
-          className="h-10 rounded-lg flex-row items-center justify-center gap-1.5"
-          style={{ backgroundColor: theme.colors.backgroundSecondary }}
+        <Button
+          appearance="subtle"
+          tone="neutral"
+          leadingIcon={RiEditBoxLine}
           onPress={() => {
             onClose();
             onEdit();
           }}
-          activeOpacity={0.7}
         >
-          <RiEditBoxLine width={18} height={18} fill={theme.colors.text} />
-          <Text className="text-[15px] font-medium text-foreground">Edit feed</Text>
-        </TouchableOpacity>
+          Edit feed
+        </Button>
       ) : null}
 
       {/* Divider + report */}
       <Divider />
       <View className="flex-row items-center justify-between">
         <Text className="text-sm italic text-muted-foreground">Something wrong? Let us know.</Text>
-        <TouchableOpacity
-          className="px-3 h-8 rounded-lg items-center justify-center"
-          style={{ backgroundColor: theme.colors.backgroundSecondary }}
-          activeOpacity={0.7}
+        <Button
+          appearance="subtle"
+          tone="neutral"
+          size="sm"
           onPress={() => {
             toast('Report submitted', { type: 'info' });
             onClose();
           }}
         >
-          <Text className="text-sm font-medium text-foreground">Report feed</Text>
-        </TouchableOpacity>
+          Report feed
+        </Button>
       </View>
     </View>
   );
@@ -335,45 +307,15 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 
 // Profiles tab
 const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: FeedProfile[] }) {
-  const router = useRouter();
   if (members.length === 0) {
     return <EmptyState title="No profiles yet" sticker="feedPageEmpty" />;
   }
 
   return (
     <View style={styles.profilesList}>
-      {members.map((member) => {
-        // Oxy owns identity: the display name lives at `name.displayName` and
-        // falls back to the handle. An unresolved member has no handle at all
-        // (the ghost-handle rule), so it gets no profile link.
-        const handle = profileHandle(member);
-        const name = displayNameOrHandle(member.name?.displayName, handle);
-
-        return (
-          <TouchableOpacity
-            key={member.id}
-            className="flex-row items-center gap-3 py-3"
-            onPress={() => {
-              if (handle) router.push(`/${handle}`);
-            }}
-            disabled={!handle}
-            activeOpacity={0.7}
-          >
-            <Avatar source={member.avatar ?? undefined} size={44} variant={MEDIA_VARIANT_AVATAR} />
-            <View className="flex-1 gap-0.5">
-              <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                {name}
-              </Text>
-              {handle ? (
-                <Text className="text-sm text-muted-foreground" numberOfLines={1}>
-                  {handle}
-                </Text>
-              ) : null}
-            </View>
-            <FollowButton userId={member.id} username={handle || undefined} />
-          </TouchableOpacity>
-        );
-      })}
+      {members.map((member) => (
+        <ProfileCard key={member.id} profile={member} showFollowButton />
+      ))}
     </View>
   );
 });
@@ -400,47 +342,55 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
   );
 });
 
-// Write-review sheet. Presented / dismissed through `sheetRef`; the draft
-// resets whenever the sheet finishes closing (cancel, pan-down or a submit).
-const WriteReviewSheet = React.memo(function WriteReviewSheet({
-  sheetRef,
+// Write-review dialog. Opened and closed through `control`; the draft resets
+// whenever it finishes closing (cancel, a drag down or a submit).
+const WriteReviewDialog = React.memo(function WriteReviewDialog({
+  control,
   onSubmit,
   submitting,
 }: {
-  sheetRef: React.RefObject<BottomSheetRef | null>;
+  control: DialogControlProps;
   onSubmit: (rating: number, text: string) => void;
   submitting: boolean;
 }) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [rating, setRating] = useState<number | null>(null);
   const [text, setText] = useState('');
 
-  const handleSubmit = useCallback(() => {
-    if (rating === null) return;
-    onSubmit(rating, text);
-  }, [rating, text, onSubmit]);
-
-  const handleDismissed = useCallback(() => {
+  const handleClosed = useCallback(() => {
     setRating(null);
     setText('');
   }, []);
 
-  const handleCancel = useCallback(() => {
-    sheetRef.current?.dismiss();
-  }, [sheetRef]);
-
-  const canSubmit = rating !== null && !submitting;
+  const actions = useMemo<DialogAction[]>(
+    () => [
+      { label: 'Cancel', color: 'cancel' },
+      {
+        label: 'Submit',
+        disabled: rating === null,
+        loading: submitting,
+        shouldCloseOnPress: false,
+        onPress: () => {
+          if (rating !== null) onSubmit(rating, text);
+        },
+      },
+    ],
+    [rating, text, submitting, onSubmit],
+  );
 
   return (
-    <BottomSheet ref={sheetRef} onDismiss={handleDismissed} enablePanDownToClose>
-      <View className="gap-4 px-5 pb-8 pt-2">
-        <Text className="text-lg font-bold text-center text-foreground">Write a Review</Text>
-
+    <Dialog
+      control={control}
+      onClose={handleClosed}
+      label="Write a Review"
+      title="Write a Review"
+      placement={{ base: 'bottom', md: 'center' }}
+      actions={actions}
+    >
+      <View className="gap-4">
         <View className="items-center py-1">
           <RatingInput value={rating} onChange={setRating} accessibilityLabel="Rating" />
         </View>
-
         <Textarea
           value={text}
           onValueChange={setText}
@@ -448,33 +398,8 @@ const WriteReviewSheet = React.memo(function WriteReviewSheet({
           maxLength={500}
           rows={4}
         />
-
-        <View className="flex-row gap-2.5">
-          <TouchableOpacity
-            className="flex-1 h-11 rounded-xl border border-border items-center justify-center"
-            onPress={handleCancel}
-            activeOpacity={0.7}
-          >
-            <Text className="text-[15px] font-semibold text-foreground">Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              reviewStyles.submitBtn,
-              { backgroundColor: canSubmit ? theme.colors.primary : theme.colors.border },
-            ]}
-            onPress={handleSubmit}
-            disabled={!canSubmit}
-            activeOpacity={0.7}
-          >
-            {submitting ? (
-              <SpinnerIcon size={16} className="text-tertiary-foreground" />
-            ) : (
-              <Text className="text-[15px] font-bold text-white">Submit</Text>
-            )}
-          </TouchableOpacity>
-        </View>
       </View>
-    </BottomSheet>
+    </Dialog>
   );
 });
 
@@ -482,7 +407,7 @@ const WriteReviewSheet = React.memo(function WriteReviewSheet({
 const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const reviewSheetRef = useRef<BottomSheetRef>(null);
+  const reviewDialog = useDialogControl();
 
   const reviewsQueryKey = useMemo(() => publicQueryKeys.customFeedReviews(feedId), [feedId]);
 
@@ -507,7 +432,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         reviewText: input.reviewText.trim() || undefined,
       }),
     onSuccess: () => {
-      reviewSheetRef.current?.dismiss();
+      reviewDialog.close();
       toast('Review submitted', { type: 'success' });
       void queryClient.invalidateQueries({ queryKey: reviewsQueryKey });
     },
@@ -538,14 +463,15 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 
   return (
     <View className="p-4 gap-1">
-      <TouchableOpacity
-        className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-border mb-2"
-        onPress={() => reviewSheetRef.current?.present()}
-        activeOpacity={0.7}
+      <Button
+        className="mb-2"
+        appearance="outline"
+        tone="neutral"
+        leadingIcon={RiEditBoxLine}
+        onPress={() => reviewDialog.open()}
       >
-        <RiEditBoxLine width={18} height={18} fill={theme.colors.text} />
-        <Text className="text-[15px] font-semibold text-foreground">Write a Review</Text>
-      </TouchableOpacity>
+        Write a Review
+      </Button>
 
       {reviews.length === 0 ? (
         <EmptyState
@@ -606,22 +532,19 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
       )}
 
       {hasNextPage && (
-        <TouchableOpacity
-          className="py-5 items-center justify-center"
+        <Button
+          className="my-3"
+          appearance="plain"
+          tone="accent"
+          loading={isFetchingNextPage}
           onPress={handleLoadMore}
-          disabled={isFetchingNextPage}
-          activeOpacity={0.7}
         >
-          {isFetchingNextPage ? (
-            <SpinnerIcon size={20} className="text-primary" />
-          ) : (
-            <Text className="text-sm font-semibold text-primary">Load more reviews</Text>
-          )}
-        </TouchableOpacity>
+          Load more reviews
+        </Button>
       )}
 
-      <WriteReviewSheet
-        sheetRef={reviewSheetRef}
+      <WriteReviewDialog
+        control={reviewDialog}
         onSubmit={handleSubmitReview}
         submitting={isSubmitting}
       />
@@ -672,15 +595,8 @@ function CustomFeedTimelineScreen() {
     [t],
   );
 
-  const infoSheetRef = useRef<BottomSheetRef>(null);
-
-  const openInfoSheet = useCallback(() => {
-    infoSheetRef.current?.present();
-  }, []);
-
-  const closeInfoSheet = useCallback(() => {
-    infoSheetRef.current?.dismiss();
-  }, []);
+  const infoDialog = useDialogControl();
+  const { open: openInfoSheet, close: closeInfoSheet } = infoDialog;
 
   const onTogglePin = useCallback(() => {
     if (isFeedPinned(pinKey)) unpin(pinKey);
@@ -830,9 +746,14 @@ function CustomFeedTimelineScreen() {
         </ScreenScrollView>
       )}
 
-      {/* Feed info bottom sheet */}
+      {/* Feed info */}
       {feed && (
-        <BottomSheet ref={infoSheetRef} enablePanDownToClose>
+        <Dialog
+          control={infoDialog}
+          label={feed.title}
+          placement={{ base: 'bottom', md: 'center' }}
+          contentPadding={0}
+        >
           <FeedInfoContent
             feed={feed}
             subscriberCount={subscriberCount}
@@ -846,7 +767,7 @@ function CustomFeedTimelineScreen() {
             onShare={onShare}
             onClose={closeInfoSheet}
           />
-        </BottomSheet>
+        </Dialog>
       )}
     </Screen>
   );
@@ -882,13 +803,6 @@ const reviewStyles = StyleSheet.create({
     paddingVertical: 16,
     gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  submitBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
 

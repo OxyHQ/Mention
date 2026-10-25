@@ -10,7 +10,7 @@ import {
 } from '../postInteractions';
 import { PostInteractionsBinder } from '../PostInteractionsBinder';
 import { toast } from '@oxy.so/bloom/toast';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 
 /**
  * The feed row's one command controller (#1103). What it must keep from the
@@ -77,7 +77,8 @@ jest.mock('@/hooks/useFeedQuery', () => ({
 jest.mock('@/components/Profile/pinnedPostQuery', () => ({
   pinnedPostQueryOptions: (viewerId: unknown, profileId: string) => ({ profileId }),
 }));
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(() => Promise.resolve()) }));
+const presentSheetMock = jest.mocked(presentSheet);
 const mockNoteSheets = {
   canWrite: false,
   canRate: false,
@@ -253,48 +254,66 @@ describe('session gate', () => {
 });
 
 describe('bound sheet commands', () => {
-  const sheet = { setBottomSheetContent: jest.fn(), openBottomSheet: jest.fn() };
   const bound = () =>
     capture((probe) => (
       <PostInteractionsProvider>
-        <BottomSheetContext.Provider value={sheet as never}>
-          <PostInteractionsBinder />
-          {probe}
-        </BottomSheetContext.Provider>
+        <PostInteractionsBinder />
+        {probe}
       </PostInteractionsProvider>
     ));
 
   beforeEach(() => {
     mockNoteSheets.canWrite = false;
+    presentSheetMock.mockClear();
   });
 
   // The sheet's content is `<Suspense><Sheet onClose /></Suspense>`; closing it
-  // is the sheet's own callback, so the test presses that.
+  // is the sheet's own callback, so the test presses that and checks the
+  // surface it was presented on is the one dismissed.
   const closeShownSheet = () => {
-    const shown = sheet.setBottomSheetContent.mock.calls.at(-1)?.[0] as React.ReactElement<{
+    const render = presentSheetMock.mock.calls.at(-1)?.[0];
+    const surface = { dismiss: jest.fn(), present: jest.fn() };
+    const shown = render?.(surface) as React.ReactElement<{
       children: React.ReactElement<{ onClose: () => void }>;
     }>;
     shown.props.children.props.onClose();
+    return surface;
   };
 
-  it('opens sources in the one sheet, ignores an empty list, and clears it on close', () => {
+  it('opens sources in a sheet, ignores an empty list, and closes it', () => {
     const commands = bound();
     commands.openSources([]);
-    expect(sheet.setBottomSheetContent).not.toHaveBeenCalled();
+    expect(presentSheetMock).not.toHaveBeenCalled();
     commands.openSources([{ url: 'https://example.test' }]);
-    expect(sheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
-    expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(true);
-    closeShownSheet();
-    expect(sheet.setBottomSheetContent).toHaveBeenLastCalledWith(null);
-    expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(presentSheetMock).toHaveBeenCalledTimes(1);
+    expect(closeShownSheet().dismiss).toHaveBeenCalled();
   });
 
-  it('opens insights in the one sheet, and closes it', () => {
+  it('opens insights in a sheet, and closes it', () => {
     bound().openInsights('p1');
-    expect(sheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
-    expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(true);
-    closeShownSheet();
-    expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(presentSheetMock).toHaveBeenCalledTimes(1);
+    expect(closeShownSheet().dismiss).toHaveBeenCalled();
+  });
+
+  it('unbinds when the binder unmounts', () => {
+    let interactions: PostInteractions | undefined;
+    const Probe = () => {
+      interactions = usePostInteractions();
+      return null;
+    };
+    const tree = (withBinder: boolean) => (
+      <PostInteractionsProvider>
+        {withBinder ? <PostInteractionsBinder /> : null}
+        <Probe />
+      </PostInteractionsProvider>
+    );
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(tree(true));
+    });
+    act(() => renderer.update(tree(false)));
+    interactions?.openInsights('p1');
+    expect(presentSheetMock).not.toHaveBeenCalled();
   });
 
   it('without a binder, a sheet command is a logged no-op', () => {
@@ -302,7 +321,7 @@ describe('bound sheet commands', () => {
       <PostInteractionsProvider>{probe}</PostInteractionsProvider>
     ));
     expect(() => commands.openInsights('p1')).not.toThrow();
-    expect(sheet.setBottomSheetContent).not.toHaveBeenCalled();
+    expect(presentSheetMock).not.toHaveBeenCalled();
   });
 
   it("hands the post's permalink to Allo's share picker", () => {

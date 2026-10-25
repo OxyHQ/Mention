@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useState } from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
@@ -8,10 +9,10 @@ import { displayNameOrHandle } from '@/utils/displayName';
 
 interface CollabAcceptSheetProps {
   inviter: PostUser;
-  onAccept: () => void;
-  onDecline: () => void;
+  /** Settles once the answer is sent; the buttons stay disabled until then. */
+  onAccept: () => Promise<unknown>;
+  onDecline: () => Promise<unknown>;
   onClose: () => void;
-  loading?: boolean;
 }
 
 const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
@@ -19,9 +20,17 @@ const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
   onAccept,
   onDecline,
   onClose,
-  loading = false,
 }) => {
   const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const answer = (send: () => Promise<unknown>) => async () => {
+    setLoading(true);
+    try {
+      await send();
+    } finally {
+      setLoading(false);
+    }
+  };
   const inviterHandle = getNormalizedUserHandle(inviter);
   const inviterName = displayNameOrHandle(
     inviter.name?.displayName,
@@ -57,10 +66,10 @@ const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
         </Text>
       </View>
       <View className="gap-2 mt-2">
-        <Button onPress={onAccept} disabled={loading}>
+        <Button onPress={answer(onAccept)} disabled={loading}>
           {t('collab.accept', { defaultValue: 'Accept' })}
         </Button>
-        <Button appearance="subtle" tone="neutral" onPress={onDecline} disabled={loading}>
+        <Button appearance="subtle" tone="neutral" onPress={answer(onDecline)} disabled={loading}>
           {t('collab.decline', { defaultValue: 'Decline' })}
         </Button>
         <Button appearance="plain" tone="neutral" onPress={onClose} disabled={loading}>

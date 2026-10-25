@@ -2,31 +2,31 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.78,
-      "covered": 13258,
-      "total": 27177
+      "pct": 48.77,
+      "covered": 13221,
+      "total": 27108
     },
     "branches": {
-      "pct": 44.49,
-      "covered": 8979,
-      "total": 20180
+      "pct": 44.52,
+      "covered": 8967,
+      "total": 20138
     },
     "functions": {
-      "pct": 43.6,
-      "covered": 3077,
-      "total": 7056
+      "pct": 43.5,
+      "covered": 3087,
+      "total": 7096
     },
     "lines": {
-      "pct": 49.55,
-      "covered": 12012,
-      "total": 24240
+      "pct": 49.54,
+      "covered": 11971,
+      "total": 24161
     }
   },
   "pins": {
     "components/Feed/PostInteractionsBinder.tsx": {
-      "statements": 93,
+      "statements": 95,
       "branches": 100,
-      "functions": 78,
+      "functions": 87,
       "lines": 100
     },
     "components/Feed/PostMenuContent.tsx": {
@@ -44,7 +44,7 @@
     "components/Feed/postMenuActions.tsx": {
       "statements": 87,
       "branches": 83,
-      "functions": 57,
+      "functions": 61,
       "lines": 94
     },
     "components/providers/AccountSwitchReset.tsx": {
@@ -677,12 +677,6 @@
       "functions": 0,
       "lines": 0
     },
-    "hooks/useSourcesSheet.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
     "hooks/useSupervisionState.ts": {
       "statements": 100,
       "branches": 100,
@@ -766,24 +760,6 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
-    },
-    "lib/SafeAreaViewInterop.native.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/SafeAreaViewInterop.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/SafeAreaViewInterop.web.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
     },
     "lib/actorCache.ts": {
       "statements": 100,
@@ -1798,6 +1774,12 @@
       "branches": 50,
       "functions": 100,
       "lines": 52
+    },
+    "utils/sheet.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/storage.ts": {
       "statements": 100,

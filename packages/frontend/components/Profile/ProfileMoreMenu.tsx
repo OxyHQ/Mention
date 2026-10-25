@@ -1,4 +1,4 @@
-import { useContext, type ReactElement, type ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { ReportModal } from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
@@ -98,7 +98,6 @@ export function ProfileMoreMenu({
   const theme = useTheme();
   const { t } = useTranslation();
   const { oxyServices, canUsePrivateApi, user } = useAuth();
-  const bottomSheet = useContext(BottomSheetContext);
 
   if (!profileData || (!canUsePrivateApi && !leadingItems)) return null;
 
@@ -157,10 +156,10 @@ export function ProfileMoreMenu({
   };
 
   const handleReport = () => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <ReportModal
         visible={true}
-        onClose={() => bottomSheet.openBottomSheet(false)}
+        onClose={() => surface.dismiss()}
         onSubmit={async (categories, details) => {
           const success = await reportService.reportUser(profileData.id, categories, details);
           if (success) {
@@ -176,31 +175,28 @@ export function ProfileMoreMenu({
             });
           }
         }}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
+      />
+    ));
   };
 
   const handleAddToList = () => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <AddToListSheet
         targetUserId={profileData.id}
         targetLabel={`@${displayUsername}`}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
+        onClose={() => surface.dismiss()}
+      />
+    ));
   };
 
   const handleAddToStarterPack = () => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <AddToStarterPackSheet
         targetUserId={profileData.id}
         targetLabel={`@${displayUsername}`}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
+        onClose={() => surface.dismiss()}
+      />
+    ));
   };
 
   const label = t('profile.moreOptions', {

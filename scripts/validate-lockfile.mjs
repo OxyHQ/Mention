@@ -130,17 +130,6 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   'vite -> lightningcss@^1.32.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
   '@alia.onl/sdk -> react-native-css@^3.0.7':
     'The override installs 3.1.0-rc.0, the release candidate of the next 3.x minor, which semver ranges exclude only because it is a prerelease. It is the single copy nativewind 5.0.0-rc.0 needs and the exact version @oxy.so/bloom 10.17 depends on, so the SDK draws through the same react-native-css as the rest of the app.',
-  // expo-share-intent 8.0.1 is the latest release and still names SDK 57. Without
-  // these overrides bun nests a second expo 57 (and its autolinking) under it,
-  // which is a duplicate native module, not a compatibility fallback.
-  'expo-share-intent -> expo@^57':
-    'A peer range only: the package imports nothing from `expo` itself, and the app has exactly one Expo, the SDK 58 one its native modules are built against.',
-  'expo-share-intent -> expo-constants@~57.0.3':
-    'It reads only `Constants.expoConfig` (its own plugin options), which SDK 58 keeps unchanged.',
-  'expo-share-intent -> expo-linking@~57.0.1':
-    'It only subscribes to incoming URLs through expo-linking; SDK 58 keeps that API, and on iOS it reads the share URL from the JS side, so the scene life cycle does not route around it.',
-  'expo-share-intent -> @expo/config-plugins@~57.0.2':
-    'Used only by its config plugin (Info.plist, entitlements, the share-extension Xcode target, Android intent filters); `expo prebuild --clean` for iOS and Android runs it on 58.0.9 without errors.',
 };
 
 /**

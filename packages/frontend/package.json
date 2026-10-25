@@ -58,6 +58,7 @@
       "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/empty-state$": "<rootDir>/test-support/bloomEmptyState.js",
       "^@oxy.so/bloom/screen$": "<rootDir>/test-support/bloomScreen.js",
+      "^@oxy.so/bloom/surfaces$": "<rootDir>/test-support/bloomSurfaces.js",
       "^@oxy.so/bloom/dropdown-menu$": "<rootDir>/test-support/bloomDropdownMenu.js",
       "^@oxy.so/bloom/typography$": "<rootDir>/test-support/bloomTypography.js",
       "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js"
@@ -157,7 +158,7 @@
     "expo-notifications": "~58.1.5",
     "expo-router": "~58.0.24",
     "expo-secure-store": "~58.0.2",
-    "expo-share-intent": "^8.0.1",
+    "expo-share-intent": "^9.0.0",
     "expo-splash-screen": "~58.0.10",
     "expo-sqlite": "~58.0.13",
     "expo-system-ui": "~58.0.6",

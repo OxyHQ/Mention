@@ -2,6 +2,7 @@ import { PostVisibility } from '@mention/shared-types';
 import type { HydratedPost } from '@mention/shared-types';
 
 import { buildPostMenuActions, type PostMenuDeps, type PostMenuParams } from '../postMenuActions';
+import { presentSheet } from '@/utils/sheet';
 
 /**
  * Which actions the ⋯ menu offers, and for whom. The menu is built on press
@@ -18,6 +19,7 @@ const mockStore = {
   getPostFromDb: jest.fn(() => null),
 };
 jest.mock('@/stores/postsStore', () => ({ usePostsStore: { getState: () => mockStore } }));
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(() => Promise.resolve()) }));
 
 const mockFeedService = {
   deletePost: jest.fn(async () => undefined),
@@ -104,7 +106,9 @@ function makePost(
   } as HydratedPost;
 }
 
-const bottomSheet = { setBottomSheetContent: jest.fn(), openBottomSheet: jest.fn() };
+const presentSheetMock = jest.mocked(presentSheet);
+/** The surface each presented sheet is rendered with. */
+const surface = { dismiss: jest.fn(), present: jest.fn() };
 const router = { push: jest.fn() };
 const queryClient = { invalidateQueries: jest.fn() };
 const back = jest.fn();
@@ -116,7 +120,6 @@ const deps = {
   canUsePrivateApi: true,
   router,
   back,
-  bottomSheet,
   queryClient,
 } as unknown as PostMenuDeps;
 
@@ -359,16 +362,17 @@ describe('what the actions do', () => {
       'lanes.postActions.moveToLane',
       'postActions.replyOptions',
     ]) {
-      bottomSheet.setBottomSheetContent.mockClear();
+      presentSheetMock.mockClear();
       find(actions, label).onPress();
-      expect(bottomSheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
-      expect(bottomSheet.openBottomSheet).toHaveBeenLastCalledWith(true);
+      expect(presentSheetMock).toHaveBeenCalledTimes(1);
+      expect(presentSheetMock.mock.calls[0][0](surface)).toBeTruthy();
     }
     const strangerActions = build({ viewPost: makePost() });
     for (const label of ['postActions.reportPost', 'lists.addTo.menuItem']) {
-      bottomSheet.setBottomSheetContent.mockClear();
+      presentSheetMock.mockClear();
       find(strangerActions, label).onPress();
-      expect(bottomSheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
+      expect(presentSheetMock).toHaveBeenCalledTimes(1);
+      expect(presentSheetMock.mock.calls[0][0](surface)).toBeTruthy();
     }
   });
 
@@ -425,11 +429,12 @@ describe('what the actions do', () => {
     expect(onOpenSources).toHaveBeenCalled();
   });
 
-  /** The element a sheet action handed the bottom sheet, unwrapped from its Suspense. */
+  /** The element a sheet action presented, unwrapped from its Suspense. */
   function sheetProps<P>(label: string, actions: ReturnType<typeof build>): P {
-    bottomSheet.setBottomSheetContent.mockClear();
+    presentSheetMock.mockClear();
+    surface.dismiss.mockClear();
     find(actions, label).onPress();
-    const suspense = bottomSheet.setBottomSheetContent.mock.calls[0][0] as {
+    const suspense = presentSheetMock.mock.calls[0][0](surface) as {
       props: { children: { props: P } };
     };
     return suspense.props.children.props;
@@ -448,7 +453,7 @@ describe('what the actions do', () => {
     await picker.onSelect('l3');
     expect(mockToast).toHaveBeenCalledWith('lanes.postActions.moveFailed', { type: 'error' });
     picker.onClose();
-    expect(bottomSheet.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(surface.dismiss).toHaveBeenCalled();
   });
 
   it('writes reply and quote settings chosen in the sheet', async () => {

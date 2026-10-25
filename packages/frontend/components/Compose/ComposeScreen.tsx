@@ -4,7 +4,8 @@ import { homiioCaseFromText } from '@mention/shared-types/homiio';
 import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
-import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import type React from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
@@ -16,7 +17,6 @@ import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/util
 import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
 import * as ExpoLocation from 'expo-location';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
@@ -62,7 +62,7 @@ import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/replyPermission';
@@ -98,7 +98,6 @@ import {
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
-import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
@@ -211,7 +210,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const theme = useTheme();
   const haptic = useHaptics();
   const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
-  const bottomSheet = React.useContext(BottomSheetContext);
   const { drafts, saveDraft, deleteDraft } = useDrafts();
   const discardControl = useDialogControl();
   const clearAllControl = useDialogControl();
@@ -657,7 +655,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
-    bottomSheet,
     t,
     toast,
   });
@@ -770,16 +767,39 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const urlUtils = useUrlUtils();
   const { isValidSourceUrl, sanitizeSourcesForSubmit } = urlUtils;
 
-  // Sources sheet management
-  const sourcesSheet = useSourcesSheet({
-    sources,
-    addSource,
-    updateSourceField,
-    removeSourceEntry,
-    isValidSourceUrl,
-    bottomSheet,
+  // The sources sheet edits the main post's sources (`threadId: null`) or one
+  // thread item's. A Dialog mounted here, not a presented surface, because the
+  // sheet is controlled: every row typed or added has to reach it.
+  const [sourcesSheet, setSourcesSheet] = useState<{ open: boolean; threadId: string | null }>({
+    open: false,
+    threadId: null,
   });
-  const { openSourcesSheet } = sourcesSheet;
+  const openSourcesSheet = useCallback(() => setSourcesSheet({ open: true, threadId: null }), []);
+  const handleThreadSourcesPress = useCallback(
+    (threadId: string) => setSourcesSheet({ open: true, threadId }),
+    [],
+  );
+  const closeSourcesSheet = useCallback(
+    () => setSourcesSheet((current) => ({ ...current, open: false })),
+    [],
+  );
+  const sourcesThreadId = sourcesSheet.threadId;
+  const sourcesSheetProps =
+    sourcesThreadId === null
+      ? {
+          sources,
+          onAdd: addSource,
+          onUpdate: updateSourceField,
+          onRemove: removeSourceEntry,
+        }
+      : {
+          sources: threadItems.find((item) => item.id === sourcesThreadId)?.sources ?? [],
+          onAdd: () =>
+            addThreadSource(sourcesThreadId, { id: generateSourceId(), title: '', url: '' }),
+          onUpdate: (id: string, field: 'url' | 'title', value: string) =>
+            updateThreadSourceField(sourcesThreadId, id, field, value),
+          onRemove: (id: string) => removeThreadSource(sourcesThreadId, id),
+        };
 
   // Link detection and preview (must be before useAttachmentOrder)
   const linkDetection = useLinkDetection(postContent);
@@ -1749,10 +1769,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   const handleThreadGifPress = useCallback(
     (threadId: string) => {
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
           <GifPickerSheet
-            onClose={() => bottomSheet.openBottomSheet(false)}
+            onClose={() => surface.dismiss()}
             onSelectGif={async (gifUrl: string, gifId: string) => {
               try {
                 const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
@@ -1765,11 +1785,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               }
             }}
           />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+        </Suspense>
+      ));
     },
-    [bottomSheet, addThreadMedia, t],
+    [addThreadMedia, t],
   );
 
   /**
@@ -1817,14 +1836,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           : '';
       };
 
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
           <AltTextSheet
             imageUrl={getFileDownloadUrl(mediaItem.id)}
             languageTags={allTags(variants)}
             initialTag={activeTag}
             getAlt={readAlt}
-            onClose={() => bottomSheet.openBottomSheet(false)}
+            onClose={() => surface.dismiss()}
             onSave={(altByTag: Record<string, string>) => {
               for (const [tag, alt] of Object.entries(altByTag)) {
                 if (tag === primaryTag) {
@@ -1835,19 +1854,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               }
             }}
           />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+        </Suspense>
+      ));
     },
-    [
-      bottomSheet,
-      getFileDownloadUrl,
-      variants,
-      activeTag,
-      setMediaAlt,
-      setThreadMediaAlt,
-      setVariantMediaAlt,
-    ],
+    [getFileDownloadUrl, variants, activeTag, setMediaAlt, setThreadMediaAlt, setVariantMediaAlt],
   );
 
   const openThreadAltTextSheet = useCallback(
@@ -1855,56 +1865,18 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [openSharedAltTextSheet],
   );
 
-  const handleThreadEmojiPress = useCallback(
-    (threadId: string) => {
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <EmojiPickerSheet
-            onClose={() => bottomSheet.openBottomSheet(false)}
-            onSelectEmoji={(emoji: string) => {
-              threadTextInputRefs.current[threadId]?.insertTextAtCursor(emoji);
-            }}
-          />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
-    },
-    [bottomSheet],
-  );
-
-  const handleThreadSourcesPress = useCallback(
-    (threadId: string) => {
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <SourcesSheet
-            sources={threadItemsRef.current.find((t) => t.id === threadId)?.sources || []}
-            onAdd={() => {
-              const newSource = { id: generateSourceId(), title: '', url: '' };
-              addThreadSource(threadId, newSource);
-            }}
-            onUpdate={(id: string, field: 'url' | 'title', value: string) => {
-              updateThreadSourceField(threadId, id, field, value);
-            }}
-            onRemove={(id: string) => {
-              removeThreadSource(threadId, id);
-            }}
-            onClose={() => bottomSheet.openBottomSheet(false)}
-            validateUrl={isValidSourceUrl}
-          />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
-    },
-    [
-      bottomSheet,
-      threadItemsRef,
-      generateSourceId,
-      addThreadSource,
-      updateThreadSourceField,
-      removeThreadSource,
-      isValidSourceUrl,
-    ],
-  );
+  const handleThreadEmojiPress = useCallback((threadId: string) => {
+    void presentSheet((surface) => (
+      <Suspense fallback={null}>
+        <EmojiPickerSheet
+          onClose={() => surface.dismiss()}
+          onSelectEmoji={(emoji: string) => {
+            threadTextInputRefs.current[threadId]?.insertTextAtCursor(emoji);
+          }}
+        />
+      </Suspense>
+    ));
+  }, []);
 
   const openThreadArticleEditor = useCallback(
     (threadId: string) => {
@@ -1930,9 +1902,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   const handleThreadRoomPress = useCallback(
     (threadId: string) => {
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <CreateRoomSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onClose={() => surface.dismiss()}
           mode="embed"
           onRoomCreated={(createdRoom) => {
             setThreadRoom(threadId, {
@@ -1943,11 +1915,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               host: createdRoom.host ?? undefined,
             });
           }}
-        />,
-      );
-      bottomSheet.openBottomSheet(true);
+        />
+      ));
     },
-    [bottomSheet, setThreadRoom],
+    [setThreadRoom],
   );
 
   const handleThreadPollTitleChange = useCallback(
@@ -2048,7 +2019,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // takes focus once the sheet has released it.
   const handleResumeDraft = useCallback(
     (draft: Draft) => {
-      bottomSheet.openBottomSheet(false);
       loadDraft(draft);
       setFocusedItemId(MAIN_ITEM_ID);
       requestAnimationFrame(() => {
@@ -2057,7 +2027,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         )?.focus();
       });
     },
-    [bottomSheet, loadDraft, variantTextInputRefs, threadTextInputRefs],
+    [loadDraft, variantTextInputRefs, threadTextInputRefs],
   );
 
   const { t: tCompose } = useTranslation();
@@ -2121,20 +2091,19 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   }, []);
 
   const handleCommunityPress = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
         <CommunityPickerSheet
           selectedCommunityId={community?.id ?? null}
           onSelect={(next) => setCommunity(next ? { id: next.id, username: next.username } : null)}
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onClose={() => surface.dismiss()}
         />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, community?.id]);
+      </Suspense>
+    ));
+  }, [community?.id]);
 
   const handleLanePress = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
         <LanePickerSheet
           selectedLaneId={laneId}
@@ -2145,12 +2114,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           // payload would drop is not this post's publisher, and offering its lanes
           // would end in a lane the real author does not own.
           publishAs={effectiveMainPublishAs}
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onClose={() => surface.dismiss()}
         />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, laneId, effectiveMainPublishAs]);
+      </Suspense>
+    ));
+  }, [laneId, effectiveMainPublishAs]);
 
   /**
    * The same picker for one thread box. Only reachable in beast mode, where the
@@ -2161,19 +2129,18 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const handleThreadLanePress = useCallback(
     (threadId: string) => {
       const item = threadItems.find((entry) => entry.id === threadId);
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
           <LanePickerSheet
             selectedLaneId={item?.laneId ?? null}
             onSelect={(next) => setThreadLaneId(threadId, next)}
             publishAs={threadPublishAsEligible ? (item?.publishAs ?? null) : null}
-            onClose={() => bottomSheet.openBottomSheet(false)}
+            onClose={() => surface.dismiss()}
           />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+        </Suspense>
+      ));
     },
-    [bottomSheet, threadItems, setThreadLaneId, threadPublishAsEligible],
+    [threadItems, setThreadLaneId, threadPublishAsEligible],
   );
 
   /**
@@ -2223,10 +2190,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
         <GifPickerSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onClose={() => surface.dismiss()}
           onSelectGif={async (gifUrl: string, gifId: string) => {
             try {
               const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
@@ -2240,10 +2207,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             }
           }}
         />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, setMediaIds, t]);
+      </Suspense>
+    ));
+  }, [setMediaIds, t]);
 
   const openAltTextSheet = useCallback(
     (mediaItem: ComposerMediaItem) => openSharedAltTextSheet(MAIN_ITEM_ID, mediaItem),
@@ -2258,38 +2224,36 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const openOwnAltTextSheet = useCallback(
     (itemId: string, mediaItem: ComposerMediaItem) => {
       const tag = activeTag;
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
           <AltTextSheet
             imageUrl={getFileDownloadUrl(mediaItem.id)}
             languageTags={[tag]}
             initialTag={tag}
             getAlt={() => mediaItem.alt ?? ''}
-            onClose={() => bottomSheet.openBottomSheet(false)}
+            onClose={() => surface.dismiss()}
             onSave={(altByTag: Record<string, string>) =>
               setVariantMediaAlt(tag, itemId, mediaItem.id, altByTag[tag] ?? '')
             }
           />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+        </Suspense>
+      ));
     },
-    [bottomSheet, getFileDownloadUrl, activeTag, setVariantMediaAlt],
+    [getFileDownloadUrl, activeTag, setVariantMediaAlt],
   );
 
   const handleMainEmojiPress = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
         <EmojiPickerSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onClose={() => surface.dismiss()}
           onSelectEmoji={(emoji: string) => {
             mainTextInputRef.current?.insertTextAtCursor(emoji);
           }}
         />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet]);
+      </Suspense>
+    ));
+  }, []);
 
   // ── Languages ─────────────────────────────────────────────────────────────
 
@@ -2363,41 +2327,34 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     (currentTag: string | null) => {
       const isPrimary = currentTag === variants.primaryTag;
       const isSecondaryTab = currentTag !== null && !isPrimary;
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <LanguagePickerSheet
-            usedTags={allTags(variants)}
-            currentTag={currentTag ?? undefined}
-            onSelect={(tag: string) => {
-              if (currentTag === null) {
-                addLanguage(tag);
-              } else if (isPrimary) {
-                setPrimaryLanguage(tag);
-              } else {
-                renameLanguage(currentTag, tag);
-              }
-            }}
-            onMakeMain={isSecondaryTab ? () => promoteToPrimary(currentTag) : undefined}
-            onRemove={isSecondaryTab ? () => removeLanguage(currentTag) : undefined}
-            onClose={() => bottomSheet.openBottomSheet(false)}
-          />
-        </Suspense>,
+      void presentSheet(
+        (surface) => (
+          <Suspense fallback={null}>
+            <LanguagePickerSheet
+              usedTags={allTags(variants)}
+              currentTag={currentTag ?? undefined}
+              onSelect={(tag: string) => {
+                if (currentTag === null) {
+                  addLanguage(tag);
+                } else if (isPrimary) {
+                  setPrimaryLanguage(tag);
+                } else {
+                  renameLanguage(currentTag, tag);
+                }
+              }}
+              onMakeMain={isSecondaryTab ? () => promoteToPrimary(currentTag) : undefined}
+              onRemove={isSecondaryTab ? () => removeLanguage(currentTag) : undefined}
+              onClose={() => surface.dismiss()}
+            />
+          </Suspense>
+        ),
         // LanguagePickerSheet owns the vertical scroll with its FlatList. Bloom's
         // internal ScrollView must stay out of this sheet or Android has two
         // competing vertical gesture owners and rows can become hard to select.
         { scrollable: false },
       );
-      bottomSheet.openBottomSheet(true);
     },
-    [
-      bottomSheet,
-      variants,
-      addLanguage,
-      removeLanguage,
-      renameLanguage,
-      setPrimaryLanguage,
-      promoteToPrimary,
-    ],
+    [variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage, promoteToPrimary],
   );
 
   /**
@@ -2408,10 +2365,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * whole-batch decision like the schedule and the reply permission beside it,
    * so they live with those — and the sheet keeps the strip's one irreplaceable
    * route: tapping the ACTIVE language opens the picker, which is the only way
-   * to reach `setPrimaryLanguage`.
+   * to reach `setPrimaryLanguage`. The picker takes this sheet's place, so the
+   * list never sits stale underneath it.
    */
   const openLanguageSheet = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
         <ComposeLanguageSheet
           primaryTag={variants.primaryTag}
@@ -2419,16 +2377,20 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           activeTag={activeTag}
           canAdd={canAddLanguage(variants)}
           onSelect={setActiveTag}
-          onEdit={openLanguagePicker}
-          // Do not hand Item's native press event to openLanguagePicker. Null is
-          // the explicit ADD command; a string means "replace this tag".
-          onAdd={() => openLanguagePicker(null)}
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onEdit={(tag: string) => {
+            surface.dismiss();
+            openLanguagePicker(tag);
+          }}
+          // Null is the explicit ADD command; a string means "replace this tag".
+          onAdd={() => {
+            surface.dismiss();
+            openLanguagePicker(null);
+          }}
+          onClose={() => surface.dismiss()}
         />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, variants, activeTag, setActiveTag, openLanguagePicker]);
+      </Suspense>
+    ));
+  }, [variants, activeTag, setActiveTag, openLanguagePicker]);
 
   /** The body of one composer item in the PRIMARY language — what a variant translates. */
   const primaryTextForItem = useCallback(
@@ -2547,38 +2509,33 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const handleVariantGifPress = useCallback(
     (itemId: string) => {
       const tag = activeTag;
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
           <GifPickerSheet
-            onClose={() => bottomSheet.openBottomSheet(false)}
+            onClose={() => surface.dismiss()}
             onSelectGif={async (_gifUrl: string, gifId: string) => {
               appendVariantMedia(tag, itemId, [{ id: gifId, type: 'gif' }]);
               toast(t('GIF attached'), { type: 'success' });
             }}
           />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+        </Suspense>
+      ));
     },
-    [activeTag, appendVariantMedia, bottomSheet, t],
+    [activeTag, appendVariantMedia, t],
   );
 
-  const handleVariantEmojiPress = useCallback(
-    (itemId: string) => {
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <EmojiPickerSheet
-            onClose={() => bottomSheet.openBottomSheet(false)}
-            onSelectEmoji={(emoji: string) =>
-              variantTextInputRefs.current[itemId]?.insertTextAtCursor(emoji)
-            }
-          />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
-    },
-    [bottomSheet],
-  );
+  const handleVariantEmojiPress = useCallback((itemId: string) => {
+    void presentSheet((surface) => (
+      <Suspense fallback={null}>
+        <EmojiPickerSheet
+          onClose={() => surface.dismiss()}
+          onSelectEmoji={(emoji: string) =>
+            variantTextInputRefs.current[itemId]?.insertTextAtCursor(emoji)
+          }
+        />
+      </Suspense>
+    ));
+  }, []);
 
   const handleVariantTextInputRef = useCallback(
     (itemId: string, el: MentionTextInputHandle | null) => {
@@ -2630,9 +2587,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   );
 
   const handleMainRoomPress = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <CreateRoomSheet
-        onClose={() => bottomSheet.openBottomSheet(false)}
+        onClose={() => surface.dismiss()}
         mode="embed"
         onRoomCreated={(createdRoom) => {
           attachRoom({
@@ -2643,22 +2600,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             host: createdRoom.host ?? undefined,
           });
         }}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, attachRoom]);
+      />
+    ));
+  }, [attachRoom]);
 
   const openPodcastPicker = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
-        <PodcastPickerSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSelect={savePodcast}
-        />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, savePodcast]);
+        <PodcastPickerSheet onClose={() => surface.dismiss()} onSelect={savePodcast} />
+      </Suspense>
+    ));
+  }, [savePodcast]);
 
   /**
    * Attach one of `effectiveMainPublishAs`'s own Mention jobs to the ROOT
@@ -2669,17 +2621,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    */
   const openJobPicker = useCallback(() => {
     if (!effectiveMainPublishAs) return;
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
         <JobPickerSheet
           employer={effectiveMainPublishAs}
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onClose={() => surface.dismiss()}
           onSelect={saveJob}
         />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, effectiveMainPublishAs, saveJob]);
+      </Suspense>
+    ));
+  }, [effectiveMainPublishAs, saveJob]);
 
   /**
    * The same picker, answering for one thread box. A show is per POST — the
@@ -2688,17 +2639,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    */
   const openThreadPodcastPicker = useCallback(
     (threadId: string) => {
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
           <PodcastPickerSheet
-            onClose={() => bottomSheet.openBottomSheet(false)}
+            onClose={() => surface.dismiss()}
             onSelect={(next) => setThreadPodcast(threadId, next)}
           />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+        </Suspense>
+      ));
     },
-    [bottomSheet, setThreadPodcast],
+    [setThreadPodcast],
   );
 
   const handleSensitiveToggle = useCallback(() => {
@@ -2758,13 +2708,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       {/* `bg-card` is not decoration: the top inset is this view's own
           padding, and without a colour it shows the window background — a WHITE
           band above the composer on Android, with the light status-bar icons
-          below invisible against it. The loading state's SafeAreaView further
+          below invisible against it. The loading state's view further
           down paints it too; the signed-out state's PageHeader pads and paints
           the inset itself. */}
       {/* The BOTTOM inset too: the shell's bottom bar is never drawn over the
           composer (`app/(app)/_layout.tsx`), so the footer row sits on the
           screen edge and has to clear the gesture area itself. */}
-      <SafeAreaView className="flex-1 bg-card" edges={['top', 'bottom']}>
+      <View className="flex-1 bg-card pt-safe pb-safe">
         {supervision.supervised && (
           <Text className="px-4 py-3 text-sm text-muted-foreground">{t('safety.privatePost')}</Text>
         )}
@@ -2843,16 +2793,18 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   icon={<RiDraftLine width={20} height={20} fill={theme.colors.text} />}
                   style={styles.iconBtn}
                   onPress={() => {
-                    bottomSheet.setBottomSheetContent(
+                    void presentSheet((surface) => (
                       <Suspense fallback={null}>
                         <UnpublishedSheet
-                          onClose={() => bottomSheet.openBottomSheet(false)}
-                          onLoadDraft={handleResumeDraft}
+                          onClose={() => surface.dismiss()}
+                          onLoadDraft={(draft: Draft) => {
+                            surface.dismiss();
+                            handleResumeDraft(draft);
+                          }}
                           currentDraftId={currentDraftId}
                         />
-                      </Suspense>,
-                    );
-                    bottomSheet.openBottomSheet(true);
+                      </Suspense>
+                    ));
                   }}
                   accessibilityLabel={t('compose.openDrafts.a11y', {
                     defaultValue: 'Open drafts and scheduled posts',
@@ -3911,6 +3863,22 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onAlsoPostToProfileChange={publishAsCanRepost ? setAlsoPostToProfile : undefined}
         />
 
+        <Dialog
+          open={sourcesSheet.open}
+          onClose={closeSourcesSheet}
+          label={t('compose.sources.heading', { defaultValue: 'Sources' })}
+          placement={{ base: 'bottom', md: 'center' }}
+          contentPadding={0}
+        >
+          <Suspense fallback={null}>
+            <SourcesSheet
+              {...sourcesSheetProps}
+              onClose={closeSourcesSheet}
+              validateUrl={isValidSourceUrl}
+            />
+          </Suspense>
+        </Dialog>
+
         {/* Save draft / discard prompt */}
         <Dialog
           control={discardControl}
@@ -4028,7 +3996,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             ]}
           />
         )}
-      </SafeAreaView>
+      </View>
     </MentionSearchContext.Provider>
   );
 };
@@ -4048,9 +4016,9 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <SafeAreaView className="flex-1 bg-card" edges={['top']}>
+      <View className="flex-1 bg-card pt-safe">
         <FormSkeleton />
-      </SafeAreaView>
+      </View>
     );
   }
 

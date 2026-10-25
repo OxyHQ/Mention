@@ -51,7 +51,6 @@ jest.mock('@/services/communityService', () => ({ communityService: {} }));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
 jest.mock('@/hooks/useCommunitiesPreview', () => ({ useCommunitiesPreview: () => true }));
 let mockOperates = false;
 const mockUseOperatesAccount = jest.fn((_params: unknown) => mockOperates);

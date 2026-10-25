@@ -1,6 +1,6 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
-import { Suspense, lazy, useCallback, useContext, useEffect, useRef } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
@@ -22,7 +22,7 @@ import { shareLink } from '@/utils/shareLink';
 import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { reportService } from '@/services/reportService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 const ReportModal = lazy(() =>
@@ -82,7 +82,6 @@ export default function JobDetailScreen() {
   const idOrSlug = String(id);
   const { t } = useTranslation();
   const { user, oxyServices } = useAuth();
-  const bottomSheet = useContext(BottomSheetContext);
   const vocabulary = useJobVocabulary();
 
   const jobQuery = useQuery({
@@ -143,11 +142,11 @@ export default function JobDetailScreen() {
    */
   const openReport = useCallback(() => {
     if (!job) return;
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <Suspense fallback={null}>
         <ReportModal
           visible
-          onClose={() => bottomSheet.openBottomSheet(false)}
+          onClose={() => surface.dismiss()}
           onSubmit={async (categories, details) => {
             const success = await reportService.reportJob(job.id, categories, details);
             toast(
@@ -160,10 +159,9 @@ export default function JobDetailScreen() {
             );
           }}
         />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [job, bottomSheet, t]);
+      </Suspense>
+    ));
+  }, [job, t]);
 
   const header = (
     <PageHeader
