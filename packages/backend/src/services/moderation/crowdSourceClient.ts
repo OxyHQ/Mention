@@ -8,18 +8,34 @@ import { config } from '../../config';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { logger } from '../../utils/logger';
 
+let cachedClient:
+  | {
+      oxy: ReturnType<typeof getRuntimeOxyClient>;
+      baseUrl: string | undefined;
+      client: CrowdSource;
+    }
+  | undefined;
+
 /** Shared infrastructure identity; construction is not proof of live authority.
  * Credential resolution, attestation and refusal occur at the shared transport.
  */
 export function getCrowdSourceClient(): CrowdSource | undefined {
-  return crowdSourceForOxyService({
-    oxy: getRuntimeOxyClient(),
+  const oxy = getRuntimeOxyClient();
+  const baseUrl = config.crowdSource.baseUrl;
+  if (cachedClient?.oxy === oxy && cachedClient.baseUrl === baseUrl) return cachedClient.client;
+  cachedClient?.client.dispose();
+  cachedClient = undefined;
+  const client = crowdSourceForOxyService({
+    oxy,
     ...(config.crowdSource.baseUrl === undefined ? {} : { baseUrl: config.crowdSource.baseUrl }),
     logger: {
       info: (message, context) => logger.info(message, context),
       error: (message, context) => logger.error(message, context),
     },
   });
+  // This client has service identity only. Requester-bound clients remain per operation.
+  if (client) cachedClient = { oxy, baseUrl, client };
+  return client;
 }
 
 /**
@@ -42,5 +58,7 @@ export function canDeliverToCrowdSource(): boolean {
 
 /** Test hook. Production builds the client once and keeps it for the process. */
 export function resetCrowdSourceClient(): void {
+  cachedClient?.client.dispose();
+  cachedClient = undefined;
   resetCrowdSourceForOxyService();
 }

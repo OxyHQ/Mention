@@ -21,7 +21,10 @@ const settings = vi.hoisted(() => ({
 }));
 vi.mock('../../../config', () => ({ config: settings }));
 
-import { getCrowdSourceClient } from '../../../services/moderation/crowdSourceClient';
+import {
+  getCrowdSourceClient,
+  resetCrowdSourceClient,
+} from '../../../services/moderation/crowdSourceClient';
 import { getRuntimeOxyClient, clearRuntimeOxyClient } from '../../../runtime/oxyClient';
 
 const SERVICE_AUDIENCE = 'oxy-service:6a6947b30fe72510b411252f';
@@ -81,7 +84,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  resetCrowdSourceForOxyService();
+  resetCrowdSourceClient();
   getRuntimeOxyClient().dispose();
   clearRuntimeOxyClient();
   for (const name of ENV) {
@@ -97,6 +100,7 @@ describe('CrowdSource client on the installed Oxy SDK', () => {
     const client = getCrowdSourceClient();
     expect(client).toBeDefined();
 
+    expect(getCrowdSourceClient()).toBe(client);
     await expect(client?.communityNotes.shown(['post_1', 'post_2'])).resolves.toEqual([]);
 
     expect(requests.some((request) => request.path === '/auth/service-token')).toBe(false);
@@ -110,5 +114,18 @@ describe('CrowdSource client on the installed Oxy SDK', () => {
     const lookup = requests.find((request) => request.path.startsWith('/v1/community-notes/shown'));
     expect(lookup?.path).toBe('/v1/community-notes/shown?subjects=post_1,post_2');
     expect(lookup?.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+  });
+  it('disposes the owned transport on reset and creates a fresh service client', async () => {
+    const previous = getCrowdSourceClient();
+    resetCrowdSourceClient();
+    const lookupCount = () =>
+      requests.filter((request) => request.path.startsWith('/v1/community-notes/shown')).length;
+    const countBefore = lookupCount();
+    await expect(previous?.communityNotes.shown(['post_1'])).rejects.toThrow();
+    expect(lookupCount()).toBe(countBefore);
+    const next = getCrowdSourceClient();
+    expect(next).not.toBe(previous);
+    expect(getCrowdSourceClient()).toBe(next);
+    await expect(next?.communityNotes.shown(['post_1'])).resolves.toEqual([]);
   });
 });
