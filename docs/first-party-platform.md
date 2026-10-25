@@ -152,7 +152,8 @@ not the full CI suite. The import fixture preserves the real external authority
 projection, so branded external credentials reach the own-only policy rejection
 without a forged first-party introspection result.
 
-Syra SDK 0.23 is now published and pinned. Its tarball integrity and actual
+The initial composition pinned published Syra SDK 0.23 (superseded by the
+0.24 live-socket follow-up below). Its tarball integrity and actual
 `syraForOxySession` JavaScript/types plus `/client`, `/live` and `/upload` exports
 were verified; installed source/build files match the registry artifact. The
 older 0.22 artifact is not used. Frozen installation, final frontend TypeScript
@@ -212,3 +213,24 @@ identity behavior with mocks. Production package resolution is unchanged.
 The socket follow-up passed 3,115 frontend tests across 392 suites and frontend
 TypeScript. The unchanged coverage ratchet passes; the new shared-session helper
 adds one behavioural file and one measured coverage pin (305 files / 300 pins).
+
+## Syra live socket SDK — published 0.24.0
+
+The workspace catalog now pins public `@syra.fm/sdk` 0.24.0 for the frontend and
+backend. Its live-room hook acquires a shared Oxy connection lease instead of
+copying a session bearer. Two mounted consumers share the connection; account
+changes abort the old authority, and late cleanup cannot close the next account.
+The backend's headless podcast client contract is unchanged.
+
+The [Actions release](https://github.com/OxyHQ/Syra/actions/runs/40192840084)
+published source `41da86f21471a44bcee898c6ab93a25a8dbec496`. Registry integrity,
+the public `/live/socket` export, runtime `connectWithOxy` implementation and its
+declarations were verified; Mention's installed JavaScript and declarations
+match the downloaded registry artifact. The supported optional peers are core
+>=7.1 <8 and services >=13 <14, satisfied by the existing workspace.
+
+Local composition gates passed: frontend and backend TypeScript, 24 frontend
+checks covering Syra HTTP clients, live-room ownership and real Socket.IO session
+switches, five backend podcast checks, frozen install, registry-only lock guard
+and Oxy Doctor. CI and frontend deployment remain separate acceptance steps;
+this consumer pin does not activate workload-v1 retirement.
