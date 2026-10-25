@@ -3,7 +3,7 @@
 This branch implements the Oxy decision that own products share account access
 without OAuth scopes or per-application consent. It is source under validation,
 not evidence of production deployment. The platform decision and cross-repo
-tracker live in [Oxy's migration ledger](https://github.com/OxyHQ/oxy/blob/feat/first-party-integration/docs/architecture/first-party-integration-migration.md).
+tracker live in [Oxy's migration ledger](https://github.com/OxyHQ/oxy/blob/main/docs/architecture/first-party-integration-migration.md).
 
 Own backend processes use one lazy `OxyServer` with
 `createAwsWorkloadCredentialProvider()` from `@oxy.so/core/server/aws`. The
@@ -59,16 +59,16 @@ reuse the own path or infer an account from a header.
 
 | Edge | Source in this branch | Remaining release work |
 | --- | --- | --- |
-| Mention backend/MCP → Oxy | Shared workload provider; MCP catalog/audit/introspection use v2 transport | Publish and pin composed core 7/contracts 6/MCP 1.4; Oxy receiver first; deploy and verify |
-| Alia → Mention → Oxy Files/privacy/safety | Actual capability ticket, live revalidation, no owner/session fallback | Alia/Oxy release ordering and runtime canary |
-| Move → Mention → Oxy | Own receiver and derived requester context; shared import contract and SDK `/server` factory | Move source 75dfab7 creates durable original tasks; publish/pin SDK; canary lookup/import/undo |
-| Mention backend → Clarity | `clarityForOxyService`, shared canonical service transport | Clarity receiver first, SDK release/pin, caller canary |
-| Mention frontend → Clarity | `clarityForOxySession`, shared linked client | Clarity SDK release/pin and frontend build/deploy |
-| Mention media cache → Oxy | Shared workload transport and explicit disk body factory; no manual bearer or local auth retry | Publish/pin core streaming addition (planned 7.1), then verify streaming/cancellation and outbox retry canaries |
-| Mention backend → Kaana | Product SDK own factory; immutable per-call attribution; no manual bearer | Publish/pin Kaana SDK and core; preserve one-dispatch shadow ledger and app-paid accounting |
-| Mention frontend → Syra | Product SDK linked-session factory, retained lazy client-only entry | Publish/pin Syra SDK and core; runtime account-switch canary |
-| Mention frontend → Alia | Existing product SDK client; no backend Alia proxy found | Coordinate final shared SDK adoption with Alia SDK owner |
-| Schedio → Mention | Own publishing adapter/SDK; Schedio source f05b3d3 uses original automation root | Publish/pin SDK; receiver before caller; retain external Mastodon OAuth |
+| Mention backend/MCP → Oxy | Shared workload provider; MCP catalog/audit/introspection use v2 transport | Foundation is published/live; final lock composition, deployment and canary remain |
+| Alia → Mention → Oxy Files/privacy/safety | Actual capability ticket, live revalidation, no owner/session fallback | Deploy Mention receiver; verify Alia task/account revocation end to end |
+| Move → Mention → Oxy | Own receiver and derived requester context; published import SDK 0.2 | Move PR 47 has public pins and green CI; receiver first, then lookup/import/undo canary |
+| Mention backend → Clarity | `clarityForOxyService`, shared canonical transport; published SDK 0.10 | Reader live and legacy reconciliation verified; caller deployment/canary remain |
+| Mention frontend → Clarity | `clarityForOxySession`, shared linked client; published SDK 0.10 | Final frontend composition/build/deployment |
+| Mention media cache → Oxy | Shared workload transport and replayable disk body factory | Core 7.3 includes streaming; verify live cancellation/outbox retry after deployment |
+| Mention backend → Kaana | Published SDK 3.3 own factory and immutable attribution | Producer receiver live; verify one-dispatch ledger and app-paid accounting |
+| Mention frontend → Syra | Linked-session factory, lazy client-only entry | SDK 0.23 release PR 255: verify published artifact before pinning; 0.22 is the older artifact |
+| Mention frontend → Alia | Existing product SDK client; no backend Alia proxy found | Coordinate SDK update with Alia owner; do not infer adoption from the foundation version |
+| Schedio → Mention | Own publishing adapter and published SDK 0.2; original automation root | Schedio PR 71 has public pins and green CI; receiver before caller, external Mastodon OAuth retained |
 
 No local allowlist, token decoding fallback or `internal`-tier promotion is added
 to Mention. Any temporary legacy workload bridge is centralized in Oxy and
@@ -114,7 +114,7 @@ never invents a post URL after a lost/invalid response. Schedio must retain the
 same key and body for each scheduled revision. Account switch, revocation and
 external branded credentials cannot select another person's publication.
 
-Source and candidate tests only: Schedio adoption is committed as f05b3d3; published SDK pins, reader rollout and production canaries remain pending.
+The publishing SDK/contracts 0.2.0 are public. Schedio PR 71 pins those artifacts; its own receiver rollout and production canaries remain pending. Source and package publication do not demonstrate deployed authority.
 
 Kaana calls now use `kaanaForOxyService`. Calls attributed to a person create an
 isolated SDK client with immutable inference attribution and dispose it afterward;
@@ -134,26 +134,27 @@ not requester authority over personal Files. The purge script's preflight also
 uses the shared v2 workload transport. No production backend manual service-token
 calls remain in this branch.
 
-This source requires the subsequent core streaming release (planned 7.1); core
-7.0's ordinary raw fetch does not replay streams. Candidate validation is not a
-registry pin or a deployment. The final composition must include the patched
-Zod 4 foundation as well as the streaming addition before cutover.
+## Final composition in progress, 2026-10-25
 
-Streaming candidate gate: 75 media-store, batch-delete and purge tests pass,
-including actual HTTP mint/replay of a disk file, an interrupted upload with no
-retry, pre-cancellation before opening a file, 429 cooldowns and namespace
-outcomes. Backend TypeScript, production build and changed-file Biome pass.
-The tests use valid five-minute workload tokens; no manual-token mock bypasses
-the shared transport. Final registry-pinned composition remains pending.
+Public core 7.3.0 includes the streaming transport introduced in 7.1; ordinary
+core 7.0 fetch cannot replay streams. Contracts 6.0.0 uses patched Zod 4.
+Kaana SDK 3.3, Clarity SDK 0.10, Mercaria SDK 0.7.1 and CrowdSource core 3.1
+are published. Candidate-only validation has been superseded by registry-based
+tests of these packages. The installed contracts declaration was compared with
+the registry bytes, and stale nested Clarity 0.9 copies were removed before
+checking the frontend against the published 0.10 artifact.
 
-The final composed core 7.1 candidate (`1421bc6`) with contracts 6 and patched
-Zod 4 also passes 88 backend tests, including the transitive requester/Files
-HTTP routes, all 183 MCP tests, and backend/MCP TypeScript. That supersedes the
-older streaming-only candidate for compatibility evidence. Source is unchanged
-from the built streaming checkpoint; package publication, registry pins and
-runtime canaries remain separate release gates.
+Registry-based gates passed: 130 focused backend tests covering media streaming,
+imports and transitive requester proof; two real workload HTTP tests; 183 MCP
+tests; eight frontend experience/podcast tests; backend/MCP types and builds;
+and the workspace boundary check. These counts describe separate targeted runs,
+not the full CI suite. The import fixture preserves the real external authority
+projection, so branded external credentials reach the own-only policy rejection
+without a forged first-party introspection result.
 
-Candidate validation for this caller checkpoint: 50 backend inference/classification
-tests, the Syra client integration test, backend/frontend TypeScript, backend build
-and changed-file Biome checks passed. Candidate package overrides were restored
-before committing; registry releases and final dependency pins remain pending.
+Final frontend types and lock composition wait for the actual Syra 0.23 package:
+the older registry 0.22 artifact lacks `syraForOxySession`, despite later source
+using that version. Do not substitute a copied implementation or claim a local
+candidate is published. Complete its pin, frozen install, artifact audit and
+frontend typecheck before declaring the runtime PR ready. Deployment and live
+canaries remain distinct acceptance steps.

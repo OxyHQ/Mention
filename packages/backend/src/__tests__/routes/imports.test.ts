@@ -201,9 +201,9 @@ function buildApp() {
 const { app, oxy } = buildApp();
 const verifyActingAs = vi.spyOn(oxy, 'verifyActingAs');
 const introspectService = vi.spyOn(oxy, 'introspectServiceToken');
-// The other app has an explicit test grant so its negative still reaches the
-// domain's Move-only gate. No Oxy database or production grant is written.
-const fixtureGrantPairs = new Set([
+// The other app has verified requester evidence so its negative still reaches
+// the domain's Move-only gate. No Oxy database or production authority is written.
+const fixtureRequesterPairs = new Set([
   JSON.stringify([MOVE_APP_ID, ALICE]),
   JSON.stringify([MOVE_APP_ID, BOB]),
   JSON.stringify([OTHER_APP_ID, ALICE]),
@@ -252,7 +252,9 @@ beforeEach(async () => {
     const claims = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString());
     return {
       active: true,
-      authority: 'first_party',
+      ...(claims.authority === 'first_party'
+        ? { authority: 'first_party' as const }
+        : { authority: 'external' as const, scopes: claims.scopes }),
       accountId: claims.ownerAccountId,
       applicationId: claims.appId,
       credentialId: claims.credentialId,
@@ -272,7 +274,7 @@ beforeEach(async () => {
       presentedServiceToken: expect.any(String),
       requesterToken: `session:${userId}`,
     });
-    return fixtureGrantPairs.has(JSON.stringify([appId, userId]))
+    return fixtureRequesterPairs.has(JSON.stringify([appId, userId]))
       ? { authorized: true, authority: 'first_party', epoch: '1' }
       : null;
   });
