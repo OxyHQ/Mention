@@ -16,7 +16,7 @@ The runtime singleton guard and all root catalog/override pins remain intact:
 backend/frontend/MCP still use core 6.17/contracts 5.8 until their runtime PR.
 The independent `tests/sdk-transport` consumer harness has its own package and
 frozen lock. CI installs its published core 7 dependency, then checks types and
-HTTP behavior against the SDK's built `dist/server.js`, the same entry packed
+HTTP behavior against the SDK's built server entry, the same entry packed
 for publication. No implementation is copied and no package alias or `file:`
 dependency is used. The harness can be simplified after the runtime moves to
 core 7.1; it exists to avoid changing the runtime singleton during an SDK release.

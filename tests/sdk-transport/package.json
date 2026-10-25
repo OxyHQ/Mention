@@ -13,5 +13,6 @@
     "@types/bun": "1.4.3",
     "@types/node": "26.6.5",
     "typescript": "6.0.3"
-  }
+  },
+  "license": "UNLICENSED"
 }
