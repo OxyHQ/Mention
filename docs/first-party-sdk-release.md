@@ -12,14 +12,13 @@ shared receiver middleware: protocol 2, original task/account isolation,
 wrong-account refusal and live revocation. Mutation retries retain the original
 batch/effect key and remain the caller's explicit decision.
 
-The runtime singleton guard and all root catalog/override pins remain intact:
-backend/frontend/MCP still use core 6.17/contracts 5.8 until their runtime PR.
-The independent `tests/sdk-transport` consumer harness has its own package and
-frozen lock. CI installs its published core 7 dependency, then checks types and
-HTTP behavior against the SDK's built server entry, the same entry packed
-for publication. No implementation is copied and no package alias or `file:`
-dependency is used. The harness can be simplified after the runtime moves to
-core 7.1; it exists to avoid changing the runtime singleton during an SDK release.
+The runtime singleton guard and the current main branch's catalog/override pins
+remain intact. The independent `tests/sdk-transport` consumer harness has its own
+package and frozen lock, validating the factory against its minimum published
+core 7.0.0 dependency. CI checks types and HTTP behavior against the SDK's built
+server entry, the same entry packed for publication. No implementation is copied
+and no package alias or local dependency path is used. Main now uses core 7.2;
+the separate harness continues to verify the SDK's advertised minimum.
 This branch changes no backend producer, receiver, task or database code.
 
 Release packages through Actions after CI on this commit. Then pin SDK/contracts
@@ -32,8 +31,7 @@ retire Oxy's finite legacy workload transition.
 Validation: eight SDK unit tests retain external publishing and own batch/effect
 semantics; the independent HTTP consumer test checks the built artifact against
 published core 7. SDK source/test and consumer-harness types, contracts/SDK
-builds, OpenAPI drift, root lockfile singleton guard and Biome pass. Backend and
-MCP TypeScript also pass with their existing core 6.17/contracts 5.8 dependency
-resolution. Both 0.2.0 tarballs were inspected: the SDK pins contracts 0.2.0
+builds, OpenAPI drift, root lockfile singleton guard and Biome pass. Backend and MCP TypeScript passed on the original base; the rebased
+release now retains main’s core 7.2 dependency resolution. Both 0.2.0 tarballs were inspected: the SDK pins contracts 0.2.0
 exactly, contracts use patched Zod 4.6.7, and neither contains local dependency
 paths or an Oxy runtime import in the SDK root. CI/release remain pending.
