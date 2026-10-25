@@ -1,6 +1,8 @@
 import { feedService } from './feedService';
 import { toFeedItem } from '@/db/feedItem';
-import { API_URL_SOCKET } from '@/config';
+import { API_URL, API_URL_SOCKET } from '@/config';
+import type { OxyServices } from '@oxy.so/core';
+import { createMentionSocketSession } from '@/lib/mentionSocketSession';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   FeedType,
@@ -95,7 +97,9 @@ class SocketService {
   private readonly maxReconnectAttempts = Number.POSITIVE_INFINITY;
   private readonly baseReconnectDelay = 1000;
   private currentUserId?: string;
-  private currentToken?: string;
+  private currentOxy?: OxyServices;
+  private currentSessionEpoch?: number;
+  private socketSession?: ReturnType<typeof createMentionSocketSession>;
   private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
   private feedListeners = new Map<string, Set<() => void>>();
@@ -196,14 +200,16 @@ class SocketService {
   /**
    * Connect to the backend socket server
    */
-  connect(userId: string, token: string): void {
+  connect(userId: string, oxy: OxyServices, onContextEnd: () => void = () => {}): void {
+    const epoch = oxy.http.getSessionEpoch();
     const credentialsChanged =
       this.currentUserId !== undefined &&
-      (userId !== this.currentUserId || token !== this.currentToken);
+      (userId !== this.currentUserId ||
+        oxy !== this.currentOxy ||
+        epoch !== this.currentSessionEpoch);
 
-    // The socket identity is the complete {viewerId, token} pair. A token
-    // rotation must replace the Manager too, otherwise a later reconnect would
-    // keep presenting the expired token captured at construction time.
+    // A session-context change replaces the manager; token refresh within that
+    // context is resolved by the shared handshake without keeping a bearer.
     if (credentialsChanged) {
       logger.info('Socket credentials changed, resetting session');
       this.disconnect();
@@ -215,7 +221,8 @@ class SocketService {
     if (
       this.socket &&
       userId === this.currentUserId &&
-      token === this.currentToken &&
+      oxy === this.currentOxy &&
+      epoch === this.currentSessionEpoch &&
       this.socket.active
     ) {
       return;
@@ -223,7 +230,8 @@ class SocketService {
 
     try {
       this.currentUserId = userId;
-      this.currentToken = token;
+      this.currentOxy = oxy;
+      this.currentSessionEpoch = epoch;
       // Connect to the backend socket server
       // Clean up any existing disconnected/failed socket before creating a new one
       if (this.socket) {
@@ -232,10 +240,12 @@ class SocketService {
         this.socket = null;
       }
 
+      this.socketSession?.dispose();
+      this.socketSession = createMentionSocketSession(oxy, API_URL, API_URL_SOCKET, onContextEnd);
       this.socket = io(API_URL_SOCKET, {
         transports: ['websocket', 'polling'],
-        auth: { token, userId },
-        autoConnect: true,
+        auth: this.socketSession.auth,
+        autoConnect: false,
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
         reconnectionDelay: this.baseReconnectDelay,
@@ -244,6 +254,8 @@ class SocketService {
 
       this.setupSocketEventListeners();
       this.setupFeedLoadingWatcher();
+      this.socketSession.bind(() => this.disconnect());
+      this.socket?.connect();
     } catch (error) {
       logger.error('Connection error', error);
     }
@@ -306,6 +318,8 @@ class SocketService {
    * Disconnect from the socket server
    */
   disconnect() {
+    this.socketSession?.dispose();
+    this.socketSession = undefined;
     if (this.socket) {
       // Remove all socket event listeners before disconnecting
       this.removeSocketEventListeners();
@@ -352,7 +366,8 @@ class SocketService {
     this.presenceListeners.clear();
 
     this.currentUserId = undefined;
-    this.currentToken = undefined;
+    this.currentOxy = undefined;
+    this.currentSessionEpoch = undefined;
     this.reconnectAttempts = 0;
     this.frozenForPageCache = false;
   }

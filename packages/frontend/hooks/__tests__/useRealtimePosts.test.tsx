@@ -60,7 +60,11 @@ describe('useRealtimePosts socket ownership', () => {
       renderer = TestRenderer.create(<Harness revision={0} />);
     });
 
-    expect(mockConnect).toHaveBeenCalledWith('viewer-a', 'token-a');
+    expect(mockConnect).toHaveBeenCalledWith(
+      'viewer-a',
+      mockAuthState.oxyServices,
+      expect.any(Function),
+    );
 
     mockAuthState = {
       ...mockAuthState,
@@ -103,7 +107,12 @@ describe('useRealtimePosts socket ownership', () => {
     });
 
     expect(mockDisconnect).toHaveBeenCalledTimes(1);
-    expect(mockConnect).toHaveBeenNthCalledWith(2, 'viewer-b', 'token-b');
+    expect(mockConnect).toHaveBeenNthCalledWith(
+      2,
+      'viewer-b',
+      mockAuthState.oxyServices,
+      expect.any(Function),
+    );
     expect(mockDisconnect.mock.invocationCallOrder[0]).toBeLessThan(
       mockConnect.mock.invocationCallOrder[1],
     );
@@ -112,6 +121,27 @@ describe('useRealtimePosts socket ownership', () => {
       renderer.unmount();
     });
     expect(mockDisconnect).toHaveBeenCalledTimes(2);
+  });
+
+  it('reacquires the socket when the same viewer session epoch changes', async () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<Harness revision={0} />);
+    });
+    await act(async () => {
+      mockConnect.mock.calls[0][2]();
+    });
+    expect(mockDisconnect).toHaveBeenCalledTimes(1);
+    expect(mockConnect).toHaveBeenCalledTimes(2);
+    expect(mockConnect).toHaveBeenLastCalledWith(
+      'viewer-a',
+      mockAuthState.oxyServices,
+      expect.any(Function),
+    );
+    expect(mockGetAccessToken).not.toHaveBeenCalled();
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 
   it('does not acquire a socket before the private API token is ready', async () => {

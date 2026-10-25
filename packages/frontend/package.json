@@ -61,7 +61,10 @@
       "^@oxy.so/bloom/surfaces$": "<rootDir>/test-support/bloomSurfaces.js",
       "^@oxy.so/bloom/dropdown-menu$": "<rootDir>/test-support/bloomDropdownMenu.js",
       "^@oxy.so/bloom/typography$": "<rootDir>/test-support/bloomTypography.js",
-      "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js"
+      "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js",
+      "^@oxy.so/core$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/index.js",
+      "^@oxy.so/protocol/(.*)$": "<rootDir>/../../node_modules/@oxy.so/protocol/dist/cjs/$1.js",
+      "^@oxy.so/protocol$": "<rootDir>/../../node_modules/@oxy.so/protocol/dist/cjs/index.js"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",

@@ -191,3 +191,24 @@ is introduced. Package installation was checked against the published artifact;
 source adoption and deployment are separate rollout steps.
 
 The backend pins the same SDK major for its isolated CSP helper.
+
+## Feed and notification socket sessions
+
+Feed and notification sockets resolve credentials for each handshake through
+Oxy's target-bound linked client. The socket origin must match the configured
+HTTP API origin (with the corresponding HTTP/WebSocket scheme); no bearer or
+client-asserted user id is retained in the socket's options. Account/session
+changes abort pending handshakes and close the existing socket before a new
+viewer subscribes. Same-session token refresh keeps its manager and domain
+subscriptions; existing feed invalidation, engagement queues and browser
+back/forward-cache reconnect behavior remain owned by the socket service.
+
+The real Socket.IO tests cover connected account switches, logout, disposal and
+refresh pending across a switch. Existing post-engagement tests now run through
+the actual published Oxy linked client. Jest resolves the packages' published
+CommonJS entries, including protocol randomness, rather than replacing their
+identity behavior with mocks. Production package resolution is unchanged.
+
+The socket follow-up passed 3,115 frontend tests across 392 suites and frontend
+TypeScript. The unchanged coverage ratchet passes; the new shared-session helper
+adds one behavioural file and one measured coverage pin (305 files / 300 pins).

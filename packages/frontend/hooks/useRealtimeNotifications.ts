@@ -1,9 +1,10 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createLogger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { io, type Socket } from 'socket.io-client';
-import { API_URL_SOCKET } from '../config';
+import { API_URL, API_URL_SOCKET } from '../config';
+import { createMentionSocketSession } from '@/lib/mentionSocketSession';
 import {
   loadNotificationValidation,
   type NotificationValidation,
@@ -23,6 +24,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 const logger = createLogger('useRealtimeNotifications');
 
 let socket: Socket | null = null;
+let socketSession: ReturnType<typeof createMentionSocketSession> | undefined;
 
 /**
  * Keeps the notifications socket connected app-wide and applies every realtime
@@ -38,15 +40,14 @@ let socket: Socket | null = null;
 export const useRealtimeNotifications = () => {
   const { user, isAuthenticated, isReady, oxyServices } = useAuth();
   const queryClient = useQueryClient();
+  const [contextRevision, setContextRevision] = useState(0);
 
   const connectSocket = useCallback(() => {
     const userId = user?.id;
     if (!isAuthenticated || !isReady || !userId || socket?.connected) return;
 
-    const token = oxyServices?.session.accessToken ?? undefined;
-    if (!token) return;
-
     try {
+      socketSession?.dispose();
       // Clean up any existing disconnected/failed socket
       if (socket) {
         socket.removeAllListeners();
@@ -54,13 +55,28 @@ export const useRealtimeNotifications = () => {
         socket = null;
       }
 
+      socketSession = createMentionSocketSession(
+        oxyServices,
+        API_URL,
+        `${API_URL_SOCKET}/notifications`,
+        () => {
+          setContextRevision(contextRevision + 1);
+        },
+      );
       // Connect to backend notifications namespace
       const current = io(`${API_URL_SOCKET}/notifications`, {
-        auth: { token, userId },
+        auth: socketSession.auth,
+        autoConnect: false,
         transports: ['websocket', 'polling'],
         path: '/socket.io',
       });
       socket = current;
+      socketSession.bind(() => {
+        if (socket !== current) return;
+        current.removeAllListeners();
+        current.disconnect();
+        socket = null;
+      });
 
       const listKey = viewerQueryKeys.notifications(userId);
 
@@ -178,12 +194,15 @@ export const useRealtimeNotifications = () => {
       current.on('connect_error', (error) => {
         logger.warn('Notifications socket retrying after a connection error', { error });
       });
+      current.connect();
     } catch (error) {
       logger.error('Failed to connect to notifications socket', error);
     }
-  }, [isAuthenticated, isReady, user?.id, oxyServices, queryClient]);
+  }, [isAuthenticated, isReady, user?.id, oxyServices, queryClient, contextRevision]);
 
   const disconnectSocket = useCallback(() => {
+    socketSession?.dispose();
+    socketSession = undefined;
     if (socket) {
       socket.removeAllListeners();
       socket.disconnect();

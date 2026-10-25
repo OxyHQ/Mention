@@ -16,6 +16,7 @@
  */
 
 import http from 'node:http';
+import { OxyServices } from '@oxy.so/core';
 import type { AddressInfo } from 'node:net';
 import { Server as SocketIOServer, type Socket as ServerSocket } from 'socket.io';
 import {
@@ -127,6 +128,8 @@ describe('live post engagement counts, over a real socket', () => {
   let joinedRooms: string[] = [];
   let handshakeAuths: Array<Record<string, unknown>> = [];
   let socketService: typeof import('@/services/socketService').socketService;
+  let oxy: OxyServices;
+  const token = `e30.${Buffer.from(JSON.stringify({ userId: VIEWER_ID, sessionId: VIEWER_ID, exp: 2000000000 })).toString('base64url')}.fixture`;
 
   beforeAll(async () => {
     httpServer = http.createServer();
@@ -151,12 +154,16 @@ describe('live post engagement counts, over a real socket', () => {
 
     // Read at module load, so the override has to land before the import.
     process.env.EXPO_PUBLIC_API_URL_SOCKET = `http://127.0.0.1:${port}`;
+    process.env.EXPO_PUBLIC_API_URL = `http://127.0.0.1:${port}`;
+    oxy = new OxyServices({ baseURL: process.env.EXPO_PUBLIC_API_URL });
+    oxy.session.setAccessToken(token);
     jest.resetModules();
     socketService = require('@/services/socketService').socketService;
   });
 
   afterAll(async () => {
     socketService.dispose();
+    oxy.dispose();
     ioServer.close();
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   });
@@ -168,7 +175,7 @@ describe('live post engagement counts, over a real socket', () => {
     seedPost(WATCHED_POST);
     seedPost(UNWATCHED_POST);
 
-    socketService.connect(VIEWER_ID, 'test-token');
+    socketService.connect(VIEWER_ID, oxy);
     await waitFor(() => socketService.getConnectionStatus().isConnected, 'the socket to connect');
 
     socketService.joinPost(WATCHED_POST);
@@ -452,7 +459,7 @@ describe('live post engagement counts, over a real socket', () => {
       // have dropped them, leaving nothing to reconnect WITH — the restored page
       // would have had to wait for the auth cold boot all over again.
       expect(handshakeAuths).toHaveLength(1);
-      expect(handshakeAuths[0]).toEqual({ token: 'test-token', userId: VIEWER_ID });
+      expect(handshakeAuths[0]).toEqual({ token });
 
       // Room membership died with the connection, so the counts only keep moving
       // if the client says so again.
