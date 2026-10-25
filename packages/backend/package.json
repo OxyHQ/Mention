@@ -66,6 +66,7 @@
     "@aws-sdk/credential-provider-node": "3.972.84"
   },
   "devDependencies": {
+    "@oxy.so/mention-sdk": "workspace:*",
     "@types/bun": "catalog:",
     "@types/compression": "^1.8.1",
     "@types/he": "^1.2.3",

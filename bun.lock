@@ -57,6 +57,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@oxy.so/mention-sdk": "workspace:*",
         "@types/bun": "catalog:",
         "@types/compression": "^1.8.1",
         "@types/he": "^1.2.3",

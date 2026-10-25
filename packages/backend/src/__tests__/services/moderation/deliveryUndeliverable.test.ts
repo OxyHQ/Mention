@@ -190,8 +190,8 @@ describe('what is left of the CrowdSource client wrapper', () => {
   /**
    * Most of what this block used to assert now belongs to
    * `@crowdsource.you/core`: that the client is built once, that it presents an
-   * Oxy service token and never a CrowdSource key, that it is absent where the
-   * process can prove nothing, and that the tenant is resolved at boot. Those
+   * Oxy workload token and never a CrowdSource key, that construction stays lazy
+   * until infrastructure authority is resolved, and that delivery needs a webhook. Those
    * tests moved with the code — three applications were each asserting them
    * against their own copy.
    *
@@ -225,13 +225,12 @@ describe('what is left of the CrowdSource client wrapper', () => {
     return module;
   }
 
-  it('has no client where this process can prove nothing', async () => {
+  it('constructs a lazy workload client without treating missing ECS env as authority', async () => {
     const { getCrowdSourceClient, canDeliverToCrowdSource } = await load();
 
-    // The library decides this; Mention only has to pass it on faithfully, and
-    // a deployment that cannot authenticate must not be treated as able to
-    // deliver.
-    expect(getCrowdSourceClient()).toBeUndefined();
+    // A local role/SSO provider may resolve later. Constructing a client is not
+    // authority; the shared transport must attest before sending any request.
+    expect(getCrowdSourceClient()).toBeDefined();
     expect(canDeliverToCrowdSource()).toBe(false);
   });
 

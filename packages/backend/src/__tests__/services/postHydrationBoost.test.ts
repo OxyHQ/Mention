@@ -101,6 +101,13 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
   getRestrictedUserIds: vi.fn(async () => []),
 }));
 
+// Community-note delivery is a separate network boundary. The hydration
+// regression below keeps real post/ACL queries without attempting infrastructure
+// attestation merely because the workload client can now be constructed locally.
+vi.mock('../../services/moderation/crowdSourceClient', () => ({
+  getCrowdSourceClient: () => ({ communityNotes: { shown: async () => [] } }),
+}));
+
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();

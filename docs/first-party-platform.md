@@ -162,3 +162,20 @@ registry versions; no local override is committed.
 This completes the source composition prerequisite. Full runtime CI, deployment
 and live cross-product/account-revocation canaries remain separate acceptance
 steps. Deploy this receiver before enabling Move PR47 and Schedio PR71.
+
+
+CI follow-up verifies the CrowdSource factory with Mention's shared infrastructure
+provider against real loopback HTTP (workload v2, canonical recipient, no customer
+key mint). Constructing the lazy client does not attest authority; dispatch still
+requires the shared live workload verification. The publishing SDK is an explicit
+backend test dependency and is built in CI before receiver contract tests. The
+lazy Syra client has concurrent initialization/cache coverage through the existing
+Jest import transform; production's asynchronous bundle boundary is unchanged.
+
+Production configuration names were checked on 2026-10-25 for Mention task
+revision 720 and MCP revision 420: neither contained retired Oxy service-key
+variables or managed-deployment identity variables. Managed operators must set
+`MENTION_SERVICE_APPLICATION_ID` to their registered receiver application before
+starting this release; it must not use the public Mention receiver identity.
+This inventory is a dated configuration check, not evidence of this branch's
+runtime deployment or completion of the rollout canaries.

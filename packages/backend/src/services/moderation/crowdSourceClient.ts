@@ -5,25 +5,15 @@ import {
 } from '@crowdsource.you/core';
 
 import { config } from '../../config';
+import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { logger } from '../../utils/logger';
 
-/**
- * Mention's CrowdSource client, which is now three lines of application policy
- * around a library call.
- *
- * Everything this file used to hold — build once, present the Oxy service token,
- * decide whether this process can authenticate at all, resolve the tenant at
- * boot so an unbound application is visible before the first report — moved into
- * `@crowdsource.you/core`. It had to: Homiio and Allo each carried their own
- * copy of the same hundred lines, Homiio's being this one with the name swapped,
- * and none of those decisions were ever Mention's to make.
- *
- * What is left below is the part that genuinely IS Mention's.
+/** Shared infrastructure identity; construction is not proof of live authority.
+ * Credential resolution, attestation and refusal occur at the shared transport.
  */
-
-/** The client, or `undefined` where this deployment cannot authenticate. */
 export function getCrowdSourceClient(): CrowdSource | undefined {
   return crowdSourceForOxyService({
+    oxy: getRuntimeOxyClient(),
     ...(config.crowdSource.baseUrl === undefined ? {} : { baseUrl: config.crowdSource.baseUrl }),
     logger: {
       info: (message, context) => logger.info(message, context),
