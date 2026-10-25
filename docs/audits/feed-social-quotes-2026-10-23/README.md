@@ -1,6 +1,8 @@
 # Quotes and social discovery audit — 23 October 2026
 
-Status: implementation reviewed; final CI and deployed acceptance pending. This audit extends the
+Status: scoped correction merged, deployed and verified on 25 October 2026.
+The release and acceptance results are recorded below; the earlier sections retain
+the diagnosed baseline and implementation review. This audit extends the
 [earlier feed-quality work](../feed-quality-2026-10-21/README.md); it does not replace
 its contextual owner labels or conflate recommendation with import eligibility.
 Code findings below were checked against `origin/main` at
@@ -73,7 +75,7 @@ planned corrections are not counted as deployed behavior.
 | Performance | Hydration batches a page; existing social counts are input-capped. | Measure bounded SQL queries and avoid N+1 identity/privacy calls. Empty follow graph and disabled social source should require no activity lookup. |
 | Import quality | Provenance records new reasons while protecting legacy unknowns; reviewed examples are recommendation labels. | No new import rejection, deletion or broad popularity/follow-only admission rule follows from this social-feed repair. |
 
-## Acceptance evidence still required
+## Acceptance plan recorded before release
 
 Tests should cover public local and federated quote subjects; a missing/deleted
 subject; a private/blocked/safety-denied subject; direct feed and detail reads;
@@ -305,3 +307,114 @@ strict, expiring resolution guard are documented [separately](./zod3-review.md).
 This does not claim those dependencies are patched or all trust-boundary risks
 eliminated. No global Zod major override, production exploit probe or unrelated
 first-party authority migration was used.
+
+
+## Released correction and acceptance — 25 October
+
+[PR #1601](https://github.com/OxyHQ/Mention/pull/1601) merged through the protected
+queue on **24 October at 05:54:39 UTC** as
+`8ed9b02a5f27121779147c0547f90ab9bce14759`.
+[Corrected-head CI](https://github.com/OxyHQ/Mention/actions/runs/40067079231) and
+[merge-queue CI](https://github.com/OxyHQ/Mention/actions/runs/40067487759) passed,
+including build/lint/types, all three backend shards, frontend tests/coverage/row
+cost, shared/MCP tests, bundle budget and the browser gate. The prior cold-import,
+architecture-boundary, callback typing and clean-lockfile reproduction failures
+were corrected before that result; no deadline, coverage pin or gate was bypassed.
+
+[Release evidence](./release-evidence-20261025.json) records successful actual
+frontend, backend and MCP deployment steps for that merged SHA, not only scope
+checks. The later deployed markers all pointed to
+`7332b08ecf953bc88a145a7b72bc1935f25451e8`, a descendant that includes subsequent
+main changes. During the authenticated acceptance capture, backend revision
+**718** was steady at **2/2**, pending zero, with the same SHA and image digest
+`sha256:c6a8c083ae492b20143a440e422c48886963137f0b219066e8558d649fe38da8`.
+The artifact records the attribution timestamp; these observations validate the
+current integrated release, not an isolated experiment attributing every change
+to this PR.
+
+The owner's exact quote now returns its original video through the authenticated
+actual feed-item route and the author feed. A fresh
+[anonymous production detail check](./browser-detail-20261025.json) and
+[author-feed check](./browser-author-20261025.json) both rendered the outer
+commentary and the quoted subject, then navigated to that subject when clicked,
+with zero JavaScript errors. The author check required the subject within the
+same outer row. These checks use the supplied existing post; no relation repair,
+synthetic production post or manufactured engagement was needed.
+
+The [authenticated @nate traversal](./feed-production-20261025.json) covered:
+
+| Surface | Pages | Logical positions | Flattened posts | Embedded quote subjects | Social explanations |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| For You | 10 | 200 | 213 | 16 | 38 |
+| Following | 10 | 193 | 237 | 30 | 0 |
+| Popular with Friends | 8 | 144 | 144 | 8 | 144 |
+| Explore | 3 | 60 | 65 | 7 | 0 |
+| Media | 3 | 60 | 60 | 2 | 0 |
+| Videos | 3 | 60 | 60 | 1 | 0 |
+| Owner's Posts | 1 | 20 | 22 | 2 | 0 |
+| Total | 38 | 737 | 801 | 66 | 182 |
+
+There were **zero repeated focal IDs within each traversal** and **zero social
+explanations attached outside their target slice**. Following included three
+actual boosts of quotes. A boost-of-quote count requires
+`boost.originalPost.quotedPost`; `originalPost` alone is also a quote alias and
+cannot establish a boost. Quote-of-quote observations are separately recorded.
+Generic unavailable-subject markers were also observed; this artifact contains
+no inaccessible subject identities or bodies. Popular with Friends exhausted
+its available session after 144 positions, so it was not represented as ten
+complete pages.
+
+All 182 live social explanations were **Reposted by**. The bounded Following
+sample independently matched **55 of 147 distinct actor/target pairs** from those
+explanations to actual public boost events. The remaining pairs were outside
+that crosscheck's demonstrated overlap, not established mismatches. At most two
+actors appeared per observed explanation, within the contract's cap of three.
+No production **Liked by** sample was available. Positive-like consent, negative
+votes, revocation and liked-by navigation are supported by the database and
+candidate-browser regressions; production activity was not created to obtain a
+more convenient sample. Following retained its existing subscription/event
+semantics rather than gaining the new stranger-discovery lane.
+
+Retained recent For You and Popular with Friends snapshots replayed identical
+focal IDs. Changing the requested page size on those valid snapshots returned
+typed `410 FEED_CURSOR_EXPIRED`. Page-one snapshots read after deep traversal
+were already evicted by the three-snapshot retention cap; their rejection is
+not separate proof of page-size binding. **No fresh pre-cutover cursor was
+captured**: execution paused across the actual rollout and old cursors expired.
+There is therefore no claimed production cursor-version cutover experiment;
+that behavior remains covered by the session-binding regressions.
+
+The final candidate's fresh Chromium fixtures passed 3/3 in 12.4 seconds. Its
+source-map export, static contract and bundle ceilings passed (19.39 MiB total,
+14.64 MiB JavaScript, 5.57 MiB initial JavaScript, 1.57 MiB initial gzip; no claimed
+baseline delta). Local row-cost attempts timed out under shared-host load and
+are not performance evidence; the complete CI row-cost gate passed. Candidate
+fixtures, production browser checks and authenticated API reads remain distinct
+forms of evidence. No physical native-device test was performed in this phase.
+
+## What this closes, and remaining boundaries
+
+This closes the supplied missing-quote rendering defect and adds consent-aware
+social discovery/explanations with viewer isolation and revocation handling.
+It does not change import admission or stop autonomous Fediverse discovery.
+The earlier recommendation calibration remains contextual: original artwork may
+be useful for an interested viewer even from an unknown account; a short personal
+update can have value for followers without deserving broad recommendation.
+
+The numeric screen found no bare one-to-four-digit focal posts without other
+context in this sample. That is a narrow check, **not a semantic quality score**
+or proof that every recommended post is useful. The observations are bounded,
+not globally unique-post counts or a controlled ranking-quality comparison.
+Ordinary reads can update served/view state; no intentional production post,
+reaction, follow or settings writes were performed.
+
+Two previously identified limitations remain explicit: MTN creation records do
+not reconstruct quote references on a fresh replica, and changing an old downvote
+to a like preserves its original creation timestamp, which bounds recent social
+evidence. Neither was silently reported as fixed by this rendering repair.
+
+The [security review](./zod3-review.md) also records a subsequent, separate SDK
+upgrade: current main uses patched Zod 4 for Oxy runtime contracts. Only the
+exact Expo CLI Zod 3 tooling resolution remains under the guarded exception,
+which still expires on **27 October 2026**. The historical runtime-risk review
+must not be mistaken for the current dependency graph or for a patched Zod 3.

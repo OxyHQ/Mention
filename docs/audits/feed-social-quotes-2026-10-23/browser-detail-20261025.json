@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-25T07:54:46.430Z",
+  "origin": "https://mention.earth",
+  "authenticated": false,
+  "outer": "01a162ff-d59a-7c4f-9788-94e623c4da88",
+  "target": "01a162f2-fc18-771d-a10d-4b2ac5a66a53",
+  "outerVisible": true,
+  "subjectVisible": true,
+  "requests": [
+    {
+      "status": 200,
+      "quoteId": "01a162f2-fc18-771d-a10d-4b2ac5a66a53"
+    }
+  ],
+  "errors": [],
+  "navigationTarget": "/p/01a162f2-fc18-771d-a10d-4b2ac5a66a53"
+}
