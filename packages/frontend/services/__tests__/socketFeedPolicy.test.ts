@@ -1,3 +1,4 @@
+import { OxyServices } from '@oxy.so/core';
 const mockGetFeed = jest.fn();
 const mockAddPosts = jest.fn();
 const mockState = { feedUI: { for_you: { isLoading: false } }, addPostsToFeed: mockAddPosts };
@@ -28,6 +29,10 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   default: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} },
 }));
 import { socketService } from '../socketService';
+let mockOxy: OxyServices;
+const socketToken = (userId: string) =>
+  `e30.${Buffer.from(JSON.stringify({ userId, sessionId: userId, exp: 2000000000 })).toString('base64url')}.fixture`;
+
 function signal(payload: unknown = { type: 'for_you' }) {
   const handler = mockHandlers.get('feed:updated');
   if (!handler) throw new Error('missing live socket listener');
@@ -46,11 +51,20 @@ describe('feed broadcasts carry invalidation, not content authority', () => {
     mockGetFeed.mockResolvedValue({
       items: [{ id: 'allowed', content: { text: 'Authorized body' } }],
     });
-    socketService.connect('viewer-a', 'token-a');
+    mockOxy = new OxyServices({ baseURL: 'http://localhost:4110' });
+    mockOxy.session.setAccessToken(socketToken('viewer-a'));
+    socketService.connect('viewer-a', mockOxy);
   });
   afterEach(() => {
     socketService.disconnect();
+    mockOxy.dispose();
     jest.useRealTimers();
+  });
+  it('reuses the manager for the same verified owner and epoch', () => {
+    const calls = mockSocket.connect.mock.calls.length;
+    socketService.connect('viewer-a', mockOxy);
+    expect(mockSocket.connect).toHaveBeenCalledTimes(calls);
+    expect(mockSocket.disconnect).not.toHaveBeenCalled();
   });
   it('coalesces a burst and inserts only the authenticated response', async () => {
     signal({
@@ -81,7 +95,8 @@ describe('feed broadcasts carry invalidation, not content authority', () => {
     );
     signal();
     await flush();
-    socketService.connect('viewer-b', 'token-b');
+    mockOxy.session.setAccessToken(socketToken('viewer-b'));
+    socketService.connect('viewer-b', mockOxy);
     finish({ items: [{ id: 'private-to-a' }] });
     await Promise.resolve();
     await Promise.resolve();
@@ -101,10 +116,13 @@ describe('panel feed subscriptions share the transport', () => {
     jest.useFakeTimers();
     jest.clearAllMocks();
     mockGetFeed.mockResolvedValue({ items: [] });
-    socketService.connect('viewer-a', 'token-a');
+    mockOxy = new OxyServices({ baseURL: 'http://localhost:4110' });
+    mockOxy.session.setAccessToken(socketToken('viewer-a'));
+    socketService.connect('viewer-a', mockOxy);
   });
   afterEach(() => {
     socketService.disconnect();
+    mockOxy.dispose();
     jest.useRealTimers();
   });
   it('delivers to both panels and unsubscribing one preserves the other and the personal room', () => {

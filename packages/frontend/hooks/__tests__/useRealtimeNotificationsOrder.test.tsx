@@ -4,20 +4,23 @@ import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type Handler = (...args: unknown[]) => void;
-const mockSockets: { handlers: Map<string, Handler> }[] = [];
+const mockSockets: { handlers: Map<string, Handler>; disconnect: jest.Mock }[] = [];
+let mockEpoch = 1;
+const mockTokenListeners = new Set<() => void>();
 jest.mock('socket.io-client', () => ({
   io: () => {
     const handlers = new Map<string, Handler>();
     const socket = {
       connected: false,
+      connect: () => socket,
       on: (event: string, handler: Handler) => {
         handlers.set(event, handler);
         return socket;
       },
       removeAllListeners: () => handlers.clear(),
-      disconnect: () => undefined,
+      disconnect: jest.fn(),
     };
-    mockSockets.push({ handlers });
+    mockSockets.push({ handlers, disconnect: socket.disconnect });
     return socket;
   },
 }));
@@ -40,10 +43,24 @@ const mockAuth = {
   user: { id: 'viewer-1' } as { id: string } | null,
   isAuthenticated: true,
   isReady: true,
-  oxyServices: { session: { accessToken: 't' } },
+  oxyServices: {
+    http: {
+      getSessionEpoch: () => mockEpoch,
+      addTokenChangeListener: (listener: () => void) => {
+        mockTokenListeners.add(listener);
+        return () => {
+          mockTokenListeners.delete(listener);
+        };
+      },
+    },
+    createLinkedClient: () => ({ getAccessToken: async () => 't', dispose: () => {} }),
+  },
 };
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
-jest.mock('@/config', () => ({ API_URL_SOCKET: 'wss://example.test' }));
+jest.mock('@/config', () => ({
+  API_URL: 'https://example.test',
+  API_URL_SOCKET: 'wss://example.test',
+}));
 
 const notification = (id: string) => ({
   _id: id,
@@ -132,5 +149,42 @@ describe('useRealtimeNotifications', () => {
     });
 
     expect(ids(client)).not.toContain('late');
+  });
+  it('replaces the old epoch immediately and ignores its queued events', async () => {
+    mockAuth.user = { id: 'viewer-1' };
+    const client = new QueryClient();
+    seed(client);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={client}>
+          <Bridge />
+        </QueryClientProvider>,
+      );
+    });
+    const previous = mockSockets.at(-1)!;
+    previous.handlers.get('notification')!(notification('old-epoch'));
+    act(() => {
+      mockEpoch += 1;
+      for (const listener of [...mockTokenListeners]) listener();
+    });
+    const current = mockSockets.at(-1)!;
+    expect(current).not.toBe(previous);
+    expect(previous.disconnect).toHaveBeenCalledTimes(1);
+    expect(previous.handlers.size).toBe(0);
+    await act(async () => {
+      current.handlers.get('connect')!();
+      current.handlers.get('notification')!(notification('current'));
+      current.handlers.get('notificationUpdated')!({ ...notification('current'), read: true });
+      current.handlers.get('allNotificationsRead')!();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(ids(client)).toEqual(['current']);
+    expect(client.getQueryData(viewerQueryKeys.unreadNotifications('viewer-1'))).toBe(0);
+    await act(async () => {
+      renderer.unmount();
+    });
+    expect(current.disconnect).toHaveBeenCalledTimes(1);
+    expect(mockTokenListeners.size).toBe(0);
   });
 });

@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.77,
-      "covered": 13221,
-      "total": 27108
+      "pct": 49.08,
+      "covered": 13322,
+      "total": 27141
     },
     "branches": {
-      "pct": 44.52,
-      "covered": 8967,
-      "total": 20138
+      "pct": 44.8,
+      "covered": 9019,
+      "total": 20131
     },
     "functions": {
-      "pct": 43.5,
-      "covered": 3087,
-      "total": 7096
+      "pct": 43.95,
+      "covered": 3123,
+      "total": 7105
     },
     "lines": {
-      "pct": 49.54,
-      "covered": 11971,
-      "total": 24161
+      "pct": 49.87,
+      "covered": 12064,
+      "total": 24188
     }
   },
   "pins": {
@@ -570,14 +570,14 @@
       "lines": 0
     },
     "hooks/useRealtimeNotifications.ts": {
-      "statements": 67,
-      "branches": 52,
-      "functions": 60,
-      "lines": 70
+      "statements": 85,
+      "branches": 66,
+      "functions": 86,
+      "lines": 87
     },
     "hooks/useRealtimePosts.ts": {
-      "statements": 90,
-      "branches": 75,
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
@@ -899,6 +899,12 @@
       "functions": 100,
       "lines": 100
     },
+    "lib/mentionSocketSession.ts": {
+      "statements": 92,
+      "branches": 70,
+      "functions": 100,
+      "lines": 100
+    },
     "lib/operatedAccounts.ts": {
       "statements": 100,
       "branches": 100,
@@ -990,16 +996,16 @@
       "lines": 100
     },
     "lib/syraApi.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "lib/syraPodcasts.ts": {
-      "statements": 60,
+      "statements": 100,
       "branches": 100,
-      "functions": 66,
-      "lines": 60
+      "functions": 100,
+      "lines": 100
     },
     "lib/themePersistence.ts": {
       "statements": 0,
@@ -1110,10 +1116,10 @@
       "lines": 92
     },
     "services/experienceService.ts": {
-      "statements": 94,
-      "branches": 88,
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
-      "lines": 94
+      "lines": 100
     },
     "services/feedPageRead.ts": {
       "statements": 95,
@@ -1248,10 +1254,10 @@
       "lines": 77
     },
     "services/socketService.ts": {
-      "statements": 62,
-      "branches": 45,
-      "functions": 60,
-      "lines": 65
+      "statements": 63,
+      "branches": 47,
+      "functions": 61,
+      "lines": 66
     },
     "services/starterPacksService.ts": {
       "statements": 0,
@@ -1662,10 +1668,10 @@
       "lines": 100
     },
     "utils/notificationCache.ts": {
-      "statements": 41,
-      "branches": 29,
-      "functions": 52,
-      "lines": 39
+      "statements": 62,
+      "branches": 44,
+      "functions": 80,
+      "lines": 65
     },
     "utils/notifications.ts": {
       "statements": 0,
