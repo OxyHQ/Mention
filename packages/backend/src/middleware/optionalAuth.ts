@@ -1,3 +1,4 @@
+import { config } from '../config';
 import { supervisedActionForRequest } from './supervisedAction';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest, OxyServer } from '@oxy.so/core/server';
@@ -26,6 +27,7 @@ export function createOptionalAuth(oxy: OxyServer): RequestHandler {
     }
 
     const authMiddleware = oxy.middleware.auth({
+      expectedAudience: `oxy-service:${config.identity.serviceApplicationId}`,
       supervisedAction: supervisedActionForRequest(req),
     });
     return authMiddleware(req, res, (error?: unknown) => {

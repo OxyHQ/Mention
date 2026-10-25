@@ -554,6 +554,9 @@ jobs:
       - name: Build shared runtime package
         if: steps.scope.outputs.run == 'true'
         run: bun run build:shared-types
+      - name: Build publishing SDK for receiver contract tests
+        if: steps.scope.outputs.run == 'true'
+        run: bun run build:publishing
       # `--reporter=default` is restated because naming any reporter REPLACES
       # the default set, and a log with only a blob in it is one nobody can read.
       #

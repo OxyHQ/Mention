@@ -30,3 +30,8 @@ from a laptop — `~/Oxy/docs/npm-releases.md`.
 Everything else — architecture, API, federation, lanes and channels, feed
 ranking, post lifecycle, frontend rules, moderation, development gotchas, and
 deployment — lives in [`docs/`](./docs/index.mdx). Start there.
+
+Own product calls use shared workload/session transport and original requester
+proof; no app scopes, consent or API-key fallback. External OAuth/API credentials
+remain bounded. Read [the authority and rollout ledger](./docs/first-party-platform.md)
+before changing an inter-product call; domain roles, account isolation and billing remain.

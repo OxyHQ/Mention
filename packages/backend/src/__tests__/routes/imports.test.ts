@@ -11,8 +11,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * The gate is exercised with the REAL `oxy.middleware.auth()`: service tokens
  * are EdDSA-signed by a test key whose JWKS the middleware reads, so
  * `req.serviceApp` and explicit delegation are populated by the real middleware.
- * Only the Oxy grant lookup is a synthetic network boundary; internal tier
- * alone never authorizes acting as a user —
+ * Only the Oxy authority lookup is a synthetic network boundary; own workload
+ * identity alone never authorizes acting as a user —
  * the gate is then tested against what that middleware actually produces, not
  * against a hand-built request. A user SESSION cannot be minted offline (Oxy
  * validates sessions over HTTP), so it is simulated the way `requireAuth` sees
@@ -144,20 +144,26 @@ const ALICE = scope.user('alice');
 const BOB = scope.user('bob');
 const CHANNEL = scope.user('channel');
 
-function serviceToken(appId: string, tier: 'internal' | 'external' = 'internal'): string {
+function serviceToken(
+  appId: string,
+  tier: 'internal' | 'external' = 'internal',
+  authority: 'first_party' | 'external' = tier === 'internal' ? 'first_party' : 'external',
+): string {
   const now = Math.floor(Date.now() / 1000);
   const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
   const signingInput = `${encode({ alg: 'EdDSA', typ: 'JWT', kid: SERVICE_KEY_ID })}.${encode({
     type: 'service',
     appId,
     appName: appId,
-    credentialId: `${appId}-cred`,
+    credentialId: authority === 'first_party' ? `wl_${appId}-cred` : 'customer-key-credential',
     ownerAccountId: `${appId}-owner`,
     environment: 'production',
-    scopes: [],
+    ...(authority === 'first_party'
+      ? { authority: 'first_party' }
+      : { authority: 'external', scopes: [] }),
     tier,
     iss: 'oxy-auth',
-    aud: 'oxy-api',
+    aud: authority === 'first_party' ? 'oxy-service:6a2f851751b784a86fd0e916' : 'oxy-api',
     iat: now,
     exp: now + 300,
   })}`;
@@ -170,7 +176,10 @@ function serviceToken(appId: string, tier: 'internal' | 'external' = 'internal')
  */
 function buildApp() {
   const oxy = new OxyServer({ baseURL: 'http://127.0.0.1:9' });
-  const oxyAuth = oxy.middleware.auth({ serviceTokenJwksUrl: SERVICE_JWKS_URL });
+  const oxyAuth = oxy.middleware.auth({
+    serviceTokenJwksUrl: SERVICE_JWKS_URL,
+    expectedAudience: 'oxy-service:6a2f851751b784a86fd0e916',
+  });
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -191,9 +200,10 @@ function buildApp() {
 
 const { app, oxy } = buildApp();
 const verifyActingAs = vi.spyOn(oxy, 'verifyActingAs');
-// The other app has an explicit test grant so its negative still reaches the
-// domain's Move-only gate. No Oxy database or production grant is written.
-const fixtureGrantPairs = new Set([
+const introspectService = vi.spyOn(oxy, 'introspectServiceToken');
+// The other app has verified requester evidence so its negative still reaches
+// the domain's Move-only gate. No Oxy database or production authority is written.
+const fixtureRequesterPairs = new Set([
   JSON.stringify([MOVE_APP_ID, ALICE]),
   JSON.stringify([MOVE_APP_ID, BOB]),
   JSON.stringify([OTHER_APP_ID, ALICE]),
@@ -202,7 +212,8 @@ const fixtureGrantPairs = new Set([
 function asMove(req: request.Test, userId: string = ALICE): request.Test {
   return req
     .set('Authorization', `Bearer ${serviceToken(MOVE_APP_ID)}`)
-    .set('X-Oxy-User-Id', userId);
+    .set('X-Oxy-User-Id', userId)
+    .set('X-Oxy-Requester-Token', `session:${userId}`);
 }
 
 let batchCounter = 0;
@@ -237,15 +248,34 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  introspectService.mockImplementation(async (token) => {
+    const claims = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString());
+    return {
+      active: true,
+      ...(claims.authority === 'first_party'
+        ? { authority: 'first_party' as const }
+        : { authority: 'external' as const, scopes: claims.scopes }),
+      accountId: claims.ownerAccountId,
+      applicationId: claims.appId,
+      credentialId: claims.credentialId,
+      environment: claims.environment,
+      audience: claims.aud,
+      expiresAt: new Date(claims.exp * 1000).toISOString(),
+    };
+  });
   verifyActingAs.mockReset().mockImplementation(async (appId, userId, options) => {
     expect(options).toEqual({
       cache: false,
-      credentialId: `${appId}-cred`,
+      credentialId: `wl_${appId}-cred`,
       ownerAccountId: `${appId}-owner`,
       environment: 'production',
+      taskId: undefined,
+      requesterContext: undefined,
+      presentedServiceToken: expect.any(String),
+      requesterToken: `session:${userId}`,
     });
-    return fixtureGrantPairs.has(JSON.stringify([appId, userId]))
-      ? { authorized: true, scopes: ['user:read'], epoch: '1' }
+    return fixtureRequesterPairs.has(JSON.stringify([appId, userId]))
+      ? { authorized: true, authority: 'first_party', epoch: '1' }
       : null;
   });
   mocks.getUserById.mockResolvedValue({ id: ALICE, username: 'alice' });
@@ -270,13 +300,17 @@ describe('who may call the import API', () => {
     expect(res.body.results[0].status).toBe('created');
     expect(verifyActingAs).toHaveBeenCalledWith(MOVE_APP_ID, ALICE, {
       cache: false,
-      credentialId: `${MOVE_APP_ID}-cred`,
+      credentialId: `wl_${MOVE_APP_ID}-cred`,
       ownerAccountId: `${MOVE_APP_ID}-owner`,
       environment: 'production',
+      taskId: undefined,
+      requesterContext: undefined,
+      presentedServiceToken: expect.any(String),
+      requesterToken: `session:${ALICE}`,
     });
   });
 
-  it('refuses Move without an explicit grant before writing an import or post', async () => {
+  it('refuses Move without valid original requester proof before writing an import or post', async () => {
     verifyActingAs.mockResolvedValueOnce(null);
     const batch = body();
     const res = await postBatch(batch);
@@ -294,6 +328,32 @@ describe('who may call the import API', () => {
     ).toEqual([]);
   });
 
+  it.each(['internal', 'external'] as const)(
+    'refuses an external key even when Move branding reports %s tier',
+    async (tier) => {
+      verifyActingAs.mockResolvedValueOnce({
+        authorized: true,
+        authority: 'external',
+        scopes: ['social.posts.publish'],
+        epoch: '1',
+      });
+      const batch = body();
+      const response = await request(app)
+        .post('/imports/v1/posts:batch')
+        .set('Authorization', `Bearer ${serviceToken(MOVE_APP_ID, tier, 'external')}`)
+        .set('X-Oxy-User-Id', ALICE)
+        .send(batch);
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('IMPORT_CALLER_NOT_ALLOWED');
+      expect(
+        await getDb()
+          .select({ postId: postImports.postId })
+          .from(postImports)
+          .where(eq(postImports.importBatchId, batch.batchId)),
+      ).toEqual([]);
+    },
+  );
+
   it('refuses a user session, even for the user it would import for', async () => {
     const res = await request(app)
       .post('/imports/v1/posts:batch')
@@ -308,6 +368,7 @@ describe('who may call the import API', () => {
       .post('/imports/v1/posts:batch')
       .set('Authorization', `Bearer ${serviceToken(OTHER_APP_ID)}`)
       .set('X-Oxy-User-Id', ALICE)
+      .set('X-Oxy-Requester-Token', `session:${ALICE}`)
       .send(body());
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('IMPORT_CALLER_NOT_ALLOWED');

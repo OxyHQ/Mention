@@ -7,12 +7,8 @@ let client: Promise<ClarityClient> | undefined;
 
 export function getClarityClient(): Promise<ClarityClient> {
   if (client) return client;
-  client = import('@clarity.surf/sdk').then(
-    ({ ClarityClient: Client }) =>
-      new Client({
-        baseUrl: config.clarityApiUrl,
-        getAccessToken: () => getServiceOxyClient().serviceToken(),
-      }),
+  client = import('@clarity.surf/sdk/server').then(({ clarityForOxyService }) =>
+    clarityForOxyService(getServiceOxyClient(), { baseUrl: config.clarityApiUrl }),
   );
   return client;
 }

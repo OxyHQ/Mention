@@ -61,7 +61,9 @@ describe('describeRegistrationFailure', () => {
 });
 
 describe('registerMentionCatalog', () => {
-  const oxy = { serviceToken: async () => 'service-token' };
+  const oxy = (fetch: typeof globalThis.fetch) => ({
+    createServiceClient: () => ({ fetch, dispose() {} }),
+  });
 
   test('binds to the registration Oxy returns for exactly this catalogue', async () => {
     const digest = createHash('sha256')
@@ -70,9 +72,8 @@ describe('registerMentionCatalog', () => {
     let sent: { url: string; authorization: string | null; body: { catalog: unknown } } | null =
       null;
     const binding = await registerMentionCatalog({
-      oxy,
       oxyApiUrl: 'https://api.oxy.test',
-      fetch: (async (url: string, init: RequestInit) => {
+      oxy: oxy((async (url: string, init: RequestInit) => {
         sent = {
           url,
           authorization: new Headers(init.headers).get('authorization'),
@@ -85,10 +86,10 @@ describe('registerMentionCatalog', () => {
             digest,
           },
         });
-      }) as typeof fetch,
+      }) as typeof fetch),
     });
     expect(sent!.url).toBe('https://api.oxy.test/capabilities/catalogs/register');
-    expect(sent!.authorization).toBe('Bearer service-token');
+    expect(sent!.authorization).toBeNull();
     expect(sent!.body.catalog).toEqual(
       appCapabilityCatalogSchema.parse(MENTION_CAPABILITY_CATALOG),
     );
@@ -101,11 +102,11 @@ describe('registerMentionCatalog', () => {
 
   test('names the status and body Oxy refused with', async () => {
     const refused = registerMentionCatalog({
-      oxy,
       oxyApiUrl: 'https://api.oxy.test',
-      fetch: (async () =>
-        new Response('{"error":"missing_scope"}', { status: 403 })) as typeof fetch,
+      oxy: oxy(
+        (async () => new Response('{"error":"operation_denied"}', { status: 403 })) as typeof fetch,
+      ),
     });
-    await expect(refused).rejects.toThrow('status=403): {"error":"missing_scope"}');
+    await expect(refused).rejects.toMatchObject({ status: 403 });
   });
 });

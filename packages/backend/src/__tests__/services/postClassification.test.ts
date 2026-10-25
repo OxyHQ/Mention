@@ -11,7 +11,6 @@ import {
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
 import { eq } from 'drizzle-orm';
-import * as runtimeIdentity from '../../runtime/serviceIdentity';
 import * as oxyHelpers from '../../utils/oxyHelpers';
 import type { DecisionRequest } from '@kaana.ai/contracts';
 import {
@@ -67,14 +66,11 @@ import { postEvaluations } from '../../db/schema/postEvaluations';
  * another file's rows out from under it.
  */
 
-const { inferenceJSON, isInferenceEnabled, resolveTopicRefs, classificationEnabled } = vi.hoisted(
-  () => ({
-    classificationEnabled: { value: true },
-    inferenceJSON: vi.fn(),
-    isInferenceEnabled: vi.fn().mockReturnValue(true),
-    resolveTopicRefs: vi.fn(),
-  }),
-);
+const { inferenceJSON, resolveTopicRefs, classificationEnabled } = vi.hoisted(() => ({
+  classificationEnabled: { value: true },
+  inferenceJSON: vi.fn(),
+  resolveTopicRefs: vi.fn(),
+}));
 
 // Force classification ON for this suite (gated OFF by default). Everything
 // else — the Postgres connection settings above all — comes from the REAL
@@ -98,7 +94,6 @@ vi.mock('../../config', async (importOriginal) => {
 
 vi.mock('../../utils/inference', () => ({
   inferenceJSON: (...args: unknown[]) => inferenceJSON(...args),
-  isInferenceEnabled: () => isInferenceEnabled(),
 }));
 
 // Mock ONLY the Topic registry resolution (an Oxy round trip). By default each
@@ -290,7 +285,6 @@ beforeEach(async () => {
   classificationEnabled.value = true;
   await clearServiceScope(scope);
   seedClock = 0;
-  isInferenceEnabled.mockReturnValue(true);
   resolveTopicRefs.mockImplementation(
     async (topics: Array<{ name: string }>): Promise<ClassificationTopicRef[]> =>
       topics.map((topic) => ({ name: topic.name, topicId: `topic:${topic.name}` })),
@@ -1209,10 +1203,10 @@ describe('PostClassificationService — failure and retry behavior', () => {
     expect(dropped.attempts).toBe(1);
   });
 
-  it('no-ops when inference is unavailable, leaving the queue exactly as it was', async () => {
+  it('preserves the queue when the product classification switch is off', async () => {
     const post = await seedSubject('Should not be processed when inference is off.');
     await padBatch(1);
-    isInferenceEnabled.mockReturnValue(false);
+    classificationEnabled.value = false;
 
     await postClassificationService.processQueue();
 
@@ -1563,10 +1557,17 @@ describe('PostClassificationService — Jev shadow lane', () => {
 
   it('runs the production lane with the canonical classifier off and records the answering model', async () => {
     classificationEnabled.value = false;
-    vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
-    const token = vi.fn(async (_audience: string) => 'synthetic-only');
+    const token = vi.fn(async (_target: string | URL) => 'synthetic-only');
     vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-      serviceTokenFor: token,
+      createServiceClient: () => ({
+        fetch: (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+          const headers = new Headers(init?.headers);
+          headers.set('authorization', 'Bearer synthetic-only');
+          return fetch(input, { ...init, headers });
+        },
+        getAccessToken: token,
+        dispose() {},
+      }),
     } as unknown as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
     const post = await englishSubject('Native eligible content');
     candidates(post.id);
@@ -1601,7 +1602,7 @@ describe('PostClassificationService — Jev shadow lane', () => {
 
     await createProductionPostClassificationService().processQueue();
 
-    expect(token).toHaveBeenCalledWith('kaana.ai');
+    expect(transport).toHaveBeenCalled();
     expect(transport).toHaveBeenCalledTimes(1);
     expect(await ledgerOf(post.id)).toEqual([
       expect.objectContaining({

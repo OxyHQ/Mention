@@ -1,4 +1,3 @@
-import { canAuthenticateAsService } from '../../runtime/serviceIdentity';
 import { kaanaClient } from '../../utils/kaana';
 import { createJevShadowEvaluation, type JevKaanaClient } from './jevSdk';
 import type { ShadowEvaluation, ShadowRelease, ShadowTopic } from './jevShadow';
@@ -43,11 +42,9 @@ const kaana = {
 } satisfies Required<JevKaanaClient>;
 
 /**
- * The lane's evaluator, or `undefined` when this process cannot authenticate to
- * Oxy as Mention. There is no other switch: Oxy's grant decides whether a call
- * may run and what it costs.
+ * The lane's evaluator. Actual workload attestation and request policy are
+ * checked by the shared client when it dispatches, including local role/SSO.
  */
 export function createJevLane(): ShadowEvaluation | undefined {
-  if (!canAuthenticateAsService()) return undefined;
   return createJevShadowEvaluation(kaana, JEV_RELEASE, JEV_TOPICS);
 }

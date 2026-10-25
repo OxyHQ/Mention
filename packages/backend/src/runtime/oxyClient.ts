@@ -1,37 +1,25 @@
-import type { OxyServer } from '@oxy.so/core/server';
+import { OxyServer } from '@oxy.so/core/server';
+import { createAwsWorkloadCredentialProvider } from '@oxy.so/core/server/aws';
 import { config } from '../config';
+import { instrumentOxyEgress } from '../utils/oxyMetrics';
 
-/**
- * Runtime seam for the process-wide Oxy client.
- *
- * Domain modules resolve the client here instead of importing the server
- * entrypoint. The lazy fallback keeps isolated scripts and unit tests usable
- * without booting Express; runtimeApp.ts registers the process-owned instance
- * while composing production dependencies.
- */
+/** One workload client per process. Provider resolution and attestation are lazy. */
 let runtimeOxyClient: OxyServer | undefined;
-
 export function setRuntimeOxyClient(client: OxyServer): void {
   runtimeOxyClient = client;
 }
-
 export function getRuntimeOxyClient(): OxyServer {
   if (!runtimeOxyClient) {
-    // Lazy require keeps importing domain modules side-effect free. Isolated
-    // tests and scripts that inject a client never load the full Oxy runtime.
-    const { OxyServer: OxyServerConstructor } = require('@oxy.so/core/server') as {
-      OxyServer: typeof OxyServer;
-    };
-    // Same identity as the production instance in runtimeApp.ts (#1173).
-    runtimeOxyClient = new OxyServerConstructor({
+    runtimeOxyClient = new OxyServer({
       baseURL: config.oxyApiUrl,
       serviceIdentity: 'when-anonymous',
+      workloadCredentials: createAwsWorkloadCredentialProvider(),
     });
+    instrumentOxyEgress(runtimeOxyClient);
   }
   return runtimeOxyClient;
 }
-
-/** Test/lifecycle hook; production shutdown normally ends the process. */
+/** Test/lifecycle hook; no bearer is persisted. */
 export function clearRuntimeOxyClient(): void {
   runtimeOxyClient = undefined;
 }

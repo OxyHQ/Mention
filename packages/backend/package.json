@@ -27,13 +27,13 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "^21.5.0",
-    "@clarity.surf/sdk": "^0.9.0",
+    "@clarity.surf/sdk": "0.10.0",
     "@crowdsource.you/contracts": "1.1.1",
-    "@crowdsource.you/core": "3.0.3",
+    "@crowdsource.you/core": "3.1.0",
     "@kaana.ai/contracts": "8.0.1",
-    "@kaana.ai/sdk": "3.2.1",
+    "@kaana.ai/sdk": "3.3.0",
     "@mention/shared-types": "workspace:*",
-    "@mercaria.co/sdk": "^0.6.0",
+    "@mercaria.co/sdk": "0.7.1",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/db": "^1.4.0",
@@ -62,9 +62,11 @@
     "redis": "^6.3.0",
     "sanitize-html": "^2.18.1",
     "socket.io": "^4.8.4",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@aws-sdk/credential-provider-node": "3.972.84"
   },
   "devDependencies": {
+    "@oxy.so/mention-sdk": "workspace:*",
     "@types/bun": "catalog:",
     "@types/compression": "^1.8.1",
     "@types/he": "^1.2.3",

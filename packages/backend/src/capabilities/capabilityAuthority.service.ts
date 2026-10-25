@@ -1,112 +1,39 @@
-import { createPublicKey, type KeyObject } from 'node:crypto';
-import {
-  capabilityTicketClaimsSchema,
-  policyDecisionSchema,
-  type CapabilityTicketClaims,
-} from '@oxy.so/contracts';
-import { CapabilityTicketError, verifyCapabilityTicket } from '@oxy.so/core/server';
-import { z } from 'zod';
+import type { CapabilityTicketClaims } from '@oxy.so/contracts';
+import { createOxyJwksKeyResolver, verifyCapabilityTicket } from '@oxy.so/core/server';
 import { config } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { measureOxyFetch } from '../utils/oxyMetrics';
 
-const JWKS_TTL_MS = 5 * 60 * 1_000;
-
-const publicJwkSchema = z.object({
-  kty: z.string(),
-  crv: z.string(),
-  x: z.string(),
-  kid: z.string().min(1),
-  use: z.string().optional(),
-  alg: z.string().optional(),
+const resolveKey = createOxyJwksKeyResolver({
+  jwksUrl: `${config.oxyApiUrl}/capabilities/.well-known/jwks.json`,
 });
-const jwksSchema = z.object({ keys: z.array(publicJwkSchema) });
-const introspectionEnvelopeSchema = z.object({
-  active: z.boolean(),
-  claims: z.unknown().optional(),
-  decision: z.unknown().optional(),
-});
-
-let cachedKeys = new Map<string, KeyObject>();
-let keysExpireAt = 0;
-
-async function loadPublicKeys(force = false): Promise<void> {
-  if (!force && cachedKeys.size > 0 && Date.now() < keysExpireAt) return;
-  const response = await fetch(`${config.oxyApiUrl}/capabilities/.well-known/jwks.json`, {
-    signal: AbortSignal.timeout(5_000),
-  });
-  if (!response.ok) throw new Error(`Oxy capability JWKS returned ${response.status}`);
-  const body = jwksSchema.parse(await response.json());
-  const keys = new Map<string, KeyObject>();
-  for (const jwk of body.keys) {
-    keys.set(jwk.kid, createPublicKey({ key: jwk, format: 'jwk' }));
-  }
-  if (keys.size === 0) throw new Error('Oxy capability JWKS contains no keys');
-  cachedKeys = keys;
-  keysExpireAt = Date.now() + JWKS_TTL_MS;
-}
-
+/** Signature/issuer/audience first; the route then checks live operation authority. */
 export async function verifyMentionCapabilityTicket(
   token: string,
 ): Promise<CapabilityTicketClaims> {
-  await loadPublicKeys();
-  const options = {
+  if (token.length > 32_768) throw new Error('Capability ticket exceeds size bound');
+  const header = JSON.parse(Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8'));
+  const kid: unknown = header?.kid;
+  if (typeof kid !== 'string' || !kid || kid.length > 256)
+    throw new Error('Capability key id missing');
+  const key = await resolveKey(kid);
+  return verifyCapabilityTicket(token, {
     audience: config.deploymentMcp.audience,
     issuer: config.oxyApiUrl,
-    resolvePublicKey: (keyId: string) => cachedKeys.get(keyId),
-  };
-  try {
-    return verifyCapabilityTicket(token, options);
-  } catch (error) {
-    if (!(error instanceof CapabilityTicketError) || error.code !== 'unknown_key') throw error;
-    await loadPublicKeys(true);
-    return verifyCapabilityTicket(token, options);
-  }
+    resolvePublicKey: (requested) => (requested === kid ? key : undefined),
+  });
 }
-
-async function introspectAtOxy(token: string): Promise<unknown> {
-  const oxy = getServiceOxyClient();
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const serviceToken = await oxy.serviceToken();
-    const response = await measureOxyFetch('POST', '/capabilities/tickets/introspect', () =>
-      fetch(`${config.oxyApiUrl}/capabilities/tickets/introspect`, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${serviceToken}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ ticket: token }),
-        signal: AbortSignal.timeout(10_000),
-      }),
-    );
-    if (response.status === 401 && attempt === 0) {
-      oxy.invalidateServiceToken();
-      continue;
-    }
-    if (!response.ok) {
-      throw new Error(`Oxy capability authority returned ${response.status}`);
-    }
-    return response.json();
-  }
-  throw new Error('Oxy capability authority rejected refreshed service credentials');
-}
-
-/** Recalculate mutable account, grant, automation, credential and app authority. */
+/** Shared SDK revalidates the original task/connection and exact live ticket. */
 export async function introspectMentionCapabilityTicket(
   token: string,
   localClaims: CapabilityTicketClaims,
 ): Promise<boolean> {
-  const envelope = introspectionEnvelopeSchema.parse(await introspectAtOxy(token));
-  const claims =
-    envelope.claims === undefined ? undefined : capabilityTicketClaimsSchema.parse(envelope.claims);
-  const decision =
-    envelope.decision === undefined ? undefined : policyDecisionSchema.parse(envelope.decision);
+  const result = await getServiceOxyClient().agency.introspectCapabilityTicket(token);
   return (
-    envelope.active === true &&
-    decision?.allowed === true &&
-    claims?.jti === localClaims.jti &&
-    claims.aud === localClaims.aud &&
-    claims.tool === localClaims.tool &&
-    claims.resource.effectiveAccountId === localClaims.resource.effectiveAccountId
+    result.active === true &&
+    result.decision?.allowed === true &&
+    result.claims?.jti === localClaims.jti &&
+    result.claims.aud === localClaims.aud &&
+    result.claims.tool === localClaims.tool &&
+    result.claims.resource.effectiveAccountId === localClaims.resource.effectiveAccountId
   );
 }

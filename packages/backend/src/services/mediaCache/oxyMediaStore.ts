@@ -1,5 +1,5 @@
-import http, { type IncomingMessage } from 'node:http';
-import https from 'node:https';
+import type { IncomingHttpHeaders } from 'node:http';
+import { Readable } from 'node:stream';
 import { createReadStream } from 'node:fs';
 import { URL } from 'node:url';
 
@@ -17,17 +17,10 @@ import { MEDIA_CACHE_WRITE_ENABLED } from './constants';
  *    the proxy 302s to the deterministic by-id CDN form built synchronously by
  *    the SDK (see {@link cachedMediaCdnUrl}). Asking the API for it needed a
  *    session token this client will never hold, and failed 100% of the time.
- *  - UPLOAD + DELETE: served by the oxy-api service-token cache endpoints
- *    (`POST /assets/service/cache`, `DELETE /assets/service/cache/:id`), which are
- *    gated by `serviceAuthMiddleware`. We authenticate with the SAME service token
- *    the SDK already manages via {@link getServiceOxyClient} — `getServiceToken()`
- *    auto-acquires and refreshes a short-lived (1h) JWT per configured credential
- *    pair. Because the SDK's generic request transport (`makeServiceRequest` →
- *    `HttpService`) only serializes JSON bodies (or multipart `FormData`) and
- *    cannot stream a raw request body with an arbitrary `Content-Type`, the upload
- *    path performs a native streaming HTTP request and attaches the SDK-managed
- *    service token as the bearer. No token is hand-minted: token lifecycle stays
- *    owned by the SDK.
+ *  - UPLOAD + DELETE: the shared workload transport owns authentication,
+ *    destination binding, redirects and one safe 401 replay. Upload bodies are
+ *    reopened from disk through fetchReplayable; they are never fully buffered.
+ *    The store retains its domain cooldowns and 60-second inactivity timeout.
  *
  * Both write operations are gated behind {@link isMediaCacheEnabled}: when the
  * cache is disabled they throw {@link MediaStoreUnavailableError}, and the
@@ -225,6 +218,8 @@ export interface CachedMediaSource {
   originalName?: string;
   /** Optional known byte length, sent as `Content-Length` when present. */
   sizeBytes?: number;
+  /** Cancel the upload, including workload preparation and any safe replay. */
+  signal?: AbortSignal;
 }
 
 /** Path of the oxy-api service-token asset cache endpoint (relative to the API base). */
@@ -241,12 +236,6 @@ const HTTP_NO_CONTENT = 204;
 const HTTP_NOT_FOUND = 404;
 /** Oxy's answer when this app's media-write budget for the window is spent. */
 const HTTP_TOO_MANY_REQUESTS = 429;
-/**
- * Unauthorized — the SDK-managed service token was rejected (e.g. revoked,
- * rotated, or expired right at the clock-drift boundary). We recover ONCE by
- * dropping the cached token and re-minting (see {@link withServiceTokenRetry}).
- */
-const HTTP_UNAUTHORIZED = 401;
 /** Idle socket timeout while streaming a body to / reading a response from oxy-api. */
 const OXY_REQUEST_TIMEOUT_MS = 60_000;
 /** Cap on the error-body snippet captured for diagnostics (avoid unbounded logs). */
@@ -323,53 +312,38 @@ function getOxyApiBaseUrl(): string {
   return getServiceOxyClient().baseURL.replace(/\/+$/, '');
 }
 
-/**
- * Obtain the SDK-managed service token. `getServiceToken()` returns a cached JWT
- * until 60s before expiry and transparently refreshes it otherwise, so the token
- * lifecycle stays owned by the SDK — we never mint one ourselves.
- */
-async function getServiceBearerToken(): Promise<string> {
-  return getServiceOxyClient().serviceToken();
-}
+type OxyMediaResponse = Readable & {
+  statusCode: number;
+  headers: IncomingHttpHeaders;
+};
 
-/**
- * Run an oxy-api request and recover from a single `401 Unauthorized` caused by a
- * stale SDK-managed service token (revoked/rotated, or refreshed right at the
- * clock-drift boundary). On a 401 we drop the cached token via the core client's
- * synchronous {@link OxyServices.invalidateServiceToken} so the NEXT
- * `getServiceToken()` re-mints a fresh JWT, then re-run `doRequest` exactly ONCE.
- *
- * `doRequest` MUST acquire the bearer token and (for the upload) open its file
- * stream INTERNALLY on each call, because the retry re-invokes it: a consumed
- * read stream cannot be re-sent, and the retry needs the freshly-minted token.
- * The first attempt's 401 response is drained so its socket returns to the pool.
- * Non-401 responses are returned verbatim for the caller to status-check.
- */
-async function withServiceTokenRetry(
-  doRequest: () => Promise<IncomingMessage>,
-): Promise<IncomingMessage> {
-  const first = await doRequest();
-  if (first.statusCode !== HTTP_UNAUTHORIZED) {
-    return first;
+type WorkloadClient = ReturnType<ReturnType<typeof getServiceOxyClient>['createServiceClient']>;
+let mediaTransport:
+  | { owner: ReturnType<typeof getServiceOxyClient>; client: WorkloadClient }
+  | undefined;
+
+function getMediaTransport(): WorkloadClient {
+  const owner = getServiceOxyClient();
+  if (mediaTransport?.owner !== owner) {
+    mediaTransport?.client.dispose();
+    mediaTransport = {
+      owner,
+      client: owner.createServiceClient({ baseURL: owner.baseURL, audience: 'oxy-api' }),
+    };
   }
-
-  // Discard the rejected token and release the dead socket before retrying.
-  getServiceOxyClient().invalidateServiceToken();
-  first.resume();
-  logger.warn('[MediaCache] Oxy service token rejected (401); re-minting and retrying once');
-
-  return doRequest();
+  return mediaTransport.client;
 }
 
 /** Read up to {@link ERROR_BODY_SNIPPET_BYTES} of a response body for diagnostics. */
-async function readErrorSnippet(response: IncomingMessage): Promise<string> {
+async function readErrorSnippet(response: OxyMediaResponse): Promise<string> {
   return new Promise<string>((resolve) => {
     const chunks: Buffer[] = [];
     let total = 0;
     response.on('data', (chunk: Buffer) => {
       if (total >= ERROR_BODY_SNIPPET_BYTES) return;
-      total += chunk.length;
-      chunks.push(chunk);
+      const captured = chunk.subarray(0, ERROR_BODY_SNIPPET_BYTES - total);
+      total += captured.length;
+      chunks.push(captured);
     });
     response.on('end', () => {
       resolve(Buffer.concat(chunks).toString('utf8').slice(0, ERROR_BODY_SNIPPET_BYTES));
@@ -379,7 +353,7 @@ async function readErrorSnippet(response: IncomingMessage): Promise<string> {
 }
 
 /** Read a full JSON response body and parse it (bounded by the upstream contract). */
-async function readJsonResponse(response: IncomingMessage): Promise<unknown> {
+async function readJsonResponse(response: OxyMediaResponse): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of response) {
     chunks.push(chunk as Buffer);
@@ -440,25 +414,23 @@ async function uploadMediaToOxy(
 ): Promise<UploadedAsset> {
   const target = new URL(`${getOxyApiBaseUrl()}${path}`);
 
-  // The token is acquired and the file stream re-opened INSIDE the closure so a
-  // 401 retry re-mints the bearer and pipes a fresh stream (a consumed stream
-  // cannot be re-sent).
-  const response = await withServiceTokenRetry(async () => {
-    const token = await getServiceBearerToken();
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': source.contentType,
-      Accept: 'application/json',
-      ...extraHeaders,
-    };
-    if (source.originalName) {
-      headers['x-original-name'] = source.originalName;
-    }
-    if (typeof source.sizeBytes === 'number' && Number.isFinite(source.sizeBytes)) {
-      headers['Content-Length'] = String(source.sizeBytes);
-    }
-    return streamRequest('POST', target, headers, source.filePath);
-  });
+  const headers: Record<string, string> = {
+    'Content-Type': source.contentType,
+    Accept: 'application/json',
+    ...extraHeaders,
+  };
+  if (source.originalName) headers['x-original-name'] = source.originalName;
+  if (typeof source.sizeBytes === 'number' && Number.isFinite(source.sizeBytes)) {
+    headers['Content-Length'] = String(source.sizeBytes);
+  }
+  const response = await streamRequest(
+    'POST',
+    target,
+    headers,
+    source.filePath,
+    undefined,
+    source.signal,
+  );
   const status = response.statusCode ?? 0;
 
   if (status === HTTP_TOO_MANY_REQUESTS) {
@@ -564,16 +536,7 @@ async function deleteFromCacheNamespace(oxyFileId: string): Promise<void> {
     `${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}/${encodeURIComponent(oxyFileId)}`,
   );
 
-  // Token acquired inside the closure so a 401 retry mints a fresh bearer. The
-  // delete carries no body, so the retry is a plain re-issue.
-  const response = await withServiceTokenRetry(async () => {
-    const token = await getServiceBearerToken();
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    };
-    return streamRequest('DELETE', target, headers);
-  });
+  const response = await streamRequest('DELETE', target, { Accept: 'application/json' });
   const status = response.statusCode ?? 0;
 
   if (status === HTTP_TOO_MANY_REQUESTS) {
@@ -610,7 +573,7 @@ export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 20;
 /**
  * Delete durable federated media Mention re-hosted (`POST
  * /assets/service/federation/delete`, body `{ ids }`, 1–20 ids). Same raw
- * transport, SDK service token and single 401 retry as the upload beside it.
+ * workload transport and single safe 401 retry as the upload beside it.
  *
  * DELIBERATELY NOT gated on {@link isMediaCacheEnabled}: turning media WRITES
  * off must never stop a deletion — a post deleted at its source (or on
@@ -635,21 +598,17 @@ export async function deleteFederatedMedia(
 
   const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_FEDERATION_PATH}/delete`);
   const body = JSON.stringify({ ids: [...fileIds] });
-  const response = await withServiceTokenRetry(async () => {
-    const token = await getServiceBearerToken();
-    return streamRequest(
-      'POST',
-      target,
-      {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'Content-Length': String(Buffer.byteLength(body)),
-      },
-      undefined,
-      body,
-    );
-  });
+  const response = await streamRequest(
+    'POST',
+    target,
+    {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Content-Length': String(Buffer.byteLength(body)),
+    },
+    undefined,
+    body,
+  );
   const status = response.statusCode ?? 0;
 
   if (status === HTTP_TOO_MANY_REQUESTS) {
@@ -688,50 +647,96 @@ export async function deleteFederatedMedia(
 }
 
 /**
- * Perform a single native HTTP/HTTPS request to oxy-api, optionally streaming a
- * local file as the request body. Returns the response message; the caller owns
- * consuming/draining it. Used instead of the SDK's JSON-only transport because
- * the cache endpoint takes the media as the raw request body.
+ * Stream through the shared transport. A fresh disk stream is created only for
+ * an authenticated attempt (and its one safe 401 replay). Activity resets the
+ * idle deadline; a large active upload is not subject to a total-duration cap.
+ * The returned readable keeps the existing response-consumption contract.
  */
-function streamRequest(
+async function streamRequest(
   method: 'POST' | 'DELETE',
   target: URL,
   headers: Record<string, string>,
   filePath?: string,
   jsonBody?: string,
-): Promise<IncomingMessage> {
-  return new Promise<IncomingMessage>((resolve, reject) => {
-    const isHttps = target.protocol === 'https:';
-    const transport = isHttps ? https : http;
-
-    const request = transport.request(
-      {
-        protocol: target.protocol,
-        hostname: target.hostname,
-        port: target.port || (isHttps ? 443 : 80),
-        path: `${target.pathname}${target.search}`,
-        method,
-        headers,
-      },
-      (response) => resolve(response),
+  signal?: AbortSignal,
+): Promise<OxyMediaResponse> {
+  const controller = new AbortController();
+  let upload: ReturnType<typeof createReadStream> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let finished = false;
+  const onAbort = () => controller.abort(signal?.reason);
+  const finish = () => {
+    finished = true;
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+    upload?.destroy();
+  };
+  const touch = () => {
+    if (finished) return;
+    clearTimeout(timer);
+    timer = setTimeout(
+      () => controller.abort(new Error('oxy-api request timeout')),
+      OXY_REQUEST_TIMEOUT_MS,
     );
-
-    request.setTimeout(OXY_REQUEST_TIMEOUT_MS, () => {
-      request.destroy(new Error('oxy-api request timeout'));
-    });
-    request.on('error', (error) => reject(error));
-
-    if (filePath) {
-      const fileStream = createReadStream(filePath);
-      fileStream.on('error', (error) => {
-        request.destroy(error);
-        reject(error);
-      });
-      fileStream.pipe(request);
-    } else if (jsonBody !== undefined) {
-      request.end(jsonBody);
-    } else {
-      request.end();
+    timer.unref();
+  };
+  if (signal?.aborted) onAbort();
+  else signal?.addEventListener('abort', onAbort, { once: true });
+  touch();
+  try {
+    const transport = getMediaTransport();
+    const init = { method, headers, signal: controller.signal };
+    const response = filePath
+      ? await transport.fetchReplayable(target, {
+          ...init,
+          bodyFactory: () => {
+            // An early 401 may arrive while the previous disk stream is still
+            // open. The shared transport decides replay; this source owns and
+            // closes its file handle before providing the next fresh body.
+            upload?.destroy();
+            const file = createReadStream(filePath, { signal: controller.signal });
+            upload = file;
+            const chunks: AsyncIterator<Buffer> = file[Symbol.asyncIterator]();
+            return new ReadableStream<Uint8Array>({
+              async pull(output) {
+                const { done, value } = await chunks.next();
+                if (done) output.close();
+                else {
+                  touch();
+                  output.enqueue(value);
+                }
+              },
+              async cancel() {
+                file.destroy();
+                await chunks.return?.();
+              },
+            });
+          },
+        })
+      : await transport.fetch(target, { ...init, body: jsonBody });
+    touch();
+    async function* responseBody() {
+      const reader = response.body?.getReader();
+      try {
+        if (!reader) return;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return;
+          touch();
+          yield Buffer.from(value);
+        }
+      } finally {
+        finish();
+        await reader?.cancel().catch(() => undefined);
+        reader?.releaseLock();
+      }
     }
-  });
+    const body = Readable.from(responseBody()) as OxyMediaResponse;
+    body.statusCode = response.status;
+    body.headers = Object.fromEntries(response.headers.entries());
+    return body;
+  } catch (error) {
+    finish();
+    throw error;
+  }
 }

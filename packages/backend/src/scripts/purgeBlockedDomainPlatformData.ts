@@ -81,7 +81,6 @@
  */
 
 import { canonicalFederationHost } from '@oxy.so/federation';
-import { canAuthenticateAsService } from '../runtime/serviceIdentity';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
@@ -837,17 +836,18 @@ export function totalsOf(report: PlatformPurgeReport): Record<string, number> {
 // --- entry point -------------------------------------------------------------
 
 /**
- * Refuse before the first request if there is no service credential to make it
- * with. Without one every call is an unauthenticated 401, and the run would
+ * Refuse before the first request if the process cannot attest its workload.
+ * Without it every call is an unauthenticated 401, and the run would
  * spend five domains discovering a configuration problem it could state up front.
  */
-function assertServiceCredentialConfigured(): void {
-  if (canAuthenticateAsService()) return;
-  throw new Error(
-    `[${SCRIPT_NAME}] this process cannot authenticate as Mention: it can neither ` +
-      'attest its task role nor read an OXY_SERVICE_API_KEY + OXY_SERVICE_API_SECRET pair. ' +
-      'The purge endpoint resolves whose data may be deleted from that identity.',
-  );
+async function assertServiceCredentialConfigured(): Promise<void> {
+  const oxy = getServiceOxyClient();
+  const transport = oxy.createServiceClient({ baseURL: oxy.baseURL, audience: 'oxy-api' });
+  try {
+    await transport.getAccessToken(new URL('/assets/service/federation', oxy.baseURL));
+  } finally {
+    transport.dispose();
+  }
 }
 
 async function main(): Promise<void> {
@@ -856,7 +856,7 @@ async function main(): Promise<void> {
 
   try {
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun: options.dryRun });
-    assertServiceCredentialConfigured();
+    await assertServiceCredentialConfigured();
 
     const domains = resolvePurgeTargets(options);
 

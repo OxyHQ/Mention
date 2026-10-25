@@ -19,6 +19,7 @@ import {
 import { spawnMcpServer, type SpawnedMcpServer } from './support/spawn-server.js';
 
 const PUBLIC_URL = 'http://127.0.0.1';
+const SERVICE_TOKEN = `e30.${Buffer.from(JSON.stringify({ type: 'service', authority: 'first_party', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
 
 /** A compact JWS whose header says EdDSA, so the server asks Oxy about it. */
 function centralToken(name: string): string {
@@ -52,12 +53,15 @@ beforeAll(async () => {
     hostname: '127.0.0.1',
     async fetch(request) {
       const url = new URL(request.url);
-      if (url.pathname === '/auth/service-token') {
-        return Response.json({ token: 'service-token', expiresIn: 3600 });
+      if (url.pathname === '/auth/service-token/workload/challenge') {
+        return Response.json({ nonce: 'test-workload-nonce' });
+      }
+      if (url.pathname === '/auth/service-token/workload') {
+        return Response.json({ token: SERVICE_TOKEN, expiresIn: 3600 });
       }
       if (url.pathname === '/auth/mcp/oauth/introspect') {
         introspections++;
-        if (request.headers.get('authorization') !== 'Bearer service-token') {
+        if (request.headers.get('authorization') !== `Bearer ${SERVICE_TOKEN}`) {
           return new Response(null, { status: 401 });
         }
         const { token } = (await request.json()) as { token: string };

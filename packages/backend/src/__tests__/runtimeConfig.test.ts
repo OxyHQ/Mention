@@ -61,7 +61,7 @@ describe('runtime configuration', () => {
 
   it('rejects partial credential groups', () => {
     expect(() => parseRuntimeEnvironment({ OXY_SERVICE_API_KEY: 'service-key' })).toThrow(
-      'OXY_SERVICE_API_SECRET',
+      'Oxy service keys are retired',
     );
     expect(() =>
       parseRuntimeEnvironment({

@@ -15,8 +15,6 @@ describe('MCP configuration', () => {
     const config = loadMcpHttpConfig({
       MENTION_MCP_PUBLIC_URL: 'https://mcp.mention.test/',
       OXY_API_URL: 'https://api.oxy.test/',
-      OXY_SERVICE_API_KEY: 'service-key',
-      OXY_SERVICE_API_SECRET: 'service-secret',
     });
 
     expect(config.port).toBe(3_100);
@@ -29,8 +27,6 @@ describe('MCP configuration', () => {
     expect(() =>
       loadMcpHttpConfig({
         MCP_MAX_SESSIONS: 'unbounded',
-        OXY_SERVICE_API_KEY: 'service-key',
-        OXY_SERVICE_API_SECRET: 'service-secret',
       }),
     ).toThrow('MCP_MAX_SESSIONS');
   });
@@ -39,31 +35,18 @@ describe('MCP configuration', () => {
     expect(() =>
       loadMcpHttpConfig({
         MCP_ALLOWED_ORIGINS: 'https://example.com/path',
-        OXY_SERVICE_API_KEY: 'service-key',
-        OXY_SERVICE_API_SECRET: 'service-secret',
       }),
     ).toThrow('expected an HTTP(S) origin without a path');
   });
 
-  test('boots without a secret, and reads a service credential where one is given', () => {
-    /**
-     * The pair used to be required. A deployed task proves what it is by
-     * attesting its ECS task role and gets the same service token with no
-     * secret anywhere (oxy ADR 0026), so requiring it would make a task that
-     * authenticates perfectly well refuse to boot — which is the whole point of
-     * removing the two variables from the task definition.
-     */
-    const withoutCredential = loadMcpHttpConfig({});
-    expect(withoutCredential.oxyServiceApiKey).toBeUndefined();
-    expect(withoutCredential.oxyServiceApiSecret).toBeUndefined();
-
-    // And where a pair IS given — a laptop, which can attest nothing — it is
-    // still read and still used.
-    const withCredential = loadMcpHttpConfig({
-      OXY_SERVICE_API_KEY: 'service-key',
-      OXY_SERVICE_API_SECRET: 'service-secret',
-    });
-    expect(withCredential.oxyServiceApiKey).toBe('service-key');
+  test('uses workload configuration and rejects a customer key fallback', () => {
+    expect(loadMcpHttpConfig({}).oxyApiUrl).toBe('https://api.oxy.so');
+    expect(() => loadMcpHttpConfig({ OXY_SERVICE_API_KEY: 'customer-key' })).toThrow(
+      'workload role',
+    );
+    expect(() => loadMcpHttpConfig({ OXY_SERVICE_API_SECRET: 'customer-secret' })).toThrow(
+      'workload role',
+    );
   });
 });
 
@@ -74,8 +57,6 @@ describe('managed MCP configuration', () => {
     );
     const environment = {
       MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
-      OXY_SERVICE_API_KEY: 'tenant-service-key',
-      OXY_SERVICE_API_SECRET: 'tenant-service-secret',
     };
     const http = loadMcpHttpConfig(environment);
     expect(loadApiClientConfig(environment).baseUrl).toBe(example.apiBaseUrl);

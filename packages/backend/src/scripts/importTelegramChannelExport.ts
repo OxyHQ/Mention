@@ -40,7 +40,7 @@ import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources, registerAdminScriptServices } from './lib/adminScriptLifecycle';
 import { connectPostgres } from '../db/postgres';
 import { findImportsBySourceIds } from '../db/imports/postImportRepository';
-import { uploadServiceUserMedia } from '../utils/oxyHelpers';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import {
   MAX_IMPORT_BATCH_ITEMS,
@@ -161,13 +161,27 @@ const fetchStaged: Fetcher = async (url, maxBytes) => {
 
 export interface TelegramImportDeps {
   fetchStaged: Fetcher;
-  uploadMedia: typeof uploadServiceUserMedia;
+  uploadMedia(params: {
+    taskId: string;
+    ownerUserId: string;
+    buffer: Buffer;
+    contentType: string;
+    fileName: string;
+  }): Promise<{ fileId: string; contentType: string }>;
   ingestBatch: typeof postImportService.ingestBatch;
 }
 
 const defaultDeps: TelegramImportDeps = {
   fetchStaged,
-  uploadMedia: uploadServiceUserMedia,
+  async uploadMedia(params) {
+    const file = await getServiceOxyClient()
+      .assets.withRequester({ taskId: params.taskId, accountId: params.ownerUserId })
+      .uploadUserMedia(params.ownerUserId, new Uint8Array(params.buffer), params.contentType, {
+        originalName: params.fileName,
+        visibility: 'public',
+      });
+    return { fileId: file.id, contentType: params.contentType };
+  },
   ingestBatch: (params) => postImportService.ingestBatch(params),
 };
 
@@ -181,7 +195,7 @@ export interface TelegramImportResult {
 
 export async function importTelegramChannelExport(
   manifest: TelegramManifest,
-  opts: { targetOxyUserId: string; batchId: string; dryRun?: boolean },
+  opts: { targetOxyUserId: string; batchId: string; dryRun?: boolean; taskId?: string },
   deps: TelegramImportDeps = defaultDeps,
 ): Promise<TelegramImportResult> {
   const dryRun = opts.dryRun ?? true;
@@ -210,6 +224,10 @@ export async function importTelegramChannelExport(
     mediaFiles: pending.reduce((n, item) => n + item.media.length, 0),
   });
   if (dryRun || pending.length === 0) return result;
+  if (!opts.taskId)
+    throw new Error(
+      'IMPORT_OXY_TASK_ID must identify the original account-authorized Mention task',
+    );
 
   for (let i = 0; i < pending.length; i += MAX_IMPORT_BATCH_ITEMS) {
     const chunk = pending.slice(i, i + MAX_IMPORT_BATCH_ITEMS);
@@ -220,6 +238,7 @@ export async function importTelegramChannelExport(
         for (const entry of item.media) {
           const buffer = await deps.fetchStaged(entry.url, MAX_MEDIA_BYTES);
           const uploaded = await deps.uploadMedia({
+            taskId: opts.taskId,
             ownerUserId: opts.targetOxyUserId,
             buffer,
             contentType: entry.mimeType,
@@ -278,6 +297,7 @@ async function main(): Promise<number> {
   const targetOxyUserId = (process.env.IMPORT_TARGET_OXY_USER_ID ?? '').trim();
   const targetUsername = (process.env.IMPORT_TARGET_USERNAME ?? '').trim().replace(/^@/, '');
   const batchId = (process.env.IMPORT_BATCH_ID ?? '').trim();
+  const taskId = (process.env.IMPORT_OXY_TASK_ID ?? '').trim();
   if (!targetOxyUserId || !targetUsername || !batchId) {
     throw new Error(
       'IMPORT_TARGET_OXY_USER_ID, IMPORT_TARGET_USERNAME and IMPORT_BATCH_ID are required',
@@ -301,6 +321,7 @@ async function main(): Promise<number> {
       targetOxyUserId,
       batchId,
       dryRun,
+      taskId,
     });
     return result.failed > 0 ? EXIT_INCOMPLETE : 0;
   } finally {
