@@ -30,14 +30,6 @@ import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
 import { TIMELINE_LINE_OFFSET } from './composeLayout';
 
 export const composeStyles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-    // keep header clean (no divider)
-  },
   cancelButton: {
     padding: 8,
   },
@@ -51,9 +43,6 @@ export const composeStyles = StyleSheet.create({
   },
   postButtonDisabled: {
     backgroundColor: '#949494',
-  },
-  composeArea: {
-    flex: 1,
   },
   userInfo: {
     flexDirection: 'row',
@@ -101,23 +90,6 @@ export const composeStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   /* header and icon tweaks */
-  headerTitle: {
-    position: 'absolute',
-    // Centre against the header itself, never against whatever uneven number of
-    // actions happens to be visible on either side.
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none', // Don't block touches on buttons
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-    zIndex: 1,
-  },
   iconBtn: {
     marginLeft: 8,
   },
@@ -305,9 +277,6 @@ export const composeStyles = StyleSheet.create({
     padding: 6,
   },
   // Timeline connector styles
-  threadScrollView: {
-    flex: 1,
-  },
   threadScrollContent: {
     flexGrow: 1,
     paddingBottom: 80,

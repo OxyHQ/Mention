@@ -50,11 +50,9 @@ import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
-import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
@@ -62,6 +60,8 @@ import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { PageFooter } from '@oxy.so/bloom/page-footer';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { presentSheet } from '@/utils/sheet';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
@@ -2705,36 +2705,36 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         title={tCompose('seo.compose.title')}
         description={tCompose('seo.compose.description')}
       />
-      {/* `bg-card` is not decoration: the top inset is this view's own
-          padding, and without a colour it shows the window background — a WHITE
-          band above the composer on Android, with the light status-bar icons
-          below invisible against it. The loading state's view further
-          down paints it too; the signed-out state's PageHeader pads and paints
-          the inset itself. */}
-      {/* The BOTTOM inset too: the shell's bottom bar is never drawn over the
-          composer (`app/(app)/_layout.tsx`), so the footer row sits on the
-          screen edge and has to clear the gesture area itself. */}
-      <View className="flex-1 bg-card pt-safe pb-safe">
-        {supervision.supervised && (
-          <Text className="px-4 py-3 text-sm text-muted-foreground">{t('safety.privatePost')}</Text>
-        )}
-
-        {/* keyboard-controller's view, not React Native's: under its
-            `KeyboardProvider` Android runs edge-to-edge, the window is never
-            resized for the keyboard, and RN's view with no `behavior` (what
-            Android had here) did nothing at all — the footer and its Post button
-            stayed behind the keyboard. `automaticOffset` measures where this
-            view actually sits instead of a guessed header height. */}
-        <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.composeArea}>
-          <View style={{ flex: 1 }}>
-            {/* Header */}
-            <View className="bg-card border-border" style={styles.header}>
-              {presentation === 'tab' ? (
-                // The tab has nothing to pop to, so it CLOSES — back to Home, the
-                // way "done" leaves every tabbed composer. Nothing is discarded:
-                // the tab stays mounted and the draft autosaves, so swiping back
-                // returns to the sentence. A back arrow would be a lie on a root
-                // tab.
+      {/* One Bloom Screen: the header pads the status bar, the footer clears the
+          gesture area and follows the keyboard, and the scroller keeps the box
+          being typed in above it. The shell's bottom bar is never drawn over the
+          composer (`app/(app)/_layout.tsx`). */}
+      <Screen
+        scroll="content"
+        testID="compose-screen"
+        style={{ backgroundColor: theme.colors.card }}
+        header={
+          <PageHeader
+            title={isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}
+            // The tab has nothing to pop to, so it CLOSES — back to Home, the way
+            // "done" leaves every tabbed composer. Nothing is discarded: the tab
+            // stays mounted and the draft autosaves, so swiping back returns to the
+            // sentence. A back arrow would be a lie on a root tab. Pushed, Back
+            // asks before an unsent draft is left.
+            onBack={
+              presentation === 'tab'
+                ? null
+                : () => {
+                    if (hasDraftContent(draftSnapshot) && !isEditMode) {
+                      discardControl.open();
+                    } else {
+                      dismiss();
+                    }
+                  }
+            }
+            backLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
+            leading={
+              presentation === 'tab' ? (
                 <Button
                   appearance="subtle"
                   tone="neutral"
@@ -2745,30 +2745,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
                   testID="compose-close"
                 />
-              ) : (
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  iconOnly
-                  leadingIcon={RiArrowLeftLine}
-                  onPress={() => {
-                    if (hasDraftContent(draftSnapshot) && !isEditMode) {
-                      discardControl.open();
-                    } else {
-                      dismiss();
-                    }
-                  }}
-                  style={styles.backBtn}
-                  accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
-                />
-              )}
-              <Text
-                className="text-foreground"
-                style={[styles.headerTitle, { pointerEvents: 'none' }]}
-              >
-                {isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}
-              </Text>
-              <View style={styles.headerIcons}>
+              ) : undefined
+            }
+            actions={
+              <>
                 <Button
                   appearance="subtle"
                   tone="neutral"
@@ -2821,816 +2801,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     defaultValue: 'Clear all content',
                   })}
                 />
-              </View>
-            </View>
-
-            {/* Editing indicator */}
-            {isEditMode && (
-              <View className="px-4 py-2 bg-muted border-b border-border">
-                <Text className="text-primary text-[13px] font-semibold">
-                  {editLoading
-                    ? t('Loading post...')
-                    : editingScheduledPost
-                      ? t('compose.scheduled.editingNotice', {
-                          defaultValue:
-                            'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.',
-                        })
-                      : editingServerDraft
-                        ? t('compose.serverDrafts.editingNotice', {
-                            defaultValue:
-                              'Editing a draft saved to your account — nobody has seen it yet, so there is no time limit. Saving keeps it a draft; publish it from your drafts.',
-                          })
-                        : editingChannelPost
-                          ? // A channel post has no deadline, and saying "30 minutes"
-                            // here would be false. What replaces the window is the
-                            // trail, so the notice states that instead of stating
-                            // nothing.
-                            t('compose.channel.editingNotice', {
-                              defaultValue:
-                                'Editing a published post. There is no time limit, and your change is recorded in this post’s public correction history.',
-                            })
-                          : t('compose.editingNotice', {
-                              defaultValue:
-                                'Editing post — changes must be saved within 30 minutes of creation.',
-                            })}
-                </Text>
-              </View>
-            )}
-
-            {/* Mode Toggle Section */}
-            {showModeToggle && (
-              <View className="bg-muted border-border" style={styles.modeToggleContainer}>
-                <View style={styles.modeToggleRow}>
-                  <View style={styles.modeOption}>
-                    <Text
-                      className={postingMode === 'thread' ? 'text-primary' : 'text-foreground'}
-                      style={styles.modeLabel}
-                    >
-                      {t('Thread')}
-                    </Text>
-                    <Text className="text-muted-foreground" style={styles.modeDescription}>
-                      {t('Post as linked thread')}
-                    </Text>
-                  </View>
-                  <View style={styles.modeToggle}>
-                    <Switch
-                      checked={postingMode === 'beast'}
-                      onCheckedChange={(value) => {
-                        haptic('light');
-                        setPostingMode(value ? 'beast' : 'thread');
-                      }}
-                      accessibilityLabel={t('Beast')}
-                    />
-                  </View>
-                  <View style={styles.modeOption}>
-                    <Text
-                      className={postingMode === 'beast' ? 'text-primary' : 'text-foreground'}
-                      style={styles.modeLabel}
-                    >
-                      {t('Beast')}
-                    </Text>
-                    <Text className="text-muted-foreground" style={styles.modeDescription}>
-                      {t('Post all at once')}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* Main composer and thread section */}
-            <ScrollView
-              style={styles.threadScrollView}
-              contentContainerStyle={styles.threadScrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Parent post preview (reply mode) */}
-              {replyToPostId &&
-                (replyLoading ? (
-                  <View style={styles.replyPreviewLoading}>
-                    <FeedSkeleton count={1} />
-                  </View>
-                ) : replyToPost ? (
-                  <View className="border-b border-border">
-                    <PostItem post={replyToPost} />
-                  </View>
-                ) : null)}
-
-              <View style={styles.threadContainer}>
-                {isPrimaryTab ? (
-                  <>
-                    {/* Main composer */}
-                    <View
-                      className="border-border"
-                      style={[
-                        styles.postContainer,
-                        !showThreadTimeline && threadItems.length > 0 && styles.beastSeparator,
-                        focusedItemId !== MAIN_ITEM_ID &&
-                          threadItems.length > 0 &&
-                          styles.unfocusedItem,
-                      ]}
-                    >
-                      {/* Connector line below main avatar — thread mode only; see
-                    `showThreadTimeline`. */}
-                      {showThreadTimeline ? (
-                        <View className="bg-primary/20" style={styles.itemConnectorLine} />
-                      ) : null}
-                      <View style={styles.composerWithTimeline}>
-                        <ComposeIdentityHeader
-                          publishAs={effectiveMainPublishAs}
-                          // The byline this post is going to get: with collaborators
-                          // named, the header draws the same avatar cluster and "A and
-                          // B" name row the published post will.
-                          collaborators={collaboratorsEligible ? collaborators : undefined}
-                          onPressAvatar={
-                            mainPublishAsEligible ? handleMainPublishAsPress : undefined
-                          }
-                          timeSlot={scheduleTimeSlot}
-                        >
-                          {effectiveCommunity ? (
-                            <TextInput
-                              className="text-foreground text-[17px] font-semibold py-1"
-                              placeholder={t('compose.community.titlePlaceholder', {
-                                defaultValue: 'Title (optional)',
-                              })}
-                              placeholderTextColor={theme.colors.textSecondary}
-                              value={postTitle}
-                              onChangeText={setPostTitle}
-                              maxLength={COMMUNITY_POST_TITLE_MAX_LENGTH}
-                              accessibilityLabel={t('compose.community.titleLabel', {
-                                defaultValue: 'Post title',
-                              })}
-                            />
-                          ) : null}
-                          <MentionTextInput
-                            ref={mainTextInputRef}
-                            className="text-foreground"
-                            style={styles.mainTextInput}
-                            placeholder={
-                              replyToPostId
-                                ? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
-                                : t('compose.placeholder', { defaultValue: "What's new?" })
-                            }
-                            value={postContent}
-                            mentions={mentions}
-                            onValueChange={handleMainMentionValueChange}
-                            onFocus={() => setFocusedItemId('main')}
-                            multiline
-                            autoFocus
-                          />
-                          {/* Who this post will address, including anybody a pasted
-                        profile link resolves to — the only place that mention is
-                        visible, since the body shows their URL. */}
-                          <ComposeMentionSummary
-                            texts={[postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)]}
-                            mentions={mentions}
-                          />
-                        </ComposeIdentityHeader>
-
-                        {homiioCase ? (
-                          <View style={styles.mediaPreviewContainer}>
-                            <HomiioCaseCard caseId={homiioCase.caseId} />
-                          </View>
-                        ) : null}
-                        {/* Attachments row (poll + article + media + link) */}
-                        {attachmentOrder.length > 0 ? (
-                          <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>
-                            <ScrollView
-                              horizontal
-                              showsHorizontalScrollIndicator={false}
-                              contentContainerStyle={[
-                                styles.mediaPreviewScroll,
-                                { paddingLeft: BOTTOM_LEFT_PAD },
-                              ]}
-                            >
-                              {attachmentOrder.map((key, index) => {
-                                const total = attachmentOrder.length;
-
-                                if (key === ARTICLE_ATTACHMENT_KEY) {
-                                  if (!(hasArticleContent && article)) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={removeArticle}
-                                      wrapperStyle={[
-                                        styles.articleAttachmentWrapper,
-                                        {
-                                          borderColor: theme.colors.border,
-                                          backgroundColor: theme.colors.card,
-                                        },
-                                      ]}
-                                    >
-                                      <PostArticlePreview
-                                        title={article.title}
-                                        body={article.body}
-                                        onPress={openArticleEditor}
-                                        style={styles.articleAttachmentPreview}
-                                      />
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
-
-                                if (key === EVENT_ATTACHMENT_KEY) {
-                                  if (!(hasEventContent && event)) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={removeEvent}
-                                      wrapperStyle={[
-                                        styles.articleAttachmentWrapper,
-                                        {
-                                          borderColor: theme.colors.border,
-                                          backgroundColor: theme.colors.card,
-                                        },
-                                      ]}
-                                    >
-                                      <PostAttachmentEvent
-                                        name={event.name}
-                                        date={event.date}
-                                        location={event.location}
-                                        onPress={openEventEditor}
-                                        style={styles.articleAttachmentPreview}
-                                      />
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
-
-                                if (key === ROOM_ATTACHMENT_KEY) {
-                                  if (!(hasRoomContent && attachedRoom)) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={removeRoom}
-                                      wrapperStyle={[
-                                        styles.articleAttachmentWrapper,
-                                        {
-                                          borderColor: theme.colors.border,
-                                          backgroundColor: theme.colors.card,
-                                        },
-                                      ]}
-                                    >
-                                      <RoomCard
-                                        room={{
-                                          _id: attachedRoom.roomId,
-                                          title: attachedRoom.title,
-                                          status: attachedRoom.status || 'scheduled',
-                                          topic: attachedRoom.topic,
-                                          participants: [],
-                                          host: attachedRoom.host || '',
-                                        }}
-                                        variant="compact"
-                                        style={styles.articleAttachmentPreview}
-                                      />
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
-
-                                if (key === PODCAST_ATTACHMENT_KEY) {
-                                  if (!(hasPodcastContent && podcast)) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={removePodcast}
-                                      wrapperStyle={[
-                                        styles.articleAttachmentWrapper,
-                                        {
-                                          borderColor: theme.colors.border,
-                                          backgroundColor: theme.colors.card,
-                                        },
-                                      ]}
-                                    >
-                                      <PostPodcastAttachment
-                                        podcast={podcast}
-                                        width={320}
-                                        height={120}
-                                        showSaveButton={false}
-                                        onPress={openPodcastPicker}
-                                      />
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
-
-                                if (key === JOB_ATTACHMENT_KEY) {
-                                  if (!(hasJobContent && job)) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={removeJob}
-                                      wrapperStyle={[
-                                        styles.articleAttachmentWrapper,
-                                        {
-                                          borderColor: theme.colors.border,
-                                          backgroundColor: theme.colors.card,
-                                        },
-                                      ]}
-                                    >
-                                      {/* Not `JobCard` (which navigates to the job page on
-                                    press): tapping this preview mid-compose must not
-                                    push the author away from an unsaved draft, so it
-                                    reopens the picker to change the selection instead. */}
-                                      <Pressable
-                                        onPress={openJobPicker}
-                                        style={[
-                                          styles.articleAttachmentPreview,
-                                          { justifyContent: 'center' },
-                                        ]}
-                                      >
-                                        <RiBriefcase4Line
-                                          width={20}
-                                          height={20}
-                                          fill={theme.colors.primary}
-                                        />
-                                        <Text
-                                          numberOfLines={2}
-                                          style={{
-                                            color: theme.colors.text,
-                                            fontSize: 15,
-                                            fontWeight: '700',
-                                            marginTop: 8,
-                                          }}
-                                        >
-                                          {job.title}
-                                        </Text>
-                                        <Text
-                                          numberOfLines={1}
-                                          style={{
-                                            color: theme.colors.textSecondary,
-                                            fontSize: 13,
-                                            marginTop: 2,
-                                          }}
-                                        >
-                                          {job.employerName}
-                                        </Text>
-                                      </Pressable>
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
-
-                                if (isLinkAttachmentKey(key)) {
-                                  const linkUrl = getUrlFromLinkAttachmentKey(key);
-                                  const link = detectedLinks.find(
-                                    (detected) => detected.url === linkUrl,
-                                  );
-                                  if (!link) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      // Removing a link card deletes only THAT link from the
-                                      // text — the other links (and their cards) stay.
-                                      onRemove={() =>
-                                        setPostContent(removeUrlFromText(postContent, link.url))
-                                      }
-                                      wrapperStyle={styles.linkAttachmentWrapper}
-                                    >
-                                      <LinkPreviewCard
-                                        url={link.url}
-                                        title={link.title}
-                                        description={link.description}
-                                        image={linkPreviewImageSources(link.image)}
-                                        siteName={link.siteName}
-                                      />
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
-
-                                if (isMediaAttachmentKey(key)) {
-                                  const mediaId = getMediaIdFromAttachmentKey(key);
-                                  const mediaItem = mediaIds.find((m) => m.id === mediaId);
-                                  if (!mediaItem) return null;
-                                  const mediaUrl = getFileDownloadUrl(mediaItem.id);
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={() => removeMedia(mediaItem.id)}
-                                      wrapperStyle={[
-                                        styles.mediaPreviewItem,
-                                        {
-                                          borderColor: theme.colors.border,
-                                          backgroundColor: theme.colors.backgroundSecondary,
-                                        },
-                                      ]}
-                                    >
-                                      <ComposeMediaPreview
-                                        type={mediaItem.type}
-                                        uri={mediaUrl}
-                                        imageStyle={styles.mediaPreviewImage}
-                                      />
-                                      {mediaItem.type === 'image' ? (
-                                        <ComposeAltButton
-                                          hasAlt={Boolean(mediaItem.alt?.trim())}
-                                          raised={total > 1}
-                                          onPress={() => openAltTextSheet(mediaItem)}
-                                        />
-                                      ) : null}
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
-
-                                return null;
-                              })}
-                            </ScrollView>
-                          </View>
-                        ) : null}
-
-                        {/* Poll Creator */}
-                        {showPollCreator && (
-                          <PollCreator
-                            pollTitle={pollTitle}
-                            onTitleChange={setPollTitle}
-                            pollOptions={pollOptions}
-                            onAddOption={addPollOption}
-                            onOptionChange={updatePollOption}
-                            onRemoveOption={removePollOption}
-                            onRemove={removePoll}
-                            style={bottomLeftPadStyle}
-                          />
-                        )}
-
-                        <View style={styles.toolbarWrapper}>
-                          <ComposeToolbar
-                            contentPaddingLeft={BOTTOM_LEFT_PAD}
-                            onMediaPress={openSharedMediaPicker}
-                            onPollPress={focusPollCreator}
-                            onLocationPress={requestLocation}
-                            onGifPress={handleMainGifPress}
-                            onEmojiPress={handleMainEmojiPress}
-                            onSourcesPress={openSourcesSheet}
-                            onArticlePress={openArticleEditor}
-                            onEventPress={openEventEditor}
-                            onRoomPress={handleMainRoomPress}
-                            onPodcastPress={openPodcastPicker}
-                            onJobPress={canAttachJob ? openJobPicker : undefined}
-                            // Omitted outright where the post cannot take
-                            // collaborators — a reply, a thread, or an edit of an
-                            // already-collaborative post. A batch refuses them at the
-                            // server, so a second box takes the icon away.
-                            onCollaboratorsPress={
-                              collaboratorsEligible ? handleCollaboratorsPress : undefined
-                            }
-                            hasCollaborators={collaborators.length > 0}
-                            collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
-                            // This box is the batch's ROOT in either mode, which is the
-                            // entry the wire takes a lane on in both — so unlike the
-                            // continuations it keeps the control whatever the mode.
-                            onLanePress={laneEligible ? handleLanePress : undefined}
-                            hasLane={Boolean(laneId)}
-                            hasLocation={!!location}
-                            isGettingLocation={isGettingLocation}
-                            hasPoll={showPollCreator}
-                            hasMedia={mediaIds.length > 0}
-                            hasSources={sources.length > 0}
-                            hasArticle={hasArticleContent}
-                            hasEvent={hasEventContent}
-                            hasRoom={hasRoomContent}
-                            hasPodcast={hasPodcastContent}
-                            hasJob={hasJobContent}
-                            hasSourceErrors={invalidSources}
-                            disabled={isPosting}
-                          />
-                        </View>
-
-                        {/* Collaborators — chosen from the attachment row's people
-                      icon, so the panel it opens sits with the other editors
-                      that row spawns rather than above it. */}
-                        {collaboratorsEligible && (
-                          <CollaboratorPicker
-                            selected={collaborators}
-                            onChange={setCollaborators}
-                            expanded={collaboratorSearchOpen}
-                            onExpandedChange={setCollaboratorSearchOpen}
-                          />
-                        )}
-
-                        {/* Location Display */}
-                        {location && (
-                          <LocationDisplay
-                            location={location}
-                            onRemove={removeLocation}
-                            style={bottomLeftPadStyle}
-                          />
-                        )}
-
-                        {/* Quote prefill card */}
-                        {(quotedPost || quoteLoading) && (
-                          <View className="mt-3" style={bottomLeftPadWithHPadStyle}>
-                            <QuoteCard
-                              post={quotedPost}
-                              loading={quoteLoading}
-                              onDismiss={clearQuote}
-                            />
-                          </View>
-                        )}
-
-                        {/* Main post interaction settings (beast mode with thread items) */}
-                        {postingMode === 'beast' && threadItems.length > 0 && (
-                          <View style={bottomLeftPadWithHPadStyle}>
-                            <InteractionSettingsPills
-                              replyPermission={replyPermission}
-                              quotesDisabled={quotesDisabled}
-                              isSensitive={isSensitive}
-                              onReplyPermissionChange={setReplyPermission}
-                              onQuotesDisabledChange={setQuotesDisabled}
-                              onSensitiveToggle={handleSensitiveToggle}
-                            />
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Thread items */}
-                    {threadItems.map((item) => (
-                      <ComposeThreadItem
-                        key={`thread-${item.id}`}
-                        item={item}
-                        variantTexts={variantTextsForItem(variants, item.id)}
-                        isFocused={focusedItemId === item.id}
-                        isPosting={isPosting}
-                        postingMode={postingMode}
-                        // Narrowed here, once, so the row can render it unconditionally:
-                        // in thread mode every box is the author's, whatever a box was
-                        // set to while the composer was in beast mode.
-                        publishAs={threadPublishAsEligible ? item.publishAs : null}
-                        onMentionValueChange={handleThreadMentionValueChange}
-                        onFocus={handleThreadFocus}
-                        onRemove={handleThreadRemove}
-                        onMediaPress={openThreadMediaPicker}
-                        onPollPress={openThreadPollCreator}
-                        onLocationPress={requestThreadLocation}
-                        onGifPress={handleThreadGifPress}
-                        onEmojiPress={handleThreadEmojiPress}
-                        onSourcesPress={handleThreadSourcesPress}
-                        onArticlePress={openThreadArticleEditor}
-                        onEventPress={openThreadEventEditor}
-                        onRoomPress={handleThreadRoomPress}
-                        onPollTitleChange={handleThreadPollTitleChange}
-                        onPollOptionChange={handleThreadPollOptionChange}
-                        onPollOptionAdd={handleThreadPollOptionAdd}
-                        onPollOptionRemove={handleThreadPollOptionRemove}
-                        onPollRemove={handleThreadPollRemove}
-                        onLocationRemove={handleThreadLocationRemove}
-                        onMediaRemove={handleThreadMediaRemove}
-                        onMediaMove={handleThreadMediaMove}
-                        onMediaAltPress={openThreadAltTextSheet}
-                        onArticleRemove={handleThreadArticleRemove}
-                        onEventRemove={handleThreadEventRemove}
-                        onRoomRemove={handleThreadRoomRemove}
-                        onReplyPermissionChange={setThreadReplyPermission}
-                        onQuotesDisabledChange={setThreadQuotesDisabled}
-                        onSensitiveToggle={handleThreadSensitiveToggle}
-                        onPodcastPress={openThreadPodcastPicker}
-                        onPodcastRemove={removeThreadPodcast}
-                        onPublishAsPress={
-                          threadPublishAsEligible ? handleThreadPublishAsPress : undefined
-                        }
-                        // A continuation is a reply and the server refuses a lane on
-                        // one, so the icon is absent in thread mode and present in
-                        // beast — see `threadLaneEligible`.
-                        onLanePress={threadLaneEligible ? handleThreadLanePress : undefined}
-                        // The SAME node the main box gets — one publish time for the
-                        // whole batch, so every row says it and clearing it clears
-                        // them all in one render.
-                        timeSlot={scheduleTimeSlot}
-                        getFileDownloadUrl={getFileDownloadUrl}
-                        textInputRef={handleThreadTextInputRef}
-                        styles={styles}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  /* A non-primary language. Language-specific actions edit this
-                   rendition; post-level actions still remain reachable here so
-                   switching language never collapses the composer UI. */
-                  <>
-                    <VariantEditor
-                      itemId={MAIN_ITEM_ID}
-                      tag={activeTag}
-                      item={getVariantItem(variants, activeTag, MAIN_ITEM_ID)}
-                      primaryText={postContent}
-                      sharedMedia={mediaIds}
-                      hasArticle={hasArticleContent}
-                      userAvatar={user?.avatar ?? undefined}
-                      userVerified={Boolean(user?.verified)}
-                      isFocused={focusedItemId === MAIN_ITEM_ID || threadItems.length === 0}
-                      isPosting={isPosting}
-                      isTranslating={translatingItemId === MAIN_ITEM_ID}
-                      getFileDownloadUrl={getFileDownloadUrl}
-                      mentions={mentions}
-                      onMentionValueChange={handleVariantMentionValueChange}
-                      onFocus={handleVariantFocus}
-                      onTranslate={handleTranslateVariant}
-                      onSharedAltPress={handleVariantSharedAltPress}
-                      onOwnAltPress={handleVariantOwnAltPress}
-                      onPickOwnMedia={handlePickVariantMedia}
-                      onRemoveOwnMedia={handleRemoveVariantMedia}
-                      onUseSharedMedia={handleUseSharedMedia}
-                      onArticlePress={openVariantArticleEditor}
-                      onArticleReset={resetVariantArticle}
-                      textInputRef={(el) => handleVariantTextInputRef(MAIN_ITEM_ID, el)}
-                      toolbar={
-                        <View style={styles.toolbarWrapper}>
-                          <ComposeToolbar
-                            contentPaddingLeft={BOTTOM_LEFT_PAD}
-                            onMediaPress={() => handlePickVariantMedia(MAIN_ITEM_ID)}
-                            onPollPress={() => {
-                              setActiveTag(variants.primaryTag);
-                              focusPollCreator();
-                            }}
-                            onLocationPress={requestLocation}
-                            onGifPress={() => handleVariantGifPress(MAIN_ITEM_ID)}
-                            onEmojiPress={() => handleVariantEmojiPress(MAIN_ITEM_ID)}
-                            onSourcesPress={openSourcesSheet}
-                            onArticlePress={() => openVariantArticleEditor(MAIN_ITEM_ID)}
-                            onEventPress={openEventEditor}
-                            onRoomPress={handleMainRoomPress}
-                            onPodcastPress={openPodcastPicker}
-                            onJobPress={canAttachJob ? openJobPicker : undefined}
-                            onCollaboratorsPress={
-                              collaboratorsEligible
-                                ? () => {
-                                    setActiveTag(variants.primaryTag);
-                                    handleCollaboratorsPress();
-                                  }
-                                : undefined
-                            }
-                            hasCollaborators={collaborators.length > 0}
-                            collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
-                            onLanePress={laneEligible ? handleLanePress : undefined}
-                            hasLane={Boolean(laneId)}
-                            hasLocation={!!location}
-                            isGettingLocation={isGettingLocation}
-                            hasPoll={showPollCreator}
-                            hasMedia={
-                              mediaIds.length > 0 ||
-                              getVariantItem(variants, activeTag, MAIN_ITEM_ID).media.mode ===
-                                'override'
-                            }
-                            hasSources={sources.length > 0}
-                            hasArticle={hasArticleContent}
-                            hasEvent={hasEventContent}
-                            hasRoom={hasRoomContent}
-                            hasPodcast={hasPodcastContent}
-                            hasJob={hasJobContent}
-                            hasSourceErrors={invalidSources}
-                            disabled={isPosting}
-                          />
-                        </View>
-                      }
-                    />
-                    {threadItems.map((item) => (
-                      <VariantEditor
-                        key={`variant-${activeTag}-${item.id}`}
-                        itemId={item.id}
-                        tag={activeTag}
-                        item={getVariantItem(variants, activeTag, item.id)}
-                        primaryText={item.text}
-                        sharedMedia={item.mediaIds}
-                        hasArticle={articleHasContent(item.article)}
-                        userAvatar={user?.avatar ?? undefined}
-                        userVerified={Boolean(user?.verified)}
-                        isFocused={focusedItemId === item.id}
-                        isPosting={isPosting}
-                        isTranslating={translatingItemId === item.id}
-                        getFileDownloadUrl={getFileDownloadUrl}
-                        mentions={item.mentions}
-                        onMentionValueChange={handleVariantMentionValueChange}
-                        onFocus={handleVariantFocus}
-                        onTranslate={handleTranslateVariant}
-                        onSharedAltPress={handleVariantSharedAltPress}
-                        onOwnAltPress={handleVariantOwnAltPress}
-                        onPickOwnMedia={handlePickVariantMedia}
-                        onRemoveOwnMedia={handleRemoveVariantMedia}
-                        onUseSharedMedia={handleUseSharedMedia}
-                        onArticlePress={openVariantArticleEditor}
-                        onArticleReset={resetVariantArticle}
-                        textInputRef={(el) => handleVariantTextInputRef(item.id, el)}
-                        toolbar={
-                          <View style={styles.toolbarWrapper}>
-                            <ComposeToolbar
-                              onMediaPress={() => handlePickVariantMedia(item.id)}
-                              onPollPress={() => {
-                                setActiveTag(variants.primaryTag);
-                                openThreadPollCreator(item.id);
-                              }}
-                              onLocationPress={() => requestThreadLocation(item.id)}
-                              onGifPress={() => handleVariantGifPress(item.id)}
-                              onEmojiPress={() => handleVariantEmojiPress(item.id)}
-                              onSourcesPress={() => handleThreadSourcesPress(item.id)}
-                              onArticlePress={() => openVariantArticleEditor(item.id)}
-                              onEventPress={() => openThreadEventEditor(item.id)}
-                              onRoomPress={() => handleThreadRoomPress(item.id)}
-                              onPodcastPress={() => openThreadPodcastPicker(item.id)}
-                              onLanePress={
-                                threadLaneEligible
-                                  ? () => handleThreadLanePress(item.id)
-                                  : undefined
-                              }
-                              hasLocation={!!item.location}
-                              hasPoll={item.showPollCreator}
-                              hasMedia={
-                                item.mediaIds.length > 0 ||
-                                getVariantItem(variants, activeTag, item.id).media.mode ===
-                                  'override'
-                              }
-                              hasSources={item.sources.length > 0}
-                              hasArticle={Boolean(item.article)}
-                              hasEvent={Boolean(item.event)}
-                              hasRoom={Boolean(item.room)}
-                              hasPodcast={Boolean(item.podcast)}
-                              hasLane={Boolean(item.laneId)}
-                              disabled={isPosting}
-                            />
-                          </View>
-                        }
-                      />
-                    ))}
-                  </>
-                )}
-
-                {/* Adding an item changes the post/thread structure, not a
-                  language rendition. Keep it reachable from every language;
-                  the new item immediately appears in the active rendition too. */}
-                <TouchableOpacity
-                  style={styles.postContainer}
-                  onPress={() => {
-                    const newId = addThread(
-                      postingMode === 'beast'
-                        ? { replyPermission, reviewReplies, quotesDisabled, isSensitive }
-                        : undefined,
-                    );
-                    if (newId) {
-                      setFocusedItemId(newId);
-                      const tryFocus = (attempt: number) => {
-                        if (attempt > 5) return;
-                        requestAnimationFrame(() => {
-                          const ref = isPrimaryTab
-                            ? threadTextInputRefs.current[newId]
-                            : variantTextInputRefs.current[newId];
-                          if (ref) {
-                            ref.focus();
-                          } else {
-                            setTimeout(() => tryFocus(attempt + 1), 50);
-                          }
-                        });
-                      };
-                      tryFocus(0);
-                    }
-                  }}
-                >
-                  {showThreadTimeline ? (
-                    <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
-                  ) : null}
-                  <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-                    <TouchableOpacity activeOpacity={0.7}>
-                      <Avatar
-                        source={user?.avatar}
-                        size={40}
-                        variant={MEDIA_VARIANT_AVATAR}
-                        verified={Boolean(user?.verified)}
-                        style={avatarMarginStyle}
-                      />
-                    </TouchableOpacity>
-                    <View style={styles.headerMeta}>
-                      <View style={styles.headerChildren}>
-                        <Text
-                          style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}
-                        >
-                          {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-
+              </>
+            }
+          />
+        }
+        // The footer rides on the keyboard (Bloom moves it with the keyboard
+        // height alone), and the scroller keeps the focused box above it.
+        bottomBarKeyboardBehavior="follow"
+        bottomBar={
+          <PageFooter scrim="none">
             {/* The composer's footer: the whole-batch decisions, and the button
                 that publishes them. ONE row inside the keyboard-avoiding view, so
                 it rides above the keyboard with everything in it. The Post button
@@ -3786,8 +2965,813 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 </Button>
               </View>
             </View>
+          </PageFooter>
+        }
+      >
+        <ScreenScrollView
+          contentContainerStyle={styles.threadScrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {supervision.supervised && (
+            <Text className="px-4 py-3 text-sm text-muted-foreground">
+              {t('safety.privatePost')}
+            </Text>
+          )}
+
+          {/* Editing indicator */}
+          {isEditMode && (
+            <View className="px-4 py-2 bg-muted border-b border-border">
+              <Text className="text-primary text-[13px] font-semibold">
+                {editLoading
+                  ? t('Loading post...')
+                  : editingScheduledPost
+                    ? t('compose.scheduled.editingNotice', {
+                        defaultValue:
+                          'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.',
+                      })
+                    : editingServerDraft
+                      ? t('compose.serverDrafts.editingNotice', {
+                          defaultValue:
+                            'Editing a draft saved to your account — nobody has seen it yet, so there is no time limit. Saving keeps it a draft; publish it from your drafts.',
+                        })
+                      : editingChannelPost
+                        ? // A channel post has no deadline, and saying "30 minutes"
+                          // here would be false. What replaces the window is the
+                          // trail, so the notice states that instead of stating
+                          // nothing.
+                          t('compose.channel.editingNotice', {
+                            defaultValue:
+                              'Editing a published post. There is no time limit, and your change is recorded in this post’s public correction history.',
+                          })
+                        : t('compose.editingNotice', {
+                            defaultValue:
+                              'Editing post — changes must be saved within 30 minutes of creation.',
+                          })}
+              </Text>
+            </View>
+          )}
+
+          {/* Mode Toggle Section */}
+          {showModeToggle && (
+            <View className="bg-muted border-border" style={styles.modeToggleContainer}>
+              <View style={styles.modeToggleRow}>
+                <View style={styles.modeOption}>
+                  <Text
+                    className={postingMode === 'thread' ? 'text-primary' : 'text-foreground'}
+                    style={styles.modeLabel}
+                  >
+                    {t('Thread')}
+                  </Text>
+                  <Text className="text-muted-foreground" style={styles.modeDescription}>
+                    {t('Post as linked thread')}
+                  </Text>
+                </View>
+                <View style={styles.modeToggle}>
+                  <Switch
+                    checked={postingMode === 'beast'}
+                    onCheckedChange={(value) => {
+                      haptic('light');
+                      setPostingMode(value ? 'beast' : 'thread');
+                    }}
+                    accessibilityLabel={t('Beast')}
+                  />
+                </View>
+                <View style={styles.modeOption}>
+                  <Text
+                    className={postingMode === 'beast' ? 'text-primary' : 'text-foreground'}
+                    style={styles.modeLabel}
+                  >
+                    {t('Beast')}
+                  </Text>
+                  <Text className="text-muted-foreground" style={styles.modeDescription}>
+                    {t('Post all at once')}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Main composer and thread section */}
+          {/* Parent post preview (reply mode) */}
+          {replyToPostId &&
+            (replyLoading ? (
+              <View style={styles.replyPreviewLoading}>
+                <FeedSkeleton count={1} />
+              </View>
+            ) : replyToPost ? (
+              <View className="border-b border-border">
+                <PostItem post={replyToPost} />
+              </View>
+            ) : null)}
+
+          <View style={styles.threadContainer}>
+            {isPrimaryTab ? (
+              <>
+                {/* Main composer */}
+                <View
+                  className="border-border"
+                  style={[
+                    styles.postContainer,
+                    !showThreadTimeline && threadItems.length > 0 && styles.beastSeparator,
+                    focusedItemId !== MAIN_ITEM_ID &&
+                      threadItems.length > 0 &&
+                      styles.unfocusedItem,
+                  ]}
+                >
+                  {/* Connector line below main avatar — thread mode only; see
+                  `showThreadTimeline`. */}
+                  {showThreadTimeline ? (
+                    <View className="bg-primary/20" style={styles.itemConnectorLine} />
+                  ) : null}
+                  <View style={styles.composerWithTimeline}>
+                    <ComposeIdentityHeader
+                      publishAs={effectiveMainPublishAs}
+                      // The byline this post is going to get: with collaborators
+                      // named, the header draws the same avatar cluster and "A and
+                      // B" name row the published post will.
+                      collaborators={collaboratorsEligible ? collaborators : undefined}
+                      onPressAvatar={mainPublishAsEligible ? handleMainPublishAsPress : undefined}
+                      timeSlot={scheduleTimeSlot}
+                    >
+                      {effectiveCommunity ? (
+                        <TextInput
+                          className="text-foreground text-[17px] font-semibold py-1"
+                          placeholder={t('compose.community.titlePlaceholder', {
+                            defaultValue: 'Title (optional)',
+                          })}
+                          placeholderTextColor={theme.colors.textSecondary}
+                          value={postTitle}
+                          onChangeText={setPostTitle}
+                          maxLength={COMMUNITY_POST_TITLE_MAX_LENGTH}
+                          accessibilityLabel={t('compose.community.titleLabel', {
+                            defaultValue: 'Post title',
+                          })}
+                        />
+                      ) : null}
+                      <MentionTextInput
+                        ref={mainTextInputRef}
+                        className="text-foreground"
+                        style={styles.mainTextInput}
+                        placeholder={
+                          replyToPostId
+                            ? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
+                            : t('compose.placeholder', { defaultValue: "What's new?" })
+                        }
+                        value={postContent}
+                        mentions={mentions}
+                        onValueChange={handleMainMentionValueChange}
+                        onFocus={() => setFocusedItemId('main')}
+                        multiline
+                        autoFocus
+                      />
+                      {/* Who this post will address, including anybody a pasted
+                      profile link resolves to — the only place that mention is
+                      visible, since the body shows their URL. */}
+                      <ComposeMentionSummary
+                        texts={[postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)]}
+                        mentions={mentions}
+                      />
+                    </ComposeIdentityHeader>
+
+                    {homiioCase ? (
+                      <View style={styles.mediaPreviewContainer}>
+                        <HomiioCaseCard caseId={homiioCase.caseId} />
+                      </View>
+                    ) : null}
+                    {/* Attachments row (poll + article + media + link) */}
+                    {attachmentOrder.length > 0 ? (
+                      <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={[
+                            styles.mediaPreviewScroll,
+                            { paddingLeft: BOTTOM_LEFT_PAD },
+                          ]}
+                        >
+                          {attachmentOrder.map((key, index) => {
+                            const total = attachmentOrder.length;
+
+                            if (key === ARTICLE_ATTACHMENT_KEY) {
+                              if (!(hasArticleContent && article)) return null;
+                              return (
+                                <AttachmentCarouselItem
+                                  key={key}
+                                  attachmentKey={key}
+                                  index={index}
+                                  total={total}
+                                  onMove={moveAttachment}
+                                  onRemove={removeArticle}
+                                  wrapperStyle={[
+                                    styles.articleAttachmentWrapper,
+                                    {
+                                      borderColor: theme.colors.border,
+                                      backgroundColor: theme.colors.card,
+                                    },
+                                  ]}
+                                >
+                                  <PostArticlePreview
+                                    title={article.title}
+                                    body={article.body}
+                                    onPress={openArticleEditor}
+                                    style={styles.articleAttachmentPreview}
+                                  />
+                                </AttachmentCarouselItem>
+                              );
+                            }
+
+                            if (key === EVENT_ATTACHMENT_KEY) {
+                              if (!(hasEventContent && event)) return null;
+                              return (
+                                <AttachmentCarouselItem
+                                  key={key}
+                                  attachmentKey={key}
+                                  index={index}
+                                  total={total}
+                                  onMove={moveAttachment}
+                                  onRemove={removeEvent}
+                                  wrapperStyle={[
+                                    styles.articleAttachmentWrapper,
+                                    {
+                                      borderColor: theme.colors.border,
+                                      backgroundColor: theme.colors.card,
+                                    },
+                                  ]}
+                                >
+                                  <PostAttachmentEvent
+                                    name={event.name}
+                                    date={event.date}
+                                    location={event.location}
+                                    onPress={openEventEditor}
+                                    style={styles.articleAttachmentPreview}
+                                  />
+                                </AttachmentCarouselItem>
+                              );
+                            }
+
+                            if (key === ROOM_ATTACHMENT_KEY) {
+                              if (!(hasRoomContent && attachedRoom)) return null;
+                              return (
+                                <AttachmentCarouselItem
+                                  key={key}
+                                  attachmentKey={key}
+                                  index={index}
+                                  total={total}
+                                  onMove={moveAttachment}
+                                  onRemove={removeRoom}
+                                  wrapperStyle={[
+                                    styles.articleAttachmentWrapper,
+                                    {
+                                      borderColor: theme.colors.border,
+                                      backgroundColor: theme.colors.card,
+                                    },
+                                  ]}
+                                >
+                                  <RoomCard
+                                    room={{
+                                      _id: attachedRoom.roomId,
+                                      title: attachedRoom.title,
+                                      status: attachedRoom.status || 'scheduled',
+                                      topic: attachedRoom.topic,
+                                      participants: [],
+                                      host: attachedRoom.host || '',
+                                    }}
+                                    variant="compact"
+                                    style={styles.articleAttachmentPreview}
+                                  />
+                                </AttachmentCarouselItem>
+                              );
+                            }
+
+                            if (key === PODCAST_ATTACHMENT_KEY) {
+                              if (!(hasPodcastContent && podcast)) return null;
+                              return (
+                                <AttachmentCarouselItem
+                                  key={key}
+                                  attachmentKey={key}
+                                  index={index}
+                                  total={total}
+                                  onMove={moveAttachment}
+                                  onRemove={removePodcast}
+                                  wrapperStyle={[
+                                    styles.articleAttachmentWrapper,
+                                    {
+                                      borderColor: theme.colors.border,
+                                      backgroundColor: theme.colors.card,
+                                    },
+                                  ]}
+                                >
+                                  <PostPodcastAttachment
+                                    podcast={podcast}
+                                    width={320}
+                                    height={120}
+                                    showSaveButton={false}
+                                    onPress={openPodcastPicker}
+                                  />
+                                </AttachmentCarouselItem>
+                              );
+                            }
+
+                            if (key === JOB_ATTACHMENT_KEY) {
+                              if (!(hasJobContent && job)) return null;
+                              return (
+                                <AttachmentCarouselItem
+                                  key={key}
+                                  attachmentKey={key}
+                                  index={index}
+                                  total={total}
+                                  onMove={moveAttachment}
+                                  onRemove={removeJob}
+                                  wrapperStyle={[
+                                    styles.articleAttachmentWrapper,
+                                    {
+                                      borderColor: theme.colors.border,
+                                      backgroundColor: theme.colors.card,
+                                    },
+                                  ]}
+                                >
+                                  {/* Not `JobCard` (which navigates to the job page on
+                                  press): tapping this preview mid-compose must not
+                                  push the author away from an unsaved draft, so it
+                                  reopens the picker to change the selection instead. */}
+                                  <Pressable
+                                    onPress={openJobPicker}
+                                    style={[
+                                      styles.articleAttachmentPreview,
+                                      { justifyContent: 'center' },
+                                    ]}
+                                  >
+                                    <RiBriefcase4Line
+                                      width={20}
+                                      height={20}
+                                      fill={theme.colors.primary}
+                                    />
+                                    <Text
+                                      numberOfLines={2}
+                                      style={{
+                                        color: theme.colors.text,
+                                        fontSize: 15,
+                                        fontWeight: '700',
+                                        marginTop: 8,
+                                      }}
+                                    >
+                                      {job.title}
+                                    </Text>
+                                    <Text
+                                      numberOfLines={1}
+                                      style={{
+                                        color: theme.colors.textSecondary,
+                                        fontSize: 13,
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      {job.employerName}
+                                    </Text>
+                                  </Pressable>
+                                </AttachmentCarouselItem>
+                              );
+                            }
+
+                            if (isLinkAttachmentKey(key)) {
+                              const linkUrl = getUrlFromLinkAttachmentKey(key);
+                              const link = detectedLinks.find(
+                                (detected) => detected.url === linkUrl,
+                              );
+                              if (!link) return null;
+                              return (
+                                <AttachmentCarouselItem
+                                  key={key}
+                                  attachmentKey={key}
+                                  index={index}
+                                  total={total}
+                                  onMove={moveAttachment}
+                                  // Removing a link card deletes only THAT link from the
+                                  // text — the other links (and their cards) stay.
+                                  onRemove={() =>
+                                    setPostContent(removeUrlFromText(postContent, link.url))
+                                  }
+                                  wrapperStyle={styles.linkAttachmentWrapper}
+                                >
+                                  <LinkPreviewCard
+                                    url={link.url}
+                                    title={link.title}
+                                    description={link.description}
+                                    image={linkPreviewImageSources(link.image)}
+                                    siteName={link.siteName}
+                                  />
+                                </AttachmentCarouselItem>
+                              );
+                            }
+
+                            if (isMediaAttachmentKey(key)) {
+                              const mediaId = getMediaIdFromAttachmentKey(key);
+                              const mediaItem = mediaIds.find((m) => m.id === mediaId);
+                              if (!mediaItem) return null;
+                              const mediaUrl = getFileDownloadUrl(mediaItem.id);
+                              return (
+                                <AttachmentCarouselItem
+                                  key={key}
+                                  attachmentKey={key}
+                                  index={index}
+                                  total={total}
+                                  onMove={moveAttachment}
+                                  onRemove={() => removeMedia(mediaItem.id)}
+                                  wrapperStyle={[
+                                    styles.mediaPreviewItem,
+                                    {
+                                      borderColor: theme.colors.border,
+                                      backgroundColor: theme.colors.backgroundSecondary,
+                                    },
+                                  ]}
+                                >
+                                  <ComposeMediaPreview
+                                    type={mediaItem.type}
+                                    uri={mediaUrl}
+                                    imageStyle={styles.mediaPreviewImage}
+                                  />
+                                  {mediaItem.type === 'image' ? (
+                                    <ComposeAltButton
+                                      hasAlt={Boolean(mediaItem.alt?.trim())}
+                                      raised={total > 1}
+                                      onPress={() => openAltTextSheet(mediaItem)}
+                                    />
+                                  ) : null}
+                                </AttachmentCarouselItem>
+                              );
+                            }
+
+                            return null;
+                          })}
+                        </ScrollView>
+                      </View>
+                    ) : null}
+
+                    {/* Poll Creator */}
+                    {showPollCreator && (
+                      <PollCreator
+                        pollTitle={pollTitle}
+                        onTitleChange={setPollTitle}
+                        pollOptions={pollOptions}
+                        onAddOption={addPollOption}
+                        onOptionChange={updatePollOption}
+                        onRemoveOption={removePollOption}
+                        onRemove={removePoll}
+                        style={bottomLeftPadStyle}
+                      />
+                    )}
+
+                    <View style={styles.toolbarWrapper}>
+                      <ComposeToolbar
+                        contentPaddingLeft={BOTTOM_LEFT_PAD}
+                        onMediaPress={openSharedMediaPicker}
+                        onPollPress={focusPollCreator}
+                        onLocationPress={requestLocation}
+                        onGifPress={handleMainGifPress}
+                        onEmojiPress={handleMainEmojiPress}
+                        onSourcesPress={openSourcesSheet}
+                        onArticlePress={openArticleEditor}
+                        onEventPress={openEventEditor}
+                        onRoomPress={handleMainRoomPress}
+                        onPodcastPress={openPodcastPicker}
+                        onJobPress={canAttachJob ? openJobPicker : undefined}
+                        // Omitted outright where the post cannot take
+                        // collaborators — a reply, a thread, or an edit of an
+                        // already-collaborative post. A batch refuses them at the
+                        // server, so a second box takes the icon away.
+                        onCollaboratorsPress={
+                          collaboratorsEligible ? handleCollaboratorsPress : undefined
+                        }
+                        hasCollaborators={collaborators.length > 0}
+                        collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
+                        // This box is the batch's ROOT in either mode, which is the
+                        // entry the wire takes a lane on in both — so unlike the
+                        // continuations it keeps the control whatever the mode.
+                        onLanePress={laneEligible ? handleLanePress : undefined}
+                        hasLane={Boolean(laneId)}
+                        hasLocation={!!location}
+                        isGettingLocation={isGettingLocation}
+                        hasPoll={showPollCreator}
+                        hasMedia={mediaIds.length > 0}
+                        hasSources={sources.length > 0}
+                        hasArticle={hasArticleContent}
+                        hasEvent={hasEventContent}
+                        hasRoom={hasRoomContent}
+                        hasPodcast={hasPodcastContent}
+                        hasJob={hasJobContent}
+                        hasSourceErrors={invalidSources}
+                        disabled={isPosting}
+                      />
+                    </View>
+
+                    {/* Collaborators — chosen from the attachment row's people
+                    icon, so the panel it opens sits with the other editors
+                    that row spawns rather than above it. */}
+                    {collaboratorsEligible && (
+                      <CollaboratorPicker
+                        selected={collaborators}
+                        onChange={setCollaborators}
+                        expanded={collaboratorSearchOpen}
+                        onExpandedChange={setCollaboratorSearchOpen}
+                      />
+                    )}
+
+                    {/* Location Display */}
+                    {location && (
+                      <LocationDisplay
+                        location={location}
+                        onRemove={removeLocation}
+                        style={bottomLeftPadStyle}
+                      />
+                    )}
+
+                    {/* Quote prefill card */}
+                    {(quotedPost || quoteLoading) && (
+                      <View className="mt-3" style={bottomLeftPadWithHPadStyle}>
+                        <QuoteCard
+                          post={quotedPost}
+                          loading={quoteLoading}
+                          onDismiss={clearQuote}
+                        />
+                      </View>
+                    )}
+
+                    {/* Main post interaction settings (beast mode with thread items) */}
+                    {postingMode === 'beast' && threadItems.length > 0 && (
+                      <View style={bottomLeftPadWithHPadStyle}>
+                        <InteractionSettingsPills
+                          replyPermission={replyPermission}
+                          quotesDisabled={quotesDisabled}
+                          isSensitive={isSensitive}
+                          onReplyPermissionChange={setReplyPermission}
+                          onQuotesDisabledChange={setQuotesDisabled}
+                          onSensitiveToggle={handleSensitiveToggle}
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Thread items */}
+                {threadItems.map((item) => (
+                  <ComposeThreadItem
+                    key={`thread-${item.id}`}
+                    item={item}
+                    variantTexts={variantTextsForItem(variants, item.id)}
+                    isFocused={focusedItemId === item.id}
+                    isPosting={isPosting}
+                    postingMode={postingMode}
+                    // Narrowed here, once, so the row can render it unconditionally:
+                    // in thread mode every box is the author's, whatever a box was
+                    // set to while the composer was in beast mode.
+                    publishAs={threadPublishAsEligible ? item.publishAs : null}
+                    onMentionValueChange={handleThreadMentionValueChange}
+                    onFocus={handleThreadFocus}
+                    onRemove={handleThreadRemove}
+                    onMediaPress={openThreadMediaPicker}
+                    onPollPress={openThreadPollCreator}
+                    onLocationPress={requestThreadLocation}
+                    onGifPress={handleThreadGifPress}
+                    onEmojiPress={handleThreadEmojiPress}
+                    onSourcesPress={handleThreadSourcesPress}
+                    onArticlePress={openThreadArticleEditor}
+                    onEventPress={openThreadEventEditor}
+                    onRoomPress={handleThreadRoomPress}
+                    onPollTitleChange={handleThreadPollTitleChange}
+                    onPollOptionChange={handleThreadPollOptionChange}
+                    onPollOptionAdd={handleThreadPollOptionAdd}
+                    onPollOptionRemove={handleThreadPollOptionRemove}
+                    onPollRemove={handleThreadPollRemove}
+                    onLocationRemove={handleThreadLocationRemove}
+                    onMediaRemove={handleThreadMediaRemove}
+                    onMediaMove={handleThreadMediaMove}
+                    onMediaAltPress={openThreadAltTextSheet}
+                    onArticleRemove={handleThreadArticleRemove}
+                    onEventRemove={handleThreadEventRemove}
+                    onRoomRemove={handleThreadRoomRemove}
+                    onReplyPermissionChange={setThreadReplyPermission}
+                    onQuotesDisabledChange={setThreadQuotesDisabled}
+                    onSensitiveToggle={handleThreadSensitiveToggle}
+                    onPodcastPress={openThreadPodcastPicker}
+                    onPodcastRemove={removeThreadPodcast}
+                    onPublishAsPress={
+                      threadPublishAsEligible ? handleThreadPublishAsPress : undefined
+                    }
+                    // A continuation is a reply and the server refuses a lane on
+                    // one, so the icon is absent in thread mode and present in
+                    // beast — see `threadLaneEligible`.
+                    onLanePress={threadLaneEligible ? handleThreadLanePress : undefined}
+                    // The SAME node the main box gets — one publish time for the
+                    // whole batch, so every row says it and clearing it clears
+                    // them all in one render.
+                    timeSlot={scheduleTimeSlot}
+                    getFileDownloadUrl={getFileDownloadUrl}
+                    textInputRef={handleThreadTextInputRef}
+                    styles={styles}
+                  />
+                ))}
+              </>
+            ) : (
+              /* A non-primary language. Language-specific actions edit this
+                 rendition; post-level actions still remain reachable here so
+                 switching language never collapses the composer UI. */
+              <>
+                <VariantEditor
+                  itemId={MAIN_ITEM_ID}
+                  tag={activeTag}
+                  item={getVariantItem(variants, activeTag, MAIN_ITEM_ID)}
+                  primaryText={postContent}
+                  sharedMedia={mediaIds}
+                  hasArticle={hasArticleContent}
+                  userAvatar={user?.avatar ?? undefined}
+                  userVerified={Boolean(user?.verified)}
+                  isFocused={focusedItemId === MAIN_ITEM_ID || threadItems.length === 0}
+                  isPosting={isPosting}
+                  isTranslating={translatingItemId === MAIN_ITEM_ID}
+                  getFileDownloadUrl={getFileDownloadUrl}
+                  mentions={mentions}
+                  onMentionValueChange={handleVariantMentionValueChange}
+                  onFocus={handleVariantFocus}
+                  onTranslate={handleTranslateVariant}
+                  onSharedAltPress={handleVariantSharedAltPress}
+                  onOwnAltPress={handleVariantOwnAltPress}
+                  onPickOwnMedia={handlePickVariantMedia}
+                  onRemoveOwnMedia={handleRemoveVariantMedia}
+                  onUseSharedMedia={handleUseSharedMedia}
+                  onArticlePress={openVariantArticleEditor}
+                  onArticleReset={resetVariantArticle}
+                  textInputRef={(el) => handleVariantTextInputRef(MAIN_ITEM_ID, el)}
+                  toolbar={
+                    <View style={styles.toolbarWrapper}>
+                      <ComposeToolbar
+                        contentPaddingLeft={BOTTOM_LEFT_PAD}
+                        onMediaPress={() => handlePickVariantMedia(MAIN_ITEM_ID)}
+                        onPollPress={() => {
+                          setActiveTag(variants.primaryTag);
+                          focusPollCreator();
+                        }}
+                        onLocationPress={requestLocation}
+                        onGifPress={() => handleVariantGifPress(MAIN_ITEM_ID)}
+                        onEmojiPress={() => handleVariantEmojiPress(MAIN_ITEM_ID)}
+                        onSourcesPress={openSourcesSheet}
+                        onArticlePress={() => openVariantArticleEditor(MAIN_ITEM_ID)}
+                        onEventPress={openEventEditor}
+                        onRoomPress={handleMainRoomPress}
+                        onPodcastPress={openPodcastPicker}
+                        onJobPress={canAttachJob ? openJobPicker : undefined}
+                        onCollaboratorsPress={
+                          collaboratorsEligible
+                            ? () => {
+                                setActiveTag(variants.primaryTag);
+                                handleCollaboratorsPress();
+                              }
+                            : undefined
+                        }
+                        hasCollaborators={collaborators.length > 0}
+                        collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
+                        onLanePress={laneEligible ? handleLanePress : undefined}
+                        hasLane={Boolean(laneId)}
+                        hasLocation={!!location}
+                        isGettingLocation={isGettingLocation}
+                        hasPoll={showPollCreator}
+                        hasMedia={
+                          mediaIds.length > 0 ||
+                          getVariantItem(variants, activeTag, MAIN_ITEM_ID).media.mode ===
+                            'override'
+                        }
+                        hasSources={sources.length > 0}
+                        hasArticle={hasArticleContent}
+                        hasEvent={hasEventContent}
+                        hasRoom={hasRoomContent}
+                        hasPodcast={hasPodcastContent}
+                        hasJob={hasJobContent}
+                        hasSourceErrors={invalidSources}
+                        disabled={isPosting}
+                      />
+                    </View>
+                  }
+                />
+                {threadItems.map((item) => (
+                  <VariantEditor
+                    key={`variant-${activeTag}-${item.id}`}
+                    itemId={item.id}
+                    tag={activeTag}
+                    item={getVariantItem(variants, activeTag, item.id)}
+                    primaryText={item.text}
+                    sharedMedia={item.mediaIds}
+                    hasArticle={articleHasContent(item.article)}
+                    userAvatar={user?.avatar ?? undefined}
+                    userVerified={Boolean(user?.verified)}
+                    isFocused={focusedItemId === item.id}
+                    isPosting={isPosting}
+                    isTranslating={translatingItemId === item.id}
+                    getFileDownloadUrl={getFileDownloadUrl}
+                    mentions={item.mentions}
+                    onMentionValueChange={handleVariantMentionValueChange}
+                    onFocus={handleVariantFocus}
+                    onTranslate={handleTranslateVariant}
+                    onSharedAltPress={handleVariantSharedAltPress}
+                    onOwnAltPress={handleVariantOwnAltPress}
+                    onPickOwnMedia={handlePickVariantMedia}
+                    onRemoveOwnMedia={handleRemoveVariantMedia}
+                    onUseSharedMedia={handleUseSharedMedia}
+                    onArticlePress={openVariantArticleEditor}
+                    onArticleReset={resetVariantArticle}
+                    textInputRef={(el) => handleVariantTextInputRef(item.id, el)}
+                    toolbar={
+                      <View style={styles.toolbarWrapper}>
+                        <ComposeToolbar
+                          onMediaPress={() => handlePickVariantMedia(item.id)}
+                          onPollPress={() => {
+                            setActiveTag(variants.primaryTag);
+                            openThreadPollCreator(item.id);
+                          }}
+                          onLocationPress={() => requestThreadLocation(item.id)}
+                          onGifPress={() => handleVariantGifPress(item.id)}
+                          onEmojiPress={() => handleVariantEmojiPress(item.id)}
+                          onSourcesPress={() => handleThreadSourcesPress(item.id)}
+                          onArticlePress={() => openVariantArticleEditor(item.id)}
+                          onEventPress={() => openThreadEventEditor(item.id)}
+                          onRoomPress={() => handleThreadRoomPress(item.id)}
+                          onPodcastPress={() => openThreadPodcastPicker(item.id)}
+                          onLanePress={
+                            threadLaneEligible ? () => handleThreadLanePress(item.id) : undefined
+                          }
+                          hasLocation={!!item.location}
+                          hasPoll={item.showPollCreator}
+                          hasMedia={
+                            item.mediaIds.length > 0 ||
+                            getVariantItem(variants, activeTag, item.id).media.mode === 'override'
+                          }
+                          hasSources={item.sources.length > 0}
+                          hasArticle={Boolean(item.article)}
+                          hasEvent={Boolean(item.event)}
+                          hasRoom={Boolean(item.room)}
+                          hasPodcast={Boolean(item.podcast)}
+                          hasLane={Boolean(item.laneId)}
+                          disabled={isPosting}
+                        />
+                      </View>
+                    }
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Adding an item changes the post/thread structure, not a
+                language rendition. Keep it reachable from every language;
+                the new item immediately appears in the active rendition too. */}
+            <TouchableOpacity
+              style={styles.postContainer}
+              onPress={() => {
+                const newId = addThread(
+                  postingMode === 'beast'
+                    ? { replyPermission, reviewReplies, quotesDisabled, isSensitive }
+                    : undefined,
+                );
+                if (newId) {
+                  setFocusedItemId(newId);
+                  const tryFocus = (attempt: number) => {
+                    if (attempt > 5) return;
+                    requestAnimationFrame(() => {
+                      const ref = isPrimaryTab
+                        ? threadTextInputRefs.current[newId]
+                        : variantTextInputRefs.current[newId];
+                      if (ref) {
+                        ref.focus();
+                      } else {
+                        setTimeout(() => tryFocus(attempt + 1), 50);
+                      }
+                    });
+                  };
+                  tryFocus(0);
+                }
+              }}
+            >
+              {showThreadTimeline ? (
+                <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
+              ) : null}
+              <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                <TouchableOpacity activeOpacity={0.7}>
+                  <Avatar
+                    source={user?.avatar}
+                    size={40}
+                    variant={MEDIA_VARIANT_AVATAR}
+                    verified={Boolean(user?.verified)}
+                    style={avatarMarginStyle}
+                  />
+                </TouchableOpacity>
+                <View style={styles.headerMeta}>
+                  <View style={styles.headerChildren}>
+                    <Text style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}>
+                      {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </ScreenScrollView>
 
         <ArticleEditor
           visible={isArticleEditorVisible}
@@ -3996,7 +3980,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             ]}
           />
         )}
-      </View>
+      </Screen>
     </MentionSearchContext.Provider>
   );
 };
