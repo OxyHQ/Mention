@@ -331,6 +331,24 @@
       "metric": "lines",
       "date": "2026-10-24",
       "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-25",
+      "reason": "Mention's own sheet host (context/BottomSheetContext.tsx, components/common/ContentDialog.tsx, hooks/useSourcesSheet.tsx) and lib/SafeAreaViewInterop were deleted with their tests: sheets are Bloom surfaces (present(), tested in Bloom) and safe areas are NativeWind classes. Sheet content now builds inside a render function, so a test that only checks a sheet was presented no longer evaluates its JSX; the overall ratio moves by under 0.15 point."
+    },
+    {
+      "path": "total",
+      "metric": "functions",
+      "date": "2026-10-25",
+      "reason": "Mention's own sheet host (context/BottomSheetContext.tsx, components/common/ContentDialog.tsx, hooks/useSourcesSheet.tsx) and lib/SafeAreaViewInterop were deleted with their tests: sheets are Bloom surfaces (present(), tested in Bloom) and safe areas are NativeWind classes. Sheet content now builds inside a render function, so a test that only checks a sheet was presented no longer evaluates its JSX; the overall ratio moves by under 0.15 point."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-25",
+      "reason": "Mention's own sheet host (context/BottomSheetContext.tsx, components/common/ContentDialog.tsx, hooks/useSourcesSheet.tsx) and lib/SafeAreaViewInterop were deleted with their tests: sheets are Bloom surfaces (present(), tested in Bloom) and safe areas are NativeWind classes. Sheet content now builds inside a render function, so a test that only checks a sheet was presented no longer evaluates its JSX; the overall ratio moves by under 0.15 point."
     }
   ],
   "globalDriftAllowancePoints": 0.75,
@@ -341,8 +359,8 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 307,
-    "pins": 302,
+    "domainFiles": 304,
+    "pins": 299,
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,
