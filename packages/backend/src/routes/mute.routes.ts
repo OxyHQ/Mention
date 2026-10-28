@@ -1,3 +1,4 @@
+import type { SerializedMute, MutedUsersResponse } from '@mention/shared-types';
 import {
   activeMuteIdentityIds,
   unmuteIdentityProjection,
@@ -19,19 +20,12 @@ const router = Router();
  * `_id` is what any client holding an old response still keys on, so it is
  * kept. There is no `__v`: nothing reads it and `CONVENTIONS.md` forbids the column.
  */
-interface SerializedMute {
-  _id: string;
-  userId: string;
-  mutedId: string;
-  createdAt: Date;
-}
-
 function serializeMute(row: typeof mutes.$inferSelect): SerializedMute {
   return {
     _id: row.id,
     userId: row.userId,
     mutedId: row.mutedId,
-    createdAt: row.createdAt,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -184,7 +178,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     res.json({
       mutes: rows.map(serializeMute),
       count: rows.length,
-    });
+    } satisfies MutedUsersResponse);
   } catch (error) {
     logger.error('Error fetching muted users:', { userId: req.user?.id, error });
     res.status(500).json({
