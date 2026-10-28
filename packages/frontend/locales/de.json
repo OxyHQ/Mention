@@ -2874,5 +2874,12 @@
   "memberships.owned": "Deine Communitys",
   "memberships.joined": "Communitys, denen du beigetreten bist",
   "memberships.open": "Community öffnen",
-  "memberships.empty": "Noch keine Communitys."
+  "memberships.empty": "Noch keine Communitys.",
+  "commerce.searchProducts": "Produkte suchen",
+  "commerce.sortProducts": "Produkte sortieren",
+  "commerce.sortNewest": "Neueste",
+  "commerce.sortPriceAsc": "Preis aufsteigend",
+  "commerce.sortPriceDesc": "Preis absteigend",
+  "commerce.sortRelevance": "Relevanz",
+  "commerce.inStockOnly": "Nur verfügbare Produkte"
 }

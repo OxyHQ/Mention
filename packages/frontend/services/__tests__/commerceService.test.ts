@@ -14,16 +14,24 @@ beforeEach(() => {
     method.mockReset().mockResolvedValue({ data: { sentinel: true } });
 });
 it('keeps account data and writes on the shared account transport, encoding path segments', async () => {
+  const signal = new AbortController().signal;
   await commerceService.storefront('a/b');
   await commerceService.connect('a/b', 'shop');
   await commerceService.disconnect('a/b');
-  await commerceService.storeProducts('a/b', 'page+2');
+  await commerceService.storeProducts(
+    'a/b',
+    { cursor: 'page+2', query: 'chair', sort: 'price_asc', inStock: true },
+    signal,
+  );
   await commerceService.storeCollections('a/b');
   await commerceService.metrics('stores', 'a/b');
   await commerceService.recordMetric('posts', 'a/b', 'handoff');
   expect(mockAuthenticated.get.mock.calls).toEqual([
     ['/commerce/accounts/a%2Fb'],
-    ['/commerce/accounts/a%2Fb/products', { params: { cursor: 'page+2' } }],
+    [
+      '/commerce/accounts/a%2Fb/products',
+      { params: { cursor: 'page+2', query: 'chair', sort: 'price_asc', inStock: true }, signal },
+    ],
     ['/commerce/accounts/a%2Fb/collections', { params: { cursor: undefined } }],
     ['/commerce/metrics/stores/a%2Fb'],
   ]);
@@ -52,4 +60,12 @@ it('propagates a revoked account refusal without retrying anonymously', async ()
   mockAuthenticated.get.mockRejectedValue(refusal);
   await expect(commerceService.storefront('private')).rejects.toBe(refusal);
   expect(mockPublic.get).not.toHaveBeenCalled();
+});
+
+it('supports an unfiltered initial store page without a cursor or cancellation signal', async () => {
+  await commerceService.storeProducts('account');
+  expect(mockAuthenticated.get).toHaveBeenCalledWith('/commerce/accounts/account/products', {
+    params: {},
+    signal: undefined,
+  });
 });

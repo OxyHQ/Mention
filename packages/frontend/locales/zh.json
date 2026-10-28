@@ -2874,5 +2874,12 @@
   "memberships.owned": "你的社区",
   "memberships.joined": "已加入的社区",
   "memberships.open": "打开社区",
-  "memberships.empty": "暂无社区。"
+  "memberships.empty": "暂无社区。",
+  "commerce.searchProducts": "搜索商品",
+  "commerce.sortProducts": "商品排序",
+  "commerce.sortNewest": "最新上架",
+  "commerce.sortPriceAsc": "价格从低到高",
+  "commerce.sortPriceDesc": "价格从高到低",
+  "commerce.sortRelevance": "相关性",
+  "commerce.inStockOnly": "仅显示有货商品"
 }

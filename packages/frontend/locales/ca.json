@@ -2906,5 +2906,12 @@
   "memberships.owned": "Les teves comunitats",
   "memberships.joined": "Comunitats a les quals pertanys",
   "memberships.open": "Obrir la comunitat",
-  "memberships.empty": "Encara no hi ha comunitats."
+  "memberships.empty": "Encara no hi ha comunitats.",
+  "commerce.searchProducts": "Cerca productes",
+  "commerce.sortProducts": "Ordena els productes",
+  "commerce.sortNewest": "Més recents",
+  "commerce.sortPriceAsc": "Preu: de menor a major",
+  "commerce.sortPriceDesc": "Preu: de major a menor",
+  "commerce.sortRelevance": "Rellevància",
+  "commerce.inStockOnly": "Només disponibles"
 }

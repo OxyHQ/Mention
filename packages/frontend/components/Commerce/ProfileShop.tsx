@@ -1,5 +1,5 @@
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { useCallback, useEffect, type ReactElement } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import type { CommerceReference } from '@mention/shared-types/commerce';
@@ -7,6 +7,17 @@ import { Dimensions, Linking, Text, View } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
+import { Search } from '@oxy.so/bloom/search';
+import { Switch } from '@oxy.so/bloom/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
+import type { MercariaProductSort } from '@mercaria.co/sdk';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { commerceService } from '@/services/commerceService';
 import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
@@ -31,6 +42,23 @@ export function ProfileShop({
   const { t } = useTranslation();
   const { user } = useAuth();
   const store = useCommerceStorefront(accountId);
+  const [searchText, setSearchText] = useState('');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<MercariaProductSort>('newest');
+  const [inStock, setInStock] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(searchText.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+  // Mercaria rejects relevance without a query. Clearing search must also
+  // restore a valid ordering and start pagination from the first page.
+  const effectiveSort = sort === 'relevance' && !query ? 'newest' : sort;
+  const sorts: { value: MercariaProductSort; label: string }[] = [
+    ...(query ? [{ value: 'relevance' as const, label: t('commerce.sortRelevance') }] : []),
+    { value: 'newest', label: t('commerce.sortNewest') },
+    { value: 'price_asc', label: t('commerce.sortPriceAsc') },
+    { value: 'price_desc', label: t('commerce.sortPriceDesc') },
+  ];
   const available = store.isSuccess && store.data.state === 'available';
   const products = useInfiniteQuery({
     queryKey: viewerQueryKeys.commerceCatalog(
@@ -38,9 +66,20 @@ export function ProfileShop({
       accountId,
       store.data?.state === 'available' ? store.data.ref.id : null,
       'products',
+      { query, sort: effectiveSort, inStock },
     ),
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => commerceService.storeProducts(accountId, pageParam),
+    queryFn: ({ pageParam, signal }) =>
+      commerceService.storeProducts(
+        accountId,
+        {
+          cursor: pageParam,
+          query: query || undefined,
+          sort: effectiveSort,
+          inStock: inStock || undefined,
+        },
+        signal,
+      ),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: available,
     staleTime: 30_000,
@@ -110,6 +149,47 @@ export function ProfileShop({
       <Text accessibilityRole="header" className="px-4 py-2 text-foreground text-lg font-semibold">
         {t('commerce.products')}
       </Text>,
+    );
+    append(
+      'product-controls',
+      <View className="px-4 py-2 gap-3">
+        <Search
+          label={t('commerce.searchProducts')}
+          value={searchText}
+          onChangeText={setSearchText}
+          onClearText={() => setSearchText('')}
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={200}
+        />
+        <Select
+          value={effectiveSort}
+          onValueChange={(value) => {
+            const selected = sorts.find((option) => option.value === value);
+            if (selected) setSort(selected.value);
+          }}
+        >
+          <SelectTrigger label={t('commerce.sortProducts')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent
+            items={sorts}
+            renderItem={(option) => (
+              <SelectItem value={option.value} label={option.label}>
+                <SelectItemText>{option.label}</SelectItemText>
+              </SelectItem>
+            )}
+          />
+        </Select>
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="text-foreground flex-1">{t('commerce.inStockOnly')}</Text>
+          <Switch
+            accessibilityLabel={t('commerce.inStockOnly')}
+            checked={inStock}
+            onCheckedChange={setInStock}
+          />
+        </View>
+      </View>,
     );
     const productRefs =
       products.data?.pages.flatMap((page) => page.items.map((item) => item.ref)) ?? [];

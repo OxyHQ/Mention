@@ -2874,5 +2874,12 @@
   "memberships.owned": "Komunitas Anda",
   "memberships.joined": "Komunitas yang diikuti",
   "memberships.open": "Buka komunitas",
-  "memberships.empty": "Belum ada komunitas."
+  "memberships.empty": "Belum ada komunitas.",
+  "commerce.searchProducts": "Cari produk",
+  "commerce.sortProducts": "Urutkan produk",
+  "commerce.sortNewest": "Terbaru",
+  "commerce.sortPriceAsc": "Harga terendah",
+  "commerce.sortPriceDesc": "Harga tertinggi",
+  "commerce.sortRelevance": "Relevansi",
+  "commerce.inStockOnly": "Hanya yang tersedia"
 }

@@ -2938,5 +2938,12 @@
   "memberships.owned": "Ваши сообщества",
   "memberships.joined": "Сообщества, в которых вы участвуете",
   "memberships.open": "Открыть сообщество",
-  "memberships.empty": "Сообществ пока нет."
+  "memberships.empty": "Сообществ пока нет.",
+  "commerce.searchProducts": "Поиск товаров",
+  "commerce.sortProducts": "Сортировка товаров",
+  "commerce.sortNewest": "Сначала новые",
+  "commerce.sortPriceAsc": "Сначала дешевле",
+  "commerce.sortPriceDesc": "Сначала дороже",
+  "commerce.sortRelevance": "По релевантности",
+  "commerce.inStockOnly": "Только в наличии"
 }

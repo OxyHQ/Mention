@@ -1,3 +1,4 @@
+import type { MercariaProductListOptions } from '@mercaria.co/sdk';
 import type { QueryClient } from '@tanstack/react-query';
 import type { FeedType } from '@mention/shared-types';
 import { normalizeFeedFilters, type FeedFilters } from '@/utils/feedUtils';
@@ -106,6 +107,7 @@ export const viewerQueryKeys = {
     accountId: string | undefined,
     storeId: string | null,
     kind: 'products' | 'collections',
+    filters?: Pick<MercariaProductListOptions, 'query' | 'sort' | 'inStock'>,
   ) =>
     [
       ...viewerQueryKeys.all(viewerId),
@@ -113,6 +115,7 @@ export const viewerQueryKeys = {
       accountId ?? null,
       storeId,
       kind,
+      ...(filters ? [filters] : []),
     ] as const,
   commerceMetrics: (viewerId: ViewerId, kind: 'posts' | 'stores', id: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'commerce-metrics', kind, id ?? null] as const,

@@ -2874,5 +2874,12 @@
   "memberships.owned": "আপনার কমিউনিটি",
   "memberships.joined": "আপনার যোগ দেওয়া কমিউনিটি",
   "memberships.open": "কমিউনিটি খুলুন",
-  "memberships.empty": "এখনও কোনো কমিউনিটি নেই।"
+  "memberships.empty": "এখনও কোনো কমিউনিটি নেই।",
+  "commerce.searchProducts": "পণ্য খুঁজুন",
+  "commerce.sortProducts": "পণ্য সাজান",
+  "commerce.sortNewest": "সবচেয়ে নতুন",
+  "commerce.sortPriceAsc": "দাম: কম থেকে বেশি",
+  "commerce.sortPriceDesc": "দাম: বেশি থেকে কম",
+  "commerce.sortRelevance": "প্রাসঙ্গিকতা",
+  "commerce.inStockOnly": "শুধু স্টকে থাকা পণ্য"
 }
