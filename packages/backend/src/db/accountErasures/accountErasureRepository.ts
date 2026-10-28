@@ -231,6 +231,16 @@ export async function findRetryableAccountErasures(
  * completed one: from the moment the signed event is recorded, the profile must
  * stop being served, even while the erasure is still running.
  */
+/** Batch the same erasure-ledger boundary for a page of protected resources. */
+export async function findErasedAccountIds(oxyUserIds: readonly string[]): Promise<Set<string>> {
+  if (!oxyUserIds.length) return new Set();
+  const rows = await getDb()
+    .select({ id: accountErasures.oxyUserId })
+    .from(accountErasures)
+    .where(inArray(accountErasures.oxyUserId, [...oxyUserIds]));
+  return new Set(rows.map((row) => row.id));
+}
+
 export async function isAccountErased(oxyUserId: string): Promise<boolean> {
   const [row] = await getDb()
     .select({ id: accountErasures.id })
