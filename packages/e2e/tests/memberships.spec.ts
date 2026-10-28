@@ -36,7 +36,17 @@ test('a public membership landing renders the server envelope through the real S
             createdAt: '2026-10-28T00:00:00.000Z',
             updatedAt: '2026-10-28T00:00:00.000Z',
           },
-          tiers: [],
+          tiers: [
+            {
+              id: 'reader-tier',
+              communityId,
+              name: 'Reader pass',
+              description: 'Read updates and vote on community decisions.',
+              kind: 'free',
+              status: 'active',
+              benefits: ['content_read', 'polls_vote'],
+            },
+          ],
           membership: null,
           canManage: false,
           viewerBenefits: [],
@@ -53,6 +63,14 @@ test('a public membership landing renders the server envelope through the real S
   await page.goto(`/memberships/${communityId}`);
   await expect(page.getByText('Fixture community', { exact: true })).toBeVisible();
   await expect(page.getByText('Public community description', { exact: true })).toBeVisible();
+  await expect(page.getByText('Reader pass', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Read updates and vote on community decisions.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Read member content', { exact: true })).toBeVisible();
+  await expect(page.getByText('Vote in polls', { exact: true })).toBeVisible();
+  await expect(page.getByText('Download private files', { exact: true })).toHaveCount(0);
+
   await expect(page.getByText('Sign in to join a community', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Join free', exact: true })).toHaveCount(0);
   expect(landingReads).toBe(1);

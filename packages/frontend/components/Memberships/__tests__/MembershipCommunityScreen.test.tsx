@@ -6,6 +6,7 @@ import type { MembershipLandingResponse } from '@mention/shared-types';
 
 let mockViewer = 'viewer-a';
 let mockFocused = true;
+let mockPrivateApi = true;
 const mockService = {
   landing: jest.fn(),
   content: jest.fn(),
@@ -25,7 +26,7 @@ jest.mock('@/services/membershipsService', () => ({
   },
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ user: { id: mockViewer }, canUsePrivateApi: true }),
+  useAuth: () => ({ user: { id: mockViewer }, canUsePrivateApi: mockPrivateApi }),
 }));
 jest.mock('@/lib/navigation/router', () => ({
   useIsFocused: () => mockFocused,
@@ -105,6 +106,7 @@ beforeEach(() => {
   jest.useRealTimers();
   jest.clearAllMocks();
   mockViewer = 'viewer-a';
+  mockPrivateApi = true;
   mockFocused = true;
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -222,4 +224,65 @@ it('hides retained private content when unfocused and rechecks entitlement on re
   await settle();
   expect(text()).not.toContain('PRIVATE BODY A');
   expect(mockService.content).toHaveBeenCalledTimes(reads);
+});
+
+const disclosedTier = {
+  id: 'reader-tier',
+  communityId: 'community',
+  name: 'Reader pass',
+  description: 'Read updates and vote on community decisions.',
+  kind: 'free' as const,
+  status: 'active' as const,
+  benefits: ['content_read', 'polls_vote'] as const,
+};
+const publicLanding = () => ({
+  ...active,
+  membership: null,
+  tiers: [
+    { ...disclosedTier, benefits: [...disclosedTier.benefits] },
+    {
+      ...disclosedTier,
+      id: 'paid-draft',
+      name: 'Unpublished paid plan',
+      kind: 'paid',
+      status: 'draft',
+    },
+    { ...disclosedTier, id: 'old-tier', name: 'Retired reader tier', status: 'retired' },
+  ],
+});
+it('shows the free tier and only its actual benefits before the member deliberately joins it', async () => {
+  mockService.landing.mockResolvedValue(publicLanding());
+  await mount();
+  expect(text()).toContain('Reader pass');
+  expect(text()).toContain(disclosedTier.description);
+  expect(text()).toContain('Free memberships are available. Paid subscriptions are not enabled.');
+  expect(text()).toContain('Read member content');
+  expect(text()).toContain('Vote in polls');
+  expect(text()).not.toContain('Participate in discussions');
+  expect(text()).not.toContain('Download private files');
+  expect(text()).not.toContain('Unpublished paid plan');
+  expect(text()).not.toContain('Retired reader tier');
+  expect(mockService.join).not.toHaveBeenCalled();
+  const join = tree?.root
+    .findAllByType(Button)
+    .find((button) => button.props.children === 'Join free');
+  expect(join).toBeDefined();
+  await act(async () => {
+    await join?.props.onPress();
+  });
+  expect(mockService.join).toHaveBeenCalledWith('community', 'reader-tier');
+  expect(mockService.content).not.toHaveBeenCalled();
+});
+it('shows the same public free offer before sign-in without enabling a membership mutation', async () => {
+  mockPrivateApi = false;
+  mockService.landing.mockResolvedValue(publicLanding());
+  await mount();
+  expect(text()).toContain('Reader pass');
+  expect(text()).toContain('Read member content');
+  expect(text()).not.toContain('Unpublished paid plan');
+  expect(
+    tree?.root.findAllByType(Button).some((button) => button.props.children === 'Join free'),
+  ).toBe(false);
+  expect(mockService.join).not.toHaveBeenCalled();
+  expect(mockService.content).not.toHaveBeenCalled();
 });
