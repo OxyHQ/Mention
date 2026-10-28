@@ -77,6 +77,47 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
   });
 
+  it.each([
+    {
+      section: 'diversity',
+      field: 'maxConsecutiveSameAuthor',
+      value: 3,
+      column: 'feedMaxConsecutiveSameAuthor',
+    },
+    { section: 'quality', field: 'minEngagementRate', value: 0.4, column: 'feedMinEngagementRate' },
+  ])(
+    'clears $field alone and alongside another preference',
+    async ({ section, field, value, column }) => {
+      for (const sibling of [{}, { recency: { halfLifeHours: 12 } }]) {
+        await request(app)
+          .put('/profile/settings')
+          .send({ feedSettings: { [section]: { [field]: value } } })
+          .expect(200);
+        await request(app)
+          .put('/profile/settings')
+          .send({ feedSettings: { quality: { boostHighQuality: false } } })
+          .expect(200);
+        const [before] = await getDb()
+          .select()
+          .from(userSettings)
+          .where(eq(userSettings.oxyUserId, TEST_USER));
+        expect(before).toHaveProperty(column, value);
+        await request(app)
+          .put('/profile/settings')
+          .send({ feedSettings: { ...sibling, [section]: { [field]: null } } })
+          .expect(200);
+        const [after] = await getDb()
+          .select()
+          .from(userSettings)
+          .where(eq(userSettings.oxyUserId, TEST_USER));
+        expect(after).toHaveProperty(column, null);
+        expect((await getSettings()).feedSettings).toMatchObject({
+          quality: { boostHighQuality: false },
+        });
+      }
+    },
+  );
+
   it('ignores a profile colour sent as appearance.primaryColor: the colour lives in Oxy', async () => {
     await request(app)
       .put('/profile/settings')

@@ -549,7 +549,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
           );
           update['feedSettings.diversity.maxConsecutiveSameAuthor'] = maxConsecutive;
         } else if (feedSettings.diversity.maxConsecutiveSameAuthor === null) {
-          update['feedSettings.diversity.maxConsecutiveSameAuthor'] = undefined;
+          unset['feedSettings.diversity.maxConsecutiveSameAuthor'] = '';
         }
       }
 
@@ -574,7 +574,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
           const minRate = Math.max(0, Math.min(1, feedSettings.quality.minEngagementRate));
           update['feedSettings.quality.minEngagementRate'] = minRate;
         } else if (feedSettings.quality.minEngagementRate === null) {
-          update['feedSettings.quality.minEngagementRate'] = undefined;
+          unset['feedSettings.quality.minEngagementRate'] = '';
         }
       }
     }
