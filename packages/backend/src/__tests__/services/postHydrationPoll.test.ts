@@ -30,7 +30,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
@@ -79,7 +79,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
-import { polls } from '../../db/schema/polls';
+import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { PostHydrationService } from '../../services/PostHydrationService';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
@@ -154,6 +154,72 @@ describe('a composed poll on the post DTO', () => {
     // cosmetic.
     expect(poll?.options).toEqual(['Red', 'Green', 'Blue']);
     expect(poll?.votes).toEqual({ '0': 0, '1': 0, '2': 0 });
+  });
+
+  it('returns tallies without exposing voters to anonymous readers', async () => {
+    const { pollId, post } = await composePostWithPoll(['Yes', 'No']);
+    const options = await getDb()
+      .select()
+      .from(pollOptions)
+      .where(eq(pollOptions.pollId, pollId))
+      .orderBy(asc(pollOptions.position));
+    const first = options[0];
+    const second = options[1];
+    if (!first || !second) throw new Error('Missing seeded poll options');
+    await getDb()
+      .insert(pollVotes)
+      .values([
+        { pollId, optionId: first.id, userId: scope.user('alice') },
+        { pollId, optionId: first.id, userId: scope.user('bob') },
+        { pollId, optionId: second.id, userId: scope.user('carol') },
+      ]);
+
+    const [hydrated] = await service.hydratePosts([post], {
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+    const poll = hydratedPoll(hydrated);
+    expect(poll?.votes).toEqual({ '0': 2, '1': 1 });
+    expect(poll?.userVotes).toEqual({});
+    expect(hydrated?.attachments?.poll?.userVotes).toEqual({});
+  });
+
+  it('returns only the current viewer selection across a batch of polls', async () => {
+    const viewerId = scope.user('viewer');
+    const first = await composePostWithPoll(['A', 'B']);
+    const second = await composePostWithPoll(['X', 'Y']);
+    for (const { pollId } of [first, second]) {
+      const options = await getDb()
+        .select()
+        .from(pollOptions)
+        .where(eq(pollOptions.pollId, pollId))
+        .orderBy(asc(pollOptions.position));
+      const firstOption = options[0];
+      const secondOption = options[1];
+      if (!firstOption || !secondOption) throw new Error('Missing seeded poll options');
+      await getDb()
+        .insert(pollVotes)
+        .values([
+          { pollId, optionId: firstOption.id, userId: scope.user('other-voter') },
+          { pollId, optionId: secondOption.id, userId: viewerId },
+        ]);
+    }
+    const hydrated = await service.hydratePosts([first.post, second.post], {
+      viewerId,
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerLanguages: ['en'],
+      viewerGraph: { followingIds: [], followerIds: [] },
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+    expect(hydrated).toHaveLength(2);
+    for (const post of hydrated) {
+      expect(hydratedPoll(post)?.votes).toEqual({ '0': 1, '1': 1 });
+      expect(hydratedPoll(post)?.userVotes).toEqual({ [viewerId]: '1' });
+      expect(post.attachments?.poll?.userVotes).toEqual({ [viewerId]: '1' });
+    }
   });
 
   it('attaches the poll to the post it was composed with', async () => {
