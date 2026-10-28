@@ -659,6 +659,20 @@
       "when": 1792683894527,
       "tag": "0093_oxy_file_event_lost",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1793164461385,
+      "tag": "0094_commerce_storefront_refs",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1793164510574,
+      "tag": "0095_validate_commerce_attachment_type",
+      "breakpoints": true
     }
   ]
 }

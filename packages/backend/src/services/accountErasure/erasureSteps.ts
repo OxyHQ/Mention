@@ -1,3 +1,4 @@
+import { accountStorefronts } from '../../db/schema/commerce';
 import { deckWorkspaces } from '../../db/schema/deck';
 import { eventAttendance } from '../../db/schema/events';
 /**
@@ -535,6 +536,12 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     deckWorkspaces,
     deckWorkspaces.oxyUserId,
     accountIs(deckWorkspaces.oxyUserId),
+  ),
+  'account_storefronts.oxyAccountId': deleteRows(
+    'account',
+    accountStorefronts,
+    accountStorefronts.oxyAccountId,
+    accountIs(accountStorefronts.oxyAccountId),
   ),
   'user_settings.oxyUserId': deleteRows(
     'account',
