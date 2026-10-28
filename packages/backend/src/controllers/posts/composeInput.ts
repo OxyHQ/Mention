@@ -1,3 +1,5 @@
+import { formatMercariaRef } from '@mercaria.co/sdk';
+import type { CommerceReference } from '@mention/shared-types/commerce';
 /**
  * The request-body readers every post-composition handler shares.
  *
@@ -372,6 +374,7 @@ const ATTACHMENT_TYPES: PostAttachmentType[] = [
   'sources',
   'podcast',
   'job',
+  'commerce',
 ];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
@@ -402,6 +405,11 @@ const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDesc
 
     const descriptor: PostAttachmentDescriptor = { type: lowerType as PostAttachmentType };
 
+    if (descriptor.type === 'commerce') {
+      if (typeof entry.id !== 'string') return null;
+      descriptor.id = entry.id;
+    }
+
     if (descriptor.type === 'media') {
       const id = entry.id || entry.mediaId;
       if (!id) return null;
@@ -431,6 +439,7 @@ interface AttachmentBuildOptions {
   includeSources?: boolean;
   includePodcast?: boolean;
   includeJob?: boolean;
+  commerceRefs?: readonly CommerceReference[];
 }
 
 export const buildOrderedAttachments = ({
@@ -444,11 +453,19 @@ export const buildOrderedAttachments = ({
   includeSources = false,
   includePodcast = false,
   includeJob = false,
+  commerceRefs = [],
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
   const descriptors: PostAttachmentDescriptor[] = [];
   const nonMediaTypes = new Set<PostAttachmentType>();
   const mediaById = new Map<string, NormalizedMediaItem>();
   const usedMedia = new Set<string>();
+  const commerceIds = new Set(commerceRefs.map(formatMercariaRef));
+  const usedCommerce = new Set<string>();
+  const addCommerce = (id: string) => {
+    if (!commerceIds.has(id) || usedCommerce.has(id)) return;
+    usedCommerce.add(id);
+    descriptors.push({ type: 'commerce', id });
+  };
 
   media.forEach((item) => {
     mediaById.set(String(item.id), item);
@@ -479,6 +496,9 @@ export const buildOrderedAttachments = ({
     if (!descriptor) return;
 
     switch (descriptor.type) {
+      case 'commerce':
+        if (descriptor.id) addCommerce(descriptor.id);
+        break;
       case 'media': {
         if (descriptor.id) {
           addMedia(descriptor.id, descriptor.mediaType);
@@ -525,6 +545,7 @@ export const buildOrderedAttachments = ({
     }
   }
 
+  for (const id of commerceIds) addCommerce(id);
   if (includePoll) addNonMedia('poll');
   if (includeArticle) addNonMedia('article');
   if (includeEvent) addNonMedia('event');

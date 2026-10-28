@@ -102,6 +102,7 @@
         "@lottiefiles/dotlottie-react": "^0.20.0",
         "@lottiefiles/dotlottie-web": "0.81.0",
         "@mention/shared-types": "workspace:*",
+        "@mercaria.co/sdk": "0.7.1",
         "@oxy.so/allo-sdk": "^0.3.0",
         "@oxy.so/app-preset": "^5.0.0",
         "@oxy.so/bloom": "catalog:",
@@ -250,6 +251,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@clarity.surf/sdk": "0.10.0",
+        "@mercaria.co/sdk": "0.7.1",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/homiio-contracts": "0.2.0",
         "@oxy.so/utils": "catalog:",

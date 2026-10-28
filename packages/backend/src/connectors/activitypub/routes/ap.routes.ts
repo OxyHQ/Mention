@@ -1,3 +1,4 @@
+import { commerceLinksByPost } from '../../../services/commerce/federationLinks';
 import { authorsMayFederate } from '../../../services/postPublicationPolicy';
 import { filterFederatablePosts } from '../../../services/federation/publicationPolicy';
 import { Router, type Request, type Response } from 'express';
@@ -129,6 +130,7 @@ async function createActivityBuilder(
   const pollContexts = await activityPubConnector.resolvePollContextByPost(window);
   const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(window);
   const communityContexts = await activityPubConnector.resolveCommunityContextByPost(window);
+  const commerceLinks = await commerceLinksByPost(window);
   return (post, authorUsername) =>
     activityPubConnector.buildCreateNoteActivity(
       post,
@@ -138,6 +140,7 @@ async function createActivityBuilder(
       pollContexts.get(post.id),
       quoteContexts.get(post.id),
       communityContexts.get(post.id),
+      commerceLinks.get(post.id),
     );
 }
 
@@ -317,6 +320,7 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
     const pollContexts = await activityPubConnector.resolvePollContextByPost(pinnedPosts);
     const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(pinnedPosts);
     const communityContexts = await activityPubConnector.resolveCommunityContextByPost(pinnedPosts);
+    const commerceLinks = await commerceLinksByPost(pinnedPosts);
     const items = pinnedPosts.map(
       (post) =>
         activityPubConnector.buildCreateNoteActivity(
@@ -327,6 +331,7 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
           pollContexts.get(post.id),
           quoteContexts.get(post.id),
           communityContexts.get(post.id),
+          commerceLinks.get(post.id),
         ).object as Record<string, unknown>,
     );
 
@@ -438,6 +443,7 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
       pollContext ?? undefined,
       quoteContext ?? undefined,
       communityContext,
+      (await commerceLinksByPost([post])).get(post.id),
     );
     const note = activity.object as Record<string, unknown>;
 

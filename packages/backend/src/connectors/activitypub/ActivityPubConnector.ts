@@ -498,6 +498,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     poll?: NotePollContext,
     quote?: NoteQuoteContext,
     community?: NoteCommunityContext,
+    commerceLinks: readonly string[] = [],
   ): Record<string, unknown> {
     return followService.buildCreateNoteActivity(
       post,
@@ -507,6 +508,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       poll,
       quote,
       community,
+      commerceLinks,
     );
   }
 

@@ -1,3 +1,4 @@
+import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import {
   requesterPublicationPolicy,
@@ -206,6 +207,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // would leave a post with some of its renditions.
     const post = loaded;
     const content: StoredPostContent = { ...post.content };
+    const commerce = parseCommerceReferences(req.body.content?.commerce);
+    if (commerce.error) return res.status(400).json({ message: commerce.error });
+    if (commerce.refs !== undefined) content.commerce = commerce.refs;
     const patch: PostRecordPatch = {};
 
     // Rescheduling. Only a post that is still scheduled can be moved — sending a
@@ -540,6 +544,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       includeSources: Boolean(content.sources && content.sources.length),
       includePodcast: Boolean(content.podcast),
       includeJob: Boolean(content.job),
+      commerceRefs: content.commerce,
     });
 
     content.attachments = updatedAttachments ?? undefined;

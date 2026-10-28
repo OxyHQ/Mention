@@ -10,18 +10,16 @@
  * the build if a Mercaria host or public-API path appears anywhere else in
  * Mention's production source.
  *
- * ANONYMOUS READS ONLY, for now. No `getAccessToken` is passed, so every request
- * is sent without an `Authorization` header and every response is the same for
- * every viewer — which is also what makes a shared cache of one safe (the SDK
- * README: responses `Vary: Authorization`). Forwarding a viewer's Oxy token
- * (for `product.viewer`) is a deliberate later change, and it has to come with
- * per-user cache keys wherever these reads are cached.
+ * Public catalog reads have workload attribution and no viewer identity.
+ * The shared Oxy transport owns minting, retries and destination protection;
+ * no user's bearer or buyer state enters the shared catalog client.
  */
 
-import { createMercariaClient, type MercariaClient } from '@mercaria.co/sdk';
+import { mercariaForOxyService, type MercariaServiceClient } from '@mercaria.co/sdk/server';
+import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { config } from '../../config';
 
-let client: MercariaClient | undefined;
+let client: MercariaServiceClient | undefined;
 
 /**
  * The shared client, created on first use.
@@ -32,8 +30,8 @@ let client: MercariaClient | undefined;
  * The client is stateless beyond its options, so one instance serves every
  * request.
  */
-export function getMercariaClient(): MercariaClient {
-  client ??= createMercariaClient({
+export function getMercariaClient(): MercariaServiceClient {
+  client ??= mercariaForOxyService(getRuntimeOxyClient(), {
     apiBaseUrl: config.mercaria.apiUrl,
     webBaseUrl: config.mercaria.webUrl,
     timeoutMs: config.mercaria.timeoutMs,

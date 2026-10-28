@@ -115,7 +115,7 @@ Commerce belongs to Mercaria, and Mention reaches it only as
 | Typed errors (not found, gone, retryable) and canonical links | Configuration: `MERCARIA_API_URL`, `MERCARIA_WEB_URL`, timeout |
 
 `services/commerce/mercariaClient.ts` holds the one lazily created client:
-anonymous reads only, a 5s timeout, and unset origins meaning the SDK's own.
+public catalog reads through the published SDK workload factory (no viewer token), a 5s timeout, and unset origins meaning the SDK's own.
 `services/commerce/mercariaHydration.ts` turns persisted refs, read as unknown
 data, into one state each and never throws:
 
@@ -127,7 +127,7 @@ data, into one state each and never throws:
 | `unavailable` | Any other failure, carrying the SDK's `retryable` verdict |
 | `invalid` | The stored value is not a ref of the expected kind; nothing is sent |
 
-Hide an attachment on `gone`/`not_found` rather than deleting its ref.
+Unavailable cards retain their reference and show an unavailable state; they never retain an old price. Account storefront links are rechecked against the SDK’s current store owner on every read. Linking requires live authority to act as the target account.
 
 **Freshness.** Persist refs only — never a title, price or availability.
 Hydration caches nothing; any cache added later must be short-lived, keyed by

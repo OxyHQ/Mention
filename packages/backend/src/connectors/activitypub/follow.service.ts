@@ -1,3 +1,4 @@
+import { commerceLinksByPost } from '../../services/commerce/federationLinks';
 import { logger } from '../../utils/logger';
 import { isInstagramSourceActivityId } from '../shared/instagramSourceKey';
 import {
@@ -528,6 +529,7 @@ export class FollowService {
     poll?: NotePollContext,
     quote?: NoteQuoteContext,
     community?: NoteCommunityContext,
+    commerceLinks: readonly string[] = [],
   ): Record<string, unknown> {
     const actor = actorUrl(username);
     const postId = post.id;
@@ -594,9 +596,18 @@ export class FollowService {
       mentions: mentions?.links,
       hashtagHref: (tag) => hashtagUrl(normalizeHashtag(tag)),
     };
-    const primaryContent = linkifyApHtml(primary.text, linkifyOptions);
+    const commerceHtml =
+      commerceLinks.length > 0
+        ? `<p>${commerceLinks.map((url) => linkifyApHtml(url, linkifyOptions)).join('<br>')}</p>`
+        : '';
+    const primaryContent = linkifyApHtml(primary.text, linkifyOptions) + commerceHtml;
     const language = canonicalizeLanguageTag(primary.tag) ?? undefined;
     const contentMap = buildNoteContentMap(post, language, primaryContent, linkifyOptions);
+    if (contentMap && commerceHtml) {
+      for (const tag of Object.keys(contentMap)) {
+        if (tag !== language) contentMap[tag] += commerceHtml;
+      }
+    }
 
     // The author's sensitive/NSFW flag → AP `sensitive` so a compatible instance
     // blurs the media / hides the body behind a content-warning click. Boolean
@@ -799,6 +810,7 @@ export class FollowService {
         poll ?? undefined,
         quote ?? undefined,
         community ?? undefined,
+        (await commerceLinksByPost([post])).get(post.id),
       );
       await deliveryService.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
         extraInboxes: [
@@ -1426,6 +1438,7 @@ export class FollowService {
     poll?: NotePollContext,
     quote?: NoteQuoteContext,
     community?: NoteCommunityContext,
+    commerceLinks: readonly string[] = [],
   ): Record<string, unknown> {
     const created = this.buildCreateNoteActivity(
       post,
@@ -1435,6 +1448,7 @@ export class FollowService {
       poll,
       quote,
       community,
+      commerceLinks,
     );
     const note = created.object as Record<string, unknown>;
 
@@ -1494,6 +1508,7 @@ export class FollowService {
         poll ?? undefined,
         quote ?? undefined,
         community ?? undefined,
+        (await commerceLinksByPost([post])).get(post.id),
       );
       await deliveryService.deliverToFollowers(activity, editorOxyUserId, editorUsername, {
         extraInboxes: [

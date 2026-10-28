@@ -1,3 +1,4 @@
+import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
 import {
   requesterPublicationPolicy,
@@ -137,6 +138,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: variantResult.error });
     }
     const authorLanguageVariants = variantResult.variants;
+
+    const commerce = parseCommerceReferences(content?.commerce);
+    if (commerce.error) return res.status(400).json({ message: commerce.error });
 
     const text = authorLanguageVariants[0]?.text ?? content?.text ?? req.body.text;
 
@@ -406,6 +410,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    postContent.commerce = commerce.refs;
+
     const attachmentsInput =
       content?.attachments ||
       content?.attachmentOrder ||
@@ -422,6 +428,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       includeSources: Boolean(postContent.sources && postContent.sources.length),
       includePodcast: Boolean(postContent.podcast),
       includeJob: Boolean(postContent.job),
+      commerceRefs: postContent.commerce,
     });
 
     if (computedAttachments) {
