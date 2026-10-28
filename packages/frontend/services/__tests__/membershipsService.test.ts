@@ -17,7 +17,7 @@ jest.mock('@/utils/api', () => ({
 import { membershipsService } from '../membershipsService';
 beforeEach(() => {
   jest.clearAllMocks();
-  mockClient.get.mockResolvedValue({ data: { data: { items: [], nextCursor: null } } });
+  mockClient.get.mockResolvedValue({ data: { items: [], nextCursor: null } });
 });
 it('propagates cancellation through private page and landing requests', async () => {
   const controller = new AbortController();
@@ -46,7 +46,7 @@ it('joins only the chosen free-tier endpoint and sends explicit badge opt-out', 
 });
 it('does not cache signed downloads or turn service errors into stale URLs', async () => {
   mockClient.get
-    .mockResolvedValueOnce({ data: { data: { url: 'https://files.test/short', expiresIn: 300 } } })
+    .mockResolvedValueOnce({ data: { url: 'https://files.test/short', expiresIn: 300 } })
     .mockRejectedValueOnce(new Error('revoked'));
   expect(await membershipsService.download('p', 'm')).toEqual({
     url: 'https://files.test/short',
@@ -57,7 +57,7 @@ it('does not cache signed downloads or turn service errors into stale URLs', asy
 });
 it('uploads bytes to Mention under their actual media type', async () => {
   mockClient.post.mockResolvedValue({
-    data: { data: { id: 'media', mime: 'image/png', size: 3 } },
+    data: { id: 'media', mime: 'image/png', size: 3 },
   });
   const bytes = new Uint8Array([1, 2, 3]).buffer;
   expect(await membershipsService.upload('c', bytes, 'image/png')).toEqual({
@@ -70,8 +70,8 @@ it('uploads bytes to Mention under their actual media type', async () => {
   });
 });
 it('preserves the dedicated protected domain across publication, reporting and tier edits', async () => {
-  mockClient.post.mockResolvedValue({ data: { data: { id: 'created' } } });
-  mockClient.patch.mockResolvedValue({ data: { data: { id: 'updated' } } });
+  mockClient.post.mockResolvedValue({ data: { id: 'created' } });
+  mockClient.patch.mockResolvedValue({ data: { id: 'updated' } });
   expect(
     await membershipsService.create({
       ownerOxyUserId: 'owner',
@@ -139,7 +139,7 @@ it('unwraps private reads without changing their viewer or retaining an error as
     () => membershipsService.reports('c', signal),
     () => membershipsService.directory('c', signal),
   ]) {
-    mockClient.get.mockResolvedValueOnce({ data: { data: { exact: 'payload' } } });
+    mockClient.get.mockResolvedValueOnce({ data: { exact: 'payload' } });
     expect(await read()).toEqual({ exact: 'payload' });
     expect(mockClient.get.mock.lastCall?.[1]).toEqual({ signal });
   }
