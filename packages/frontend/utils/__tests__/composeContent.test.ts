@@ -54,8 +54,6 @@ describe('hasPublishableContent', () => {
   });
 
   it('counts a linked source, the same in every box, and not a source with no link', () => {
-    // (A link with no title still cannot be posted — `useComposeValidation`'s
-    // invalid-sources check says so — but it is content.)
     expect(
       hasPublishableContent({ ...empty, sources: [{ id: 's', title: '', url: 'https://x.test' }] }),
     ).toBe(true);

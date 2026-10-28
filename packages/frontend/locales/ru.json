@@ -2822,5 +2822,6 @@
   "communities.postActions.banConfirm": "Забанить",
   "communities.postActions.banned": "Забанен в сообществе",
   "communities.postActions.banFailed": "Не удалось забанить",
-  "sidebar.communities": "Сообщества"
+  "sidebar.communities": "Сообщества",
+  "compose.textTooLong": "Каждая публикация должна содержать не более {{limit}} символов."
 }

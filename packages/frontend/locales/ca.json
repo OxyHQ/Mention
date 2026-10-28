@@ -2790,5 +2790,6 @@
   "communities.postActions.banConfirm": "Expulsa",
   "communities.postActions.banned": "Expulsat de la comunitat",
   "communities.postActions.banFailed": "No s’ha pogut expulsar",
-  "sidebar.communities": "Comunitats"
+  "sidebar.communities": "Comunitats",
+  "compose.textTooLong": "Cada publicació ha de tenir {{limit}} caràcters o menys."
 }

@@ -2758,5 +2758,6 @@
   "communities.postActions.banConfirm": "নিষিদ্ধ করো",
   "communities.postActions.banned": "কমিউনিটি থেকে নিষিদ্ধ",
   "communities.postActions.banFailed": "নিষিদ্ধ করা যায়নি",
-  "sidebar.communities": "কমিউনিটি"
+  "sidebar.communities": "কমিউনিটি",
+  "compose.textTooLong": "প্রতিটি পোস্টে সর্বোচ্চ {{limit}} অক্ষর থাকতে পারে।"
 }

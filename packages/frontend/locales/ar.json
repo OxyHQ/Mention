@@ -2884,5 +2884,6 @@
   "communities.postActions.banConfirm": "احظر",
   "communities.postActions.banned": "تم الحظر من المجتمع",
   "communities.postActions.banFailed": "تعذّر الحظر",
-  "sidebar.communities": "المجتمعات"
+  "sidebar.communities": "المجتمعات",
+  "compose.textTooLong": "يجب ألا يتجاوز كل منشور {{limit}} حرفًا."
 }

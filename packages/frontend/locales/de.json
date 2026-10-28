@@ -2758,5 +2758,6 @@
   "communities.postActions.banConfirm": "Sperren",
   "communities.postActions.banned": "Aus der Community gesperrt",
   "communities.postActions.banFailed": "Die Sperre ist fehlgeschlagen",
-  "sidebar.communities": "Communities"
+  "sidebar.communities": "Communities",
+  "compose.textTooLong": "Jeder Beitrag darf höchstens {{limit}} Zeichen enthalten."
 }
