@@ -1,3 +1,4 @@
+import { accountStorefronts } from '../../db/schema/commerce';
 import { eventAttendance } from '../../db/schema/events';
 import { deckWorkspaces } from '../../db/schema/deck';
 /**
@@ -93,6 +94,11 @@ import { postKeysOf } from './channelDeletionTargets';
  * nobody may run.
  */
 export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
+  'account_storefronts.oxyAccountId|channel-account': {
+    phase: 'account',
+    table: accountStorefronts,
+    where: accountEq(accountStorefronts.oxyAccountId),
+  },
   // --- Post references no foreign key can express, DELEGATED ------------------
   // `PostDeletionCascade.cascadePostReferences` is the live delete route's own
   // implementation of these dispositions, and its `POST_REFERENCE_DISPOSITION` is
