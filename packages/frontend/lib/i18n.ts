@@ -13,8 +13,7 @@ import { initReactI18next } from 'react-i18next';
 
 import enUS from '@/locales/en.json';
 
-import { DEFAULT_LANGUAGE, STORAGE_KEYS } from './constants';
-import { Storage } from '@/utils/storage';
+import { DEFAULT_LANGUAGE } from './constants';
 import { logger } from '@oxy.so/core/logger';
 
 /**
@@ -74,8 +73,8 @@ async function loadTranslation(language: string): Promise<ResourceKey | null> {
  * language whose bundle has never been loaded.
  */
 export async function setLanguage(language: string): Promise<void> {
-  // Provider locale synchronization can run before the root initialization effect.
-  if (!i18n.isInitialized) await initializeI18n();
+  // The SDK supplies the first locale before mounting translated app content.
+  if (!i18n.isInitialized) await initializeI18n(language);
   if (!i18n.hasResourceBundle(language, 'translation')) {
     const translation = await loadTranslation(language);
     if (translation) {
@@ -86,47 +85,38 @@ export async function setLanguage(language: string): Promise<void> {
   await i18n.changeLanguage(language);
 }
 
-/**
- * Loads the saved language preference from storage
- */
-export async function loadSavedLanguage(): Promise<string> {
-  try {
-    const savedLanguage = await Storage.get<string>(STORAGE_KEYS.LANGUAGE_PREFERENCE);
-    return savedLanguage || DEFAULT_LANGUAGE;
-  } catch (error) {
-    logger.error('Failed to load saved language', error);
-    return DEFAULT_LANGUAGE;
-  }
+/** The provider owns locale selection; boot reads wait for its catalog. */
+let resolveLanguageReady: () => void;
+const languageReady = new Promise<void>((resolve) => {
+  resolveLanguageReady = resolve;
+});
+export function waitForLanguageReady(): Promise<void> {
+  return languageReady;
 }
 
-/**
- * Initializes i18n with the saved language preference
- */
 let initializationPromise: Promise<void> | undefined;
 
-export function initializeI18n(): Promise<void> {
-  initializationPromise ??= performInitialization();
+export function initializeI18n(language = DEFAULT_LANGUAGE): Promise<void> {
+  initializationPromise ??= performInitialization(language).then(() => resolveLanguageReady());
   return initializationPromise;
 }
 
-async function performInitialization(): Promise<void> {
+async function performInitialization(initialLanguage: string): Promise<void> {
   try {
-    const initialLanguage = await loadSavedLanguage();
-
     if (i18n.isInitialized) {
       // If already initialized, just change the language
       await setLanguage(initialLanguage);
       return;
     }
 
-    // Resolve the saved language's translations before init so the first render
+    // Resolve the provider-resolved language's translations before init so the first render
     // already has them and never flashes the fallback language.
     const translation = await loadTranslation(initialLanguage);
     const resources: Resource = translation
       ? { ...baseResources, [initialLanguage]: { translation } }
       : baseResources;
 
-    // Initialize i18n with the saved language
+    // Initialize i18n with the provider-resolved language
     i18n.use(initReactI18next);
     await i18n.init({
       resources,

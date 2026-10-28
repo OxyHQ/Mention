@@ -31,7 +31,7 @@ import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
 import { PostInteractionsProvider } from '@/components/Feed/postInteractions';
 import { PostInteractionsBinder } from '@/components/Feed/PostInteractionsBinder';
 import i18n, { setLanguage } from '@/lib/i18n';
-import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
+import { DEFAULT_LANGUAGE, STORAGE_KEYS, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { handleLanguageError } from '@/components/providers/handleLanguageError';
 import { configureLottieWeb } from '@/lib/lottieWeb';
 
@@ -102,7 +102,9 @@ export const AppProviders = memo(function AppProviders({
           storageKeyPrefix="mention"
           queryClient={queryClient}
           backgroundSession
+          campaignAttribution
           language={{
+            legacyStorageKeys: [STORAGE_KEYS.LANGUAGE_PREFERENCE],
             supportedLocales: SUPPORTED_LANGUAGES,
             fallbackLocale: DEFAULT_LANGUAGE,
             onChange: setLanguage,
