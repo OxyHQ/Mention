@@ -87,5 +87,5 @@ No generic webhook accepting `active` is exposed and no existing Peable/Mercaria
 production billing cohort is repurposed for memberships.
 
 Sources: Oxy ADR 0033, Peable ADR 0010 and
-`oxy-infra/docs/runbooks/51-billing-runtime-bindings.md`. Catalogue and receipt
+[the billing runtime binding runbook](https://github.com/OxyHQ/oxy-infra/blob/main/docs/runbooks/51-billing-runtime-bindings.md). Catalogue and receipt
 implementation is tracked separately from this tested free community flow.
