@@ -4,13 +4,38 @@ Related: [Managed Mention #954](https://github.com/OxyHQ/Mention/issues/954).
 
 ## Implementation status
 
-This is the **application-side foundation**, not a hosting control plane or a
-claim that the entire issue is complete. It makes the existing backend, web/PWA
-and MCP deployable with consistent instance configuration and adds participation
-and token-binding guards. It does not provision resources, verify DNS ownership,
-issue certificates, isolate Oxy media, bill customers, or perform backups.
-**Do not activate a paid managed deployment until the infrastructure and Oxy
-integration gates below have been demonstrated.** Issue #954 remains open.
+The application foundation and dedicated infrastructure modules are implemented.
+This is not a claim that a managed customer deployment is provisioned or that the
+whole issue is complete. No managed tenant resources have been applied as part
+of this work. **Do not activate a paid deployment until the end-to-end gates below
+have been demonstrated.** Commercial terms and activation remain deferred; issue
+#954 stays open.
+
+Implemented source and review evidence:
+
+- [Application configuration foundation](https://github.com/OxyHQ/Mention/commit/0287aeafff788313f8aafbfe9c2f64e326aad268): strict manifest, branding,
+  admission, discovery, public frontend configuration and MCP audience binding.
+- [Separate API/worker lifecycle](https://github.com/OxyHQ/Mention/pull/1647):
+  independent job ownership, strict split-mode Redis readiness and idempotent
+  shutdown. The public deployment retains its default `combined` role.
+- [Dedicated data plane](https://github.com/OxyHQ/oxy-infra/pull/406) and
+  [scoped backup policy](https://github.com/OxyHQ/oxy-infra/pull/407): private RDS,
+  separate cache/queue, tenant CMK, workload roles, logs and backup declarations.
+- [Runtime module](https://github.com/OxyHQ/oxy-infra/pull/408): backend, worker
+  and MCP services with distinct identities, private networking, explicit health
+  checks and canonical origin configuration. The module is not instantiated.
+- [Recoverable database bootstrap](https://github.com/OxyHQ/oxy-infra/pull/409):
+  transactional ownership, exact ACLs, verified TLS, bounded create-only parameter
+  publication and independent terminal markers. PostgreSQL 17 failure-injection
+  tests cover recovery, drift and revoked access. The activation order is empty
+  database bootstrap, privileged PostGIS setup, then application migrations.
+- [Canonical Oxy registration](https://github.com/OxyHQ/oxy/pull/2012): operator-only,
+  transactional deployment/application/origin/workload registration with durable
+  ownership, drift detection and revocation checks. No caller can register itself
+  by supplying a tenant header or origin.
+
+These source and regression checks do not establish live tenant isolation,
+customer DNS ownership, backup restoration or a measured RPO/RTO.
 
 The supported mode is public federation. Participation can be open, invitation
 allowlisted, or approval allowlisted. Private mode and email-domain restrictions
@@ -73,7 +98,11 @@ With the manifest unset, the normal public Mention defaults remain unchanged.
 The backend refuses managed configuration without explicit `DATABASE_URL`,
 `REDIS_URL`, the registered infrastructure workload role, `MENTION_OXY_CLIENT_ID`
 and `MENTION_SHELL_ACCESS_KEY`. Other existing runtime secret requirements still
-apply. MCP requires its own centrally registered Oxy service credentials.
+apply. MCP uses its independently registered infrastructure workload identity.
+Backend, worker and MCP roles bind to the same canonical managed application
+through Oxy's operator registration. Own-product calls use workload transport and
+original requester proof where an account is involved; no static service secret,
+app scope, consent grant or caller-provided tenant header substitutes for it.
 Keep secrets in the infrastructure secret store; they never belong in this JSON.
 
 **Presence of those values does not prove isolation.** The infrastructure
@@ -165,15 +194,18 @@ WebSocket origins; CORS responses vary on `Origin`.
 
 ## Activation gates still owned by infrastructure and Oxy
 
-The following are **not implemented or proven by this application change**:
+The following are **not yet demonstrated end to end**. The source modules and
+registration above cover parts of these gates, not their operational acceptance:
 
-1. Durable control-plane records and tenant-scoped owner/admin authorization;
-   idempotent, leased/resumable provisioning; infrastructure-as-code; capacity
-   enforcement and a customer-facing lifecycle dashboard.
+1. Compose canonical registration and infrastructure modules into a durable,
+   leased/resumable provisioning workflow; bind the actual runtime resources to
+   their registered identities; implement capacity enforcement and an operator/
+   customer lifecycle dashboard. Registration metadata alone is not provisioned
+   infrastructure.
 2. DNS ownership proof bound to tenant/domain, re-verification, TLS issuance and
    renewal, ingress configuration, custom-domain Oxy OAuth registration, and live
    WebFinger/actor/signature/inbound/outbound federation validation.
-3. Two independently provisioned databases, caches, queues, service identities and
+3. Two independently provisioned databases, caches, queues, workload identities and
    media boundaries, with negative access tests using real tenant credentials.
 4. Backups with encryption, retention, measured RPO/RTO, an actual restore into a
    fresh isolated environment, plus federation/outbound-job fencing to prevent
@@ -194,7 +226,7 @@ than implement a second social backend. Its control plane should store resource
 references, lifecycle jobs, entitlement pointers, release/provenance records and
 audit events, not posts, private messages, passwords or raw user-content logs.
 Self-service approval, verified-email-domain admission, dedicated moderation roles
-and tenant-scoped media require further application/Oxy integration before those
+and end-to-end tenant media isolation require further integration before those
 product claims can be made. Keep #954 open until its complete acceptance criteria
 are verified, including real backup restoration and two live isolated deployments.
 
