@@ -1798,7 +1798,7 @@
   "Date joined": "تاريخ الانضمام",
   "Error": "خطأ",
   "Followers": "المتابِعون",
-  "Since {date}": "منذ {date}",
+  "Since {date}": "منذ {{date}}",
   "Username changes": "تغييرات اسم المستخدم",
   "Verification": "التوثيق",
   "Verified": "موثّق",

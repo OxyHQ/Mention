@@ -1695,7 +1695,7 @@
   "Date joined": "जुड़ने की तारीख़",
   "Error": "त्रुटि",
   "Followers": "फ़ॉलोअर्स",
-  "Since {date}": "{date} से",
+  "Since {date}": "{{date}} से",
   "Username changes": "उपयोगकर्ता नाम में बदलाव",
   "Verification": "सत्यापन",
   "Verified": "सत्यापित",

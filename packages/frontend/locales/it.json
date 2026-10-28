@@ -1721,7 +1721,7 @@
   "Date joined": "Data di iscrizione",
   "Error": "Errore",
   "Followers": "Follower",
-  "Since {date}": "Dal {date}",
+  "Since {date}": "Dal {{date}}",
   "Username changes": "Modifiche del nome utente",
   "Verification": "Verifica",
   "Verified": "Verificato",

@@ -1695,7 +1695,7 @@
   "Date joined": "Katılma tarihi",
   "Error": "Hata",
   "Followers": "Takipçiler",
-  "Since {date}": "{date} tarihinden beri",
+  "Since {date}": "{{date}} tarihinden beri",
   "Username changes": "Kullanıcı adı değişiklikleri",
   "Verification": "Doğrulama",
   "Verified": "Doğrulanmış",

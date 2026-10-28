@@ -2116,7 +2116,7 @@
   "Date joined": "Date joined",
   "Error": "Error",
   "Followers": "Followers",
-  "Since {date}": "Since {date}",
+  "Since {date}": "Since {{date}}",
   "Username changes": "Username changes",
   "Verification": "Verification",
   "Verified": "Verified",
