@@ -218,6 +218,9 @@ export const membershipMedia = pgTable(
     index('membership_media_content_idx').on(t.contentId),
     index('membership_media_community_idx').on(t.communityId),
     index('membership_media_owner_idx').on(t.ownerOxyUserId),
+    index('membership_media_draft_expiry_idx')
+      .on(t.createdAt, t.id)
+      .where(sql`${t.contentId} is null`),
     check('membership_media_size_check', sql`${t.size} >= 0`),
   ],
 );

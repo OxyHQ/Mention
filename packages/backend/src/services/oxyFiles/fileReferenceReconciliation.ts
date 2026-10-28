@@ -1,3 +1,4 @@
+import { expireMembershipMediaDrafts } from '../memberships/mediaDrafts';
 import { randomUUID } from 'node:crypto';
 import type { ServiceReferenceReconcileResult } from '@oxy.so/core';
 import { desc, eq, sql } from 'drizzle-orm';
@@ -211,6 +212,11 @@ export async function runFileReferenceReconciliation(
   mode: ReconcileMode,
   { pause = sleep }: ReconcileOptions = {},
 ): Promise<FileReferenceReconciliationResult> {
+  if (mode === 'apply') {
+    const expired = await expireMembershipMediaDrafts();
+    if (expired > 0)
+      logger.info('[FileReferences] expired unattached membership upload drafts', { expired });
+  }
   const runId = randomUUID();
   const entityTypes: ReconciledEntityType[] = [];
   for (const entity of FILE_REFERENCE_ENTITIES) {

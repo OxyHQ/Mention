@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 49.99,
-      "covered": 13726,
-      "total": 27455
+      "pct": 50.33,
+      "covered": 13996,
+      "total": 27804
     },
     "branches": {
-      "pct": 45.61,
-      "covered": 9335,
-      "total": 20464
+      "pct": 45.97,
+      "covered": 9577,
+      "total": 20829
     },
     "functions": {
-      "pct": 44.87,
-      "covered": 3242,
-      "total": 7225
+      "pct": 45.33,
+      "covered": 3345,
+      "total": 7379
     },
     "lines": {
-      "pct": 50.8,
-      "covered": 12427,
-      "total": 24460
+      "pct": 51.16,
+      "covered": 12681,
+      "total": 24786
     }
   },
   "pins": {
@@ -1211,6 +1211,12 @@
       "functions": 0,
       "lines": 0
     },
+    "services/membershipsService.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "services/muteService.ts": {
       "statements": 100,
       "branches": 100,
@@ -1470,10 +1476,10 @@
       "lines": 0
     },
     "utils/api.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 50,
+      "branches": 41,
+      "functions": 46,
+      "lines": 50
     },
     "utils/apiError.ts": {
       "statements": 98,
