@@ -49,6 +49,13 @@ profile title. It is a browser routing contract, not proof of live cold identity
 discovery. Oxy's real-PostgreSQL API tests cover cold discovery; the existing
 `bridge-transport-route.spec.ts` continues to exercise the live resolver.
 
+`notifications-return.spec.ts` uses isolated session and API fixtures to provide
+an inbox without creating public interactions. It exercises the actual exported
+Notifications screen, rendered post, app/browser Back, selected filter and
+reading position. It is
+a navigation contract, not a test of production authentication or notification
+delivery; every non-app request in that fixture is intercepted.
+
 This has one consequence worth stating plainly: the backend the gate exercises
 is the live one, so a backend outage will also fail this gate.
 
