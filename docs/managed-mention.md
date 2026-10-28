@@ -219,7 +219,7 @@ bun run --cwd packages/frontend test -- deploymentConfig.test.ts
 ### Separate API and worker processes
 
 `MENTION_PROCESS_ROLE` defaults to `combined`, preserving existing deployments.
-The same built backend image and `dist/server.js` entrypoint can run as `backend`
+The same backend image, built from `packages/backend/server.ts`, can run as `backend`
 (HTTP and sockets, no job consumers) or `worker` (consumers and lease-elected
 schedulers, health endpoints only). Do not run a worker with a backend task role:
 its ECS workload identity must be the independently registered worker role.
