@@ -6,13 +6,14 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, like, sql } from 'drizzle-orm';
-import type { AccountMember } from '@oxy.so/core';
+import type { AccountMember, AccountNode } from '@oxy.so/core';
 import type { RequestSafetyContext } from '../../utils/safetyRequester';
 
 const state = vi.hoisted(() => ({
   viewer: 'membership-owner' as string | undefined,
   proof: 'session' as 'session' | 'mcp' | 'service' | 'capability',
   members: [] as AccountMember[],
+  accounts: [] as AccountNode[],
   fileVisibility: 'private',
   files: true,
   linkedVisibility: 'private' as string | undefined,
@@ -31,6 +32,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createUserScopedOxyServices: () => ({
     accounts: {
+      list: async () => state.accounts,
       members: {
         list: async () => {
           if (state.memberReadDenied) throw new Error('Oxy denied members:read');
@@ -65,13 +67,17 @@ vi.mock('../../utils/oxyHelpers', () => ({
       withRequester: (proof: unknown) => {
         state.withRequester(proof);
         return {
-          uploadUserMedia: async (...args: unknown[]) => {
+          uploadAppFile: async (...args: unknown[]) => {
             state.upload(...args);
             return {
-              id: 'private-oxy-file',
-              mime: 'image/png',
-              size: 8,
-              visibility: state.fileVisibility,
+              file: {
+                id: 'private-oxy-file',
+                mime: 'image/png',
+                size: 8,
+                visibility: state.fileVisibility,
+                ownerApplicationId: 'mention-application',
+              },
+              deduplicated: false,
             };
           },
           linkedDownloadUrls: async (ids: string[]) => {
@@ -135,6 +141,7 @@ beforeEach(async () => {
   state.viewer = 'membership-owner';
   state.proof = 'session';
   state.members = [];
+  state.accounts = [];
   state.fileVisibility = 'private';
   state.files = true;
   state.linkedVisibility = 'private';
@@ -259,6 +266,40 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
       ).status,
     ).toBe(403);
   });
+  it('lists operated communities only with current Oxy account authority', async () => {
+    const c = await community();
+    state.viewer = 'membership-member';
+    const member: AccountMember = {
+      _id: 'operator-row',
+      accountId: 'membership-owner',
+      memberUserId: 'membership-member',
+      role: 'admin',
+      permissions: ['account:act_as'],
+      inherit: true,
+      status: 'active',
+      source: 'direct',
+      createdAt: '',
+      updatedAt: '',
+    };
+    state.accounts = [
+      {
+        accountId: 'membership-owner',
+        kind: 'organization',
+        parentAccountId: null,
+        relationship: 'member',
+        callerMembership: member,
+        account: { id: 'membership-owner', publicKey: 'test-key', username: 'owner', name: {} },
+      },
+    ];
+    expect(
+      (await request(app).get(`${base}/mine`)).body.data.owned.map((row: { id: string }) => row.id),
+    ).toEqual([c.id]);
+    state.accounts[0].callerMembership = { ...member, permissions: [] };
+    expect((await request(app).get(`${base}/mine`)).body.data.owned).toEqual([]);
+    state.accounts[0].callerMembership = { ...member, status: 'removed' };
+    expect((await request(app).get(`${base}/mine`)).body.data.owned).toEqual([]);
+  });
+
   it('keeps member identity private until explicit badge consent and clears it on leave', async () => {
     const c = await community();
     await join(c);
@@ -294,6 +335,36 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
       ).status,
     ).toBe(403);
   });
+  it('updates a free tier atomically and applies its changed benefits to existing members', async () => {
+    const c = await community();
+    await join(c);
+    state.viewer = 'membership-owner';
+    const updated = await request(app)
+      .patch(`${base}/${c.id}/tiers/${c.tierId}`)
+      .send({ name: 'Readers', benefits: ['content_read'] });
+    expect(updated.status).toBe(200);
+    state.viewer = 'membership-member';
+    expect((await request(app).get(`${base}/${c.id}/content`)).status).toBe(200);
+    expect(
+      (
+        await request(app)
+          .post(`${base}/${c.id}/content`)
+          .send({ kind: 'discussion', body: 'Cannot write' })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(app)
+          .patch(`${base}/${c.id}/tiers/${c.tierId}`)
+          .send({ benefits: ['discussion_write'] })
+      ).status,
+    ).toBe(403);
+    state.viewer = 'membership-owner';
+    expect(
+      (await request(app).patch(`${base}/${c.id}/tiers/${c.tierId}`).send({ benefits: [] })).status,
+    ).toBe(400);
+  });
+
   it('keeps paid tiers draft and refuses subscribing without billing configuration', async () => {
     const c = await community();
     const tier = await request(app)
@@ -369,7 +440,7 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
       .set('Content-Type', 'image/png')
       .send(Buffer.from('testpng'));
     expect(uploaded.status).toBe(201);
-    expect(state.upload).toHaveBeenCalledWith('membership-owner', expect.any(Buffer), 'image/png', {
+    expect(state.upload).toHaveBeenCalledWith(expect.any(Buffer), 'image/png', {
       visibility: 'private',
     });
     const post = await content(c.id, { mediaIds: [uploaded.body.data.id] });
@@ -430,6 +501,16 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     const reports = await request(app).get(`${base}/${c.id}/reports`);
     expect(reports.body.data).toHaveLength(1);
     expect(JSON.stringify(reports.body)).not.toContain('membership-member');
+    const reportId = reports.body.data[0].id;
+    state.viewer = 'membership-member';
+    expect((await request(app).post(`${base}/${c.id}/reports/${reportId}/resolve`)).status).toBe(
+      403,
+    );
+    state.viewer = 'membership-owner';
+    expect((await request(app).post(`${base}/${c.id}/reports/${reportId}/resolve`)).status).toBe(
+      200,
+    );
+    expect((await request(app).get(`${base}/${c.id}/reports`)).body.data).toEqual([]);
     await request(app).delete(`${base}/content/${post.id}`);
     state.viewer = 'membership-member';
     expect((await request(app).get(`${base}/content/${post.id}`)).status).toBe(404);
@@ -505,6 +586,31 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     await request(app).delete(`${base}/${c.id}/membership`);
     expect((await request(app).delete(`${base}/content/${next.body.data.id}`)).status).toBe(200);
   });
+  it('discards only the caller-owned unattached upload and retains attached content', async () => {
+    const c = await community();
+    const draft = await request(app)
+      .post(`${base}/${c.id}/media`)
+      .set('Content-Type', 'image/png')
+      .send(Buffer.from('draft'));
+    expect(draft.status).toBe(201);
+    await join(c);
+    expect((await request(app).delete(`${base}/${c.id}/media/${draft.body.data.id}`)).status).toBe(
+      404,
+    );
+    state.viewer = 'membership-owner';
+    expect((await request(app).delete(`${base}/${c.id}/media/${draft.body.data.id}`)).status).toBe(
+      200,
+    );
+    const upload = await request(app)
+      .post(`${base}/${c.id}/media`)
+      .set('Content-Type', 'image/png')
+      .send(Buffer.from('attached'));
+    await content(c.id, { mediaIds: [upload.body.data.id] });
+    expect((await request(app).delete(`${base}/${c.id}/media/${upload.body.data.id}`)).status).toBe(
+      404,
+    );
+  });
+
   it('tracks private file references and enforces live visibility plus ordered lifecycle callbacks', async () => {
     const c = await community();
     const uploaded = await request(app)
@@ -545,6 +651,22 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     await emit('private', '2026-10-28T10:01:00.000Z');
     expect((await request(app).get(path)).status).toBe(404);
     expect((await request(app).get(`${base}/content/${authored.id}`)).body.data.media).toEqual([]);
+    await emit('private', '2026-10-28T10:03:00.000Z');
+    expect((await request(app).get(path)).status).toBe(200);
+    await applyFileEvent({
+      id: `evt_${randomUUID()}`,
+      type: 'file.deleted',
+      occurredAt: '2026-10-28T10:04:00.000Z',
+      file: {
+        id: 'private-oxy-file',
+        ownerKind: 'account',
+        visibility: 'private',
+        status: 'deleted',
+      },
+      references: [{ entityType: 'membership_media', entityId: mediaId }],
+    });
+    await emit('private', '2026-10-28T10:05:00.000Z');
+    expect((await request(app).get(path)).status).toBe(404);
     await getDb().delete(membershipCommunities).where(eq(membershipCommunities.id, c.id));
     expect(
       await registry.pairsInUse(getDb(), [{ fileId: 'private-oxy-file', entityId: mediaId }]),
@@ -575,12 +697,9 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     expect(state.withRequester).toHaveBeenLastCalledWith({
       requesterToken: 'session-another-member',
     });
-    expect(state.upload).toHaveBeenCalledWith(
-      'membership-member',
-      expect.any(Buffer),
-      'image/png',
-      { visibility: 'private' },
-    );
+    expect(state.upload).toHaveBeenCalledWith(expect.any(Buffer), 'image/png', {
+      visibility: 'private',
+    });
     state.files = false;
     expect((await request(app).get(mediaPath)).status).toBe(404);
   });

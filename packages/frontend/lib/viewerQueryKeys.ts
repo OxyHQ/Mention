@@ -626,3 +626,23 @@ export async function clearViewerQueryCache(
   await queryClient.cancelQueries({ queryKey });
   queryClient.removeQueries({ queryKey });
 }
+
+export const membershipKeys = {
+  teaser: (viewer: ViewerId, id: string, thread?: string) =>
+    [...membershipKeys.community(viewer, id), 'teaser', thread] as const,
+  all: (viewer: ViewerId) => [...viewerQueryKeys.all(viewer), 'memberships'] as const,
+  mine: (viewer: ViewerId) => [...membershipKeys.all(viewer), 'mine'] as const,
+  community: (viewer: ViewerId, id: string) => [...membershipKeys.all(viewer), id] as const,
+  landing: (viewer: ViewerId, id: string, privateReady = false) =>
+    [...membershipKeys.community(viewer, id), 'landing', privateReady] as const,
+  content: (viewer: ViewerId, id: string, parent?: string) =>
+    [...membershipKeys.community(viewer, id), 'content', parent ?? 'root'] as const,
+  thread: (viewer: ViewerId, id: string, thread?: string) =>
+    [...membershipKeys.community(viewer, id), 'thread', thread] as const,
+  insights: (viewer: ViewerId, id: string) =>
+    [...membershipKeys.community(viewer, id), 'insights'] as const,
+  reports: (viewer: ViewerId, id: string) =>
+    [...membershipKeys.community(viewer, id), 'reports'] as const,
+  directory: (viewer: ViewerId, id: string) =>
+    [...membershipKeys.community(viewer, id), 'directory'] as const,
+};

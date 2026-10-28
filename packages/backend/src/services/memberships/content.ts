@@ -428,3 +428,23 @@ export async function membershipReportQueue(communityId: string, actor: Membersh
     .orderBy(desc(membershipReports.createdAt))
     .limit(100);
 }
+
+/** An operator resolves a local report without learning reporter identity or hydrating its body. */
+export async function resolveMembershipReport(
+  communityId: string,
+  reportId: string,
+  actor: MembershipActor,
+): Promise<void> {
+  await requireManager(await communityById(communityId), actor);
+  const [report] = await getDb()
+    .select({ id: membershipReports.id })
+    .from(membershipReports)
+    .innerJoin(membershipContents, eq(membershipContents.id, membershipReports.contentId))
+    .where(and(eq(membershipReports.id, reportId), eq(membershipContents.communityId, communityId)))
+    .limit(1);
+  if (!report) throw new MembershipError(404, 'Report not found');
+  await getDb()
+    .update(membershipReports)
+    .set({ resolvedAt: new Date() })
+    .where(eq(membershipReports.id, reportId));
+}

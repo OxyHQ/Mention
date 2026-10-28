@@ -483,7 +483,9 @@ async function importGifFile(
   const client = getServiceOxyClient();
   try {
     const imported = await client.assets.importAppFile(url, { visibility: 'public' });
-    return imported.file.id;
+    // A private membership copy may already own identical bytes. Never promote
+    // it into the public GIF projection or change its visibility.
+    return imported.file.visibility === 'public' ? imported.file.id : null;
   } catch (error) {
     if (oxyErrorStatus(error) !== HTTP_UNSUPPORTED_MEDIA_TYPE) {
       logger.warn('[GifLibrary] Oxy could not import the GIF source', {
@@ -503,7 +505,7 @@ async function importGifFile(
       GIF_UPLOAD_CONTENT_TYPE,
       { visibility: 'public', originalName: deriveUploadName(candidate, role) },
     );
-    return uploaded.file.id;
+    return uploaded.file.visibility === 'public' ? uploaded.file.id : null;
   } catch (error) {
     logger.warn('[GifLibrary] Oxy refused the GIF upload', {
       klipyId: candidate.klipyId,
