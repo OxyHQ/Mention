@@ -47,6 +47,7 @@ function mountRecorder(options: {
   camera: RecorderCamera | null;
   microphone?: () => Promise<boolean>;
   onRecorded?: (uri: string) => void;
+  onError?: (error: unknown) => void;
 }) {
   const seen: { current: ReturnType<typeof useVideoRecorder> | null } = { current: null };
   const Probe = () => {
@@ -54,6 +55,7 @@ function mountRecorder(options: {
       camera: () => options.camera,
       requestMicrophone: options.microphone ?? (() => Promise.resolve(true)),
       onRecorded: options.onRecorded ?? jest.fn(),
+      onError: options.onError,
     });
     return null;
   };
@@ -348,5 +350,21 @@ it('ignores readiness and progress from a previous camera generation', async () 
   await flush();
   act(() => recorder.value.recordingProgress({ duration: 10 }, old));
   expect(recorder.value.startedAt).toBeNull();
+  recorder.unmount();
+});
+
+it('reports a native camera startup failure and releases the arming state', async () => {
+  const camera = fakeCamera();
+  const onError = jest.fn();
+  const recorder = mountRecorder({ camera, onError });
+  await act(async () => {
+    await recorder.value.arm();
+  });
+  const error = new Error('Camera unavailable');
+  act(() => recorder.value.cameraError(error, recorder.value.generation));
+  expect(onError).toHaveBeenCalledWith(error);
+  expect(recorder.value.phase).toBe('idle');
+  expect(recorder.value.mode).toBe('picture');
+  expect(camera.recordAsync).not.toHaveBeenCalled();
   recorder.unmount();
 });

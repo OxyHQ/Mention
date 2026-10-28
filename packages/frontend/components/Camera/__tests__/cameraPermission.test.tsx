@@ -67,6 +67,8 @@ jest.mock('react-i18next', () => ({
  * the screen — are exactly what these cases are about, so stubs that do the
  * same measure the same thing.
  */
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: { error: jest.fn() } }));
+
 jest.mock('@oxy.so/bloom/button', () => ({
   Button: ({ children }: { children: React.ReactNode }) => children,
 }));
