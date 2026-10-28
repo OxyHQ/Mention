@@ -130,9 +130,14 @@ data, into one state each and never throws:
 Unavailable cards retain their reference and show an unavailable state; they never retain an old price. Account storefront links are rechecked against the SDK’s current store owner on every read. Linking requires live authority to act as the target account.
 
 **Freshness.** Persist refs only — never a title, price or availability.
-Hydration caches nothing; any cache added later must be short-lived, keyed by
-`formatMercariaRef`, treated as a freshness hint, and keyed per viewer once
-reads carry a token. **Distribution.** Hydration is presentation: no ranking,
+Backend hydration caches nothing. The frontend shares a visible-card cache keyed
+by `formatMercariaRef`: repeated cards share one lookup, adjacent visible refs
+are batched in groups of 24, and batches execute sequentially. Backend SDK reads
+within a batch have bounded concurrency. Cached facts expire after 30 seconds;
+price and the outgoing action disappear before a refresh starts and remain
+absent on an outage. The last reader leaving releases its facts. Catalog facts
+are never written into the persistent feed cache. Money formatting belongs to
+the published SDK, including non-ISO currencies such as FAIR. **Distribution.** Hydration is presentation: no ranking,
 feed, search or trending code may read it, so an attached product reaches
 exactly the audience the same post reaches without it.
 
@@ -141,6 +146,30 @@ Mercaria host or `/public/v1` path anywhere in production source outside the
 client module. `mercariaHydration.test.ts` is the consumer-conformance suite
 Mercaria#1017 requires: it drives the real SDK against Mercaria's wire envelope
 with the platform `fetch` as the only double.
+
+### Storefronts, publishing and anonymous interaction totals
+
+Settings can connect a Mercaria store to the personal or operated account that
+owns it. Every connection mutation rechecks live Oxy account authority and
+Mercaria ownership; every read rechecks current ownership. Blocked readers and
+private-profile restrictions apply before catalog reads. A transfer or provider
+failure cannot leave an indefinitely valid store link. The Shop tab appears only
+for an available connection and lists paginated products and collections.
+
+The composer accepts up to four canonical product/collection refs across normal
+posts, thread items, edits and local drafts. Batch writes validate every entry
+before writing anything. Post hydration carries refs only; catalog calls never
+enter feed hydration or ranking. ActivityPub presentation appends canonical links
+without changing the signed author's source text or translations.
+
+Commerce analytics count opens of a post detail/shop and explicit outgoing
+handoffs. They do not count every feed-card render and do not record viewer,
+session, IP, order or buyer identifiers. Daily counters are atomic. Only the
+current account operator can read fixed 30-day totals, suppressed below ten opens.
+The threshold counts interactions, not distinct people. These are not conversion
+or sales metrics: the published provider contract does not supply attribution.
+Post deletion, account erasure, channel deletion and disconnect cascade the
+corresponding counters. Metrics never influence distribution.
 
 ## Feed engine
 

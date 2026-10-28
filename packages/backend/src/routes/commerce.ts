@@ -1,3 +1,11 @@
+import {
+  commerceMetricsSummary,
+  recordCommerceMetric,
+  type CommerceMetricTarget,
+} from '../services/commerce/metrics';
+import { loadPostRecord } from '../db/posts/postRepository';
+import { postHydrationService } from '../services/PostHydrationService';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireOxyAuth, getRequiredOxyUserId, type OxyAuthRequest } from '@oxy.so/core/server';
@@ -47,12 +55,10 @@ function failure(res: Response, error: unknown) {
         : error.code === 'bad_request' || error.code === 'validation_failed'
           ? 400
           : 503;
-    return res
-      .status(status)
-      .json({
-        message: status === 404 ? 'Storefront unavailable' : 'Commerce is temporarily unavailable',
-        retryable: error.retryable,
-      });
+    return res.status(status).json({
+      message: status === 404 ? 'Storefront unavailable' : 'Commerce is temporarily unavailable',
+      retryable: error.retryable,
+    });
   }
   logger.error('[Commerce] Request failed', error);
   return res.status(503).json({ message: 'Commerce is temporarily unavailable' });
@@ -63,14 +69,17 @@ async function canReadAccount(req: OxyAuthRequest, accountId: string): Promise<b
     isAccountErased(accountId),
     loadUserSettings(accountId),
   ]);
-  return (
-    !erased &&
-    canViewProfileDesign(
-      accountId,
-      req.user?.id,
-      settings?.privacy?.profileVisibility,
-      createScopedOxyClient(req),
-    )
+  if (erased) return false;
+  if (req.user?.id && req.user.id !== accountId) {
+    const caller = createUserScopedOxyServices(req);
+    // This caller-scoped relationship API checks blocks in both directions.
+    if (!caller || (await caller.privacy.isBlocked(accountId))) return false;
+  }
+  return canViewProfileDesign(
+    accountId,
+    req.user?.id,
+    settings?.privacy?.profileVisibility,
+    createScopedOxyClient(req),
   );
 }
 
@@ -113,7 +122,7 @@ router.get('/products', postDocumentsRateLimiter, async (req: OxyAuthRequest, re
         cursor,
         limit,
         sort,
-        inStock: inStock === 'true',
+        inStock: inStock === undefined ? undefined : inStock === 'true',
       }),
     );
   } catch (error) {
@@ -169,7 +178,7 @@ router.get(
               cursor,
               limit,
               sort,
-              inStock: inStock === 'true',
+              inStock: inStock === undefined ? undefined : inStock === 'true',
             }),
       );
     } catch (error) {
@@ -213,6 +222,64 @@ router.delete(
       await canManageAccount(req, accountId.data);
       await disconnectStorefront(accountId.data);
       return res.status(204).end();
+    } catch (error) {
+      return failure(res, error);
+    }
+  },
+);
+
+const metricEventSchema = z.object({ event: z.enum(['open', 'handoff']) }).strict();
+async function resolveMetricTarget(
+  req: OxyAuthRequest,
+): Promise<{ target: CommerceMetricTarget; ownerId: string } | null> {
+  const id = accountIdSchema.safeParse(req.params.id);
+  if (!id.success) return null;
+  if (req.params.kind === 'stores') {
+    if (!(await canReadAccount(req, id.data))) return null;
+    if ((await readStorefront(id.data)).state !== 'available') return null;
+    return { target: { kind: 'store', id: id.data }, ownerId: id.data };
+  }
+  if (req.params.kind !== 'posts') return null;
+  const post = await loadPostRecord(id.data);
+  if (!post?.oxyUserId || !post.content.commerce?.length || post.status !== 'published')
+    return null;
+  if (
+    !(await postHydrationService.canViewerReadPostId(post.id, req.user?.id ?? '', {
+      safetyRequester: safetyRequesterFor(req),
+      oxyClient: createScopedOxyClient(req),
+      operatedAccountReader: createUserScopedOxyServices(req),
+    }))
+  )
+    return null;
+  return { target: { kind: 'post', id: post.id }, ownerId: post.oxyUserId };
+}
+router.post(
+  '/metrics/:kind/:id',
+  postDocumentsRateLimiter,
+  async (req: OxyAuthRequest, res: Response) => {
+    const event = metricEventSchema.safeParse(req.body);
+    if (!event.success) return res.status(400).json({ message: 'Invalid commerce event' });
+    try {
+      const resolved = await resolveMetricTarget(req);
+      if (!resolved) return res.sendStatus(404);
+      await recordCommerceMetric(resolved.target, event.data.event);
+      return res.status(204).end();
+    } catch (error) {
+      return failure(res, error);
+    }
+  },
+);
+router.get(
+  '/metrics/:kind/:id',
+  requireOxyAuth,
+  postDocumentsRateLimiter,
+  async (req: OxyAuthRequest, res: Response) => {
+    try {
+      const resolved = await resolveMetricTarget(req);
+      if (!resolved) return res.sendStatus(404);
+      await canManageAccount(req, resolved.ownerId);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(await commerceMetricsSummary(resolved.target));
     } catch (error) {
       return failure(res, error);
     }

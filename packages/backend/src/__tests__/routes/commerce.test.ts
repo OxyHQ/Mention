@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
   members: [] as AccountMember[],
   owner: 'commerce-owner',
   visible: true,
+  blocked: false,
+  privacyFailed: false,
   storeReads: vi.fn(),
 }));
 vi.mock('../../services/PostHydrationService', () => ({
@@ -19,6 +21,12 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => ({}),
   createUserScopedOxyServices: () => ({
+    privacy: {
+      isBlocked: async () => {
+        if (state.privacyFailed) throw new Error('Oxy unavailable');
+        return state.blocked;
+      },
+    },
     accounts: { members: { list: async () => state.members } },
   }),
 }));
@@ -81,6 +89,8 @@ beforeEach(async () => {
   state.owner = 'commerce-owner';
   state.members = [];
   state.visible = true;
+  state.blocked = false;
+  state.privacyFailed = false;
   await getDb()
     .delete(accountStorefronts)
     .where(eq(accountStorefronts.oxyAccountId, 'commerce-owner'));
@@ -161,5 +171,51 @@ describe('store connection identity and current authority', () => {
     expect(await step.apply({ oxyUserId: 'commerce-owner' })).toBe(1);
     expect(await step.apply({ oxyUserId: 'commerce-owner' })).toBe(0);
     expect((await request(app).get(target).expect(200)).body.state).toBe('disconnected');
+  });
+});
+
+describe('storefront privacy relationship', () => {
+  it('does not disclose store data to a blocked viewer or when the block check fails', async () => {
+    await request(app).put(target).send({ handle: 'commerce-test' }).expect(200);
+    state.viewer = 'other-viewer';
+    state.blocked = true;
+    state.storeReads.mockClear();
+    await request(app).get(target).expect(404);
+    await request(app).get(`${target}/products`).expect(404);
+    expect(state.storeReads).not.toHaveBeenCalled();
+    state.blocked = false;
+    state.privacyFailed = true;
+    await request(app).get(target).expect(503);
+    expect(state.storeReads).not.toHaveBeenCalled();
+  });
+});
+
+describe('anonymous commerce aggregates', () => {
+  const metrics = '/commerce/metrics/stores/commerce-owner';
+  it('accepts only bounded interaction events and exposes totals only to the current owner', async () => {
+    await request(app).put(target).send({ handle: 'commerce-test' }).expect(200);
+    await request(app).post(metrics).send({ event: 'conversion' }).expect(400);
+    await request(app).post(metrics).send({ event: 'open', viewerId: 'tracking' }).expect(400);
+    state.viewer = undefined;
+    await request(app).post(metrics).send({ event: 'open' }).expect(204);
+    await request(app).get(metrics).expect(401);
+    state.viewer = 'other-viewer';
+    await request(app).get(metrics).expect(403);
+    state.viewer = 'commerce-owner';
+    const response = await request(app).get(metrics).expect(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body).toMatchObject({ suppressed: true, opens: null, handoffs: null });
+  });
+  it('rejects events for blocked, disconnected and transferred storefronts', async () => {
+    await request(app).put(target).send({ handle: 'commerce-test' }).expect(200);
+    state.viewer = 'blocked-viewer';
+    state.blocked = true;
+    await request(app).post(metrics).send({ event: 'open' }).expect(404);
+    state.viewer = 'commerce-owner';
+    state.blocked = false;
+    state.owner = 'new-owner';
+    await request(app).post(metrics).send({ event: 'open' }).expect(404);
+    await request(app).delete(target).expect(204);
+    await request(app).post(metrics).send({ event: 'open' }).expect(404);
   });
 });
