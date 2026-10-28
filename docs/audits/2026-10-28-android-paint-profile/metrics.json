@@ -125,7 +125,7 @@
       "GrDrawingManager.flush": 32.28,
       "RenderNode.prepareTreeImpl": 21.32,
       "SkCanvas.drawDRRect": 10.57,
-      "GrBlurUtils.shapeMaskFilter": 9.53
+      "GrBlurUtils.DrawShapeWithMaskFilter": 9.53
     },
     "jsInclusivePercent": {
       "EventQueue.flushStateUpdates": 33.39,
