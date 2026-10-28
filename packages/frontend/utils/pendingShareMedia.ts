@@ -7,7 +7,8 @@
  * uploaded first and then attached to the composer. Rather than serialize
  * already-uploaded file descriptors through URL query params (bloat + escaping),
  * the bridge uploads them, stashes the resulting ids here, and navigates. The
- * compose screen consumes them once on mount.
+ * compose screen consumes them once after its mount commits. Rendering must
+ * never consume the buffer: React can discard an uncommitted render.
  *
  * Single-slot, consume-once: reading clears the buffer so a later plain
  * `/compose` open never re-attaches stale media.
