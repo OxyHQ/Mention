@@ -4,6 +4,7 @@
  */
 
 export const STORAGE_KEYS = {
+  NOTIFICATION_EDUCATION_SHOWN: 'pref:notifications:educationShown',
   LANGUAGE_PREFERENCE: 'user_language_preference',
   THREAD_SORT: 'pref:thread:sortOrder',
   THREAD_TREE_VIEW: 'pref:thread:treeView',
