@@ -298,3 +298,44 @@ The logo fixture is Oxy's public directory avatar, asset
 `69b85ff8a08af16d4b87155e`, fetched through `cloud.oxy.so` on 2026-10-15. The
 fixture supplies its bare ID and checks the image loaded through the application's
 normal Oxy/Bloom image resolver, rather than supplying a pre-resolved URL.
+
+## API budget audit — 2026-10-28
+
+The commerce merge queue failed the SEO homepage author assertion on both
+attempts because `/feed/mtn`, trending, recommendations and the API health check
+returned 429. Response headers identified the global anonymous policy as
+`600;w=900`, remaining `0`, with `Retry-After` 667 seconds (629 on retry).
+The failing page made ten Mention requests; this was accumulated suite traffic,
+not a single-page request storm. Across the exploratory full run there were
+86 health, 79 trending and 71 recommendation requests—approximately one of each
+per applicable page mount.
+
+An initial change isolated only SEO data. Its full run passed, but auditing all
+browser traces still found 34 background 429s, including the separate anonymous
+feed `50;w=60` budget. Passing assertions alone therefore did not establish that
+the suite had stopped overloading the backend. Explicit synthetic fixture
+ownership and stable profile geometry data produced the following comparison:
+
+| Recorded metric | SEO-only exploratory run | Complete opt-in boundary |
+| --- | ---: | ---: |
+| Browser tests passed / existing opt-in skip | 91 / 1 | 92 / 1 |
+| Mention records including fixtures | 826 | 758 |
+| Live HTTP response records | 414 | 260 |
+| Live Mention WebSocket handshakes | 71 | 42 |
+| Live HTTP 429 responses | 34 | 0 |
+| Lowest observed global-budget remaining header | 0 | 241 |
+
+For the final run, live response statuses were: 213 HTTP 200, 24 HTTP 204,
+15 HTTP 401, 8 HTTP 302, and 42 WebSocket HTTP 101. Live records were identified
+by the production edge's `cf-ray` response header; locally fulfilled fixtures
+have no such header. All trace network entries were inspected, including calls
+outside the assertions. No account IDs, response bodies, tokens or raw traces
+are included in this summary.
+
+The complete run used two workers, the ordinary production preflight, and an
+official combined candidate export; it finished in 2.8 minutes. After teardown
+was hardened to close fixture-owned pages before removing routes, 14 focused
+browser tests passed, including the boundary self-test and live-context
+non-interference. No API policy, CORS rule, timeout or retry budget was widened.
+These figures are evidence for this run, not permission for future tests to
+spend the remaining budget: repeat the trace audit when growing the suite.
