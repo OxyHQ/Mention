@@ -32,7 +32,7 @@ describe('commerce refs in normalized post content', () => {
       [],
     );
     const edited = await loadPostRecord(post.id);
-    expect(edited?.content.commerce).toEqual([]);
+    expect(edited?.content.commerce).toBeUndefined();
     expect(edited?.content.attachments).toBeUndefined();
   });
   it('cannot smuggle an unvalidated ref through raw attachment descriptors', () => {

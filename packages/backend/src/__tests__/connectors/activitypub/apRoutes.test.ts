@@ -375,7 +375,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledTimes(2);
     // The outbox passes NO reply context and the per-post mention + poll + quote
     // + community contexts (all undefined here — the batch resolvers returned
-    // empty maps) as args 3-7.
+    // empty maps) as args 3-7, followed by no commerce links.
     expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ id: newer.id }),
@@ -385,6 +385,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       undefined,
       undefined,
       undefined,
+      [],
     );
     expect(res.body.type).toBe('OrderedCollectionPage');
     // Newest first, and the ids are the ones actually stored.
@@ -476,6 +477,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       pollContext,
       undefined,
       undefined,
+      [],
     );
     expect(res.body.orderedItems).toEqual([{ type: 'Create', object: { type: 'Question' } }]);
   });
@@ -495,6 +497,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       undefined,
       quoteContext,
       undefined,
+      [],
     );
   });
 });
@@ -1029,6 +1032,7 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
       undefined,
       undefined,
       undefined,
+      [],
     );
   });
 
@@ -1055,6 +1059,7 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
       undefined,
       quoteContext,
       undefined,
+      [],
     );
   });
 
