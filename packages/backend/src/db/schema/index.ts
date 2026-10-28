@@ -42,3 +42,6 @@ export * from './events';
 export * from './polls';
 export * from './userProfile';
 export * from './deck';
+
+export * from './commerce';
+export * from './memberships';

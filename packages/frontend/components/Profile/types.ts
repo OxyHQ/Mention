@@ -66,7 +66,8 @@ export type ProfileTab =
   | (typeof TAB_NAMES)[number]
   | (typeof CHANNEL_ONLY_TAB_NAMES)[number]
   | (typeof ORGANIZATION_ONLY_TAB_NAMES)[number]
-  | (typeof PERSONAL_ONLY_TAB_NAMES)[number];
+  | (typeof PERSONAL_ONLY_TAB_NAMES)[number]
+  | 'shop';
 
 /**
  * The static tabs a CHANNEL account's profile does NOT get.
@@ -226,16 +227,18 @@ export function laneTabKey(laneId: string): string {
  * the same rule; this only keeps an empty tab off the strip.
  */
 export function buildProfileTabDescriptors(
-  labels: Readonly<Record<ProfileTab, string>>,
+  labels: Readonly<Record<Exclude<ProfileTab, 'shop'>, string>>,
   lanes: readonly LaneTabInput[] = [],
   accountKind?: AccountKind,
   disclosesWriters = false,
   showsLikes = true,
+  shopLabel?: string,
 ): ProfileTabDescriptor[] {
   const descriptors: ProfileTabDescriptor[] = [];
   for (const tab of profileTabsForAccountKind(accountKind)) {
     if (tab === 'writers' && !disclosesWriters) continue;
     if (tab === 'likes' && !showsLikes) continue;
+    if (tab === 'shop') continue;
     descriptors.push({ key: tab, label: labels[tab], tab });
     if (tab === 'posts') {
       for (const lane of lanes) {
@@ -248,6 +251,7 @@ export function buildProfileTabDescriptors(
       }
     }
   }
+  if (shopLabel) descriptors.push({ key: 'shop', label: shopLabel, tab: 'shop' });
   return descriptors;
 }
 
@@ -296,6 +300,7 @@ export function shouldFeedOwnProfileScroll(input: {
 export const VIRTUALIZED_PROFILE_GRID_TABS = [
   'media',
   'videos',
+  'shop',
 ] as const satisfies readonly ProfileTab[];
 
 export function isVirtualizedProfileGridTab(

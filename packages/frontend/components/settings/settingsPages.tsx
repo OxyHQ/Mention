@@ -1,3 +1,5 @@
+import CommerceSettingsPage from './pages/commerce';
+import { RiShoppingBag3Line } from '@oxy.so/bloom/icons/RiShoppingBag3Line';
 import DeckSettingsPage from './pages/deck';
 import { useTranslation } from 'react-i18next';
 import type { SettingsModalPage, SettingsNavGroup } from '@oxy.so/bloom/settings-modal';
@@ -56,6 +58,10 @@ export interface MentionSettingsPages {
 export function useMentionSettingsPages(): MentionSettingsPages {
   const { t } = useTranslation();
   const pages = {
+    commerce: {
+      title: t('commerce.shop', { defaultValue: 'Shop' }),
+      content: <CommerceSettingsPage />,
+    },
     deck: { title: t('deck.workspace.title', 'Deck'), content: <DeckSettingsPage /> },
     account: {
       title: t('settings.account.manageAccount', { defaultValue: 'Account' }),
@@ -183,6 +189,12 @@ export function useMentionSettingsPages(): MentionSettingsPages {
       key: 'personal',
       label: t('settings.title', { defaultValue: 'Settings' }),
       items: [
+        {
+          key: 'commerce',
+          page: 'commerce',
+          label: pages.commerce.title,
+          icon: RiShoppingBag3Line,
+        },
         {
           key: 'account',
           page: 'account',

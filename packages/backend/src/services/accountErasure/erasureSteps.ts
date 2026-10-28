@@ -1,3 +1,12 @@
+import {
+  membershipCommunities,
+  communityMemberships,
+  membershipContents,
+  membershipMedia,
+  membershipPollVotes,
+  membershipReports,
+} from '../../db/schema/memberships';
+import { accountStorefronts } from '../../db/schema/commerce';
 import { deckWorkspaces } from '../../db/schema/deck';
 import { eventAttendance } from '../../db/schema/events';
 /**
@@ -535,6 +544,48 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     deckWorkspaces,
     deckWorkspaces.oxyUserId,
     accountIs(deckWorkspaces.oxyUserId),
+  ),
+  'membership_communities.ownerOxyUserId': deleteRows(
+    'account',
+    membershipCommunities,
+    membershipCommunities.id,
+    accountIs(membershipCommunities.ownerOxyUserId),
+  ),
+  'community_memberships.memberOxyUserId': deleteRows(
+    'account',
+    communityMemberships,
+    communityMemberships.id,
+    accountIs(communityMemberships.memberOxyUserId),
+  ),
+  'membership_contents.authorOxyUserId': deleteRows(
+    'account',
+    membershipContents,
+    membershipContents.id,
+    accountIs(membershipContents.authorOxyUserId),
+  ),
+  'membership_media.ownerOxyUserId': deleteRows(
+    'account',
+    membershipMedia,
+    membershipMedia.id,
+    accountIs(membershipMedia.ownerOxyUserId),
+  ),
+  'membership_poll_votes.voterOxyUserId': deleteRows(
+    'account',
+    membershipPollVotes,
+    membershipPollVotes.id,
+    accountIs(membershipPollVotes.voterOxyUserId),
+  ),
+  'membership_reports.reporterOxyUserId': deleteRows(
+    'account',
+    membershipReports,
+    membershipReports.id,
+    accountIs(membershipReports.reporterOxyUserId),
+  ),
+  'account_storefronts.oxyAccountId': deleteRows(
+    'account',
+    accountStorefronts,
+    accountStorefronts.oxyAccountId,
+    accountIs(accountStorefronts.oxyAccountId),
   ),
   'user_settings.oxyUserId': deleteRows(
     'account',

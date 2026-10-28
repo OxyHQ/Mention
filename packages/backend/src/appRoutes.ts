@@ -1,3 +1,4 @@
+import commerceRoutes from './routes/commerce';
 import { postWriteRateLimiter } from './middleware/security';
 import { createServicePublishingRouter } from './routes/servicePublishing';
 import { createPost } from './controllers/posts/createPost';
@@ -150,6 +151,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);
   publicApi.use('/profile/design', profileDesignRoutes);
+  publicApi.use('/commerce', commerceRoutes);
   // An article body is as readable as the post it belongs to, and the
   // controller asks the post ACL for that. Auth stays OPTIONAL so a public
   // article is still readable anonymously; it is what supplies the viewer the

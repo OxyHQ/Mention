@@ -62,6 +62,12 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import {
+  membershipCommunities,
+  membershipContents,
+  membershipMedia,
+  membershipTiers,
+} from '../../db/schema/memberships';
 import { posts } from '../../db/schema/posts';
 import { notifications, trending } from '../../db/schema/discovery';
 import { federatedFollows } from '../../db/schema/federation';
@@ -114,6 +120,9 @@ afterEach(async () => {
   await db.delete(mcpConnections).where(like(mcpConnections.oxyUserId, `${SCOPE_PREFIX}%`));
   await db.delete(userSettings).where(like(userSettings.oxyUserId, `${SCOPE_PREFIX}%`));
   await db.delete(deckWorkspaces).where(like(deckWorkspaces.oxyUserId, `${SCOPE_PREFIX}%`));
+  await db
+    .delete(membershipCommunities)
+    .where(like(membershipCommunities.ownerOxyUserId, `${SCOPE_PREFIX}%`));
   await db.delete(lanes).where(like(lanes.ownerId, `${SCOPE_PREFIX}%`));
   await db.delete(federatedFollows).where(like(federatedFollows.localUserId, `${SCOPE_PREFIX}%`));
   await db.delete(trending).where(like(trending.name, `${SCOPE_PREFIX}%`));
@@ -208,6 +217,61 @@ describe('ChannelDeletionService — what happens to real rows', () => {
 
     const repeated = await deleteChannelContent(CHANNEL, { dryRun: false });
     expect(repeated.steps['deck_workspaces.oxyUserId']).toBe(0);
+  });
+
+  it('removes a channel community and its children while retaining another community', async () => {
+    const db = getDb();
+    const [owned, other] = await db
+      .insert(membershipCommunities)
+      .values([
+        { ownerOxyUserId: CHANNEL, slug: `${SCOPE_PREFIX}owned`, name: 'Owned', description: '' },
+        { ownerOxyUserId: STRANGER, slug: `${SCOPE_PREFIX}other`, name: 'Other', description: '' },
+      ])
+      .returning();
+    if (!owned || !other) throw new Error('Community fixture missing');
+    const [tier] = await db
+      .insert(membershipTiers)
+      .values({
+        communityId: owned.id,
+        name: 'Members',
+        description: '',
+        kind: 'free',
+        status: 'active',
+      })
+      .returning();
+    const [content] = await db
+      .insert(membershipContents)
+      .values({ communityId: owned.id, authorOxyUserId: WRITER, kind: 'post', body: 'Private' })
+      .returning();
+    if (!tier || !content) throw new Error('Content fixture missing');
+    await db.insert(membershipMedia).values({
+      communityId: owned.id,
+      contentId: content.id,
+      ownerOxyUserId: WRITER,
+      fileId: `${SCOPE_PREFIX}private-file`,
+      mime: 'image/png',
+      size: 10,
+    });
+    await deleteChannelContent(CHANNEL, { dryRun: true });
+    expect(
+      await db.select().from(membershipContents).where(eq(membershipContents.id, content.id)),
+    ).toHaveLength(1);
+    await deleteChannelContent(CHANNEL, { dryRun: false });
+    expect(
+      await db.select().from(membershipCommunities).where(eq(membershipCommunities.id, owned.id)),
+    ).toEqual([]);
+    expect(await db.select().from(membershipTiers).where(eq(membershipTiers.id, tier.id))).toEqual(
+      [],
+    );
+    expect(
+      await db.select().from(membershipContents).where(eq(membershipContents.id, content.id)),
+    ).toEqual([]);
+    expect(
+      await db.select().from(membershipMedia).where(eq(membershipMedia.communityId, owned.id)),
+    ).toEqual([]);
+    expect(
+      await db.select().from(membershipCommunities).where(eq(membershipCommunities.id, other.id)),
+    ).toHaveLength(1);
   });
 
   it("destroys the channel posts and a stranger's boost of one, and keeps their quote", async () => {

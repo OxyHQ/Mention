@@ -1,3 +1,5 @@
+import type { CommerceReference } from '@mention/shared-types/commerce';
+import { commerceReferenceKey } from './commerceReferences';
 import type { PostAttachmentDescriptor } from '@mention/shared-types/post';
 import type { ComposerMediaItem } from './composeUtils';
 
@@ -15,6 +17,7 @@ export const buildAttachmentsPayload = (
     podcastId?: string;
     /** When set, a `{ type: 'job', id }` descriptor is emitted at the job slot (OxyHQ/Mention#952). */
     jobId?: string;
+    commerce?: CommerceReference[];
   },
 ): PostAttachmentDescriptor[] => {
   const descriptors: PostAttachmentDescriptor[] = [];
@@ -68,7 +71,16 @@ export const buildAttachmentsPayload = (
   const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
   const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
 
+  const commerceKeys = new Set((options.commerce ?? []).map(commerceReferenceKey));
+  const addCommerce = (id: string) => {
+    if (!descriptors.some((item) => item.type === 'commerce' && item.id === id))
+      descriptors.push({ type: 'commerce', id });
+  };
   order.forEach((key) => {
+    if (commerceKeys.has(key)) {
+      addCommerce(key);
+      return;
+    }
     if (key === POLL_ATTACHMENT_KEY) {
       if (options.includePoll) addNonMedia('poll');
       return;
@@ -115,6 +127,7 @@ export const buildAttachmentsPayload = (
   if (options.includeRoom) addNonMedia('room');
   addPodcast();
   addJob();
+  for (const key of commerceKeys) addCommerce(key);
 
   mediaList.forEach((item) => {
     if (!usedMedia.has(item.id)) {

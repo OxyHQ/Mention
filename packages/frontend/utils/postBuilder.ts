@@ -1,3 +1,4 @@
+import type { CommerceReference } from '@mention/shared-types/commerce';
 import type { MentionData } from '@/utils/mentions';
 import { reconcileMentionIds } from '@mention/shared-types/mentions';
 import type {
@@ -36,6 +37,7 @@ type ComposeLocation = {
 
 interface BuildMainPostParams {
   postContent: string;
+  commerce?: CommerceReference[];
   mentions: MentionData[];
   mediaIds: ComposerMediaItem[];
   pollTitle: string;
@@ -123,6 +125,7 @@ const roomContent = (room: RoomAttachmentData) => ({
 export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest => {
   const {
     postContent,
+    commerce,
     mentions,
     mediaIds,
     pollTitle,
@@ -170,6 +173,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     includeSources: formattedSources.length > 0,
     podcastId,
     jobId,
+    commerce,
   });
 
   const articlePayload = hasArticleContent(article)
@@ -211,6 +215,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
       ...(roomPayload && { room: roomContent(roomPayload) }),
       ...(podcastId && { podcast: { syraPodcastId: podcastId } }),
       ...(jobId && { job: { mentionJobId: jobId } }),
+      ...(commerce?.length ? { commerce } : {}),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload }),
     },
     mentions: mentionIds,
@@ -248,6 +253,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
 interface BuildEditPostParams {
   formattedSources?: PostSourceLink[];
   postContent: string;
+  commerce?: CommerceReference[];
   mediaIds: ComposerMediaItem[];
   mentions: string[];
   hashtags: string[];
@@ -272,6 +278,7 @@ interface BuildEditPostParams {
 export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest => {
   const {
     postContent,
+    commerce,
     mediaIds,
     mentions,
     hashtags,
@@ -289,6 +296,7 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
     content: {
       text: postContent.trim(),
       ...(formattedSources !== undefined ? { sources: formattedSources } : {}),
+      ...(commerce !== undefined ? { commerce } : {}),
       ...(variantContent ? { variants: variantContent } : {}),
       media: mediaIds.map((m) => ({
         id: m.id,
@@ -359,6 +367,7 @@ export const buildThreadPost = (
     includeLocation: threadHasLocation,
     includeSources: threadHasSources,
     podcastId: threadPodcastId,
+    commerce: item.commerce,
   });
 
   const threadArticlePayload =
@@ -407,6 +416,7 @@ export const buildThreadPost = (
       // not the first may attach a show of its own.
       ...(threadPodcastId && { podcast: { syraPodcastId: threadPodcastId } }),
       ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload }),
+      ...(item.commerce?.length ? { commerce: item.commerce } : {}),
     },
     mentions: mentionIds,
     hashtags: [],

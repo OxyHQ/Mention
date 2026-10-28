@@ -1,3 +1,5 @@
+import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
+import { commerceReferenceKey } from '@/utils/commerceReferences';
 import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, useMemo } from 'react';
 import {
@@ -117,6 +119,8 @@ interface ComposeThreadItemProps {
   onQuotesDisabledChange: (threadId: string, disabled: boolean) => void;
   onSensitiveToggle: (threadId: string) => void;
   onPodcastPress: (threadId: string) => void;
+  onCommercePress?: (threadId: string) => void;
+  onCommerceRemove?: (threadId: string, key: string) => void;
   onPodcastRemove: (threadId: string) => void;
   /**
    * Choose who this post is by. Omitted — leaving the avatar inert — wherever the
@@ -185,6 +189,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     onQuotesDisabledChange,
     onSensitiveToggle,
     onPodcastPress,
+    onCommercePress,
+    onCommerceRemove,
     onPodcastRemove,
     onPublishAsPress,
     onLanePress,
@@ -212,6 +218,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
       itemHasEvent ||
       itemHasRoom ||
       itemHasPodcast ||
+      Boolean(item.commerce?.length) ||
       itemHasSources;
 
     // Stable callbacks bound to this thread item's id
@@ -374,6 +381,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 onArticlePress={handleArticlePress}
                 onEventPress={handleEventPress}
                 onRoomPress={handleRoomPress}
+                onCommercePress={onCommercePress ? () => onCommercePress(threadId) : undefined}
                 onPodcastPress={handlePodcastPress}
                 onLanePress={handleLanePress}
                 hasLocation={!!item.location}
@@ -543,6 +551,22 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                     </TouchableOpacity>
                   </View>
                 )}
+                {(item.commerce ?? []).map((ref) => (
+                  <View key={commerceReferenceKey(ref)} style={styles.pollAttachmentWrapper}>
+                    <CommerceCard referenceId={commerceReferenceKey(ref)} className="w-[280px]" />
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={t('commerce.remove', {
+                        defaultValue: 'Remove commerce attachment',
+                      })}
+                      onPress={() => onCommerceRemove?.(threadId, commerceReferenceKey(ref))}
+                      className="bg-card"
+                      style={styles.pollAttachmentRemoveButton}
+                    >
+                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
                 {/* Thread item podcast preview */}
                 {itemHasPodcast && item.podcast && (
                   <View style={styles.pollAttachmentWrapper}>

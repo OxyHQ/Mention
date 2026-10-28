@@ -39,7 +39,10 @@ module.exports = {
   // now loads Reanimated's native initializers, which call `runOnUISync`.
   resolver: require.resolve('react-native-reanimated/jest/resolver'),
   transformIgnorePatterns: [
-    preset.transformIgnorePatterns[0].replace('(?!(', '(?!(@oxy\\.so|@syra\\.fm|'),
+    preset.transformIgnorePatterns[0].replace(
+      '(?!(',
+      '(?!(@oxy\\.so|@syra\\.fm|@mercaria\\.co/sdk|',
+    ),
     ...preset.transformIgnorePatterns.slice(1),
   ],
   // Gesture Handler 3 installs its UI-runtime bindings on a timer by asking

@@ -101,6 +101,48 @@ export function erasureKey(entry: Pick<ErasureMapEntry, 'table' | 'column'>): st
 
 export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   {
+    table: 'membership_communities',
+    column: 'ownerOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Erase the account-owned membership domain record; dependent private content cascades.',
+  },
+  {
+    table: 'community_memberships',
+    column: 'memberOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Erase the account-owned membership domain record; dependent private content cascades.',
+  },
+  {
+    table: 'membership_contents',
+    column: 'authorOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Erase the account-owned membership domain record; dependent private content cascades.',
+  },
+  {
+    table: 'membership_media',
+    column: 'ownerOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Erase the account-owned membership domain record; dependent private content cascades.',
+  },
+  {
+    table: 'membership_poll_votes',
+    column: 'voterOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Erase the account-owned membership domain record; dependent private content cascades.',
+  },
+  {
+    table: 'membership_reports',
+    column: 'reporterOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Erase the account-owned membership domain record; dependent private content cascades.',
+  },
+  {
     table: 'deck_workspaces',
     column: 'oxyUserId',
     disposition: 'delete-row',
@@ -318,6 +360,19 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   // ---------------------------------------------------------------------------
   // account: settings, graph, lists, feeds, notifications
   // ---------------------------------------------------------------------------
+  {
+    table: 'commerce_store_daily_metrics',
+    column: 'oxyAccountId',
+    disposition: 'database',
+    why: 'ON DELETE CASCADE from the account storefront removes its anonymous daily totals.',
+  },
+  {
+    table: 'account_storefronts',
+    column: 'oxyAccountId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'The account’s connected Mercaria storefront presentation; catalog ownership remains in Mercaria.',
+  },
   {
     table: 'user_settings',
     column: 'oxyUserId',

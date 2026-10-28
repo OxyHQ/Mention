@@ -36,10 +36,10 @@
   "jest": {
     "preset": "jest-expo",
     "transform": {
-      "[/\\\\]lib[/\\\\](?:hlsPlayback\\.web|syraPodcasts)\\.ts$": "<rootDir>/test-support/hlsPlaybackTransform.js"
+      "[/\\\\]lib[/\\\\](?:hlsPlayback\\.web|syraPodcasts|references[/\\\\]commerceCards)\\.ts$": "<rootDir>/test-support/hlsPlaybackTransform.js"
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|@oxy\\.so/bloom))",
+      "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|@oxy\\.so/bloom|@mercaria\\.co/sdk))",
       "/node_modules/react-native-reanimated/plugin/",
       "/node_modules/@react-native/babel-preset/"
     ],
@@ -198,7 +198,8 @@
     "tailwindcss-animate": "^1.0.7",
     "web-vitals": "^6.2.3",
     "zod": "catalog:",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "@mercaria.co/sdk": "0.7.3"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

@@ -329,6 +329,39 @@ const jobApplicationEntity: FileReferenceEntity = {
   },
 };
 
+/** `membership_media`: private uploads retained by a community. */
+const membershipMediaEntity: FileReferenceEntity = {
+  type: 'membership_media',
+  shards: 1,
+  source: 'membership_media.file_id (entity: membership_media.id)',
+  async pairsInUse(db, pairs) {
+    if (pairs.length === 0) return new Set();
+    return pairSet(
+      db,
+      sql`select t.file_id, t.entity_id from ${unnestPairs(pairs)}
+        where exists (
+          select 1 from membership_media a
+          where a.id = t.entity_id and a.file_id = t.file_id
+        )`,
+    );
+  },
+  async inventory(db) {
+    return pairList(
+      db,
+      sql`select file_id as file_id, id as entity_id from membership_media
+        where file_id is not null and ${isOxyFileIdSql(sql`file_id`)}`,
+    );
+  },
+  async filesInUse(db, fileIds) {
+    if (fileIds.length === 0) return new Set();
+    return idSet(
+      db,
+      sql`select file_id as id from membership_media
+        where file_id = any(${sql.param([...fileIds])}::text[])`,
+    );
+  },
+};
+
 /**
  * `moderation_report`: the application-owned copies of a reported post's media
  * a report sent CrowdSource as evidence, while the report exists.
@@ -374,6 +407,7 @@ export const FILE_REFERENCE_ENTITIES: readonly FileReferenceEntity[] = [
   videoPosterEntity,
   jobApplicationEntity,
   moderationReportEntity,
+  membershipMediaEntity,
 ];
 
 const BY_TYPE = new Map(FILE_REFERENCE_ENTITIES.map((entity) => [entity.type, entity]));

@@ -1,3 +1,4 @@
+import { readCommerceReferences } from '@/utils/commerceReferences';
 import { podcastReference } from '@/utils/podcastReference';
 import { useState, useCallback, useRef } from 'react';
 import { reconcileMentionData, type MentionData } from '@/utils/mentions';
@@ -197,6 +198,7 @@ const writeBox = (box: LiveBox, variants: ComposeVariantsState): DraftBox => ({
   event: box.event ? { ...box.event } : null,
   room: box.room ? { ...box.room } : null,
   podcast: podcastReference(box.podcast),
+  commerce: box.commerce,
   attachmentOrder: box.attachmentOrder,
 });
 
@@ -221,6 +223,7 @@ const readBox = (
   const event = readEvent(stored.event);
   const room = readRoom(stored.room);
   const podcast = readPodcast(stored.podcast);
+  const commerce = readCommerceReferences(stored.commerce);
   return {
     mediaIds,
     pollOptions,
@@ -236,6 +239,7 @@ const readBox = (
     event,
     room,
     podcast,
+    commerce,
     attachmentOrder: reconcileAttachmentOrder(
       readArray(stored.attachmentOrder).filter(isString),
       attachmentKeysOf({
@@ -243,6 +247,7 @@ const readBox = (
         event,
         room,
         podcast,
+        commerce,
         job,
         location,
         sources,

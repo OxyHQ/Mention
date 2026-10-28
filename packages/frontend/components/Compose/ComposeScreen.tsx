@@ -1,3 +1,6 @@
+import type { CommerceReference } from '@mention/shared-types/commerce';
+import { commerceReferenceKey, readCommerceReferences } from '@/utils/commerceReferences';
+import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
 import { FeedSkeleton, FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { homiioCaseFromText } from '@mention/shared-types/homiio';
@@ -194,6 +197,7 @@ const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerShee
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
 const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
+const CommercePickerSheet = lazy(() => import('@/components/Compose/CommercePickerSheet'));
 const JobPickerSheet = lazy(() => import('@/components/Compose/JobPickerSheet'));
 
 // Pre-computed stable style objects using layout constants
@@ -318,6 +322,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const roomManager = useRoomManager();
   const podcastManager = usePodcastManager();
   const jobManager = useJobAttachmentManager();
+  const [commerce, setCommerce] = useState<CommerceReference[]>([]);
 
   // Destructure for easier access (need these first for useAttachmentOrder)
   const { mediaIds, setMediaIds, removeMedia, setMediaAlt } = mediaManager;
@@ -685,6 +690,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       setArticleDraftBody(draft.article?.body ?? '');
       loadPodcastFromDraft(draft.podcast);
       jobManager.setJob(draft.job);
+      setCommerce(draft.commerce ?? []);
       loadEventFromDraft(draft.event);
       loadRoomFromDraft(draft.room);
       setScheduledAt(draft.scheduledAt);
@@ -722,6 +728,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       room: attachedRoom,
       podcast,
       job,
+      commerce,
       threadItems,
     }),
     [
@@ -735,6 +742,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       attachedRoom,
       podcast,
       job,
+      commerce,
       threadItems,
     ],
   );
@@ -814,6 +822,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     room: attachedRoom,
     podcast,
     job,
+    commerce,
     location,
     sources,
     mediaIds,
@@ -1153,6 +1162,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           ),
         );
         loadVariantsFromPost(source.content, MAIN_ITEM_ID);
+        setCommerce(source.content.commerce ?? []);
         const media = source.content.media;
         if (media && media.length > 0) {
           setMediaIds(
@@ -1272,6 +1282,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     clearRoom();
     clearPodcast();
     clearJob();
+    setCommerce([]);
     clearAllThreads();
     clearAttachmentOrder();
     clearSchedule({ silent: true });
@@ -1390,6 +1401,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         room: attachedRoom,
         podcast,
         job,
+        commerce,
         location,
         formattedSources,
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
@@ -1478,6 +1490,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             collaboratorIds: collaborators.map((c) => c.id),
             variantContent: mainVariantContent,
             formattedSources,
+            commerce,
             // Only a still-scheduled post may carry a time; the API rejects one on
             // a published post rather than silently ignoring it.
             scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,
@@ -2624,6 +2637,41 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * (`canAttachJob`), but the guard keeps this safe if it is ever called
    * another way.
    */
+  const openCommercePicker = useCallback(
+    (threadId?: string) => {
+      const target = threadId
+        ? threadItemsRef.current.find((item) => item.id === threadId)
+        : undefined;
+      void presentSheet((surface) => (
+        <Suspense fallback={null}>
+          <CommercePickerSheet
+            accountId={
+              (threadId ? target?.publishAs?.accountId : effectiveMainPublishAs?.accountId) ??
+              user?.id
+            }
+            selected={threadId ? (target?.commerce ?? []) : commerce}
+            onClose={() => surface.dismiss()}
+            onSelect={(ref) => {
+              if (threadId)
+                setThreadItems((previous) =>
+                  previous.map((item) =>
+                    item.id === threadId
+                      ? {
+                          ...item,
+                          commerce: readCommerceReferences([...(item.commerce ?? []), ref]),
+                        }
+                      : item,
+                  ),
+                );
+              else setCommerce((previous) => readCommerceReferences([...previous, ref]));
+            }}
+          />
+        </Suspense>
+      ));
+    },
+    [commerce, effectiveMainPublishAs, user?.id, setThreadItems, threadItemsRef],
+  );
+
   const openJobPicker = useCallback(() => {
     if (!effectiveMainPublishAs) return;
     void presentSheet((surface) => (
@@ -3131,6 +3179,28 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                   );
                                 }
 
+                                const commerceRef = commerce.find(
+                                  (ref) => commerceReferenceKey(ref) === key,
+                                );
+                                if (commerceRef)
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={() =>
+                                        setCommerce((previous) =>
+                                          previous.filter(
+                                            (ref) => commerceReferenceKey(ref) !== key,
+                                          ),
+                                        )
+                                      }
+                                    >
+                                      <CommerceCard referenceId={key} className="w-[280px]" />
+                                    </AttachmentCarouselItem>
+                                  );
                                 if (key === JOB_ATTACHMENT_KEY) {
                                   if (!(hasJobContent && job)) return null;
                                   return (
@@ -3291,6 +3361,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             onArticlePress={openArticleEditor}
                             onEventPress={openEventEditor}
                             onRoomPress={handleMainRoomPress}
+                            onCommercePress={() => openCommercePicker()}
                             onPodcastPress={openPodcastPicker}
                             onJobPress={canAttachJob ? openJobPicker : undefined}
                             // Omitted outright where the post cannot take
@@ -3410,6 +3481,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         onReplyPermissionChange={setThreadReplyPermission}
                         onQuotesDisabledChange={setThreadQuotesDisabled}
                         onSensitiveToggle={handleThreadSensitiveToggle}
+                        onCommercePress={openCommercePicker}
+                        onCommerceRemove={(threadId, key) =>
+                          setThreadItems((previous) =>
+                            previous.map((item) =>
+                              item.id === threadId
+                                ? {
+                                    ...item,
+                                    commerce: item.commerce?.filter(
+                                      (ref) => commerceReferenceKey(ref) !== key,
+                                    ),
+                                  }
+                                : item,
+                            ),
+                          )
+                        }
                         onPodcastPress={openThreadPodcastPicker}
                         onPodcastRemove={removeThreadPodcast}
                         onPublishAsPress={
@@ -3475,6 +3561,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             onArticlePress={() => openVariantArticleEditor(MAIN_ITEM_ID)}
                             onEventPress={openEventEditor}
                             onRoomPress={handleMainRoomPress}
+                            onCommercePress={() => openCommercePicker()}
                             onPodcastPress={openPodcastPicker}
                             onJobPress={canAttachJob ? openJobPicker : undefined}
                             onCollaboratorsPress={
@@ -3551,6 +3638,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                               onArticlePress={() => openVariantArticleEditor(item.id)}
                               onEventPress={() => openThreadEventEditor(item.id)}
                               onRoomPress={() => handleThreadRoomPress(item.id)}
+                              onCommercePress={() => openCommercePicker(item.id)}
                               onPodcastPress={() => openThreadPodcastPicker(item.id)}
                               onLanePress={
                                 threadLaneEligible

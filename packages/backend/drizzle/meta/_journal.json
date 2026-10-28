@@ -659,6 +659,48 @@
       "when": 1792683894527,
       "tag": "0093_oxy_file_event_lost",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1793164461385,
+      "tag": "0094_commerce_storefront_refs",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1793164510574,
+      "tag": "0095_validate_commerce_attachment_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1793165519291,
+      "tag": "0096_membership_domain",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1793166050630,
+      "tag": "0097_commerce_aggregate_metrics",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1793167684371,
+      "tag": "0098_membership_media_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1793167710628,
+      "tag": "0099_validate_membership_file_references",
+      "breakpoints": true
     }
   ]
 }

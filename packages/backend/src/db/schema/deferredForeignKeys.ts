@@ -73,6 +73,7 @@ import {
   postVariantMedia,
 } from './postContent';
 import { posts } from './posts';
+import { membershipMedia } from './memberships';
 import { userBehaviorTopics, userSettings, userSettingsLabelActions } from './userProfile';
 
 /** A foreign key that is decided but not yet expressible. */
@@ -114,6 +115,10 @@ export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
  * have their own.
  */
 const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
+  'oxy_account_id',
+  'member_oxy_user_id',
+  'voter_oxy_user_id',
+  'reporter_oxy_user_id',
   'oxy_user_id',
   'user_id',
   'owner_oxy_user_id',
@@ -213,6 +218,11 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
  * like.
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: membershipMedia,
+    column: membershipMedia.fileId,
+    reason: 'Oxy Files owns this verified private file; no local file parent exists.',
+  },
   {
     table: oxyFileReferenceSync,
     column: oxyFileReferenceSync.fileId,

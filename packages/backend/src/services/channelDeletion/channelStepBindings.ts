@@ -1,3 +1,12 @@
+import { accountStorefronts } from '../../db/schema/commerce';
+import {
+  membershipCommunities,
+  communityMemberships,
+  membershipContents,
+  membershipMedia,
+  membershipPollVotes,
+  membershipReports,
+} from '../../db/schema/memberships';
 import { eventAttendance } from '../../db/schema/events';
 import { deckWorkspaces } from '../../db/schema/deck';
 /**
@@ -93,6 +102,11 @@ import { postKeysOf } from './channelDeletionTargets';
  * nobody may run.
  */
 export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
+  'account_storefronts.oxyAccountId|channel-account': {
+    phase: 'account',
+    table: accountStorefronts,
+    where: accountEq(accountStorefronts.oxyAccountId),
+  },
   // --- Post references no foreign key can express, DELEGATED ------------------
   // `PostDeletionCascade.cascadePostReferences` is the live delete route's own
   // implementation of these dispositions, and its `POST_REFERENCE_DISPOSITION` is
@@ -511,6 +525,36 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: threadgates,
     where: accountEq(threadgates.createdBy),
+  },
+  'membership_communities.ownerOxyUserId|channel-account': {
+    phase: 'account',
+    table: membershipCommunities,
+    where: accountEq(membershipCommunities.ownerOxyUserId),
+  },
+  'community_memberships.memberOxyUserId|channel-account': {
+    phase: 'account',
+    table: communityMemberships,
+    where: accountEq(communityMemberships.memberOxyUserId),
+  },
+  'membership_contents.authorOxyUserId|channel-account': {
+    phase: 'account',
+    table: membershipContents,
+    where: accountEq(membershipContents.authorOxyUserId),
+  },
+  'membership_media.ownerOxyUserId|channel-account': {
+    phase: 'account',
+    table: membershipMedia,
+    where: accountEq(membershipMedia.ownerOxyUserId),
+  },
+  'membership_poll_votes.voterOxyUserId|channel-account': {
+    phase: 'account',
+    table: membershipPollVotes,
+    where: accountEq(membershipPollVotes.voterOxyUserId),
+  },
+  'membership_reports.reporterOxyUserId|channel-account': {
+    phase: 'account',
+    table: membershipReports,
+    where: accountEq(membershipReports.reporterOxyUserId),
   },
   'account_lists.ownerOxyUserId|channel-account': {
     phase: 'account',

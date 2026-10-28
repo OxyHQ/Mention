@@ -173,6 +173,27 @@ export interface CascadeStep {
  * assumption.
  */
 export const CHANNEL_CASCADE: readonly CascadeStep[] = [
+  {
+    table: 'account_storefronts',
+    column: 'oxyAccountId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'The channel owns its local storefront presentation link; removing it also cascades its anonymous store metrics.',
+  },
+  {
+    table: 'commerce_store_daily_metrics',
+    column: 'oxyAccountId',
+    scope: 'channel-account',
+    action: 'database',
+    why: 'Anonymous store metrics: ON DELETE CASCADE from account_storefronts.oxy_account_id when the channel link is removed.',
+  },
+  {
+    table: 'commerce_post_daily_metrics',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'Anonymous post metrics: ON DELETE CASCADE from posts.id when the channel post is destroyed.',
+  },
   // ---------------------------------------------------------------------------
   // PERFORMED BY POSTGRES. Deleting the channel's posts removes or clears every
   // row below inside the same statement.
@@ -1129,6 +1150,49 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     action: 'delete-row',
     why: 'Reply policies the channel set; `threadgate_allow_rules` cascades from the row.',
   },
+  // Protected communities and their account-owned records. Child rows cascade through FKs.
+  {
+    table: 'membership_communities',
+    column: 'ownerOxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'Remove this account-owned membership record; its dependent rows cascade in PostgreSQL.',
+  },
+  {
+    table: 'community_memberships',
+    column: 'memberOxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'Remove this account-owned membership record; its dependent rows cascade in PostgreSQL.',
+  },
+  {
+    table: 'membership_contents',
+    column: 'authorOxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'Remove this account-owned membership record; its dependent rows cascade in PostgreSQL.',
+  },
+  {
+    table: 'membership_media',
+    column: 'ownerOxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'Remove this account-owned membership record; its dependent rows cascade in PostgreSQL.',
+  },
+  {
+    table: 'membership_poll_votes',
+    column: 'voterOxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'Remove this account-owned membership record; its dependent rows cascade in PostgreSQL.',
+  },
+  {
+    table: 'membership_reports',
+    column: 'reporterOxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'Remove this account-owned membership record; its dependent rows cascade in PostgreSQL.',
+  },
   {
     table: 'account_lists',
     column: 'ownerOxyUserId',
@@ -1453,6 +1517,70 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   [
     'post_equivalence_members.clusterId',
     'the cross-post equivalence cluster a member belongs to; it cascades from the cluster',
+  ],
+  [
+    'membership_tiers.communityId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_tier_benefits.tierId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'community_memberships.communityId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'community_memberships.tierId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_contents.communityId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_contents.parentContentId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_content_tiers.communityId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_content_tiers.contentId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_content_tiers.tierId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_media.communityId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_media.contentId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_poll_options.contentId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_poll_votes.contentId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_poll_votes.optionId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_reports.contentId',
+    'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_media.fileId',
+    'An Oxy Files identity, not an account; durable file reference cleanup follows deletion of the media record.',
   ],
   ['post_imports.importBatchId', 'an Oxy Move job id, a grouping token'],
   ['post_imports.sourceId', "the imported item's id on another platform"],
