@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { applyFileEvent } from '../../services/oxyFiles/fileEvents';
+import { oxyFileStates, oxyFileEvents, oxyFileReferenceSync } from '../../db/schema/oxyFiles';
+import { fileReferenceEntity, pairKey } from '../../db/oxyFiles/fileReferenceEntities';
 import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +15,7 @@ const state = vi.hoisted(() => ({
   members: [] as AccountMember[],
   fileVisibility: 'private',
   files: true,
+  linkedVisibility: 'private' as string | undefined,
   blockedAuthors: [] as string[],
   safetyUnavailable: false,
   safety: vi.fn(),
@@ -72,7 +77,14 @@ vi.mock('../../utils/oxyHelpers', () => ({
           linkedDownloadUrls: async (ids: string[]) => {
             state.download(ids);
             return state.files
-              ? [{ id: 'private-oxy-file', url: 'https://files.example/signed', expiresIn: 300 }]
+              ? [
+                  {
+                    id: 'private-oxy-file',
+                    url: 'https://files.example/signed',
+                    expiresIn: 300,
+                    visibility: state.linkedVisibility,
+                  },
+                ]
               : [];
           },
         };
@@ -125,6 +137,12 @@ beforeEach(async () => {
   state.members = [];
   state.fileVisibility = 'private';
   state.files = true;
+  state.linkedVisibility = 'private';
+  await getDb().delete(oxyFileStates).where(eq(oxyFileStates.fileId, 'private-oxy-file'));
+  await getDb().delete(oxyFileEvents).where(eq(oxyFileEvents.fileId, 'private-oxy-file'));
+  await getDb()
+    .delete(oxyFileReferenceSync)
+    .where(eq(oxyFileReferenceSync.fileId, 'private-oxy-file'));
   state.blockedAuthors = [];
   state.safetyUnavailable = false;
   state.memberReadDenied = false;
@@ -487,6 +505,57 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     await request(app).delete(`${base}/${c.id}/membership`);
     expect((await request(app).delete(`${base}/content/${next.body.data.id}`)).status).toBe(200);
   });
+  it('tracks private file references and enforces live visibility plus ordered lifecycle callbacks', async () => {
+    const c = await community();
+    const uploaded = await request(app)
+      .post(`${base}/${c.id}/media`)
+      .set('Content-Type', 'image/png')
+      .send(Buffer.from('private-lifecycle'));
+    expect(uploaded.status).toBe(201);
+    const mediaId = uploaded.body.data.id;
+    const authored = await content(c.id, { mediaIds: [mediaId] });
+    const path = `${base}/content/${authored.id}/media/${mediaId}`;
+    const registry = fileReferenceEntity('membership_media');
+    expect(
+      await registry.pairsInUse(getDb(), [{ fileId: 'private-oxy-file', entityId: mediaId }]),
+    ).toEqual(new Set([pairKey('private-oxy-file', mediaId)]));
+    const dirty = await getDb()
+      .select()
+      .from(oxyFileReferenceSync)
+      .where(eq(oxyFileReferenceSync.entityId, mediaId));
+    expect(dirty).toHaveLength(1);
+    expect(dirty[0]?.entityType).toBe('membership_media');
+    for (const visibility of ['public', 'unlisted', undefined]) {
+      state.linkedVisibility = visibility;
+      expect((await request(app).get(path)).status).toBe(404);
+    }
+    state.linkedVisibility = 'private';
+    expect((await request(app).get(path)).status).toBe(200);
+    const emit = (visibility: 'public' | 'private', occurredAt: string) =>
+      applyFileEvent({
+        id: `evt_${randomUUID()}`,
+        type: 'file.visibility_changed',
+        occurredAt,
+        file: { id: 'private-oxy-file', ownerKind: 'account', status: 'active', visibility },
+        references: [{ entityType: 'membership_media', entityId: mediaId }],
+      });
+    await emit('private', '2026-10-28T10:00:00.000Z');
+    expect((await request(app).get(path)).status).toBe(200);
+    await emit('public', '2026-10-28T10:02:00.000Z');
+    await emit('private', '2026-10-28T10:01:00.000Z');
+    expect((await request(app).get(path)).status).toBe(404);
+    expect((await request(app).get(`${base}/content/${authored.id}`)).body.data.media).toEqual([]);
+    await getDb().delete(membershipCommunities).where(eq(membershipCommunities.id, c.id));
+    expect(
+      await registry.pairsInUse(getDb(), [{ fileId: 'private-oxy-file', entityId: mediaId }]),
+    ).toEqual(new Set());
+    const removed = await getDb()
+      .select()
+      .from(oxyFileReferenceSync)
+      .where(eq(oxyFileReferenceSync.entityId, mediaId));
+    expect(removed[0]?.generation).toBeGreaterThan(dirty[0]?.generation ?? 0);
+  });
+
   it('keeps member-owned media private after its uploader leaves and respects Files revocation', async () => {
     const c = await community();
     await join(c);
