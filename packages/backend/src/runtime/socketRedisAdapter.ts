@@ -13,19 +13,27 @@ let socketRedisClients: ReturnType<typeof createRedisPubSub> | null = null;
  * Never throws: if Redis is unavailable the server keeps running in
  * single-instance mode, which is also the local-development shape.
  */
-export async function attachSocketRedisAdapter(io: SocketIOServer): Promise<void> {
+export async function attachSocketRedisAdapter(
+  io: SocketIOServer,
+  required = false,
+): Promise<void> {
   try {
     const { createAdapter } = require('@socket.io/redis-adapter');
     const { publisher, subscriber } = createRedisPubSub();
     socketRedisClients = { publisher, subscriber };
 
     // Connect both clients with timeout to avoid hanging
-    await Promise.race([
-      Promise.all([publisher.connect(), subscriber.connect()]),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Redis connection timeout')), 5000),
-      ),
-    ]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all([publisher.connect(), subscriber.connect()]),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Redis connection timeout')), 5000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
 
     // Verify both clients are actually ready before proceeding
     if (!publisher.isReady || !subscriber.isReady) {
@@ -36,6 +44,7 @@ export async function attachSocketRedisAdapter(io: SocketIOServer): Promise<void
     logger.info('Socket.IO Redis adapter configured for horizontal scaling');
   } catch (error: unknown) {
     await closeSocketRedisAdapter();
+    if (required) throw error;
     // If Redis is unavailable, continue without adapter (single-instance mode)
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (
@@ -64,4 +73,9 @@ export async function closeSocketRedisAdapter(): Promise<void> {
     publisher.isOpen ? publisher.quit() : Promise.resolve(),
     subscriber.isOpen ? subscriber.quit() : Promise.resolve(),
   ]);
+}
+
+/** Split processes cannot deliver realtime events through an in-memory adapter. */
+export function isSocketRedisAdapterReady(): boolean {
+  return socketRedisClients?.publisher.isReady === true && socketRedisClients.subscriber.isReady;
 }

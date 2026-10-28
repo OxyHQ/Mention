@@ -189,6 +189,7 @@ const environmentSchema = z
     // Local dev default only — ECS injects PORT explicitly (oxy-infra
     // terraform-uswest2/app-services-realtime.tf). 4110 is Mention's slot in
     // the per-app port map so several Oxy backends can run side by side.
+    MENTION_PROCESS_ROLE: z.enum(['combined', 'backend', 'worker']).default('combined'),
     PORT: integerFromEnv(4_110, { minimum: 1, maximum: 65_535 }),
     APPLE_TEAM_ID: z.preprocess(
       emptyAsUndefined,
@@ -510,6 +511,17 @@ const environmentSchema = z
   })
   .superRefine((environment, context) => {
     if (
+      environment.MENTION_PROCESS_ROLE !== 'combined' &&
+      !(environment.REDIS_URL || environment.REDIS_URI || environment.REDIS_HOST)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['MENTION_PROCESS_ROLE'],
+        message:
+          'split backend/worker processes require Redis for queue delivery and realtime events',
+      });
+    }
+    if (
       environment.REDIS_URL &&
       environment.REDIS_URI &&
       environment.REDIS_URL !== environment.REDIS_URI
@@ -812,6 +824,7 @@ export const config = {
   deployment: readManagedDeployment(process.env),
   deploymentMcp: mcpDeploymentIdentity(process.env),
   runtime: {
+    processRole: environment.MENTION_PROCESS_ROLE,
     nodeEnv: environment.NODE_ENV,
     port: environment.PORT,
     isProduction: environment.NODE_ENV === 'production',
