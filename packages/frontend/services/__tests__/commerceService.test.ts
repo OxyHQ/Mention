@@ -78,7 +78,7 @@ it('reads bounded seller shelves and their independently paginated products with
     ['/commerce/accounts/a%2Fb/featured-collections', { params: { limit: 20 }, signal }],
     [
       '/commerce/accounts/a%2Fb/featured-collections/c%2Fd/products',
-      { params: { cursor: 'opaque/+cursor' }, signal },
+      { params: { cursor: 'opaque/+cursor', limit: 6 }, signal },
     ],
   ]);
 });

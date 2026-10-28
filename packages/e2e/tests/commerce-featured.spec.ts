@@ -1,6 +1,7 @@
 /** Real profile/grid/query observers; the commerce API boundary is a seller-curation fixture. */
 import { APP_ORIGIN, PROFILE_HANDLE } from '../environment';
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
+import { installCommerceProfile } from '../commerceFixture';
 
 const storeRef = { kind: 'store', id: 'featured-store' };
 const collection = (id: string) => ({
@@ -40,12 +41,14 @@ test('seller shelf order survives pagination and removed or failing shelves stop
   context,
   candidate,
 }) => {
+  await installCommerceProfile(context);
   let selected = ['b', 'a'];
   let outage = false;
   let pendingPage = false;
   let canceledPage = false;
   let releasePage: (() => Promise<void>) | undefined;
   const batches: number[] = [];
+  const catalogQueries: URLSearchParams[] = [];
   page.on('requestfailed', (request) => {
     if (request.url().includes('cursor=b-next')) canceledPage = true;
   });
@@ -75,6 +78,7 @@ test('seller shelf order survives pagination and removed or failing shelves stop
     if (url.pathname.endsWith('/featured-collections'))
       return json({ items: selected.map(collection), nextCursor: null });
     if (url.pathname.includes('/featured-collections/') && url.pathname.endsWith('/products')) {
+      expect(url.searchParams.get('limit')).toBe('6');
       const id = url.pathname.split('/').at(-2);
       if (!id) throw new Error('Missing collection id in fixture request');
       if (!selected.includes(id)) return json({ message: 'Withdrawn' }, 404);
@@ -91,8 +95,14 @@ test('seller shelf order survives pagination and removed or failing shelves stop
       }
       return json({ items: [product(id)], nextCursor: id === 'b' ? 'b-next' : null });
     }
-    if (url.pathname.endsWith('/products') || url.pathname.endsWith('/collections'))
-      return json({ items: [], nextCursor: null });
+    if (url.pathname.endsWith('/products')) {
+      catalogQueries.push(new URLSearchParams(url.searchParams));
+      return json({
+        items: url.searchParams.get('query') ? [product('filtered')] : [],
+        nextCursor: null,
+      });
+    }
+    if (url.pathname.endsWith('/collections')) return json({ items: [], nextCursor: null });
     const store = {
       ref: storeRef,
       oxyAccountId: url.pathname.split('/').at(-1),
@@ -140,6 +150,24 @@ test('seller shelf order survives pagination and removed or failing shelves stop
   await expect(
     page.getByRole('heading', { name: 'Featured collections', exact: true }),
   ).toHaveCount(0);
+  selected = ['b', 'a'];
+  outage = false;
+  await page.clock.fastForward(31_000);
+  await expect(page.getByText('Featured product b', { exact: true })).toBeVisible();
+  const search = page.getByPlaceholder('Search products', { exact: true });
+  await search.fill('needle');
+  await expect.poll(() => catalogQueries.at(-1)?.get('query')).toBe('needle');
+  await expect(
+    page.getByRole('heading', { name: 'Featured collections', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText('Featured product filtered', { exact: true })).toBeVisible();
+  await search.fill('');
+  await expect(page.getByText('Featured product b', { exact: true })).toBeVisible();
+  await expect(page.getByText('Featured product filtered', { exact: true })).toHaveCount(0);
+  expect(await page.getByRole('heading', { name: /^Shelf / }).allTextContents()).toEqual([
+    'Shelf b',
+    'Shelf a',
+  ]);
   expect(batches.every((count) => count <= 24)).toBe(true);
   expect(candidate.scriptErrors).toEqual([]);
 });

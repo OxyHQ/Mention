@@ -81,16 +81,18 @@ export function ProfileShop({
     { value: 'price_desc', label: t('commerce.sortPriceDesc') },
   ];
   const available = store.isSuccess && store.data.state === 'available';
+  const showCuration = !query && effectiveSort === 'newest' && !inStock;
   const featured = useQuery({
     queryKey: viewerQueryKeys.commerceCatalog(user?.id, accountId, storeId, 'featured-collections'),
     queryFn: ({ signal }) => commerceService.featuredCollections(accountId, signal),
-    enabled: available && visible,
+    enabled: available && visible && showCuration,
     staleTime: 30_000,
-    refetchInterval: visible ? 30_000 : false,
+    refetchInterval: visible && showCuration ? 30_000 : false,
     retry: false,
   });
   // A failed refresh must not keep withdrawn, stale shelves purchasable.
-  const selectedCollections = available && featured.isSuccess ? featured.data.items : [];
+  const selectedCollections =
+    available && showCuration && featured.isSuccess ? featured.data.items : [];
   const products = useInfiniteQuery({
     queryKey: viewerQueryKeys.commerceCatalog(
       user?.id,
@@ -125,7 +127,7 @@ export function ProfileShop({
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => commerceService.storeCollections(accountId, pageParam),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: available,
+    enabled: available && showCuration,
     staleTime: 30_000,
   });
   useEffect(() => {
@@ -175,7 +177,48 @@ export function ProfileShop({
         </Button>
       </View>,
     );
-    if (featured.isError)
+    append(
+      'product-controls',
+      <View className="px-4 py-2 gap-3">
+        <Search
+          label={t('commerce.searchProducts')}
+          value={searchText}
+          onChangeText={setSearchText}
+          onClearText={() => setSearchText('')}
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={200}
+        />
+        <Select
+          value={effectiveSort}
+          onValueChange={(value) => {
+            const selected = sorts.find((option) => option.value === value);
+            if (selected) setSort(selected.value);
+          }}
+        >
+          <SelectTrigger label={t('commerce.sortProducts')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent
+            items={sorts}
+            renderItem={(option) => (
+              <SelectItem value={option.value} label={option.label}>
+                <SelectItemText>{option.label}</SelectItemText>
+              </SelectItem>
+            )}
+          />
+        </Select>
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="text-foreground flex-1">{t('commerce.inStockOnly')}</Text>
+          <Switch
+            accessibilityLabel={t('commerce.inStockOnly')}
+            checked={inStock}
+            onCheckedChange={setInStock}
+          />
+        </View>
+      </View>,
+    );
+    if (showCuration && featured.isError)
       append('featured-error', <EmptyState title={t('commerce.catalogUnavailable')} />);
     if (selectedCollections.length)
       append(
@@ -239,47 +282,6 @@ export function ProfileShop({
         {t('commerce.products')}
       </Text>,
     );
-    append(
-      'product-controls',
-      <View className="px-4 py-2 gap-3">
-        <Search
-          label={t('commerce.searchProducts')}
-          value={searchText}
-          onChangeText={setSearchText}
-          onClearText={() => setSearchText('')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          maxLength={200}
-        />
-        <Select
-          value={effectiveSort}
-          onValueChange={(value) => {
-            const selected = sorts.find((option) => option.value === value);
-            if (selected) setSort(selected.value);
-          }}
-        >
-          <SelectTrigger label={t('commerce.sortProducts')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent
-            items={sorts}
-            renderItem={(option) => (
-              <SelectItem value={option.value} label={option.label}>
-                <SelectItemText>{option.label}</SelectItemText>
-              </SelectItem>
-            )}
-          />
-        </Select>
-        <View className="flex-row items-center justify-between gap-3">
-          <Text className="text-foreground flex-1">{t('commerce.inStockOnly')}</Text>
-          <Switch
-            accessibilityLabel={t('commerce.inStockOnly')}
-            checked={inStock}
-            onCheckedChange={setInStock}
-          />
-        </View>
-      </View>,
-    );
     const productRefs =
       products.data?.pages.flatMap((page) => page.items.map((item) => item.ref)) ?? [];
     if (products.isPending) append('products-loading', <ListSkeleton />);
@@ -298,30 +300,35 @@ export function ProfileShop({
           {t('commerce.more')}
         </Button>,
       );
-    append(
-      'collections-heading',
-      <Text accessibilityRole="header" className="px-4 py-2 text-foreground text-lg font-semibold">
-        {t('commerce.collections')}
-      </Text>,
-    );
-    const collectionRefs =
-      collections.data?.pages.flatMap((page) => page.items.map((item) => item.ref)) ?? [];
-    if (collections.isPending) append('collections-loading', <ListSkeleton />);
-    else if (collections.isError)
-      append('collections-error', <EmptyState title={t('commerce.catalogUnavailable')} />);
-    else if (!collectionRefs.length)
-      append('collections-empty', <EmptyState title={t('commerce.empty')} />);
-    else appendCards(collectionRefs);
-    if (collections.hasNextPage)
+    if (showCuration) {
       append(
-        'collections-more',
-        <Button
-          disabled={collections.isFetchingNextPage}
-          onPress={() => void collections.fetchNextPage()}
+        'collections-heading',
+        <Text
+          accessibilityRole="header"
+          className="px-4 py-2 text-foreground text-lg font-semibold"
         >
-          {t('commerce.more')}
-        </Button>,
+          {t('commerce.collections')}
+        </Text>,
       );
+      const collectionRefs =
+        collections.data?.pages.flatMap((page) => page.items.map((item) => item.ref)) ?? [];
+      if (collections.isPending) append('collections-loading', <ListSkeleton />);
+      else if (collections.isError)
+        append('collections-error', <EmptyState title={t('commerce.catalogUnavailable')} />);
+      else if (!collectionRefs.length)
+        append('collections-empty', <EmptyState title={t('commerce.empty')} />);
+      else appendCards(collectionRefs);
+      if (collections.hasNextPage)
+        append(
+          'collections-more',
+          <Button
+            disabled={collections.isFetchingNextPage}
+            onPress={() => void collections.fetchNextPage()}
+          >
+            {t('commerce.more')}
+          </Button>,
+        );
+    }
   }
   const renderRow = useCallback(
     ({ item }: { item: ShopRow }) =>

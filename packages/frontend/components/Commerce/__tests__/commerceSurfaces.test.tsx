@@ -502,3 +502,64 @@ it.each([404, 503])(
     else expect(screen()).toContain('commerce.catalogUnavailable');
   },
 );
+
+it('keeps controls before curation and restores independent cached pages after filtering without duplicate observers', async () => {
+  client.setDefaultOptions({ queries: { retry: false, gcTime: 5_000 } });
+  service.featuredCollections.mockResolvedValue({
+    items: [featuredCollection('b')],
+    nextCursor: null,
+  });
+  service.featuredCollectionProducts.mockImplementation(async (_account, _collection, cursor) => ({
+    items: [featuredProduct(cursor ? 'b2' : 'b1')],
+    nextCursor: cursor ? null : 'b-next',
+  }));
+  service.storeProducts.mockImplementation(async (_account, params) =>
+    params?.sort === 'price_asc'
+      ? { items: [featuredProduct('filtered')], nextCursor: null }
+      : {
+          items: [featuredProduct(params?.cursor ? 'c2' : 'c1')],
+          nextCursor: params?.cursor ? null : 'c-next',
+        },
+  );
+  render(<ProfileShop accountId="account-a" />);
+  await waitUntil(() => cardKeys().length === 2, 'first shelf and catalog pages');
+  const data: { key: string }[] = renderer.root
+    .findByProps({ testID: 'shop-virtual-list' })
+    .props.getData();
+  expect(data.findIndex((row) => row.key === 'product-controls')).toBeLessThan(
+    data.findIndex((row) => row.key === 'featured-heading'),
+  );
+  const shelfMore = renderer.root.findAll(
+    (node) =>
+      node.props.accessibilityLabel === 'commerce.moreCollectionProducts' &&
+      typeof node.props.onPress === 'function',
+  )[0];
+  await act(async () => shelfMore.props.onPress());
+  const catalogMore = renderer.root.findAll(
+    (node) =>
+      node.props.children === 'commerce.more' &&
+      !node.props.accessibilityLabel &&
+      typeof node.props.onPress === 'function',
+  )[0];
+  await act(async () => catalogMore.props.onPress());
+  await waitUntil(() => cardKeys().length === 4, 'independent second pages');
+  const original = cardKeys();
+  const select = (value: string) =>
+    renderer.root.findAll(
+      (node) => node.props.value === value && typeof node.props.onValueChange === 'function',
+    )[0];
+  act(() => select('newest').props.onValueChange('price_asc'));
+  await waitUntil(
+    () => cardKeys().join() === 'mercaria:product:filtered',
+    'only server-filtered products',
+  );
+  const key = viewerQueryKeys.commerceFeaturedProducts('viewer', 'account-a', 'store-1', 'b');
+  expect(client.getQueryCache().find({ queryKey: key, exact: true })?.getObserversCount()).toBe(0);
+  expect(service.featuredCollectionProducts).toHaveBeenCalledTimes(2);
+  act(() => select('price_asc').props.onValueChange('newest'));
+  await waitUntil(() => cardKeys().length === 4, 'restored cached pages');
+  expect(cardKeys()).toEqual(original);
+  expect(service.featuredCollectionProducts).toHaveBeenCalledTimes(2);
+  expect(client.getQueryCache().find({ queryKey: key, exact: true })?.getObserversCount()).toBe(1);
+  expect(mockListMounts).toBe(1);
+});

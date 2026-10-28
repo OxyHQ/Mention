@@ -1,6 +1,7 @@
-/** Real exported profile/router/list; only the Mention commerce HTTP boundary is a fixture. */
+/** Real exported profile/router/list, with explicit synthetic profile and commerce API fixtures. */
 import { APP_ORIGIN, PROFILE_HANDLE } from '../environment';
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
+import { installCommerceProfile } from '../commerceFixture';
 
 function product(index: number) {
   return {
@@ -33,6 +34,7 @@ test('shop pages remain virtualized and disappear when the store connection beco
   context,
   candidate,
 }) => {
+  await installCommerceProfile(context);
   let available = true;
   let listed = 0;
   const hydrationBatches: number[] = [];

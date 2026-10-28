@@ -100,7 +100,7 @@ export const commerceService = {
     return (
       await authenticatedClient.get<MercariaPage<MercariaProductSummary>>(
         `/commerce/accounts/${encodeURIComponent(accountId)}/featured-collections/${encodeURIComponent(collectionId)}/products`,
-        { params: { cursor }, signal },
+        { params: { cursor, limit: 6 }, signal },
       )
     ).data;
   },
