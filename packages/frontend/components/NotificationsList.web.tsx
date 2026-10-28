@@ -41,7 +41,7 @@ const notificationKey = (item: NotificationListItem) => item.key;
  * WEB notifications list: Bloom's `VirtualList`, windowed against the Screen's
  * scroller, so the body scrolls from anywhere (no inner overflow region, no
  * wheel bridge) and only the rows in the virtual window are mounted (bounded
- * DOM). Window-offset scroll restoration is keyed per active tab.
+ * DOM). Window-offset scroll restoration is keyed by viewer and active tab.
  */
 export function NotificationsList({
   restorationKey,
