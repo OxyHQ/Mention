@@ -34,6 +34,7 @@ is marked by a trigger on its table and answers "is this pair in use".
 | `video_poster` | the video's Oxy file id | `federated_media_posters.poster_file_id` | a post shows the video |
 | `job_application` | `mention_job_applications.id` | `mention_job_applications.resume_file_id` | it is the application's resume |
 | `moderation_report` | `reports.id` | `moderation_report_evidence_files.evidence_file_id` | the report exists |
+| `membership_media` | `membership_media.id` | `membership_media.file_id` | the private upload record exists, including before attachment |
 
 `post` is sent as 32 entity types because Oxy reconciles at most 500,000 pairs
 per entity type and session; the shard is the first byte of the MD5 of the post
@@ -260,3 +261,24 @@ references is collected by Oxy). To see what a run would change first, dispatch
    workflows' `TASK_SECRET_OVERRIDES_JSON` (a parameter must exist before it is
    named there, and it can only exist after the endpoint answered the
    challenge — which needs step 3).
+
+## Protected community files
+
+Membership uploads use the original foreground requester and require Oxy to return
+`private` visibility, including deduplicated uploads. Their durable references are
+registered through the same outbox, reconciliation and deletion triggers (0098),
+without impersonating the uploader or replacing the original requester's proof.
+Deleting a community, channel or account removes its media records and dirties
+those references in the same transaction.
+
+Membership reads interpret `oxy_file_states` independently of public-post
+withholding: an active **private** file is valid here. A deletion or a change to
+public/unlisted visibility removes it from protected content responses and denies
+new downloads; ordered callbacks prevent an older private event reopening access.
+The linked-download API must also return current `visibility: private` before a
+URL is exposed. A missing visibility field during an older API rollout fails
+closed. This live check covers visibility changes before callback delivery.
+URLs remain short-lived bearer links (Oxy's current limit is 300 seconds), never
+stored in posts, public teasers, notifications, search, federation or MTN records.
+Already-issued URLs retain that bounded lifetime; revocation is not retroactive
+cancellation of a bearer URL.

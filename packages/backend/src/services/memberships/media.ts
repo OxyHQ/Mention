@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { RequestSafetyContext } from '../../utils/safetyRequester';
 import { getDb } from '../../db/postgres';
+import { oxyFileStates } from '../../db/schema/oxyFiles';
 import { membershipMedia } from '../../db/schema/memberships';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
@@ -67,9 +68,17 @@ export async function downloadMembershipMedia(
     .where(and(eq(membershipMedia.id, mediaId), eq(membershipMedia.contentId, contentId)))
     .limit(1);
   if (!media) throw new MembershipError(404, 'Media not found');
+  const [fileState] = await getDb()
+    .select()
+    .from(oxyFileStates)
+    .where(eq(oxyFileStates.fileId, media.fileId))
+    .limit(1);
+  if (fileState && (fileState.status !== 'active' || fileState.visibility !== 'private'))
+    throw new MembershipError(404, 'Media is no longer available');
   const files = await privateFiles(request).linkedDownloadUrls([media.fileId]);
   const file = files.find((entry) => entry.id === media.fileId);
-  if (!file) throw new MembershipError(404, 'Media is no longer available');
+  if (!file || !('visibility' in file) || file.visibility !== 'private')
+    throw new MembershipError(404, 'Media is no longer available');
   // Oxy owns the short TTL (currently300s). URLs are returned only here, never
   // persisted, cached, included in teasers, queued notifications or logged.
   return { url: file.url, expiresIn: file.expiresIn };

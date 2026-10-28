@@ -687,6 +687,20 @@
       "when": 1793166050630,
       "tag": "0097_commerce_aggregate_metrics",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1793167684371,
+      "tag": "0098_membership_media_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1793167710628,
+      "tag": "0099_validate_membership_file_references",
+      "breakpoints": true
     }
   ]
 }

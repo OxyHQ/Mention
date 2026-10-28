@@ -1,6 +1,7 @@
 import type { SafetyRequester } from '@oxy.so/contracts';
 import { requireMembershipSafety, membershipSafetyDecisions } from './safety';
 import { and, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { oxyFileStates } from '../../db/schema/oxyFiles';
 import { qualified } from '@oxy.so/db';
 import type {
   CreateMembershipContentRequest,
@@ -94,7 +95,16 @@ async function hydrateMembershipContent(
         size: membershipMedia.size,
       })
       .from(membershipMedia)
-      .where(inArray(membershipMedia.contentId, ids)),
+      .leftJoin(oxyFileStates, eq(oxyFileStates.fileId, membershipMedia.fileId))
+      .where(
+        and(
+          inArray(membershipMedia.contentId, ids),
+          or(
+            isNull(oxyFileStates.fileId),
+            and(eq(oxyFileStates.status, 'active'), eq(oxyFileStates.visibility, 'private')),
+          ),
+        ),
+      ),
     pollIds.length
       ? getDb()
           .select({
