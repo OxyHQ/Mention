@@ -1,3 +1,5 @@
+import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -22,6 +24,7 @@ export default function CommercePickerSheet({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [term, setTerm] = useState('');
   const [mode, setMode] = useState<'products' | 'collections'>('products');
@@ -30,7 +33,7 @@ export default function CommercePickerSheet({
     return () => clearTimeout(timer);
   }, [query]);
   const products = useInfiniteQuery({
-    queryKey: ['commerce-picker-products', term],
+    queryKey: publicQueryKeys.commerceProducts(term),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       commerceService.products({ query: term || undefined, cursor: pageParam }),
@@ -39,7 +42,7 @@ export default function CommercePickerSheet({
     staleTime: 30_000,
   });
   const collections = useInfiniteQuery({
-    queryKey: ['commerce-picker-collections', accountId],
+    queryKey: viewerQueryKeys.commerceCatalog(user?.id, accountId, null, 'collections'),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => commerceService.storeCollections(accountId ?? '', pageParam),
     getNextPageParam: (page) => page.nextCursor ?? undefined,

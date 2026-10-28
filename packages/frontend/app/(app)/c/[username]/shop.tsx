@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useProfileAccount } from '@/components/Profile';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
@@ -12,15 +12,13 @@ export default function ChannelShopRoute() {
   const { profileData, loading } = useProfileAccount(useRoutedProfileUsername());
   return (
     <Screen header={<PageHeader title={t('commerce.shop')} backLabel={t('common.back')} />}>
-      <ScreenScrollView>
-        {loading ? (
-          <ListSkeleton />
-        ) : profileData?.kind === 'channel' ? (
-          <ProfileShop accountId={profileData.id} />
-        ) : (
-          <EmptyState title={t('commerce.shopUnavailable')} />
-        )}
-      </ScreenScrollView>
+      {loading ? (
+        <ListSkeleton />
+      ) : profileData?.kind === 'channel' ? (
+        <ProfileShop accountId={profileData.id} />
+      ) : (
+        <EmptyState title={t('commerce.shopUnavailable')} />
+      )}
     </Screen>
   );
 }

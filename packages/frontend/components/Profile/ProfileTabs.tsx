@@ -147,7 +147,11 @@ export const ProfileTabs = memo(function ProfileTabs({
   if (tab === 'shop' && profileId)
     return (
       <Suspense fallback={<ListSkeleton />}>
-        <ProfileShop accountId={profileId} />
+        <ProfileShop
+          accountId={profileId}
+          listContentHeaderComponent={listContentHeaderComponent}
+          listStickyHeaderComponent={listStickyHeaderComponent}
+        />
       </Suspense>
     );
   if (tab === 'jobs') {
