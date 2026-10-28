@@ -18,10 +18,11 @@ import { createApp } from '../app';
 import type { AppRoutes } from '../appRoutes';
 import {
   ANDROID_SIGNING_CERT_SHA256,
-  APPLE_TEAM_ID,
   MENTION_APP_ID,
   createAppAssociationRouter,
 } from '../routes/appAssociation.routes';
+
+import { config, parseRuntimeEnvironment } from '../config';
 
 const APEX = 'mention.earth';
 
@@ -143,7 +144,7 @@ describe('app association documents', () => {
     const res = await request(app).get('/.well-known/apple-app-site-association').set('Host', APEX);
     expect(res.headers['content-type']).toMatch(/^application\/json\b/);
     expect(apexProxy).not.toHaveBeenCalled();
-    expect(res.status).toBe(APPLE_TEAM_ID ? 200 : 404);
+    expect(res.status).toBe(config.appAssociation.appleTeamId ? 200 : 404);
 
     const configured = express().use(createAppAssociationRouter('ABCDE12345'));
     const aasa = await request(configured)
@@ -159,6 +160,49 @@ describe('app association documents', () => {
     for (const excluded of ['/.well-known/*', '/ap/*', '/xrpc/*', '/media/*']) {
       expect(components).toContainEqual({ '/': excluded, exclude: true });
     }
+  });
+
+  it('uses configured app identities without removing the direct-install certificate', async () => {
+    const previous = { ...config.appAssociation };
+    const playFingerprint = Array.from({ length: 32 }, () => 'AB').join(':');
+    try {
+      config.appAssociation.appleTeamId = 'ABCDE12345';
+      config.appAssociation.androidSigningCertSha256 = [playFingerprint, playFingerprint];
+      const { app } = createTestApp();
+      const apple = await request(app).get('/.well-known/apple-app-site-association').expect(200);
+      expect(apple.body.applinks.details[0].appIDs).toEqual([`ABCDE12345.${MENTION_APP_ID}`]);
+      const android = await request(app).get('/.well-known/assetlinks.json').expect(200);
+      expect(android.body[0].target.sha256_cert_fingerprints).toEqual([
+        ...ANDROID_SIGNING_CERT_SHA256,
+        playFingerprint,
+      ]);
+    } finally {
+      Object.assign(config.appAssociation, previous);
+    }
+  });
+
+  it('validates optional signing configuration and refuses malformed or public debug certificates', () => {
+    expect(
+      parseRuntimeEnvironment({ APPLE_TEAM_ID: '', ANDROID_APP_SIGNING_SHA256: '' }),
+    ).toMatchObject({ APPLE_TEAM_ID: undefined, ANDROID_APP_SIGNING_SHA256: [] });
+    expect(
+      parseRuntimeEnvironment({
+        APPLE_TEAM_ID: 'ABCDE12345',
+        ANDROID_APP_SIGNING_SHA256: ANDROID_SIGNING_CERT_SHA256[0].toLowerCase(),
+      }),
+    ).toMatchObject({
+      APPLE_TEAM_ID: 'ABCDE12345',
+      ANDROID_APP_SIGNING_SHA256: [...ANDROID_SIGNING_CERT_SHA256],
+    });
+    expect(() => parseRuntimeEnvironment({ APPLE_TEAM_ID: 'invalid.team' })).toThrow(
+      'APPLE_TEAM_ID',
+    );
+    expect(() =>
+      parseRuntimeEnvironment({ ANDROID_APP_SIGNING_SHA256: 'not-a-fingerprint' }),
+    ).toThrow('ANDROID_APP_SIGNING_SHA256');
+    expect(() =>
+      parseRuntimeEnvironment({ ANDROID_APP_SIGNING_SHA256: RN_TEMPLATE_DEBUG_CERT }),
+    ).toThrow('public React Native debug certificate');
   });
 
   it('never lets an unknown /.well-known path fall through to the SPA shell', async () => {

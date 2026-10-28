@@ -17,6 +17,7 @@
  * verification.
  */
 import express from 'express';
+import { config } from '../config';
 
 /** `android.package` / `ios.bundleIdentifier` of the production app. */
 export const MENTION_APP_ID = 'earth.mention.app';
@@ -37,7 +38,8 @@ export const MENTION_APP_ID = 'earth.mention.app';
  *
  * - The Google Play app-signing key. Mention is not yet published on Play, so
  *   none has been read from Play Console. When Play App Signing is enabled, add
- *   its fingerprint (Play Console -> Test and release -> App integrity) here, or
+ *   its fingerprint (Play Console -> Test and release -> App integrity) through
+ *   ANDROID_APP_SIGNING_SHA256, or
  *   every Play-installed copy fails verification.
  * - `FA:C6:17:45:...:3B:9C`, the React Native template DEBUG keystore
  *   (`CN=Android Debug`, password `android`). Its private key ships inside
@@ -49,15 +51,6 @@ export const MENTION_APP_ID = 'earth.mention.app';
 export const ANDROID_SIGNING_CERT_SHA256 = [
   'B8:AB:37:46:46:6C:E4:56:9D:7A:6A:0F:FA:1E:ED:91:BC:37:51:74:D5:03:61:39:87:CA:09:CB:33:D6:A5:8D',
 ] as const;
-
-/**
- * Apple Developer Team ID that signs the iOS app. It appears nowhere in this
- * repository, EAS config or the App Store (Mention is not listed yet), and a
- * guessed value would publish a wrong association, so it is `null` until it is
- * read from the Apple Developer account (Membership details). While it is
- * `null` the AASA answers 404 JSON instead of a document that cannot verify.
- */
-export const APPLE_TEAM_ID: string | null = null;
 
 /**
  * Paths an iOS Universal Link may open in the app, first match wins. The
@@ -78,20 +71,26 @@ export const APPLE_APP_LINK_COMPONENTS = [
   { '/': '/*' },
 ] as const;
 
-export function buildAssetLinks() {
+export function buildAssetLinks(
+  additionalFingerprints: readonly string[] = config.appAssociation.androidSigningCertSha256,
+) {
   return [
     {
       relation: ['delegate_permission/common.handle_all_urls'],
       target: {
         namespace: 'android_app',
         package_name: MENTION_APP_ID,
-        sha256_cert_fingerprints: [...ANDROID_SIGNING_CERT_SHA256],
+        sha256_cert_fingerprints: [
+          ...new Set([...ANDROID_SIGNING_CERT_SHA256, ...additionalFingerprints]),
+        ],
       },
     },
   ];
 }
 
-export function buildAppleAppSiteAssociation(teamId: string | null = APPLE_TEAM_ID) {
+export function buildAppleAppSiteAssociation(
+  teamId: string | null = config.appAssociation.appleTeamId,
+) {
   if (!teamId) return null;
   return {
     applinks: {
@@ -108,7 +107,9 @@ export function buildAppleAppSiteAssociation(teamId: string | null = APPLE_TEAM_
 /** Verifiers re-fetch on their own schedule; an hour keeps a key rotation quick. */
 const CACHE_CONTROL = 'public, max-age=3600';
 
-export function createAppAssociationRouter(teamId: string | null = APPLE_TEAM_ID): express.Router {
+export function createAppAssociationRouter(
+  teamId: string | null = config.appAssociation.appleTeamId,
+): express.Router {
   const router = express.Router();
   const assetLinks = buildAssetLinks();
   const aasa = buildAppleAppSiteAssociation(teamId);

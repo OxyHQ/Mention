@@ -189,6 +189,36 @@ const environmentSchema = z
     // terraform-uswest2/app-services-realtime.tf). 4110 is Mention's slot in
     // the per-app port map so several Oxy backends can run side by side.
     PORT: integerFromEnv(4_110, { minimum: 1, maximum: 65_535 }),
+    APPLE_TEAM_ID: z.preprocess(
+      emptyAsUndefined,
+      z
+        .string()
+        .trim()
+        .regex(/^[A-Z0-9]{10}$/)
+        .optional(),
+    ),
+    ANDROID_APP_SIGNING_SHA256: z.preprocess(
+      emptyAsUndefined,
+      z
+        .string()
+        .optional()
+        .transform(
+          (value) => value?.split(',').map((fingerprint) => fingerprint.trim().toUpperCase()) ?? [],
+        )
+        .pipe(
+          z.array(
+            z
+              .string()
+              .regex(/^[0-9A-F]{2}(?::[0-9A-F]{2}){31}$/)
+              .refine(
+                (fingerprint) =>
+                  fingerprint !==
+                  'FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C',
+                'must not trust the public React Native debug certificate',
+              ),
+          ),
+        ),
+    ),
 
     // PostgreSQL — the only store this service opens. Optional in the schema so
     // a task that does not touch the database (and every unit test) still
@@ -784,6 +814,10 @@ export const config = {
     nodeEnv: environment.NODE_ENV,
     port: environment.PORT,
     isProduction: environment.NODE_ENV === 'production',
+  },
+  appAssociation: {
+    appleTeamId: environment.APPLE_TEAM_ID ?? null,
+    androidSigningCertSha256: environment.ANDROID_APP_SIGNING_SHA256,
   },
   logging: {
     level: environment.LOG_LEVEL ?? (environment.NODE_ENV === 'production' ? 'info' : 'debug'),
