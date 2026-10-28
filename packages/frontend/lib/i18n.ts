@@ -83,6 +83,9 @@ export async function setLanguage(language: string): Promise<void> {
   }
 
   await i18n.changeLanguage(language);
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = i18n.resolvedLanguage ?? language;
+  }
 }
 
 /** The provider owns locale selection; boot reads wait for its catalog. */
