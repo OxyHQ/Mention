@@ -82,7 +82,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
             };
           },
           linkedDownloadUrls: async (ids: string[]) => {
-            state.download(ids);
+            await state.download(ids);
             return state.files
               ? [
                   {
@@ -538,19 +538,23 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     const c = await community();
     const post = await content(c.id);
     await join(c);
-    expect(
-      (
-        await request(app)
-          .post(`${base}/content/${post.id}/reports`)
-          .send({ reason: 'Please review' })
-      ).status,
-    ).toBe(201);
+    const receipt = await request(app)
+      .post(`${base}/content/${post.id}/reports`)
+      .send({ reason: 'Please review' });
+    expect(receipt.status).toBe(201);
+    expect(receipt.body.data.reportId).toEqual(expect.any(String));
+    const repeated = await request(app)
+      .post(`${base}/content/${post.id}/reports`)
+      .send({ reason: 'Do not rewrite evidence' });
+    expect(repeated.body.data.reportId).toBe(receipt.body.data.reportId);
     expect((await request(app).get(`${base}/${c.id}/reports`)).status).toBe(403);
     state.viewer = 'membership-owner';
     const reports = await request(app).get(`${base}/${c.id}/reports`);
     expect(reports.body.data).toHaveLength(1);
     expect(JSON.stringify(reports.body)).not.toContain('membership-member');
     const reportId = reports.body.data[0].id;
+    expect(reportId).toBe(receipt.body.data.reportId);
+    expect(reports.body.data[0].reason).toBe('Please review');
     state.viewer = 'membership-member';
     expect((await request(app).post(`${base}/${c.id}/reports/${reportId}/resolve`)).status).toBe(
       403,
@@ -659,6 +663,57 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
       404,
     );
   });
+
+  it.each(['membership_revoked', 'content_erased', 'file_public'])(
+    'withholds private member URLs when %s races their mint',
+    async (change) => {
+      const c = await community();
+      const upload = await request(app)
+        .post(`${base}/${c.id}/media`)
+        .set('Content-Type', 'image/png')
+        .send(Buffer.from('private-race'));
+      const mediaId = upload.body.data.id;
+      const authored = await content(c.id, { mediaIds: [mediaId] });
+      await join(c);
+      const started = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      state.download.mockImplementationOnce(async () => {
+        started.resolve();
+        await release.promise;
+      });
+      const pending = request(app)
+        .get(`${base}/content/${authored.id}/media/${mediaId}`)
+        .then((result) => result);
+      await started.promise;
+      try {
+        if (change === 'membership_revoked')
+          await getDb()
+            .update(communityMemberships)
+            .set({ state: 'revoked' })
+            .where(eq(communityMemberships.communityId, c.id));
+        if (change === 'content_erased')
+          await getDb().delete(membershipContents).where(eq(membershipContents.id, authored.id));
+        if (change === 'file_public')
+          await applyFileEvent({
+            id: randomUUID(),
+            type: 'file.visibility_changed',
+            occurredAt: new Date().toISOString(),
+            file: {
+              id: 'private-oxy-file',
+              ownerKind: 'application',
+              status: 'active',
+              visibility: 'public',
+            },
+            references: [{ entityType: 'membership_media', entityId: mediaId }],
+          });
+      } finally {
+        release.resolve();
+      }
+      const result = await pending;
+      expect(result.status).toBe(change === 'membership_revoked' ? 403 : 404);
+      expect(JSON.stringify(result.body)).not.toContain('files.example/signed');
+    },
+  );
 
   it('tracks private file references and enforces live visibility plus ordered lifecycle callbacks', async () => {
     const c = await community();

@@ -1,3 +1,4 @@
+import { membershipReviewAudits } from '../../db/schema/membershipModeration';
 import { accountStorefronts } from '../../db/schema/commerce';
 import { membershipBillingReceipts } from '../../db/schema/membershipBilling';
 import {
@@ -526,6 +527,19 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: threadgates,
     where: accountEq(threadgates.createdBy),
+  },
+  'membership_review_audits.operatorOxyUserId|channel-account': {
+    phase: 'account',
+    table: membershipReviewAudits,
+    where: accountEq(membershipReviewAudits.operatorOxyUserId),
+    update: async (_targets, where) =>
+      (
+        await getDb()
+          .update(membershipReviewAudits)
+          .set({ operatorOxyUserId: null })
+          .where(where)
+          .returning({ id: membershipReviewAudits.id })
+      ).length,
   },
   'membership_billing_receipts.payerOxyUserId|channel-account': {
     phase: 'account',

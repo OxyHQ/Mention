@@ -378,12 +378,24 @@ export async function reportMembershipContent(
   contentId: string,
   actor: MembershipActor,
   reason: string,
-): Promise<void> {
+): Promise<string> {
   await readableMembershipContent(contentId, actor);
   await getDb()
     .insert(membershipReports)
     .values({ contentId, reporterOxyUserId: actor.accountId, reason })
     .onConflictDoNothing();
+  const [report] = await getDb()
+    .select({ id: membershipReports.id })
+    .from(membershipReports)
+    .where(
+      and(
+        eq(membershipReports.contentId, contentId),
+        eq(membershipReports.reporterOxyUserId, actor.accountId),
+      ),
+    )
+    .limit(1);
+  if (!report) throw new MembershipError(404, 'Report no longer available');
+  return report.id;
 }
 export async function removeMembershipContent(
   contentId: string,

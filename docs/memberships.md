@@ -44,7 +44,7 @@ content but does not delete memberships or ordinary public social content.
 | Media | Mention-owned private copy, original requester, no personal/guardian file access; authoritative live visibility required; callback changes withhold; original requester retained | Route tests, reference registry/outbox tests |
 | Frontend/account switch | Viewer-scoped ephemeral query keys; no stale body after denied refetch or account change; pending leave hides content and cancels/removes pages | React Query screen regressions |
 | Directory/insights | Directory includes explicit badge opt-ins only; metrics aggregate membership states, never page viewers | Route tests |
-| Reports | Local operator queue excludes reporter identity; scoped resolution does not hydrate the body | Route tests |
+| Reports | Creator queue omits reporter identity; independent safety review requires a fresh Oxy app permission and a committed report-bound audit | Real SDK/HTTP authority fixture and PostgreSQL route tests |
 
 The absence of public integrations is intentional, not a claim of authenticated
 production validation of every surface. New integrations must extend this matrix
@@ -62,8 +62,67 @@ private files and report content. Operators can remove content, revoke members
 and resolve reports without receiving reporter identity.
 
 There is no automatic opt-in to follows or directory visibility. Reports are not
-copied into public CrowdSource evidence. A central protected-evidence review
-integration requires its own scoped authority contract before enablement.
+copied into public CrowdSource evidence. The current CrowdSource file contract
+withholds private files from jurors; it is not a protected-membership evidence
+transport. Mention therefore owns the narrow safety review below.
+
+## Independent safety review
+
+The backend declares `memberships.moderate` in
+[its application permission declaration](../packages/backend/src/runtime/applicationPermissions.ts).
+Before an operator can review anything, an application owner must declare the
+vocabulary through Oxy Console's application Roles tab (or the canonical
+`PUT /applications/:applicationId/roles/permissions`) and grant the key to a
+human operator. That API replaces the **whole** vocabulary; preserve other
+existing declared keys when applying this declaration. Registration uses
+`config.identity.serviceApplicationId`, including a managed deployment's own
+registration. Shipping this code does not declare keys or grant anyone access.
+Until configured/granted, review fails closed. Oxy's
+[application role contract](https://github.com/OxyHQ/oxy/blob/main/docs/auth/application-roles.md)
+owns declaration, grant and revocation, including the prohibition on unauthorized
+self-grants. There is no local operator-ID allowlist.
+
+Every review request requires a verified foreground human session and a fresh
+`appPermissionsFor` read. Account management, creator ownership and membership
+alone confer no safety-review power. MCP, delegated service and task proofs are
+refused. Oxy resolves the original human even when the session acts as an
+organization; that human is the audit actor. Unavailable role authority denies
+access. This explicit safety power is independent of the creator's membership
+or blocking relationship; otherwise a creator could conceal reported abuse by
+blocking a reviewer. It grants no public-feed or general content browsing path.
+
+Reporting returns a `reportId` receipt for escalation. An authorized operator
+uses only the exact community/report pair under
+`/membership-communities/:communityId/reports/:reportId`:
+
+- `POST /inspect` with `{ purpose }` returns the bound report's reason and content,
+  poll options and attachment identifiers, excluding reporter identity and URLs.
+- `POST /media/:mediaId` with `{ purpose }` returns only that report's bound file
+  after live private visibility checks with the original operator session.
+- `POST /decision` with `{ action, purpose }` accepts `remove_content`,
+  `suspend_community` or `dismiss_report`; the action and its audit commit together.
+
+Purpose is a required 10–1000-character justification, not a place to paste
+private evidence. It is retained as supplied and can itself contain sensitive
+text; no public audit exporter is provided. Inspection/media audit writes commit
+**before** delivery. Audit failures withhold evidence. The ledger stores no copied
+body, signed media URL or reporter identity. Membership bodies have no edit API:
+review returns the current report-bound body, including removed content, while
+it exists; this is not a separate permanent evidence snapshot. Account/content/
+report erasure cascades the evidence and its review audit. Erasing a reviewer
+clears their attribution on retained report audits.
+
+Remote URL minting does not hold a database transaction. Both member downloads
+and review downloads recheck current local authority, exact bindings and Files
+state after the network await; review also rechecks the live Oxy operator grant.
+Erasure or revocation during that await withholds the returned URL. Already
+issued bearer URLs remain subject to Oxy's bounded TTL, not instantaneous local
+revocation. No private evidence is sent to CrowdSource or exposed by public
+teasers, search, federation, MCP or the member directory.
+
+Validation uses real PostgreSQL and the published OxyServer permission resolver
+against a controlled HTTP authority fixture. It proves denial and revocation
+behavior, not a production operator grant or live protected jury integration.
 
 ## Billing work and activation prerequisites
 

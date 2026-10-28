@@ -101,6 +101,13 @@ export function erasureKey(entry: Pick<ErasureMapEntry, 'table' | 'column'>): st
 
 export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   {
+    table: 'membership_review_audits',
+    column: 'operatorOxyUserId',
+    disposition: 'anonymise',
+    phase: 'account',
+    why: 'Retain the report-bound access audit while removing the erased human operator identity.',
+  },
+  {
     table: 'membership_billing_receipts',
     column: 'payerOxyUserId',
     disposition: 'delete-row',

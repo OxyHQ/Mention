@@ -121,6 +121,8 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   'payer_oxy_user_id',
   'voter_oxy_user_id',
   'reporter_oxy_user_id',
+  // Oxy resolves the human behind a foreground application-role session.
+  'operator_oxy_user_id',
   'oxy_user_id',
   'user_id',
   'owner_oxy_user_id',

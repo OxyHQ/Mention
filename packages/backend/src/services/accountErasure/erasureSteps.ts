@@ -1,3 +1,4 @@
+import { membershipReviewAudits } from '../../db/schema/membershipModeration';
 import { membershipBillingReceipts } from '../../db/schema/membershipBilling';
 import {
   membershipCommunities,
@@ -545,6 +546,12 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     deckWorkspaces,
     deckWorkspaces.oxyUserId,
     accountIs(deckWorkspaces.oxyUserId),
+  ),
+  'membership_review_audits.operatorOxyUserId': replaceAccount(
+    membershipReviewAudits,
+    membershipReviewAudits.operatorOxyUserId,
+    membershipReviewAudits.id,
+    null,
   ),
   'membership_billing_receipts.payerOxyUserId': deleteRows(
     'account',
