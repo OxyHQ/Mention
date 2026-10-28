@@ -2137,7 +2137,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "Menyiapkan…",
-    "recordingFailed": "Perekaman gagal. Silakan coba lagi."
+    "recordingFailed": "Perekaman gagal. Silakan coba lagi.",
+    "open": "Buka kamera"
   },
   "compose.languages.sheetTitle": "Bahasa postingan",
   "compose.languages.main": "Bahasa utama",
@@ -2761,5 +2762,8 @@
   "communities.postActions.banned": "Dilarang dari komunitas",
   "communities.postActions.banFailed": "Tidak dapat melarang",
   "sidebar.communities": "Komunitas",
-  "compose.textTooLong": "Setiap postingan maksimal {{limit}} karakter."
+  "compose.textTooLong": "Setiap postingan maksimal {{limit}} karakter.",
+  "postActions.upvote": "Beri suara mendukung",
+  "postActions.downvote": "Beri suara menolak",
+  "postActions.readInAnotherLanguage": "Baca dalam bahasa lain"
 }

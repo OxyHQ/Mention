@@ -2137,7 +2137,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "तैयारी हो रही है…",
-    "recordingFailed": "रिकॉर्डिंग विफल रही। कृपया फिर से कोशिश करें।"
+    "recordingFailed": "रिकॉर्डिंग विफल रही। कृपया फिर से कोशिश करें।",
+    "open": "कैमरा खोलें"
   },
   "compose.languages.sheetTitle": "पोस्ट की भाषाएँ",
   "compose.languages.main": "मुख्य भाषा",
@@ -2761,5 +2762,8 @@
   "communities.postActions.banned": "समुदाय से प्रतिबंधित",
   "communities.postActions.banFailed": "प्रतिबंधित नहीं किया जा सका",
   "sidebar.communities": "समुदाय",
-  "compose.textTooLong": "हर पोस्ट में अधिकतम {{limit}} अक्षर हो सकते हैं।"
+  "compose.textTooLong": "हर पोस्ट में अधिकतम {{limit}} अक्षर हो सकते हैं।",
+  "postActions.upvote": "समर्थन में वोट दें",
+  "postActions.downvote": "विरोध में वोट दें",
+  "postActions.readInAnotherLanguage": "किसी अन्य भाषा में पढ़ें"
 }

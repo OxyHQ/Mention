@@ -2137,7 +2137,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "Hazırlanıyor…",
-    "recordingFailed": "Kayıt başarısız oldu. Lütfen tekrar deneyin."
+    "recordingFailed": "Kayıt başarısız oldu. Lütfen tekrar deneyin.",
+    "open": "Kamerayı aç"
   },
   "compose.languages.sheetTitle": "Gönderi dilleri",
   "compose.languages.main": "Ana dil",
@@ -2761,5 +2762,8 @@
   "communities.postActions.banned": "Topluluktan yasaklandı",
   "communities.postActions.banFailed": "Yasaklanamadı",
   "sidebar.communities": "Topluluklar",
-  "compose.textTooLong": "Her gönderi en fazla {{limit}} karakter içermelidir."
+  "compose.textTooLong": "Her gönderi en fazla {{limit}} karakter içermelidir.",
+  "postActions.upvote": "Olumlu oy ver",
+  "postActions.downvote": "Olumsuz oy ver",
+  "postActions.readInAnotherLanguage": "Başka bir dilde oku"
 }

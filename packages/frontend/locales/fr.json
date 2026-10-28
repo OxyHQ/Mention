@@ -2167,7 +2167,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "Préparation…",
-    "recordingFailed": "L’enregistrement a échoué. Réessayez."
+    "recordingFailed": "L’enregistrement a échoué. Réessayez.",
+    "open": "Ouvrir la caméra"
   },
   "compose.languages.sheetTitle": "Langues de la publication",
   "compose.languages.main": "Langue principale",
@@ -2796,5 +2797,8 @@
   "communities.postActions.banned": "Banni de la communauté",
   "communities.postActions.banFailed": "Impossible de bannir",
   "sidebar.communities": "Communautés",
-  "compose.textTooLong": "Chaque publication doit contenir au maximum {{limit}} caractères."
+  "compose.textTooLong": "Chaque publication doit contenir au maximum {{limit}} caractères.",
+  "postActions.upvote": "Voter pour",
+  "postActions.downvote": "Voter contre",
+  "postActions.readInAnotherLanguage": "Lire dans une autre langue"
 }

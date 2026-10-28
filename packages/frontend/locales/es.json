@@ -2210,7 +2210,8 @@
     "uploadFailed": "No se ha subido. Revisa la conexión e inténtalo otra vez.",
     "publishFailed": "No se ha publicado. Tu captura sigue aquí — inténtalo otra vez.",
     "preparing": "Preparando…",
-    "recordingFailed": "No se pudo grabar. Inténtalo de nuevo."
+    "recordingFailed": "No se pudo grabar. Inténtalo de nuevo.",
+    "open": "Abrir cámara"
   },
   "compose.languages.sheetTitle": "Idiomas de la publicación",
   "compose.languages.main": "Idioma principal",
@@ -2795,5 +2796,8 @@
   "communities.postActions.banned": "Expulsado de la comunidad",
   "communities.postActions.banFailed": "No se pudo expulsar",
   "sidebar.communities": "Comunidades",
-  "compose.textTooLong": "Cada publicación debe tener {{limit}} caracteres o menos."
+  "compose.textTooLong": "Cada publicación debe tener {{limit}} caracteres o menos.",
+  "postActions.upvote": "Votar a favor",
+  "postActions.downvote": "Votar en contra",
+  "postActions.readInAnotherLanguage": "Leer en otro idioma"
 }

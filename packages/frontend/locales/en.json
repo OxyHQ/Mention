@@ -980,7 +980,10 @@
     "unableToMuteUser": "Unable to mute user",
     "userMuted": "@{{username}} has been muted",
     "thankYouReport": "Thank you for helping keep our community safe.",
-    "failedToSubmitReport": "Failed to submit report. Please try again."
+    "failedToSubmitReport": "Failed to submit report. Please try again.",
+    "upvote": "Upvote",
+    "downvote": "Downvote",
+    "readInAnotherLanguage": "Read in another language"
   },
   "seo": {
     "siteName": "Mention",
@@ -2554,7 +2557,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "Preparing…",
-    "recordingFailed": "Recording failed. Please try again."
+    "recordingFailed": "Recording failed. Please try again.",
+    "open": "Open camera"
   },
   "jobs": {
     "detail": {

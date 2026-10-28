@@ -2137,7 +2137,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "準備中…",
-    "recordingFailed": "録画に失敗しました。もう一度お試しください。"
+    "recordingFailed": "録画に失敗しました。もう一度お試しください。",
+    "open": "カメラを開く"
   },
   "compose.languages.sheetTitle": "投稿の言語",
   "compose.languages.main": "メインの言語",
@@ -2761,5 +2762,8 @@
   "communities.postActions.banned": "コミュニティから追放しました",
   "communities.postActions.banFailed": "追放できませんでした",
   "sidebar.communities": "コミュニティ",
-  "compose.textTooLong": "各投稿は {{limit}} 文字以内にしてください。"
+  "compose.textTooLong": "各投稿は {{limit}} 文字以内にしてください。",
+  "postActions.upvote": "賛成票を入れる",
+  "postActions.downvote": "反対票を入れる",
+  "postActions.readInAnotherLanguage": "別の言語で読む"
 }

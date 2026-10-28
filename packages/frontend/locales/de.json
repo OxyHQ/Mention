@@ -2137,7 +2137,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "Vorbereitung…",
-    "recordingFailed": "Die Aufnahme ist fehlgeschlagen. Bitte versuche es erneut."
+    "recordingFailed": "Die Aufnahme ist fehlgeschlagen. Bitte versuche es erneut.",
+    "open": "Kamera öffnen"
   },
   "compose.languages.sheetTitle": "Sprachen des Beitrags",
   "compose.languages.main": "Hauptsprache",
@@ -2761,5 +2762,8 @@
   "communities.postActions.banned": "Aus der Community gesperrt",
   "communities.postActions.banFailed": "Die Sperre ist fehlgeschlagen",
   "sidebar.communities": "Communities",
-  "compose.textTooLong": "Jeder Beitrag darf höchstens {{limit}} Zeichen enthalten."
+  "compose.textTooLong": "Jeder Beitrag darf höchstens {{limit}} Zeichen enthalten.",
+  "postActions.upvote": "Positiv bewerten",
+  "postActions.downvote": "Negativ bewerten",
+  "postActions.readInAnotherLanguage": "In einer anderen Sprache lesen"
 }
