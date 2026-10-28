@@ -189,7 +189,7 @@ describe('posting a capture', () => {
     };
     expect(oxyServices.assets.upload).toHaveBeenLastCalledWith(
       expect.objectContaining({ uri: 'file:///tmp/shot.jpg', type: 'image/jpeg' }),
-      { visibility: 'private' },
+      expect.objectContaining({ visibility: 'private' }),
     );
   });
 

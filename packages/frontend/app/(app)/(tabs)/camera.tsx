@@ -58,7 +58,13 @@ export default function CameraPage() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const [capture, setCapture] = useState<LocalCapture | null>(null);
-  const { upload, busy: uploading, failed: uploadFailed, reset } = useCaptureUpload();
+  const {
+    upload,
+    busy: uploading,
+    failed: uploadFailed,
+    progress,
+    reset,
+  } = useCaptureUpload(isFocused);
   const [publishing, setPublishing] = useState(false);
   const [publishFailed, setPublishFailed] = useState(false);
   // The synchronous half of `publishing`; see the note above on why both.
@@ -143,6 +149,7 @@ export default function CameraPage() {
             onRetake={retake}
             busy={uploading || publishing}
             uploadFailed={uploadFailed}
+            uploadProgress={progress}
             publishFailed={publishFailed}
           />
         ) : isFocused ? (

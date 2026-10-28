@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import type { AssetUploadStageProgress } from '@oxy.so/core';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useVideoPlayer } from 'expo-video';
@@ -19,6 +20,7 @@ interface CaptureReviewProps {
   onRetake: () => void;
   /** True for the WHOLE of either exit — upload and what follows it. */
   busy: boolean;
+  uploadProgress?: AssetUploadStageProgress | null;
   /** The capture never left the device. */
   uploadFailed: boolean;
   /** It uploaded, but no post was created. The capture is still here. */
@@ -45,8 +47,19 @@ export function CaptureReview({
   busy,
   uploadFailed,
   publishFailed,
+  uploadProgress,
 }: CaptureReviewProps) {
   const { t } = useTranslation();
+  const percentage =
+    uploadProgress && uploadProgress.total > 0
+      ? Math.max(0, Math.min(100, Math.floor((uploadProgress.loaded / uploadProgress.total) * 100)))
+      : null;
+  const progressLabel =
+    uploadProgress?.phase === 'hash'
+      ? t('camera.preparing')
+      : uploadProgress?.phase === 'upload'
+        ? t('state.uploading')
+        : t('state.processing');
   // A muted loop, like every review screen: this is a still to look at, not
   // playback. `expo-video` is already a dependency and already the app's player.
   const player = useVideoPlayer(capture.kind === 'video' ? capture.uri : null, (instance) => {
@@ -98,6 +111,19 @@ export function CaptureReview({
         {busy ? (
           <View style={styles.busy}>
             <Loading className="text-white" size="sm" />
+            <Text
+              className="text-white text-base text-center"
+              accessibilityRole="progressbar"
+              accessibilityLabel={progressLabel}
+              accessibilityValue={
+                percentage === null || uploadProgress?.phase === 'verify'
+                  ? { text: progressLabel }
+                  : { min: 0, max: 100, now: percentage }
+              }
+            >
+              {progressLabel}
+              {percentage !== null && uploadProgress?.phase !== 'verify' ? ` ${percentage}%` : ''}
+            </Text>
           </View>
         ) : null}
         <Button onPress={onAddText} disabled={busy} appearance="subtle" tone="neutral" size="lg">
