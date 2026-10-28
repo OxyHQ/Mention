@@ -3,7 +3,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { AccountMember } from '@oxy.so/core';
-import type { MercariaStore } from '@mercaria.co/sdk';
+import type { MercariaStore, MercariaCollection } from '@mercaria.co/sdk';
 
 const state = vi.hoisted(() => ({
   viewer: 'commerce-owner' as string | undefined,
@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   blocked: false,
   privacyFailed: false,
   storeReads: vi.fn(),
+  featured: vi.fn(),
+  collectionProducts: vi.fn(),
 }));
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: async (ids: string[]) =>
@@ -44,7 +46,9 @@ vi.mock('../../middleware/security', () => {
 });
 vi.mock('../../services/commerce/mercariaClient', () => ({
   getMercariaClient: () => ({
+    collections: { products: state.collectionProducts },
     stores: {
+      featuredCollections: state.featured,
       lookup: async () => store(),
       resolveRef: async () => {
         state.storeReads();
@@ -74,6 +78,16 @@ function store(): MercariaStore {
     url: 'https://mercaria.co/stores/commerce-test',
   };
 }
+function featuredCollection(): MercariaCollection {
+  return {
+    ref: { kind: 'collection', id: 'collection_featured' },
+    store: { kind: 'store', id: 'store_commerce' },
+    title: 'Seller picks',
+    description: null,
+    image: null,
+    url: 'https://mercaria.co/stores/commerce-test?collection=collection_featured',
+  };
+}
 const app = express();
 app.use(express.json());
 app.use((req: express.Request & { user?: { id: string } }, _res, next) => {
@@ -91,6 +105,8 @@ beforeEach(async () => {
   state.visible = true;
   state.blocked = false;
   state.privacyFailed = false;
+  state.featured.mockReset().mockResolvedValue({ items: [featuredCollection()], nextCursor: null });
+  state.collectionProducts.mockReset().mockResolvedValue({ items: [], nextCursor: null });
   await getDb()
     .delete(accountStorefronts)
     .where(eq(accountStorefronts.oxyAccountId, 'commerce-owner'));
@@ -217,5 +233,75 @@ describe('anonymous commerce aggregates', () => {
     await request(app).post(metrics).send({ event: 'open' }).expect(404);
     await request(app).delete(target).expect(204);
     await request(app).post(metrics).send({ event: 'open' }).expect(404);
+  });
+});
+
+describe('current seller-selected shelves', () => {
+  beforeEach(async () => {
+    await request(app).put(target).send({ handle: 'commerce-test' }).expect(200);
+  });
+  const products = `${target}/featured-collections/collection_featured/products`;
+  it('delegates collection selection and product pages without changing canonical order', async () => {
+    const list = await request(app).get(`${target}/featured-collections?limit=2`).expect(200);
+    expect(list.body.items).toEqual([featuredCollection()]);
+    expect(state.featured).toHaveBeenCalledWith(
+      { kind: 'store', id: 'store_commerce' },
+      { limit: 2, cursor: undefined },
+    );
+    state.collectionProducts.mockResolvedValue({
+      items: [
+        { ref: { kind: 'product', id: 'second' } },
+        { ref: { kind: 'product', id: 'first' } },
+      ],
+      nextCursor: 'next',
+    });
+    const page = await request(app).get(`${products}?cursor=previous&limit=3`).expect(200);
+    expect(page.headers['cache-control']).toBe('no-store');
+    expect(page.body.items.map((item: { ref: { id: string } }) => item.ref.id)).toEqual([
+      'second',
+      'first',
+    ]);
+    expect(state.collectionProducts).toHaveBeenCalledWith(featuredCollection().ref, {
+      cursor: 'previous',
+      limit: 3,
+    });
+  });
+  it('stops a withdrawn selection before any product read, including stale pagination', async () => {
+    state.featured.mockResolvedValue({ items: [], nextCursor: null });
+    await request(app).get(`${products}?cursor=old`).expect(404);
+    expect(state.collectionProducts).not.toHaveBeenCalled();
+  });
+  it('rejects cross-store selection and provider failure without serving stale products', async () => {
+    state.featured.mockResolvedValue({
+      items: [{ ...featuredCollection(), store: { kind: 'store', id: 'another_store' } }],
+      nextCursor: null,
+    });
+    await request(app).get(products).expect(404);
+    state.featured.mockRejectedValue(new Error('Provider unavailable'));
+    await request(app).get(products).expect(503);
+    expect(state.collectionProducts).not.toHaveBeenCalled();
+  });
+  it('applies account visibility, blocks, and store ownership transfer before selection reads', async () => {
+    state.viewer = 'unrelated-viewer';
+    state.visible = false;
+    await request(app).get(products).expect(404);
+    state.visible = true;
+    state.blocked = true;
+    await request(app).get(`${target}/featured-collections`).expect(404);
+    state.blocked = false;
+    state.owner = 'new-owner';
+    await request(app).get(products).expect(404);
+    expect(state.featured).not.toHaveBeenCalled();
+    expect(state.collectionProducts).not.toHaveBeenCalled();
+  });
+  it('refuses search/sort filters on curated ordering and excessive page sizes', async () => {
+    for (const path of [
+      `${products}?sort=newest`,
+      `${products}?limit=21`,
+      `${target}/featured-collections?query=featured`,
+    ]) {
+      await request(app).get(path).expect(400);
+    }
+    expect(state.featured).not.toHaveBeenCalled();
   });
 });

@@ -39,6 +39,13 @@ const searchSchema = z
   })
   .strict();
 
+const pageSchema = z
+  .object({
+    cursor: z.string().max(4096).optional(),
+    limit: z.coerce.number().int().min(1).max(20).default(20),
+  })
+  .strict();
+
 function failure(res: Response, error: unknown) {
   if (error instanceof PublishAsAccessError)
     return res.status(error.status).json({ message: error.message });
@@ -133,7 +140,8 @@ router.get(
     if (
       !accountId.success ||
       !input.success ||
-      !['products', 'collections'].includes(String(req.params.list))
+      !['products', 'collections', 'featured-collections'].includes(String(req.params.list)) ||
+      (req.params.list === 'featured-collections' && !pageSchema.safeParse(req.query).success)
     )
       return res.status(400).json({ message: 'Invalid storefront request' });
     try {
@@ -148,16 +156,51 @@ router.get(
       res.setHeader('Cache-Control', 'no-store');
       const client = getMercariaClient();
       return res.json(
-        req.params.list === 'collections'
-          ? await client.stores.collections(storefront.store.ref, { cursor, limit })
-          : await client.stores.products(storefront.store.ref, {
-              query,
-              cursor,
-              limit,
-              sort,
-              inStock: inStock === undefined ? undefined : inStock === 'true',
-            }),
+        req.params.list === 'featured-collections'
+          ? await client.stores.featuredCollections(storefront.store.ref, { cursor, limit })
+          : req.params.list === 'collections'
+            ? await client.stores.collections(storefront.store.ref, { cursor, limit })
+            : await client.stores.products(storefront.store.ref, {
+                query,
+                cursor,
+                limit,
+                sort,
+                inStock: inStock === undefined ? undefined : inStock === 'true',
+              }),
       );
+    } catch (error) {
+      return failure(res, error);
+    }
+  },
+);
+
+router.get(
+  '/accounts/:accountId/featured-collections/:collectionId/products',
+  postDocumentsRateLimiter,
+  async (req: OxyAuthRequest, res: Response) => {
+    const accountId = accountIdSchema.safeParse(req.params.accountId);
+    const collectionId = accountIdSchema.safeParse(req.params.collectionId);
+    const page = pageSchema.safeParse(req.query);
+    if (!accountId.success || !collectionId.success || !page.success)
+      return res.status(400).json({ message: 'Invalid storefront request' });
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      if (!(await canReadAccount(req, accountId.data)))
+        return res.status(404).json({ message: 'Storefront unavailable' });
+      const storefront = await readStorefront(accountId.data);
+      if (storefront.state !== 'available')
+        return res
+          .status(storefront.state === 'unavailable' ? 503 : 404)
+          .json({ message: 'Storefront unavailable' });
+      const client = getMercariaClient();
+      // The canonical selection is bounded to six shelves. Revalidate on every
+      // page so a removed shelf cannot keep loading through a stale client ref.
+      const selected = await client.stores.featuredCollections(storefront.store.ref, { limit: 20 });
+      const collection = selected.items.find(
+        (item) => item.ref.id === collectionId.data && item.store.id === storefront.store.ref.id,
+      );
+      if (!collection) return res.status(404).json({ message: 'Collection unavailable' });
+      return res.json(await client.collections.products(collection.ref, page.data));
     } catch (error) {
       return failure(res, error);
     }
