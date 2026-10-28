@@ -78,13 +78,13 @@ worker, no retries and unchanged assertions: deep Home return, deep profile
 return, Deck owner changes, and delayed-media/width changes. The run completed
 in 30.7 seconds. [Final local evidence](./feed-return-2026-10-28/webkit-candidate-15.60.0.json)
 records the runtime source and test conditions. This supersedes the failed
-`58078af0` candidate as the current WebKit result while retaining its diagnostic
+`58078af0` candidate for that geometry run while retaining its diagnostic
 history. The run used deterministic feed data and no authenticated account state.
 
 Bloom 15.60.0 was published by the automatic release workflow from commit
 `1ca7ddc0f1cd84cb1b026533f34d4b2d83627fd6`. The registry package's 14,211 source
-and runtime files match the validated candidate byte for byte. Mention's catalog
-and lockfile use that exact registry version. After rebasing onto main
+and runtime files matched that validated candidate byte for byte. Mention's
+catalog and lockfile temporarily adopted that exact registry version. After rebasing onto main
 `3e62c0988`, all four Chromium geometry cases pass again (11.6 seconds), along
 with frontend types and 28 focused route/list tests. Lockfile validation and the
 security audit pass with the registry dependency.
