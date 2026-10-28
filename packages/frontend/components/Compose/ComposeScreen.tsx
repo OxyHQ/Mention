@@ -1137,6 +1137,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             displayName: mentionUser?.name?.displayName?.trim() || username,
           };
         });
+        setSources(
+          (source.content.sources ?? []).map((sourceLink) => ({
+            id: generateSourceId(),
+            title: sourceLink.title ?? '',
+            url: sourceLink.url,
+          })),
+        );
         setEditingHasEvent(Boolean(source.content.event));
         const primaryText = primaryTextFromPost(source.content);
         const authorVariantTexts = (source.content.variants ?? [])
@@ -1192,7 +1199,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     return () => {
       cancelled = true;
     };
-  }, [editPostId, loadVariantsFromPost, setMediaIds, setScheduledAt, t]);
+  }, [editPostId, loadVariantsFromPost, setMediaIds, setScheduledAt, setSources, t]);
 
   // Load parent post when in reply mode
   useEffect(() => {
@@ -1474,6 +1481,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             hashtags: mainPost.hashtags || [],
             collaboratorIds: collaborators.map((c) => c.id),
             variantContent: mainVariantContent,
+            formattedSources,
             // Only a still-scheduled post may carry a time; the API rejects one on
             // a published post rather than silently ignoring it.
             scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,

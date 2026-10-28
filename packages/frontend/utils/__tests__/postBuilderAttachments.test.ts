@@ -126,3 +126,17 @@ it('trims edited post text with the same rule as create and compose validation',
   });
   expect(result.content?.text).toBe('x'.repeat(25_000));
 });
+
+it.each([[[{ title: 'Source', url: 'https://example.com/' }]], [[]]])(
+  'sends edited sources including an explicit clear: %j',
+  (formattedSources) => {
+    const result = buildEditPost({
+      postContent: 'Edited post',
+      mediaIds: [],
+      mentions: [],
+      hashtags: [],
+      formattedSources,
+    });
+    expect(result.content?.sources).toEqual(formattedSources);
+  },
+);
