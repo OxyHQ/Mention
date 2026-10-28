@@ -75,7 +75,8 @@ test('seller shelf order survives pagination and removed or failing shelves stop
     if (url.pathname.endsWith('/featured-collections'))
       return json({ items: selected.map(collection), nextCursor: null });
     if (url.pathname.includes('/featured-collections/') && url.pathname.endsWith('/products')) {
-      const id = url.pathname.split('/').at(-2)!;
+      const id = url.pathname.split('/').at(-2);
+      if (!id) throw new Error('Missing collection id in fixture request');
       if (!selected.includes(id)) return json({ message: 'Withdrawn' }, 404);
       if (outage) return json({ message: 'Unavailable' }, 503);
       if (url.searchParams.has('cursor')) {
@@ -114,13 +115,18 @@ test('seller shelf order survives pagination and removed or failing shelves stop
     'Shelf b',
     'Shelf a',
   ]);
+  // Put the pending page just before the shelf refresh. Its 15s transport
+  // timeout must not be what cancels it when the seller withdraws the shelf.
+  await page.clock.fastForward(29_000);
   await page.getByRole('button', { name: 'Load more · Shelf b', exact: true }).click();
   await expect.poll(() => pendingPage).toBe(true);
+  const pendingAt = await page.evaluate(() => Date.now());
   selected = ['a'];
-  await page.clock.fastForward(31_000);
+  await page.clock.fastForward(2_000);
   await expect(page.getByRole('heading', { name: 'Shelf b', exact: true })).toHaveCount(0);
   await expect(page.getByText('Featured product b', { exact: true })).toHaveCount(0);
   await expect.poll(() => canceledPage).toBe(true);
+  expect((await page.evaluate(() => Date.now())) - pendingAt).toBeLessThan(15_000);
   await releasePage?.();
   await expect(page.getByText('Featured product late', { exact: true })).toHaveCount(0);
   outage = true;
