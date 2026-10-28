@@ -20,3 +20,54 @@ index 675bd55..f33069b 100644
      }
  });
  
+diff --git a/build/global-state/createSeededNavigationState.js b/build/global-state/createSeededNavigationState.js
+--- a/build/global-state/createSeededNavigationState.js
++++ b/build/global-state/createSeededNavigationState.js
+@@ -144,7 +144,7 @@
+         const childRouteNames = [
+             ...childNode.children
+         ].sort((0, _Route.sortRoutesWithInitial)(initialRouteName)).map((child)=>child.route);
+-        const childState = route.state ? completeExistingState(route.state, childRouteNames, (0, _stateKeys.getChainFromRouteKey)(routeKey), (routeName)=>(0, _routeNode.findRouteNodeByName)(childNode, routeName)) : createSeededNavigationState(undefined, childNode, (0, _stateKeys.getChainFromRouteKey)(routeKey));
++        const childState = route.state ? completeExistingState(route.state, childRouteNames, (0, _stateKeys.getChainFromRouteKey)(routeKey), (routeName)=>(0, _routeNode.findRouteNodeByName)(childNode, routeName)) : createSeededNavigationState(undefined, childNode, (0, _stateKeys.getChainFromRouteKey)(routeKey), route.params);
+         if (childState === route.state && routeKey === route.key) {
+             return completeRoute;
+         }
+@@ -225,7 +225,8 @@
+         }
+         return [
+             {
+-                name: defaultRouteName
++                name: defaultRouteName,
++                params: anchorParams
+             }
+         ];
+     }
+diff --git a/build/global-state/useNavigationTreeReducer.js b/build/global-state/useNavigationTreeReducer.js
+--- a/build/global-state/useNavigationTreeReducer.js
++++ b/build/global-state/useNavigationTreeReducer.js
+@@ -323,7 +323,7 @@
+                 if (config.registry.has(operation.stateKey) || !(0, _stateUtils.findStateByKey)(state, operation.stateKey)) {
+                     return result;
+                 }
+-                const replacement = (0, _createSeededNavigationState.createSeededNavigationState)(undefined, operation.routeNode, (0, _stateKeys.getChainFromStateKey)(operation.stateKey));
++                const replacement = (0, _createSeededNavigationState.createSeededNavigationState)(undefined, operation.routeNode, (0, _stateKeys.getChainFromStateKey)(operation.stateKey), findNavigatorParentRoute(state, operation.stateKey)?.params);
+                 const nextState = replaceNavigationState(state, operation.stateKey, replacement);
+                 const completeState = config.routeNode ? (0, _createSeededNavigationState.completeNavigationState)(nextState, config.routeNode) : nextState;
+                 return {
+@@ -556,6 +556,16 @@
+         validateInitialState(route.state);
+     }
+ }
++function findNavigatorParentRoute(state, stateKey) {
++    for (const route of state.routes) {
++        if (route.state?.key === stateKey) return route;
++        if (route.state) {
++            const parent = findNavigatorParentRoute(route.state, stateKey);
++            if (parent) return parent;
++        }
++    }
++    return undefined;
++}
+ function replaceNavigationState(state, stateKey, replacement) {
+     if (state.key === stateKey) {
+         return replacement;

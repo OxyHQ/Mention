@@ -253,19 +253,22 @@ before trusting it to catch a bad route anywhere else in the app.
 
 ## Deep-link boot navigation
 
-The [Expo Router 57.0.23 patch](../patches/expo-router@57.0.23.patch) preserves
-a pending child navigator's initial state in the vendor's `useOnGetState` hook
-until its state listener has registered. Without it, a delayed child can temporarily publish the root
-route and rewrite a direct profile URL to `/` before restoring the profile.
-The distinction is whether the listener key has ever registered: an own key
-whose value is now `undefined` represents an unregistered child and must still
-clear its state. Do not replace this with an unconditional stale-state fallback.
+The [Expo Router 58.0.24 patch](../patches/expo-router@58.0.24.patch) preserves
+layout params when the router seeds a default child route, including when it
+reconstructs a removed child navigator state or resets an unregistered navigator.
+The unmount path reads params from the route owning that exact navigator key.
+Without that forwarding, returning
+to a profile can restore the layout's `username` while its `index` route receives
+no params; the profile header appears but the feed cannot resolve its account.
+Existing child states and explicitly targeted sibling params remain authoritative.
+Do not merge global URL params or unrelated parent params into every route hook:
+retained routes must keep their own destination identity.
 
-The paired `findMatchingState` guard treats states with `stale !== false` as
-partial states. They must never be compared as hydrated navigation states:
-preserved pending children do not yet have the complete fields that matching
-requires. Both guards are needed; preserving pending state alone can replace
-the URL flash with a runtime error.
+The prior Expo Router 57 patch protected pending navigator listeners and partial
+state matching. Router 58 replaced those internals, so do not reapply the old
+`useOnGetState` / `findMatchingState` changes without checking the current router.
+The seeded-state regression lives in
+`packages/frontend/components/providers/__tests__/seededRouteParams.test.ts`.
 
 When upgrading Expo Router or changing this patch, run the production-browser
 regression in `packages/e2e/tests/deep-link-boot.spec.ts`, including its captured
