@@ -134,3 +134,15 @@ shaken. Measured on one `expo export --platform web` of the same commit:
 which every animated component imports, and the Fade and Slide presets Bloom
 and the app use). Still `require()` in 3.3.0; remove the patch when upstream
 imports Reanimated statically.
+
+# react-native-css 3.1.0-rc.0
+
+Backport of [nativewind/react-native-css#511](https://github.com/nativewind/react-native-css/pull/511).
+Metro serializes compiled stylesheets as JSON: an omitted `color-mix` percentage
+inside an array becomes `null`. The native runtime previously left that slot
+unconsumed, rejected the remaining arguments, and discarded valid colors such as
+Tailwind `text-white/50`. On a Pixel 8a camera this painted inactive mode labels
+black. Consume the omitted percentage placeholder and retain the CSS complementary
+weight calculation. The source and both published JS builds carry the same fix;
+installed CJS/ESM regression tests use the real compiler's serialized descriptors.
+Remove the patch when the installed upstream release includes #511.

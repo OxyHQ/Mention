@@ -1,0 +1,48 @@
+diff --git a/dist/commonjs/native/styles/functions/color-mix.js b/dist/commonjs/native/styles/functions/color-mix.js
+index 7c099e6560d5805c7c159fa54c07d6e48b1ab549..13cefffa68264f2c9a48c4b4112f888f3645eed6 100644
+--- a/dist/commonjs/native/styles/functions/color-mix.js
++++ b/dist/commonjs/native/styles/functions/color-mix.js
+@@ -22,6 +22,11 @@ const colorMix = (resolveValue, value) => {
+     const left = (0, _fn.parse)(leftValue);
+     const percentage = () => {
+       const next = args[0];
++      // Metro serializes omitted percentage slots in arrays as null.
++      if (next === null) {
++        args.shift();
++        return undefined;
++      }
+       if (typeof next !== "string" || !next.endsWith("%")) return undefined;
+       args.shift();
+       return Number(next.slice(0, -1)) / 100;
+diff --git a/dist/module/native/styles/functions/color-mix.js b/dist/module/native/styles/functions/color-mix.js
+index 4cdd49dc3d602ea98b70e6079d111b9cc5d5ed37..43d141c291f987b4765911274551d5bb40a0b0a0 100644
+--- a/dist/module/native/styles/functions/color-mix.js
++++ b/dist/module/native/styles/functions/color-mix.js
+@@ -18,6 +18,11 @@ export const colorMix = (resolveValue, value) => {
+     const left = parse(leftValue);
+     const percentage = () => {
+       const next = args[0];
++      // Metro serializes omitted percentage slots in arrays as null.
++      if (next === null) {
++        args.shift();
++        return undefined;
++      }
+       if (typeof next !== "string" || !next.endsWith("%")) return undefined;
+       args.shift();
+       return Number(next.slice(0, -1)) / 100;
+diff --git a/src/native/styles/functions/color-mix.ts b/src/native/styles/functions/color-mix.ts
+index c134e49757de6723a04c3f6b4084a1bb65da1004..31621ae042d3893e3c967eadf5644c1da2fd98a0 100644
+--- a/src/native/styles/functions/color-mix.ts
++++ b/src/native/styles/functions/color-mix.ts
+@@ -28,6 +28,11 @@ export const colorMix: StyleFunctionResolver = (resolveValue, value) => {
+     const left = parse(leftValue);
+     const percentage = () => {
+       const next = args[0];
++      // Metro serializes omitted percentage slots in arrays as null.
++      if (next === null) {
++        args.shift();
++        return undefined;
++      }
+       if (typeof next !== "string" || !next.endsWith("%")) return undefined;
+       args.shift();
+       return Number(next.slice(0, -1)) / 100;
