@@ -1,3 +1,4 @@
+import { membershipCommunities, membershipMedia } from '../../../db/schema/memberships';
 /**
  * The nightly reference reconciliation, against REAL rows: each entity type's
  * inventory is sent whole, every run is recorded, and an applied commit
@@ -323,4 +324,45 @@ describe('an applied run', () => {
       expect.objectContaining({ fileId: file, entityId: id }),
     );
   });
+});
+
+it('keeps expired upload drafts in dry-run inventories and releases them before an applied inventory', async () => {
+  const communityId = randomUUID();
+  await getDb()
+    .insert(membershipCommunities)
+    .values({
+      id: communityId,
+      ownerOxyUserId: AUTHOR,
+      slug: `draft-${communityId}`,
+      name: 'Draft lifecycle',
+      description: '',
+    });
+  const [draft] = await getDb()
+    .insert(membershipMedia)
+    .values({
+      communityId,
+      ownerOxyUserId: AUTHOR,
+      fileId: fid('expired-draft'),
+      mime: 'image/png',
+      size: 4,
+      createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    })
+    .returning();
+  if (!draft) throw new Error('Missing draft');
+  await runFileReferenceReconciliation('dry_run');
+  expect(h.inventories.get('membership_media')).toContainEqual({
+    fileId: draft.fileId,
+    entityId: draft.id,
+  });
+  expect(
+    await getDb().select().from(membershipMedia).where(eq(membershipMedia.id, draft.id)),
+  ).toHaveLength(1);
+  await runFileReferenceReconciliation('apply');
+  expect(h.inventories.get('membership_media')).not.toContainEqual({
+    fileId: draft.fileId,
+    entityId: draft.id,
+  });
+  expect(
+    await getDb().select().from(membershipMedia).where(eq(membershipMedia.id, draft.id)),
+  ).toEqual([]);
 });
