@@ -140,8 +140,9 @@ existing live MCP/capability reauthorization remains intact on every request.
 
 For tenant UUID `T`, the application identity is `mention-T`, the capability
 audience is `mention-T-api`, and the protected resource is the configured MCP
-origin. Register these exact values with central Oxy, using tenant-scoped service
-credentials. Do not register tenant catalogs over the public `mention` catalog.
+origin. Register these exact values through the canonical Oxy operator workflow,
+bound to the deployment owner and its exact backend, worker and MCP workload
+roles. Do not register tenant catalogs over the public `mention` catalog.
 
 The tool registry, published catalog, HTTP token verifier and backend capability
 verifier use this same identity. The catalog's version remains code-owned.
@@ -165,7 +166,7 @@ bun scripts/managed-frontend.ts --print-env
 ```
 
 This prints JSON, not shell commands. It includes no administrators, invitation
-lists, service credentials, internal shell origin or server manifest. Do not
+lists, workload secrets, internal shell origin or server manifest. Do not
 `eval` configuration. Build the tenant's web artifact with:
 
 ```sh
