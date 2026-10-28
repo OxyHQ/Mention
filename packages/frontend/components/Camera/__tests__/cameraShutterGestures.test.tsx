@@ -18,7 +18,7 @@ const mockCamera = {
 jest.mock('expo-camera', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   return {
-    CameraView: React.forwardRef((props: object, ref) => {
+    CameraView: React.forwardRef(function CameraView(props: object, ref) {
       React.useImperativeHandle(ref, () => mockCamera);
       return React.createElement('CameraView', props);
     }),
