@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 49.54,
-      "covered": 13436,
-      "total": 27117
+      "pct": 49.65,
+      "covered": 13601,
+      "total": 27392
     },
     "branches": {
-      "pct": 45.21,
-      "covered": 9110,
-      "total": 20146
+      "pct": 45.3,
+      "covered": 9250,
+      "total": 20416
     },
     "functions": {
-      "pct": 44.43,
-      "covered": 3158,
-      "total": 7107
+      "pct": 44.46,
+      "covered": 3207,
+      "total": 7213
     },
     "lines": {
-      "pct": 50.35,
-      "covered": 12168,
-      "total": 24164
+      "pct": 50.45,
+      "covered": 12317,
+      "total": 24411
     }
   },
   "pins": {
@@ -226,6 +226,12 @@
       "branches": 16,
       "functions": 50,
       "lines": 50
+    },
+    "hooks/useCommerceStorefront.ts": {
+      "statements": 100,
+      "branches": 75,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useCommunities.ts": {
       "statements": 100,
@@ -691,7 +697,7 @@
     },
     "hooks/useThreadManager.ts": {
       "statements": 26,
-      "branches": 8,
+      "branches": 9,
       "functions": 3,
       "lines": 30
     },
@@ -947,6 +953,12 @@
       "functions": 100,
       "lines": 100
     },
+    "lib/references/commerceCards.ts": {
+      "statements": 100,
+      "branches": 91,
+      "functions": 100,
+      "lines": 100
+    },
     "lib/references/homiioCases.ts": {
       "statements": 33,
       "branches": 100,
@@ -1062,6 +1074,12 @@
       "lines": 0
     },
     "services/channelWritersService.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "services/commerceService.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -1464,8 +1482,8 @@
       "lines": 98
     },
     "utils/attachmentsUtils.ts": {
-      "statements": 97,
-      "branches": 86,
+      "statements": 98,
+      "branches": 88,
       "functions": 100,
       "lines": 100
     },
@@ -1474,6 +1492,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "utils/commerceReferences.ts": {
+      "statements": 90,
+      "branches": 75,
+      "functions": 100,
+      "lines": 100
     },
     "utils/composeContent.ts": {
       "statements": 97,
@@ -1705,7 +1729,7 @@
     },
     "utils/postBuilder.ts": {
       "statements": 91,
-      "branches": 64,
+      "branches": 66,
       "functions": 76,
       "lines": 91
     },
