@@ -708,6 +708,13 @@
       "when": 1793174613383,
       "tag": "0100_membership_draft_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1793175141528,
+      "tag": "0101_membership_invoice_receipts",
+      "breakpoints": true
     }
   ]
 }

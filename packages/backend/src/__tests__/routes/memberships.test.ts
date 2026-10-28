@@ -752,6 +752,23 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     state.files = false;
     expect((await request(app).get(mediaPath)).status).toBe(404);
   });
+  it('rejects unconfigured billing recovery without accepting client payment observations', async () => {
+    const route = `${base}/community/tiers/tier/billing/reconcile`;
+    const refs = { invoiceId: 'synthetic-invoice', subscriptionId: 'synthetic-subscription' };
+    expect((await request(app).post(route).send(refs)).status).toBe(409);
+    expect(
+      (
+        await request(app)
+          .post(route)
+          .send({ ...refs, state: 'active' })
+      ).status,
+    ).toBe(400);
+    state.proof = 'mcp';
+    expect((await request(app).post(route).send(refs)).status).toBe(403);
+    state.proof = 'session';
+    state.viewer = undefined;
+    expect((await request(app).post(route).send(refs)).status).toBe(401);
+  });
   it('enforces paid activation and cross-community tier integrity in the database', async () => {
     const c = await community();
     const other = await community();
