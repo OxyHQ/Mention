@@ -68,18 +68,16 @@ export const normalizeUrl = (raw: string): string | null => {
   if (!raw || typeof raw !== 'string') return null;
   let value = raw.trim();
   if (!value) return null;
-  if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value)) {
+  const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value);
+  if (!hasScheme) {
     value = `https://${value}`;
   }
   try {
     const parsed = new URL(value);
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
-    if (
-      !parsed.hostname.includes('.') ||
-      parsed.hostname.startsWith('.') ||
-      parsed.hostname.endsWith('.')
-    )
-      return null;
+    // Bare words are not source links; explicit HTTP URLs also support local
+    // names and IPv6 literals, as the server's URL parser does.
+    if (!hasScheme && !parsed.hostname.includes('.')) return null;
     return parsed.toString();
   } catch {
     return null;
