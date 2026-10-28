@@ -1,8 +1,10 @@
+import { commerceService } from '@/services/commerceService';
+import { usePostSelector } from '@/stores/postsStore';
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
 import {
@@ -36,6 +38,17 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     queryKey: viewerQueryKeys.postInsights(user?.id, postId ?? ''),
     queryFn: () => insightsService.getPostInsights(postId ?? ''),
     enabled: canUsePrivateApi && Boolean(postId),
+    staleTime: 60_000,
+  });
+
+  const cachedPost = usePostSelector(postId ?? undefined);
+  const hasCommerce = Boolean(
+    cachedPost?.content?.attachments?.some((item) => item.type === 'commerce'),
+  );
+  const commerce = useQuery({
+    queryKey: ['commerce-post-metrics', user?.id, postId],
+    queryFn: () => commerceService.metrics('posts', postId ?? ''),
+    enabled: canUsePrivateApi && Boolean(postId) && hasCommerce,
     staleTime: 60_000,
   });
 
@@ -88,6 +101,27 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.contentContainer}
       >
+        {commerce.data ? (
+          <ChartCardSurface height="auto" testID="post-commerce-insights">
+            <Text className="text-foreground font-semibold">
+              {t('commerce.shop', { defaultValue: 'Shop' })}
+            </Text>
+            <Text className="text-muted-foreground">
+              {commerce.data.suppressed
+                ? t('commerce.metricsSuppressed', {
+                    defaultValue:
+                      'Activity totals appear after at least {{count}} opens in the last 30 days.',
+                    count: commerce.data.minimumOpens,
+                  })
+                : t('commerce.metricsSummary', {
+                    defaultValue:
+                      'Last 30 days: {{opens}} opens · {{handoffs}} visits to Mercaria. Counts are interactions, not unique visitors or sales.',
+                    opens: commerce.data.opens,
+                    handoffs: commerce.data.handoffs,
+                  })}
+            </Text>
+          </ChartCardSurface>
+        ) : null}
         <ChartCardSurface height="auto" testID="post-insights-summary">
           <ChartHeadline
             label={t('insights.post.views')}

@@ -1,3 +1,4 @@
+import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { View, Share } from 'react-native';
@@ -143,6 +144,11 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   // answer and opening the tab costs no second request.
   const { disclosed: disclosesWriters } = useChannelWriters(profileData?.id);
 
+  const storefront = useCommerceStorefront(profileData?.isFederated ? undefined : profileData?.id);
+  const shopLabel =
+    storefront.isSuccess && storefront.data.state === 'available'
+      ? t('commerce.shop', { defaultValue: 'Shop' })
+      : undefined;
   const tabDescriptors = useMemo(
     () =>
       buildProfileTabDescriptors(
@@ -167,8 +173,10 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         laneTabs,
         'channel',
         disclosesWriters,
+        true,
+        shopLabel,
       ),
-    [t, laneTabs, disclosesWriters],
+    [t, laneTabs, disclosesWriters, shopLabel],
   );
 
   const activeTab = profileTabIndex(tabDescriptors, activeTabKey);

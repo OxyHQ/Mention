@@ -1,3 +1,4 @@
+import type { CommerceReference } from '@mention/shared-types/commerce';
 import { podcastReference } from '@/utils/podcastReference';
 import { useState, useCallback } from 'react';
 import {
@@ -35,6 +36,7 @@ export type DraftBoxContent = Pick<
   | 'event'
   | 'room'
   | 'podcast'
+  | 'commerce'
   | 'attachmentOrder'
 >;
 
@@ -55,6 +57,7 @@ export interface ThreadItem {
   event: EventData | null;
   room: RoomAttachmentData | null;
   podcast: PodcastAttachmentData | null;
+  commerce?: CommerceReference[];
   /**
    * The publisher's lane for this post, or `null` for none.
    *
@@ -551,6 +554,7 @@ export const useThreadManager = () => {
         event: thread.event,
         room: thread.room,
         podcast: podcastReference(thread.podcast),
+        commerce: thread.commerce ?? [],
         attachmentOrder: thread.attachmentOrder,
         // A draft never persisted the lane, so a restored box starts on none.
         laneId: null,

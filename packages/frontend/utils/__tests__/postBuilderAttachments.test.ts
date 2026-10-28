@@ -140,3 +140,29 @@ it.each([[[{ title: 'Source', url: 'https://example.com/' }]], [[]]])(
     expect(result.content?.sources).toEqual(formattedSources);
   },
 );
+
+describe('commerce identities across compose paths', () => {
+  const commerce = [
+    { kind: 'product' as const, id: 'prod-one' },
+    { kind: 'collection' as const, id: 'col-one' },
+  ];
+  it('publishes stable refs and their chosen order for root and thread posts', () => {
+    const order = ['mercaria:collection:col-one', 'mercaria:product:prod-one'];
+    const root = main({ commerce, attachmentOrder: order });
+    expect(root.content.commerce).toEqual(commerce);
+    expect(root.content.attachments).toEqual(order.map((id) => ({ type: 'commerce', id })));
+    const thread = buildThreadPost(box({ commerce, attachmentOrder: order }), undefined);
+    expect(thread.content.commerce).toEqual(commerce);
+    expect(thread.content.attachments).toEqual(root.content.attachments);
+  });
+  it('sends an explicit empty list when the editor removes the last reference', () => {
+    const edit = buildEditPost({
+      postContent: 'Edited',
+      mediaIds: [],
+      mentions: [],
+      hashtags: [],
+      commerce: [],
+    });
+    expect(edit.content?.commerce).toEqual([]);
+  });
+});

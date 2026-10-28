@@ -1,3 +1,4 @@
+import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
 import { IconButton } from '@oxy.so/bloom/button';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useOpenInAllo } from '@/hooks/useOpenInAllo';
@@ -216,6 +217,11 @@ export function usePersonProfileView({
   const showsLikes =
     viewerOwnsProfile(profileData, currentUser?.id, isFederated) ||
     profileData?.privacy?.showLikes === true;
+  const storefront = useCommerceStorefront(profileData?.isFederated ? undefined : profileData?.id);
+  const shopLabel =
+    storefront.isSuccess && storefront.data.state === 'available'
+      ? t('commerce.shop', { defaultValue: 'Shop' })
+      : undefined;
   const tabDescriptors = useMemo(
     () =>
       buildProfileTabDescriptors(
@@ -245,8 +251,9 @@ export function usePersonProfileView({
         profileData?.kind,
         false,
         showsLikes,
+        shopLabel,
       ),
-    [t, laneTabs, profileData?.kind, showsLikes],
+    [t, laneTabs, profileData?.kind, showsLikes, shopLabel],
   );
 
   const activeIndex = profileTabIndex(tabDescriptors, activeKey);

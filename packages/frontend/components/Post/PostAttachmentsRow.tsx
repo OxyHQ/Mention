@@ -1,3 +1,4 @@
+import { CommerceCard } from './Attachments/CommerceCard';
 import { type HomiioCaseReference, parseHomiioCaseUrl } from '@mention/shared-types/homiio';
 import { HomiioCaseCard } from './Attachments/HomiioCaseCard';
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
@@ -143,6 +144,7 @@ type AttachmentItem =
   | { type: 'homiioCase' }
   | { type: 'podcast' }
   | { type: 'job' }
+  | { type: 'commerce'; referenceId: string }
   | {
       type: 'link';
       url: string;
@@ -479,6 +481,15 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
               if (hasPodcast && !results.some((item) => item.type === 'podcast')) {
                 results.push({ type: 'podcast' });
               }
+              break;
+            case 'commerce':
+              if (
+                descriptor.id &&
+                !results.some(
+                  (item) => item.type === 'commerce' && item.referenceId === descriptor.id,
+                )
+              )
+                results.push({ type: 'commerce', referenceId: descriptor.id });
               break;
             case 'job':
               if (hasJob && !results.some((item) => item.type === 'job')) {
@@ -1047,6 +1058,17 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             image={item.image}
             siteName={item.siteName}
             coverFill={!isSingleItem}
+            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+          />
+        );
+      }
+      if (item.type === 'commerce') {
+        return (
+          <CommerceCard
+            key={item.referenceId}
+            referenceId={item.referenceId}
+            postId={postId}
+            height={rowHeight}
             className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
           />
         );

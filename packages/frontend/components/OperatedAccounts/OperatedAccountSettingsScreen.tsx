@@ -1,3 +1,4 @@
+import { StorefrontSettings } from '@/components/Commerce/StorefrontSettings';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -141,11 +142,14 @@ function OperatedAccountSettings({
       onUpdated={handleUpdated}
       archive={archive}
       extraSections={
-        kind === 'channel' ? (
-          <ChannelBylineSettings accountId={accountId} />
-        ) : (
-          <CommunityModerationSettings accountId={accountId} />
-        )
+        <>
+          <StorefrontSettings accountId={accountId} />
+          {kind === 'channel' ? (
+            <ChannelBylineSettings accountId={accountId} />
+          ) : (
+            <CommunityModerationSettings accountId={accountId} />
+          )}
+        </>
       }
     />
   );
