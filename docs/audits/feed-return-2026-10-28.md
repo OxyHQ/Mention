@@ -35,7 +35,7 @@ A headed WebKit run against that final local candidate kept the selected Home po
 Acceptance requires adjacent visible rows to retain their actual spacing after resize and Deck transitions; the same selected post must remain visible after returning from detail; profile routes must retain their feed and parameters. Tests must run against the production export at the production origin with candidate assets substituted, preserving the real API, CSP and session-origin behavior.
 
 
-### Final local candidate `58078af0`: remaining WebKit failure
+### Earlier local candidate `58078af0`: remaining WebKit failure
 
 The exact four committed `feed-geometry.spec.ts` scenarios ran under headed
 WebKit with one worker and no retries. Deck owner switching and delayed-media
@@ -58,3 +58,27 @@ subsequent adjustments still require investigation.
 [Scroll-call evidence](./feed-return-2026-10-28/webkit-restoration-diagnostic.json)
 contains only synthetic fixture paths and numerical measurements. No additional
 real-account tests were run against this failing candidate.
+
+
+### Resolved in the 15.60.0 local candidate
+
+Bloom runtime commit `51e3fb13` adds opt-in measurement restoration in the
+existing scroll-restoration scope. Its measured rows are saved at route teardown
+and seeded before the new virtual range is calculated. Mention supplies canonical
+viewer/content identities for feeds, saved posts, notifications and profile grids.
+The same route can now restore both its scroll offset and its measured layout
+after an actual unmount. Measurement snapshots stay in memory and follow the
+store's existing eviction, pruning and clearing lifecycle.
+
+The **same four committed geometry tests now pass in headed WebKit**, with one
+worker, no retries and unchanged assertions: deep Home return, deep profile
+return, Deck owner changes, and delayed-media/width changes. The run completed
+in 30.7 seconds. [Final local evidence](./feed-return-2026-10-28/webkit-candidate-15.60.0.json)
+records the runtime source and test conditions. This supersedes the failed
+`58078af0` candidate as the current WebKit result while retaining its diagnostic
+history. The run used deterministic feed data and no authenticated account state.
+
+This establishes the local production export's behavior. Published-package parity,
+merged Mention CI, deployment and post-deployment acceptance are tracked by the
+release owner and must not be inferred from this local run. Physical Safari/iOS
+and native-device coverage remain unperformed here.
