@@ -1,7 +1,9 @@
 # Temporary Zod 3 dependency review — 24 October 2026
 
 This is a bounded risk acceptance, **not a claim that Zod 3 is patched**. It
-expires on 27 October 2026. **As of 25 October, its scope is only the exact
+originally expired on 27 October 2026. Following the fresh review below, the
+user explicitly approved only a seven-day renewal through 4 November 2026.
+**As of 25 October, its scope is only the exact
 `@expo/cli/zod` 3.25.76 resolution under Expo CLI 58.1.15** in
 `security-audit-exceptions.json`. The four-consumer review below records the
 original 24 October state; it is retained as historical evidence.
@@ -16,6 +18,96 @@ lists versions below 4.6.6. The
 checks array, set and map upper bounds before walking their elements, in Zod 4.
 It does not turn arbitrary unconstrained collections into bounded schemas. No
 patched Zod 3 release was available in the npm registry at this review.
+
+## Re-review and approved renewal — 28 October 2026
+
+The user explicitly approved a seven-day renewal on 28 October after this
+review, through 4 November 2026. The exception retains the same exact resolution
+and owner guard; its scope has not expanded. Its reason and compensation now
+describe the actual Expo tooling boundary below. Historical Oxy runtime
+consumers are not compensating controls for this remaining copy.
+
+This review independently inspected the source checkout at Mention
+`521b11e18eab833f2c0740d8c9d2a6064e24690b` and the unchanged Zod graph in
+PR #1635 at `167f12082`. The lock contains only root Zod 4.6.7 and
+`@expo/cli/zod` 3.25.76, owned by CLI 58.1.15. The registry's latest CLI,
+[58.1.16](https://registry.npmjs.org/@expo/cli/58.1.16), still declares
+`zod: ^3.25.76`; [Zod's registry metadata](https://registry.npmjs.org/zod)
+still has no stable Zod 3 after 3.25.76. The advisory still covers `<4.6.6`.
+Neither a compatible CLI patch update nor a compatible Zod update removes this
+resolution.
+
+The latest CLI tarball (58.1.16) was downloaded from the registry and its
+SHA-512 integrity verified against registry metadata. Its two JavaScript Zod
+importers match the installed 58.1.15 files byte for byte:
+
+| CLI path under `build/src/start/server/` | SHA-256 |
+| --- | --- |
+| `DevToolsPlugin.schema.js` | `22c5eaac593a317f3319b5941d43aeffd17fcf0ea9ad3720ba0cde6ddd298b94` |
+| `createMCPDevToolsExtensionSchema.js` | `3f1f99350323211cf2c63f9e9ee5a6d5d03f17246715a3d945e648f60501417d` |
+
+### Actual inputs and trust boundaries
+
+`DevToolsPluginManager.queryAutolinkedPluginsAsync` scans installed project
+dependencies through Expo autolinking, resolves their devtools descriptors, and
+constructs `DevToolsPlugin`. That constructor calls `PluginSchema.safeParse`.
+The descriptor includes command and parameter arrays. Its source is installed
+package configuration, not a Mention feed or API request. The current project's
+actual `queryPluginsAsync()` result contains only `expo-sqlite`, whose
+`expo-module.config.json` declares a `webpageRoot` and no CLI extensions or
+server entry point.
+
+`DevToolsPluginCliExtensionResults.parseOutputText` parses a plugin subprocess's
+stdout/stderr as JSON and passes it to `DevToolsPluginOutputSchema.safeParse`.
+`MCPDevToolsPluginCLIExtensions.addMcpCapabilities` validates the collected
+results with that same schema. These output arrays have **no schema length
+limit**. The executor has a 10-second child-process timeout and caps accumulated
+text at V8's `MAX_STRING_LENGTH`; neither is a credible bound on synchronous
+schema-validation memory. A plugin could also obtain its output from a remote
+service, so describing all possible plugin output as trusted local data would
+be incorrect. The current project has no installed CLI extension to invoke
+this path. Adding one changes this assessment.
+
+`createMCPDevToolsExtensionSchema` builds a strict object from the installed
+descriptor: one command enum and optional string, number or boolean parameters.
+It does not accept caller-defined array/set/map schemas. The optional Expo MCP
+connection requires `EXPO_UNSTABLE_MCP_SERVER`, the `expo-mcp` package and
+`@expo/mcp-tunnel`. Neither package is in this lockfile, and the repository's
+workflows do not configure that environment variable. This is Expo's development
+integration, distinct from Mention's deployed MCP server.
+
+The backend and MCP runtime Docker stages install their filtered production
+workspaces and remove the frontend; neither starts Expo CLI. The web release
+exports a static application, and native releases embed an application bundle;
+CLI plugin validation is development/build tooling, not an application request
+handler. This is a source/dependency-boundary assessment, not a new inspection
+of deployed container files or a claim that arbitrary developer configurations
+are safe.
+
+### Remediation and any renewed acceptance
+
+The latest published CLI does **not** officially support Zod 4: its manifest
+requires major 3 and its published schema declarations expose Zod 3 types.
+The two JavaScript importers use APIs also available in Zod 4, but that alone
+does not establish compatibility for generated schemas, errors, declarations,
+or Expo MCP integration. A blanket major override is not a supported update.
+Changing imports to `zod/v4` inside the existing nested 3.25.76 package would
+also leave the vulnerable installation and does not install patched 4.6.7.
+
+A source migration would require an upstream CLI dependency/types migration
+and tests of plugin parsing, generated MCP schemas, CLI execution, exports and
+native bundling. A local vendor patch would need equivalent maintenance and
+verification and would not become an official supported dependency update.
+The existing application's direct schemas already use patched Zod 4.
+
+The approved temporary acceptance states only the current boundary: the exact CLI-only dependency, installed
+package descriptors, no installed executable CLI plugins or Expo MCP tunnel,
+and no production application caller. It retains the exact dependency and
+owner guard, the seven-day expiry, and the residual developer-tooling risk above.
+Historical Oxy signature verification and batch limits are not compensating
+controls for this remaining CLI copy. This accepts the reviewed tooling risk
+temporarily; it does not patch Zod 3. `audit:security` will block again after
+4 November unless the dependency is remediated or another review is approved.
 
 ## Current scope — 25 October
 
