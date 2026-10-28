@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import type { FeedItem } from '@/db';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const PROFILE_MEDIA_FEED_LIMIT = 50;
 const PROFILE_POSTS_FEED_LIMIT = 60;
@@ -95,5 +96,11 @@ export function useProfileMediaFeed({
     });
   }, [fetchUserFeed, filter, isOwnProfile, isPrivate, primaryFeed, postsFeed, userId]);
 
-  return { primaryFeed, postsFeed, items, loadMore };
+  return {
+    primaryFeed,
+    postsFeed,
+    items,
+    loadMore,
+    restorationKey: JSON.stringify(viewerQueryKeys.feed(viewerId, filter, userId)),
+  };
 }

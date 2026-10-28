@@ -58,7 +58,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { primaryFeed, postsFeed, items, loadMore } = useProfileMediaFeed({
+  const { primaryFeed, postsFeed, items, loadMore, restorationKey } = useProfileMediaFeed({
     userId,
     isPrivate,
     isOwnProfile,
@@ -171,6 +171,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
 
   return (
     <ProfileGridList
+      restorationKey={restorationKey}
       data={videoItems}
       renderCell={renderCell}
       containerClassName="w-full"

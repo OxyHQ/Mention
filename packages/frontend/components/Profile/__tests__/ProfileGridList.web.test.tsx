@@ -21,7 +21,13 @@ it('windows the grid by rows of three cells', () => {
   const renderCell = jest.fn((item: ProfileGridEntry) => <span>{item.postId}</span>);
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<ProfileGridList data={data} renderCell={renderCell} />);
+    renderer = TestRenderer.create(
+      <ProfileGridList
+        restorationKey="viewer-1:profile-1:media"
+        data={data}
+        renderCell={renderCell}
+      />,
+    );
   });
 
   const rows = mockVirtualList.mock.lastCall?.[0].data as ProfileGridEntry[][];

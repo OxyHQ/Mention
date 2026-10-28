@@ -28,9 +28,11 @@ The live deployment SHA was not established by these measurements. The source ch
 
 ## Candidate validation
 
-The regression agent reports that the preliminary production export combining Bloom 15.59.3's measurement fix with Mention's scoped router-parameter correction passed three Chromium geometry scenarios and four authenticated return scenarios. The final local Bloom source candidate was `12ce3141`; publication and exact released-artifact validation are separate steps.
+The production export using Bloom **15.60.0** and Mention's canonical restoration keys passes all four deterministic geometry scenarios in Chromium and headed WebKit: deeply scrolled Home and profile return, Deck owner changes, and delayed-media loading followed by width changes. Chromium's client-side route/chunk regression also passes. Four additional live-data Home/profile return scenarios pass with a signed-in session through both app and browser Back; sign-in state is checked after the feed renders, and authenticated traces are disabled.
 
-A headed WebKit run against that final local candidate kept the selected Home post visible through both Back mechanisms but recorded deep profile browser-return displacement. During that run, live dependencies began returning HTTP 429, then session/profile reads failed and the last scenario could not complete. [Candidate evidence](./feed-return-2026-10-28/webkit-candidate-inconclusive.json) is therefore **inconclusive**, not a clean release failure or pass. All live probes stopped when the shared rate limit was identified. A deterministic deep-profile fixture must establish whether displacement persists without those failures; fresh live acceptance must wait for the limit to reset.
+Frontend and e2e typechecking pass, as do 54 targeted frontend tests covering route seeding, saved-account isolation, canonical keys, notification surfaces and profile grids. An earlier broader candidate passed 24 layout/media/navigation browser cases; its remaining route-chunk case encountered a confirmed HTTP 429 and subsequently passed on the final candidate. The full merge-queue release gate remains authoritative for the merged tree.
+
+An earlier headed WebKit run against `12ce3141` encountered HTTP 429 from live dependencies, making its final profile result [inconclusive](./feed-return-2026-10-28/webkit-candidate-inconclusive.json). Live probes stopped until the limit reset. The deterministic failures and subsequent passing runs below establish the layout defect independently of that rate limit.
 
 Acceptance requires adjacent visible rows to retain their actual spacing after resize and Deck transitions; the same selected post must remain visible after returning from detail; profile routes must retain their feed and parameters. The local browser tests substitute production-export assets at the production origin, preserving API and session-origin behavior. Their static server does not apply the deployment's header policy; deployment headers and redirects require the Wrangler release gate and live-production verification.
 
@@ -45,16 +47,17 @@ was no longer in the viewport after browser Back. Home restored from 4,133 to
 2,853 px; profile from 4,031 to 2,967 px. Core data uses 60 deterministic posts,
 so this finding is independent of live feed ranking.
 [Results](./feed-return-2026-10-28/webkit-candidate-58078af0.json) record the
-unchanged test assertions and configuration. This candidate does not yet meet
-WebKit acceptance; these failures are distinct from the earlier rate-limited run.
+unchanged test assertions and configuration. This candidate was rejected;
+these failures are distinct from the earlier rate-limited run.
 
 A separate diagnostic copy of the Home test recorded actual scroll calls.
 It showed the correct saved target, 3,838 px, being restored after Back, followed
 by virtualizer adjustments to 3,562, 3,306, 3,070 and finally 2,854 px as rows
 were measured. The document's maximum scroll range grew from 14,493 px before
-navigation to an estimated 23,453 px on return. Thus the failure is not explained
-solely by an incorrect saved scroll offset: restored measurement state and its
-subsequent adjustments still require investigation.
+navigation to an estimated 23,453 px on return. Retained DOM handles confirmed
+that the original spacer was disconnected: web `Slot` navigation legitimately
+unmounted the list. Restoring only its offset recreated the list with estimates
+and then moved the reading position as those estimates were corrected.
 [Scroll-call evidence](./feed-return-2026-10-28/webkit-restoration-diagnostic.json)
 contains only synthetic fixture paths and numerical measurements. No additional
 real-account tests were run against this failing candidate.

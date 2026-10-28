@@ -204,8 +204,16 @@ jest.mock('@/components/saved/SavedPostsList', () => {
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     __esModule: true,
-    default: ({ posts, empty }: { posts: { id: string }[]; empty: React.ReactNode }) => (
-      <View testID="saved-list">
+    default: ({
+      posts,
+      empty,
+      restorationKey,
+    }: {
+      posts: { id: string }[];
+      empty: React.ReactNode;
+      restorationKey?: string;
+    }) => (
+      <View testID="saved-list" accessibilityLabel={restorationKey}>
         {posts.length === 0 ? empty : null}
         {posts.map((post) => (
           <Text key={post.id}>{`saved:${post.id}`}</Text>
@@ -417,6 +425,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAuth.user = { id: 'viewer-1' };
   resetEngagementInvalidation();
   mockServerSaved = [];
   mockServerFolders = [];
@@ -435,6 +444,27 @@ afterEach(() => {
 });
 
 describe('saved screen revalidation after a save', () => {
+  it('restores the same viewer layout identity without sharing it with another account', async () => {
+    const client = appClient();
+    const firstVisit = await openSavedScreen(client);
+    const firstKey = firstVisit.root.findByProps({ testID: 'saved-list' }).props.accessibilityLabel;
+    expect(firstKey).toEqual(expect.any(String));
+    closeScreen(firstVisit);
+
+    mockAuth.user = { id: 'viewer-2' };
+    const otherViewer = await openSavedScreen(client);
+    expect(
+      otherViewer.root.findByProps({ testID: 'saved-list' }).props.accessibilityLabel,
+    ).not.toBe(firstKey);
+    closeScreen(otherViewer);
+
+    mockAuth.user = { id: 'viewer-1' };
+    const returnVisit = await openSavedScreen(client);
+    expect(returnVisit.root.findByProps({ testID: 'saved-list' }).props.accessibilityLabel).toBe(
+      firstKey,
+    );
+  });
+
   it('shows a post saved from the feed on the next visit, with no reload', async () => {
     const client = appClient();
     mockServerSaved = ['post-existing'];

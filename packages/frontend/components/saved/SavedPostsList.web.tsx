@@ -16,6 +16,7 @@ const keyExtractor = (post: SavedPost) => post.id;
  * no nested overflow container.
  */
 export default function SavedPostsList({
+  restorationKey,
   posts,
   empty,
   footer,
@@ -24,10 +25,11 @@ export default function SavedPostsList({
   onLongPress,
 }: SavedPostsListProps) {
   const panel = usePanelScrollContainer<HTMLElement>();
-  useScrollRestoration('window', { enabled: !panel });
+  useScrollRestoration('window', { enabled: !panel, key: restorationKey });
 
   return (
     <VirtualList
+      restorationKey={restorationKey}
       data={posts}
       keyExtractor={keyExtractor}
       renderItem={({ item }) => (

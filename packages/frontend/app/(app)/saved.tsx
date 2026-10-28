@@ -352,6 +352,9 @@ const SavedPostsScreen: React.FC = () => {
           </StickySection>
 
           <SavedPostsList
+            restorationKey={JSON.stringify(
+              viewerQueryKeys.savedPosts(viewerId, debouncedSearch, selectedFolder),
+            )}
             posts={posts}
             empty={listEmpty}
             footer={listFooter}

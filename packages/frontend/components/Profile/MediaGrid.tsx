@@ -83,7 +83,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { primaryFeed, postsFeed, items, loadMore } = useProfileMediaFeed({
+  const { primaryFeed, postsFeed, items, loadMore, restorationKey } = useProfileMediaFeed({
     userId,
     isPrivate,
     isOwnProfile,
@@ -237,6 +237,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
 
   return (
     <ProfileGridList
+      restorationKey={restorationKey}
       data={mediaItems}
       renderCell={renderCell}
       containerClassName="bg-card"
