@@ -1,3 +1,4 @@
+import type { CommerceReference } from '@mention/shared-types/commerce';
 import { podcastReference } from '@/utils/podcastReference';
 import { useState, useEffect, useCallback } from 'react';
 import { Storage } from '@/utils/storage';
@@ -30,6 +31,7 @@ export interface DraftBox {
   event?: EventData | null;
   room?: RoomAttachmentData | null;
   podcast?: { syraPodcastId: string } | null;
+  commerce?: CommerceReference[];
   attachmentOrder?: string[];
 }
 

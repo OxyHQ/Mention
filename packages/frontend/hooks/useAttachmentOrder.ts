@@ -1,3 +1,4 @@
+import type { CommerceReference } from '@mention/shared-types/commerce';
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { moveItem } from '@oxy.so/bloom/hooks';
 import {
@@ -21,6 +22,7 @@ interface UseAttachmentOrderProps {
   podcast: PodcastAttachmentData | null;
   /** ROOT post only — see `useJobAttachmentManager.ts`. */
   job: JobAttachmentData | null;
+  commerce?: CommerceReference[];
   location: LocationData | null;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
@@ -35,6 +37,7 @@ export const useAttachmentOrder = ({
   room,
   podcast,
   job,
+  commerce,
   location,
   sources,
   mediaIds,
@@ -53,12 +56,13 @@ export const useAttachmentOrder = ({
         room,
         podcast,
         job,
+        commerce,
         location,
         sources,
         mediaIds,
         linkUrls,
       }),
-    [article, event, room, podcast, job, location, sources, mediaIds, linkUrls],
+    [article, event, room, podcast, job, commerce, location, sources, mediaIds, linkUrls],
   );
 
   // Preserve the last computed ordering between attachment changes.

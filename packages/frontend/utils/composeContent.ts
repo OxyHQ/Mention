@@ -1,3 +1,5 @@
+import { commerceReferenceKey } from './commerceReferences';
+import type { CommerceReference } from '@mention/shared-types/commerce';
 import type { ArticleData } from '@/hooks/useArticleManager';
 import type { EventData } from '@/hooks/useEventManager';
 import type { JobAttachmentData } from '@/hooks/useJobAttachmentManager';
@@ -48,6 +50,7 @@ export interface ComposeBox {
   podcast: PodcastAttachmentData | null;
   /** ROOT post only — see `useJobAttachmentManager.ts`. */
   job?: JobAttachmentData | null;
+  commerce?: CommerceReference[];
 }
 
 export interface ComposeContent {
@@ -62,6 +65,7 @@ export interface ComposeContent {
   podcast: PodcastAttachmentData | null;
   /** ROOT post only — see `useJobAttachmentManager.ts`. */
   job: JobAttachmentData | null;
+  commerce?: CommerceReference[];
   threadItems: ThreadItem[];
 }
 
@@ -108,7 +112,8 @@ export const boxHasContent = (box: ComposeBox): boolean =>
   isCompleteEvent(box.event) ||
   hasRoomContent(box.room) ||
   hasPodcastContent(box.podcast) ||
-  hasJobContent(box.job);
+  hasJobContent(box.job) ||
+  Boolean(box.commerce?.length);
 
 const rootBox = (content: ComposeContent): ComposeBox => ({
   ...content,
@@ -146,6 +151,7 @@ export const attachmentKeysOf = (
   ...(hasRoomContent(box.room) ? [ROOM_ATTACHMENT_KEY] : []),
   ...(hasPodcastContent(box.podcast) ? [PODCAST_ATTACHMENT_KEY] : []),
   ...(hasJobContent(box.job) ? [JOB_ATTACHMENT_KEY] : []),
+  ...(box.commerce ?? []).map(commerceReferenceKey),
   ...(box.location ? [LOCATION_ATTACHMENT_KEY] : []),
   ...(linkedSources(box.sources).length > 0 ? [SOURCES_ATTACHMENT_KEY] : []),
   ...(box.linkUrls ?? []).map(createLinkAttachmentKey),
