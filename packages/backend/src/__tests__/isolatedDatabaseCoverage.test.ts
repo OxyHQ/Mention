@@ -169,6 +169,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'repairInstagramReelPosters', call: /\brepairInstagramReelPosters\s*\(/ },
   { name: 'drainFederatedMediaDeletions', call: /\bdrainFederatedMediaDeletions\s*\(/ },
   { name: 'drainFileReferenceSync', call: /\bdrainFileReferenceSync\s*\(/ },
+  { name: 'expireMembershipMediaDrafts', call: /\bexpireMembershipMediaDrafts\s*\(/ },
   { name: 'runFileReferenceReconciliation', call: /\brunFileReferenceReconciliation\s*\(/ },
   {
     name: 'migrateGifLibraryToApplicationFiles',

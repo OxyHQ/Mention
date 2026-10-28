@@ -276,6 +276,13 @@ without impersonating the uploader or replacing the original requester's proof.
 Deleting a community, channel or account removes its media records and dirties
 those references in the same transaction.
 
+Unattached upload drafts become eligible for expiry after 24 hours. The apply-mode
+nightly reference reconciliation deletes them in 500-row batches before inventory,
+rechecking `content_id IS NULL` after concurrent row locks. Dry runs do not delete
+drafts. Fresh and attached records survive, including another community using
+the same application file. Deletion only dirties the removed references; Oxy
+retains responsibility for unused-file trash and collection.
+
 Membership reads interpret `oxy_file_states` independently of public-post
 withholding: an active **private** file is valid here. A deletion or a change to
 public/unlisted visibility removes it from protected content responses and denies

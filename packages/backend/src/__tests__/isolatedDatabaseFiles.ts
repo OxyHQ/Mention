@@ -91,6 +91,12 @@ export interface IsolatedDatabaseFile {
 
 export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
   {
+    path: 'src/__tests__/services/membershipMediaDrafts.test.ts',
+    jobEntryPoint: 'expireMembershipMediaDrafts',
+    reason:
+      'Expires unattached upload drafts globally; concurrent unrelated fixture uploads must not enter its deletion candidates.',
+  },
+  {
     path: 'src/__tests__/scripts/backfillPostHashtags.test.ts',
     jobEntryPoint: 'backfillPostHashtags',
     reason:
