@@ -78,6 +78,13 @@ contains_word() {
 validate_env_value() {
   local name="$1" value="$2"
   case "$name" in
+    APPLE_TEAM_ID)
+      [[ "$value" =~ ^[A-Z0-9]{10}$ ]]
+      ;;
+    ANDROID_APP_SIGNING_SHA256)
+      [[ "$value" =~ ^([[:xdigit:]]{2}:){31}[[:xdigit:]]{2}(,([[:xdigit:]]{2}:){31}[[:xdigit:]]{2})*$ ]] &&
+        [[ "${value^^}" != *'FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C'* ]]
+      ;;
     INSTAGRAM_GRAPH_ENABLED | FEDERATED_MEDIA_DELETE_ENABLED)
       [[ "$value" == "true" || "$value" == "false" ]]
       ;;

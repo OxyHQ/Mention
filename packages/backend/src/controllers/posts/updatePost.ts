@@ -253,7 +253,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       content.event = event as StoredPostContent['event'];
     }
     const media = contentObj?.media ?? req.body.media;
-    const { hashtags, mentions, contentLocation, postLocation, sources } = req.body;
+    const { hashtags, mentions, contentLocation, postLocation } = req.body;
+    const sources = contentObj?.sources;
 
     // `hashtags` is read at TWO points below — once when the body changes and
     // once as a field of its own — and both handed it straight to

@@ -75,6 +75,19 @@ expect_refusal 'limit-zero' OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT=0
 expect_refusal 'limit-too-high' OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT=201
 expect_refusal 'limit-not-integer' OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT=5.5
 
+# App link identities reach the running task through the same optional path.
+fingerprint='AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB'
+expect 'app-identities-set' '.environment.APPLE_TEAM_ID == "ABCDE12345" and (.environment.ANDROID_APP_SIGNING_SHA256 | contains(","))' \
+  OPTIONAL_TASK_ENV='APPLE_TEAM_ID ANDROID_APP_SIGNING_SHA256' \
+  OPTIONAL_ENV_APPLE_TEAM_ID=ABCDE12345 \
+  OPTIONAL_ENV_ANDROID_APP_SIGNING_SHA256="$fingerprint,$fingerprint"
+expect 'app-identities-unset' '.environmentRemovals == ["ATPROTO_ENABLED","APPLE_TEAM_ID","ANDROID_APP_SIGNING_SHA256"]' \
+  OPTIONAL_TASK_ENV='APPLE_TEAM_ID ANDROID_APP_SIGNING_SHA256'
+expect_refusal 'invalid-apple-team' OPTIONAL_TASK_ENV=APPLE_TEAM_ID OPTIONAL_ENV_APPLE_TEAM_ID=invalid.team
+expect_refusal 'invalid-fingerprint' OPTIONAL_TASK_ENV=ANDROID_APP_SIGNING_SHA256 OPTIONAL_ENV_ANDROID_APP_SIGNING_SHA256=AA:BB
+expect_refusal 'trailing-fingerprint-comma' OPTIONAL_TASK_ENV=ANDROID_APP_SIGNING_SHA256 OPTIONAL_ENV_ANDROID_APP_SIGNING_SHA256="$fingerprint,"
+expect_refusal 'public-debug-cert' OPTIONAL_TASK_ENV=ANDROID_APP_SIGNING_SHA256 OPTIONAL_ENV_ANDROID_APP_SIGNING_SHA256='FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C'
+
 # An optional name with no validation rule is refused, not passed through.
 expect_refusal 'unknown-optional-env' OPTIONAL_TASK_ENV='SOMETHING_NEW' OPTIONAL_ENV_SOMETHING_NEW=x
 

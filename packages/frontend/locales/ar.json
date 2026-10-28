@@ -1798,7 +1798,7 @@
   "Date joined": "تاريخ الانضمام",
   "Error": "خطأ",
   "Followers": "المتابِعون",
-  "Since {date}": "منذ {date}",
+  "Since {date}": "منذ {{date}}",
   "Username changes": "تغييرات اسم المستخدم",
   "Verification": "التوثيق",
   "Verified": "موثّق",
@@ -2884,5 +2884,6 @@
   "communities.postActions.banConfirm": "احظر",
   "communities.postActions.banned": "تم الحظر من المجتمع",
   "communities.postActions.banFailed": "تعذّر الحظر",
-  "sidebar.communities": "المجتمعات"
+  "sidebar.communities": "المجتمعات",
+  "compose.textTooLong": "يجب ألا يتجاوز كل منشور {{limit}} حرفًا."
 }

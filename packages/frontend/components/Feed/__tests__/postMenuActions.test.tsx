@@ -484,6 +484,7 @@ describe('what the actions do', () => {
       'postActions.reportPost',
       build({ viewPost: makePost() }),
     );
+    expect(presentSheetMock.mock.calls.at(-1)?.[1]).toEqual({ label: 'postActions.reportPost' });
     await modal.onSubmit(['spam'], 'details');
     expect(mockReport.reportPost).toHaveBeenCalledWith('p1', ['spam'], 'details');
     expect(mockToast).toHaveBeenCalledWith('postActions.thankYouReport', { type: 'success' });

@@ -140,6 +140,13 @@ Authenticated commands and viewer data:
 | POST / DELETE | `/posts/:id/save` | Save or unsave |
 | POST | `/posts/:id/translate` | Translate a post on an explicit reader action; caches the machine variant under its exact BCP-47 tag |
 
+Post `content.sources` cite HTTP or HTTPS documents, with optional titles and
+at most five sources per post. Nonempty malformed URLs and other schemes return
+`400`; explicit HTTP(S) localhost and IP-literal URLs remain accepted. Thread
+creation validates every entry's sources before publishing any entry. Empty
+source rows are ignored. Edits use the same `content.sources` field; omission
+preserves existing sources and an explicit empty array or `null` clears them.
+
 `POST /posts/:id/translate` is the only published-post path that calls
 inference. It caches the result on the post as a `source: 'machine'` variant
 under the canonical exact BCP-47 tag (`es-MX` and `es-ES` are separate

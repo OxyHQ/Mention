@@ -628,7 +628,7 @@ const ReelSurface: React.FC<
         onPress={handleSurfacePress}
         accessibilityRole="button"
         accessibilityLabel={t(
-          muted ? 'settings.lanes.muted.unmute' : userPaused ? 'videos.play' : 'videos.pause',
+          muted ? 'lanes.muted.unmute' : userPaused ? 'videos.play' : 'videos.pause',
         )}
       />
 

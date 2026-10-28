@@ -1721,7 +1721,7 @@
   "Date joined": "Data de adesão",
   "Error": "Erro",
   "Followers": "Seguidores",
-  "Since {date}": "Desde {date}",
+  "Since {date}": "Desde {{date}}",
   "Username changes": "Alterações do nome de utilizador",
   "Verification": "Verificação",
   "Verified": "Verificado",
@@ -2790,5 +2790,6 @@
   "communities.postActions.banConfirm": "Expulsar",
   "communities.postActions.banned": "Expulso da comunidade",
   "communities.postActions.banFailed": "Não foi possível expulsar",
-  "sidebar.communities": "Comunidades"
+  "sidebar.communities": "Comunidades",
+  "compose.textTooLong": "Cada publicação deve ter no máximo {{limit}} caracteres."
 }

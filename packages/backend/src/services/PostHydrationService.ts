@@ -36,7 +36,7 @@ import {
   networkLabel,
   type CrosspostVariantRow,
 } from './PostEquivalenceService';
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import { pollOptions, pollVotes, polls as pollsTable } from '../db/schema/polls';
@@ -1230,7 +1230,7 @@ export class PostHydrationService {
           signingChannelIds: signingIds,
         };
       })(),
-      this.buildPollMap(postsForHydration),
+      this.buildPollMap(postsForHydration, viewerContext.viewerId),
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
       options.includeLinkMetadata !== false
         ? this.buildClarityDocumentMap(postsForHydration, resolvedMap)
@@ -2070,6 +2070,7 @@ export class PostHydrationService {
 
   private async buildPollMap(
     nodes: HydratedGraphNode[],
+    viewerId?: string,
   ): Promise<Map<string, Record<string, unknown>>> {
     const pollIds = Array.from(
       new Set(
@@ -2085,12 +2086,9 @@ export class PostHydrationService {
     }
 
     try {
-      // Three tables: the options are their own
-      // rows (ordered by `position`, which is what preserves the order the
-      // author wrote them in) and each ballot is a row rather than an id inside
-      // `options[].votes`. The wire shape is unchanged — `votes` is a count per
-      // option INDEX and `userVotes` maps a voter to the index they chose — so
-      // the index has to come from `position`, never from array arrival order.
+      // Aggregate in Postgres: each option produces at most one summary row,
+      // regardless of voter count. Only the current viewer's selection leaves
+      // the database; other voters' identities never belong in a post DTO.
       const db = getDb();
       const [pollRows, optionRows, voteRows] = await Promise.all([
         db
@@ -2106,10 +2104,16 @@ export class PostHydrationService {
           .select({
             pollId: pollVotes.pollId,
             optionId: pollVotes.optionId,
-            userId: pollVotes.userId,
+            voteCount: count(),
+            viewerVoteCount: viewerId
+              ? sql<number>`count(*) filter (where ${pollVotes.userId} = ${viewerId})`.mapWith(
+                  Number,
+                )
+              : sql<number>`0`.mapWith(Number),
           })
           .from(pollVotes)
-          .where(inArray(pollVotes.pollId, pollIds)),
+          .where(inArray(pollVotes.pollId, pollIds))
+          .groupBy(pollVotes.pollId, pollVotes.optionId),
       ]);
 
       const optionsByPoll = new Map<string, Array<{ id: string; text: string }>>();
@@ -2119,19 +2123,18 @@ export class PostHydrationService {
         else optionsByPoll.set(option.pollId, [{ id: option.id, text: option.text }]);
       }
 
+      const votesByOption = new Map(voteRows.map((row) => [row.optionId, row]));
       const map = new Map<string, Record<string, unknown>>();
       for (const poll of pollRows) {
         const options = optionsByPoll.get(poll.id) ?? [];
-        const indexByOptionId = new Map(options.map((option, index) => [option.id, index]));
-
         const votes: Record<string, number> = {};
         const userVotes: Record<string, string> = {};
-        for (let index = 0; index < options.length; index += 1) votes[String(index)] = 0;
-        for (const vote of voteRows) {
-          const index = vote.pollId === poll.id ? indexByOptionId.get(vote.optionId) : undefined;
-          if (index === undefined) continue;
-          votes[String(index)] = (votes[String(index)] ?? 0) + 1;
-          userVotes[vote.userId] = String(index);
+        for (const [index, option] of options.entries()) {
+          const tally = votesByOption.get(option.id);
+          votes[String(index)] = tally?.pollId === poll.id ? tally.voteCount : 0;
+          if (viewerId && tally?.pollId === poll.id && tally.viewerVoteCount > 0) {
+            userVotes[viewerId] = String(index);
+          }
         }
 
         map.set(poll.id, {

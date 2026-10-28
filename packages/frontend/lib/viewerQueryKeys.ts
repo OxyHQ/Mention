@@ -98,6 +98,8 @@ export const organizationDirectoryQueryKeys = {
  * gives account transitions one precise namespace to cancel and remove.
  */
 export const viewerQueryKeys = {
+  gifSearch: (viewerId: ViewerId, privateReady: boolean, query: string) =>
+    [...viewerQueryKeys.all(viewerId), 'gifs', privateReady, query] as const,
   minimalProfile: (viewerId: ViewerId, handle: string) =>
     ['mention', 'viewer', viewerCacheId(viewerId), 'minimal-profile', handle] as const,
   postAccess: (viewerId: ViewerId, postId: string) =>

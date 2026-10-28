@@ -434,7 +434,7 @@ export interface PollData {
   options: string[];
   endTime: string;
   votes: Record<string, number>; // option index -> vote count
-  userVotes: Record<string, string>; // userId -> option index
+  userVotes: Record<string, string>; // current viewer id -> option index; empty for anonymous readers
 }
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
@@ -652,6 +652,9 @@ export interface PostAuthorshipEntry {
 }
 
 export const MAX_POST_COLLABORATORS = 5;
+
+/** Maximum authored text length for each post rendition. */
+export const MAX_POST_TEXT_LENGTH = 25_000;
 
 /**
  * Whether a post is published, and if not, why not.

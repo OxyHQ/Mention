@@ -1695,7 +1695,7 @@
   "Date joined": "登録日",
   "Error": "エラー",
   "Followers": "フォロワー",
-  "Since {date}": "{date}から",
+  "Since {date}": "{{date}}から",
   "Username changes": "ユーザー名の変更",
   "Verification": "認証",
   "Verified": "認証済み",
@@ -2758,5 +2758,6 @@
   "communities.postActions.banConfirm": "追放",
   "communities.postActions.banned": "コミュニティから追放しました",
   "communities.postActions.banFailed": "追放できませんでした",
-  "sidebar.communities": "コミュニティ"
+  "sidebar.communities": "コミュニティ",
+  "compose.textTooLong": "各投稿は {{limit}} 文字以内にしてください。"
 }

@@ -11,6 +11,7 @@ describe('viewer-scoped private cache', () => {
   function everyPrivateKey(viewerId: string) {
     return [
       viewerQueryKeys.all(viewerId),
+      viewerQueryKeys.gifSearch(viewerId, true, 'frog'),
       viewerQueryKeys.postsRoot(viewerId),
       viewerQueryKeys.post(viewerId, 'post-1'),
       viewerQueryKeys.pinnedPost(viewerId, 'profile-1'),

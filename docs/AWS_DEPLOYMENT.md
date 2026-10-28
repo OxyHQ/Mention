@@ -59,6 +59,15 @@ including the Android App Links statement list and the iOS
 `apple-app-site-association` (`packages/backend/src/routes/appAssociation.routes.ts`),
 and answers any other well-known path with a JSON 404.
 
+Set repository variable `APPLE_TEAM_ID` (backend environment variable of the same name) to the signing team's ten-character identifier from
+Apple Developer Membership to enable the AASA document. Without it the route
+returns JSON 404. Set repository variable `ANDROID_APP_SIGNING_SHA256` to the comma-separated (no spaces),
+colon-delimited SHA-256 fingerprints from Play Console App integrity; these are
+added to the existing ecosystem release certificate used for direct APK installs.
+Malformed values and the public React Native template debug certificate are
+rejected at startup. Both documents are cached for one hour. Configuring these
+values still requires verification on a signed device build.
+
 That origin is not public. It serves nothing without the `X-Mention-Shell-Key`
 header and answers 403 otherwise, so the only ways to the app's bytes are the
 apex proxy and the OG shell renderer — both of them this backend. It is a Worker

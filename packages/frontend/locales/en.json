@@ -2116,7 +2116,7 @@
   "Date joined": "Date joined",
   "Error": "Error",
   "Followers": "Followers",
-  "Since {date}": "Since {date}",
+  "Since {date}": "Since {{date}}",
   "Username changes": "Username changes",
   "Verification": "Verification",
   "Verified": "Verified",
@@ -3082,5 +3082,6 @@
   "communities.postActions.banConfirm": "Ban",
   "communities.postActions.banned": "Banned from the community",
   "communities.postActions.banFailed": "Could not ban them",
-  "sidebar.communities": "Communities"
+  "sidebar.communities": "Communities",
+  "compose.textTooLong": "Each post must be {{limit}} characters or fewer."
 }

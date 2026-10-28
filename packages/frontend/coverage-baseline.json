@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 49.08,
-      "covered": 13322,
-      "total": 27141
+      "pct": 49.54,
+      "covered": 13436,
+      "total": 27117
     },
     "branches": {
-      "pct": 44.8,
-      "covered": 9019,
-      "total": 20131
+      "pct": 45.21,
+      "covered": 9110,
+      "total": 20146
     },
     "functions": {
-      "pct": 43.95,
-      "covered": 3123,
-      "total": 7105
+      "pct": 44.43,
+      "covered": 3158,
+      "total": 7107
     },
     "lines": {
-      "pct": 49.87,
-      "covered": 12064,
-      "total": 24188
+      "pct": 50.35,
+      "covered": 12168,
+      "total": 24164
     }
   },
   "pins": {
@@ -246,10 +246,10 @@
       "lines": 100
     },
     "hooks/useComposeValidation.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 88,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useComposeVariants.ts": {
       "statements": 0,
@@ -442,6 +442,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useNotificationFilter.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useOpenInAllo.tsx": {
       "statements": 72,
@@ -720,12 +726,6 @@
       "lines": 88
     },
     "hooks/useUnreadCount.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useUrlUtils.ts": {
       "statements": 0,
       "branches": 0,
       "functions": 0,
@@ -1488,10 +1488,10 @@
       "lines": 99
     },
     "utils/composeUtils.ts": {
-      "statements": 53,
-      "branches": 33,
-      "functions": 35,
-      "lines": 56
+      "statements": 72,
+      "branches": 71,
+      "functions": 50,
+      "lines": 77
     },
     "utils/composeVariants.ts": {
       "statements": 86,
@@ -1705,7 +1705,7 @@
     },
     "utils/postBuilder.ts": {
       "statements": 91,
-      "branches": 62,
+      "branches": 64,
       "functions": 76,
       "lines": 91
     },

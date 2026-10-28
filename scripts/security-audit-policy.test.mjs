@@ -122,7 +122,8 @@ for (const [name, mutate] of [
 
 test('expired review fails closed', () => {
   const input = base();
-  input.today = new Date('2026-10-28T00:00:00Z');
+  input.today = new Date(`${input.entry.expires}T23:59:59.999Z`);
+  input.today.setTime(input.today.getTime() + 1);
   assert.throws(() => exceptionMatches(input), /expired/);
 });
 test('deleting the Zod guard cannot turn it into a blanket exception', () => {

@@ -339,6 +339,58 @@ describe('replyPermission — an unchecked `text[]` on BOTH create paths', () =>
   });
 });
 
+describe('cited sources use web URLs on every write path', () => {
+  it.each([
+    'javascript:alert(1)',
+    'data:text/plain,hello',
+    'file:///etc/passwd',
+    'mailto:a@example.com',
+    'not-a-url',
+  ])('refuses %s before creating a single post or any thread entry', async (url) => {
+    for (const handler of [createPost, createThread] as Handler[]) {
+      created.length = 0;
+      const entry = { content: { text: 'citation', sources: [{ url }] } };
+      const captured = await call(handler, handler === createPost ? post(entry) : thread(entry));
+      expect(captured.status).toBe(400);
+      expect(captured.body?.message).toContain('HTTP');
+      expect(created).toHaveLength(0);
+    }
+  });
+
+  it('refuses too many sources on a later thread entry before writing the root', async () => {
+    const captured = await call(
+      createThread,
+      thread({
+        content: {
+          text: 'tail',
+          sources: Array.from({ length: 6 }, (_, index) => ({
+            url: `https://example.com/${index}`,
+          })),
+        },
+      }),
+    );
+    expect(captured.status).toBe(400);
+    expect(captured.body?.message).toContain('Too many sources');
+    expect(created).toHaveLength(0);
+  });
+
+  it.each([
+    'https://example.com/article',
+    'http://localhost:8080/article',
+    'http://127.0.0.1/article',
+    'https://[2001:db8::1]/article',
+  ])('preserves explicit web source %s with an optional title', async (url) => {
+    for (const handler of [createPost, createThread] as Handler[]) {
+      created.length = 0;
+      const entry = { content: { text: 'citation', sources: [{ url, title: ' Reference ' }] } };
+      const captured = await call(handler, handler === createPost ? post(entry) : thread(entry));
+      expect(captured.status).toBe(201);
+      const written = created.at(-1)?.content as PostContent | undefined;
+      expect(written?.sources).toEqual([{ url, title: 'Reference' }]);
+    }
+  });
+});
+
 describe('content.poll — inserted verbatim and unbounded', () => {
   it('refuses a question that is not a string, which was stored as "[object Object]"', async () => {
     const captured = await call(

@@ -83,6 +83,7 @@ import { useJobAttachmentManager } from '@/hooks/useJobAttachmentManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
 import { useDraftManager, type ComposeDraftRefs } from '@/hooks/useDraftManager';
+import { MAX_POST_TEXT_LENGTH } from '@mention/shared-types/post';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
 import {
   boxHasContent,
@@ -97,7 +98,6 @@ import {
 } from '@/utils/composeContent';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useRefSync } from '@/hooks/useRefSync';
-import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
@@ -123,6 +123,8 @@ import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
 import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuilder';
 import {
+  isValidSourceUrl,
+  sanitizeSourcesForSubmit,
   type ComposerMediaItem,
   toComposerMediaType,
   ARTICLE_ATTACHMENT_KEY,
@@ -741,8 +743,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const validation = useComposeValidation({
     content: composeContent,
     isPosting,
+    variants,
   });
-  const { hasInvalidSources: invalidSources, isPostButtonEnabled } = validation;
+  const { hasInvalidSources: invalidSources, hasOverlongText, isPostButtonEnabled } = validation;
 
   // Media picker. The destination is chosen per call: the shared media set, or
   // the media a non-primary language shows instead of it.
@@ -762,10 +765,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     () => openMediaPicker(addSharedMedia),
     [openMediaPicker, addSharedMedia],
   );
-
-  // URL utilities
-  const urlUtils = useUrlUtils();
-  const { isValidSourceUrl, sanitizeSourcesForSubmit } = urlUtils;
 
   // The sources sheet edits the main post's sources (`threadId: null`) or one
   // thread item's. A Dialog mounted here, not a presented surface, because the
@@ -1138,6 +1137,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             displayName: mentionUser?.name?.displayName?.trim() || username,
           };
         });
+        setSources(
+          (source.content.sources ?? []).map((sourceLink) => ({
+            id: generateSourceId(),
+            title: sourceLink.title ?? '',
+            url: sourceLink.url,
+          })),
+        );
         setEditingHasEvent(Boolean(source.content.event));
         const primaryText = primaryTextFromPost(source.content);
         const authorVariantTexts = (source.content.variants ?? [])
@@ -1193,7 +1199,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     return () => {
       cancelled = true;
     };
-  }, [editPostId, loadVariantsFromPost, setMediaIds, setScheduledAt, t]);
+  }, [editPostId, loadVariantsFromPost, setMediaIds, setScheduledAt, setSources, t]);
 
   // Load parent post when in reply mode
   useEffect(() => {
@@ -1325,6 +1331,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
       return;
     }
+
+    if (invalidSources || hasOverlongText) return;
 
     // A rendition's body does not inherit — the reader is served it verbatim — so
     // a language that overrides images or alt but has no text would publish a
@@ -1473,6 +1481,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             hashtags: mainPost.hashtags || [],
             collaboratorIds: collaborators.map((c) => c.id),
             variantContent: mainVariantContent,
+            formattedSources,
             // Only a still-scheduled post may carry a time; the API rejects one on
             // a published post rather than silently ignoring it.
             scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,
@@ -3750,6 +3759,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 )}
               </ChipRow>
 
+              {hasOverlongText && (
+                <Text accessibilityRole="alert" className="text-destructive text-sm">
+                  {t('compose.textTooLong', {
+                    defaultValue: 'Each post must be {{limit}} characters or fewer.',
+                    limit: MAX_POST_TEXT_LENGTH,
+                  })}
+                </Text>
+              )}
+              {invalidSources && (
+                <Text accessibilityRole="alert" className="text-destructive text-sm">
+                  {t('compose.sources.linksInvalid', {
+                    defaultValue: 'Please fix the highlighted links before posting.',
+                  })}
+                </Text>
+              )}
               <View style={styles.bottomBarSubmit}>
                 {focusedCharCount > 0 ? (
                   <Text className="text-muted-foreground" style={styles.charCount}>

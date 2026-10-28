@@ -1,4 +1,4 @@
-import { buildMainPost, buildThreadPost } from '@/utils/postBuilder';
+import { buildMainPost, buildThreadPost, buildEditPost } from '@/utils/postBuilder';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 
 /**
@@ -116,3 +116,27 @@ it('carries capacity through root and thread event payloads', () => {
     7,
   );
 });
+
+it('trims edited post text with the same rule as create and compose validation', () => {
+  const result = buildEditPost({
+    postContent: `  ${'x'.repeat(25_000)}  `,
+    mediaIds: [],
+    mentions: [],
+    hashtags: [],
+  });
+  expect(result.content?.text).toBe('x'.repeat(25_000));
+});
+
+it.each([[[{ title: 'Source', url: 'https://example.com/' }]], [[]]])(
+  'sends edited sources including an explicit clear: %j',
+  (formattedSources) => {
+    const result = buildEditPost({
+      postContent: 'Edited post',
+      mediaIds: [],
+      mentions: [],
+      hashtags: [],
+      formattedSources,
+    });
+    expect(result.content?.sources).toEqual(formattedSources);
+  },
+);

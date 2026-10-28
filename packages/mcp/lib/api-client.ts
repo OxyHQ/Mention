@@ -91,43 +91,64 @@ async function request<T = unknown>(
   const url = buildUrl(path, options?.query);
   const attempts = method === 'GET' ? 2 : 1;
 
+  const requestHeaders = headers(method);
+  const body = options?.body === undefined ? undefined : JSON.stringify(options.body);
+
   for (let attempt = 0; attempt < attempts; attempt++) {
-    let response: Response;
+    if (attempt > 0) await waitBeforeRetry();
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, API_REQUEST_TIMEOUT_MS);
+    timer.unref?.();
+
     try {
-      response = await fetchWithTimeout(url, {
+      const response = await fetch(url, {
         method,
-        headers: headers(method),
-        body: options?.body === undefined ? undefined : JSON.stringify(options.body),
+        headers: requestHeaders,
+        body,
+        signal: controller.signal,
       });
-    } catch (error) {
-      if (method === 'GET' && attempt === 0) {
-        await waitBeforeRetry();
+
+      if (
+        !response.ok &&
+        method === 'GET' &&
+        attempt === 0 &&
+        RETRYABLE_GET_STATUSES.has(response.status)
+      ) {
+        await response.body?.cancel();
         continue;
       }
+
+      if (!response.ok) {
+        throw await responseToApiError(response);
+      }
+
+      // Some endpoints return 204 No Content.
+      if (response.status === 204) {
+        return {} as T;
+      }
+
+      // Keep the deadline active until the body is consumed, not just until
+      // headers arrive. A stalled body otherwise holds a tool call forever.
+      return (await response.json()) as T;
+    } catch (error) {
+      if (method === 'GET' && attempt === 0 && (timedOut || !isApiError(error))) {
+        continue;
+      }
+      if (timedOut) {
+        throw {
+          status: 504,
+          message: `Mention API timed out after ${API_REQUEST_TIMEOUT_MS}ms.`,
+          body: null,
+        } satisfies ApiError;
+      }
       throw normalizeNetworkError(error);
+    } finally {
+      clearTimeout(timer);
     }
-
-    if (
-      !response.ok &&
-      method === 'GET' &&
-      attempt === 0 &&
-      RETRYABLE_GET_STATUSES.has(response.status)
-    ) {
-      await response.body?.cancel().catch(() => {});
-      await waitBeforeRetry();
-      continue;
-    }
-
-    if (!response.ok) {
-      throw await responseToApiError(response);
-    }
-
-    // Some endpoints return 204 No Content.
-    if (response.status === 204) {
-      return {} as T;
-    }
-
-    return response.json() as Promise<T>;
   }
 
   throw {
@@ -137,33 +158,8 @@ async function request<T = unknown>(
   } satisfies ApiError;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, API_REQUEST_TIMEOUT_MS);
-  timer.unref?.();
-
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } catch (error) {
-    if (timedOut || (error instanceof DOMException && error.name === 'AbortError')) {
-      throw {
-        status: 504,
-        message: `Mention API timed out after ${API_REQUEST_TIMEOUT_MS}ms.`,
-        body: null,
-      } satisfies ApiError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function responseToApiError(response: Response): Promise<ApiError> {
-  const rawBody = await response.text().catch(() => '');
+  const rawBody = await response.text();
   let body: unknown = rawBody;
   if (rawBody) {
     try {

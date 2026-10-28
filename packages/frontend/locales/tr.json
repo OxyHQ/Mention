@@ -1695,7 +1695,7 @@
   "Date joined": "Katılma tarihi",
   "Error": "Hata",
   "Followers": "Takipçiler",
-  "Since {date}": "{date} tarihinden beri",
+  "Since {date}": "{{date}} tarihinden beri",
   "Username changes": "Kullanıcı adı değişiklikleri",
   "Verification": "Doğrulama",
   "Verified": "Doğrulanmış",
@@ -2758,5 +2758,6 @@
   "communities.postActions.banConfirm": "Yasakla",
   "communities.postActions.banned": "Topluluktan yasaklandı",
   "communities.postActions.banFailed": "Yasaklanamadı",
-  "sidebar.communities": "Topluluklar"
+  "sidebar.communities": "Topluluklar",
+  "compose.textTooLong": "Her gönderi en fazla {{limit}} karakter içermelidir."
 }

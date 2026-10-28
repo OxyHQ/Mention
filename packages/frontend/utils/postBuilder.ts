@@ -246,6 +246,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
 };
 
 interface BuildEditPostParams {
+  formattedSources?: PostSourceLink[];
   postContent: string;
   mediaIds: ComposerMediaItem[];
   mentions: string[];
@@ -264,7 +265,7 @@ interface BuildEditPostParams {
  * The payload of an EDIT.
  *
  * Editing does not go through {@link buildMainPost} — an edit may only touch the
- * body, the media and the collaborators, so it sends `UpdatePostRequest`, not a
+ * body, the sources, the media and the collaborators, so it sends `UpdatePostRequest`, not a
  * whole post. It still has to carry the renditions: without them, editing a
  * multilingual post would silently strip every language but the primary.
  */
@@ -277,6 +278,7 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
     collaboratorIds,
     variantContent,
     scheduledAt,
+    formattedSources,
   } = params;
   const mentionIds = reconcileMentionIds(
     [postContent, ...(variantContent ?? []).map((variant) => variant.text)],
@@ -285,7 +287,8 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
 
   return {
     content: {
-      text: postContent,
+      text: postContent.trim(),
+      ...(formattedSources !== undefined ? { sources: formattedSources } : {}),
       ...(variantContent ? { variants: variantContent } : {}),
       media: mediaIds.map((m) => ({
         id: m.id,
