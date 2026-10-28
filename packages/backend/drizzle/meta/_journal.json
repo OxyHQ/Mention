@@ -673,6 +673,13 @@
       "when": 1793164510574,
       "tag": "0095_validate_commerce_attachment_type",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1793165519291,
+      "tag": "0096_membership_domain",
+      "breakpoints": true
     }
   ]
 }
