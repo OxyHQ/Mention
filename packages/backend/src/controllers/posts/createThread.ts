@@ -131,6 +131,12 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
+    const entrySources = posts.map((entry) => sanitizeSources(entry?.content?.sources));
+    const invalidSources = entrySources.find((entry) => entry.error);
+    if (invalidSources) {
+      return res.status(400).json({ message: invalidSources.error });
+    }
+
     // Validate the entire batch before any post is committed.
     for (const entry of posts) {
       const event = entry?.content?.event;
@@ -489,7 +495,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.location = processedContentLocation;
       }
 
-      const { sources } = sanitizeSources(content?.sources);
+      const { sources } = entrySources[i];
       if (sources.length) {
         postContent.sources = sources;
       }

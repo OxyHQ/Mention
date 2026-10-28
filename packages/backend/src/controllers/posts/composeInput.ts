@@ -219,7 +219,8 @@ export const buildPostMetadata = (metadata: unknown): Record<string, unknown> =>
 
 /**
  * Sanitize and validate sources array.
- * Returns { sources, error } — error is set if the array exceeds the max size.
+ * Sources cite web documents. Reject malformed or non-HTTP(S) URLs rather
+ * than storing a citation the reader cannot open. Blank draft rows are omitted.
  */
 export const sanitizeSources = (
   arr: unknown,
@@ -233,29 +234,32 @@ export const sanitizeSources = (
     };
   }
 
-  const normalized = arr
-    .map((item: unknown) => {
-      if (!item) return null;
-      const rawUrl = typeof item === 'string' ? item : (item as Record<string, unknown>).url;
-      if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const normalized: Array<{ url: string; title?: string }> = [];
+  const invalidUrlMessage = 'Sources must use valid HTTP or HTTPS URLs';
+  for (const item of arr) {
+    if (!item) continue;
+    const rawUrl = typeof item === 'string' ? item : (item as Record<string, unknown>).url;
+    if (!rawUrl || typeof rawUrl !== 'string') continue;
 
-      const urlTrimmed = rawUrl.trim();
-      if (!urlTrimmed) return null;
+    const urlTrimmed = rawUrl.trim();
+    if (!urlTrimmed) continue;
 
-      try {
-        const parsed = new URL(urlTrimmed);
-        const normalizedUrl = parsed.toString();
-        const titleRaw = (item as Record<string, unknown>)?.title;
-        const title =
-          typeof titleRaw === 'string'
-            ? titleRaw.trim().slice(0, MAX_SOURCE_TITLE_LENGTH)
-            : undefined;
-        return title ? { url: normalizedUrl, title } : { url: normalizedUrl };
-      } catch {
-        return null;
+    try {
+      const parsed = new URL(urlTrimmed);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return { sources: [], error: invalidUrlMessage };
       }
-    })
-    .filter(Boolean) as Array<{ url: string; title?: string }>;
+      const normalizedUrl = parsed.toString();
+      const titleRaw = (item as Record<string, unknown>)?.title;
+      const title =
+        typeof titleRaw === 'string'
+          ? titleRaw.trim().slice(0, MAX_SOURCE_TITLE_LENGTH)
+          : undefined;
+      normalized.push(title ? { url: normalizedUrl, title } : { url: normalizedUrl });
+    } catch {
+      return { sources: [], error: invalidUrlMessage };
+    }
+  }
 
   return { sources: normalized };
 };

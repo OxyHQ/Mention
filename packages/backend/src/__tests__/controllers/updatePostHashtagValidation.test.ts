@@ -185,3 +185,38 @@ describe('hashtags on the edit path', () => {
     expect((await readPost(POST_ID))?.hashtags).toEqual(['seeded']);
   });
 });
+
+describe('source URL validation on the edit path', () => {
+  it.each(['javascript:alert(1)', 'mailto:a@example.com', 'not-a-url'])(
+    'refuses %s without applying the accompanying text edit',
+    async (url) => {
+      const captured = await edit({ content: { text: 'rewritten', sources: [{ url }] } });
+      expect(captured.status).toBe(400);
+      expect(captured.body?.message).toContain('HTTP');
+      const stored = await readPost(POST_ID);
+      expect(stored?.content.variants[0]?.text).toBe('original');
+      expect(stored?.content.sources).toBeUndefined();
+    },
+  );
+
+  it('persists an explicit HTTP citation with no title', async () => {
+    await edit({ content: { sources: [{ url: 'http://localhost:8080/article' }] } });
+    expect((await readPost(POST_ID))?.content.sources).toEqual([
+      { url: 'http://localhost:8080/article' },
+    ]);
+  });
+
+  it('keeps omitted sources and clears explicitly supplied null or empty sources', async () => {
+    for (const cleared of [null, []]) {
+      await edit({ content: { sources: [{ url: 'https://example.com/original' }] } });
+      await edit({ content: { text: 'edited body' } });
+      expect((await readPost(POST_ID))?.content.sources).toEqual([
+        { url: 'https://example.com/original' },
+      ]);
+      await edit({
+        content: { sources: cleared },
+      });
+      expect((await readPost(POST_ID))?.content.sources).toBeUndefined();
+    }
+  });
+});
