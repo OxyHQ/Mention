@@ -427,8 +427,10 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
     <View style={styles.root}>
       <GestureDetector gesture={pinch}>
         <View style={StyleSheet.absoluteFill}>
+          {/* Preserve the native owner across mode changes: Expo CameraX disposal
+              unbinds the process-wide provider and can tear down a replacement
+              camera that React mounted before the old view's cleanup. */}
           <CameraView
-            key={`${mode}-${generation}`}
             onCameraReady={() => cameraReady(mode, generation)}
             onMountError={(event) => cameraError(event, generation)}
             onRecordingProgress={(event) => recordingProgress(event, generation)}
