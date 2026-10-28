@@ -255,8 +255,12 @@ before trusting it to catch a bad route anywhere else in the app.
 
 The [Expo Router 58.0.24 patch](../patches/expo-router@58.0.24.patch) preserves
 layout params when the router seeds a default child route, including when it
-reconstructs a removed child navigator state or resets an unregistered navigator.
-The unmount path reads params from the route owning that exact navigator key.
+reconstructs a missing child navigator state. Unregistering a mounted navigator
+preserves its retained route state: resetting it to its default child would make
+Back from a notification open Home and lose the selected profile subtab.
+Re-registering adopts the complete state; explicit reset actions, router type
+changes and declared-route reconciliation remain responsible for intentional
+changes.
 Without that forwarding, returning
 to a profile can restore the layout's `username` while its `index` route receives
 no params; the profile header appears but the feed cannot resolve its account.

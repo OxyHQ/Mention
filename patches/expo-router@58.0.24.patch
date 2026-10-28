@@ -45,29 +45,27 @@ diff --git a/build/global-state/createSeededNavigationState.js b/build/global-st
 diff --git a/build/global-state/useNavigationTreeReducer.js b/build/global-state/useNavigationTreeReducer.js
 --- a/build/global-state/useNavigationTreeReducer.js
 +++ b/build/global-state/useNavigationTreeReducer.js
-@@ -323,7 +323,7 @@
-                 if (config.registry.has(operation.stateKey) || !(0, _stateUtils.findStateByKey)(state, operation.stateKey)) {
-                     return result;
-                 }
+@@ -318,19 +318,10 @@
+                 }, eventsWithoutIds);
+             }
+         case 'NAVIGATOR_UNMOUNTED':
+-            {
+-                // A still-registered key re-registered before this operation reduced, so it did not unmount.
+-                if (config.registry.has(operation.stateKey) || !(0, _stateUtils.findStateByKey)(state, operation.stateKey)) {
+-                    return result;
+-                }
 -                const replacement = (0, _createSeededNavigationState.createSeededNavigationState)(undefined, operation.routeNode, (0, _stateKeys.getChainFromStateKey)(operation.stateKey));
-+                const replacement = (0, _createSeededNavigationState.createSeededNavigationState)(undefined, operation.routeNode, (0, _stateKeys.getChainFromStateKey)(operation.stateKey), findNavigatorParentRoute(state, operation.stateKey)?.params);
-                 const nextState = replaceNavigationState(state, operation.stateKey, replacement);
-                 const completeState = config.routeNode ? (0, _createSeededNavigationState.completeNavigationState)(nextState, config.routeNode) : nextState;
-                 return {
-@@ -556,6 +556,16 @@
-         validateInitialState(route.state);
-     }
- }
-+function findNavigatorParentRoute(state, stateKey) {
-+    for (const route of state.routes) {
-+        if (route.state?.key === stateKey) return route;
-+        if (route.state) {
-+            const parent = findNavigatorParentRoute(route.state, stateKey);
-+            if (parent) return parent;
-+        }
-+    }
-+    return undefined;
-+}
- function replaceNavigationState(state, stateKey, replacement) {
-     if (state.key === stateKey) {
-         return replacement;
+-                const nextState = replaceNavigationState(state, operation.stateKey, replacement);
+-                const completeState = config.routeNode ? (0, _createSeededNavigationState.completeNavigationState)(nextState, config.routeNode) : nextState;
+-                return {
+-                    ...result,
+-                    state: (0, _deepFreeze.deepFreeze)(completeState)
+-                };
+-            }
++            // Registry lifetime is not route lifetime. A retained route can unmount
++            // while another screen is focused; its child state is needed for Back.
++            // Explicit actions and NAVIGATOR_CHANGED handle resets/reconfiguration.
++            return result;
+         case 'NAVIGATOR_CHANGED':
+             {
+                 const navigatorState = (0, _stateUtils.findStateByKey)(state, operation.stateKey);
