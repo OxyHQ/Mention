@@ -101,6 +101,13 @@ export function erasureKey(entry: Pick<ErasureMapEntry, 'table' | 'column'>): st
 
 export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   {
+    table: 'membership_billing_receipts',
+    column: 'payerOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Private entitlement evidence is erased with its payer; Peable owns fiscal retention.',
+  },
+  {
     table: 'membership_communities',
     column: 'ownerOxyUserId',
     disposition: 'delete-row',
