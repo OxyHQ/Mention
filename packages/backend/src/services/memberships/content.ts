@@ -379,9 +379,22 @@ export async function removeMembershipContent(
   contentId: string,
   actor: MembershipActor,
 ): Promise<void> {
-  const { row } = await readableMembershipContent(contentId, actor);
-  if (row.authorOxyUserId !== actor.accountId)
-    await requireManager(await communityById(row.communityId), actor);
+  // Removal does not hydrate the body. An operator can moderate a blocked
+  // author's contribution; a former member can still remove their own data.
+  const [identity] = await getDb()
+    .select({
+      communityId: membershipContents.communityId,
+      authorOxyUserId: membershipContents.authorOxyUserId,
+    })
+    .from(membershipContents)
+    .where(eq(membershipContents.id, contentId))
+    .limit(1);
+  if (!identity) throw new MembershipError(404, 'Content not found');
+  if (identity.authorOxyUserId === actor.accountId) {
+    await requireMembershipSafety(identity.authorOxyUserId, contentId, actor.requester);
+  } else {
+    await requireManager(await communityById(identity.communityId), actor);
+  }
   await getDb()
     .update(membershipContents)
     .set({ removedAt: new Date(), updatedAt: new Date() })

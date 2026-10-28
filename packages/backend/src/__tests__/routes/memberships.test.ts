@@ -466,6 +466,55 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     expect(landing.body.data.canManage).toBe(false);
     expect((await request(app).patch(`${base}/${c.id}`).send({ name: 'No' })).status).toBe(403);
   });
+  it('lets operators remove blocked authors without hydrating their body, and lets former members delete their own data', async () => {
+    const c = await community();
+    await join(c);
+    const authored = await request(app)
+      .post(`${base}/${c.id}/content`)
+      .send({ kind: 'discussion', body: 'Private member discussion' });
+    expect(authored.status).toBe(201);
+    state.viewer = 'membership-owner';
+    state.blockedAuthors = ['membership-member'];
+    expect((await request(app).get(`${base}/content/${authored.body.data.id}`)).status).toBe(404);
+    expect((await request(app).delete(`${base}/content/${authored.body.data.id}`)).status).toBe(
+      200,
+    );
+    state.blockedAuthors = [];
+    await join(c);
+    const next = await request(app)
+      .post(`${base}/${c.id}/content`)
+      .send({ kind: 'discussion', body: 'Remove after leaving' });
+    await request(app).delete(`${base}/${c.id}/membership`);
+    expect((await request(app).delete(`${base}/content/${next.body.data.id}`)).status).toBe(200);
+  });
+  it('keeps member-owned media private after its uploader leaves and respects Files revocation', async () => {
+    const c = await community();
+    await join(c);
+    const uploaded = await request(app)
+      .post(`${base}/${c.id}/media`)
+      .set('Content-Type', 'image/png')
+      .send(Buffer.from('member-media'));
+    expect(uploaded.status).toBe(201);
+    const authored = await request(app)
+      .post(`${base}/${c.id}/content`)
+      .send({ kind: 'discussion', body: 'Private file', mediaIds: [uploaded.body.data.id] });
+    const mediaPath = `${base}/content/${authored.body.data.id}/media/${uploaded.body.data.id}`;
+    await request(app).delete(`${base}/${c.id}/membership`);
+    expect((await request(app).get(mediaPath)).status).toBe(403);
+    await join(c, 'another-member');
+    expect((await request(app).get(mediaPath)).status).toBe(200);
+    expect(state.withRequester).toHaveBeenLastCalledWith({
+      requesterToken: 'session-another-member',
+    });
+    expect(state.upload).toHaveBeenCalledWith(
+      'membership-member',
+      expect.any(Buffer),
+      'image/png',
+      { visibility: 'private' },
+    );
+    state.files = false;
+    expect((await request(app).get(mediaPath)).status).toBe(404);
+  });
   it('enforces paid activation and cross-community tier integrity in the database', async () => {
     const c = await community();
     const other = await community();
