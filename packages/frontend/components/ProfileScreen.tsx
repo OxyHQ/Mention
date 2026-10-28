@@ -52,17 +52,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     laneId ? laneTabKey(laneId) : tab,
   );
 
-  // The strip owns the selection and the URL follows it: `replace`, so the
-  // page is deep-linkable and shareable without a history entry per tab.
+  // The root profile lives inside the retained /you tab: its selection must
+  // stay local. Replacing it with /@handle/media removes the entire root pager
+  // from the native stack (and attempts to pop its last screen on Android).
+  // A pushed profile owns a canonical profile route, so its URL follows the
+  // selection with `replace`, without a history entry per internal tab.
   // WEB does the opposite — there the route owns the selection and each tab
   // is pushed, which is what makes Back return to the tab you came from. It
   // can, because there the strip outlives the navigation; here it does not.
   const onSelectTab = useCallback(
     (descriptor: ProfileTabDescriptor, href: Href) => {
       setActiveTabKey(descriptor.key);
-      router.replace(href);
+      if (!isRootTab) router.replace(href);
     },
-    [router],
+    [isRootTab, router],
   );
 
   const view = usePersonProfileView({ activeKey: activeTabKey, onSelectTab, username });
