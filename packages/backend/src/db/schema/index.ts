@@ -45,3 +45,5 @@ export * from './deck';
 
 export * from './commerce';
 export * from './memberships';
+
+export * from './membershipBilling';

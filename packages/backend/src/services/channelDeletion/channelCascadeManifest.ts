@@ -1152,6 +1152,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
   },
   // Protected communities and their account-owned records. Child rows cascade through FKs.
   {
+    table: 'membership_billing_receipts',
+    column: 'payerOxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'Erase private entitlement evidence when the payer account is deleted; Peable retains fiscal records.',
+  },
+  {
     table: 'membership_communities',
     column: 'ownerOxyUserId',
     scope: 'channel-account',
@@ -1463,6 +1470,50 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ],
   ['moderation_report_evidence_files.sourceFileId', 'an Oxy file id (or a remote URL)'],
   ['moderation_report_evidence_files.evidenceFileId', "an Oxy file id Mention's application owns"],
+  [
+    'membership_billing_receipts.communityId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.tierId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.invoiceId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.subscriptionId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.merchantId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.appId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.offerId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.providerPriceId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.planId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.paymentIntentId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
+  [
+    'membership_billing_receipts.providerCustomerId',
+    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
+  ],
   ['oxy_file_events.eventId', 'an Oxy file-event id'],
   ['oxy_file_events.fileId', 'an Oxy file id'],
   ['oxy_file_states.fileId', 'an Oxy file id'],

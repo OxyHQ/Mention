@@ -1,4 +1,5 @@
 import { accountStorefronts } from '../../db/schema/commerce';
+import { membershipBillingReceipts } from '../../db/schema/membershipBilling';
 import {
   membershipCommunities,
   communityMemberships,
@@ -525,6 +526,11 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: threadgates,
     where: accountEq(threadgates.createdBy),
+  },
+  'membership_billing_receipts.payerOxyUserId|channel-account': {
+    phase: 'account',
+    table: membershipBillingReceipts,
+    where: accountEq(membershipBillingReceipts.payerOxyUserId),
   },
   'membership_communities.ownerOxyUserId|channel-account': {
     phase: 'account',
