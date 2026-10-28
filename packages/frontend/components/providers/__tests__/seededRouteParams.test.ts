@@ -1,3 +1,4 @@
+import { BaseRouter } from 'expo-router/build/react-navigation/routers/BaseRouter';
 import type { RouterRegistry } from 'expo-router/build/global-state/routerRegistry';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -84,7 +85,11 @@ describe('Expo Router nested default route params', () => {
     ]);
   });
 
-  it('keeps profile identity when its navigator unregisters and reseeds its default child', () => {
+  it.each([
+    ['[username]', 'replies'],
+    ['(tabs)', 'notifications'],
+  ])('retains %s selection %s when its navigator unregisters', (routeName, selectedChild) => {
+    const profile = layout(routeName, [leaf('index'), leaf(selectedChild)]);
     const rootNode = layout('', [profile]);
     const initialState = completeNavigationState(
       {
@@ -96,7 +101,7 @@ describe('Expo Router nested default route params', () => {
               index: 0,
               routes: [
                 {
-                  name: '[username]',
+                  name: routeName,
                   params: { username: '@nate' },
                   state: {
                     index: 0,
@@ -104,11 +109,11 @@ describe('Expo Router nested default route params', () => {
                   },
                 },
                 {
-                  name: '[username]',
+                  name: routeName,
                   params: { username: '@other' },
                   state: {
                     index: 0,
-                    routes: [{ name: 'replies', params: { username: '@other' } }],
+                    routes: [{ name: selectedChild, params: { username: '@other' } }],
                   },
                 },
               ],
@@ -120,6 +125,7 @@ describe('Expo Router nested default route params', () => {
     );
     const childState = initialState.routes[0]?.state?.routes[1]?.state;
     if (!childState?.key) throw new Error('Expected a seeded profile navigator');
+    const stateKey = childState.key;
     const registry: RouterRegistry = new Map([
       [childState.key, { routeNode: profile, reduce: () => null }],
     ]);
@@ -152,11 +158,79 @@ describe('Expo Router nested default route params', () => {
       })),
     ).toEqual([
       { name: 'index', params: { username: '@nate' } },
-      { name: 'index', params: { username: '@other' } },
+      { name: selectedChild, params: { username: '@other' } },
     ]);
+    expect(result.state).toBe(initialState);
+    act(() => {
+      renderer.update(React.createElement(Probe, { registry }));
+    });
+    const remounted = results.at(-1);
+    if (!remounted) throw new Error('Expected a remounted navigator');
+    expect(remounted.state).toBe(initialState);
+    act(() => {
+      remounted.resetNavigator(stateKey, 'tab');
+    });
+    const reconfigured = results.at(-1);
+    if (!reconfigured) throw new Error('Expected reconfigured navigation');
+    expect(reconfigured.state.routes[0].state?.routes[1].state?.type).toBe('tab');
+    expect(reconfigured.state.routes[0].state?.routes[1].state?.routes[0].name).toBe(selectedChild);
     act(() => {
       renderer.unmount();
     });
+  });
+
+  it('keeps an empty root valid after its last registry entry unregisters', () => {
+    const rootNode = layout('', []);
+    const initialState = createSeededNavigationState(undefined, rootNode, '0');
+    const registry: RouterRegistry = new Map([
+      [initialState.key, { routeNode: rootNode, reduce: () => null }],
+    ]);
+    const states: ReturnType<typeof useNavigationTreeReducer>['state'][] = [];
+    function Probe({ registry }: { registry: RouterRegistry }) {
+      states.push(useNavigationTreeReducer({ initialState, routeNode: rootNode, registry }).state);
+      return null;
+    }
+    const mounted: { renderer?: ReactTestRenderer } = {};
+    act(() => {
+      mounted.renderer = create(React.createElement(Probe, { registry }));
+    });
+    const renderer = mounted.renderer;
+    if (!renderer) throw new Error('Expected a root navigator probe');
+    act(() => {
+      renderer.update(React.createElement(Probe, { registry: new Map() }));
+    });
+    expect(states.at(-1)).toBe(initialState);
+    expect(states.at(-1)?.routes).toEqual([]);
+    expect(states.at(-1)?.index).toBe(-1);
+    act(() => {
+      renderer.update(React.createElement(Probe, { registry }));
+    });
+    expect(states.at(-1)).toBe(initialState);
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('still honors explicit resets and removes routes no longer declared', () => {
+    const state = createSeededNavigationState(
+      { index: 1, routes: [{ name: 'index' }, { name: 'replies', params: { username: '@nate' } }] },
+      profile,
+      '0-0',
+    );
+    const router = BaseRouter({});
+    const reset = router.getStateForAction(
+      state,
+      {
+        type: 'RESET',
+        payload: createSeededNavigationState(undefined, profile, '0-0'),
+      },
+      { routeNames: ['index', 'replies'], routeGetIdList: {} },
+    );
+    if (typeof reset === 'string') throw new Error('Expected RESET to be handled');
+    expect(reset.state.routes.map((route) => route.name)).toEqual(['index']);
+    const filtered = router.getStateForDeclaredRoutes(state, ['index']);
+    expect(filtered.routes.map((route) => route.name)).toEqual(['index']);
+    expect(filtered.index).toBe(0);
   });
 
   it('keeps explicit sibling params separate from a previous destination', () => {
