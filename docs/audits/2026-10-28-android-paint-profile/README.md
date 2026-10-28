@@ -87,6 +87,14 @@ each variant; indexed source maps were inspected for the intended source.
 A changed package installation or APK filename alone is not sufficient proof
 that the changed code ran.
 
+The final SDK adoption also exposed a local same-version installation trap:
+Bun retained an earlier diagnostic core 7.7.0 directory even after the lockfile
+resolved the official registry integrity. The official tarball contained the
+correct implementation. Moving aside only the consumer's generated core/services
+directories and reinstalling the frozen registry lock corrected the local tree;
+installed source and compiled owner guards were compared with the official
+artifacts before building. This was not a registry publication defect.
+
 For profiling, only the ignored, generated diagnostic release manifest enabled
 `profileable` with shell access. The APK remained non-debuggable and used the
 existing release signing configuration. `simpleperf --app earth.mention.app`
