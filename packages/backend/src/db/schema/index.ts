@@ -44,3 +44,4 @@ export * from './userProfile';
 export * from './deck';
 
 export * from './commerce';
+export * from './memberships';
