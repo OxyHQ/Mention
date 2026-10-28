@@ -59,6 +59,7 @@ import { postContentVariants } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 import { chronoOrderBy } from '../../mtn/feed/CursorBuilder';
 import { config } from '../../config';
+import { normalizeTsQuery } from './normalizeTsQuery';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -108,7 +109,7 @@ function withinWindow(
  * cannot raise a syntax error on arbitrary input. The GIN-indexed
  * `search_vector` is what lets a rare word be found without a scan.
  */
-export function postTextMatchSql(textQuery: string, window: PostSearchWindow = {}): SQL {
+export function postTextMatchSql(textQuery: string | SQL, window: PostSearchWindow = {}): SQL {
   return exists(
     getDb()
       .select({ one: sql`1` })
@@ -116,19 +117,29 @@ export function postTextMatchSql(textQuery: string, window: PostSearchWindow = {
       .where(
         and(
           eq(postContentVariants.postId, posts.id),
-          sql`${postContentVariants.searchVector} @@ websearch_to_tsquery('english', ${textQuery})`,
+          sql`${postContentVariants.searchVector} @@ ${typeof textQuery === 'string' ? sql`websearch_to_tsquery('english', ${textQuery})` : textQuery}`,
           ...withinWindow(postContentVariants.postCreatedAt, window),
         ),
       ),
   ) as SQL;
 }
 
-/** Apply the planner settings above to `tx`. Exported for the plan test. */
-export async function applyPostSearchPlanner(tx: DatabaseOrTransaction): Promise<void> {
-  await tx.execute(sql`select
+/**
+ * Apply the planner settings and parse the search in the same round trip.
+ * Deduplicate boolean operands AFTER stemming so the planner does not estimate
+ * repeated lexemes as independent predicates. Bind the resulting tsquery in
+ * every window, retaining PostgreSQL's phrase/OR/negation interpretation.
+ */
+export async function applyPostSearchPlanner(
+  tx: DatabaseOrTransaction,
+  textQuery?: string,
+): Promise<SQL> {
+  const rows = await tx.execute<{ query: string | null }>(sql`select
+    websearch_to_tsquery('english', ${textQuery ?? null})::text as query,
     set_config('plan_cache_mode', 'force_custom_plan', true),
     set_config('max_parallel_workers_per_gather', '0', true),
     set_config('statement_timeout', ${String(config.search.maxTimeMS)}, true)`);
+  return sql`${normalizeTsQuery(rows[0].query ?? '')}::tsquery`;
 }
 
 /**
@@ -140,7 +151,7 @@ export async function applyPostSearchPlanner(tx: DatabaseOrTransaction): Promise
 export function postSearchWindowQuery(
   db: DatabaseOrTransaction,
   where: SQL | undefined,
-  textQuery: string,
+  textQuery: string | SQL,
   window: PostSearchWindow,
   limit: number,
 ) {
@@ -178,14 +189,14 @@ export async function findPostSearchPage(
   text?: PostSearchText,
 ): Promise<PostRecord[]> {
   return getDb().transaction(async (tx) => {
-    await applyPostSearchPlanner(tx);
+    const parsedQuery = await applyPostSearchPlanner(tx, text?.query);
     if (!text) {
       return findPostRecords(where, { orderBy: chronoOrderBy(), limit }, tx);
     }
 
     const ids: string[] = [];
     for (const window of postSearchWindows(text.newest ?? new Date())) {
-      const page = await postSearchWindowQuery(tx, where, text.query, window, limit - ids.length);
+      const page = await postSearchWindowQuery(tx, where, parsedQuery, window, limit - ids.length);
       ids.push(...page.map((row) => row.id));
       if (ids.length >= limit) break;
     }
