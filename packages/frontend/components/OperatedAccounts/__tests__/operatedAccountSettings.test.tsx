@@ -1,5 +1,7 @@
+jest.mock('@/components/Commerce/StorefrontSettings', () => ({ StorefrontSettings: () => null }));
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import TestRenderer, { act } from 'react-test-renderer';
+import { StorefrontSettings } from '@/components/Commerce/StorefrontSettings';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /**
@@ -130,7 +132,7 @@ function accountNode(kind: OperatedAccountKind) {
 
 interface RecordedProps {
   accountId: string;
-  extraSections: { type: unknown; props: { accountId: string } };
+  extraSections: { props: { children: { type: unknown; props: { accountId: string } }[] } };
   onUpdated: (account: unknown, change: { cleared: string[] }) => void;
   archive: {
     title?: string;
@@ -181,7 +183,12 @@ describe('a channel', () => {
     const { archive, accountId, extraSections } = await renderSettings('channel');
 
     expect(accountId).toBe(ACCOUNT_ID);
-    expect(extraSections.type).toBe(ChannelBylineSettings);
+    expect(
+      extraSections.props.children.map((section) => [section.type, section.props.accountId]),
+    ).toEqual([
+      [StorefrontSettings, ACCOUNT_ID],
+      [ChannelBylineSettings, ACCOUNT_ID],
+    ]);
     expect(archive.title).toBe('Delete this channel');
     await expect(archive.confirm?.(accountNode('channel'))).resolves.toBe(false);
 
@@ -225,7 +232,12 @@ describe('a community', () => {
   it('is archived by Oxy alone, and links its bans', async () => {
     const { archive, extraSections } = await renderSettings('community');
 
-    expect(extraSections.type).toBe(CommunityModerationSettings);
+    expect(
+      extraSections.props.children.map((section) => [section.type, section.props.accountId]),
+    ).toEqual([
+      [StorefrontSettings, ACCOUNT_ID],
+      [CommunityModerationSettings, ACCOUNT_ID],
+    ]);
     expect(archive.confirm).toBeUndefined();
     expect(archive.beforeArchive).toBeUndefined();
     act(() => archive.onArchived(accountNode('community')));

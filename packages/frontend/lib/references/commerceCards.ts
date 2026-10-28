@@ -2,7 +2,6 @@ import type {
   CommerceAttachmentHydration,
   CommerceReference,
 } from '@mention/shared-types/commerce';
-import { commerceService } from '@/services/commerceService';
 import { VisibleReferenceStore } from './VisibleReferenceStore';
 
 type AvailableCommerce = Extract<CommerceAttachmentHydration, { state: 'available' }> & {
@@ -17,6 +16,7 @@ export const commerceCards = new VisibleReferenceStore<AvailableCommerce>(
     const { parseMercariaRefString, formatMercariaRef, formatMoney } = await import(
       '@mercaria.co/sdk'
     );
+    const { commerceService } = await import('@/services/commerceService');
     const valid: { id: string; ref: CommerceReference }[] = [];
     const unavailableIds: string[] = [];
     for (const id of ids) {
@@ -50,3 +50,9 @@ export const commerceCards = new VisibleReferenceStore<AvailableCommerce>(
   },
   { refreshMs: 30_000, timeoutMs: 8_000 },
 );
+
+/** Event code and authenticated transport load only after an explicit handoff. */
+export async function recordCommerceHandoff(postId: string): Promise<void> {
+  const { commerceService } = await import('@/services/commerceService');
+  await commerceService.recordMetric('posts', postId, 'handoff');
+}

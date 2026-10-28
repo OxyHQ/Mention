@@ -1,10 +1,9 @@
-import { commerceService } from '@/services/commerceService';
 import { Image } from 'expo-image';
 import { Linking, Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useReferenceVisibility } from '@/hooks/useReferenceVisibility';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
-import { commerceCards } from '@/lib/references/commerceCards';
+import { commerceCards, recordCommerceHandoff } from '@/lib/references/commerceCards';
 import { cn } from '@/lib/utils';
 
 /** Price and availability disappear as soon as current hydration expires or fails. */
@@ -37,7 +36,7 @@ export function CommerceCard({
         <Image
           source={{ uri: image.url }}
           accessibilityLabel={image.alt ?? product?.title ?? collection?.title}
-          style={{ width: '100%', height: Math.min(140, height * 0.45) }}
+          style={{ width: '100%', height: Math.min(120, height * 0.4) }}
           contentFit="cover"
         />
       ) : null}
@@ -49,22 +48,25 @@ export function CommerceCard({
               {product?.title ?? collection?.title}
             </Text>
             {product ? (
-              <Text className="text-foreground">{value.formatPrice?.(i18n.language)}</Text>
-            ) : null}
-            {product && product.availability !== 'in_stock' ? (
-              <Text className="text-muted-foreground">
-                {product.availability === 'sold'
-                  ? t('commerce.availability.sold')
-                  : t('commerce.availability.out_of_stock')}
-              </Text>
+              <View className="flex-row items-center gap-2">
+                <Text className="text-foreground text-sm" numberOfLines={1}>
+                  {value.formatPrice?.(i18n.language)}
+                </Text>
+                {product.availability !== 'in_stock' ? (
+                  <Text className="text-muted-foreground text-xs flex-shrink" numberOfLines={1}>
+                    {product.availability === 'sold'
+                      ? t('commerce.availability.sold')
+                      : t('commerce.availability.out_of_stock')}
+                  </Text>
+                ) : null}
+              </View>
             ) : null}
             <Pressable
               accessibilityRole="link"
               accessibilityLabel={t('commerce.continue', { defaultValue: 'Continue on Mercaria' })}
               onPress={(event) => {
                 event.stopPropagation();
-                if (postId)
-                  void commerceService.recordMetric('posts', postId, 'handoff').catch(() => {});
+                if (postId) void recordCommerceHandoff(postId).catch(() => {});
                 void Linking.openURL(value.url);
               }}
               className="py-2"

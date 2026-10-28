@@ -25,6 +25,7 @@ export function viewerCacheId(viewerId: ViewerId): string {
  * `@oxy.so/services`' `queryKeys.users.*` for those public identity records only.
  */
 export const publicQueryKeys = {
+  commerceProducts: (query: string) => [...PUBLIC_ROOT, 'commerce-products', query] as const,
   all: () => PUBLIC_ROOT,
   customFeedReviews: (feedId: string) => [...PUBLIC_ROOT, 'custom-feed-reviews', feedId] as const,
   externalActorResolve: (query: string) =>
@@ -98,6 +99,23 @@ export const organizationDirectoryQueryKeys = {
  * gives account transitions one precise namespace to cancel and remove.
  */
 export const viewerQueryKeys = {
+  commerceStorefront: (viewerId: ViewerId, accountId?: string) =>
+    [...viewerQueryKeys.all(viewerId), 'commerce-storefront', accountId ?? null] as const,
+  commerceCatalog: (
+    viewerId: ViewerId,
+    accountId: string | undefined,
+    storeId: string | null,
+    kind: 'products' | 'collections',
+  ) =>
+    [
+      ...viewerQueryKeys.all(viewerId),
+      'commerce-catalog',
+      accountId ?? null,
+      storeId,
+      kind,
+    ] as const,
+  commerceMetrics: (viewerId: ViewerId, kind: 'posts' | 'stores', id: string | null | undefined) =>
+    [...viewerQueryKeys.all(viewerId), 'commerce-metrics', kind, id ?? null] as const,
   gifSearch: (viewerId: ViewerId, privateReady: boolean, query: string) =>
     [...viewerQueryKeys.all(viewerId), 'gifs', privateReady, query] as const,
   minimalProfile: (viewerId: ViewerId, handle: string) =>

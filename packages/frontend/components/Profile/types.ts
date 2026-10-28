@@ -300,6 +300,7 @@ export function shouldFeedOwnProfileScroll(input: {
 export const VIRTUALIZED_PROFILE_GRID_TABS = [
   'media',
   'videos',
+  'shop',
 ] as const satisfies readonly ProfileTab[];
 
 export function isVirtualizedProfileGridTab(

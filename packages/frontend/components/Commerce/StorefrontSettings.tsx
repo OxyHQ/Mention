@@ -1,3 +1,4 @@
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ export function StorefrontSettings({ accountId }: { accountId: string }) {
   const store = useCommerceStorefront(accountId);
   const available = store.data?.state === 'available';
   const metrics = useQuery({
-    queryKey: ['commerce-store-metrics', user?.id, accountId],
+    queryKey: viewerQueryKeys.commerceMetrics(user?.id, 'stores', accountId),
     queryFn: () => commerceService.metrics('stores', accountId),
     enabled: available,
     staleTime: 60_000,
@@ -27,8 +28,12 @@ export function StorefrontSettings({ accountId }: { accountId: string }) {
       else await commerceService.disconnect(accountId);
     },
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ['commerce-storefront'] });
-      await client.invalidateQueries({ queryKey: ['commerce-store-metrics'] });
+      await client.invalidateQueries({
+        queryKey: viewerQueryKeys.commerceStorefront(user?.id, accountId),
+      });
+      await client.invalidateQueries({
+        queryKey: viewerQueryKeys.commerceMetrics(user?.id, 'stores', accountId),
+      });
     },
   });
   return (
