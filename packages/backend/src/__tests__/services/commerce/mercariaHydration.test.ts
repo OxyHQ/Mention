@@ -20,7 +20,7 @@ import {
   DEFAULT_MERCARIA_WEB_BASE_URL,
   type MercariaFetchInit,
 } from '@mercaria.co/sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MERCARIA_SERVICE_AUDIENCE } from '@mercaria.co/sdk/server';
 import { config } from '../../../config';
 import {
@@ -31,6 +31,18 @@ import {
 } from '../../../services/commerce/mercariaHydration';
 import { commerceLinksByPost } from '../../../services/commerce/federationLinks';
 import { logger } from '../../../utils/logger';
+
+import { connectPostgres, closePostgres } from '../../../db/postgres';
+import { loadPostRecord } from '../../../db/posts/postRepository';
+import { seedPost, clearPostScope, postScope } from '../../helpers/postFixtures';
+import { formatMercariaRef } from '@mercaria.co/sdk';
+
+const persistedScope = postScope('commerce-sdk-conformance');
+beforeAll(connectPostgres);
+afterAll(async () => {
+  await clearPostScope(persistedScope);
+  await closePostgres();
+});
 
 const { createServiceClient } = vi.hoisted(() => ({
   createServiceClient: vi.fn(() => ({
@@ -182,6 +194,25 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
     // The SDK parses into fresh objects holding contract fields only.
     expect(result.product).not.toHaveProperty('sku');
     expect(result.product).toEqual(productWire('prod_available'));
+  });
+
+  it('resolves a normalized PostgreSQL attachment through the actual SDK', async () => {
+    const seeded = await seedPost(persistedScope, {
+      content: {
+        variants: [{ source: 'author', text: 'A product recommendation' }],
+        attachments: [
+          { type: 'commerce', id: formatMercariaRef({ kind: 'product', id: 'prod_available' }) },
+        ],
+      },
+    });
+    const persisted = await loadPostRecord(seeded.id);
+    if (!persisted?.content.commerce) throw new Error('Persisted commerce reference missing');
+    const hydrated = await hydrateCommerceReferences(persisted.content.commerce);
+    expect(hydrated).toHaveLength(1);
+    expect(hydrated[0].state).toBe('available');
+    expect(requests.map((request) => request.url)).toEqual([
+      `${API_BASE}/public/v1/products/prod_available`,
+    ]);
   });
 
   it('uses the published workload factory without forwarding viewer credentials', async () => {
