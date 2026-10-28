@@ -61,3 +61,11 @@ it('propagates a revoked account refusal without retrying anonymously', async ()
   await expect(commerceService.storefront('private')).rejects.toBe(refusal);
   expect(mockPublic.get).not.toHaveBeenCalled();
 });
+
+it('supports an unfiltered initial store page without a cursor or cancellation signal', async () => {
+  await commerceService.storeProducts('account');
+  expect(mockAuthenticated.get).toHaveBeenCalledWith('/commerce/accounts/account/products', {
+    params: {},
+    signal: undefined,
+  });
+});
