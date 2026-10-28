@@ -1,6 +1,6 @@
 /** Browser contract between the real backend renderer and the candidate Expo build. */
 import { test, expect, type BrowserContext } from '@playwright/test';
-import { installContractApi } from '../contractApi';
+import { closeContractPages, installContractApi } from '../contractApi';
 import {
   mapHomepageOg,
   renderShellWithOg,
@@ -31,6 +31,7 @@ const profile: OgData = {
 // what is still in flight, is Playwright's own answer to exactly that.
 const unexpectedSeoRequests = new WeakMap<BrowserContext, string[]>();
 test.afterEach(async ({ context }) => {
+  await closeContractPages(context);
   await context.unrouteAll({ behavior: 'ignoreErrors' });
   expect(unexpectedSeoRequests.get(context) ?? []).toEqual([]);
 });

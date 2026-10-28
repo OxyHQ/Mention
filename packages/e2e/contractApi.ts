@@ -1,6 +1,14 @@
 import type { BrowserContext } from '@playwright/test';
 import { API_ORIGIN } from './environment';
 
+const contractContexts = new WeakSet<BrowserContext>();
+
+/** Stop fixture-owned scripts before removing the boundary during teardown. */
+export async function closeContractPages(context: BrowserContext): Promise<void> {
+  if (!contractContexts.has(context)) return;
+  await Promise.all(context.pages().map((page) => page.close()));
+}
+
 /**
  * Opt-in backend for synthetic UI contracts. Subject data (feeds, posts, search,
  * etc.) must be supplied by each test. Only unrelated public chrome is empty.
@@ -8,6 +16,7 @@ import { API_ORIGIN } from './environment';
  * a catch-all successful response. Live release flows do not install this.
  */
 export async function installContractApi(context: BrowserContext): Promise<string[]> {
+  contractContexts.add(context);
   const unexpected: string[] = [];
   const apiHost = new URL(API_ORIGIN).host;
   await context.routeWebSocket(

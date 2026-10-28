@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { API_ORIGIN } from '../environment';
-import { installContractApi } from '../contractApi';
+import { closeContractPages, installContractApi } from '../contractApi';
 
 test('synthetic chrome is owned while unknown routes and writes cannot escape', async ({
   context,
@@ -62,8 +62,19 @@ test('synthetic chrome is owned while unknown routes and writes cannot escape', 
       }),
     `${socketOrigin}/socket.io/?EIO=4&transport=websocket`,
   );
+  await closeContractPages(context);
+  expect(page.isClosed()).toBe(true);
   await context.unrouteAll({ behavior: 'wait' });
   expect(unexpected).toEqual(['GET /unknown-contract', 'POST /lanes']);
   expect(escapedSockets).toEqual([]);
   expect(escaped).toEqual([]);
+});
+
+test('live contexts retain their pages for the existing candidate teardown', async ({
+  context,
+  page,
+}) => {
+  await page.goto('data:text/html,<title>Live fixture ownership</title>');
+  await closeContractPages(context);
+  expect(page.isClosed()).toBe(false);
 });
