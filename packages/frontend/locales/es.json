@@ -2208,7 +2208,9 @@
     "addText": "Añadir texto",
     "publish": "Publicar",
     "uploadFailed": "No se ha subido. Revisa la conexión e inténtalo otra vez.",
-    "publishFailed": "No se ha publicado. Tu captura sigue aquí — inténtalo otra vez."
+    "publishFailed": "No se ha publicado. Tu captura sigue aquí — inténtalo otra vez.",
+    "preparing": "Preparando…",
+    "recordingFailed": "No se pudo grabar. Inténtalo de nuevo."
   },
   "compose.languages.sheetTitle": "Idiomas de la publicación",
   "compose.languages.main": "Idioma principal",

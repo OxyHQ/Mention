@@ -47,6 +47,7 @@ function mountRecorder(options: {
   camera: RecorderCamera | null;
   microphone?: () => Promise<boolean>;
   onRecorded?: (uri: string) => void;
+  onError?: (error: unknown) => void;
 }) {
   const seen: { current: ReturnType<typeof useVideoRecorder> | null } = { current: null };
   const Probe = () => {
@@ -54,6 +55,7 @@ function mountRecorder(options: {
       camera: () => options.camera,
       requestMicrophone: options.microphone ?? (() => Promise.resolve(true)),
       onRecorded: options.onRecorded ?? jest.fn(),
+      onError: options.onError,
     });
     return null;
   };
@@ -94,6 +96,8 @@ describe('arming a recording', () => {
     });
 
     expect(recorder.value.mode).toBe('video');
+    expect(camera.recordAsync).not.toHaveBeenCalled();
+    act(() => recorder.value.cameraReady('video', recorder.value.generation));
     await flush();
     expect(camera.recordAsync).toHaveBeenCalledTimes(1);
     expect(recorder.value.isRecording).toBe(true);
@@ -107,6 +111,7 @@ describe('arming a recording', () => {
     await act(async () => {
       await recorder.value.arm();
     });
+    act(() => recorder.value.cameraReady('video', recorder.value.generation));
     await flush();
     act(() => {
       recorder.value.stop();
@@ -148,6 +153,7 @@ describe('arming a recording', () => {
     await act(async () => {
       await Promise.all([recorder.value.arm(), recorder.value.arm()]);
     });
+    act(() => recorder.value.cameraReady('video', recorder.value.generation));
     await flush();
 
     expect(camera.recordAsync).toHaveBeenCalledTimes(1);
@@ -198,6 +204,7 @@ describe('the microphone', () => {
     await act(async () => {
       await recorder.value.arm();
     });
+    act(() => recorder.value.cameraReady('video', recorder.value.generation));
     await flush();
 
     expect(camera.recordAsync).toHaveBeenCalledTimes(1);
@@ -213,6 +220,7 @@ describe('a preview that went away', () => {
     await act(async () => {
       await recorder.value.arm();
     });
+    act(() => recorder.value.cameraReady('video', recorder.value.generation));
     await flush();
 
     expect(recorder.value.phase).toBe('idle');
@@ -290,4 +298,73 @@ describe('the zoom pills', () => {
     expect(formatMultiplier(2)).toBe('2×');
     expect(formatMultiplier(1.75)).toBe('1.8×');
   });
+});
+
+it('does not start a countdown for a native recorder still waiting for frames', async () => {
+  const camera = fakeCamera();
+  const recorder = mountRecorder({ camera });
+  await act(async () => {
+    await recorder.value.arm();
+  });
+  act(() => recorder.value.cameraReady('picture', recorder.value.generation));
+  expect(camera.recordAsync).not.toHaveBeenCalled();
+  act(() => recorder.value.cameraReady('video', recorder.value.generation));
+  await flush();
+  expect(recorder.value.phase).toBe('starting');
+  expect(recorder.value.startedAt).toBeNull();
+  act(() => recorder.value.recordingProgress({ duration: 0.5 }, recorder.value.generation));
+  expect(recorder.value.phase).toBe('recording');
+  expect(recorder.value.startedAt).not.toBeNull();
+  recorder.unmount();
+  expect(camera.stopRecording).toHaveBeenCalledTimes(1);
+});
+
+it('does not start a cancelled arm when a late native readiness event arrives', async () => {
+  const camera = fakeCamera();
+  const recorder = mountRecorder({ camera });
+  await act(async () => {
+    await recorder.value.arm();
+  });
+  act(() => recorder.value.stop());
+  act(() => recorder.value.cameraReady('video', recorder.value.generation));
+  await flush();
+  expect(camera.recordAsync).not.toHaveBeenCalled();
+  expect(recorder.value.phase).toBe('idle');
+  recorder.unmount();
+});
+
+it('ignores readiness and progress from a previous camera generation', async () => {
+  const camera = fakeCamera();
+  const recorder = mountRecorder({ camera });
+  await act(async () => {
+    await recorder.value.arm();
+  });
+  const old = recorder.value.generation;
+  act(() => recorder.value.stop());
+  await act(async () => {
+    await recorder.value.arm();
+  });
+  act(() => recorder.value.cameraReady('video', old));
+  expect(camera.recordAsync).not.toHaveBeenCalled();
+  act(() => recorder.value.cameraReady('video', recorder.value.generation));
+  await flush();
+  act(() => recorder.value.recordingProgress({ duration: 10 }, old));
+  expect(recorder.value.startedAt).toBeNull();
+  recorder.unmount();
+});
+
+it('reports a native camera startup failure and releases the arming state', async () => {
+  const camera = fakeCamera();
+  const onError = jest.fn();
+  const recorder = mountRecorder({ camera, onError });
+  await act(async () => {
+    await recorder.value.arm();
+  });
+  const error = new Error('Camera unavailable');
+  act(() => recorder.value.cameraError(error, recorder.value.generation));
+  expect(onError).toHaveBeenCalledWith(error);
+  expect(recorder.value.phase).toBe('idle');
+  expect(recorder.value.mode).toBe('picture');
+  expect(camera.recordAsync).not.toHaveBeenCalled();
+  recorder.unmount();
 });

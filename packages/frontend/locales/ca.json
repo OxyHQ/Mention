@@ -2162,7 +2162,9 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again."
+    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "preparing": "Preparant…",
+    "recordingFailed": "No s’ha pogut gravar. Torna-ho a provar."
   },
   "compose.languages.sheetTitle": "Idiomes de la publicació",
   "compose.languages.main": "Idioma principal",

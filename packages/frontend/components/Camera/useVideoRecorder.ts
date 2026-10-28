@@ -6,7 +6,7 @@ import { MAX_VIDEO_SECONDS } from './constants';
 /**
  * What the recorder is doing. `arming` is not a formality — see below.
  */
-export type RecorderPhase = 'idle' | 'arming' | 'recording';
+export type RecorderPhase = 'idle' | 'arming' | 'starting' | 'recording';
 
 /** The subset of `CameraView` this hook drives. Narrowed so a test can supply it. */
 export interface RecorderCamera {
@@ -25,6 +25,7 @@ interface UseVideoRecorderOptions {
   /** Fires once, with whatever was recorded. */
   onRecorded: (uri: string) => void;
   maxSeconds?: number;
+  onError?: (error: unknown) => void;
 }
 
 /**
@@ -32,9 +33,10 @@ interface UseVideoRecorderOptions {
  *
  * IT OWNS `mode`, AND THAT IS THE WHOLE REASON IT EXISTS. `CameraView` captures
  * stills in `picture` mode and video in `video` mode, and the prop only takes
- * effect once React has COMMITTED it — so a press cannot set the mode and call
+ * effect after the native camera reports readiness — a React commit alone is
+ * too early during Android use-case rebinding. A press cannot set the mode and call
  * `recordAsync` on the next line. The press ARMS a recording; an effect starts
- * it once the mode has actually landed; a press that ends before then disarms
+ * it once the native video camera is ready; a press that ends before then disarms
  * it, which is what keeps a fast tap a photo. Spread across a component that is
  * also doing gestures, layout and permissions, that dance is where the bugs go,
  * so it lives here on its own and is tested on its own.
@@ -61,10 +63,34 @@ export function useVideoRecorder({
   requestMicrophone,
   onRecorded,
   maxSeconds = MAX_VIDEO_SECONDS,
+  onError,
 }: UseVideoRecorderOptions) {
   const [phase, setPhase] = useState<RecorderPhase>('idle');
   const [mode, setMode] = useState<'picture' | 'video'>('picture');
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [readyMode, setReadyMode] = useState<'picture' | 'video' | null>(null);
+  const recordingDevice = useRef<RecorderCamera | null>(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const cameraReady = useCallback((ready: 'picture' | 'video', generation: number) => {
+    if (mounted.current && pressToken.current === generation && modeRef.current === ready)
+      setReadyMode(ready);
+  }, []);
+  const recordingProgress = useCallback(
+    ({ duration }: { duration: number }, generation: number) => {
+      if (
+        !mounted.current ||
+        pressToken.current !== generation ||
+        !recordingDevice.current ||
+        !Number.isFinite(duration) ||
+        duration <= 0
+      )
+        return;
+      setPhase('recording');
+      setStartedAt((current) => current ?? Date.now() - duration * 1000);
+    },
+    [],
+  );
 
   /**
    * The synchronous half of `phase`.
@@ -93,6 +119,8 @@ export function useVideoRecorder({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      recordingDevice.current?.stopRecording();
+      recordingDevice.current = null;
     };
   }, []);
 
@@ -115,12 +143,13 @@ export function useVideoRecorder({
       busy.current = false;
       return;
     }
+    setReadyMode(null);
     setPhase('arming');
     setMode('video');
   }, [requestMicrophone]);
 
   useEffect(() => {
-    if (phase !== 'arming' || mode !== 'video') return;
+    if (phase !== 'arming' || mode !== 'video' || readyMode !== 'video') return;
     const device = camera();
     if (!device) {
       // The preview went away between arming and committing — a page blur, most
@@ -137,15 +166,15 @@ export function useVideoRecorder({
     // re-run returns at the guard above instead, and what survives an unmount is
     // `mounted` rather than a closure over one particular run.
     const token = pressToken.current;
-    setPhase('recording');
-    setStartedAt(Date.now());
+    recordingDevice.current = device;
+    setPhase('starting');
 
     void (async () => {
       try {
         // Resolves when `stopRecording` is called or `maxDuration` is reached,
         // which is why the capture is reported from here and not from the press.
         const video = await device.recordAsync({ maxDuration: maxSeconds });
-        if (video?.uri && mounted.current) onRecorded(video.uri);
+        if (video?.uri && mounted.current && pressToken.current === token) onRecorded(video.uri);
       } catch (error) {
         // A press released before the encoder produced a frame REJECTS here —
         // `Recording was stopped before any data could be produced` — and a
@@ -157,20 +186,23 @@ export function useVideoRecorder({
         // condition the app recovers from by itself.
         if (!isRecordingStoppedEarly(error)) {
           logger.warn('Video recording failed', { error });
+          if (mounted.current && pressToken.current === token) onError?.(error);
         }
       } finally {
         // A newer press owns the machine if the token moved; leave its state be.
+        if (recordingDevice.current === device) recordingDevice.current = null;
         if (pressToken.current === token) {
           busy.current = false;
           if (mounted.current) {
             setPhase('idle');
+            setReadyMode(null);
             setMode('picture');
             setStartedAt(null);
           }
         }
       }
     })();
-  }, [phase, mode, camera, maxSeconds, onRecorded]);
+  }, [phase, mode, readyMode, camera, maxSeconds, onRecorded, onError]);
 
   /**
    * End the press.
@@ -185,17 +217,45 @@ export function useVideoRecorder({
    * the same place, and the token is what makes the first one stick.
    */
   const stop = useCallback(() => {
-    if (phase === 'recording') {
-      camera()?.stopRecording();
+    if (recordingDevice.current) {
+      recordingDevice.current.stopRecording();
       return;
     }
     pressToken.current += 1;
     busy.current = false;
     if (phase === 'arming') {
       setPhase('idle');
+      setReadyMode(null);
       setMode('picture');
     }
-  }, [phase, camera]);
+  }, [phase]);
 
-  return { phase, mode, startedAt, arm, stop, isRecording: phase === 'recording' };
+  const cameraError = useCallback(
+    (error: unknown, generation: number) => {
+      if (!mounted.current || generation !== pressToken.current) return;
+      pressToken.current += 1;
+      recordingDevice.current?.stopRecording();
+      recordingDevice.current = null;
+      busy.current = false;
+      setReadyMode(null);
+      setPhase('idle');
+      setMode('picture');
+      setStartedAt(null);
+      onError?.(error);
+    },
+    [onError],
+  );
+
+  return {
+    cameraError,
+    phase,
+    mode,
+    startedAt,
+    arm,
+    stop,
+    cameraReady,
+    recordingProgress,
+    generation: pressToken.current,
+    isRecording: phase === 'starting' || phase === 'recording',
+  };
 }

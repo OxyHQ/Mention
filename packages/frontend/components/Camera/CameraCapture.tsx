@@ -1,3 +1,4 @@
+import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import {
@@ -178,12 +179,27 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
     (uri: string) => onCaptured({ uri, kind: 'video', mimeType: 'video/mp4' }),
     [onCaptured],
   );
+  const recordingFailed = useCallback(() => {
+    toast.error(t('camera.recordingFailed'));
+  }, [t]);
   // Destructured so the callbacks below depend on the pieces they use rather
   // than on a hook result that is a new object every render.
-  const { arm, stop, isRecording, phase, mode, startedAt } = useVideoRecorder({
+  const {
+    arm,
+    stop,
+    isRecording,
+    phase,
+    mode,
+    startedAt,
+    cameraReady,
+    cameraError,
+    recordingProgress,
+    generation,
+  } = useVideoRecorder({
     camera: getCamera,
     requestMicrophone,
     onRecorded,
+    onError: recordingFailed,
   });
 
   const takePhoto = useCallback(async () => {
@@ -287,13 +303,13 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   // The ring fills over the whole allowance, so its angle IS the time left; the
   // seconds beside it are the same fact for a reader who needs the number.
   useEffect(() => {
-    if (!isRecording) {
+    if (!isRecording || startedAt === null) {
       ringProgress.value = 0;
       setRemaining(MAX_VIDEO_SECONDS);
       return;
     }
     ringProgress.value = withTiming(1, { duration: MAX_VIDEO_SECONDS * 1000 });
-    const began = startedAt ?? Date.now();
+    const began = startedAt;
     const id = setInterval(() => {
       const elapsed = Math.floor((Date.now() - began) / 1000);
       setRemaining(Math.max(0, MAX_VIDEO_SECONDS - elapsed));
@@ -411,7 +427,13 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
     <View style={styles.root}>
       <GestureDetector gesture={pinch}>
         <View style={StyleSheet.absoluteFill}>
+          {/* Preserve the native owner across mode changes: Expo CameraX disposal
+              unbinds the process-wide provider and can tear down a replacement
+              camera that React mounted before the old view's cleanup. */}
           <CameraView
+            onCameraReady={() => cameraReady(mode, generation)}
+            onMountError={(event) => cameraError(event, generation)}
+            onRecordingProgress={(event) => recordingProgress(event, generation)}
             ref={cameraRef}
             style={StyleSheet.absoluteFill}
             facing={facing}
@@ -476,7 +498,9 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
       {recording ? (
         <View style={styles.recordingBadge} pointerEvents="none">
           <View style={styles.recordingDot} />
-          <Text className="text-white text-sm">{formatRemaining(remaining)}</Text>
+          <Text className="text-white text-sm">
+            {phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining)}
+          </Text>
         </View>
       ) : null}
 
