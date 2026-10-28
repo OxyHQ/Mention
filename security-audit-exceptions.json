@@ -36,9 +36,9 @@
       "advisory": "GHSA-mrhx-c7xc-m3w5",
       "package": "zod",
       "scope": "Exact reviewed Zod 3.25.76 resolution under Expo tooling (@expo/cli)",
-      "reason": "No patched Zod 3 exists. Since core 7 / contracts 6 the Oxy SDK uses patched Zod 4, so the only Zod 3 left is @expo/cli, build-time tooling that never validates network input in the app. Mention and Kaana application schemas use patched Zod 4.6.7.",
-      "compensation": "Reviewed actual call paths: signature-verified/scalar claims, application-built batches capped at 100, static MCP catalogs and configured Oxy responses. The arbitrary-host protocol DID resolver is not invoked. This accepts residual authority-response risk temporarily; see the required review. New vulnerable resolutions or consumer versions fail closed.",
-      "expires": "2026-10-27",
+      "reason": "No patched Zod 3 exists, and latest Expo CLI 58.1.16 still requires ^3.25.76. The only vulnerable installed resolution is the exact reviewed Zod 3.25.76 under Expo CLI 58.1.15; application schemas use patched Zod 4.6.7. User approved a seven-day renewal on 2026-10-28 after reviewing the current tooling-only boundary.",
+      "compensation": "The exact CLI copy validates installed package devtools descriptors. The current project discovers only expo-sqlite with a webpage plugin, no executable CLI extensions, and neither Expo MCP tunnel package is installed. Backend/MCP runtime workspace filters exclude Expo CLI; static web/native app bundles do not execute its validators. Plugin-output validation would remain a memory-exhaustion risk if an executable plugin were introduced. See the 2026-10-28 review; new vulnerable resolutions or consumer versions fail closed.",
+      "expires": "2026-11-04",
       "resolutionGuard": {
         "vulnerableRange": "<4.6.6",
         "proof": "docs/audits/feed-social-quotes-2026-10-23/zod3-review.md",

@@ -1,7 +1,9 @@
 # Temporary Zod 3 dependency review — 24 October 2026
 
 This is a bounded risk acceptance, **not a claim that Zod 3 is patched**. It
-expires on 27 October 2026. **As of 25 October, its scope is only the exact
+was originally set to expire on 27 October 2026. Following the 28 October
+re-review below, the user approved a seven-day renewal through 4 November 2026.
+**As of 25 October, its scope is only the exact
 `@expo/cli/zod` 3.25.76 resolution under Expo CLI 58.1.15** in
 `security-audit-exceptions.json`. The four-consumer review below records the
 original 24 October state; it is retained as historical evidence.
@@ -17,12 +19,13 @@ checks array, set and map upper bounds before walking their elements, in Zod 4.
 It does not turn arbitrary unconstrained collections into bounded schemas. No
 patched Zod 3 release was available in the npm registry at this review.
 
-## Re-review — 28 October 2026: exception remains expired
+## Re-review and approved renewal — 28 October 2026
 
-This review does **not** renew the exception or authorize merging through the
-failed security gate. Its expiry remains 27 October. The compensation text in
-the exception still describes historical Oxy runtime consumers; those are no
-longer the installed vulnerable paths and must not justify a future renewal.
+The user explicitly approved a seven-day renewal on 28 October after this
+review, through 4 November 2026. The exception retains the same exact resolution
+and owner guard; its scope has not expanded. Its reason and compensation now
+describe the actual Expo tooling boundary below. Historical Oxy runtime
+consumers are not compensating controls for this remaining copy.
 
 The reviewed source is Mention `521b11e18eab833f2c0740d8c9d2a6064e24690b` with
 a fresh frozen install. The lock contains only root Zod 4.6.7 and
@@ -96,14 +99,14 @@ native bundling. A local vendor patch would need equivalent maintenance and
 verification and would not become an official supported dependency update.
 The existing application's direct schemas already use patched Zod 4.
 
-If a new temporary acceptance is explicitly approved, its compensation should
-state only the current boundary: the exact CLI-only dependency, installed
+The approved temporary acceptance states only the current boundary: the exact CLI-only dependency, installed
 package descriptors, no installed executable CLI plugins or Expo MCP tunnel,
-and no production application caller. It must retain the exact dependency and
-owner guard, a short new expiry, and the residual developer-tooling risk above.
+and no production application caller. It retains the exact dependency and
+owner guard, the seven-day expiry, and the residual developer-tooling risk above.
 Historical Oxy signature verification and batch limits are not compensating
-controls for this remaining CLI copy. Until that decision or an upstream
-remediation, `audit:security` correctly blocks the merge.
+controls for this remaining CLI copy. This accepts the reviewed tooling risk
+temporarily; it does not patch Zod 3. `audit:security` will block again after
+4 November unless the dependency is remediated or another review is approved.
 
 ## Current scope — 25 October
 
