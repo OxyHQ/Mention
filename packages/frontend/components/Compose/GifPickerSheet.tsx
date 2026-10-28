@@ -1,6 +1,6 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -12,7 +12,10 @@ import { Search } from '@oxy.so/bloom/search';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import VideoPlayer from '@/components/common/VideoPlayer';
-import { api } from '@/utils/api';
+import { api, authenticatedClient } from '@/utils/api';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { createLogger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 
@@ -44,50 +47,37 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
   const theme = useTheme();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [gifs, setGifs] = useState<GifItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const { user, canUsePrivateApi } = useAuth();
   const [selectedGif, setSelectedGif] = useState<string | number | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const numColumns = 3;
 
-  const fetchGifs = useCallback(
-    async (query: string = '') => {
-      try {
-        setLoading(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-        // Call backend API instead of KLIPY directly
-        const endpoint = query.trim() ? '/gifs/search' : '/gifs/trending';
-        const params = query.trim()
-          ? { q: query.trim(), page: '1', per_page: '20' }
-          : { page: '1', per_page: '20' };
-
-        const response = await api.get<GifSearchResponse>(endpoint, params);
-        const items = response.data?.gifs;
-        setGifs(Array.isArray(items) ? items : []);
-      } catch (error: unknown) {
-        logger.error('Error fetching GIFs', error);
-        toast(normalizeApiError(error).message || t('Failed to load GIFs'), { type: 'error' });
-        setGifs([]);
-      } finally {
-        setLoading(false);
-      }
+  const search = useQuery({
+    queryKey: viewerQueryKeys.gifSearch(user?.id, canUsePrivateApi, debouncedQuery),
+    enabled: canUsePrivateApi,
+    queryFn: async ({ signal }) => {
+      const response = await authenticatedClient.get<GifSearchResponse>(
+        debouncedQuery ? '/gifs/search' : '/gifs/trending',
+        {
+          params: { ...(debouncedQuery ? { q: debouncedQuery } : {}), page: '1', per_page: '20' },
+          signal,
+        },
+      );
+      return Array.isArray(response.data?.gifs) ? response.data.gifs : [];
     },
-    [t],
-  );
-
-  useEffect(() => {
-    // Fetch trending GIFs on initial load (empty query = trending)
-    fetchGifs('');
-  }, [fetchGifs]);
-
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      fetchGifs(searchQuery.trim());
-    }, 500);
-
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery, fetchGifs]);
+    staleTime: 60_000,
+    retry: false,
+  });
+  const isDebouncing = searchQuery.trim() !== debouncedQuery;
+  const loading = isDebouncing || search.isPending;
+  const gifs = isDebouncing ? [] : (search.data ?? []);
 
   const handleSelectGif = async (gif: GifItem) => {
     if (uploading) return;
@@ -187,10 +177,17 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         />
       </View>
 
-      {loading && gifs.length === 0 ? (
+      {loading ? (
         <View className="flex-1 justify-center items-center py-12">
           <MediaGridSkeleton />
           <Text className="mt-3 text-sm text-muted-foreground">{t('Loading GIFs...')}</Text>
+        </View>
+      ) : search.isError ? (
+        <View className="flex-1 items-center justify-center py-12 gap-3">
+          <Text accessibilityRole="alert" className="text-muted-foreground">
+            {t('Failed to load GIFs')}
+          </Text>
+          <Button onPress={() => void search.refetch()}>{t('common.retry')}</Button>
         </View>
       ) : gifs.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12">
