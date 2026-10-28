@@ -505,22 +505,25 @@ export function buildPostMenuActions(
     };
 
     const handleReportPost = () => {
-      void presentSheet((surface) => (
-        <Suspense fallback={null}>
-          <ReportModal
-            visible={true}
-            onClose={() => surface.dismiss()}
-            onSubmit={async (categories, details) => {
-              const success = await reportService.reportPost(postId, categories, details);
-              if (success) {
-                toast(t('postActions.thankYouReport'), { type: 'success' });
-              } else {
-                toast(t('postActions.failedToSubmitReport'), { type: 'error' });
-              }
-            }}
-          />
-        </Suspense>
-      ));
+      void presentSheet(
+        (surface) => (
+          <Suspense fallback={null}>
+            <ReportModal
+              visible={true}
+              onClose={() => surface.dismiss()}
+              onSubmit={async (categories, details) => {
+                const success = await reportService.reportPost(postId, categories, details);
+                if (success) {
+                  toast(t('postActions.thankYouReport'), { type: 'success' });
+                } else {
+                  toast(t('postActions.failedToSubmitReport'), { type: 'error' });
+                }
+              }}
+            />
+          </Suspense>
+        ),
+        { label: t('postActions.reportPost') },
+      );
     };
 
     const postLane = viewPost?.lane;
