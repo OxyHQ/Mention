@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 49.85,
-      "covered": 13813,
-      "total": 27708
+      "pct": 50.14,
+      "covered": 13923,
+      "total": 27766
     },
     "branches": {
-      "pct": 45.55,
-      "covered": 9452,
-      "total": 20747
+      "pct": 45.84,
+      "covered": 9533,
+      "total": 20795
     },
     "functions": {
-      "pct": 44.77,
-      "covered": 3296,
-      "total": 7361
+      "pct": 45.13,
+      "covered": 3327,
+      "total": 7371
     },
     "lines": {
-      "pct": 50.65,
-      "covered": 12516,
-      "total": 24709
+      "pct": 50.94,
+      "covered": 12612,
+      "total": 24754
     }
   },
   "pins": {
@@ -852,10 +852,10 @@
       "lines": 98
     },
     "lib/i18n.ts": {
-      "statements": 41,
-      "branches": 43,
-      "functions": 26,
-      "lines": 39
+      "statements": 52,
+      "branches": 47,
+      "functions": 33,
+      "lines": 51
     },
     "lib/keyedAsyncQueue.ts": {
       "statements": 84,
