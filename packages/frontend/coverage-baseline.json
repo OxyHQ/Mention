@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 49.54,
-      "covered": 13436,
-      "total": 27117
+      "pct": 49.86,
+      "covered": 13556,
+      "total": 27187
     },
     "branches": {
-      "pct": 45.21,
-      "covered": 9110,
-      "total": 20146
+      "pct": 45.52,
+      "covered": 9193,
+      "total": 20193
     },
     "functions": {
-      "pct": 44.43,
-      "covered": 3158,
-      "total": 7107
+      "pct": 44.81,
+      "covered": 3191,
+      "total": 7120
     },
     "lines": {
-      "pct": 50.35,
-      "covered": 12168,
-      "total": 24164
+      "pct": 50.67,
+      "covered": 12273,
+      "total": 24221
     }
   },
   "pins": {
@@ -1692,10 +1692,10 @@
       "lines": 80
     },
     "utils/pendingShareMedia.ts": {
-      "statements": 0,
+      "statements": 100,
       "branches": 100,
-      "functions": 0,
-      "lines": 0
+      "functions": 100,
+      "lines": 100
     },
     "utils/podcastReference.ts": {
       "statements": 100,
