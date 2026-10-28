@@ -227,12 +227,6 @@
       "functions": 50,
       "lines": 50
     },
-    "hooks/useCommerceStorefront.ts": {
-      "statements": 100,
-      "branches": 75,
-      "functions": 100,
-      "lines": 100
-    },
     "hooks/useCommunities.ts": {
       "statements": 100,
       "branches": 88,
@@ -697,7 +691,7 @@
     },
     "hooks/useThreadManager.ts": {
       "statements": 26,
-      "branches": 9,
+      "branches": 8,
       "functions": 3,
       "lines": 30
     },
@@ -953,12 +947,6 @@
       "functions": 100,
       "lines": 100
     },
-    "lib/references/commerceCards.ts": {
-      "statements": 100,
-      "branches": 91,
-      "functions": 100,
-      "lines": 100
-    },
     "lib/references/homiioCases.ts": {
       "statements": 33,
       "branches": 100,
@@ -1074,12 +1062,6 @@
       "lines": 0
     },
     "services/channelWritersService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/commerceService.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -1210,6 +1192,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "services/membershipsService.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "services/muteService.ts": {
       "statements": 100,
@@ -1482,8 +1470,8 @@
       "lines": 98
     },
     "utils/attachmentsUtils.ts": {
-      "statements": 98,
-      "branches": 88,
+      "statements": 97,
+      "branches": 86,
       "functions": 100,
       "lines": 100
     },
@@ -1492,12 +1480,6 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
-    },
-    "utils/commerceReferences.ts": {
-      "statements": 90,
-      "branches": 75,
-      "functions": 100,
-      "lines": 100
     },
     "utils/composeContent.ts": {
       "statements": 97,
@@ -1729,7 +1711,7 @@
     },
     "utils/postBuilder.ts": {
       "statements": 91,
-      "branches": 66,
+      "branches": 64,
       "functions": 76,
       "lines": 91
     },

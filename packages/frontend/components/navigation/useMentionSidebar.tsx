@@ -37,6 +37,15 @@ function MentionSidebarFooter({ collapsed }: { collapsed: boolean }) {
         },
       },
       {
+        key: 'mention-memberships',
+        label: t('memberships.title', 'Memberships'),
+        icon: 'people-outline',
+        onPress: () => {
+          closeDrawer();
+          router.navigate('/memberships');
+        },
+      },
+      {
         key: 'mention-plus',
         label: t('sidebar.accountMenu.plus'),
         icon: 'crown-outline',
