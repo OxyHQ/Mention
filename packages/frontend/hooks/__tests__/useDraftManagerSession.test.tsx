@@ -431,3 +431,22 @@ describe('a draft round-trips every field it keeps', () => {
     expect(restored.location).toEqual({ latitude: 0, longitude: 2, address: undefined });
   });
 });
+
+describe('commerce draft round trip', () => {
+  it('keeps root and thread identities without catalog snapshots', async () => {
+    const product = { kind: 'product' as const, id: 'prod-draft' };
+    const collection = { kind: 'collection' as const, id: 'col-draft' };
+    await act(async () => {
+      await manager().autoSave(
+        refs({ commerce: [product], threadItems: [threadItem({ commerce: [collection] })] }),
+      );
+    });
+    const [draft] = [...stored.values()];
+    expect(draft.commerce).toEqual([product]);
+    expect(draft.threadItems[0].commerce).toEqual([collection]);
+    act(() => manager().loadDraft(draft));
+    const restored = onDraftLoad.mock.calls[0][0];
+    expect(restored.commerce).toEqual([product]);
+    expect(restored.threadItems[0].commerce).toEqual([collection]);
+  });
+});

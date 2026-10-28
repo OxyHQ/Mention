@@ -38,6 +38,9 @@ import { useReselectReloadKey } from '@/hooks/useReselectReloadKey';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { pinnedPostQueryOptions } from './pinnedPostQuery';
 
+const ProfileShop = lazy(() =>
+  import('@/components/Commerce/ProfileShop').then((module) => ({ default: module.ProfileShop })),
+);
 const ProfileExperience = lazy(() =>
   import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
 );
@@ -141,6 +144,12 @@ export const ProfileTabs = memo(function ProfileTabs({
   // Jobs tab (OxyHQ/Mention#952) — organization/project accounts only; see
   // `ORGANIZATION_ONLY_TAB_NAMES` for why reaching this branch already means
   // the account is eligible.
+  if (tab === 'shop' && profileId)
+    return (
+      <Suspense fallback={<ListSkeleton />}>
+        <ProfileShop accountId={profileId} />
+      </Suspense>
+    );
   if (tab === 'jobs') {
     return (
       <SupervisedFeatureGate>

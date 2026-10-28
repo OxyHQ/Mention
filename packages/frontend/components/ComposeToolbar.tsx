@@ -1,3 +1,4 @@
+import { RiShoppingBag3Line } from '@oxy.so/bloom/icons/RiShoppingBag3Line';
 import type React from 'react';
 import { memo, useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
@@ -55,6 +56,7 @@ interface ComposeToolbarProps {
   onEventPress?: () => void;
   onRoomPress?: () => void;
   onPodcastPress?: () => void;
+  onCommercePress?: () => void;
   /**
    * Attach one of the composing account's own Mention job listings
    * (OxyHQ/Mention#952). Omitted outright — not merely disabled — when the
@@ -113,6 +115,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
     onEventPress,
     onRoomPress,
     onPodcastPress,
+    onCommercePress,
     onJobPress,
     onCollaboratorsPress,
     onLanePress,
@@ -252,6 +255,15 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
           </ToolbarAction>
         )}
 
+        {onCommercePress && (
+          <ToolbarAction
+            label={t('commerce.attach', { defaultValue: 'Add products or collections' })}
+            onPress={withHaptic(onCommercePress)}
+            disabled={disabled}
+          >
+            {(color) => <RiShoppingBag3Line size="md" fill={color} />}
+          </ToolbarAction>
+        )}
         {onPodcastPress && (
           <ToolbarAction
             label={t('compose.toolbar.podcast', { defaultValue: 'Add a podcast' })}

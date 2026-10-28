@@ -1,5 +1,6 @@
+import { commerceService } from '@/services/commerceService';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
@@ -129,6 +130,13 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   // value held in `fetchedPost`.
   const [fetchedPost, setFetchedPost] = useState<PostDetailEntity | null>(null);
   const post = cachedPost ?? fetchedPost;
+  const commerceOpenRecorded = useRef<string | null>(null);
+  const hasCommerce = Boolean(post?.content?.attachments?.some((item) => item.type === 'commerce'));
+  useEffect(() => {
+    if (!id || !hasCommerce || commerceOpenRecorded.current === String(id)) return;
+    commerceOpenRecorded.current = String(id);
+    void commerceService.recordMetric('posts', String(id), 'open').catch(() => {});
+  }, [id, hasCommerce]);
 
   // The full ancestor chain above the focused post, ordered ROOT FIRST … the
   // immediate parent LAST. Rendered as one connected thread above the focused
