@@ -65,3 +65,35 @@ NODE_ENV=production ./gradlew :app:assembleRelease -x lintVitalRelease \
 - Build arm64-only; the multi-ABI build fails at the x86 CMake task.
 - **Metro dev builds must run from `packages/frontend`**, not the repo root — from the root Expo resolves the legacy `expo/AppEntry` and returns HTTP 500.
 - **Development bundles use Noxcturnal**, Expo's oxc transformer (`experiments.noxcturnalTransformWorker` in `app.config.js`). It stays inactive when the project has any Babel config other than the bare Expo preset, so the frontend has no Babel config file: `@/` resolves through `tsconfig.json` paths (Jest maps it in `moduleNameMapper`), and `babel-preset-expo` adds the worklets plugin and the `import.meta` transform itself. Production exports (`NODE_ENV=production`) still use Babel, because Noxcturnal keeps the requires of dead platform branches and pulls native-only packages into the web bundle. Run with `LOG_EVENTS=<file>` to see which files fall back to Babel and why (`transform:noxcturnal:fallback`).
+
+### Native root profiles and stack replacement
+
+The retained native `/you` profile owns its internal tab selection locally.
+Switching to Media, Replies or a lane must not replace the root `(tabs)` route
+with `/@handle/...`; doing so discards the root pager and its retained state.
+A pushed or cold-linked canonical profile still updates its own child route.
+
+The version-pinned `react-native-screens@4.30.0` Bun patch additionally backports
+[upstream root replacement fix #5103](https://github.com/software-mansion/react-native-screens/pull/5103).
+The experimental Android stack previously processed the removal half of a valid
+root replacement as a pure pop and threw “Attempt to pop last screen from the
+stack”. A cold unknown URL followed by “Go home” reproduced this on a Pixel 8a
+with the official dependency release APK. The root fragment has no FragmentManager
+back-stack entry: a replacement batch must remove it directly before installing
+the pending root, while a pure last-screen pop remains forbidden. The patch
+preserves the top-screen and final nonempty-stack invariants; it catches no
+exception and adds no application navigation workaround.
+
+When an official release includes the upstream fix, replace this portion of the
+pinned patch through the normal dependency upgrade and verify cold 404 → Home,
+subsequent push/back, root profile tab retention and canonical profile navigation
+on a normal signed Android release. Preserve the existing unrelated screens
+patches until their own upstream fixes are adopted. Changes to a Bun-patched
+package must start with `bun patch` in an isolated worktree: installed files can
+be hard-linked across worktrees before patch preparation. Generated `.bun-tag`
+cache markers are not source patches and must not be added to the tracked diff.
+
+Android's predictive gesture **preview** remains disabled by this app's manifest
+so root-tab history reaches JavaScript; a successful edge-swipe Back test does
+not establish that the system preview animation is enabled. Keep that distinction
+in native acceptance evidence.
