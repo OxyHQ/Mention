@@ -66,14 +66,16 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
     void (async () => {
       presence.stopHousekeeping();
 
-      // Constructed here rather than awaited later on purpose: `io.close()` runs
-      // the moment this executor does, so sockets stop accepting alongside HTTP.
-      const socketShutdown = new Promise<void>((resolve) => {
-        io.close(() => {
-          clearRuntimeSocketServer(io);
-          resolve();
+      const closeSockets = () =>
+        new Promise<void>((resolve) => {
+          io.close(() => {
+            clearRuntimeSocketServer(io);
+            resolve();
+          });
         });
-      });
+      // HTTP roles stop client admission immediately. A worker has no clients;
+      // keep its Redis emitter alive until the last claimed job has drained.
+      const socketShutdown = config.runtime.processRole === 'worker' ? undefined : closeSockets();
 
       await presence.drainOffline();
       // Stop every producer/worker while Redis and Postgres are still available.
@@ -93,7 +95,7 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
 
       await Promise.allSettled([
         httpClosed,
-        socketShutdown,
+        socketShutdown ?? closeSockets(),
         stopUserInvalidationSubscriber(),
         closeSocketRedisAdapter(),
         closeRedisConnection(),

@@ -23,7 +23,6 @@ import { createSocketIoServer, createSocketNamespaces } from './src/runtime/sock
 import { registerSocketHandlers } from './src/runtime/socketHandlers';
 import { attachSocketRedisAdapter } from './src/runtime/socketRedisAdapter';
 import { setRuntimeSocketServer } from './src/runtime/socketServer';
-import { createRuntimeApp } from './src/runtimeApp';
 import { DistributedPresenceService } from './src/services/DistributedPresenceService';
 import { presenceRoom } from '@mention/shared-types';
 import {
@@ -48,7 +47,13 @@ const splitProcess = config.runtime.processRole !== 'combined';
 if (isWorker) initConnectors();
 export const { app, oxy } = isWorker
   ? { app: createWorkerHealthApp(), oxy: getRuntimeOxyClient() }
-  : createRuntimeApp(activity?.observeHttp);
+  : createHttpRuntime();
+
+/** Do not load product route trees or their caches into a dedicated worker. */
+function createHttpRuntime() {
+  const { createRuntimeApp }: typeof import('./src/runtimeApp') = require('./src/runtimeApp');
+  return createRuntimeApp(activity?.observeHttp);
+}
 
 // --- Sockets ---
 const server = http.createServer(app);
