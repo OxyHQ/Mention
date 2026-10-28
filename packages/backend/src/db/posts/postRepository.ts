@@ -485,6 +485,7 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
   const variantRows = children.variants.get(row.id) ?? [];
   const mediaRows = children.media.get(row.id) ?? [];
   const attachments = children.attachments.get(row.id) ?? [];
+  const commerce = commerceReferencesFromAttachments(attachments);
   const sources = children.sources.get(row.id) ?? [];
 
   const article =
@@ -556,7 +557,7 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
     podcast,
     homiioCase: sanitizeHomiioCase({ caseId: row.contentHomiioCaseId }),
     attachments: attachments.length > 0 ? attachments : undefined,
-    commerce: commerceReferencesFromAttachments(attachments),
+    commerce: commerce.length > 0 ? commerce : undefined,
   });
 }
 
