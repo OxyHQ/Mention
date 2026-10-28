@@ -50,7 +50,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
     <View className="bg-background rounded-t-3xl" style={{ maxHeight: '90%' }}>
       {/* Header */}
       <View className="flex-row items-center px-4 py-3" style={{ minHeight: 56 }}>
-        <TouchableOpacity onPress={handleCancel} className="p-2 z-10" activeOpacity={0.7}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          onPress={handleCancel}
+          className="p-2 z-10"
+          activeOpacity={0.7}
+        >
           <RiCloseLine width={20} height={20} fill={theme.colors.text} />
         </TouchableOpacity>
         <Text
@@ -118,6 +124,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
         <TouchableOpacity
           className="flex-1 items-center justify-center rounded-xl border border-border bg-card"
           style={{ paddingVertical: 14, minHeight: 50 }}
+          accessibilityRole="button"
           onPress={handleCancel}
           activeOpacity={0.7}
         >
@@ -132,6 +139,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
             backgroundColor:
               selectedCategories.length > 0 ? theme.colors.error : theme.colors.border,
           }}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: selectedCategories.length === 0 }}
           onPress={handleSubmit}
           disabled={selectedCategories.length === 0}
           activeOpacity={0.7}
