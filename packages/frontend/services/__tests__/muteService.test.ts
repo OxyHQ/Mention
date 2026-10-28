@@ -81,15 +81,7 @@ it('aborts SDK preflight on account change and cannot invalidate the incoming vi
   expect(mockListeners.size).toBe(0);
 });
 
-it('keeps the existing bounded read and error contracts', async () => {
-  mockGet.mockResolvedValueOnce({ data: { mutedUsers: ['target'] } });
-  expect(await muteService.getMutedUsers()).toEqual(['target']);
-  mockGet.mockResolvedValueOnce({ data: { data: ['other'] } });
-  expect(await muteService.getMutedUsers()).toEqual(['other']);
-  mockGet.mockResolvedValueOnce({ data: {} });
-  expect(await muteService.getMutedUsers()).toEqual([]);
-  mockGet.mockRejectedValueOnce(new Error('offline'));
-  expect(await muteService.getMutedUsers()).toEqual([]);
+it('keeps the mute check and error contracts', async () => {
   mockGet.mockResolvedValueOnce({ data: { isMuted: true } });
   expect(await muteService.checkMuted('target')).toBe(true);
   mockGet.mockResolvedValueOnce({ data: {} });

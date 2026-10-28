@@ -84,3 +84,4 @@ export * from './search';
 export * from './deck';
 
 export * from './membership';
+export type { SerializedMute, MutedUsersResponse } from './mute';

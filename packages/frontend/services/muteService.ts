@@ -1,3 +1,4 @@
+import type { MutedUsersResponse, SerializedMute } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient } from '@/utils/api';
 import { useAuthStore } from '@oxy.so/services/ui/client';
@@ -40,12 +41,10 @@ class MuteService {
     }
   }
 
-  async getMutedUsers(): Promise<unknown[]> {
+  async getMutedUsers(): Promise<SerializedMute[]> {
     try {
-      const res = await authenticatedClient.get<{ data?: unknown[]; mutedUsers?: unknown[] }>(
-        '/mute',
-      );
-      return res.data.data || res.data.mutedUsers || [];
+      const res = await authenticatedClient.get<MutedUsersResponse>('/mute');
+      return res.data.mutes;
     } catch (error) {
       logger.warn('Failed to get muted users', { error });
       return [];
