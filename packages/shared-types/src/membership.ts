@@ -105,5 +105,10 @@ export interface MembershipLandingResponse {
   tiers: MembershipTier[];
   membership: CommunityMembership | null;
   canManage: boolean;
+  viewerBenefits: MembershipBenefit[];
   paidSubscriptionsAvailable: false;
 }
+
+export type UpdateMembershipTierRequest = Partial<
+  Pick<MembershipTier, 'name' | 'description' | 'status' | 'benefits'>
+>;

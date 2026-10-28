@@ -1,17 +1,13 @@
-import { membershipSafetyDecisions } from '../services/memberships/safety';
 import { Router, raw, type Response } from 'express';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { safetyRequesterFor, type RequestSafetyContext } from '../utils/safetyRequester';
 type MembershipRequest = OxyAuthRequest & RequestSafetyContext;
 import { z } from 'zod';
-import { and, desc, eq } from 'drizzle-orm';
 import {
   MEMBERSHIP_BENEFITS,
   MEMBERSHIP_CONTENT_KINDS,
   MEMBERSHIP_TIER_STATES,
 } from '@mention/shared-types';
-import { getDb } from '../db/postgres';
-import { communityMemberships, membershipCommunities } from '../db/schema/memberships';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
@@ -19,7 +15,7 @@ import { logger } from '../utils/logger';
 import { PublishAsAccessError } from '../services/publishAsAccount';
 import { MembershipError, type MembershipActor } from '../services/memberships/access';
 import {
-  communityDto,
+  listMyMembershipCommunities,
   createMembershipCommunity,
   createMembershipTier,
   joinFreeMembership,
@@ -29,7 +25,7 @@ import {
   membershipLanding,
   revokeMembership,
   setMembershipBadge,
-  setMembershipTierStatus,
+  updateMembershipTier,
   updateMembershipCommunity,
 } from '../services/memberships/communities';
 import {
@@ -40,9 +36,14 @@ import {
   readMembershipContent,
   removeMembershipContent,
   reportMembershipContent,
+  resolveMembershipReport,
   voteMembershipPoll,
 } from '../services/memberships/content';
-import { downloadMembershipMedia, uploadMembershipMedia } from '../services/memberships/media';
+import {
+  discardMembershipMedia,
+  downloadMembershipMedia,
+  uploadMembershipMedia,
+} from '../services/memberships/media';
 
 const id = z.string().trim().min(1).max(128);
 const name = z.string().trim().min(1).max(120);
@@ -176,44 +177,7 @@ membershipRoutes.use((req: MembershipRequest, res, next) => {
 });
 membershipRoutes.get(
   '/mine',
-  endpoint(async (req) => {
-    const accountId = actor(req).accountId;
-    const owned = await getDb()
-      .select()
-      .from(membershipCommunities)
-      .where(eq(membershipCommunities.ownerOxyUserId, accountId))
-      .orderBy(desc(membershipCommunities.createdAt))
-      .limit(100);
-    const joined = await getDb()
-      .select({ community: membershipCommunities })
-      .from(communityMemberships)
-      .innerJoin(
-        membershipCommunities,
-        eq(membershipCommunities.id, communityMemberships.communityId),
-      )
-      .where(
-        and(
-          eq(communityMemberships.memberOxyUserId, accountId),
-          eq(communityMemberships.state, 'active'),
-        ),
-      )
-      .orderBy(desc(communityMemberships.startedAt))
-      .limit(100);
-    const communities = [...owned, ...joined.map((row) => row.community)];
-    const safe = await membershipSafetyDecisions(
-      communities.map((row) => ({ id: row.id, authorOxyUserId: row.ownerOxyUserId })),
-      actor(req).requester,
-    );
-    return {
-      owned: owned.filter((row) => safe.has(row.id)).map(communityDto),
-      joined: joined
-        .filter(
-          (row) =>
-            safe.has(row.community.id) && ['active', 'paused'].includes(row.community.status),
-        )
-        .map((row) => communityDto(row.community)),
-    };
-  }),
+  endpoint((req) => listMyMembershipCommunities(actor(req), createUserScopedOxyServices(req))),
 );
 membershipRoutes.post(
   '/',
@@ -247,14 +211,23 @@ membershipRoutes.post(
 membershipRoutes.patch(
   '/:communityId/tiers/:tierId',
   endpoint(async (req) => {
-    await setMembershipTierStatus(
+    await updateMembershipTier(
       param(req, 'communityId'),
       param(req, 'tierId'),
       actor(req),
       z
-        .object({ status: z.enum(MEMBERSHIP_TIER_STATES) })
+        .object({
+          status: z.enum(MEMBERSHIP_TIER_STATES).optional(),
+          name: name.optional(),
+          description: description.optional(),
+          benefits: z
+            .array(z.enum(MEMBERSHIP_BENEFITS))
+            .min(1)
+            .max(MEMBERSHIP_BENEFITS.length)
+            .optional(),
+        })
         .strict()
-        .parse(req.body).status,
+        .parse(req.body),
     );
     return { updated: true };
   }),
@@ -301,6 +274,13 @@ membershipRoutes.get(
 membershipRoutes.get(
   '/:communityId/reports',
   endpoint((req) => membershipReportQueue(param(req, 'communityId'), actor(req))),
+);
+membershipRoutes.post(
+  '/:communityId/reports/:reportId/resolve',
+  endpoint(async (req) => {
+    await resolveMembershipReport(param(req, 'communityId'), param(req, 'reportId'), actor(req));
+    return { resolved: true };
+  }),
 );
 membershipRoutes.post(
   '/:communityId/content',
@@ -386,6 +366,13 @@ membershipRoutes.post(
       throw new MembershipError(400, 'A supported image, video or audio body is required');
     return uploadMembershipMedia(param(req, 'communityId'), actor(req), req, req.body, mime);
   }, 201),
+);
+membershipRoutes.delete(
+  '/:communityId/media/:mediaId',
+  endpoint(async (req) => {
+    await discardMembershipMedia(param(req, 'communityId'), param(req, 'mediaId'), actor(req));
+    return { discarded: true };
+  }),
 );
 membershipRoutes.get(
   '/content/:contentId/media/:mediaId',

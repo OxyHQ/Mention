@@ -54,7 +54,7 @@ function candidate(overrides: Partial<Parameters<typeof ensureImported>[0]> = {}
 
 function oxyImports() {
   h.importAppFile.mockImplementation(async (url: string) => ({
-    file: { id: `app-${url.split('/').pop()}` },
+    file: { id: `app-${url.split('/').pop()}`, visibility: 'public' },
     outcome: 'downloaded',
   }));
 }
@@ -101,30 +101,52 @@ describe('importing a GIF', () => {
     ]);
   });
 
-  it('uploads a Klipy mp4 Oxy refused for its declared type, declaring video/mp4', async () => {
-    const gif = candidate({ previewUrl: '' });
-    h.importAppFile.mockRejectedValue(Object.assign(new Error('unsupported'), { status: 415 }));
-    h.fetchUpstream.mockImplementation(async () => {
-      const stream = new PassThrough();
-      const response = Object.assign(stream, {
-        statusCode: 200,
-        headers: { 'content-type': 'application/octet-stream', 'content-length': '4' },
-        setTimeout: () => stream,
+  it.each(['public', 'private'])(
+    'checks %s visibility after fallback upload as well as URL import',
+    async (visibility) => {
+      const gif = candidate({ previewUrl: '' });
+      h.importAppFile.mockRejectedValue(Object.assign(new Error('unsupported'), { status: 415 }));
+      h.fetchUpstream.mockImplementation(async () => {
+        const stream = new PassThrough();
+        const response = Object.assign(stream, {
+          statusCode: 200,
+          headers: { 'content-type': 'application/octet-stream', 'content-length': '4' },
+          setTimeout: () => stream,
+        });
+        response.end(Buffer.from('mp4!'));
+        return { response, finalUrl: gif.mp4Url };
       });
-      response.end(Buffer.from('mp4!'));
-      return { response, finalUrl: gif.mp4Url };
-    });
-    h.uploadAppFile.mockResolvedValue({ file: { id: 'app-uploaded' }, deduplicated: false });
+      h.uploadAppFile.mockResolvedValue({
+        file: { id: 'app-uploaded', visibility },
+        deduplicated: false,
+      });
 
-    const row = await ensureImported(gif);
+      const row = await ensureImported(gif);
 
-    expect(h.uploadAppFile).toHaveBeenCalledWith(expect.any(Uint8Array), 'video/mp4', {
-      visibility: 'public',
-      originalName: expect.stringContaining('-mp4'),
-    });
-    expect(Buffer.from(h.uploadAppFile.mock.calls[0][0]).toString()).toBe('mp4!');
-    expect(row).toMatchObject({ mp4FileId: 'app-uploaded', previewFileId: 'app-uploaded' });
-  });
+      expect(h.uploadAppFile).toHaveBeenCalledWith(expect.any(Uint8Array), 'video/mp4', {
+        visibility: 'public',
+        originalName: expect.stringContaining('-mp4'),
+      });
+      expect(Buffer.from(h.uploadAppFile.mock.calls[0][0]).toString()).toBe('mp4!');
+      if (visibility === 'public')
+        expect(row).toMatchObject({ mp4FileId: 'app-uploaded', previewFileId: 'app-uploaded' });
+      else expect(row).toBeNull();
+    },
+  );
+
+  it.each(['private', 'unlisted', undefined])(
+    'never exposes a deduplicated %s application file as a public GIF',
+    async (visibility) => {
+      const gif = candidate();
+      h.importAppFile.mockResolvedValue({
+        file: { id: 'protected-membership-file', visibility },
+        outcome: 'deduplicated',
+      });
+      expect(await ensureImported(gif)).toBeNull();
+      expect(await getDb().select().from(gifs).where(eq(gifs.klipyId, gif.klipyId))).toEqual([]);
+      expect(h.uploadAppFile).not.toHaveBeenCalled();
+    },
+  );
 
   it('imports nothing but a Klipy host', async () => {
     const gif = candidate({ mp4Url: 'https://evil.example/x.mp4' });
@@ -138,7 +160,7 @@ describe('importing a GIF', () => {
     const gif = candidate();
     h.importAppFile.mockImplementation(async (url: string) => {
       if (url === gif.previewUrl) throw Object.assign(new Error('gone'), { status: 502 });
-      return { file: { id: 'app-full' } };
+      return { file: { id: 'app-full', visibility: 'public' } };
     });
     const row = await ensureImported(gif);
     expect(row).toMatchObject({ mp4FileId: 'app-full', previewFileId: 'app-full' });
