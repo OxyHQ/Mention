@@ -49,6 +49,8 @@ test('reports preparation, transfer and verification without declaring success e
   });
   expect(current.busy).toBe(false);
   expect(current.progress).toBeNull();
+  act(() => options.onStageProgress?.({ phase: 'upload', loaded: 100, total: 100 }));
+  expect(current.progress).toBeNull();
 });
 
 test.each(['blur', 'reset', 'unmount'])(
