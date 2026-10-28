@@ -1,4 +1,4 @@
-import { buildMainPost, buildThreadPost } from '@/utils/postBuilder';
+import { buildMainPost, buildThreadPost, buildEditPost } from '@/utils/postBuilder';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 
 /**
@@ -115,4 +115,14 @@ it('carries capacity through root and thread event payloads', () => {
   expect(buildThreadPost(box({ event: { ...EVENT, capacity: 7 } })).content.event?.capacity).toBe(
     7,
   );
+});
+
+it('trims edited post text with the same rule as create and compose validation', () => {
+  const result = buildEditPost({
+    postContent: `  ${'x'.repeat(25_000)}  `,
+    mediaIds: [],
+    mentions: [],
+    hashtags: [],
+  });
+  expect(result.content?.text).toBe('x'.repeat(25_000));
 });

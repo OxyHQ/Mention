@@ -285,7 +285,7 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
 
   return {
     content: {
-      text: postContent,
+      text: postContent.trim(),
       ...(variantContent ? { variants: variantContent } : {}),
       media: mediaIds.map((m) => ({
         id: m.id,
