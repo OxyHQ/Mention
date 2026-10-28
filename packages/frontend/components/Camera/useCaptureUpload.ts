@@ -82,7 +82,7 @@ export function useCaptureUpload(active = true) {
             visibility: 'private',
             signal: controller.signal,
             onStageProgress: (next) => {
-              if (controller.signal.aborted) return;
+              if (controller.signal.aborted || inFlight.current !== controller) return;
               // Native progress can fire much faster than a visible percentage changes.
               setProgress((previous) =>
                 previous?.phase === next.phase &&
