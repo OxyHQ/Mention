@@ -28,7 +28,7 @@ The live deployment SHA was not established by these measurements. The source ch
 
 ## Candidate validation
 
-The production export using Bloom **15.60.0** and Mention's canonical restoration keys passes all four deterministic geometry scenarios in Chromium and headed WebKit: deeply scrolled Home and profile return, Deck owner changes, and delayed-media loading followed by width changes. Chromium's client-side route/chunk regression also passes. Four additional live-data Home/profile return scenarios pass with a signed-in session through both app and browser Back; sign-in state is checked after the feed renders, and authenticated traces are disabled.
+The final production export using Bloom **15.60.4**, Mention's canonical restoration keys and the explicit Expo Router adapter passes seven regression cases in Chromium and headed WebKit: deeply scrolled Home and profile return, feed scroll-owner changes, delayed media and resizing, notification app/browser Back, and retained post reading through both Deck transitions. Chromium's broader Deck/profile/route checks passed the other 15 cases. Earlier authenticated Home/profile app/browser Back cases passed with sign-in verified after the feed rendered and traces disabled; live production acceptance remains a separate release step.
 
 Frontend and e2e typechecking pass, as do 54 targeted frontend tests covering route seeding, saved-account isolation, canonical keys, notification surfaces and profile grids. An earlier broader candidate passed 24 layout/media/navigation browser cases; its remaining route-chunk case encountered a confirmed HTTP 429 and subsequently passed on the final candidate. The full merge-queue release gate remains authoritative for the merged tree.
 
@@ -115,3 +115,32 @@ nearest route identity. Mention now supplies the public `expoRouterScrollAdapter
 to its root provider. It reads each screen's own route; Deck retains its separate
 memory-navigation scope. Final combined-candidate validation and release status
 are recorded separately from the earlier passing geometry-only candidate.
+
+
+## Final candidate: route-aware owner transfer
+
+The expanded Deck check exposed a separate lifetime defect: the document-to-panel
+handoff could be cleared before Expo's deferred focus effect initialized the new
+scroll owner. Bloom 15.60.4 keeps that transfer owned by the screen lifecycle,
+allows new user scroll input to take over, and clears it when content identity or
+the owner changes. Source `030e3058` passed the focused upstream lifecycle tests
+and Mention's real browser checks.
+
+The original Chromium test setup also had a distinct synthetic-input race. It
+assigned `window.scrollTo(200)` and immediately changed layout before any
+200-pixel scroll event had been delivered. Three bounded diagnostic repetitions
+recorded that ordering; a run where the event arrived before the click passed.
+The test now drives wheel input and observes the source scroll event in each
+direction. Its exact 200/300-pixel source checks, nonzero destination offsets,
+retained DOM checks and all other assertions are unchanged. No sleeps or retries
+were added. This setup correction is separate from the delayed-focus library
+failure reproduced in WebKit with the source scroll event already delivered.
+
+Final Chromium checks passed all seven cases in 17.5 seconds, followed by the
+symmetric exit-input Deck check in 4.1 seconds. Headed WebKit passed all seven in
+24.2 seconds, followed by that final Deck-only input change in 4.7 seconds; the
+other six cases were unchanged. [WebKit evidence](./feed-return-2026-10-28/webkit-candidate-15.60.4.json)
+records exact test hashes, isolated ancillary requests and the test-input delta.
+Frontend types, 37 focused saved-account/key/notification tests, and e2e type and
+fixture checks pass. The final registry artifact, merged CI and deployed build
+must still be verified independently of these local candidate results.
