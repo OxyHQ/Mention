@@ -33,3 +33,28 @@ The regression agent reports that the preliminary production export combining Bl
 A headed WebKit run against that final local candidate kept the selected Home post visible through both Back mechanisms but recorded deep profile browser-return displacement. During that run, live dependencies began returning HTTP 429, then session/profile reads failed and the last scenario could not complete. [Candidate evidence](./feed-return-2026-10-28/webkit-candidate-inconclusive.json) is therefore **inconclusive**, not a clean release failure or pass. All live probes stopped when the shared rate limit was identified. A deterministic deep-profile fixture must establish whether displacement persists without those failures; fresh live acceptance must wait for the limit to reset.
 
 Acceptance requires adjacent visible rows to retain their actual spacing after resize and Deck transitions; the same selected post must remain visible after returning from detail; profile routes must retain their feed and parameters. Tests must run against the production export at the production origin with candidate assets substituted, preserving the real API, CSP and session-origin behavior.
+
+
+### Final local candidate `58078af0`: remaining WebKit failure
+
+The exact four committed `feed-geometry.spec.ts` scenarios ran under headed
+WebKit with one worker and no retries. Deck owner switching and delayed-media
+loading/width changes passed. Both deeply scrolled Home and profile return
+scenarios failed: row spacing was contiguous, but the selected fixture post
+was no longer in the viewport after browser Back. Home restored from 4,133 to
+2,853 px; profile from 4,031 to 2,967 px. Core data uses 60 deterministic posts,
+so this finding is independent of live feed ranking.
+[Results](./feed-return-2026-10-28/webkit-candidate-58078af0.json) record the
+unchanged test assertions and configuration. This candidate does not yet meet
+WebKit acceptance; these failures are distinct from the earlier rate-limited run.
+
+A separate diagnostic copy of the Home test recorded actual scroll calls.
+It showed the correct saved target, 3,838 px, being restored after Back, followed
+by virtualizer adjustments to 3,562, 3,306, 3,070 and finally 2,854 px as rows
+were measured. The document's maximum scroll range grew from 14,493 px before
+navigation to an estimated 23,453 px on return. Thus the failure is not explained
+solely by an incorrect saved scroll offset: restored measurement state and its
+subsequent adjustments still require investigation.
+[Scroll-call evidence](./feed-return-2026-10-28/webkit-restoration-diagnostic.json)
+contains only synthetic fixture paths and numerical measurements. No additional
+real-account tests were run against this failing candidate.

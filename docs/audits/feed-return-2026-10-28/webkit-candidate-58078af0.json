@@ -1,0 +1,37 @@
+{
+  "candidateBloomCommit": "58078af077a17883143f672a1efa721b05d9f401",
+  "engine": "WebKit 27.2 headed under Xvfb",
+  "sourceTests": "packages/e2e/tests/feed-geometry.spec.ts at Mention7457e38cc",
+  "configuration": "One worker; no retries; traces, screenshots, video and stored authentication disabled; local ephemeral config omits live preflight only. Candidate assets served at production origin by unchanged release fixture.",
+  "data": "Core feed/detail/replies/profile identity use committed60-post deterministic fixtures; ancillary services remain live.",
+  "results": [
+    {
+      "title": "/ keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
+      "status": "failed",
+      "durationMs": 33276,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  -  2\u001b[39m\n\u001b[31m+ Received  + 11\u001b[39m\n\n\u001b[32m- ObjectContaining {\u001b[39m\n\u001b[32m-   \"visible\": true,\u001b[39m\n\u001b[31m+ Object {\u001b[39m\n\u001b[31m+   \"after\": Object {\u001b[39m\n\u001b[31m+     \"scroll\": 2853,\u001b[39m\n\u001b[31m+     \"top\": undefined,\u001b[39m\n\u001b[31m+   },\u001b[39m\n\u001b[31m+   \"before\": Object {\u001b[39m\n\u001b[31m+     \"scroll\": 4133,\u001b[39m\n\u001b[31m+     \"top\": 105,\u001b[39m\n\u001b[31m+     \"uri\": \"019e23ee-2d68-7000-8000-000000000030\",\u001b[39m\n\u001b[31m+   },\u001b[39m\n\u001b[31m+   \"visible\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 30000ms exceeded while waiting on the predicate\n\n  135 |         }, selected),\n  136 |       )\n> 137 |       .toEqual(expect.objectContaining({ visible: true }));\n      |        ^\n  138 |     expect(candidate.scriptErrors).toEqual([]);\n  139 |   });\n  140 | }\n    at /home/nate/Oxy/Mention/.worktrees/feed-regression/packages/e2e/tests/feed-geometry.spec.ts:137:8"
+      ]
+    },
+    {
+      "title": "/@geometry-fixture keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
+      "status": "failed",
+      "durationMs": 33684,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  -  2\u001b[39m\n\u001b[31m+ Received  + 11\u001b[39m\n\n\u001b[32m- ObjectContaining {\u001b[39m\n\u001b[32m-   \"visible\": true,\u001b[39m\n\u001b[31m+ Object {\u001b[39m\n\u001b[31m+   \"after\": Object {\u001b[39m\n\u001b[31m+     \"scroll\": 2967,\u001b[39m\n\u001b[31m+     \"top\": undefined,\u001b[39m\n\u001b[31m+   },\u001b[39m\n\u001b[31m+   \"before\": Object {\u001b[39m\n\u001b[31m+     \"scroll\": 4031,\u001b[39m\n\u001b[31m+     \"top\": 219,\u001b[39m\n\u001b[31m+     \"uri\": \"019e23ee-2d68-7000-8000-000000000028\",\u001b[39m\n\u001b[31m+   },\u001b[39m\n\u001b[31m+   \"visible\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 30000ms exceeded while waiting on the predicate\n\n  135 |         }, selected),\n  136 |       )\n> 137 |       .toEqual(expect.objectContaining({ visible: true }));\n      |        ^\n  138 |     expect(candidate.scriptErrors).toEqual([]);\n  139 |   });\n  140 | }\n    at /home/nate/Oxy/Mention/.worktrees/feed-regression/packages/e2e/tests/feed-geometry.spec.ts:137:8"
+      ]
+    },
+    {
+      "title": "feed row measurements follow the scroll owner when entering and leaving Deck",
+      "status": "passed",
+      "durationMs": 3625,
+      "errors": []
+    },
+    {
+      "title": "delayed feed media keeps neighboring rows contiguous through loading and width changes",
+      "status": "passed",
+      "durationMs": 2093,
+      "errors": []
+    }
+  ]
+}
