@@ -77,4 +77,44 @@ describe('post search boolean normalization', () => {
       expect(result.same).toBe(true);
     }
   });
+
+  it('preserves escaped lexemes and boolean groups inside positional queries', async () => {
+    const queries = [
+      "'can''t' & 'can''t'",
+      String.raw`'path\\part' | 'path\\part'`,
+      "('apple' & 'apple') <-> 'banana'",
+      "!('apple' | 'banana') & !('apple' | 'banana')",
+      "('apple' | 'banana') <2> 'orange'",
+      "'apple':* & 'apple':*",
+    ];
+    const vectors = [
+      '',
+      "'can''t':1",
+      String.raw`'path\\part':2`,
+      "'apple':1 'banana':2",
+      "'apple':1 'banana':3",
+      "'banana':1 'orange':3",
+      "'apple':1 'orange':2",
+      "'applesauce':1",
+      "'orange':1",
+    ];
+    for (const input of queries) {
+      const [parsed] = await getDb().execute<{ query: string }>(
+        sql`select ${input}::tsquery::text as query`,
+      );
+      const normalized = normalizeTsQuery(parsed.query);
+      const [result] = await getDb().execute<{ same: boolean }>(sql`
+        select bool_and((body::tsvector @@ ${parsed.query}::tsquery)
+          = (body::tsvector @@ ${normalized}::tsquery)) as same
+        from unnest(ARRAY[${sql.join(
+          vectors.map((body) => sql`${body}`),
+          sql`, `,
+        )}]::text[]) as body`);
+      expect(result.same).toBe(true);
+    }
+  });
+
+  it('normalizes deeply grouped input without recursive JavaScript parsing', () => {
+    expect(normalizeTsQuery(`${'('.repeat(10000)}'run' & 'run'${')'.repeat(10000)}`)).toBe("'run'");
+  });
 });
