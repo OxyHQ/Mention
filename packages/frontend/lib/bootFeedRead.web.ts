@@ -1,5 +1,5 @@
 import { readPersistedViewerOwner } from '@/db';
-import { initializeI18n } from '@/lib/i18n';
+import { waitForLanguageReady } from '@/lib/i18n';
 import { oxyServices } from '@/lib/oxyServices';
 import { startBootFeedRead } from '@/services/feedPageRead';
 
@@ -44,7 +44,7 @@ function bearerUserId(): string | null {
 export function startHomeFeedBootRead(): void {
   if (typeof window === 'undefined' || window.location.pathname !== '/') return;
   const owner = readPersistedViewerOwner();
-  const languageReady = initializeI18n().catch(() => undefined);
+  const languageReady = waitForLanguageReady().catch(() => undefined);
 
   if (!owner || owner === 'anon') {
     void languageReady.then(() => {

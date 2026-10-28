@@ -1,4 +1,5 @@
 import React from 'react';
+import type { TFunction } from 'i18next';
 import type { AccessibilityActionEvent } from 'react-native';
 import { EngagementAction, EngagementBar, EngagementGroup } from '@oxy.so/bloom/engagement-bar';
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
@@ -16,9 +17,6 @@ import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
-
-/** The translate icon's long press, offered to screen readers as an action. */
-const TRANSLATE_TO = [{ name: 'translateTo', label: 'Read in another language' }] as const;
 
 // The two vote arrows are adjacent halves of ONE pill, so neither hit region
 // may grow toward the other or it swallows the other's taps.
@@ -40,6 +38,7 @@ interface Engagement {
 }
 
 interface Props {
+  t: TFunction;
   engagement: Engagement;
   isLiked?: boolean;
   isDownvoted?: boolean;
@@ -83,6 +82,7 @@ interface Props {
 }
 
 const PostActions: React.FC<Props> = ({
+  t,
   engagement,
   isLiked,
   isDownvoted,
@@ -116,7 +116,7 @@ const PostActions: React.FC<Props> = ({
           <EngagementAction
             icon={RiBookmarkLine}
             activeIcon={RiBookmarkFill}
-            accessibilityLabel="Save post"
+            accessibilityLabel={t('postActions.save')}
             count={engagement?.saves}
             active={!!isSaved}
             onPress={onSave}
@@ -124,7 +124,7 @@ const PostActions: React.FC<Props> = ({
           {onTranslate ? (
             <EngagementAction
               icon={RiTranslate2}
-              accessibilityLabel="Translate"
+              accessibilityLabel={t('compose.languages.overwriteConfirm')}
               active={!!isTranslated}
               busy={isTranslating}
               onPress={onTranslate}
@@ -136,7 +136,9 @@ const PostActions: React.FC<Props> = ({
               {...(onTranslateLongPress
                 ? {
                     onLongPress: onTranslateLongPress,
-                    accessibilityActions: TRANSLATE_TO,
+                    accessibilityActions: [
+                      { name: 'translateTo', label: t('postActions.readInAnotherLanguage') },
+                    ],
                     onAccessibilityAction: (event: AccessibilityActionEvent) => {
                       if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
                     },
@@ -147,7 +149,7 @@ const PostActions: React.FC<Props> = ({
           {onInsightsPress ? (
             <EngagementAction
               icon={RiBarChartBoxLine}
-              accessibilityLabel="Insights"
+              accessibilityLabel={t('postActions.insights')}
               onPress={onInsightsPress}
             />
           ) : null}
@@ -158,7 +160,7 @@ const PostActions: React.FC<Props> = ({
         <EngagementGroup>
           <EngagementAction
             icon={RiArrowUpSLine}
-            accessibilityLabel="Upvote"
+            accessibilityLabel={t('postActions.upvote')}
             count={likes - (engagement?.downvotes ?? 0)}
             active={!!isLiked}
             rollCount
@@ -167,7 +169,7 @@ const PostActions: React.FC<Props> = ({
           />
           <EngagementAction
             icon={RiArrowDownSLine}
-            accessibilityLabel="Downvote"
+            accessibilityLabel={t('postActions.downvote')}
             active={!!isDownvoted}
             tone="error"
             hitSlop={DOWNVOTE_HIT_SLOP}
@@ -178,7 +180,7 @@ const PostActions: React.FC<Props> = ({
         <EngagementAction
           icon={RiHeart3Line}
           activeIcon={RiHeart3Fill}
-          accessibilityLabel="Like"
+          accessibilityLabel={t('videos.like')}
           count={likes}
           active={!!isLiked}
           tone="error"
@@ -190,14 +192,14 @@ const PostActions: React.FC<Props> = ({
       {onReply ? (
         <EngagementAction
           icon={RiChat3Line}
-          accessibilityLabel="Reply"
+          accessibilityLabel={t('Reply')}
           count={engagement?.replies}
           onPress={onReply}
         />
       ) : null}
       <EngagementAction
         icon={RiRepeat2Line}
-        accessibilityLabel="Repost options"
+        accessibilityLabel={t('post.repostOptions')}
         count={engagement?.boosts}
         active={!!isBoosted}
         tone="success"
@@ -206,11 +208,15 @@ const PostActions: React.FC<Props> = ({
       {onSendInAllo ? (
         <EngagementAction
           icon={RiSendPlaneLine}
-          accessibilityLabel="Send in Allo"
+          accessibilityLabel={t('videos.sendInAllo')}
           onPress={onSendInAllo}
         />
       ) : null}
-      <EngagementAction icon={RiUpload2Line} accessibilityLabel="Share" onPress={onShare} />
+      <EngagementAction
+        icon={RiUpload2Line}
+        accessibilityLabel={t('videos.share')}
+        onPress={onShare}
+      />
     </EngagementBar>
   );
 };

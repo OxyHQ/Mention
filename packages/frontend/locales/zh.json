@@ -2137,7 +2137,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "正在准备…",
-    "recordingFailed": "录制失败，请重试。"
+    "recordingFailed": "录制失败，请重试。",
+    "open": "打开相机"
   },
   "compose.languages.sheetTitle": "帖子语言",
   "compose.languages.main": "主要语言",
@@ -2761,5 +2762,8 @@
   "communities.postActions.banned": "已从社区封禁",
   "communities.postActions.banFailed": "无法封禁",
   "sidebar.communities": "社区",
-  "compose.textTooLong": "每篇帖子不得超过 {{limit}} 个字符。"
+  "compose.textTooLong": "每篇帖子不得超过 {{limit}} 个字符。",
+  "postActions.upvote": "赞成",
+  "postActions.downvote": "反对",
+  "postActions.readInAnotherLanguage": "用其他语言阅读"
 }

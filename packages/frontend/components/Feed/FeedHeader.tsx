@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Platform } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
@@ -24,6 +25,7 @@ export const FEED_COMPOSER_PROMPT_HEIGHT = 80;
 /** Social template composer, with Mention's real account and camera destinations. */
 export const FeedHeader = memo<FeedHeaderProps>(
   ({ showComposeButton, onComposePress, hideHeader, promptText }) => {
+    const { t } = useTranslation();
     const router = useRouter();
     const { user } = useAuth();
     const theme = useTheme();
@@ -37,12 +39,12 @@ export const FeedHeader = memo<FeedHeaderProps>(
         <PressableScale
           onPress={compose}
           accessibilityRole="button"
-          accessibilityLabel="Create a post"
+          accessibilityLabel={t('settings.quickActions.createPost')}
           className="min-w-0 flex-1 flex-row items-center gap-3"
         >
           <Avatar source={user.avatar || undefined} size={32} variant={MEDIA_VARIANT_AVATAR} />
           <Text className="flex-1 text-base leading-5 text-muted-foreground">
-            {promptText || "What's up?"}
+            {promptText || t('compose.placeholder')}
           </Text>
         </PressableScale>
         {Platform.OS !== 'web' && (
@@ -52,7 +54,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
             size="xs"
             iconOnly
             icon={RiCameraLine}
-            accessibilityLabel="Open camera"
+            accessibilityLabel={t('camera.open')}
             onPress={() => router.navigate('/camera')}
           />
         )}
@@ -62,7 +64,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
           size="xs"
           iconOnly
           icon={<RiGalleryLine width={20} height={20} fill={theme.colors.textSecondary} />}
-          accessibilityLabel="Add image"
+          accessibilityLabel={t('compose.toolbar.media')}
           onPress={() => router.push('/compose')}
         />
       </View>

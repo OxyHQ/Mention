@@ -9,7 +9,8 @@ let mockToken: string | null = null;
 let mockTokenListener: ((token: string | null) => void) | undefined;
 
 jest.mock('@/db', () => ({ readPersistedViewerOwner: jest.fn() }));
-jest.mock('@/lib/i18n', () => ({ initializeI18n: () => Promise.resolve() }));
+let mockLanguageReady: Promise<void>;
+jest.mock('@/lib/i18n', () => ({ waitForLanguageReady: () => mockLanguageReady }));
 jest.mock('@/services/feedPageRead', () => ({ startBootFeedRead: jest.fn() }));
 jest.mock('@/lib/oxyServices', () => ({
   oxyServices: {
@@ -37,6 +38,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 describe('the home feed boot read', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockLanguageReady = Promise.resolve();
     mockToken = null;
     mockTokenListener = undefined;
   });
@@ -65,5 +67,19 @@ describe('the home feed boot read', () => {
 
     expect(start).toHaveBeenCalledWith('user-of-token-a');
     expect(mockTokenListener).toBeUndefined();
+  });
+  it('waits for the SDK-selected catalog without choosing its own boot language', async () => {
+    owner.mockReturnValue('anon');
+    window.history.pushState({}, '', '/');
+    let ready!: () => void;
+    mockLanguageReady = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    startHomeFeedBootRead();
+    await settle();
+    expect(start).not.toHaveBeenCalled();
+    ready();
+    await settle();
+    expect(start).toHaveBeenCalledWith(null);
   });
 });

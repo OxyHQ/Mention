@@ -2191,7 +2191,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "Подготовка…",
-    "recordingFailed": "Не удалось записать видео. Попробуйте ещё раз."
+    "recordingFailed": "Не удалось записать видео. Попробуйте ещё раз.",
+    "open": "Открыть камеру"
   },
   "compose.languages.sheetTitle": "Языки публикации",
   "compose.languages.main": "Основной язык",
@@ -2825,5 +2826,8 @@
   "communities.postActions.banned": "Забанен в сообществе",
   "communities.postActions.banFailed": "Не удалось забанить",
   "sidebar.communities": "Сообщества",
-  "compose.textTooLong": "Каждая публикация должна содержать не более {{limit}} символов."
+  "compose.textTooLong": "Каждая публикация должна содержать не более {{limit}} символов.",
+  "postActions.upvote": "Голосовать за",
+  "postActions.downvote": "Голосовать против",
+  "postActions.readInAnotherLanguage": "Читать на другом языке"
 }

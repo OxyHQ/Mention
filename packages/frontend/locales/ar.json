@@ -2243,7 +2243,8 @@
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again.",
     "preparing": "جارٍ التحضير…",
-    "recordingFailed": "فشل التسجيل. يُرجى المحاولة مرة أخرى."
+    "recordingFailed": "فشل التسجيل. يُرجى المحاولة مرة أخرى.",
+    "open": "فتح الكاميرا"
   },
   "compose.languages.sheetTitle": "لغات المنشور",
   "compose.languages.main": "اللغة الرئيسية",
@@ -2887,5 +2888,8 @@
   "communities.postActions.banned": "تم الحظر من المجتمع",
   "communities.postActions.banFailed": "تعذّر الحظر",
   "sidebar.communities": "المجتمعات",
-  "compose.textTooLong": "يجب ألا يتجاوز كل منشور {{limit}} حرفًا."
+  "compose.textTooLong": "يجب ألا يتجاوز كل منشور {{limit}} حرفًا.",
+  "postActions.upvote": "تصويت مؤيد",
+  "postActions.downvote": "تصويت معارض",
+  "postActions.readInAnotherLanguage": "القراءة بلغة أخرى"
 }

@@ -9,7 +9,6 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { hasNotificationPermission, setupNotifications } from '@/utils/notifications';
-import { initializeI18n } from './i18n';
 import { logger } from '@oxy.so/core/logger';
 
 export interface InitializationResult {
@@ -71,21 +70,6 @@ async function removeObsoleteStorage(): Promise<void> {
  * Coordinates all initialization steps
  */
 export class AppInitializer {
-  /**
-   * Initializes i18n
-   */
-  static async initializeI18n(): Promise<InitializationResult> {
-    try {
-      await initializeI18n();
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error : new Error('Unknown i18n error'),
-      };
-    }
-  }
-
   /**
    * Startup housekeeping that no screen depends on. Called once the route tree
    * is released, so it never delays the first route or its requests.

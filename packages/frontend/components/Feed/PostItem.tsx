@@ -1251,6 +1251,7 @@ const PostItem: React.FC<PostItemProps> = ({
               {!isNested && (
                 <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <PostActions
+                    t={t}
                     engagement={actionsEngagement}
                     isLiked={isLiked}
                     isDownvoted={isDownvoted}

@@ -1,4 +1,7 @@
 import type React from 'react';
+import { createInstance } from 'i18next';
+import en from '@/locales/en.json';
+import es from '@/locales/es.json';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import PostActions from '../PostActions';
@@ -26,12 +29,19 @@ let mockVoteStyle = 'icons';
 jest.mock('@/hooks/useVoteStyle', () => ({ useVoteStyle: () => mockVoteStyle }));
 
 const noop = () => undefined;
+const translations = createInstance();
+void translations.init({
+  lng: 'en-US',
+  resources: { 'en-US': { translation: en } },
+  initAsync: false,
+});
 
 function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}) {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
       <PostActions
+        t={translations.t}
         engagement={{ replies: 2, likes: 3, boosts: 1, saves: 0 }}
         onReply={noop}
         onBoost={noop}
@@ -67,7 +77,7 @@ describe('PostActions', () => {
     expect(action(renderer, 'Reply').count).toBe(2);
     // A post boosted once must not read as boosted by nobody (OxyHQ/Mention#1140).
     expect(action(renderer, 'Repost options')).toMatchObject({ count: 1, active: true });
-    expect(action(renderer, 'Save post').count).toBe(0);
+    expect(action(renderer, 'Save').count).toBe(0);
     expect(action(renderer, 'Like').onPress()).toBe(false);
     act(() => renderer.unmount());
   });
@@ -83,6 +93,21 @@ describe('PostActions', () => {
     const [up, down] = pill.findAll((node) => String(node.type) === 'EngagementAction');
     expect(up.props).toMatchObject({ accessibilityLabel: 'Upvote', count: 3, active: false });
     expect(down.props).toMatchObject({ accessibilityLabel: 'Downvote', active: true });
+    act(() => renderer.unmount());
+  });
+  it('uses the caller locale for screen-reader labels without another per-row subscription', () => {
+    const spanish = createInstance();
+    void spanish.init({
+      lng: 'es-ES',
+      resources: { 'es-ES': { translation: es } },
+      initAsync: false,
+    });
+    const renderer = renderBar({ t: spanish.t });
+    expect(action(renderer, 'Me gusta').count).toBe(3);
+    expect(action(renderer, 'Compartir').onPress).toBe(noop);
+    expect(renderer.root.findAll((node) => node.props.accessibilityLabel === 'Like')).toHaveLength(
+      0,
+    );
     act(() => renderer.unmount());
   });
 });

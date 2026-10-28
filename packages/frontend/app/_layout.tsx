@@ -95,13 +95,6 @@ export default function RootLayout() {
   // language, not the device's.
   const language = useAppLanguage();
 
-  // Initialize i18n once when the app mounts
-  useEffect(() => {
-    AppInitializer.initializeI18n().catch((error) => {
-      logger.error('Failed to initialize i18n', error);
-    });
-  }, []);
-
   useEffect(() => initializeWebTelemetry(), []);
 
   // Release the realtime sockets while the browser holds this document in its
