@@ -1,0 +1,503 @@
+{
+  "engine": "WebKit 27.2, headed under Xvfb",
+  "target": "production",
+  "results": [
+    {
+      "route": "/",
+      "back": "browser",
+      "before": {
+        "scroll": 5264,
+        "rows": [
+          {
+            "index": "13",
+            "y": -1499,
+            "height": 556.265625,
+            "bottom": -942.734375
+          },
+          {
+            "index": "14",
+            "y": -943,
+            "height": 315.75,
+            "bottom": -627.25
+          },
+          {
+            "index": "15",
+            "y": -627,
+            "height": 558.0625,
+            "bottom": -68.9375
+          },
+          {
+            "index": "16",
+            "y": -69,
+            "height": 355.75,
+            "bottom": 286.75
+          },
+          {
+            "index": "17",
+            "y": 287,
+            "height": 223.75,
+            "bottom": 510.75
+          },
+          {
+            "index": "18",
+            "y": 511,
+            "height": 465.75,
+            "bottom": 976.75
+          },
+          {
+            "index": "19",
+            "y": 977,
+            "height": 501.75,
+            "bottom": 1478.75
+          },
+          {
+            "index": "20",
+            "y": 1479,
+            "height": 403.75,
+            "bottom": 1882.75
+          }
+        ]
+      },
+      "after": {
+        "scroll": 5638,
+        "rows": [
+          {
+            "index": "11",
+            "y": -1759,
+            "height": 263.75,
+            "bottom": -1495.25
+          },
+          {
+            "index": "12",
+            "y": -1495,
+            "height": 837.75,
+            "bottom": -657.25
+          },
+          {
+            "index": "13",
+            "y": -657,
+            "height": 556.265625,
+            "bottom": -100.734375
+          },
+          {
+            "index": "14",
+            "y": -101,
+            "height": 315.75,
+            "bottom": 214.75
+          },
+          {
+            "index": "15",
+            "y": 215,
+            "height": 558.0625,
+            "bottom": 773.0625
+          },
+          {
+            "index": "16",
+            "y": 773,
+            "height": 355.75,
+            "bottom": 1128.75
+          },
+          {
+            "index": "17",
+            "y": 1129,
+            "height": 223.75,
+            "bottom": 1352.75
+          },
+          {
+            "index": "18",
+            "y": 1353,
+            "height": 465.75,
+            "bottom": 1818.75
+          },
+          {
+            "index": "19",
+            "y": 1819,
+            "height": 501.75,
+            "bottom": 2320.75
+          }
+        ]
+      },
+      "beforeSelectedRow": {
+        "y": 287,
+        "bottom": 510.75,
+        "height": 223.75,
+        "visible": true
+      },
+      "afterSelectedRow": {
+        "y": 1129,
+        "bottom": 1352.75,
+        "height": 223.75,
+        "visible": false
+      }
+    },
+    {
+      "route": "/",
+      "back": "app",
+      "before": {
+        "scroll": 5400,
+        "rows": [
+          {
+            "index": "12",
+            "y": -1717,
+            "height": 655.75,
+            "bottom": -1061.25
+          },
+          {
+            "index": "13",
+            "y": -1061,
+            "height": 435.75,
+            "bottom": -625.25
+          },
+          {
+            "index": "14",
+            "y": -625,
+            "height": 315.75,
+            "bottom": -309.25
+          },
+          {
+            "index": "15",
+            "y": -309,
+            "height": 485.75,
+            "bottom": 176.75
+          },
+          {
+            "index": "16",
+            "y": 177,
+            "height": 483.75,
+            "bottom": 660.75
+          },
+          {
+            "index": "17",
+            "y": 661,
+            "height": 365.75,
+            "bottom": 1026.75
+          },
+          {
+            "index": "18",
+            "y": 1027,
+            "height": 185.75,
+            "bottom": 1212.75
+          },
+          {
+            "index": "19",
+            "y": 1213,
+            "height": 263.75,
+            "bottom": 1476.75
+          },
+          {
+            "index": "20",
+            "y": 1477,
+            "height": 303.75,
+            "bottom": 1780.75
+          }
+        ]
+      },
+      "after": {
+        "scroll": 5604,
+        "rows": [
+          {
+            "index": "11",
+            "y": -1759,
+            "height": 395.75,
+            "bottom": -1363.25
+          },
+          {
+            "index": "12",
+            "y": -1363,
+            "height": 655.75,
+            "bottom": -707.25
+          },
+          {
+            "index": "13",
+            "y": -707,
+            "height": 435.75,
+            "bottom": -271.25
+          },
+          {
+            "index": "14",
+            "y": -271,
+            "height": 315.75,
+            "bottom": 44.75
+          },
+          {
+            "index": "15",
+            "y": 45,
+            "height": 485.75,
+            "bottom": 530.75
+          },
+          {
+            "index": "16",
+            "y": 531,
+            "height": 483.75,
+            "bottom": 1014.75
+          },
+          {
+            "index": "17",
+            "y": 1015,
+            "height": 365.75,
+            "bottom": 1380.75
+          },
+          {
+            "index": "18",
+            "y": 1381,
+            "height": 185.75,
+            "bottom": 1566.75
+          },
+          {
+            "index": "19",
+            "y": 1567,
+            "height": 263.75,
+            "bottom": 1830.75
+          }
+        ]
+      },
+      "beforeSelectedRow": {
+        "y": 177,
+        "bottom": 660.75,
+        "height": 483.75,
+        "visible": true
+      },
+      "afterSelectedRow": {
+        "y": 531,
+        "bottom": 1014.75,
+        "height": 483.75,
+        "visible": true
+      }
+    },
+    {
+      "route": "/@nate",
+      "back": "browser",
+      "before": {
+        "scroll": 5340,
+        "rows": [
+          {
+            "index": "9",
+            "y": -1233.25,
+            "height": 103.75,
+            "bottom": -1129.5
+          },
+          {
+            "index": "10",
+            "y": -1129.25,
+            "height": 305.75,
+            "bottom": -823.5
+          },
+          {
+            "index": "11",
+            "y": -823.25,
+            "height": 583.75,
+            "bottom": -239.5
+          },
+          {
+            "index": "12",
+            "y": -239.25,
+            "height": 407.0625,
+            "bottom": 167.8125
+          },
+          {
+            "index": "13",
+            "y": 167.75,
+            "height": 163.75,
+            "bottom": 331.5
+          },
+          {
+            "index": "14",
+            "y": 331.75,
+            "height": 130.75,
+            "bottom": 462.5
+          },
+          {
+            "index": "15",
+            "y": 462.75,
+            "height": 142.75,
+            "bottom": 605.5
+          },
+          {
+            "index": "16",
+            "y": 605.75,
+            "height": 367.75,
+            "bottom": 973.5
+          },
+          {
+            "index": "17",
+            "y": 973.75,
+            "height": 485.75,
+            "bottom": 1459.5
+          },
+          {
+            "index": "18",
+            "y": 1459.75,
+            "height": 487.75,
+            "bottom": 1947.5
+          },
+          {
+            "index": "19",
+            "y": 1947.75,
+            "height": 185.75,
+            "bottom": 2133.5
+          }
+        ]
+      },
+      "after": {
+        "scroll": 4774,
+        "rows": [
+          {
+            "index": "7",
+            "y": -734.25,
+            "height": 337.75,
+            "bottom": -396.5
+          },
+          {
+            "index": "8",
+            "y": -396.25,
+            "height": 285.75,
+            "bottom": -110.5
+          },
+          {
+            "index": "9",
+            "y": -110.25,
+            "height": 103.75,
+            "bottom": -6.5
+          },
+          {
+            "index": "10",
+            "y": -6.25,
+            "height": 305.75,
+            "bottom": 299.5
+          },
+          {
+            "index": "11",
+            "y": 299.75,
+            "height": 583.75,
+            "bottom": 883.5
+          },
+          {
+            "index": "12",
+            "y": 883.75,
+            "height": 407.0625,
+            "bottom": 1290.8125
+          },
+          {
+            "index": "13",
+            "y": 1290.75,
+            "height": 163.75,
+            "bottom": 1454.5
+          },
+          {
+            "index": "14",
+            "y": 1454.75,
+            "height": 130.75,
+            "bottom": 1585.5
+          },
+          {
+            "index": "15",
+            "y": 1585.75,
+            "height": 142.75,
+            "bottom": 1728.5
+          }
+        ]
+      },
+      "beforeSelectedRow": {
+        "y": 167.75,
+        "bottom": 331.5,
+        "height": 163.75,
+        "visible": true
+      },
+      "afterSelectedRow": {
+        "y": 1290.75,
+        "bottom": 1454.5,
+        "height": 163.75,
+        "visible": false
+      }
+    },
+    {
+      "route": "/@nate",
+      "back": "app",
+      "before": {
+        "scroll": 5340,
+        "rows": [
+          {
+            "index": "9",
+            "y": -1233.25,
+            "height": 103.75,
+            "bottom": -1129.5
+          },
+          {
+            "index": "10",
+            "y": -1129.25,
+            "height": 305.75,
+            "bottom": -823.5
+          },
+          {
+            "index": "11",
+            "y": -823.25,
+            "height": 583.75,
+            "bottom": -239.5
+          },
+          {
+            "index": "12",
+            "y": -239.25,
+            "height": 407.0625,
+            "bottom": 167.8125
+          },
+          {
+            "index": "13",
+            "y": 167.75,
+            "height": 163.75,
+            "bottom": 331.5
+          },
+          {
+            "index": "14",
+            "y": 331.75,
+            "height": 130.75,
+            "bottom": 462.5
+          },
+          {
+            "index": "15",
+            "y": 462.75,
+            "height": 142.75,
+            "bottom": 605.5
+          },
+          {
+            "index": "16",
+            "y": 605.75,
+            "height": 367.75,
+            "bottom": 973.5
+          },
+          {
+            "index": "17",
+            "y": 973.75,
+            "height": 485.75,
+            "bottom": 1459.5
+          },
+          {
+            "index": "18",
+            "y": 1459.75,
+            "height": 487.75,
+            "bottom": 1947.5
+          },
+          {
+            "index": "19",
+            "y": 1947.75,
+            "height": 185.75,
+            "bottom": 2133.5
+          }
+        ]
+      },
+      "after": {
+        "scroll": 0,
+        "rows": []
+      },
+      "beforeSelectedRow": {
+        "y": 167.75,
+        "bottom": 331.5,
+        "height": 163.75,
+        "visible": true
+      },
+      "afterSelectedRow": null
+    }
+  ],
+  "httpFailureCountsByStatus": {},
+  "scriptErrorObservation": "Three feed interaction telemetry access-control errors during navigation; cause not established.",
+  "acceptance": "baseline observation"
+}
