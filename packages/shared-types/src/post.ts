@@ -434,7 +434,7 @@ export interface PollData {
   options: string[];
   endTime: string;
   votes: Record<string, number>; // option index -> vote count
-  userVotes: Record<string, string>; // userId -> option index
+  userVotes: Record<string, string>; // current viewer id -> option index; empty for anonymous readers
 }
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
