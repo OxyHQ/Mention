@@ -142,5 +142,13 @@ symmetric exit-input Deck check in 4.1 seconds. Headed WebKit passed all seven i
 other six cases were unchanged. [WebKit evidence](./feed-return-2026-10-28/webkit-candidate-15.60.4.json)
 records exact test hashes, isolated ancillary requests and the test-input delta.
 Frontend types, 37 focused saved-account/key/notification tests, and e2e type and
-fixture checks pass. The final registry artifact, merged CI and deployed build
-must still be verified independently of these local candidate results.
+fixture checks pass.
+
+The published **15.60.4** package comes from Bloom commit
+`9fb880a0ecf5477a8070e7324f4022968200d69a`, whose source tree matches the tested
+`030e3058` candidate. All **14,216** source/runtime files match the candidate
+byte for byte. Mention pins this registry version; frozen installation, registry
+lockfile validation and the security audit pass. The final branch was rebased
+onto Mention `3753716c`, including separately landed native notification education
+and camera-readiness changes. The merged-tree CI and deployed build remain
+separate checks from the local browser export.
