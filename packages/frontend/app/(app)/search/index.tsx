@@ -695,6 +695,7 @@ function SearchIndex() {
       // handler — the correct place for a debounce, never an Effect.
       if (!trimmed) {
         setDebouncedQuery('');
+        router.setParams({ q: '' });
         return;
       }
       debounceTimerRef.current = setTimeout(() => {
@@ -702,15 +703,16 @@ function SearchIndex() {
         setDebouncedQuery(trimmed);
       }, SEARCH_DEBOUNCE_MS);
     },
-    [clearDebounce, setQuery],
+    [clearDebounce, setQuery, router],
   );
 
   const clearSearch = useCallback(() => {
     setQuery('');
     setCaret(0);
     commitQuery('');
+    router.setParams({ q: '' });
     searchInputRef.current?.focus();
-  }, [commitQuery, setQuery]);
+  }, [commitQuery, setQuery, router]);
 
   // The box reports where the caret really is. Read-only: the selection is never
   // driven from state, so this only ever refines what the write handlers assumed.
