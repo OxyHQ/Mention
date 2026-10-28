@@ -1,9 +1,3 @@
-diff --git a/node_modules/react-native-screens/.bun-tag-a0843c69309e8acb b/.bun-tag-a0843c69309e8acb
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/react-native-screens/.bun-tag-b6e06a134b18ef06 b/.bun-tag-b6e06a134b18ef06
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperation.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperation.kt
 index 818469b43c2348f3f18df71e77102eafb0124faf..ef6197f6cd5af8b8ff60edebc913812a795567ce 100644
 --- a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperation.kt
@@ -29,10 +23,40 @@ index 929c41ed8b97b98c0bd95004b12572ed99f54bb4..809425cc5681c1e4e0323d1f5d9648ee
              commitTransaction(tx, op.allowStateLoss)
          }
 diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt
-index 483ce36125459be81eaa536b153bd2a5803db5af..a36e9674588724f3134f51456e75e4f4fb199c9a 100644
+index 483ce36125459be81eaa536b153bd2a5803db5af..6fd34bbd0474909c381507a7fedbd81f17e51821 100644
 --- a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt
 +++ b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt
-@@ -171,6 +171,7 @@ internal class StackContainer(
+@@ -152,15 +152,23 @@ internal class StackContainer(
+                     "[RNScreens] Unable to find a fragment to pop"
+                 }
+ 
+-            check(stackModel.size > 1) {
+-                "[RNScreens] Attempt to pop last screen from the stack"
++            check(stackModel.last() === fragment) {
++                "[RNScreens] Attempt to pop non-top screen"
+             }
+ 
+-            fragmentOps.add(PopBackStackOp(fragment))
+-
+-            check(stackModel.removeAt(stackModel.lastIndex) === fragment) {
+-                "[RNScreens] Attempt to pop non-top screen"
++            if (stackModel.size == 1) {
++                check(pendingPushOperations.isNotEmpty()) {
++                    "[RNScreens] Attempt to pop last screen from the stack"
++                }
++                // The root was never added to FragmentManager's back stack. A replacement
++                // must remove it directly; the pending push installs a new root without a
++                // back stack record, so Back cannot reveal the replaced screen.
++                fragmentOps.add(RemoveOp(fragment))
++            } else {
++                fragmentOps.add(PopBackStackOp(fragment))
+             }
++
++            stackModel.removeAt(stackModel.lastIndex)
+         }
+ 
+         pendingPushOperations.forEach { operation ->
+@@ -171,6 +179,7 @@ internal class StackContainer(
                      newFragment,
                      containerViewId = this.id,
                      addToBackStack = stackModel.isNotEmpty(),
@@ -40,7 +64,7 @@ index 483ce36125459be81eaa536b153bd2a5803db5af..a36e9674588724f3134f51456e75e4f4
                  ),
              )
              stackModel.add(newFragment)
-@@ -210,16 +211,15 @@ internal class StackContainer(
+@@ -210,16 +219,15 @@ internal class StackContainer(
          }
  
      private fun updateTopFragment() {
