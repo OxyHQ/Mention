@@ -102,7 +102,7 @@ describe('schema invariants', () => {
     expect(Number(rows[0]?.n)).toBeGreaterThan(50);
   });
 
-  it('creates every date column as `timestamptz`', async () => {
+  it('stores instants as timestamptz and calendar aggregation keys as dates', async () => {
     const rows = await db.execute<{
       table_name: string;
       column_name: string;
@@ -117,7 +117,18 @@ describe('schema invariants', () => {
     // A `timestamp` WITHOUT a time zone reinterprets the stored value in the
     // session's TimeZone on every read, silently changing what a legacy-store `Date`
     // meant. There must be none.
-    expect(rows).toEqual([]);
+    const calendarDays = new Set([
+      'commerce_post_daily_metrics.day',
+      'commerce_store_daily_metrics.day',
+    ]);
+    // These are UTC calendar buckets, not instants; DATE makes timezone changes
+    // incapable of moving an interaction into another aggregate day.
+    expect(
+      rows.filter(
+        (row) =>
+          row.data_type !== 'date' || !calendarDays.has(`${row.table_name}.${row.column_name}`),
+      ),
+    ).toEqual([]);
   });
 
   it('defaults no text column to the empty string where NULL means absent', async () => {

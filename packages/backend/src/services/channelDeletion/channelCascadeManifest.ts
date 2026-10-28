@@ -173,6 +173,27 @@ export interface CascadeStep {
  * assumption.
  */
 export const CHANNEL_CASCADE: readonly CascadeStep[] = [
+  {
+    table: 'account_storefronts',
+    column: 'oxyAccountId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'The channel owns its local storefront presentation link; removing it also cascades its anonymous store metrics.',
+  },
+  {
+    table: 'commerce_store_daily_metrics',
+    column: 'oxyAccountId',
+    scope: 'channel-account',
+    action: 'database',
+    why: 'Anonymous store metrics: ON DELETE CASCADE from account_storefronts.oxy_account_id when the channel link is removed.',
+  },
+  {
+    table: 'commerce_post_daily_metrics',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'Anonymous post metrics: ON DELETE CASCADE from posts.id when the channel post is destroyed.',
+  },
   // ---------------------------------------------------------------------------
   // PERFORMED BY POSTGRES. Deleting the channel's posts removes or clears every
   // row below inside the same statement.
