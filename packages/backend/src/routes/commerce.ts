@@ -1,11 +1,9 @@
+import { canReadAccount, resolveReadableCommercePost } from '../services/commerce/access';
 import {
   commerceMetricsSummary,
   recordCommerceMetric,
   type CommerceMetricTarget,
 } from '../services/commerce/metrics';
-import { loadPostRecord } from '../db/posts/postRepository';
-import { postHydrationService } from '../services/PostHydrationService';
-import { safetyRequesterFor } from '../utils/safetyRequester';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireOxyAuth, getRequiredOxyUserId, type OxyAuthRequest } from '@oxy.so/core/server';
@@ -21,9 +19,7 @@ import {
   StorefrontOwnershipError,
 } from '../services/commerce/storefronts';
 import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
-import { createUserScopedOxyServices, createScopedOxyClient } from '../utils/oxyHelpers';
-import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
-import { canViewProfileDesign } from '../utils/privacyHelpers';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { isAccountErased } from '../services/accountErasure/erasedAccounts';
 import {
   operatedAccountSettingsRateLimiter,
@@ -62,25 +58,6 @@ function failure(res: Response, error: unknown) {
   }
   logger.error('[Commerce] Request failed', error);
   return res.status(503).json({ message: 'Commerce is temporarily unavailable' });
-}
-
-async function canReadAccount(req: OxyAuthRequest, accountId: string): Promise<boolean> {
-  const [erased, settings] = await Promise.all([
-    isAccountErased(accountId),
-    loadUserSettings(accountId),
-  ]);
-  if (erased) return false;
-  if (req.user?.id && req.user.id !== accountId) {
-    const caller = createUserScopedOxyServices(req);
-    // This caller-scoped relationship API checks blocks in both directions.
-    if (!caller || (await caller.privacy.isBlocked(accountId))) return false;
-  }
-  return canViewProfileDesign(
-    accountId,
-    req.user?.id,
-    settings?.privacy?.profileVisibility,
-    createScopedOxyClient(req),
-  );
 }
 
 async function canManageAccount(req: OxyAuthRequest, accountId: string): Promise<void> {
@@ -240,18 +217,7 @@ async function resolveMetricTarget(
     return { target: { kind: 'store', id: id.data }, ownerId: id.data };
   }
   if (req.params.kind !== 'posts') return null;
-  const post = await loadPostRecord(id.data);
-  if (!post?.oxyUserId || !post.content.commerce?.length || post.status !== 'published')
-    return null;
-  if (
-    !(await postHydrationService.canViewerReadPostId(post.id, req.user?.id ?? '', {
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      operatedAccountReader: createUserScopedOxyServices(req),
-    }))
-  )
-    return null;
-  return { target: { kind: 'post', id: post.id }, ownerId: post.oxyUserId };
+  return resolveReadableCommercePost(req, id.data);
 }
 router.post(
   '/metrics/:kind/:id',
