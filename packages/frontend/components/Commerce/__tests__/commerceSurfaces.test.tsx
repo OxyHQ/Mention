@@ -1,3 +1,5 @@
+import { Linking, View } from 'react-native';
+import type { MercariaProductSummary } from '@mercaria.co/sdk';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -197,8 +199,8 @@ it('uses one responsive virtualized grid and owns the native profile header/tab 
   render(
     <ProfileShop
       accountId="account-a"
-      listContentHeaderComponent={<></>}
-      listStickyHeaderComponent={<></>}
+      listContentHeaderComponent={<View testID="profile-header" />}
+      listStickyHeaderComponent={<View testID="profile-tabs" />}
     />,
   );
   await waitUntil(() => screen().includes('Shop A'), 'virtualized shop');
@@ -209,7 +211,54 @@ it('uses one responsive virtualized grid and owns the native profile header/tab 
   const data: { key: string; kind: string }[] = list.props.getData();
   expect(data.slice(0, 2).map((row) => row.key)).toEqual(['profile-summary', 'profile-tabs']);
   expect(new Set(data.map((row) => row.key)).size).toBe(data.length);
-  const layout: { span?: number } = {};
+  const layout: { span?: number } = { span: 1 };
   list.props.overrideItemLayout(layout, data[0]);
   expect(layout.span).toBe(2);
+});
+
+it('deduplicates overlapping catalog pages and uses full-width headings beside stable card cells', async () => {
+  const product = (id: string): MercariaProductSummary => ({
+    ref: { kind: 'product', id },
+    title: id,
+    primaryImage: null,
+    price: { amount: 100, currency: 'EUR' },
+    compareAtPrice: null,
+    priceRange: null,
+    availability: 'in_stock',
+    condition: { key: 'new', group: 'new' },
+    seller: {
+      kind: 'store',
+      store: { kind: 'store', id: 'store-1' },
+      handle: 'shop-a',
+      name: 'Shop A',
+      logoUrl: null,
+    },
+    url: `https://mercaria.co/products/${id}`,
+  });
+  service.storeProducts
+    .mockResolvedValueOnce({ items: [product('one')], nextCursor: 'page-2' })
+    .mockResolvedValueOnce({ items: [product('one'), product('two')], nextCursor: null });
+  render(<ProfileShop accountId="account-a" />);
+  await waitUntil(() => screen().includes('mercaria:product:one'), 'first card');
+  await act(async () => button('commerce.more').props.onPress());
+  await waitUntil(() => screen().includes('mercaria:product:two'), 'next page');
+  expect(service.storeProducts).toHaveBeenLastCalledWith('account-a', 'page-2');
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  service.recordMetric.mockRejectedValueOnce(new Error('counter offline'));
+  await act(async () => button('commerce.visitStore').props.onPress());
+  expect(open).toHaveBeenCalledWith(store.store.url);
+  open.mockRestore();
+  const list = renderer.root.findByProps({ testID: 'shop-virtual-list' });
+  const rows: { key: string; kind: string }[] = list.props.getData();
+  expect(rows.filter((row) => row.kind === 'card').map((row) => row.key)).toEqual([
+    'mercaria:product:one',
+    'mercaria:product:two',
+  ]);
+  for (const row of rows) {
+    const layout: { span?: number } = { span: 1 };
+    list.props.overrideItemLayout(layout, row);
+    expect(layout.span).toBe(row.kind === 'card' ? 1 : 2);
+    expect(list.props.keyExtractor(row)).toBe(row.key);
+    expect(list.props.getItemType(row)).toBe(row.kind);
+  }
 });

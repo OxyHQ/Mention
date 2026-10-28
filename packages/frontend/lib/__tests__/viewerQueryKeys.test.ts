@@ -11,6 +11,13 @@ describe('viewer-scoped private cache', () => {
   function everyPrivateKey(viewerId: string) {
     return [
       viewerQueryKeys.all(viewerId),
+      viewerQueryKeys.commerceStorefront(viewerId, 'account-a'),
+      viewerQueryKeys.commerceStorefront(viewerId),
+      viewerQueryKeys.commerceCatalog(viewerId, 'account-a', 'store-a', 'products'),
+      viewerQueryKeys.commerceCatalog(viewerId, 'account-a', 'store-a', 'collections'),
+      viewerQueryKeys.commerceCatalog(viewerId, undefined, null, 'products'),
+      viewerQueryKeys.commerceMetrics(viewerId, 'posts', 'post-a'),
+      viewerQueryKeys.commerceMetrics(viewerId, 'stores', undefined),
       viewerQueryKeys.gifSearch(viewerId, true, 'frog'),
       viewerQueryKeys.postsRoot(viewerId),
       viewerQueryKeys.post(viewerId, 'post-1'),
@@ -173,6 +180,7 @@ describe('viewer-scoped private cache', () => {
   it('keeps truly anonymous catalogs in a separate public namespace', () => {
     const keys = [
       publicQueryKeys.all(),
+      publicQueryKeys.commerceProducts('chair'),
       publicQueryKeys.customFeedReviews('feed-1'),
       publicQueryKeys.externalActorResolve('alice@example.com'),
       publicQueryKeys.mentionResolve('https://example.com/@alice'),

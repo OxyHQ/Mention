@@ -144,11 +144,6 @@
       "measured": "47.85% statements / 29.93% branches",
       "reason": "stores/__tests__/postsStoreGranularReactivity.test.tsx is the only test naming it, and it is about selector reactivity. At 29.93% branches, most of the engagement write path this store owns \u2014 the authority every post surface reads \u2014 is unexercised."
     },
-    "utils/postBuilder.ts": {
-      "since": "2026-08-15",
-      "measured": "68.25% statements / 37.3% branches",
-      "reason": "Covered only incidentally through compose tests; buildMainPost has no test of its own. It assembles the poll, quote and scheduled fields of CreatePostRequest, so its branches are where a composer variant silently loses a field."
-    },
     "services/channelDeletionService.ts": {
       "since": "2026-08-15",
       "measured": "0%",
@@ -359,10 +354,10 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 305,
-    "pins": 300,
+    "domainFiles": 309,
+    "pins": 304,
     "unenforceable": 5,
-    "belowBarExemptions": 8,
+    "belowBarExemptions": 7,
     "criticalPaths": 36,
     "snapshotAssertions": 0
   }
