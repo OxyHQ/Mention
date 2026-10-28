@@ -4,6 +4,7 @@ import {
   mcpDeploymentIdentity,
 } from '@mention/shared-types/deployment';
 import * as z from 'zod';
+import { MAX_POST_TEXT_LENGTH } from '@mention/shared-types/post';
 import { MENTION_SERVICE_APPLICATION_ID } from '@oxy.so/mention-contracts';
 
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
@@ -987,7 +988,7 @@ export const config = {
     defaultLikesLimit: 50,
     maxHashtagLength: 100,
     maxHashtagsPerPost: 30,
-    maxTextLength: 25_000,
+    maxTextLength: MAX_POST_TEXT_LENGTH,
     maxAltTextLength: 2_000,
   },
   search: {
