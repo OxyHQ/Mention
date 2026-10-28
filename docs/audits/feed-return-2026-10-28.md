@@ -32,7 +32,7 @@ The regression agent reports that the preliminary production export combining Bl
 
 A headed WebKit run against that final local candidate kept the selected Home post visible through both Back mechanisms but recorded deep profile browser-return displacement. During that run, live dependencies began returning HTTP 429, then session/profile reads failed and the last scenario could not complete. [Candidate evidence](./feed-return-2026-10-28/webkit-candidate-inconclusive.json) is therefore **inconclusive**, not a clean release failure or pass. All live probes stopped when the shared rate limit was identified. A deterministic deep-profile fixture must establish whether displacement persists without those failures; fresh live acceptance must wait for the limit to reset.
 
-Acceptance requires adjacent visible rows to retain their actual spacing after resize and Deck transitions; the same selected post must remain visible after returning from detail; profile routes must retain their feed and parameters. Tests must run against the production export at the production origin with candidate assets substituted, preserving the real API, CSP and session-origin behavior.
+Acceptance requires adjacent visible rows to retain their actual spacing after resize and Deck transitions; the same selected post must remain visible after returning from detail; profile routes must retain their feed and parameters. The local browser tests substitute production-export assets at the production origin, preserving API and session-origin behavior. Their static server does not apply the deployment's header policy; deployment headers and redirects require the Wrangler release gate and live-production verification.
 
 
 ### Final local candidate `58078af0`: remaining WebKit failure
