@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "22.1.1",
+    "@aws-sdk/credential-provider-node": "3.972.84",
     "@clarity.surf/sdk": "0.10.0",
     "@crowdsource.you/contracts": "1.1.1",
     "@crowdsource.you/core": "3.1.0",
@@ -43,6 +44,7 @@
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/telemetry": "^2.1.0",
     "@oxy.so/utils": "catalog:",
+    "@peable.to/sdk": "0.5.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "catalog:",
     "bullmq": "^6.3.16",
@@ -62,8 +64,7 @@
     "redis": "^6.3.0",
     "sanitize-html": "^2.18.1",
     "socket.io": "^4.8.4",
-    "zod": "catalog:",
-    "@aws-sdk/credential-provider-node": "3.972.84"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@oxy.so/mention-sdk": "workspace:*",

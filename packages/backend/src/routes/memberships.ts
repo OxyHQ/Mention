@@ -1,3 +1,4 @@
+import { reconcileMembershipInvoice } from '../services/memberships/billing/receipts';
 import { Router, raw, type Response } from 'express';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { safetyRequesterFor, type RequestSafetyContext } from '../utils/safetyRequester';
@@ -207,6 +208,22 @@ membershipRoutes.post(
     (req) => createMembershipTier(param(req, 'communityId'), actor(req), tierInput.parse(req.body)),
     201,
   ),
+);
+membershipRoutes.post(
+  '/:communityId/tiers/:tierId/billing/reconcile',
+  endpoint(async (req) => {
+    const caller = actor(req);
+    const refs = z.object({ invoiceId: id, subscriptionId: id }).strict().parse(req.body);
+    const receipt = await reconcileMembershipInvoice(
+      param(req, 'communityId'),
+      param(req, 'tierId'),
+      caller,
+      req,
+      refs,
+    );
+    // Evidence was recorded, not a promise of paid access; no provider IDs or fiscal payload leak.
+    return { recorded: true, state: receipt.state };
+  }),
 );
 membershipRoutes.patch(
   '/:communityId/tiers/:tierId',

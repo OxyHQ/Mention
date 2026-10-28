@@ -65,6 +65,7 @@ reuse the own path or infer an account from a header.
 | Mention backend → Clarity | `clarityForOxyService`, shared canonical transport; published SDK 0.10 | Reader live and legacy reconciliation verified; caller deployment/canary remain |
 | Mention frontend → Clarity | `clarityForOxySession`, shared linked client; published SDK 0.10 | Final frontend composition/build/deployment |
 | Mention memberships → Oxy Files | Original foreground requester, Mention-owned private copy (no personal/guardian access), authoritative linked-download visibility; shared reference lifecycle | Core 7.5.1 published; deploy Mention and verify a private upload/read/revocation canary |
+| Mention membership receipts → Peable | Official SDK workload transport with original foreground payer; signed invoice authority and exact offer binding; no status observations accepted as payment | SDK 0.5.0 published; catalogue empty, so no provider call or paid activation until the Mention merchant/offer binding is approved |
 | Mention media cache → Oxy | Shared workload transport and replayable disk body factory | Core 7.3 includes streaming; verify live cancellation/outbox retry after deployment |
 | Mention backend → Kaana | Published SDK 3.3 own factory and immutable attribution | Producer receiver live; verify one-dispatch ledger and app-paid accounting |
 | Mention frontend → Syra | Linked-session factory, lazy client-only entry | Published SDK 0.23 pinned and artifact verified; account-switch runtime canary remains |

@@ -1,3 +1,4 @@
+import { membershipBillingReceipts } from './membershipBilling';
 /**
  * Id-Shaped Columns That Carry No Foreign Key
  *
@@ -117,6 +118,7 @@ export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   'oxy_account_id',
   'member_oxy_user_id',
+  'payer_oxy_user_id',
   'voter_oxy_user_id',
   'reporter_oxy_user_id',
   'oxy_user_id',
@@ -218,6 +220,24 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
  * like.
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  ...(
+    [
+      'invoiceId',
+      'subscriptionId',
+      'merchantId',
+      'appId',
+      'offerId',
+      'providerPriceId',
+      'planId',
+      'paymentIntentId',
+      'providerCustomerId',
+    ] as const
+  ).map((column) => ({
+    table: membershipBillingReceipts,
+    column: membershipBillingReceipts[column],
+    reason:
+      'Peable/Oxy catalogue evidence identity. Its authoritative record lives in the owning service, not a local Mention table.',
+  })),
   {
     table: membershipMedia,
     column: membershipMedia.fileId,

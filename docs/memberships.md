@@ -72,12 +72,26 @@ Peable is the canonical payment execution boundary. Its official SDK supports
 requester proof. Do not use Mercaria's legacy credential-backed adapter as a new
 integration, embed Stripe directly, or invent an app merchant/customer mapping.
 
-Peable `BillingSubscription` is an observation, not proof of payment. A future
-normalized entitlement grant must verify the paid invoice and its signed final
-invoice authority and bind all of merchant, application/environment, payer,
-subscription, offer/version, community and tier. Persist provider identifiers in
-private billing records, not public social IDs. Replays, stale observations,
-refunds and account erasure need transactional, idempotent handling.
+Peable `BillingSubscription` is an observation, not proof of payment. The receipt normalizer verifies the paid invoice and its signed final
+invoice authority and binds all of merchant, application/environment, payer,
+subscription, offer/version, community and tier. Provider identifiers stay in private `membership_billing_receipts`, not public
+social IDs. A unique source key makes concurrent replays idempotent; changed
+payers, communities, tiers or immutable invoice identity are rejected. Older
+observations and refund-state reversals cannot rewind stored refunds. These
+records are entitlement evidence, not fiscal records: community/payer erasure
+removes them while Peable remains the accounting system of record.
+
+`reconcileMembershipInvoice` uses the official Peable SDK 0.5.0 and its pinned
+invoice authority keys. It reads authoritative invoice state and the verified
+signed final authority, checks their payer, product, period and fiscal totals,
+and disposes the requester-bound client. The reviewed versioned catalogue is
+empty, so runtime calls stop before any provider request. `POST /membership-communities/:communityId/tiers/:tierId/billing/reconcile`
+is a foreground-only recovery entry point accepting exactly invoice and
+subscription references. It binds the payer to the authenticated actor and
+returns only a recorded status. With the empty catalogue it returns 409 before
+network or database writes; it accepts neither payment status nor payer overrides.
+There is no webhook or task/service impersonation path. Receipt storage never writes an entitlement or
+activates a paid tier; paid activation remains forbidden in PostgreSQL.
 
 Commercial decisions remain deferred by the user: amounts, commission and grace
 rules. Runtime activation additionally requires a reviewed Mention merchant and
@@ -87,5 +101,6 @@ No generic webhook accepting `active` is exposed and no existing Peable/Mercaria
 production billing cohort is repurposed for memberships.
 
 Sources: Oxy ADR 0033, Peable ADR 0010 and
-[the billing runtime binding runbook](https://github.com/OxyHQ/oxy-infra/blob/main/docs/runbooks/51-billing-runtime-bindings.md). Catalogue and receipt
-implementation is tracked separately from this tested free community flow.
+[the billing runtime binding runbook](https://github.com/OxyHQ/oxy-infra/blob/main/docs/runbooks/51-billing-runtime-bindings.md).
+The receipt tests use synthetic invoice evidence and a real local PostgreSQL
+database; they do not demonstrate a live Mention merchant binding or purchase.
