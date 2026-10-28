@@ -8,7 +8,13 @@ jest.mock('@/hooks/useVisibleReference', () => ({ useVisibleReference: () => moc
 jest.mock('@/hooks/useReferenceVisibility', () => ({
   useReferenceVisibility: () => ({ nativeID: 'commerce-test', visible: true }),
 }));
-jest.mock('@/lib/references/commerceCards', () => ({ commerceCards: {} }));
+jest.mock('@/lib/references/commerceCards', () => ({
+  commerceCards: {},
+  recordCommerceHandoff: (id: string) =>
+    jest
+      .requireMock('@/services/commerceService')
+      .commerceService.recordMetric('posts', id, 'handoff'),
+}));
 jest.mock('@/services/commerceService', () => ({
   commerceService: { recordMetric: jest.fn().mockResolvedValue(undefined) },
 }));

@@ -46,7 +46,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     cachedPost?.content?.attachments?.some((item) => item.type === 'commerce'),
   );
   const commerce = useQuery({
-    queryKey: ['commerce-post-metrics', user?.id, postId],
+    queryKey: viewerQueryKeys.commerceMetrics(user?.id, 'posts', postId),
     queryFn: () => commerceService.metrics('posts', postId ?? ''),
     enabled: canUsePrivateApi && Boolean(postId) && hasCommerce,
     staleTime: 60_000,

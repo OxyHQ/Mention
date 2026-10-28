@@ -68,7 +68,7 @@ function store(): MercariaStore {
     description: null,
     logoUrl: null,
     coverImageUrl: null,
-    brandColor: null,
+    brandColor: '#123456',
     rating: null,
     reviewCount: 0,
     url: 'https://mercaria.co/stores/commerce-test',
