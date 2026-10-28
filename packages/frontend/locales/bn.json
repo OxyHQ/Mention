@@ -2881,5 +2881,7 @@
   "commerce.sortPriceAsc": "দাম: কম থেকে বেশি",
   "commerce.sortPriceDesc": "দাম: বেশি থেকে কম",
   "commerce.sortRelevance": "প্রাসঙ্গিকতা",
-  "commerce.inStockOnly": "শুধু স্টকে থাকা পণ্য"
+  "commerce.inStockOnly": "শুধু স্টকে থাকা পণ্য",
+  "commerce.featuredCollections": "নির্বাচিত সংগ্রহ",
+  "commerce.moreCollectionProducts": "আরও লোড করুন · {{title}}"
 }

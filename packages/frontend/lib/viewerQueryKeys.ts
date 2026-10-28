@@ -106,7 +106,7 @@ export const viewerQueryKeys = {
     viewerId: ViewerId,
     accountId: string | undefined,
     storeId: string | null,
-    kind: 'products' | 'collections',
+    kind: 'products' | 'collections' | 'featured-collections',
     filters?: Pick<MercariaProductListOptions, 'query' | 'sort' | 'inStock'>,
   ) =>
     [
@@ -116,6 +116,17 @@ export const viewerQueryKeys = {
       storeId,
       kind,
       ...(filters ? [filters] : []),
+    ] as const,
+  commerceFeaturedProducts: (
+    viewerId: ViewerId,
+    accountId: string,
+    storeId: string,
+    collectionId: string,
+  ) =>
+    [
+      ...viewerQueryKeys.commerceCatalog(viewerId, accountId, storeId, 'featured-collections'),
+      collectionId,
+      'products',
     ] as const,
   commerceMetrics: (viewerId: ViewerId, kind: 'posts' | 'stores', id: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'commerce-metrics', kind, id ?? null] as const,

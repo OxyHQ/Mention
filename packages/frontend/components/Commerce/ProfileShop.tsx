@@ -4,7 +4,13 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import type { CommerceReference } from '@mention/shared-types/commerce';
 import { Dimensions, Linking, Text, View } from 'react-native';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useScreenVisible } from '@oxy.so/bloom/screen';
+import { isNotFoundError } from '@/utils/apiError';
+import {
+  FeaturedCollectionObserver,
+  type FeaturedCollectionSnapshot,
+} from './FeaturedCollectionObserver';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { Search } from '@oxy.so/bloom/search';
@@ -28,7 +34,7 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 
 type ShopRow =
   | { kind: 'content'; key: string; element: ReactElement }
-  | { kind: 'card'; key: string };
+  | { kind: 'card'; key: string; referenceId: string };
 interface ProfileShopProps {
   accountId: string;
   listContentHeaderComponent?: ReactElement | null;
@@ -42,6 +48,21 @@ export function ProfileShop({
   const { t } = useTranslation();
   const { user } = useAuth();
   const store = useCommerceStorefront(accountId);
+  const visible = useScreenVisible();
+  const storeId = store.data?.state === 'available' ? store.data.ref.id : null;
+  const [shelves, setShelves] = useState<Record<string, FeaturedCollectionSnapshot>>({});
+  const onShelfChange = useCallback(
+    (identity: string, snapshot: FeaturedCollectionSnapshot | undefined) => {
+      setShelves((current) => {
+        if (current[identity] === snapshot) return current;
+        const next = { ...current };
+        if (snapshot) next[identity] = snapshot;
+        else delete next[identity];
+        return next;
+      });
+    },
+    [],
+  );
   const [searchText, setSearchText] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<MercariaProductSort>('newest');
@@ -60,6 +81,16 @@ export function ProfileShop({
     { value: 'price_desc', label: t('commerce.sortPriceDesc') },
   ];
   const available = store.isSuccess && store.data.state === 'available';
+  const featured = useQuery({
+    queryKey: viewerQueryKeys.commerceCatalog(user?.id, accountId, storeId, 'featured-collections'),
+    queryFn: ({ signal }) => commerceService.featuredCollections(accountId, signal),
+    enabled: available && visible,
+    staleTime: 30_000,
+    refetchInterval: visible ? 30_000 : false,
+    retry: false,
+  });
+  // A failed refresh must not keep withdrawn, stale shelves purchasable.
+  const selectedCollections = available && featured.isSuccess ? featured.data.items : [];
   const products = useInfiniteQuery({
     queryKey: viewerQueryKeys.commerceCatalog(
       user?.id,
@@ -112,13 +143,13 @@ export function ProfileShop({
     rows.push({ kind: 'content', key: 'profile-tabs', element: listStickyHeaderComponent });
   const append = (key: string, element: ReactElement) =>
     rows.push({ kind: 'content', key, element });
-  const appendCards = (refs: CommerceReference[]) => {
+  const appendCards = (refs: CommerceReference[], prefix = '') => {
     const seen = new Set<string>();
     for (const ref of refs) {
       const key = commerceReferenceKey(ref);
       if (!seen.has(key)) {
         seen.add(key);
-        rows.push({ kind: 'card', key });
+        rows.push({ kind: 'card', key: prefix + key, referenceId: key });
       }
     }
   };
@@ -144,6 +175,64 @@ export function ProfileShop({
         </Button>
       </View>,
     );
+    if (featured.isError)
+      append('featured-error', <EmptyState title={t('commerce.catalogUnavailable')} />);
+    if (selectedCollections.length)
+      append(
+        'featured-heading',
+        <Text
+          accessibilityRole="header"
+          className="px-4 py-2 text-foreground text-lg font-semibold"
+        >
+          {t('commerce.featuredCollections')}
+        </Text>,
+      );
+    for (const collection of selectedCollections) {
+      // Never render a previous viewer/store snapshot while effects catch up.
+      const identity = JSON.stringify(
+        viewerQueryKeys.commerceFeaturedProducts(
+          user?.id,
+          accountId,
+          store.data.ref.id,
+          collection.ref.id,
+        ),
+      );
+      const shelf = shelves[identity];
+      if (shelf?.isError && isNotFoundError(shelf.error)) continue;
+      append(
+        `featured-${collection.ref.id}-heading`,
+        <Text
+          accessibilityRole="header"
+          className="px-4 py-2 text-foreground text-lg font-semibold"
+        >
+          {collection.title}
+        </Text>,
+      );
+      if (!shelf || shelf.isPending)
+        append(`featured-${collection.ref.id}-loading`, <ListSkeleton />);
+      else if (shelf.isError)
+        append(
+          `featured-${collection.ref.id}-error`,
+          <EmptyState title={t('commerce.catalogUnavailable')} />,
+        );
+      else {
+        const refs = shelf.data?.pages.flatMap((page) => page.items.map((item) => item.ref)) ?? [];
+        if (refs.length) appendCards(refs, `featured-${collection.ref.id}-`);
+        else
+          append(`featured-${collection.ref.id}-empty`, <EmptyState title={t('commerce.empty')} />);
+        if (shelf.hasNextPage)
+          append(
+            `featured-${collection.ref.id}-more`,
+            <Button
+              accessibilityLabel={t('commerce.moreCollectionProducts', { title: collection.title })}
+              disabled={shelf.isFetchingNextPage}
+              onPress={() => void shelf.fetchNextPage()}
+            >
+              {t('commerce.more')}
+            </Button>,
+          );
+      }
+    }
     append(
       'products-heading',
       <Text accessibilityRole="header" className="px-4 py-2 text-foreground text-lg font-semibold">
@@ -240,7 +329,7 @@ export function ProfileShop({
         item.element
       ) : (
         <View className="p-1.5">
-          <CommerceCard referenceId={item.key} />
+          <CommerceCard referenceId={item.referenceId} />
         </View>
       ),
     [],
@@ -253,7 +342,27 @@ export function ProfileShop({
   );
   return (
     <View onLayout={onLayout} style={{ flex: 1, minHeight: 0 }} testID="commerce-shop">
+      {storeId
+        ? selectedCollections.map((collection) => (
+            <FeaturedCollectionObserver
+              key={JSON.stringify(
+                viewerQueryKeys.commerceFeaturedProducts(
+                  user?.id,
+                  accountId,
+                  storeId,
+                  collection.ref.id,
+                ),
+              )}
+              viewerId={user?.id}
+              accountId={accountId}
+              storeId={storeId}
+              collectionId={collection.ref.id}
+              onChange={onShelfChange}
+            />
+          ))
+        : null}
       <VirtualList
+        key="catalog-grid"
         screen={{}}
         data={rows}
         keyExtractor={(item) => item.key}

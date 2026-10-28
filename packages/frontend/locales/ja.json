@@ -2881,5 +2881,7 @@
   "commerce.sortPriceAsc": "価格の安い順",
   "commerce.sortPriceDesc": "価格の高い順",
   "commerce.sortRelevance": "関連度順",
-  "commerce.inStockOnly": "在庫ありのみ"
+  "commerce.inStockOnly": "在庫ありのみ",
+  "commerce.featuredCollections": "おすすめコレクション",
+  "commerce.moreCollectionProducts": "さらに読み込む · {{title}}"
 }

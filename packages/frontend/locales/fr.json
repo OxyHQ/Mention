@@ -2916,5 +2916,7 @@
   "commerce.sortPriceAsc": "Prix croissant",
   "commerce.sortPriceDesc": "Prix décroissant",
   "commerce.sortRelevance": "Pertinence",
-  "commerce.inStockOnly": "En stock uniquement"
+  "commerce.inStockOnly": "En stock uniquement",
+  "commerce.featuredCollections": "Collections mises en avant",
+  "commerce.moreCollectionProducts": "Afficher plus · {{title}}"
 }

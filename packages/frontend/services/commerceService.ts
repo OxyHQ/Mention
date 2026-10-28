@@ -80,6 +80,30 @@ export const commerceService = {
       )
     ).data;
   },
+  async featuredCollections(
+    accountId: string,
+    signal?: AbortSignal,
+  ): Promise<MercariaPage<MercariaCollection>> {
+    return (
+      await authenticatedClient.get<MercariaPage<MercariaCollection>>(
+        `/commerce/accounts/${encodeURIComponent(accountId)}/featured-collections`,
+        { params: { limit: 20 }, signal },
+      )
+    ).data;
+  },
+  async featuredCollectionProducts(
+    accountId: string,
+    collectionId: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<MercariaPage<MercariaProductSummary>> {
+    return (
+      await authenticatedClient.get<MercariaPage<MercariaProductSummary>>(
+        `/commerce/accounts/${encodeURIComponent(accountId)}/featured-collections/${encodeURIComponent(collectionId)}/products`,
+        { params: { cursor }, signal },
+      )
+    ).data;
+  },
   async storeCollections(
     accountId: string,
     cursor?: string,

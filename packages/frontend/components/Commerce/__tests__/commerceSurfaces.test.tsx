@@ -1,5 +1,6 @@
 import { Linking, View } from 'react-native';
-import type { MercariaProductSummary } from '@mercaria.co/sdk';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import type { MercariaCollection, MercariaProductSummary } from '@mercaria.co/sdk';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -13,6 +14,8 @@ jest.mock('@/services/commerceService', () => ({
     storefront: jest.fn(),
     storeProducts: jest.fn(),
     storeCollections: jest.fn(),
+    featuredCollections: jest.fn(),
+    featuredCollectionProducts: jest.fn(),
     connect: jest.fn(),
     disconnect: jest.fn(),
     metrics: jest.fn(),
@@ -24,8 +27,16 @@ jest.mock('@oxy.so/bloom/screen', () => ({ useScreenVisible: () => true }));
 jest.mock('@oxy.so/bloom/hooks', () => ({
   useContainerWidth: () => ({ width: 600, onLayout: jest.fn() }),
 }));
+let mockListMounts = 0;
 jest.mock('@oxy.so/bloom/list', () => {
   const { View } = jest.requireActual('react-native');
+  const { useEffect } = jest.requireActual('react');
+  function MountProbe() {
+    useEffect(() => {
+      mockListMounts++;
+    }, []);
+    return null;
+  }
   return {
     VirtualList: ({
       data,
@@ -35,6 +46,7 @@ jest.mock('@oxy.so/bloom/list', () => {
       renderItem: (info: { item: { key: string }; index: number }) => ReactNode;
     }) => (
       <View testID="shop-virtual-list" {...props} getData={() => data}>
+        <MountProbe />
         {data.map((item, index) => (
           <View key={item.key}>{props.renderItem({ item, index })}</View>
         ))}
@@ -126,6 +138,7 @@ function button(label: string) {
 }
 beforeEach(() => {
   jest.resetAllMocks();
+  mockListMounts = 0;
   client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
@@ -133,6 +146,8 @@ beforeEach(() => {
     },
   });
   service.storefront.mockResolvedValue(store);
+  service.featuredCollections.mockResolvedValue({ items: [], nextCursor: null });
+  service.featuredCollectionProducts.mockResolvedValue({ items: [], nextCursor: null });
   service.storeProducts.mockResolvedValue({ items: [], nextCursor: null });
   service.storeCollections.mockResolvedValue({ items: [], nextCursor: null });
   service.recordMetric.mockResolvedValue(undefined);
@@ -362,3 +377,128 @@ it('debounces server search, resets bound cursors for filters and cancels supers
     ),
   ).not.toHaveLength(0);
 });
+
+const featuredCollection = (id: string): MercariaCollection => ({
+  ref: { kind: 'collection', id },
+  store: store.ref,
+  title: `Shelf ${id}`,
+  description: null,
+  image: null,
+  url: `https://mercaria.co/collections/${id}`,
+});
+const featuredProduct = (id: string): MercariaProductSummary => ({
+  ref: { kind: 'product', id },
+  title: id,
+  primaryImage: null,
+  price: { amount: 100, currency: 'EUR' },
+  compareAtPrice: null,
+  priceRange: null,
+  availability: 'in_stock',
+  condition: { key: 'new', group: 'new' },
+  seller: { kind: 'store', store: store.ref, handle: 'shop-a', name: 'Shop A', logoUrl: null },
+  url: `https://mercaria.co/products/${id}`,
+});
+const cardKeys = () =>
+  (
+    renderer.root.findByProps({ testID: 'shop-virtual-list' }).props.getData() as {
+      kind: string;
+      key: string;
+    }[]
+  )
+    .filter((item) => item.kind === 'card')
+    .map((item) => item.key);
+
+it('keeps seller shelf order and independent pages in one retained list, aborting removed shelves', async () => {
+  service.featuredCollections.mockResolvedValue({
+    items: [featuredCollection('b'), featuredCollection('a')],
+    nextCursor: null,
+  });
+  let finish: ((page: { items: MercariaProductSummary[]; nextCursor: null }) => void) | undefined;
+  service.featuredCollectionProducts.mockImplementation(async (_account, collectionId, cursor) => {
+    if (cursor)
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    return {
+      items: [featuredProduct(collectionId)],
+      nextCursor: collectionId === 'b' ? 'b-next' : null,
+    };
+  });
+  render(<ProfileShop accountId="account-a" />);
+  await waitUntil(() => cardKeys().length === 2, 'ordered shelf products');
+  expect(cardKeys()).toEqual(['featured-b-mercaria:product:b', 'featured-a-mercaria:product:a']);
+  const mounts = mockListMounts;
+  const more = renderer.root.findAll(
+    (node) =>
+      node.props.accessibilityLabel === 'commerce.moreCollectionProducts' &&
+      typeof node.props.onPress === 'function',
+  )[0];
+  act(() => {
+    more.props.onPress();
+  });
+  await waitUntil(() => Boolean(finish), 'second shelf page pending');
+  const last = service.featuredCollectionProducts.mock.calls.at(-1);
+  if (!last) throw new Error('Missing shelf request');
+  expect(last.slice(0, 3)).toEqual(['account-a', 'b', 'b-next']);
+  service.featuredCollections.mockResolvedValue({
+    items: [featuredCollection('a')],
+    nextCursor: null,
+  });
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: viewerQueryKeys.commerceCatalog(
+        'viewer',
+        'account-a',
+        'store-1',
+        'featured-collections',
+      ),
+    });
+  });
+  await waitUntil(() => cardKeys().length === 1, 'removed shelf hidden');
+  expect(last[3]?.aborted).toBe(true);
+  expect(cardKeys()).toEqual(['featured-a-mercaria:product:a']);
+  await act(async () => finish?.({ items: [featuredProduct('late')], nextCursor: null }));
+  expect(cardKeys()).toEqual(['featured-a-mercaria:product:a']);
+  expect(mockListMounts).toBe(mounts);
+  // Even a cached incoming account with the same store/collection IDs must
+  // not borrow the outgoing account's query snapshot for a single render.
+  client.setQueryData(viewerQueryKeys.commerceStorefront('viewer', 'account-b'), store);
+  client.setQueryData(
+    viewerQueryKeys.commerceCatalog('viewer', 'account-b', 'store-1', 'featured-collections'),
+    { items: [featuredCollection('a')], nextCursor: null },
+  );
+  service.featuredCollectionProducts.mockImplementation(() => new Promise(() => {}));
+  act(() =>
+    renderer.update(
+      <QueryClientProvider client={client}>
+        <ProfileShop accountId="account-b" />
+      </QueryClientProvider>,
+    ),
+  );
+  expect(cardKeys()).toEqual([]);
+});
+
+it.each([404, 503])(
+  'clears featured product presentation after a %s refresh failure',
+  async (status) => {
+    service.featuredCollections.mockResolvedValue({
+      items: [featuredCollection('a')],
+      nextCursor: null,
+    });
+    service.featuredCollectionProducts.mockResolvedValue({
+      items: [featuredProduct('original')],
+      nextCursor: null,
+    });
+    render(<ProfileShop accountId="account-a" />);
+    await waitUntil(() => cardKeys().length === 1, 'featured product');
+    service.featuredCollectionProducts.mockRejectedValue({ status });
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: viewerQueryKeys.commerceFeaturedProducts('viewer', 'account-a', 'store-1', 'a'),
+      });
+    });
+    await waitUntil(() => cardKeys().length === 0, 'stale purchasable card removed');
+    if (status === 404) expect(screen()).not.toContain('Shelf a');
+    else expect(screen()).toContain('commerce.catalogUnavailable');
+  },
+);

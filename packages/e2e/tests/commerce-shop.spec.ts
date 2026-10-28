@@ -68,6 +68,8 @@ test('shop pages remain virtualized and disappear when the store connection beco
         nextCursor: start < 60 ? String(start + 20) : null,
       });
     }
+    if (url.pathname.endsWith('/featured-collections'))
+      return json({ items: [], nextCursor: null });
     if (url.pathname.endsWith('/collections')) return json({ items: [], nextCursor: null });
     if (!available) return json({ state: 'gone' });
     const store = {

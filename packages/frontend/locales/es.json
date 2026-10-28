@@ -2915,5 +2915,7 @@
   "commerce.sortPriceAsc": "Precio: de menor a mayor",
   "commerce.sortPriceDesc": "Precio: de mayor a menor",
   "commerce.sortRelevance": "Relevancia",
-  "commerce.inStockOnly": "Solo disponibles"
+  "commerce.inStockOnly": "Solo disponibles",
+  "commerce.featuredCollections": "Colecciones destacadas",
+  "commerce.moreCollectionProducts": "Cargar más · {{title}}"
 }

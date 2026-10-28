@@ -69,3 +69,16 @@ it('supports an unfiltered initial store page without a cursor or cancellation s
     signal: undefined,
   });
 });
+
+it('reads bounded seller shelves and their independently paginated products with cancellation', async () => {
+  const signal = new AbortController().signal;
+  await commerceService.featuredCollections('a/b', signal);
+  await commerceService.featuredCollectionProducts('a/b', 'c/d', 'opaque/+cursor', signal);
+  expect(mockAuthenticated.get.mock.calls).toEqual([
+    ['/commerce/accounts/a%2Fb/featured-collections', { params: { limit: 20 }, signal }],
+    [
+      '/commerce/accounts/a%2Fb/featured-collections/c%2Fd/products',
+      { params: { cursor: 'opaque/+cursor' }, signal },
+    ],
+  ]);
+});
