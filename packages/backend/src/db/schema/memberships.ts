@@ -28,7 +28,7 @@ export const membershipCommunities = pgTable(
     ownerOxyUserId: text().notNull(),
     slug: text().notNull(),
     name: text().notNull(),
-    description: text().notNull().default(''),
+    description: text().notNull(),
     visibility: text({ enum: ['public', 'unlisted'] })
       .notNull()
       .default('public'),
@@ -58,7 +58,7 @@ export const membershipTiers = pgTable(
       .notNull()
       .references(() => membershipCommunities.id, { onDelete: 'cascade' }),
     name: text().notNull(),
-    description: text().notNull().default(''),
+    description: text().notNull(),
     kind: text({ enum: ['free', 'paid'] }).notNull(),
     status: text({ enum: MEMBERSHIP_TIER_STATES }).notNull().default('draft'),
     createdAt: createdAt(),

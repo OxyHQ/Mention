@@ -41,6 +41,7 @@ export const FILE_REFERENCE_ENTITY_TYPES = [
   'video_poster',
   'job_application',
   'moderation_report',
+  'membership_media',
 ] as const;
 
 /** `oxy_file_reference_sync.state`. */
