@@ -1,3 +1,4 @@
+import { commerceReferencesFromAttachments } from '../../utils/commerceReferences';
 import {
   recordNewFederationImport,
   observeFederationImportReason,
@@ -555,6 +556,7 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
     podcast,
     homiioCase: sanitizeHomiioCase({ caseId: row.contentHomiioCaseId }),
     attachments: attachments.length > 0 ? attachments : undefined,
+    commerce: commerceReferencesFromAttachments(attachments),
   });
 }
 

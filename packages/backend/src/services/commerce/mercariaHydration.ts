@@ -1,3 +1,7 @@
+import type {
+  CommerceAttachmentHydration,
+  CommerceReference,
+} from '@mention/shared-types/commerce';
 /**
  * Hydrates persisted Mercaria refs into CURRENT Mercaria truth (#951).
  *
@@ -107,7 +111,7 @@ function unresolved<TRef>(
 }
 
 async function resolveProduct(
-  client: MercariaClient,
+  client: Pick<MercariaClient, 'products' | 'links'>,
   ref: MercariaProductRef,
 ): Promise<MercariaProductHydration> {
   try {
@@ -200,4 +204,29 @@ export async function resolveMercariaCollection(
   } catch (error) {
     return unresolved('collection', ref, error);
   }
+}
+
+/** Batch presentation hydration. Dedupe across cards without coupling feed latency to commerce. */
+export async function hydrateCommerceReferences(
+  refs: readonly CommerceReference[],
+): Promise<CommerceAttachmentHydration[]> {
+  const unique = new Map(refs.map((ref) => [formatMercariaRef(ref), ref]));
+  const entries = [...unique.entries()];
+  const settled = await mapWithConcurrency(
+    entries,
+    config.mercaria.hydrationConcurrency,
+    async ([, ref]): Promise<CommerceAttachmentHydration> => {
+      if (ref.kind === 'product') return resolveProduct(getMercariaClient(), ref);
+      return resolveMercariaCollection(ref);
+    },
+  );
+  const results = new Map<string, CommerceAttachmentHydration>();
+  entries.forEach(([key, ref], index) => {
+    const outcome = settled[index];
+    results.set(
+      key,
+      outcome.status === 'fulfilled' ? outcome.value : unresolved(ref.kind, ref, outcome.reason),
+    );
+  });
+  return refs.map((ref) => results.get(formatMercariaRef(ref)) ?? INVALID);
 }

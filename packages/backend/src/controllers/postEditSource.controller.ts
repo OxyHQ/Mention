@@ -107,6 +107,7 @@ export const getPostEditSource = async (
 
     const variants = authorVariants(post.content);
     const content: PostContent = {
+      commerce: post.content.commerce,
       text: variants[0]?.text ?? '',
       ...(variants.length > 0 ? { variants } : {}),
       ...(post.content.media ? { media: post.content.media } : {}),

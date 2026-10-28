@@ -153,6 +153,11 @@
       "types": "./dist/deck.d.ts",
       "import": "./dist/deck.js",
       "require": "./dist/deck.js"
+    },
+    "./commerce": {
+      "types": "./dist/commerce.d.ts",
+      "import": "./dist/commerce.js",
+      "require": "./dist/commerce.js"
     }
   },
   "scripts": {
@@ -177,7 +182,8 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/utils": "catalog:",
     "zod": "catalog:",
-    "@oxy.so/homiio-contracts": "0.2.0"
+    "@oxy.so/homiio-contracts": "0.2.0",
+    "@mercaria.co/sdk": "0.7.1"
   },
   "devDependencies": {
     "typescript": "catalog:",

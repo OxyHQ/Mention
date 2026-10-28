@@ -4,7 +4,7 @@
  * Proves a persisted Mercaria ref is hydrated THROUGH the SDK, not through a
  * Mention-local HTTP client. Nothing Mercaria-shaped is mocked: the production
  * entry point (`hydrateMercariaProductRefs` → `getMercariaClient()` → the real
- * SDK) runs unmodified, and the only double is the platform `fetch` the SDK
+ * SDK) runs unmodified, and the doubles are Oxy’s workload factory and the platform `fetch` the SDK
  * resolves at request time. The double speaks Mercaria's real wire contract —
  * the bare value on success and `{ error: { code, message } }` on failure, on
  * `GET /public/v1/...` (Oxy's shared API conventions, SDK 0.2) — so every state
@@ -21,13 +21,26 @@ import {
   type MercariaFetchInit,
 } from '@mercaria.co/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MERCARIA_SERVICE_AUDIENCE } from '@mercaria.co/sdk/server';
 import { config } from '../../../config';
 import {
   hydrateMercariaProductRefs,
+  hydrateCommerceReferences,
   resolveMercariaCollection,
   resolveMercariaStore,
 } from '../../../services/commerce/mercariaHydration';
+import { commerceLinksByPost } from '../../../services/commerce/federationLinks';
 import { logger } from '../../../utils/logger';
+
+const { createServiceClient } = vi.hoisted(() => ({
+  createServiceClient: vi.fn(() => ({
+    fetch: (url: string, init: RequestInit) => globalThis.fetch(url, init),
+    dispose: vi.fn(),
+  })),
+}));
+vi.mock('../../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({ createServiceClient }),
+}));
 
 const API_BASE = config.mercaria.apiUrl ?? DEFAULT_MERCARIA_API_BASE_URL;
 const WEB_BASE = config.mercaria.webUrl ?? DEFAULT_MERCARIA_WEB_BASE_URL;
@@ -141,7 +154,6 @@ const productRefValue = (id: string): unknown =>
   JSON.parse(JSON.stringify({ kind: 'product', id }));
 
 beforeEach(() => {
-  vi.clearAllMocks();
   installFakeMercaria();
 });
 
@@ -153,6 +165,10 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
   it('hydrates an available product from the real wire envelope, with the SDK canonical link', async () => {
     const [result] = await hydrateMercariaProductRefs([productRefValue('prod_available')]);
 
+    expect(createServiceClient).toHaveBeenCalledWith({
+      baseURL: API_BASE,
+      audience: MERCARIA_SERVICE_AUDIENCE,
+    });
     expect(requests.map((request) => request.url)).toEqual([
       `${API_BASE}/public/v1/products/prod_available`,
     ]);
@@ -168,7 +184,7 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
     expect(result.product).toEqual(productWire('prod_available'));
   });
 
-  it('sends an anonymous GET shaped by the SDK transport, not a hand-rolled request', async () => {
+  it('uses the published workload factory without forwarding viewer credentials', async () => {
     await hydrateMercariaProductRefs([productRefValue('prod_available')]);
 
     expect(requests).toHaveLength(1);
@@ -374,5 +390,70 @@ describe('resolveMercariaStore / resolveMercariaCollection — through @mercaria
       state: 'invalid',
     });
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe('mixed commerce presentation batch', () => {
+  it('deduplicates products and collections across cards without changing their order', async () => {
+    const product = { kind: 'product' as const, id: 'prod_available' };
+    const collection = { kind: 'collection' as const, id: 'col_conformance' };
+    const results = await hydrateCommerceReferences([product, collection, product, collection]);
+    expect(results.map((result) => result.state)).toEqual([
+      'available',
+      'available',
+      'available',
+      'available',
+    ]);
+    expect(results[0]).toBe(results[2]);
+    expect(results[1]).toBe(results[3]);
+    expect(requests).toHaveLength(2);
+  });
+  it('does not fabricate a price when the provider rejects a malformed current product', async () => {
+    vi.stubGlobal('fetch', async () =>
+      json(200, { ...productWire('prod_available'), price: null }),
+    );
+    const [result] = await hydrateCommerceReferences([{ kind: 'product', id: 'prod_available' }]);
+    expect(result.state).toBe('unavailable');
+    expect(result).not.toHaveProperty('product');
+  });
+});
+
+describe('ordinary federation fallback links through the SDK', () => {
+  it('builds product links without provider reads and resolves each shared collection once', async () => {
+    const content = {
+      commerce: [
+        { kind: 'product' as const, id: 'prod_available' },
+        { kind: 'collection' as const, id: 'col_conformance' },
+      ],
+    };
+    const links = await commerceLinksByPost([
+      { id: 'one', content },
+      { id: 'two', content },
+    ]);
+    expect(links.get('one')).toEqual([
+      `${WEB_BASE}/products/prod_available`,
+      `${WEB_BASE}/stores/night-city-goods?collection=col_conformance`,
+    ]);
+    expect(links.get('two')).toEqual(links.get('one'));
+    expect(requests.map((request) => request.url)).toEqual([
+      `${API_BASE}/public/v1/collections/col_conformance`,
+    ]);
+  });
+  it('keeps product fallback links when the collection provider is unavailable', async () => {
+    vi.stubGlobal('fetch', async () =>
+      json(503, { error: { code: 'service_unavailable', message: 'Try later' } }),
+    );
+    const links = await commerceLinksByPost([
+      {
+        id: 'one',
+        content: {
+          commerce: [
+            { kind: 'product', id: 'prod_available' },
+            { kind: 'collection', id: 'col_conformance' },
+          ],
+        },
+      },
+    ]);
+    expect(links.get('one')).toEqual([`${WEB_BASE}/products/prod_available`]);
   });
 });
