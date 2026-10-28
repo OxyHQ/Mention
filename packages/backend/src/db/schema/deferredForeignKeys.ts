@@ -114,6 +114,7 @@ export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
  * have their own.
  */
 const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
+  'oxy_account_id',
   'oxy_user_id',
   'user_id',
   'owner_oxy_user_id',
