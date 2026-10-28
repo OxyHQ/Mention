@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { AssetUploadStageProgress } from '@oxy.so/core';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -65,8 +65,14 @@ export function CaptureReview({
   const player = useVideoPlayer(capture.kind === 'video' ? capture.uri : null, (instance) => {
     instance.loop = true;
     instance.muted = true;
-    instance.play();
   });
+
+  // Preparing and transferring a large capture does not need a decoding loop.
+  // Resume the review if the operation fails and leaves the capture here.
+  useEffect(() => {
+    if (busy) player.pause();
+    else player.play();
+  }, [busy, player]);
 
   const retake = useCallback(() => {
     if (busy) return;
