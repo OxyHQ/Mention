@@ -715,6 +715,13 @@
       "when": 1793175141528,
       "tag": "0101_membership_invoice_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1793189861078,
+      "tag": "0102_membership_report_review",
+      "breakpoints": true
     }
   ]
 }

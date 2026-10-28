@@ -14,6 +14,11 @@ import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { logger } from '../utils/logger';
 import { PublishAsAccessError } from '../services/publishAsAccount';
+import {
+  actOnMembershipReport,
+  inspectMembershipReport,
+  reviewMembershipReportMedia,
+} from '../services/memberships/review';
 import { MembershipError, type MembershipActor } from '../services/memberships/access';
 import {
   listMyMembershipCommunities,
@@ -176,6 +181,50 @@ membershipRoutes.use((req: MembershipRequest, res, next) => {
     next(error);
   }
 });
+const reviewPurpose = z.string().trim().min(10).max(1000);
+membershipRoutes.post(
+  '/:communityId/reports/:reportId/inspect',
+  endpoint((req) =>
+    inspectMembershipReport(
+      param(req, 'communityId'),
+      param(req, 'reportId'),
+      req,
+      z.object({ purpose: reviewPurpose }).strict().parse(req.body).purpose,
+    ),
+  ),
+);
+membershipRoutes.post(
+  '/:communityId/reports/:reportId/media/:mediaId',
+  endpoint((req) =>
+    reviewMembershipReportMedia(
+      param(req, 'communityId'),
+      param(req, 'reportId'),
+      param(req, 'mediaId'),
+      req,
+      z.object({ purpose: reviewPurpose }).strict().parse(req.body).purpose,
+    ),
+  ),
+);
+membershipRoutes.post(
+  '/:communityId/reports/:reportId/decision',
+  endpoint(async (req) => {
+    const input = z
+      .object({
+        action: z.enum(['remove_content', 'suspend_community', 'dismiss_report']),
+        purpose: reviewPurpose,
+      })
+      .strict()
+      .parse(req.body);
+    await actOnMembershipReport(
+      param(req, 'communityId'),
+      param(req, 'reportId'),
+      req,
+      input.action,
+      input.purpose,
+    );
+    return { reviewed: true };
+  }),
+);
 membershipRoutes.get(
   '/mine',
   endpoint((req) => listMyMembershipCommunities(actor(req), createUserScopedOxyServices(req))),
@@ -357,7 +406,7 @@ membershipRoutes.put(
 membershipRoutes.post(
   '/content/:contentId/reports',
   endpoint(async (req) => {
-    await reportMembershipContent(
+    const reportId = await reportMembershipContent(
       param(req, 'contentId'),
       actor(req),
       z
@@ -365,7 +414,7 @@ membershipRoutes.post(
         .strict()
         .parse(req.body).reason,
     );
-    return { reported: true };
+    return { reported: true, reportId };
   }, 201),
 );
 membershipRoutes.post(

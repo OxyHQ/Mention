@@ -15,6 +15,7 @@
  * adding a table.
  */
 export * from './accountErasures';
+export * from './membershipModeration';
 export * from './adminScripts';
 export * from './articles';
 export * from './blocklist';

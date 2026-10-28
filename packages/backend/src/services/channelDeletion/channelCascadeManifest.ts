@@ -1152,6 +1152,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
   },
   // Protected communities and their account-owned records. Child rows cascade through FKs.
   {
+    table: 'membership_review_audits',
+    column: 'operatorOxyUserId',
+    scope: 'channel-account',
+    action: 'unset-field',
+    why: 'The audit records the human operator rather than a channel; scrub any matching deleted identity defensively.',
+  },
+  {
     table: 'membership_billing_receipts',
     column: 'payerOxyUserId',
     scope: 'channel-account',
@@ -1624,6 +1631,10 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   [
     'membership_poll_votes.optionId',
     'A protected membership domain entity, never a public post/account; ON DELETE CASCADE follows its owning community, content or tier.',
+  ],
+  [
+    'membership_review_audits.reportId',
+    'The audit is bound to the protected report and cascades on erasure; it never preserves a separate private evidence copy.',
   ],
   [
     'membership_reports.contentId',
