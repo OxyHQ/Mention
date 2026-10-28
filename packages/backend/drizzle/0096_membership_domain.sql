@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "community_memberships" (
 	"id" text PRIMARY KEY NOT NULL,
 	"community_id" text NOT NULL,
