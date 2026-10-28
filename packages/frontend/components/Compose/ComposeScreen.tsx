@@ -98,7 +98,6 @@ import {
 } from '@/utils/composeContent';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useRefSync } from '@/hooks/useRefSync';
-import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
@@ -124,6 +123,8 @@ import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
 import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuilder';
 import {
+  isValidSourceUrl,
+  sanitizeSourcesForSubmit,
   type ComposerMediaItem,
   toComposerMediaType,
   ARTICLE_ATTACHMENT_KEY,
@@ -766,8 +767,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   );
 
   // URL utilities
-  const urlUtils = useUrlUtils();
-  const { isValidSourceUrl, sanitizeSourcesForSubmit } = urlUtils;
 
   // The sources sheet edits the main post's sources (`threadId: null`) or one
   // thread item's. A Dialog mounted here, not a presented surface, because the

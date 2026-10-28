@@ -2,23 +2,23 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 49.08,
-      "covered": 13322,
-      "total": 27141
+      "pct": 49.46,
+      "covered": 13427,
+      "total": 27147
     },
     "branches": {
-      "pct": 44.8,
-      "covered": 9019,
-      "total": 20131
+      "pct": 45.13,
+      "covered": 9095,
+      "total": 20151
     },
     "functions": {
-      "pct": 43.95,
-      "covered": 3123,
-      "total": 7105
+      "pct": 44.36,
+      "covered": 3155,
+      "total": 7111
     },
     "lines": {
-      "pct": 49.87,
-      "covered": 12064,
+      "pct": 50.27,
+      "covered": 12161,
       "total": 24188
     }
   },
@@ -246,10 +246,10 @@
       "lines": 100
     },
     "hooks/useComposeValidation.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 88,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useComposeVariants.ts": {
       "statements": 0,
@@ -720,12 +720,6 @@
       "lines": 88
     },
     "hooks/useUnreadCount.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useUrlUtils.ts": {
       "statements": 0,
       "branches": 0,
       "functions": 0,
@@ -1488,10 +1482,10 @@
       "lines": 99
     },
     "utils/composeUtils.ts": {
-      "statements": 53,
-      "branches": 33,
-      "functions": 35,
-      "lines": 56
+      "statements": 71,
+      "branches": 71,
+      "functions": 50,
+      "lines": 77
     },
     "utils/composeVariants.ts": {
       "statements": 86,
