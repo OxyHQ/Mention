@@ -119,6 +119,7 @@ export const POST_ATTACHMENT_TYPES = [
   'podcast',
   'homiioCase',
   'job',
+  'commerce',
 ] as const;
 
 /** `ClassificationTopicRef.type`. */
@@ -566,7 +567,7 @@ export const postAttachments = pgTable(
       .references(() => posts.id, { onDelete: 'cascade' }),
     position: integer().notNull(),
     type: text({ enum: POST_ATTACHMENT_TYPES }).notNull(),
-    /** Required for `media`, absent otherwise. */
+    /** Media id, or the SDK-formatted stable reference for commerce. */
     attachmentId: text(),
     mediaType: text({ enum: MEDIA_TYPES }),
   },

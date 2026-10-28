@@ -319,6 +319,13 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   // account: settings, graph, lists, feeds, notifications
   // ---------------------------------------------------------------------------
   {
+    table: 'account_storefronts',
+    column: 'oxyAccountId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'The account’s connected Mercaria storefront presentation; catalog ownership remains in Mercaria.',
+  },
+  {
     table: 'user_settings',
     column: 'oxyUserId',
     disposition: 'delete-row',
