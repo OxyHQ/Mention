@@ -33,7 +33,7 @@
     "@kaana.ai/contracts": "8.0.1",
     "@kaana.ai/sdk": "3.3.0",
     "@mention/shared-types": "workspace:*",
-    "@mercaria.co/sdk": "0.7.2",
+    "@mercaria.co/sdk": "0.7.3",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/db": "^1.4.0",

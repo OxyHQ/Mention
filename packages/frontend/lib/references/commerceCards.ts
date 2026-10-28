@@ -1,3 +1,4 @@
+import { parseMercariaRefString, formatMercariaRef } from '@mercaria.co/sdk/refs';
 import type {
   CommerceAttachmentHydration,
   CommerceReference,
@@ -12,11 +13,10 @@ type AvailableCommerce = Extract<CommerceAttachmentHydration, { state: 'availabl
 /** Visible cards only, deduplicated and bounded. Facts expire before refresh and never persist. */
 export const commerceCards = new VisibleReferenceStore<AvailableCommerce>(
   async (ids, { signal }) => {
-    // Keep the SDK's validators out of the initial feed bundle.
-    const { parseMercariaRefString, formatMercariaRef, formatMoney } = await import(
-      '@mercaria.co/sdk'
-    );
-    const { commerceService } = await import('@/services/commerceService');
+    const [{ formatMoney }, { commerceService }] = await Promise.all([
+      import('@mercaria.co/sdk/money'),
+      import('@/services/commerceService'),
+    ]);
     const valid: { id: string; ref: CommerceReference }[] = [];
     const unavailableIds: string[] = [];
     for (const id of ids) {

@@ -1,4 +1,4 @@
-import { formatMercariaRef, parseMercariaRef } from '@mercaria.co/sdk';
+import { formatMercariaRef, parseMercariaRef } from '@mercaria.co/sdk/refs';
 import { MAX_COMMERCE_ATTACHMENTS, type CommerceReference } from '@mention/shared-types/commerce';
 
 export { formatMercariaRef as commerceReferenceKey };

@@ -7,12 +7,14 @@ jest.mock('@/services/commerceService', () => ({
     recordMetric: (...args: unknown[]) => mockMetric(...args),
   },
 }));
-jest.mock('@mercaria.co/sdk', () => ({
+jest.mock('@mercaria.co/sdk/refs', () => ({
   parseMercariaRefString: (id: string) =>
     id.startsWith('mercaria:product:')
       ? { provider: 'mercaria', kind: 'product', id: id.slice(17) }
       : null,
   formatMercariaRef: (ref: { id: string }) => `mercaria:product:${ref.id}`,
+}));
+jest.mock('@mercaria.co/sdk/money', () => ({
   formatMoney: (_price: unknown, locale: string) => `${locale}:12.90`,
 }));
 const ref = (id: string) => ({ provider: 'mercaria', kind: 'product', id });
