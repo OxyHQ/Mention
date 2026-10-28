@@ -1,0 +1,49 @@
+{
+  "candidateBloomVersion": "15.60.0",
+  "candidateBloomRuntimeCommit": "51e3fb13",
+  "subsequentTestAndDocsCommit": "3503e239",
+  "mentionIntegration": "Canonical viewer/content restoration keys supplied by Feed, SavedPostsList, NotificationsList and ProfileGridList in the feed-regression candidate export. This records the local candidate, not a deployed production SHA.",
+  "engine": "WebKit27.2 headed under Xvfb",
+  "sourceTests": "Unchanged packages/e2e/tests/feed-geometry.spec.ts (Mention7457e38cc)",
+  "configuration": {
+    "workers": 1,
+    "retries": 0,
+    "trace": "off",
+    "screenshot": "off",
+    "video": "off",
+    "storageState": "none",
+    "preflight": "omitted only in local ignored config",
+    "origin": "https://mention.earth",
+    "assetSource": "local production export at127.0.0.1:4117"
+  },
+  "fixtureBoundary": "Feed/detail/replies/profile identity use the committed60-post deterministic fixtures. Ancillary services remain live.",
+  "results": [
+    {
+      "title": "/ keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
+      "status": "passed",
+      "durationMs": 13817
+    },
+    {
+      "title": "/@geometry-fixture keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
+      "status": "passed",
+      "durationMs": 7487
+    },
+    {
+      "title": "feed row measurements follow the scroll owner when entering and leaving Deck",
+      "status": "passed",
+      "durationMs": 5076
+    },
+    {
+      "title": "delayed feed media keeps neighboring rows contiguous through loading and width changes",
+      "status": "passed",
+      "durationMs": 2646
+    }
+  ],
+  "stats": {
+    "expected": 4,
+    "unexpected": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "duration": 30702.099000000002
+  }
+}
