@@ -91,9 +91,15 @@ test('shop pages remain virtualized and disappear when the store connection beco
   await expect.poll(() => hydrationBatches.length).toBeGreaterThan(0);
   expect(hydrationBatches.every((count) => count <= 24)).toBe(true);
   for (let pageNumber = 0; pageNumber < 2; pageNumber++) {
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const more = page.getByRole('button', { name: 'Load more', exact: true });
-    await expect(more).toBeVisible();
+    // The prior response and card hydration can still change measured height.
+    // Keep following the actual end until the virtualized control is mounted.
+    await expect
+      .poll(async () => {
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        return more.isVisible();
+      })
+      .toBe(true);
     await more.click();
     await expect.poll(() => listed).toBeGreaterThanOrEqual((pageNumber + 2) * 20);
   }
