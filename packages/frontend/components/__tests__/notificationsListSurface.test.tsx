@@ -21,6 +21,7 @@ describe('the notifications list’s surface and refresh', () => {
     act(() => {
       renderer = TestRenderer.create(
         <NotificationsList
+          restorationKey="viewer-1:notifications:all"
           items={items as never[]}
           renderRow={() => <Text>row</Text>}
           header={null}

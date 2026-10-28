@@ -35,6 +35,7 @@ describe('ProfileGridList scroll ownership', () => {
     act(() => {
       renderer = TestRenderer.create(
         <ProfileGridList
+          restorationKey="viewer-1:profile-1:media"
           data={data}
           renderCell={(item) => <Text>{item.postId}</Text>}
           ownsScroll

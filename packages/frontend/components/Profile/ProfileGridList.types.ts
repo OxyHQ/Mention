@@ -8,6 +8,8 @@ export interface ProfileGridEntry {
 }
 
 export interface ProfileGridListProps<T extends ProfileGridEntry> {
+  /** Viewer, profile and media-filter identity for web measurement restoration. */
+  restorationKey: string;
   data: T[];
   /** Render a single square cell given the measured item size. */
   renderCell: (item: T, itemSize: number) => React.ReactElement;

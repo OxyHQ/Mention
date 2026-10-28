@@ -537,7 +537,23 @@ test('default Deck preserves the current post and its DOM through both layout ch
   const screen = panel.getByTestId('post-screen');
   await expect(screen).toBeVisible();
   await screen.evaluate((node) => node.setAttribute('data-retained-post', 'true'));
-  await page.evaluate(() => window.scrollTo(0, 200));
+  // Drive a real user scroll and observe it before changing layout. A synchronous
+  // scrollTo followed by a DOM click can collapse the document before the browser
+  // delivers any scroll event, so that setup never establishes a reading offset.
+  await page.mouse.move(600, 500);
+  const userScroll = page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const onScroll = () => {
+          if (window.scrollY !== 200) return;
+          window.removeEventListener('scroll', onScroll);
+          resolve();
+        };
+        window.addEventListener('scroll', onScroll);
+      }),
+  );
+  await page.mouse.wheel(0, 200);
+  await userScroll;
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(200);
   const deck = page.getByRole('button', { name: 'Deck mode', exact: true });
   // DOM click avoids the automation's scroll-into-view changing the reading offset.
@@ -548,9 +564,25 @@ test('default Deck preserves the current post and its DOM through both layout ch
   await expect(panel.getByRole('button', { name: 'Panel settings', exact: true })).toHaveCount(0);
   const owner = screen.locator('[data-bloom-screen-viewport="element"]');
   await expect.poll(() => owner.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
-  await owner.evaluate((node) => {
-    node.scrollTop = 300;
-  });
+  await owner.hover();
+  const currentOffset = await owner.evaluate((node) => node.scrollTop);
+  const panelScroll = owner.evaluate(
+    (node) =>
+      new Promise<void>((resolve) => {
+        if (node.scrollTop === 300) {
+          resolve();
+          return;
+        }
+        const onScroll = () => {
+          if (node.scrollTop !== 300) return;
+          node.removeEventListener('scroll', onScroll);
+          resolve();
+        };
+        node.addEventListener('scroll', onScroll);
+      }),
+  );
+  await page.mouse.wheel(0, 300 - currentOffset);
+  await panelScroll;
   await expect.poll(() => owner.evaluate((node) => node.scrollTop)).toBe(300);
   await page
     .getByRole('button', { name: 'Deck mode', exact: true })

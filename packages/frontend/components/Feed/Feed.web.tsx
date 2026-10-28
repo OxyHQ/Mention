@@ -192,6 +192,7 @@ function VirtualizedWebFeed(props: FeedProps) {
     <FeedErrorBoundary>
       <VirtualList
         ref={listRef}
+        restorationKey={feedState.feedScrollKey}
         data={feedRows}
         keyExtractor={feedRowKey}
         renderItem={renderRow}

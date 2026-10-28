@@ -6,6 +6,8 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
 export interface NotificationsListProps {
+  /** Web layout identity; native keeps its existing list lifecycle. */
+  restorationKey: string;
   items: NotificationListItem[];
   renderRow: (item: NotificationListItem) => React.ReactElement;
   header: React.ReactElement | null;

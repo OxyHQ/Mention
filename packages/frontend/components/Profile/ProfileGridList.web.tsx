@@ -23,6 +23,7 @@ const rowKey = <T extends ProfileGridEntry>(row: readonly T[]) =>
  * (`useProfileDocumentPaging`), so the grid asks for nothing.
  */
 export function ProfileGridList<T extends ProfileGridEntry>({
+  restorationKey,
   data,
   renderCell,
   containerClassName,
@@ -63,6 +64,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   return (
     <div ref={rootRef} className={containerClassName}>
       <VirtualList
+        restorationKey={restorationKey}
         data={rows}
         keyExtractor={rowKey}
         estimatedItemSize={itemSize + GAP}

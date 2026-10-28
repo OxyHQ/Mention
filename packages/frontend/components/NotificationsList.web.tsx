@@ -7,6 +7,8 @@ import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
 export interface NotificationsListProps {
+  /** Viewer and tab identity for web layout and scroll restoration. */
+  restorationKey: string;
   items: NotificationListItem[];
   renderRow: (item: NotificationListItem) => React.ReactElement;
   header: React.ReactElement | null;
@@ -39,23 +41,27 @@ const notificationKey = (item: NotificationListItem) => item.key;
  * WEB notifications list: Bloom's `VirtualList`, windowed against the Screen's
  * scroller, so the body scrolls from anywhere (no inner overflow region, no
  * wheel bridge) and only the rows in the virtual window are mounted (bounded
- * DOM). Window-offset scroll restoration is keyed per active tab.
+ * DOM). Window-offset scroll restoration is keyed by viewer and active tab.
  */
 export function NotificationsList({
+  restorationKey,
   items,
   renderRow,
   header,
   emptyState,
-  tabKey,
   onEndReached,
   hasMore,
   isFetchingMore,
 }: NotificationsListProps) {
   const panel = usePanelScrollContainer<HTMLElement>();
-  useScrollRestoration('window', { enabled: !panel, key: `notifications-${tabKey}` });
+  useScrollRestoration('window', {
+    enabled: !panel,
+    key: restorationKey,
+  });
 
   return (
     <VirtualList
+      restorationKey={restorationKey}
       data={items}
       keyExtractor={notificationKey}
       renderItem={({ item }) => renderRow(item)}

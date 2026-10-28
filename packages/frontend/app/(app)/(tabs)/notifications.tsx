@@ -578,6 +578,7 @@ const NotificationsScreen: React.FC = () => {
 
     return (
       <NotificationsList
+        restorationKey={JSON.stringify([...viewerQueryKeys.notifications(user?.id), activeTab])}
         items={sectionedItems}
         renderRow={renderNotification}
         header={pokesHeader}
