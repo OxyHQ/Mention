@@ -137,3 +137,67 @@ test('feed row measurements follow the scroll owner when entering and leaving De
   await expectContiguousRows(main);
   expect(candidate.scriptErrors).toEqual([]);
 });
+
+test('delayed feed media keeps neighboring rows contiguous through loading and width changes', async ({
+  page,
+  candidate,
+}) => {
+  const imageUrl = 'https://media.mention.earth/feed-geometry/landscape.svg';
+  let releaseImage = () => {};
+  const imageReady = new Promise<void>((resolve) => {
+    releaseImage = resolve;
+  });
+  await page.route(imageUrl, async (route) => {
+    await imageReady;
+    await route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400"><rect width="800" height="400" fill="#438ac5"/></svg>',
+    });
+  });
+  await page.route('**/feed/mtn?**', (route) =>
+    route.fulfill({
+      json: {
+        items: posts.map((post, index) =>
+          index === 1
+            ? {
+                ...post,
+                content: {
+                  ...post.content,
+                  media: [
+                    {
+                      id: 'geometry-landscape',
+                      type: 'image',
+                      url: imageUrl,
+                      width: 800,
+                      height: 400,
+                      alt: 'Delayed landscape',
+                    },
+                  ],
+                },
+              }
+            : post,
+        ),
+        hasMore: false,
+      },
+    }),
+  );
+  try {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const main = page.getByTestId('mention-shell-panels-main');
+    const image = main.locator('img[alt="Delayed landscape"]');
+    await expect(image).toBeAttached();
+    await expectContiguousRows(main);
+    releaseImage();
+    await expect
+      .poll(() =>
+        image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0),
+      )
+      .toBe(true);
+    await expectContiguousRows(main);
+    await page.setViewportSize({ width: 700, height: 900 });
+    await expectContiguousRows(main);
+    expect(candidate.scriptErrors).toEqual([]);
+  } finally {
+    releaseImage();
+  }
+});
