@@ -17,6 +17,7 @@
 
 import { test as base, expect } from '@playwright/test';
 import { APP_ORIGIN, CANDIDATE_ORIGIN } from './environment';
+import { closeContractPages, installContractApi } from './contractApi';
 import { withTransientTransportRetry } from './transientNetwork';
 
 /**
@@ -136,6 +137,7 @@ export const test = base.extend<{ candidate: CandidateBuild }>({
     // context — which surfaces as a spurious "Response has been disposed"
     // failure on an otherwise green test. Draining the routes first is the
     // supported way to close that race rather than letting it flake.
+    await closeContractPages(context);
     await context.unrouteAll({ behavior: 'ignoreErrors' });
 
     // Vacuity floor. Every way the routing above can silently stop working — a
@@ -151,3 +153,17 @@ export const test = base.extend<{ candidate: CandidateBuild }>({
 });
 
 export { expect };
+
+/** Synthetic UI cases explicitly own API data; ordinary `test` stays live. */
+export const contractTest = test.extend<{ contractApi: undefined }>({
+  contractApi: [
+    async ({ context }, use) => {
+      const unexpected = await installContractApi(context);
+      await use(undefined);
+      await closeContractPages(context);
+      await context.unrouteAll({ behavior: 'wait' });
+      expect(unexpected, 'Synthetic UI test made an unowned Mention API request').toEqual([]);
+    },
+    { auto: true },
+  ],
+});

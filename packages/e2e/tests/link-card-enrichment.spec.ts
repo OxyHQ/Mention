@@ -1,4 +1,4 @@
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 test('a source URL card becomes a real article card when pending metadata arrives', async ({
   page,

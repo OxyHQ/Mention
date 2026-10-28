@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 const POST_ID = 'c186e8a0-e9a5-4e84-9c97-15b285a79999';
 const IMAGE_ORIGIN = 'https://media.mention.earth/gallery-preview-regression';

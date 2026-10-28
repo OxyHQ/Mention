@@ -18,10 +18,10 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   // Two workers in CI, not the default one-per-core. Every flow drives a real
   // browser against the live API, and the per-address rate budget is the
-  // binding constraint rather than CPU — exhausting it locally is what made the
-  // feed flows fail as though the candidate had not rendered. Fewer concurrent
-  // browsers keeps the gate well inside it; the suite is I/O-bound anyway, so
-  // this costs seconds, not minutes.
+  // binding constraint rather than CPU. Two workers bound bursts, but do not
+  // bound the sustained 600 requests/15-minute anonymous budget. Tests for
+  // local UI/renderer contracts must own their HTTP fixtures; dedicated live
+  // feed/profile flows and preflight keep checking the production boundary.
   workers: process.env.CI ? 2 : undefined,
   // One retry, and no more. A live-network gate in front of a production
   // promotion must not turn a dropped connection into a blocked release — but a

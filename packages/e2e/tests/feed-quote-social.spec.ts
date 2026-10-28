@@ -1,4 +1,4 @@
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 const originalId = '11111111-1111-4111-8111-111111111111';
 const quoteId = '22222222-2222-4222-8222-222222222222';

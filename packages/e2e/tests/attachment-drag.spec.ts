@@ -1,4 +1,4 @@
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 test('dragging post images scrolls the row without opening the viewer; clicking still opens it', async ({
   page,

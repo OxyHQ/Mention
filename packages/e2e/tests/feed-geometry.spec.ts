@@ -1,5 +1,5 @@
 import type { Locator } from '@playwright/test';
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 const posts = Array.from({ length: 60 }, (_, index) => ({
   id: `019e23ee-2d68-7000-8000-${String(index + 1).padStart(12, '0')}`,

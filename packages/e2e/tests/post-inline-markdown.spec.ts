@@ -1,4 +1,4 @@
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 const id = '01a15043-f124-792e-8f2b-aa57ebcbb503';
 
