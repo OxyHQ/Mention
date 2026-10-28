@@ -766,8 +766,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [openMediaPicker, addSharedMedia],
   );
 
-  // URL utilities
-
   // The sources sheet edits the main post's sources (`threadId: null`) or one
   // thread item's. A Dialog mounted here, not a presented surface, because the
   // sheet is controlled: every row typed or added has to reach it.
