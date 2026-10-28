@@ -164,8 +164,13 @@ export async function updateMembershipCommunity(
   const [updated] = await getDb()
     .update(membershipCommunities)
     .set({ ...patch, updatedAt: new Date() })
-    .where(eq(membershipCommunities.id, communityId))
+    // PostgreSQL rechecks this predicate after a concurrent moderator's row
+    // lock releases; an earlier permission read cannot undo a suspension.
+    .where(
+      and(eq(membershipCommunities.id, communityId), ne(membershipCommunities.status, 'suspended')),
+    )
     .returning();
+  if (!updated) throw new MembershipError(403, 'Community is suspended or unavailable');
   return communityDto(updated);
 }
 export async function createMembershipTier(

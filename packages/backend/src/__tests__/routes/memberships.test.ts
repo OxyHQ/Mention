@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import postgres from 'postgres';
 import { applyFileEvent } from '../../services/oxyFiles/fileEvents';
 import { oxyFileStates, oxyFileEvents, oxyFileReferenceSync } from '../../db/schema/oxyFiles';
 import { fileReferenceEntity, pairKey } from '../../db/oxyFiles/fileReferenceEntities';
@@ -196,6 +197,54 @@ async function content(communityId: string, extra: Record<string, unknown> = {})
 }
 
 describe('membership domain HTTP and PostgreSQL authority', () => {
+  it('cannot overwrite a moderation suspension that commits after the owner permission read', async () => {
+    const c = await community();
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error('Missing isolated database URL');
+    const connection = postgres(url, { max: 1, onnotice: () => undefined });
+    let release = () => {};
+    let locked = () => {};
+    const held = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const finish = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const suspending = connection.begin(async (tx) => {
+      await tx`update membership_communities set status='suspended' where id=${c.id}`;
+      locked();
+      await finish;
+    });
+    await held;
+    const editing = request(app)
+      .patch(`${base}/${c.id}`)
+      .send({ status: 'active', name: 'Must not overwrite' })
+      .then((response) => response);
+    try {
+      await vi.waitFor(
+        async () => {
+          const result = await getDb().execute(
+            sql`select count(*)::int as waiting from pg_stat_activity where datname=current_database() and wait_event_type='Lock' and query ilike 'update "membership_communities"%'`,
+          );
+          expect(result[0]?.waiting).toBeGreaterThan(0);
+        },
+        { timeout: 10000, interval: 10 },
+      );
+    } finally {
+      release();
+    }
+    await suspending;
+    const response = await editing;
+    await connection.end();
+    expect(response.status).toBe(403);
+    const [row] = await getDb()
+      .select()
+      .from(membershipCommunities)
+      .where(eq(membershipCommunities.id, c.id));
+    expect(row?.status).toBe('suspended');
+    expect(row?.name).toBe('Members');
+  }, 15000);
+
   it('keeps bodies and media out of public teasers and nonmembers', async () => {
     const c = await community();
     const post = await content(c.id);
