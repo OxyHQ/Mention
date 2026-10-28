@@ -47,3 +47,31 @@ This supports closing the original database failure as addressed by #1387.
 It does **not** claim an authenticated UI replay, end-to-end hydration verification,
 or a latency guarantee for every search term. A separate repeated-token timeout
 found during the investigation remains a separate performance defect.
+
+## Separate repeated-term regression found during this audit
+
+Recent production logs contained two different search timeouts on October 23.
+Their private search strings are deliberately omitted. The shared property was
+repeating a term. PostgreSQL preserves duplicate operands after stemming:
+`running runs` becomes `'run' & 'run'`. Its selectivity estimator treats these
+as independent conditions, underestimating the matching rows and choosing an
+archive-wide text-index read instead of intersecting the date index.
+
+A read-only reproduction of the historical query hit the unchanged 3,000 ms
+statement timeout. The text index estimated 87 matches against 13,418 actual
+matches. The proposed correction simplifies duplicate boolean operands in
+PostgreSQL's parsed query once per request, in the existing planner-settings
+round trip. Phrases, stop-word distances, alternatives and exclusions retain
+their semantics; raw user text is still parsed by `websearch_to_tsquery`.
+
+With that correction, the same read-only production query used BitmapAnd of
+the date and text indexes: 83 candidate renditions, 21 returned post IDs,
+131.074 ms database execution. These are individual measurements, not a latency
+SLO or an authenticated UI test. No production data or statistics were changed.
+
+The committed regression uses synthetic `running running` and `running runs`
+queries against 10,000 temporary documents: before the correction, PostgreSQL
+estimates 100 matches instead of the single-term estimate of 1,000; afterwards
+all three estimates are 1,000. Separate real PostgreSQL comparisons cover
+phrases, phrase distances, negation, OR, punctuation and empty queries. Existing
+search window, prepared-plan and 35 HTTP search tests also pass.
