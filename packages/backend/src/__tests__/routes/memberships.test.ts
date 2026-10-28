@@ -67,13 +67,17 @@ vi.mock('../../utils/oxyHelpers', () => ({
       withRequester: (proof: unknown) => {
         state.withRequester(proof);
         return {
-          uploadUserMedia: async (...args: unknown[]) => {
+          uploadAppFile: async (...args: unknown[]) => {
             state.upload(...args);
             return {
-              id: 'private-oxy-file',
-              mime: 'image/png',
-              size: 8,
-              visibility: state.fileVisibility,
+              file: {
+                id: 'private-oxy-file',
+                mime: 'image/png',
+                size: 8,
+                visibility: state.fileVisibility,
+                ownerApplicationId: 'mention-application',
+              },
+              deduplicated: false,
             };
           },
           linkedDownloadUrls: async (ids: string[]) => {
@@ -436,7 +440,7 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
       .set('Content-Type', 'image/png')
       .send(Buffer.from('testpng'));
     expect(uploaded.status).toBe(201);
-    expect(state.upload).toHaveBeenCalledWith('membership-owner', expect.any(Buffer), 'image/png', {
+    expect(state.upload).toHaveBeenCalledWith(expect.any(Buffer), 'image/png', {
       visibility: 'private',
     });
     const post = await content(c.id, { mediaIds: [uploaded.body.data.id] });
@@ -693,12 +697,9 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     expect(state.withRequester).toHaveBeenLastCalledWith({
       requesterToken: 'session-another-member',
     });
-    expect(state.upload).toHaveBeenCalledWith(
-      'membership-member',
-      expect.any(Buffer),
-      'image/png',
-      { visibility: 'private' },
-    );
+    expect(state.upload).toHaveBeenCalledWith(expect.any(Buffer), 'image/png', {
+      visibility: 'private',
+    });
     state.files = false;
     expect((await request(app).get(mediaPath)).status).toBe(404);
   });

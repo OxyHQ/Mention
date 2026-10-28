@@ -41,7 +41,7 @@ content but does not delete memberships or ordinary public social content.
 | MCP/AI | Foreground-only endpoints reject MCP, capability and service proofs | Three independent route denial tests |
 | Push/notifications | No private body, membership activity or named viewer fan-out is emitted | No notification writer in the domain |
 | MTN | No protected membership record is published to public repo records | Domain write paths have no MTN append |
-| Media | Private upload and authoritative live visibility required; callback changes withhold; original requester retained | Route tests, reference registry/outbox tests |
+| Media | Mention-owned private copy, original requester, no personal/guardian file access; authoritative live visibility required; callback changes withhold; original requester retained | Route tests, reference registry/outbox tests |
 | Frontend/account switch | Viewer-scoped ephemeral query keys; no stale body after denied refetch or account change; pending leave hides content and cancels/removes pages | React Query screen regressions |
 | Directory/insights | Directory includes explicit badge opt-ins only; metrics aggregate membership states, never page viewers | Route tests |
 | Reports | Local operator queue excludes reporter identity; scoped resolution does not hydrate the body | Route tests |

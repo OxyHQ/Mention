@@ -32,15 +32,16 @@ export async function uploadMembershipMedia(
   mime: string,
 ) {
   await requireCommunityBenefit(await communityById(communityId), actor, 'discussion_write');
-  const file = await privateFiles(request).uploadUserMedia(actor.accountId, bytes, mime, {
+  const { file } = await privateFiles(request).uploadAppFile(bytes, mime, {
     visibility: 'private',
   });
-  // Oxy deduplicates per owner and preserves existing visibility. Never convert
-  // a public post's asset to private or pretend those existing public bytes are protected.
+  // The application owns protected copies; the local author remains the member.
+  // Personal files also permit supervised-owner contacts, so private user-owned
+  // bytes cannot enforce this separate community entitlement. Dedup preserves visibility.
   if (file.visibility !== 'private')
     throw new MembershipError(
       409,
-      'These bytes already exist as a public or unlisted file; use a private file',
+      'These bytes already exist as a public or unlisted application file',
     );
   const [media] = await getDb()
     .insert(membershipMedia)
@@ -84,7 +85,7 @@ export async function downloadMembershipMedia(
   return { url: file.url, expiresIn: file.expiresIn };
 }
 
-/** Discard a caller-owned upload draft without deleting their original Oxy file. */
+/** Discard a caller-owned upload draft and let the Oxy reference lifecycle retire unused application bytes. */
 export async function discardMembershipMedia(
   communityId: string,
   mediaId: string,

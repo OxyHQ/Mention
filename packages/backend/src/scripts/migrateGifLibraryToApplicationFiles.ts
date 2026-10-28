@@ -121,7 +121,9 @@ const defaultDeps: GifLibraryMigrationDeps = {
     }));
     for (const result of results) {
       answers[result.index] = result.ok
-        ? { ok: true, fileId: result.file.id }
+        ? result.file.visibility === 'public'
+          ? { ok: true, fileId: result.file.id }
+          : { ok: false, reason: 'Existing application file is not public' }
         : { ok: false, reason: `HTTP ${result.error.status} ${result.error.code}` };
     }
     return answers;

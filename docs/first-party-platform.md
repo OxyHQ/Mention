@@ -64,7 +64,7 @@ reuse the own path or infer an account from a header.
 | Move → Mention → Oxy | Own receiver and derived requester context; published import SDK 0.2 | Move PR 47 has public pins and green CI; receiver first, then lookup/import/undo canary |
 | Mention backend → Clarity | `clarityForOxyService`, shared canonical transport; published SDK 0.10 | Reader live and legacy reconciliation verified; caller deployment/canary remain |
 | Mention frontend → Clarity | `clarityForOxySession`, shared linked client; published SDK 0.10 | Final frontend composition/build/deployment |
-| Mention memberships → Oxy Files | Original foreground requester, private upload grant and authoritative linked-download visibility; shared reference lifecycle | Core 7.5.1 published; deploy Mention and verify a private upload/read/revocation canary |
+| Mention memberships → Oxy Files | Original foreground requester, Mention-owned private copy (no personal/guardian access), authoritative linked-download visibility; shared reference lifecycle | Core 7.5.1 published; deploy Mention and verify a private upload/read/revocation canary |
 | Mention media cache → Oxy | Shared workload transport and replayable disk body factory | Core 7.3 includes streaming; verify live cancellation/outbox retry after deployment |
 | Mention backend → Kaana | Published SDK 3.3 own factory and immutable attribution | Producer receiver live; verify one-dispatch ledger and app-paid accounting |
 | Mention frontend → Syra | Linked-session factory, lazy client-only entry | Published SDK 0.23 pinned and artifact verified; account-switch runtime canary remains |
