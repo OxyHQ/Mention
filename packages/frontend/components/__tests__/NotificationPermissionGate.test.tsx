@@ -14,7 +14,9 @@ const mockPresent = jest.fn((render) => {
   });
 });
 jest.mock('react-native', () => ({ Platform: { OS: 'android' } }));
-jest.mock('@/utils/sheet', () => ({ presentSheet: (...args: unknown[]) => mockPresent(...args) }));
+jest.mock('@/utils/sheet', () => ({
+  presentSheet: (render: Parameters<typeof mockPresent>[0]) => mockPresent(render),
+}));
 jest.mock('@/components/NotificationPermissionSheet', () => ({
   NotificationPermissionSheet: () => null,
 }));
