@@ -93,3 +93,25 @@ This establishes the local production export's behavior and published-package
 parity. Merged Mention CI, deployment and post-deployment acceptance are separate
 release checks. Physical Safari/iOS and native-device coverage remain unperformed
 here.
+
+## Merge-queue follow-up: notifications at the end of the list
+
+The full browser gate for candidate `8c7833e2` passed 86 cases but rejected two
+notification-return cases, through app and browser Back. The correct inbox and
+Likes filter returned, but the scroll position was zero. Both cases reproduced
+locally with the unchanged deterministic notification fixture.
+
+The first scroll reached the measured bottom at 1,109 px after the list had
+shrunk from its initial estimated height. Bloom treated any height reduction
+followed by a bottom offset as a navigation clamp, so it never recorded this
+real user scroll. A diagnostic scroll to 500 px recorded and restored 500 px,
+confirming that the key and window listener worked. The upstream correction
+requires the previous trusted offset to exceed the new maximum before ignoring
+a clamped event; genuine user movement to the new bottom remains recordable.
+
+The investigation also found that Mention had omitted Bloom's explicit Expo
+Router adapter. Without it, the shell's static `main` identity replaced the
+nearest route identity. Mention now supplies the public `expoRouterScrollAdapter`
+to its root provider. It reads each screen's own route; Deck retains its separate
+memory-navigation scope. Final combined-candidate validation and release status
+are recorded separately from the earlier passing geometry-only candidate.
