@@ -2913,5 +2913,7 @@
   "commerce.sortPriceAsc": "Prezzo crescente",
   "commerce.sortPriceDesc": "Prezzo decrescente",
   "commerce.sortRelevance": "Rilevanza",
-  "commerce.inStockOnly": "Solo disponibili"
+  "commerce.inStockOnly": "Solo disponibili",
+  "commerce.featuredCollections": "Collezioni in evidenza",
+  "commerce.moreCollectionProducts": "Carica altro · {{title}}"
 }

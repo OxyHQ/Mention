@@ -75,6 +75,14 @@ reading position. It is
 a navigation contract, not a test of production authentication or notification
 delivery; every non-app request in that fixture is intercepted.
 
+`commerce-shop.spec.ts` and `commerce-featured.spec.ts` use the explicit
+`contractTest` boundary plus synthetic public profile/catalog responses. They
+exercise the real profile router, single virtualized grid, server-filter requests,
+independent shelf pagination, and refreshed seller withdrawal. The pending shelf
+page is withdrawn before its transport timeout, so cancellation cannot pass just
+because a request expired. These tests do not claim a live merchant selection or
+Mercaria deployment; the backend and SDK suites verify that transport boundary.
+
 This has one consequence worth stating plainly: the backend the gate exercises
 is the live one, so a backend outage will also fail this gate.
 

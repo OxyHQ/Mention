@@ -14,6 +14,8 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.commerceStorefront(viewerId, 'account-a'),
       viewerQueryKeys.commerceStorefront(viewerId),
       viewerQueryKeys.commerceCatalog(viewerId, 'account-a', 'store-a', 'products'),
+      viewerQueryKeys.commerceCatalog(viewerId, 'account-a', 'store-a', 'featured-collections'),
+      viewerQueryKeys.commerceFeaturedProducts(viewerId, 'account-a', 'store-a', 'collection-a'),
       viewerQueryKeys.commerceCatalog(viewerId, 'account-a', 'store-a', 'collections'),
       viewerQueryKeys.commerceCatalog(viewerId, undefined, null, 'products'),
       viewerQueryKeys.commerceMetrics(viewerId, 'posts', 'post-a'),

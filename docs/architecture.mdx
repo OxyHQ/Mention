@@ -156,6 +156,19 @@ private-profile restrictions apply before catalog reads. A transfer or provider
 failure cannot leave an indefinitely valid store link. The Shop tab appears only
 for an available connection and lists paginated products and collections.
 
+Mercaria owns the seller's ordered featured selection: up to six published manual
+collections, managed in its dashboard. Mention reads `stores.featuredCollections`
+and `collections.products` through the SDK; it never chooses a collection
+implicitly or copies a local featured catalog. Each shelf requests six products per page, with independent cursor
+pagination and visible-screen 30-second refresh. Search, stock and ordering
+controls precede curation; active filters show the canonical product results and
+unmount shelf observers, restoring their cached pages when filters are cleared. Product reads recheck current
+selection, store ownership and account readability. A withdrawn shelf or failed
+refresh stops presenting its old products. Query identities include the viewer,
+account, store and collection; changing ownership cannot reuse an outgoing
+snapshot. Shelf observers feed the same virtualized grid as the normal catalog,
+with mounted-card hydration still bounded to 24 refs per batch.
+
 The composer accepts up to four canonical product/collection refs across normal
 posts, thread items, edits and local drafts. Batch writes validate every entry
 before writing anything. Post hydration carries refs only; catalog calls never

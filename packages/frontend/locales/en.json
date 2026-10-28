@@ -3205,5 +3205,7 @@
   "commerce.sortPriceAsc": "Price: low to high",
   "commerce.sortPriceDesc": "Price: high to low",
   "commerce.sortRelevance": "Relevance",
-  "commerce.inStockOnly": "In stock only"
+  "commerce.inStockOnly": "In stock only",
+  "commerce.featuredCollections": "Featured collections",
+  "commerce.moreCollectionProducts": "Load more · {{title}}"
 }

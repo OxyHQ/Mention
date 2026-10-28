@@ -3007,5 +3007,7 @@
   "commerce.sortPriceAsc": "السعر: من الأقل إلى الأعلى",
   "commerce.sortPriceDesc": "السعر: من الأعلى إلى الأقل",
   "commerce.sortRelevance": "الأكثر صلة",
-  "commerce.inStockOnly": "المتوفر فقط"
+  "commerce.inStockOnly": "المتوفر فقط",
+  "commerce.featuredCollections": "المجموعات المميزة",
+  "commerce.moreCollectionProducts": "تحميل المزيد · {{title}}"
 }

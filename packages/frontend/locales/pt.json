@@ -2913,5 +2913,7 @@
   "commerce.sortPriceAsc": "Preço: do menor ao maior",
   "commerce.sortPriceDesc": "Preço: do maior ao menor",
   "commerce.sortRelevance": "Relevância",
-  "commerce.inStockOnly": "Apenas em estoque"
+  "commerce.inStockOnly": "Apenas em estoque",
+  "commerce.featuredCollections": "Coleções em destaque",
+  "commerce.moreCollectionProducts": "Carregar mais · {{title}}"
 }

@@ -2913,5 +2913,7 @@
   "commerce.sortPriceAsc": "Preu: de menor a major",
   "commerce.sortPriceDesc": "Preu: de major a menor",
   "commerce.sortRelevance": "Rellevància",
-  "commerce.inStockOnly": "Només disponibles"
+  "commerce.inStockOnly": "Només disponibles",
+  "commerce.featuredCollections": "Col·leccions destacades",
+  "commerce.moreCollectionProducts": "Carregar-ne més · {{title}}"
 }
