@@ -2874,5 +2874,12 @@
   "memberships.owned": "Toplulukların",
   "memberships.joined": "Katıldığın topluluklar",
   "memberships.open": "Topluluğu aç",
-  "memberships.empty": "Henüz topluluk yok."
+  "memberships.empty": "Henüz topluluk yok.",
+  "commerce.searchProducts": "Ürün ara",
+  "commerce.sortProducts": "Ürünleri sırala",
+  "commerce.sortNewest": "En yeni",
+  "commerce.sortPriceAsc": "Fiyat: düşükten yükseğe",
+  "commerce.sortPriceDesc": "Fiyat: yüksekten düşüğe",
+  "commerce.sortRelevance": "Alaka düzeyi",
+  "commerce.inStockOnly": "Yalnızca stoktakiler"
 }

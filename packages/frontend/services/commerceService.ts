@@ -4,7 +4,17 @@ import type {
   ConnectedStorefront,
   StorefrontState,
 } from '@mention/shared-types/commerce';
-import type { MercariaPage, MercariaProductSummary, MercariaCollection } from '@mercaria.co/sdk';
+import type {
+  MercariaPage,
+  MercariaProductSummary,
+  MercariaCollection,
+  MercariaProductListOptions,
+} from '@mercaria.co/sdk';
+
+export type StoreProductOptions = Pick<
+  MercariaProductListOptions,
+  'query' | 'cursor' | 'sort' | 'inStock' | 'limit'
+>;
 import { authenticatedClient, publicClient } from '@/utils/api';
 
 export const commerceService = {
@@ -60,12 +70,13 @@ export const commerceService = {
   },
   async storeProducts(
     accountId: string,
-    cursor?: string,
+    params: StoreProductOptions = {},
+    signal?: AbortSignal,
   ): Promise<MercariaPage<MercariaProductSummary>> {
     return (
       await authenticatedClient.get<MercariaPage<MercariaProductSummary>>(
         `/commerce/accounts/${encodeURIComponent(accountId)}/products`,
-        { params: { cursor } },
+        { params, signal },
       )
     ).data;
   },

@@ -52,6 +52,21 @@ jest.mock('@oxy.so/bloom/button', () => {
     ),
   };
 });
+jest.mock('@oxy.so/bloom/select', () => {
+  const { View, Text } = jest.requireActual('react-native');
+  return {
+    Select: View,
+    SelectContent: View,
+    SelectItem: View,
+    SelectTrigger: View,
+    SelectValue: () => null,
+    SelectItemText: Text,
+  };
+});
+jest.mock('@oxy.so/bloom/switch', () => {
+  const { View } = jest.requireActual('react-native');
+  return { Switch: View };
+});
 jest.mock('@oxy.so/bloom/search', () => {
   const { TextInput } = jest.requireActual('react-native');
   return {
@@ -149,7 +164,11 @@ it('loads both catalogs for the resolved account and presents empty/provider-fai
     () => screen().includes('commerce.empty') && screen().includes('commerce.catalogUnavailable'),
     'empty products and failed collections',
   );
-  expect(service.storeProducts).toHaveBeenCalledWith('account-a', undefined);
+  expect(service.storeProducts).toHaveBeenCalledWith(
+    'account-a',
+    expect.objectContaining({ sort: 'newest', cursor: undefined }),
+    expect.any(AbortSignal),
+  );
   expect(service.storeCollections).toHaveBeenCalledWith('account-a', undefined);
   expect(service.recordMetric).toHaveBeenCalledTimes(1);
   expect(service.recordMetric).toHaveBeenCalledWith('stores', 'account-a', 'open');
@@ -242,7 +261,11 @@ it('deduplicates overlapping catalog pages and uses full-width headings beside s
   await waitUntil(() => screen().includes('mercaria:product:one'), 'first card');
   await act(async () => button('commerce.more').props.onPress());
   await waitUntil(() => screen().includes('mercaria:product:two'), 'next page');
-  expect(service.storeProducts).toHaveBeenLastCalledWith('account-a', 'page-2');
+  expect(service.storeProducts).toHaveBeenLastCalledWith(
+    'account-a',
+    expect.objectContaining({ sort: 'newest', cursor: 'page-2' }),
+    expect.any(AbortSignal),
+  );
   const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   service.recordMetric.mockRejectedValueOnce(new Error('counter offline'));
   await act(async () => button('commerce.visitStore').props.onPress());
@@ -261,4 +284,81 @@ it('deduplicates overlapping catalog pages and uses full-width headings beside s
     expect(list.props.keyExtractor(row)).toBe(row.key);
     expect(list.props.getItemType(row)).toBe(row.kind);
   }
+});
+
+it('debounces server search, resets bound cursors for filters and cancels superseded requests', async () => {
+  service.storeProducts.mockResolvedValue({ items: [], nextCursor: 'old-page' });
+  render(<ProfileShop accountId="account-a" />);
+  await waitUntil(() => screen().includes('commerce.more'), 'initial newest page');
+  await act(async () => button('commerce.more').props.onPress());
+  await waitUntil(() => service.storeProducts.mock.calls.length === 2, 'second newest page');
+  expect(service.storeProducts.mock.calls[1][1]?.cursor).toBe('old-page');
+  let finishOld:
+    | ((value: { items: MercariaProductSummary[]; nextCursor: null }) => void)
+    | undefined;
+  service.storeProducts.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+  );
+  const search = () =>
+    renderer.root.findAll(
+      (node) =>
+        node.props.accessibilityLabel === 'commerce.searchProducts' &&
+        typeof node.props.onChangeText === 'function',
+    )[0];
+  act(() => {
+    search().props.onChangeText('ca');
+    search().props.onChangeText('chair');
+  });
+  expect(service.storeProducts.mock.calls.length).toBe(2);
+  await waitUntil(() => service.storeProducts.mock.calls.length === 3, 'debounced query');
+  expect(service.storeProducts.mock.calls[2][1]).toMatchObject({
+    query: 'chair',
+    cursor: undefined,
+    sort: 'newest',
+  });
+  const oldSignal = service.storeProducts.mock.calls[2][2];
+  const toggle = renderer.root.findAll(
+    (node) =>
+      node.props.accessibilityLabel === 'commerce.inStockOnly' &&
+      typeof node.props.onCheckedChange === 'function',
+  )[0];
+  act(() => toggle.props.onCheckedChange(true));
+  await waitUntil(() => service.storeProducts.mock.calls.length === 4, 'available products');
+  expect(oldSignal?.aborted).toBe(true);
+  expect(service.storeProducts.mock.calls[3][1]).toMatchObject({
+    query: 'chair',
+    inStock: true,
+    cursor: undefined,
+  });
+  const select = () =>
+    renderer.root.findAll(
+      (node) => node.props.value === 'newest' && typeof node.props.onValueChange === 'function',
+    )[0];
+  act(() => select().props.onValueChange('relevance'));
+  await waitUntil(() => service.storeProducts.mock.calls.length === 5, 'relevance products');
+  expect(service.storeProducts.mock.calls[4][1]).toMatchObject({
+    query: 'chair',
+    sort: 'relevance',
+    cursor: undefined,
+  });
+  act(() => search().props.onChangeText(''));
+  await waitUntil(
+    () => service.storeProducts.mock.calls.length === 6,
+    'clear search newest fallback',
+  );
+  expect(service.storeProducts.mock.calls[5][1]).toMatchObject({
+    query: undefined,
+    sort: 'newest',
+    inStock: true,
+    cursor: undefined,
+  });
+  await act(async () => finishOld?.({ items: [], nextCursor: null }));
+  expect(
+    renderer.root.findAll(
+      (node) => node.props.value === 'newest' && typeof node.props.onValueChange === 'function',
+    ),
+  ).not.toHaveLength(0);
 });

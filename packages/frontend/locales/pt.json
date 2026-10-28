@@ -2906,5 +2906,12 @@
   "memberships.owned": "As tuas comunidades",
   "memberships.joined": "Comunidades a que aderiste",
   "memberships.open": "Abrir comunidade",
-  "memberships.empty": "Ainda não há comunidades."
+  "memberships.empty": "Ainda não há comunidades.",
+  "commerce.searchProducts": "Pesquisar produtos",
+  "commerce.sortProducts": "Ordenar produtos",
+  "commerce.sortNewest": "Mais recentes",
+  "commerce.sortPriceAsc": "Preço: do menor ao maior",
+  "commerce.sortPriceDesc": "Preço: do maior ao menor",
+  "commerce.sortRelevance": "Relevância",
+  "commerce.inStockOnly": "Apenas em estoque"
 }

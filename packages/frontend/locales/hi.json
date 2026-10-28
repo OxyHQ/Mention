@@ -2874,5 +2874,12 @@
   "memberships.owned": "आपके समुदाय",
   "memberships.joined": "आपके शामिल समुदाय",
   "memberships.open": "समुदाय खोलें",
-  "memberships.empty": "अभी कोई समुदाय नहीं है।"
+  "memberships.empty": "अभी कोई समुदाय नहीं है।",
+  "commerce.searchProducts": "उत्पाद खोजें",
+  "commerce.sortProducts": "उत्पाद क्रमबद्ध करें",
+  "commerce.sortNewest": "सबसे नए",
+  "commerce.sortPriceAsc": "कीमत: कम से अधिक",
+  "commerce.sortPriceDesc": "कीमत: अधिक से कम",
+  "commerce.sortRelevance": "प्रासंगिकता",
+  "commerce.inStockOnly": "केवल स्टॉक में उपलब्ध"
 }

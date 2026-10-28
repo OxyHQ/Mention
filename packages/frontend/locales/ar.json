@@ -3000,5 +3000,12 @@
   "memberships.owned": "مجتمعاتك",
   "memberships.joined": "المجتمعات التي انضممت إليها",
   "memberships.open": "فتح المجتمع",
-  "memberships.empty": "لا توجد مجتمعات بعد."
+  "memberships.empty": "لا توجد مجتمعات بعد.",
+  "commerce.searchProducts": "البحث عن منتجات",
+  "commerce.sortProducts": "ترتيب المنتجات",
+  "commerce.sortNewest": "الأحدث",
+  "commerce.sortPriceAsc": "السعر: من الأقل إلى الأعلى",
+  "commerce.sortPriceDesc": "السعر: من الأعلى إلى الأقل",
+  "commerce.sortRelevance": "الأكثر صلة",
+  "commerce.inStockOnly": "المتوفر فقط"
 }

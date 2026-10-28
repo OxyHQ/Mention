@@ -36,6 +36,7 @@ test('shop pages remain virtualized and disappear when the store connection beco
   let available = true;
   let listed = 0;
   const hydrationBatches: number[] = [];
+  const productQueries: URLSearchParams[] = [];
   await context.route('**/commerce/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -59,6 +60,7 @@ test('shop pages remain virtualized and disappear when the store connection beco
     }
     if (url.pathname.includes('/metrics/')) return route.fulfill({ headers, status: 204 });
     if (url.pathname.endsWith('/products')) {
+      productQueries.push(new URLSearchParams(url.searchParams));
       const start = Number(url.searchParams.get('cursor') ?? 0);
       listed = Math.max(listed, start + 20);
       return json({
@@ -97,6 +99,29 @@ test('shop pages remain virtualized and disappear when the store connection beco
   }
   // 60 catalog rows loaded; the DOM must retain only the viewport/overscan.
   await expect.poll(() => page.getByTestId('commerce-card').count()).toBeLessThan(30);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const search = page.getByPlaceholder('Search products', { exact: true });
+  await search.fill('chair');
+  await expect.poll(() => productQueries.at(-1)?.get('query')).toBe('chair');
+  expect(productQueries.at(-1)?.has('cursor')).toBe(false);
+  expect(productQueries.at(-1)?.get('sort')).toBe('newest');
+  await page.getByLabel('Sort products', { exact: true }).click();
+  await page.getByRole('option', { name: 'Price: low to high', exact: true }).click();
+  await expect.poll(() => productQueries.at(-1)?.get('sort')).toBe('price_asc');
+  expect(productQueries.at(-1)?.get('query')).toBe('chair');
+  expect(productQueries.at(-1)?.has('cursor')).toBe(false);
+  await page.getByRole('switch', { name: 'In stock only' }).click();
+  await expect.poll(() => productQueries.at(-1)?.get('inStock')).toBe('true');
+  expect(productQueries.at(-1)?.get('sort')).toBe('price_asc');
+  expect(productQueries.at(-1)?.has('cursor')).toBe(false);
+  await page.getByLabel('Sort products', { exact: true }).click();
+  await page.getByRole('option', { name: 'Relevance', exact: true }).click();
+  await expect.poll(() => productQueries.at(-1)?.get('sort')).toBe('relevance');
+  await search.fill('');
+  await expect.poll(() => productQueries.at(-1)?.get('sort')).toBe('newest');
+  expect(productQueries.at(-1)?.has('query')).toBe(false);
+  expect(productQueries.at(-1)?.get('inStock')).toBe('true');
+  expect(hydrationBatches.every((count) => count <= 24)).toBe(true);
   available = false;
   // A real interval refresh tests cache invalidation after ownership/provider loss.
   await expect(page.getByText('This shop is unavailable', { exact: true })).toBeVisible({
