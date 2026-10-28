@@ -35,6 +35,12 @@ export default function MembershipCommunityScreen() {
   const { user, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
+  const benefitLabels = {
+    content_read: t('memberships.benefitRead', 'Read member content'),
+    discussion_write: t('memberships.benefitDiscuss', 'Participate in discussions'),
+    polls_vote: t('memberships.benefitVote', 'Vote in polls'),
+    media_download: t('memberships.benefitDownload', 'Download private files'),
+  };
   const focused = useIsFocused();
   const cache = useQueryClient();
   const [manage, setManage] = useState(false);
@@ -141,6 +147,50 @@ export default function MembershipCommunityScreen() {
                     'Only authorized members can read community posts and files.',
                   )}
                 </Text>
+                {landing.data.tiers.some(
+                  (tier) => tier.kind === 'free' && tier.status === 'active',
+                ) ? (
+                  <Text className="text-muted-foreground">
+                    {t(
+                      'memberships.freeOnly',
+                      'Free memberships are available. Paid subscriptions are not enabled.',
+                    )}
+                  </Text>
+                ) : null}
+                {landing.data.tiers
+                  .filter((tier) => tier.kind === 'free' && tier.status === 'active')
+                  .map((tier) => (
+                    <View key={tier.id} className="gap-2">
+                      <Text
+                        accessibilityRole="header"
+                        className="text-lg font-semibold text-foreground"
+                      >
+                        {tier.name}
+                      </Text>
+                      {tier.description ? (
+                        <Text className="text-muted-foreground">{tier.description}</Text>
+                      ) : null}
+                      {tier.benefits.map((benefit) => (
+                        <Text key={benefit} className="text-foreground">
+                          {benefitLabels[benefit]}
+                        </Text>
+                      ))}
+                      {canUsePrivateApi &&
+                      !hasCurrentMembership(landing.data.membership) &&
+                      !readable &&
+                      landing.data.community.status === 'active' ? (
+                        <Button
+                          loading={mutation.isPending}
+                          disabled={landing.data.membership?.state === 'revoked'}
+                          onPress={() =>
+                            mutation.mutate(() => membershipsService.join(id, tier.id))
+                          }
+                        >
+                          {t('memberships.joinFree', 'Join free')}
+                        </Button>
+                      ) : null}
+                    </View>
+                  ))}
                 {!canUsePrivateApi ? (
                   <SignInRequired
                     label={t('memberships.signIn', 'Sign in to join a community')}
@@ -174,19 +224,6 @@ export default function MembershipCommunityScreen() {
                       {t('memberships.leaveAction', 'Leave community')}
                     </Button>
                   </>
-                ) : !readable && landing.data.community.status === 'active' ? (
-                  landing.data.tiers
-                    .filter((tier) => tier.kind === 'free' && tier.status === 'active')
-                    .map((tier) => (
-                      <Button
-                        key={tier.id}
-                        loading={mutation.isPending}
-                        disabled={landing.data?.membership?.state === 'revoked'}
-                        onPress={() => mutation.mutate(() => membershipsService.join(id, tier.id))}
-                      >
-                        {t('memberships.joinFree', 'Join free')}
-                      </Button>
-                    ))
                 ) : null}
                 {landing.data.membership?.state === 'revoked' ? (
                   <Text className="text-muted-foreground">
