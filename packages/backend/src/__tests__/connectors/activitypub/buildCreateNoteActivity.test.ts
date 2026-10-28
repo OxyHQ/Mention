@@ -446,3 +446,35 @@ describe('buildUpdateNoteActivity — inherits sensitive + source from the Note'
     expect(note.source).toEqual({ content: 'edited body', mediaType: 'text/plain' });
   });
 });
+
+describe('commerce fallback links', () => {
+  it('emits normal escaped links in every author language without modifying persisted content', () => {
+    const post = {
+      id: 'commerce-note',
+      createdAt: ISO,
+      content: {
+        variants: [
+          { source: 'author' as const, tag: 'en', text: 'My picks' },
+          { source: 'author' as const, tag: 'es', text: 'Mis favoritos' },
+        ],
+      },
+    };
+    const original = structuredClone(post);
+    const activity = followService.buildCreateNoteActivity(
+      post,
+      'alice',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ['https://mercaria.co/products/product-one'],
+    );
+    const note = activity.object as { content: string; contentMap: Record<string, string> };
+    expect(note.content).toContain('href="https://mercaria.co/products/product-one"');
+    expect(note.contentMap.en).toBe(note.content);
+    expect(note.contentMap.es).toContain('Mis favoritos');
+    expect(note.contentMap.es).toContain('href="https://mercaria.co/products/product-one"');
+    expect(post).toEqual(original);
+  });
+});
