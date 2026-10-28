@@ -13,7 +13,7 @@
       "localChange": "Imports only; test body, data, and assertions unchanged."
     },
     "deck-layout.spec.ts": {
-      "sha256": "fb918b8b1c65b6c4fc95af655e4d0190c0c111686b78c36efbb3dfc02bfb2293",
+      "sha256": "c11de977970aa15c8f25cc5d655226f7ad1ed8597319856a65d33981a53961db",
       "localChange": "Imports only; test body, data, and assertions unchanged."
     }
   },
@@ -39,49 +39,49 @@
     {
       "title": "default Deck preserves the current post and its DOM through both layout changes",
       "status": "passed",
-      "durationMs": 6498,
+      "durationMs": 3827,
       "retry": 0
     },
     {
       "title": "/ keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
       "status": "passed",
-      "durationMs": 4942,
+      "durationMs": 3847,
       "retry": 0
     },
     {
       "title": "/@geometry-fixture keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
       "status": "passed",
-      "durationMs": 5738,
+      "durationMs": 3695,
       "retry": 0
     },
     {
       "title": "feed row measurements follow the scroll owner when entering and leaving Deck",
       "status": "passed",
-      "durationMs": 4361,
+      "durationMs": 3552,
       "retry": 0
     },
     {
       "title": "delayed feed media keeps neighboring rows contiguous through loading and width changes",
       "status": "passed",
-      "durationMs": 2590,
+      "durationMs": 1709,
       "retry": 0
     },
     {
       "title": "Notifications returns to its inbox after app Back from a post",
       "status": "passed",
-      "durationMs": 4343,
+      "durationMs": 3438,
       "retry": 0
     },
     {
       "title": "Notifications returns to its inbox after browser Back from a post",
       "status": "passed",
-      "durationMs": 4844,
+      "durationMs": 3348,
       "retry": 0
     }
   ],
   "stats": {
-    "startTime": "2026-10-28T06:14:56.774Z",
-    "duration": 34640.481999999996,
+    "startTime": "2026-10-28T06:20:57.150Z",
+    "duration": 24153.119,
     "expected": 7,
     "skipped": 0,
     "unexpected": 0,
@@ -92,5 +92,31 @@
     "sameDeckTest": "Failed headed WebKit at line 550: document scroll 200 became element scroll 0 after Deck entry; retained outer DOM and 390 px width assertions passed. No retry.",
     "diagnostic": "Separate delegated-write trace confirmed a document scroll event at 200 and element handoff write 200 landing at 200 before a later restoration write 0. This diagnostic did not establish a unique route-adapter cause; an independent Chromium export without the adapter also failed.",
     "correction": "Owner handoffs remain available until the receiving restorer consumes them, or owner/content lifetime ends. Token-scoped release protects newer transfers; pending user input can update the intended offset. No arbitrary time delay."
+  },
+  "inputReliability": {
+    "deckSetup": "The final source test uses wheel input and scroll-event barriers for document offset 200 before entry and element offset 300 before exit. Existing offset, width, DOM-retention and return assertions are unchanged. The other six cases are unchanged.",
+    "why": "Separate bounded Chromium diagnostics showed the earlier synchronous scrollTo(200) plus immediate DOM click could toggle before any source 200 scroll event. Waiting only for numeric scrollY=200 was insufficient to establish the observer-owned reading position.",
+    "interpretation": "This test-input correction is separate from the delayed restoration lifetime bug: the prior failing WebKit diagnostic did observe source 200 and an element handoff write landing 200 before restoration later reset. A no-adapter control with reliable wheel input passed and does not discriminate the lifetime correction."
+  },
+  "finalDeckInputVerification": {
+    "sequence": "After the seven-test run below, only the Deck exit setup changed to a wheel toward element offset300 with a matching scroll-event barrier. The other six source files/test cases and runtime export stayed unchanged. The final Deck test alone was rerun and passed.",
+    "previousDeckSourceSha256ForSevenTestRun": "d79e63a303b140c88b863b3bd5b7f8a4e8712d204971f93a8164bc369bfa14ad",
+    "finalDeckSourceSha256": "c11de977970aa15c8f25cc5d655226f7ad1ed8597319856a65d33981a53961db",
+    "results": [
+      {
+        "title": "default Deck preserves the current post and its DOM through both layout changes",
+        "status": "passed",
+        "durationMs": 4161,
+        "retry": 0
+      }
+    ],
+    "stats": {
+      "startTime": "2026-10-28T06:22:51.441Z",
+      "duration": 4745.049,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
   }
 }
