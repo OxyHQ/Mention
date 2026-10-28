@@ -181,3 +181,45 @@ it('never shows cached protected data when a refetch denies access', async () =>
   await settle();
   expect(text()).not.toContain('PRIVATE BODY A');
 });
+
+it('fails closed before any protected request when community entitlement lookup fails', async () => {
+  mockService.landing.mockRejectedValue(new Error('Entitlement service unavailable'));
+  await mount();
+  expect(text()).toContain('Community unavailable');
+  expect(text()).not.toContain('PRIVATE BODY A');
+  expect(mockService.content).not.toHaveBeenCalled();
+  expect(mockService.readContent).not.toHaveBeenCalled();
+});
+
+it('withholds a previously visible body when refreshing the landing denies entitlement', async () => {
+  await mount();
+  expect(text()).toContain('PRIVATE BODY A');
+  const reads = mockService.content.mock.calls.length;
+  mockService.landing.mockRejectedValue(new Error('Community access revoked'));
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: membershipKeys.landing('viewer-a', 'community', true),
+    });
+  });
+  await settle();
+  expect(text()).toContain('Community unavailable');
+  expect(text()).not.toContain('PRIVATE BODY A');
+  expect(mockService.content).toHaveBeenCalledTimes(reads);
+});
+
+it('hides retained private content when unfocused and rechecks entitlement on returning', async () => {
+  await mount();
+  expect(text()).toContain('PRIVATE BODY A');
+  const reads = mockService.content.mock.calls.length;
+  mockFocused = false;
+  act(() => tree?.update(render()));
+  expect(text()).not.toContain('PRIVATE BODY A');
+  mockService.landing.mockResolvedValue({ ...active, membership: null });
+  mockFocused = true;
+  act(() => tree?.update(render()));
+  expect(text()).not.toContain('PRIVATE BODY A');
+  await settle();
+  await settle();
+  expect(text()).not.toContain('PRIVATE BODY A');
+  expect(mockService.content).toHaveBeenCalledTimes(reads);
+});
