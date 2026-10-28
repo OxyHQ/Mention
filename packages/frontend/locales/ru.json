@@ -1747,7 +1747,7 @@
   "Date joined": "Дата регистрации",
   "Error": "Ошибка",
   "Followers": "Подписчики",
-  "Since {date}": "С {date}",
+  "Since {date}": "С {{date}}",
   "Username changes": "Смена имени пользователя",
   "Verification": "Подтверждение",
   "Verified": "Подтверждён",

@@ -1765,7 +1765,7 @@
   "Date joined": "Fecha de registro",
   "Error": "Error",
   "Followers": "Seguidores",
-  "Since {date}": "Desde {date}",
+  "Since {date}": "Desde {{date}}",
   "Username changes": "Cambios de nombre de usuario",
   "Verification": "Verificación",
   "Verified": "Verificado",

@@ -1695,7 +1695,7 @@
   "Date joined": "যোগ দেওয়ার তারিখ",
   "Error": "ত্রুটি",
   "Followers": "ফলোয়ার",
-  "Since {date}": "{date} থেকে",
+  "Since {date}": "{{date}} থেকে",
   "Username changes": "ইউজারনেমের পরিবর্তন",
   "Verification": "যাচাইকরণ",
   "Verified": "যাচাইকৃত",

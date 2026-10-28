@@ -1695,7 +1695,7 @@
   "Date joined": "加入日期",
   "Error": "错误",
   "Followers": "粉丝",
-  "Since {date}": "自 {date} 起",
+  "Since {date}": "自 {{date}} 起",
   "Username changes": "用户名变更记录",
   "Verification": "认证",
   "Verified": "已认证",

@@ -1695,7 +1695,7 @@
   "Date joined": "Tanggal bergabung",
   "Error": "Kesalahan",
   "Followers": "Pengikut",
-  "Since {date}": "Sejak {date}",
+  "Since {date}": "Sejak {{date}}",
   "Username changes": "Perubahan nama pengguna",
   "Verification": "Verifikasi",
   "Verified": "Terverifikasi",

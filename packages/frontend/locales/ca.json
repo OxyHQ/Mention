@@ -1721,7 +1721,7 @@
   "Date joined": "Data d'incorporació",
   "Error": "Error",
   "Followers": "Seguidors",
-  "Since {date}": "Des del {date}",
+  "Since {date}": "Des del {{date}}",
   "Username changes": "Canvis de nom d'usuari",
   "Verification": "Verificació",
   "Verified": "Verificat",
