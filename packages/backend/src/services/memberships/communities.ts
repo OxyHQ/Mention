@@ -94,7 +94,13 @@ export async function createMembershipCommunity(
       .returning();
     const [tier] = await tx
       .insert(membershipTiers)
-      .values({ communityId: community.id, name: 'Member', kind: 'free', status: 'active' })
+      .values({
+        communityId: community.id,
+        name: 'Member',
+        description: '',
+        kind: 'free',
+        status: 'active',
+      })
       .returning();
     await tx.insert(membershipTierBenefits).values(
       MEMBERSHIP_BENEFITS.map((benefit) => ({
