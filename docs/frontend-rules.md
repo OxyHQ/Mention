@@ -279,3 +279,19 @@ regression in `packages/e2e/tests/deep-link-boot.spec.ts`, including its capture
 history writes. Require no transient home URL, no browser `pageerror`, and correct
 back/forward traversal. An eventual correct URL or a screenshot alone cannot
 detect the intermediate `/` rewrite. Keep the existing native stack header patch intact.
+
+## Camera shutter gesture ownership
+
+A held shutter records until its gesture finishes in either Photo or Video mode.
+A Video tap starts a hands-free recording and the next tap stops it. Track hold
+ownership separately from the selected mode in `CameraCapture.tsx`.
+
+The shutter pan owns release through `onFinalize`: this includes a stationary
+hold whose pan never activates, a completed drag and cancellation. Do not stop
+from `Pressable.onPressOut`; React Native also emits it when the pan takes the
+responder, while the finger is still down. That handoff truncated a physical
+Android recording to 67 ms during upward zoom. Finalization resets zoom, while
+`useVideoRecorder` owns pending-permission cancellation and unmount cleanup.
+`cameraShutterGestures.test.tsx` exercises actual Gesture Handler transitions
+and the recorder with a native camera stub; device acceptance still checks the
+native event ordering and encoded clip.

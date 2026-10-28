@@ -268,37 +268,19 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
     afterTimer(action === 'record' ? () => void arm() : () => void takePhoto());
   }, [captureMode, isRecording, stop, afterTimer, arm, takePhoto]);
 
-  /**
-   * The shutter's HOLD, which records in EITHER mode — in video it is simply the
-   * long way round to what a tap already does.
-   *
-   * NO SELF-TIMER ON THIS PATH, deliberately: a held recording already has a
-   * finger on the button, so counting down first would mean holding through the
-   * countdown for nothing. The timer belongs to the tap.
-   */
+  /** A hold owns one recording; a video tap toggles independently of touch lifetime. */
+  const heldRecording = useRef(false);
   const onShutterLongPress = useCallback(() => {
     if (isRecording || countdown !== null) return;
+    heldRecording.current = true;
     void arm();
   }, [isRecording, countdown, arm]);
 
-  /**
-   * The shutter's RELEASE.
-   *
-   * ON THE PRESSABLE RATHER THAN THE PAN GESTURE, and that is the difference
-   * between a working shutter and one that records for three minutes: a hold
-   * with no movement never ACTIVATES a pan, so its `onEnd` never runs. React
-   * Native's own responder fires `onPressOut` on release AND on termination —
-   * including the termination the pan causes when a drag does take over — so it
-   * is the one signal present on every path.
-   */
-  const onShutterRelease = useCallback(() => {
-    // In VIDEO mode the press that started the recording also ends here, and
-    // must not stop it: there, stopping is the SECOND tap's job, and a hold is
-    // just the long way into the same state. Only in photo mode does the finger
-    // hold the recording open.
-    if (captureMode === 'video') return;
+  const finishShutterGesture = useCallback(() => {
+    if (!heldRecording.current) return;
+    heldRecording.current = false;
     stop();
-  }, [captureMode, stop]);
+  }, [stop]);
 
   // The ring fills over the whole allowance, so its angle IS the time left; the
   // seconds beside it are the same fact for a reader who needs the number.
@@ -350,21 +332,23 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   const shutterDrag = useMemo(
     () =>
       Gesture.Pan()
+        .withTestId('camera-shutter-drag')
         .runOnJS(true)
         .onUpdate((event) => {
           // UP is negative, and only up counts: dragging down from the shutter
           // is how a thumb leaves the control, not a request to zoom out past 0.
           setZoom(clampZoom(Math.max(0, -event.translationY) / ZOOM_DRAG_DISTANCE_PX));
         })
-        // `onFinalize`, not `onEnd`: a hold that never moved does not ACTIVATE a
-        // pan, and only this one runs on every touch that began. The release
-        // itself is the Pressable's — see `onShutterRelease`.
+        // The pan owns the touch until it ends, fails without movement, or is
+        // cancelled. Pressable.onPressOut also fires when this pan takes over;
+        // treating that responder handoff as finger-up truncates the recording.
         .onFinalize(() => {
+          finishShutterGesture();
           // The zoom belongs to the take, not to the camera: releasing returns to
           // 1x so the next capture starts where the reader expects.
           setZoom(0);
         }),
-    [],
+    [finishShutterGesture],
   );
 
   // The arc IS the time left: `strokeDashoffset` walks the circumference as the
@@ -546,7 +530,6 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
             <Pressable
               onPress={onShutterPress}
               onLongPress={onShutterLongPress}
-              onPressOut={onShutterRelease}
               delayLongPress={HOLD_TO_RECORD_MS}
               accessibilityRole="button"
               // The control does more than one thing and a reader who cannot see
