@@ -1,7 +1,7 @@
 import type { Locator } from '@playwright/test';
 import { expect, test } from '../fixtures';
 
-const posts = Array.from({ length: 24 }, (_, index) => ({
+const posts = Array.from({ length: 60 }, (_, index) => ({
   id: `019e23ee-2d68-7000-8000-${String(index + 1).padStart(12, '0')}`,
   user: {
     id: '019e23ee-2d68-7000-8001-000000000001',
@@ -55,6 +55,14 @@ async function expectContiguousRows(container: Locator) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await page.route('https://api.oxy.so/profiles/username/geometry-fixture', (route) =>
+    route.fulfill({ json: { ...posts[0].user, bio: 'Feed geometry fixture' } }),
+  );
+  await page.route('https://api.oxy.so/profiles/resolve?**', (route) =>
+    route.fulfill({
+      json: { success: true, data: { ...posts[0].user, bio: 'Feed geometry fixture' } },
+    }),
+  );
   await page.route('**/feed/mtn?**', (route) =>
     route.fulfill({ json: { items: posts, hasMore: false } }),
   );
@@ -71,56 +79,65 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test('different-height feed rows remain contiguous after viewport resize and returning from a post', async ({
-  page,
-  candidate,
-}) => {
-  await page.goto('/');
-  const main = page.getByTestId('mention-shell-panels-main');
-  await expectContiguousRows(main);
-  // A height-only resize leaves every row's actual height unchanged. The row
-  // ResizeObservers must not be relied on to repair discarded measurements.
-  await page.setViewportSize({ width: 1440, height: 800 });
-  await expectContiguousRows(main);
-  await page.setViewportSize({ width: 1300, height: 800 });
-  await expectContiguousRows(main);
+for (const path of ['/', '/@geometry-fixture']) {
+  test(`${path} keeps different-height rows contiguous after resizing and returning from a deeply scrolled post`, async ({
+    page,
+    candidate,
+  }) => {
+    await page.goto(path);
+    const main = page.getByTestId('mention-shell-panels-main');
+    await expectContiguousRows(main);
+    // A height-only resize leaves every row's actual height unchanged. The row
+    // ResizeObservers must not be relied on to repair discarded measurements.
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await expectContiguousRows(main);
+    await page.setViewportSize({ width: 1300, height: 800 });
+    await expectContiguousRows(main);
 
-  await page.mouse.move(600, 500);
-  await page.mouse.wheel(0, 1400);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(800);
-  await expectContiguousRows(main);
-  const selected = await main.locator('[data-post-uri]').evaluateAll((rows) => {
-    const row = rows.find((node) => {
-      const box = node.getBoundingClientRect();
-      return box.top > 100 && box.top < innerHeight - 150;
+    await page.mouse.move(600, 500);
+    for (let step = 0; step < 3; step += 1) {
+      const offset = await page.evaluate(() => window.scrollY);
+      await page.mouse.wheel(0, 1800);
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(offset + 1000);
+      await expectContiguousRows(main);
+    }
+    await expectContiguousRows(main);
+    const selected = await main.locator('[data-post-uri]').evaluateAll((rows) => {
+      const row = rows.find((node) => {
+        const box = node.getBoundingClientRect();
+        return box.top > 100 && box.top < innerHeight - 150;
+      });
+      const target = row?.querySelector<HTMLElement>('[tabindex="0"]');
+      if (!row || !target) throw new Error('No visible keyboard-accessible feed post');
+      target.focus();
+      return {
+        uri: row.getAttribute('data-post-uri'),
+        top: row.getBoundingClientRect().top,
+        scroll: scrollY,
+      };
     });
-    const target = row?.querySelector<HTMLElement>('[tabindex="0"]');
-    if (!row || !target) throw new Error('No visible keyboard-accessible feed post');
-    target.focus();
-    return row.getAttribute('data-post-uri');
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/p\/[^/]+$/);
+    await page.goBack();
+    await expect(page).toHaveURL(path);
+    await expectContiguousRows(main);
+    await expect(main.locator('[data-post-uri]').filter({ visible: true }).first()).toBeAttached();
+    await expect
+      .poll(() =>
+        main.locator('[data-post-uri]').evaluateAll((rows, before) => {
+          const row = rows.find((row) => row.getAttribute('data-post-uri') === before.uri);
+          const box = row?.getBoundingClientRect();
+          return {
+            before,
+            after: { top: box?.top, scroll: scrollY },
+            visible: Boolean(box && box.bottom > 0 && box.top < innerHeight),
+          };
+        }, selected),
+      )
+      .toEqual(expect.objectContaining({ visible: true }));
+    expect(candidate.scriptErrors).toEqual([]);
   });
-  await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/p\/[^/]+$/);
-  await page.goBack();
-  await expect(page).toHaveURL(/\/$/);
-  await expectContiguousRows(main);
-  await expect(main.locator('[data-post-uri]').filter({ visible: true }).first()).toBeAttached();
-  await expect
-    .poll(() =>
-      main.locator('[data-post-uri]').evaluateAll(
-        (rows, uri) =>
-          rows.some((row) => {
-            const box = row.getBoundingClientRect();
-            return (
-              row.getAttribute('data-post-uri') === uri && box.bottom > 0 && box.top < innerHeight
-            );
-          }),
-        selected,
-      ),
-    )
-    .toBe(true);
-  expect(candidate.scriptErrors).toEqual([]);
-});
+}
 
 test('feed row measurements follow the scroll owner when entering and leaving Deck', async ({
   page,
