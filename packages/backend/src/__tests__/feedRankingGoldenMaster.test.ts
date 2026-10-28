@@ -107,3 +107,42 @@ describe('FeedRankingService Phase 3 registry — golden-master parity', () => {
     });
   }
 });
+
+/** Commerce is presentation, never a ranking authority (#951). */
+describe('commerce ranking boundary', () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(FIXED_NOW));
+  });
+  afterAll(() => vi.useRealTimers());
+
+  for (const fixture of GOLDEN_CASES) {
+    it(`keeps every ranking component unchanged for commerce: ${fixture.name}`, async () => {
+      const plain = structuredClone(fixture);
+      const commerce = structuredClone(fixture);
+      const content = commerce.post.content;
+      commerce.post.content = {
+        ...(typeof content === 'object' && content !== null ? content : {}),
+        commerce: [{ kind: 'product', id: 'product-ranking-boundary' }],
+      };
+      // A future scorer that reads commercial authority fails immediately,
+      // even when its current multiplier happens to be neutral.
+      for (const target of [commerce.post, commerce.context]) {
+        for (const field of [
+          'merchantTier',
+          'transactionValue',
+          'purchaseHistory',
+          'sponsored',
+          'promoted',
+        ]) {
+          Object.defineProperty(target, field, {
+            get() {
+              throw new Error(`Ranking read forbidden commerce input: ${field}`);
+            },
+          });
+        }
+      }
+      expect(await runGoldenCase(service, commerce)).toEqual(await runGoldenCase(service, plain));
+    });
+  }
+});
