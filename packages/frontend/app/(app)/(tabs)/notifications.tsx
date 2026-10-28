@@ -23,6 +23,7 @@ import {
   type NotificationListItem,
 } from '@/utils/groupNotifications';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { useNotificationFilter, type NotificationTab } from '@/hooks/useNotificationFilter';
 import {
   findNotification,
   markNotificationsRead,
@@ -48,8 +49,6 @@ import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
 const notificationLogger = createLogger('Notifications');
-
-type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts' | 'pokes';
 
 /** Time buckets the list is sectioned into, newest first. */
 type TimeBucket = 'today' | 'this_week' | 'earlier';
@@ -97,7 +96,7 @@ const NotificationsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const { t } = useTranslation();
   const theme = useTheme();
-  const [activeTab, setActiveTab] = useState<NotificationTab>('all');
+  const { activeTab, selectTab: handleTabPress } = useNotificationFilter();
 
   // The realtime socket is mounted app-wide via <RealtimeNotificationsBridge/>
   // (a module singleton). This screen must NOT also call
@@ -290,8 +289,6 @@ const NotificationsScreen: React.FC = () => {
       markAllAsReadMutation.mutate();
     }
   }, [markAllAsReadMutation, t, unreadCount]);
-
-  const handleTabPress = useCallback((tabId: string) => setActiveTab(tabId as NotificationTab), []);
 
   // Notifications whose actor the backend did NOT populate would each fire their
   // own `getProfileById` from inside NotificationItem — an N+1 across the page.
