@@ -145,7 +145,7 @@ import {
   type ComposeIntent,
   type ComposeIntentRawParams,
 } from '@/utils/composeIntent';
-import { consumePendingShareMedia } from '@/utils/pendingShareMedia';
+import { usePendingShareMedia } from './usePendingShareMedia';
 import { api } from '@/utils/api';
 import { confirmDialog } from '@/utils/alerts';
 import { useComposeVariants } from '@/hooks/useComposeVariants';
@@ -851,7 +851,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const intentAppliedRef = useRef(false);
   const intentPayloadRef = useRef(initialIntent);
   // Media shared via the native OS share sheet is uploaded by the share-intent
-  // bridge and handed off here. Consume it ONCE on first render (a later plain
+  // bridge or camera and handed off here. Claim it after commit (a later plain
   // `/compose` open must not re-attach it); apply it alongside the URL intent so
   // the draft-conflict decision governs it too.
   //
@@ -860,11 +860,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // `lib/shareIntent.native.ts` pushes `/compose` — so a tab that read it would
   // empty the buffer on first mount and the composer the share sheet actually
   // opened would find nothing.
-  const pendingShareMediaRef = useRef<ReturnType<typeof consumePendingShareMedia> | null>(null);
-  if (pendingShareMediaRef.current === null) {
-    pendingShareMediaRef.current = presentation === 'tab' ? [] : consumePendingShareMedia();
-  }
-  const hasPendingShareMedia = pendingShareMediaRef.current.length > 0;
+  const pendingShareMediaRef = usePendingShareMedia(presentation);
   const [draftConflict, setDraftConflict] = useState(false);
 
   // Attach an already-uploaded Oxy file to the composer's media list, de-duped.
@@ -1089,7 +1085,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       intentAppliedRef.current = true;
       return;
     }
-    if (!hasIntentContent(initialIntent) && !hasPendingShareMedia) {
+    if (!hasIntentContent(initialIntent) && pendingShareMediaRef.current.length === 0) {
       intentAppliedRef.current = true;
       return;
     }
