@@ -3255,6 +3255,7 @@ export class PostHydrationService {
       textLang: resolved.tag,
       variants: inlineVariants,
       title: baseContent.title,
+      commerce: baseContent.commerce,
       linkUrl: baseContent.linkUrl,
       media,
       poll,
@@ -3288,6 +3289,7 @@ export class PostHydrationService {
   ): PostAttachmentBundle {
     const content = post?.content ?? {};
     const attachments: PostAttachmentBundle = {};
+    if (content.commerce?.length) attachments.commerce = content.commerce;
 
     // The attachment bundle renders the SAME rendition as `content` — a reader
     // served the Spanish body must get the Spanish alt text on the same images.

@@ -1,3 +1,4 @@
+import type { CommerceReference } from './commerce';
 import type { HomiioCaseReference } from './homiio';
 /**
  * Post-related types for Mention social network
@@ -195,7 +196,8 @@ export type PostAttachmentType =
   | 'room'
   | 'podcast'
   | 'homiioCase'
-  | 'job';
+  | 'job'
+  | 'commerce';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -334,6 +336,7 @@ export interface PostContentVariant {
  * aggregate; two polls would split the count).
  */
 export interface StoredPostContent {
+  commerce?: CommerceReference[];
   variants?: PostContentVariant[];
   /** See {@link PostContent.title}. */
   title?: string;
@@ -416,6 +419,8 @@ export interface PostContent {
    * Spanish". Absent when the post has no resolvable language.
    */
   textLang?: string;
+  /** Stable Mercaria references, hydrated separately from social ranking. */
+  commerce?: CommerceReference[];
 }
 
 /**
@@ -1136,6 +1141,7 @@ export interface PostEngagementSummary {
 }
 
 export interface PostAttachmentBundle {
+  commerce?: CommerceReference[];
   media?: MediaItem[];
   poll?: PollData;
   article?: PostArticleContent;

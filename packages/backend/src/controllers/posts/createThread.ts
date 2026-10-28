@@ -1,3 +1,4 @@
+import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import {
   CommunityPostError,
@@ -130,6 +131,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     if (!Array.isArray(posts) || posts.length === 0) {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
+
+    const entryCommerce = posts.map((entry) => parseCommerceReferences(entry?.content?.commerce));
+    const invalidCommerce = entryCommerce.find((entry) => entry.error);
+    if (invalidCommerce) return res.status(400).json({ message: invalidCommerce.error });
 
     const entrySources = posts.map((entry) => sanitizeSources(entry?.content?.sources));
     const invalidSources = entrySources.find((entry) => entry.error);
@@ -577,6 +582,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // nobody will ever see.
       const uniqueTags = mergeHashtags(postContent.text ?? '', entryHashtags[i]);
 
+      postContent.commerce = entryCommerce[i].refs;
+
       // Create post
       const attachmentsInput =
         content?.attachments ||
@@ -594,6 +601,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         includeSources: Boolean(postContent.sources && postContent.sources.length),
         includePodcast: Boolean(postContent.podcast),
         includeJob: Boolean(postContent.job),
+        commerceRefs: postContent.commerce,
       });
 
       if (computedAttachments) {

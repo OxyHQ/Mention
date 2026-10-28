@@ -604,3 +604,42 @@ it('refuses native event plus Homiio participation before writing a thread', asy
   expect(response.status).toBe(400);
   expect(created).toHaveLength(0);
 });
+
+describe('commerce reference publication', () => {
+  it.each(
+    [
+      'prod_one',
+      [{ kind: 'product', id: 'prod_one', price: 500 }],
+      [{ kind: 'store', id: 'store_one' }],
+      Array.from({ length: 5 }, (_, index) => ({ kind: 'product', id: `prod_${index}` })),
+    ].map((commerce) => ({ commerce })),
+  )(
+    'rejects malformed or excessive commerce before publishing any thread entry ($commerce)',
+    async ({ commerce }) => {
+      const body = { content: { text: 'tail', commerce } };
+      expect((await call(createPost, post(body))).status).toBe(400);
+      expect((await call(createThread, thread(body))).status).toBe(400);
+      expect(created).toHaveLength(0);
+    },
+  );
+  it('publishes only stable deduplicated product and collection identities', async () => {
+    const refs = [
+      { kind: 'product', id: 'prod_one' },
+      { kind: 'collection', id: 'col_one' },
+    ];
+    expect(
+      (
+        await call(
+          createPost,
+          post({ content: { text: 'Catalog picks', commerce: [...refs, refs[0]] } }),
+        )
+      ).status,
+    ).toBe(201);
+    const content = created[0].content as PostContent;
+    expect(content.commerce).toEqual(refs);
+    expect(content.attachments?.map((attachment) => attachment.type)).toEqual([
+      'commerce',
+      'commerce',
+    ]);
+  });
+});
