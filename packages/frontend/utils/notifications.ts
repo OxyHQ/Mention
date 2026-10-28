@@ -19,6 +19,14 @@ export async function requestNotificationPermissions() {
   return status === 'granted';
 }
 
+/** Education is only appropriate before the first OS permission decision. */
+export async function canOfferNotificationPermission(): Promise<boolean> {
+  const Notifications = await getNotifications();
+  if (!Notifications) return false;
+  const permission = await Notifications.getPermissionsAsync();
+  return permission.status === 'undetermined' && permission.canAskAgain;
+}
+
 export async function hasNotificationPermission(): Promise<boolean> {
   const Notifications = await getNotifications();
   if (!Notifications) return false;
