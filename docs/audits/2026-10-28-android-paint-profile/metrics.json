@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-28",
+  "device": "Pixel 8a",
+  "architecture": "arm64",
+  "reactNative": "0.88.0",
+  "expo": "58.0.19",
+  "cpuTickMilliseconds": 10,
+  "dragProtocol": {
+    "count": 40,
+    "distancePx": 1300,
+    "durationMs": 700,
+    "pauseSeconds": 0.6
+  },
+  "flingProtocol": {
+    "count": 24,
+    "distancePx": 1600,
+    "durationMs": 60
+  },
+  "artifacts": [
+    {
+      "variant": "baseline",
+      "sha256": "a3302abe1fe22f4b2df9f99ae71b910ffb1125f0049204bbc99356868751659c",
+      "bytes": 89924648
+    },
+    {
+      "variant": "cache",
+      "sha256": "88e5e5643d348c7852e3bc6e8df51fc0935a7ab067c92a7cfdca4933a1bdcaf7",
+      "bytes": 89924680
+    },
+    {
+      "variant": "cache-plus-css-theme-check",
+      "sha256": "517620dc237ebea4aa8a354aeaa7a3d83730ffdb5bc3a40babb1484285bd909f",
+      "bytes": 89723364
+    }
+  ],
+  "runs": [
+    {
+      "run": "A1",
+      "variant": "baseline",
+      "totalFrames": 4860,
+      "jankyPercent": 8.4,
+      "p90Ms": 24,
+      "p99Ms": 34,
+      "cpuTicks": {
+        "js": 2288,
+        "render": 4064,
+        "ui": 1985
+      },
+      "rssKiB": 831880,
+      "gpuTrackedKiB": 182932,
+      "blankFramesAtLeast300px": 4,
+      "flingSamples": 24,
+      "flingRunValid": true
+    },
+    {
+      "run": "B1",
+      "variant": "cache",
+      "totalFrames": 5251,
+      "jankyPercent": 1.35,
+      "p90Ms": 12,
+      "p99Ms": 21,
+      "cpuTicks": {
+        "js": 2094,
+        "render": 2808,
+        "ui": 1586
+      },
+      "rssKiB": 895092,
+      "gpuTrackedKiB": 180660,
+      "blankFramesAtLeast300px": null,
+      "flingSamples": 24,
+      "flingRunValid": false
+    },
+    {
+      "run": "A2",
+      "variant": "baseline",
+      "totalFrames": 5095,
+      "jankyPercent": 4.1,
+      "p90Ms": 21,
+      "p99Ms": 32,
+      "cpuTicks": {
+        "js": 2251,
+        "render": 4041,
+        "ui": 1855
+      },
+      "rssKiB": 888956,
+      "gpuTrackedKiB": 181876,
+      "blankFramesAtLeast300px": 3,
+      "flingSamples": 24,
+      "flingRunValid": true
+    },
+    {
+      "run": "B2",
+      "variant": "cache",
+      "totalFrames": 5344,
+      "jankyPercent": 0.99,
+      "p90Ms": 10,
+      "p99Ms": 19,
+      "cpuTicks": {
+        "js": 2035,
+        "render": 2525,
+        "ui": 1548
+      },
+      "rssKiB": 846508,
+      "gpuTrackedKiB": 187020,
+      "blankFramesAtLeast300px": 2,
+      "flingSamples": 24,
+      "flingRunValid": true
+    }
+  ],
+  "exclusions": {
+    "B1": "Fling frames 1-8 through 1-12 showed post detail, so the entire B1 fling sample is excluded. Its separately recorded drag phase remained on Home."
+  },
+  "profile": {
+    "event": "cpu-cycles",
+    "frequencyHz": 200,
+    "durationSeconds": 85,
+    "threadSharesPercent": {
+      "render": 43.42,
+      "js": 21.74,
+      "ui": 17.3
+    },
+    "renderInclusivePercent": {
+      "CanvasContext.draw": 72.57,
+      "GrDrawingManager.flush": 32.28,
+      "RenderNode.prepareTreeImpl": 21.32,
+      "SkCanvas.drawDRRect": 10.57,
+      "GrBlurUtils.shapeMaskFilter": 9.53
+    },
+    "jsInclusivePercent": {
+      "EventQueue.flushStateUpdates": 33.39,
+      "YogaLayoutableShadowNode.layoutTree": 11.37
+    }
+  },
+  "officialDependency": "@oxy.so/bloom@15.60.6",
+  "officialConsumerDeviceAcceptance": "pending"
+}

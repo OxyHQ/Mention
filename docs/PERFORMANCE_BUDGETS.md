@@ -870,6 +870,21 @@ posts) on the after build: RSS 925 → 924 → 1,037 → 1,014 → 996 MB at 40-
 checkpoints, Java heap flat at 39–41 MB, native heap plateaus at ~288 MB after
 120 drags. It levels off rather than growing with every post visited.
 
+### Reprofiled Android paint cost (2026-10-28, #1280)
+
+The current React Native 0.88 / Expo 58 release was profiled again on Pixel 8a.
+RenderThread accounted for 43.42% of application cycles; Yoga layout still
+accounted for 11.37% of JS-thread samples. The historical Fabric/Yoga diagnosis
+above was not assumed to remain the dominant cost. Bloom 15.60.6 caches only
+Android decorative rim/sheen paint; interleaved A/B/A/B runs reduced mean
+RenderThread CPU by 34.2%, with jank 8.40% / 4.10% before and 1.35% / 0.99%
+after. Mean RSS increased about 1.2% and tracked GPU memory about 0.8%.
+
+See the [sanitized device audit](./audits/2026-10-28-android-paint-profile/README.md)
+for exact APK hashes, measurements, source verification, invalidated B1 fling
+samples and the remaining official-consumer acceptance. Blank rows were not
+eliminated, and no performance ceiling was raised.
+
 ### FlashList tuning (Phase 6): measured, kept at 1000
 
 | drawDistance / pool | JS CPU | Janky | RSS | Blank rows (fast flings) |
