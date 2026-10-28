@@ -8,6 +8,22 @@ import {
 } from '../config';
 
 describe('runtime configuration', () => {
+  it('keeps combined execution by default and requires Redis when splitting roles', () => {
+    expect(parseRuntimeEnvironment({}).MENTION_PROCESS_ROLE).toBe('combined');
+    for (const role of ['backend', 'worker']) {
+      expect(() => parseRuntimeEnvironment({ MENTION_PROCESS_ROLE: role })).toThrow(
+        'MENTION_PROCESS_ROLE',
+      );
+      expect(
+        parseRuntimeEnvironment({ MENTION_PROCESS_ROLE: role, REDIS_URL: 'redis://localhost:6379' })
+          .MENTION_PROCESS_ROLE,
+      ).toBe(role);
+    }
+    expect(() => parseRuntimeEnvironment({ MENTION_PROCESS_ROLE: 'unknown' })).toThrow(
+      'MENTION_PROCESS_ROLE',
+    );
+  });
+
   it('normalizes origins and validates structured lists', () => {
     const parsed = parseRuntimeEnvironment({
       MENTION_PUBLIC_API_URL: 'https://api.example.test///',

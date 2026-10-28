@@ -1,3 +1,6 @@
+import { config } from '../config';
+import { getQueueConnection } from '../queue/connection';
+import { isSocketRedisAdapterReady } from '../runtime/socketRedisAdapter';
 import { Router } from 'express';
 import { checkPostgresHealth } from '../db/postgres';
 import { getRedisStats } from '../utils/redis';
@@ -22,7 +25,10 @@ router.get('/health/live', (_req, res) => {
  * survives that. `isPostgresConnected()` would answer "was a pool ever built",
  * which is true of exactly the task that is failing every request.
  *
- * ## No other data store is part of this gate
+ * Split backend/worker processes additionally require their queue and realtime
+ * Redis transports; without them, work or events cannot reach the other process.
+ *
+ * ## Combined mode keeps Redis degradation non-blocking
  *
  * `dependencies` reports only stores this process actually opens; reporting one
  * it never opens would be inventing a status, and gating on one would let a
@@ -32,13 +38,18 @@ router.get('/health/ready', async (_req, res) => {
   const runtime = getRuntimeHealthState();
   const postgresReady = await checkPostgresHealth();
   const redis = getRedisStats();
-  const ready = runtime.phase === 'ready' && runtime.migrationsComplete && postgresReady;
+  const splitProcess = config.runtime.processRole !== 'combined';
+  const transportReady =
+    !splitProcess || (isSocketRedisAdapterReady() && getQueueConnection().status === 'ready');
+  const ready =
+    runtime.phase === 'ready' && runtime.migrationsComplete && postgresReady && transportReady;
 
   res.setHeader('Cache-Control', 'no-store');
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ready' : 'not_ready',
     phase: runtime.phase,
     dependencies: {
+      ...(splitProcess ? { workerTransport: transportReady ? 'ready' : 'unavailable' } : {}),
       postgres: postgresReady ? 'ready' : 'unavailable',
       migrations: runtime.migrationsComplete ? 'ready' : 'pending',
       // Redis is intentionally non-blocking for HTTP readiness. Singleton jobs

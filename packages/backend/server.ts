@@ -1,5 +1,14 @@
 import http from 'node:http';
 import type { Socket } from 'socket.io';
+import {
+  createWorkerHealthApp,
+  createWorkerSocketEmitter,
+  assertQueueReady,
+  runsBackgroundJobs,
+} from './src/runtime/processRole';
+import { startBackgroundJobs } from './src/runtime/backgroundJobs';
+import { getRuntimeOxyClient } from './src/runtime/oxyClient';
+import { initConnectors } from './src/connectors';
 import { startPlatformActivity } from './src/runtime/platformActivity';
 import { getRuntimeHealthState } from './src/utils/runtimeHealth';
 import { hostname } from 'node:os';
@@ -7,11 +16,9 @@ import { config, validateEnvironment } from './src/config';
 import { connectServingPostgres, getPostgresClient } from './src/db/postgres';
 import { assertPostgresMigrationsCurrent } from './src/db/migrationsFolder';
 import { registerAllModules } from './src/mtn/feed/engine';
-import { startWorkers } from './src/queue/workers';
 import { registerGlobalErrorHandlers } from './src/runtime/globalErrorHandlers';
 import { registerGracefulShutdown } from './src/runtime/gracefulShutdown';
 import { PresenceRegistry } from './src/runtime/presenceRegistry';
-import { startSchedulers, stopSchedulers } from './src/runtime/schedulers';
 import { createSocketIoServer, createSocketNamespaces } from './src/runtime/socketIoServer';
 import { registerSocketHandlers } from './src/runtime/socketHandlers';
 import { attachSocketRedisAdapter } from './src/runtime/socketRedisAdapter';
@@ -19,9 +26,6 @@ import { setRuntimeSocketServer } from './src/runtime/socketServer';
 import { createRuntimeApp } from './src/runtimeApp';
 import { DistributedPresenceService } from './src/services/DistributedPresenceService';
 import { presenceRoom } from '@mention/shared-types';
-import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
-import { leaderElection } from './src/services/LeaderElection';
-import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
 import {
   startUserInvalidationSubscriber,
   type UserInvalidationSubscriber,
@@ -39,11 +43,18 @@ import {
 registerGlobalErrorHandlers();
 
 const activity = startPlatformActivity(() => getRuntimeHealthState().phase === 'ready');
-export const { app, oxy } = createRuntimeApp(activity?.observeHttp);
+const isWorker = config.runtime.processRole === 'worker';
+const splitProcess = config.runtime.processRole !== 'combined';
+if (isWorker) initConnectors();
+export const { app, oxy } = isWorker
+  ? { app: createWorkerHealthApp(), oxy: getRuntimeOxyClient() }
+  : createRuntimeApp(activity?.observeHttp);
 
 // --- Sockets ---
 const server = http.createServer(app);
-const io = createSocketIoServer(server);
+// A Socket.IO server on a non-listening HTTP server is an emitter only. Its Redis adapter reaches
+// the backend fleet; the worker health listener exposes no socket transport.
+const io = isWorker ? createWorkerSocketEmitter() : createSocketIoServer(server);
 setRuntimeSocketServer(io);
 
 const presence = new PresenceRegistry({
@@ -58,13 +69,13 @@ const presence = new PresenceRegistry({
     io.to(presenceRoom(userId)).emit('user:presence', payload);
   },
 });
-presence.startHousekeeping();
+if (!isWorker) presence.startHousekeeping();
 
 const namespaces = createSocketNamespaces(io, oxy);
 for (const namespace of [io.of('/'), ...Object.values(namespaces)]) {
   namespace.on('connection', (socket: Socket) => activity?.observeSocket(socket));
 }
-registerSocketHandlers(io, namespaces, presence);
+if (!isWorker) registerSocketHandlers(io, namespaces, presence);
 const notificationsNamespace = namespaces.notificationsNamespace;
 
 // --- Expose namespaces for use in routes ---
@@ -101,7 +112,8 @@ const bootServer = async () => {
 
   // Setup Redis adapter before accepting connections to ensure
   // cross-instance broadcasts work from the first connection
-  await attachSocketRedisAdapter(io);
+  await attachSocketRedisAdapter(io, splitProcess);
+  if (splitProcess) await assertQueueReady();
 
   // Drop cached Oxy identity as soon as Oxy says it changed, instead of waiting
   // out the user-summary TTL. Runs on EVERY task: the SDK response caches it
@@ -109,34 +121,10 @@ const bootServer = async () => {
   // the fleet stale. Inert (and non-fatal) when Redis is unavailable.
   userInvalidationSubscriber = await startUserInvalidationSubscriber();
 
-  // Start BullMQ federation queue workers on EVERY task (inbox + delivery
-  // throughput should scale with the fleet; BullMQ delivers each job to exactly
-  // one worker). No-op when Redis is not configured — federation then falls
-  // back to inline inbox processing + the in-process delivery scheduler, which
-  // drains the Postgres `federation_delivery_queue` table.
-  // Periodic repeatable-job REGISTRATION is leader-only (FederationJobScheduler,
-  // driven by leaderElection); only the consuming workers run everywhere.
-  try {
-    startWorkers();
-  } catch (error) {
-    logger.warn('Failed to start federation queue workers', error);
-  }
-
-  // Register MTN Protocol feed engine modules (sources / signals / filters)
   registerAllModules();
-
-  // Lease-claimed workers may run on every task: the claim is an atomic Postgres
-  // update and does not depend on Redis leadership, so committed engagement
-  // effects keep draining even while Redis is degraded.
-  engagementOutboxDispatcher.start();
-  // Same reasoning for moderation: a report and its delivery event committed
-  // together, and the lease-based claim means every task can drain the queue.
-  // No-ops where this deployment cannot deliver, leaving the durable rows for later.
-  moderationOutboxDispatcher.start();
-
-  // Singleton jobs start only after the schema is ready. Leader election fails
-  // closed when Redis is unavailable, while the HTTP API can remain degraded.
-  await leaderElection.start(startSchedulers, stopSchedulers);
+  if (runsBackgroundJobs(config.runtime.processRole)) {
+    await startBackgroundJobs(splitProcess);
+  }
 
   // Start server after all async setup is complete
   server.listen(PORT, '0.0.0.0', () => {

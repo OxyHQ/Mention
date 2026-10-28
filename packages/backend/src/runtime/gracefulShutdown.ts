@@ -2,9 +2,8 @@ import type http from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
 import { closePostgres } from '../db/postgres';
 import { shutdownQueues } from '../queue/workers';
-import { engagementOutboxDispatcher } from '../services/EngagementOutboxDispatcher';
-import { leaderElection } from '../services/LeaderElection';
-import { moderationOutboxDispatcher } from '../services/moderation/ModerationOutboxDispatcher';
+import { stopBackgroundJobs } from './backgroundJobs';
+import { config } from '../config';
 import { closeRedisConnection } from '../utils/redis';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
@@ -67,14 +66,6 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
     void (async () => {
       presence.stopHousekeeping();
 
-      const queueShutdown = async (): Promise<void> => {
-        try {
-          await shutdownQueues();
-        } catch (error) {
-          logger.error('Error shutting down federation queues', error);
-        }
-      };
-
       // Constructed here rather than awaited later on purpose: `io.close()` runs
       // the moment this executor does, so sockets stop accepting alongside HTTP.
       const socketShutdown = new Promise<void>((resolve) => {
@@ -96,10 +87,7 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
       // SHUTDOWN_DEADLINE_MS and resolves rather than rejects on timeout, so it
       // can delay this drain but never block it.
       await Promise.allSettled([
-        leaderElection.stop(),
-        engagementOutboxDispatcher.stop(),
-        moderationOutboxDispatcher.stop(),
-        queueShutdown(),
+        config.runtime.processRole === 'backend' ? shutdownQueues() : stopBackgroundJobs(),
         drainBackgroundWork(),
       ]);
 

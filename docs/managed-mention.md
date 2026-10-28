@@ -215,3 +215,27 @@ bun run --cwd packages/backend test -- src/__tests__/deploymentAdmission.test.ts
 bun run --cwd packages/mcp test
 bun run --cwd packages/frontend test -- deploymentConfig.test.ts
 ```
+
+### Separate API and worker processes
+
+`MENTION_PROCESS_ROLE` defaults to `combined`, preserving existing deployments.
+The same built backend image and `dist/server.js` entrypoint can run as `backend`
+(HTTP and sockets, no job consumers) or `worker` (consumers and lease-elected
+schedulers, health endpoints only). Do not run a worker with a backend task role:
+its ECS workload identity must be the independently registered worker role.
+
+Both split roles require cache Redis for Socket.IO delivery and queue Redis
+(`QUEUE_REDIS_URL`, falling back to cache Redis) for durable work. Startup refuses
+a missing/unreachable transport, and readiness becomes unavailable if either
+connection drops. The worker's Socket.IO emitter uses a non-listening HTTP server and publishes
+through the shared adapter without exposing a socket endpoint. Existing scheduler leadership
+and atomic outbox claims still coordinate replicas; separating processes does
+not create another scheduler ownership protocol.
+
+The worker exposes `/health/live` and `/health/ready` on `PORT`, with no product
+routes. Bootstrap checks database migrations before starting jobs. Shutdown stops
+job producers and consumers before closing Redis/PostgreSQL; repeated shutdown
+signals drain once. A rollout must provision both roles against the same isolated
+tenant database, cache and queue, and verify worker readiness before switching
+API tasks from `combined` to `backend`. This setting does not provision ECS,
+secrets, workload registration, DNS or backups by itself.
