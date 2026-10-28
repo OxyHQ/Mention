@@ -39,8 +39,27 @@ credentialed-CORS loosening of production, which `AGENTS.md` § CORS explicitly
 rules out. So instead the browser runs at the real origin and Playwright serves
 every same-origin request from the candidate deployment (`fixtures.ts`). The
 document URL, CORS contract, CSP and per-origin storage are production's; the
-HTML and every Expo chunk are the candidate's. Requests to `api.mention.earth`
-and the media CDN are left alone.
+HTML and every Expo chunk are the candidate's. The default `test` fixture leaves
+API and media requests live. Tests that explicitly own synthetic content instead
+opt into `contractTest`; their scope is described below.
+
+Synthetic UI cases import `contractTest as test` from `fixtures.ts`. It installs
+`contractApi.ts`: an explicit read-only public-chrome fixture (health, empty
+trends/recommendations/lanes, no pinned post/storefront), bounded empty reply
+metadata, and local-only synthetic impression responses. Each test must still
+supply its subject's feed/post/search data. Any unowned Mention HTTP method/path
+is aborted and fails teardown; there is no catch-all empty success. Mention
+WebSockets are quiet local connections and never connect to the real server.
+The browser self-test verifies unknown routes/writes cannot fall through.
+
+SEO handoff uses the same boundary with canonical author/post data; profile
+chrome geometry uses a stable avatar and enough fixture rows to scroll. This
+keeps rendering/head/geometry tests independent of content churn and stops them
+spending the production anonymous budget. Live cold boot, media DTO geometry,
+feed return, profile navigation, bridged identity flows and preflight retain real
+API reads. Two workers bound bursts, not the sustained 600 requests/15-minute
+budget: audit full-run traces for 429s when expanding the suite, including
+background calls that an individual test does not assert.
 
 `identity-alias-routing.spec.ts` explicitly substitutes one Oxy profile response
 for a fresh synthetic handle. It verifies that the actual exported app accepts

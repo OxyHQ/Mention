@@ -151,3 +151,17 @@ export const test = base.extend<{ candidate: CandidateBuild }>({
 });
 
 export { expect };
+
+/** Synthetic UI cases explicitly own API data; ordinary `test` stays live. */
+export const contractTest = test.extend<{ contractApi: undefined }>({
+  contractApi: [
+    async ({ context }, use) => {
+      const { installContractApi } = await import('./contractApi');
+      const unexpected = await installContractApi(context);
+      await use(undefined);
+      await context.unrouteAll({ behavior: 'wait' });
+      expect(unexpected, 'Synthetic UI test made an unowned Mention API request').toEqual([]);
+    },
+    { auto: true },
+  ],
+});

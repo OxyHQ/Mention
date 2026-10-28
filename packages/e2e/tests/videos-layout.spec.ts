@@ -1,4 +1,4 @@
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 for (const viewport of [
   { width: 412, height: 915 },

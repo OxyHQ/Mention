@@ -1,4 +1,11 @@
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
+
+// Routing targets synthetic identities; their profile feed is explicitly empty.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/feed/mtn?**', (route) =>
+    route.fulfill({ json: { items: [], hasMore: false } }),
+  );
+});
 
 const id = '01a115bf-2135-7f51-8656-1b3a4ed7bde9';
 const sourceUrl = 'https://flipboard.com/@forbes/leadership-bs0je34pz';

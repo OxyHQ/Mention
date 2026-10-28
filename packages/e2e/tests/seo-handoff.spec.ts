@@ -1,11 +1,12 @@
 /** Browser contract between the real backend renderer and the candidate Expo build. */
 import { test, expect, type BrowserContext } from '@playwright/test';
+import { installContractApi } from '../contractApi';
 import {
   mapHomepageOg,
   renderShellWithOg,
   type OgData,
 } from '../../backend/src/services/webShellRenderer';
-import { APP_ORIGIN, CANDIDATE_ORIGIN, PROFILE_HANDLE } from '../environment';
+import { API_ORIGIN, APP_ORIGIN, CANDIDATE_ORIGIN, PROFILE_HANDLE } from '../environment';
 
 const profilePath = `/@${PROFILE_HANDLE}`;
 const profile: OgData = {
@@ -28,11 +29,47 @@ const profile: OgData = {
 // handler's `response.body()` throw "Response has been disposed" and fail a
 // test whose assertions had all passed. Dropping the routes first, ignoring
 // what is still in flight, is Playwright's own answer to exactly that.
+const unexpectedSeoRequests = new WeakMap<BrowserContext, string[]>();
 test.afterEach(async ({ context }) => {
   await context.unrouteAll({ behavior: 'ignoreErrors' });
+  expect(unexpectedSeoRequests.get(context) ?? []).toEqual([]);
 });
 
+// These tests own the renderer/hydration contract, not production feed availability.
+// Keep their data stable and avoid charging every metadata variant to the live
+// anonymous API budget; dedicated feed/profile flows and preflight remain live.
+const seoAuthor = {
+  id: '019e23ee-2d68-7000-8001-000000000077',
+  username: PROFILE_HANDLE,
+  kind: 'personal',
+  name: { displayName: 'Nate' },
+};
+const seoPost = {
+  id: '019e23ee-2d68-7000-8000-000000000077',
+  user: seoAuthor,
+  authors: [],
+  attachments: {},
+  content: { text: 'Public SEO navigation fixture' },
+  metadata: { visibility: 'public', status: 'published', createdAt: '2026-10-01T12:00:00Z' },
+  engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0 },
+  viewerState: { isOwner: false, isLiked: false, isBoosted: false, isSaved: false },
+};
+
 async function serveDocument(context: BrowserContext, path: string, og: OgData | null) {
+  unexpectedSeoRequests.set(context, await installContractApi(context));
+  await context.route(`${API_ORIGIN}/feed/mtn?**`, (route) =>
+    route.fulfill({ json: { items: [seoPost], hasMore: false } }),
+  );
+  await context.route(`${API_ORIGIN}/feed/item/${seoPost.id}`, (route) =>
+    route.fulfill({ json: seoPost }),
+  );
+  await context.route(`${API_ORIGIN}/profile/design/**`, (route) =>
+    route.fulfill({ json: { privacy: { profileVisibility: 'public' } } }),
+  );
+  await context.route(`https://api.oxy.so/profiles/username/${PROFILE_HANDLE}**`, (route) =>
+    route.fulfill({ json: seoAuthor }),
+  );
+
   await context.addInitScript(() => localStorage.setItem('welcome_modal_seen', 'true'));
   await context.route(
     (url) => url.origin === APP_ORIGIN,
@@ -92,7 +129,7 @@ test('loaded profile adopts one head and navigation drops the old profile schema
   await page.route(`https://api.oxy.so/profiles/username/${PROFILE_HANDLE}**`, async (route) => {
     profileRequested = true;
     await profileGate;
-    await route.continue();
+    await route.fallback();
   });
   await page.goto(`${APP_ORIGIN}${profilePath}`, { waitUntil: 'domcontentloaded' });
   await expect.poll(() => profileRequested).toBe(true);
@@ -360,6 +397,9 @@ test('a channel local tab keeps the indexing policy of its unchanged URL', async
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  await page.route(`${API_ORIGIN}/channels/seo-channel/writers`, (route) =>
+    route.fulfill({ status: 404, json: { message: 'Writers not disclosed' } }),
+  );
   const handle = 'seochannel';
   const path = `/c/${handle}`;
   await serveDocument(context, path, {

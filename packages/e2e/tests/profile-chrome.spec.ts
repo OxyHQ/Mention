@@ -1,5 +1,49 @@
 import { PROFILE_HANDLE } from '../environment';
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
+
+// Geometry needs a stable avatar and enough rows to scroll, not whichever
+// posts happen to be on the production account when the release runs.
+const author = {
+  id: '019e23ee-2d68-7000-8001-000000000078',
+  username: PROFILE_HANDLE,
+  kind: 'personal',
+  name: { displayName: 'Profile geometry' },
+  avatar: 'https://media.mention.earth/profile-geometry/avatar.svg',
+};
+test.beforeEach(async ({ page }) => {
+  await page.route(author.avatar, (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="blue"/></svg>',
+    }),
+  );
+  await page.route(`https://api.oxy.so/profiles/username/${PROFILE_HANDLE}**`, (route) =>
+    route.fulfill({ json: author }),
+  );
+  await page.route('**/feed/mtn?**', (route) =>
+    route.fulfill({
+      json: {
+        items: Array.from({ length: 30 }, (_, index) => ({
+          id: `019e23ee-2d68-7000-8000-${String(index + 100).padStart(12, '0')}`,
+          user: author,
+          authors: [],
+          attachments: {},
+          content: {
+            text: `Profile geometry row ${index + 1}\nStable content for a scrollable profile.`,
+          },
+          metadata: {
+            visibility: 'public',
+            status: 'published',
+            createdAt: '2026-10-01T12:00:00Z',
+          },
+          engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0 },
+          viewerState: { isOwner: false, isLiked: false, isBoosted: false, isSaved: false },
+        })),
+        hasMore: false,
+      },
+    }),
+  );
+});
 
 for (const width of [390, 1024, 1440]) {
   for (const colorScheme of ['light', 'dark'] as const) {

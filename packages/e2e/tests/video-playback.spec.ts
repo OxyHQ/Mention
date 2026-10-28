@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
 
 const POST_ID = '019e23ee-2d68-7000-8000-000000000009';
 const MEDIA_ORIGIN = 'https://media.mention.earth/playback-regression';

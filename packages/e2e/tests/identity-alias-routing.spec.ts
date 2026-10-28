@@ -2,7 +2,14 @@
  * Browser routing contract with an Oxy profile fixture and an empty browser cache.
  * This does not prove Oxy's upstream cold discovery; its real-PG API suite owns that.
  */
-import { expect, test } from '../fixtures';
+import { expect, contractTest as test } from '../fixtures';
+
+// Routing targets synthetic identities; their profile feed is explicitly empty.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/feed/mtn?**', (route) =>
+    route.fulfill({ json: { items: [], hasMore: false } }),
+  );
+});
 
 const username = 'freshalias990@instagram.com';
 const alias = 'freshalias990@threads.net';
