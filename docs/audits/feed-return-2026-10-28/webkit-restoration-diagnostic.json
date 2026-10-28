@@ -1,0 +1,403 @@
+{
+  "candidateBloomCommit": "58078af0",
+  "method": "Diagnostic copy preserves the Home test body and adds only a scrollTo/scrollBy/event recorder. Fixture post IDs are synthetic.",
+  "events": [
+    {
+      "t": 1975,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 0
+        }
+      ],
+      "path": "/",
+      "scroll": 0,
+      "max": 0,
+      "restoration": "manual",
+      "firstRowIndex": null
+    },
+    {
+      "t": 2110,
+      "kind": "scrollTo",
+      "args": [
+        0,
+        0
+      ],
+      "path": "/",
+      "scroll": 0,
+      "max": 0,
+      "restoration": "manual",
+      "firstRowIndex": null
+    },
+    {
+      "t": 3438,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 6,
+      "max": 21109,
+      "restoration": "manual",
+      "firstRowIndex": "0"
+    },
+    {
+      "t": 3486,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 720,
+      "max": 21109,
+      "restoration": "manual",
+      "firstRowIndex": "0"
+    },
+    {
+      "t": 3600,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 1765,
+      "max": 21109,
+      "restoration": "manual",
+      "firstRowIndex": "1"
+    },
+    {
+      "t": 3605,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 1549
+        }
+      ],
+      "path": "/",
+      "scroll": 1765,
+      "max": 21109,
+      "restoration": "manual",
+      "firstRowIndex": "1"
+    },
+    {
+      "t": 3608,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 1253
+        }
+      ],
+      "path": "/",
+      "scroll": 1549,
+      "max": 21109,
+      "restoration": "manual",
+      "firstRowIndex": "1"
+    },
+    {
+      "t": 3653,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 1253,
+      "max": 21109,
+      "restoration": "manual",
+      "firstRowIndex": "1"
+    },
+    {
+      "t": 3872,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 1274,
+      "max": 19041,
+      "restoration": "manual",
+      "firstRowIndex": "5"
+    },
+    {
+      "t": 3916,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 1963,
+      "max": 19041,
+      "restoration": "manual",
+      "firstRowIndex": "5"
+    },
+    {
+      "t": 3964,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 2666,
+      "max": 19041,
+      "restoration": "manual",
+      "firstRowIndex": "5"
+    },
+    {
+      "t": 4086,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 3053,
+      "max": 19041,
+      "restoration": "manual",
+      "firstRowIndex": "14"
+    },
+    {
+      "t": 4089,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 2797
+        }
+      ],
+      "path": "/",
+      "scroll": 3053,
+      "max": 19041,
+      "restoration": "manual",
+      "firstRowIndex": "14"
+    },
+    {
+      "t": 4090,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 2561
+        }
+      ],
+      "path": "/",
+      "scroll": 2797,
+      "max": 19041,
+      "restoration": "manual",
+      "firstRowIndex": "14"
+    },
+    {
+      "t": 4133,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 2561,
+      "max": 19041,
+      "restoration": "manual",
+      "firstRowIndex": "14"
+    },
+    {
+      "t": 4429,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 2565,
+      "max": 16481,
+      "restoration": "manual",
+      "firstRowIndex": "14"
+    },
+    {
+      "t": 4462,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 2983,
+      "max": 16481,
+      "restoration": "manual",
+      "firstRowIndex": "14"
+    },
+    {
+      "t": 4539,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 4094,
+      "max": 16481,
+      "restoration": "manual",
+      "firstRowIndex": "17"
+    },
+    {
+      "t": 4544,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 3838
+        }
+      ],
+      "path": "/",
+      "scroll": 4094,
+      "max": 16481,
+      "restoration": "manual",
+      "firstRowIndex": "17"
+    },
+    {
+      "t": 4579,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 3838,
+      "max": 16481,
+      "restoration": "manual",
+      "firstRowIndex": "17"
+    },
+    {
+      "t": 4971,
+      "kind": "focusin",
+      "args": null,
+      "path": "/",
+      "scroll": 3838,
+      "max": 14493,
+      "restoration": "manual",
+      "firstRowIndex": "23"
+    },
+    {
+      "t": 5109,
+      "kind": "scroll",
+      "args": null,
+      "path": "/p/019e23ee-2d68-7000-8000-000000000029",
+      "scroll": 5,
+      "max": 5,
+      "restoration": "manual",
+      "firstRowIndex": null
+    },
+    {
+      "t": 5275,
+      "kind": "popstate",
+      "args": null,
+      "path": "/",
+      "scroll": 5,
+      "max": 5,
+      "restoration": "manual",
+      "firstRowIndex": null
+    },
+    {
+      "t": 5355,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 5
+        }
+      ],
+      "path": "/",
+      "scroll": 5,
+      "max": 262,
+      "restoration": "manual",
+      "firstRowIndex": null
+    },
+    {
+      "t": 5359,
+      "kind": "scrollTo",
+      "args": [
+        0,
+        0
+      ],
+      "path": "/",
+      "scroll": 5,
+      "max": 262,
+      "restoration": "manual",
+      "firstRowIndex": null
+    },
+    {
+      "t": 5427,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 0
+        }
+      ],
+      "path": "/",
+      "scroll": 0,
+      "max": 23453,
+      "restoration": "manual",
+      "firstRowIndex": null
+    },
+    {
+      "t": 5618,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 0,
+      "max": 21345,
+      "restoration": "manual",
+      "firstRowIndex": "0"
+    },
+    {
+      "t": 5622,
+      "kind": "scrollTo",
+      "args": [
+        0,
+        3838
+      ],
+      "path": "/",
+      "scroll": 0,
+      "max": 21345,
+      "restoration": "manual",
+      "firstRowIndex": "0"
+    },
+    {
+      "t": 5766,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 3838,
+      "max": 21345,
+      "restoration": "manual",
+      "firstRowIndex": "0"
+    },
+    {
+      "t": 5954,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 3562
+        }
+      ],
+      "path": "/",
+      "scroll": 3838,
+      "max": 21345,
+      "restoration": "manual",
+      "firstRowIndex": "11"
+    },
+    {
+      "t": 5956,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 3306
+        }
+      ],
+      "path": "/",
+      "scroll": 3562,
+      "max": 21345,
+      "restoration": "manual",
+      "firstRowIndex": "11"
+    },
+    {
+      "t": 5958,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 3070
+        }
+      ],
+      "path": "/",
+      "scroll": 3306,
+      "max": 21345,
+      "restoration": "manual",
+      "firstRowIndex": "11"
+    },
+    {
+      "t": 5960,
+      "kind": "scrollTo",
+      "args": [
+        {
+          "top": 2854
+        }
+      ],
+      "path": "/",
+      "scroll": 3070,
+      "max": 21345,
+      "restoration": "manual",
+      "firstRowIndex": "11"
+    },
+    {
+      "t": 6081,
+      "kind": "scroll",
+      "args": null,
+      "path": "/",
+      "scroll": 2854,
+      "max": 18253,
+      "restoration": "manual",
+      "firstRowIndex": "11"
+    }
+  ]
+}
