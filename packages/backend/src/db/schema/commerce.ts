@@ -14,16 +14,34 @@ export const accountStorefronts = pgTable('account_storefronts', {
 });
 
 /** Daily aggregate only: no visitor, session, IP, order or conversion data. */
-export const commercePostDailyMetrics = pgTable('commerce_post_daily_metrics', {
-  postId: text().notNull().references(() => posts.id, { onDelete: 'cascade' }),
-  day: date().notNull(),
-  opens: integer().notNull().default(0),
-  handoffs: integer().notNull().default(0),
-}, t => [primaryKey({ columns: [t.postId, t.day] }), check('commerce_post_metrics_nonnegative', sql`${t.opens} >= 0 and ${t.handoffs} >= 0`)]);
+export const commercePostDailyMetrics = pgTable(
+  'commerce_post_daily_metrics',
+  {
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    day: date().notNull(),
+    opens: integer().notNull().default(0),
+    handoffs: integer().notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.postId, t.day] }),
+    check('commerce_post_metrics_nonnegative', sql`${t.opens} >= 0 and ${t.handoffs} >= 0`),
+  ],
+);
 
-export const commerceStoreDailyMetrics = pgTable('commerce_store_daily_metrics', {
-  oxyAccountId: text().notNull().references(() => accountStorefronts.oxyAccountId, { onDelete: 'cascade' }),
-  day: date().notNull(),
-  opens: integer().notNull().default(0),
-  handoffs: integer().notNull().default(0),
-}, t => [primaryKey({ columns: [t.oxyAccountId, t.day] }), check('commerce_store_metrics_nonnegative', sql`${t.opens} >= 0 and ${t.handoffs} >= 0`)]);
+export const commerceStoreDailyMetrics = pgTable(
+  'commerce_store_daily_metrics',
+  {
+    oxyAccountId: text()
+      .notNull()
+      .references(() => accountStorefronts.oxyAccountId, { onDelete: 'cascade' }),
+    day: date().notNull(),
+    opens: integer().notNull().default(0),
+    handoffs: integer().notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.oxyAccountId, t.day] }),
+    check('commerce_store_metrics_nonnegative', sql`${t.opens} >= 0 and ${t.handoffs} >= 0`),
+  ],
+);
