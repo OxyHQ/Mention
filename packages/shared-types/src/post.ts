@@ -653,6 +653,9 @@ export interface PostAuthorshipEntry {
 
 export const MAX_POST_COLLABORATORS = 5;
 
+/** Maximum authored text length for each post rendition. */
+export const MAX_POST_TEXT_LENGTH = 25_000;
+
 /**
  * Whether a post is published, and if not, why not.
  *

@@ -2790,5 +2790,6 @@
   "communities.postActions.banConfirm": "Expulsar",
   "communities.postActions.banned": "Expulso da comunidade",
   "communities.postActions.banFailed": "Não foi possível expulsar",
-  "sidebar.communities": "Comunidades"
+  "sidebar.communities": "Comunidades",
+  "compose.textTooLong": "Cada publicação deve ter no máximo {{limit}} caracteres."
 }

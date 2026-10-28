@@ -2758,5 +2758,6 @@
   "communities.postActions.banConfirm": "Yasakla",
   "communities.postActions.banned": "Topluluktan yasaklandı",
   "communities.postActions.banFailed": "Yasaklanamadı",
-  "sidebar.communities": "Topluluklar"
+  "sidebar.communities": "Topluluklar",
+  "compose.textTooLong": "Her gönderi en fazla {{limit}} karakter içermelidir."
 }

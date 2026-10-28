@@ -83,6 +83,7 @@ import { useJobAttachmentManager } from '@/hooks/useJobAttachmentManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
 import { useDraftManager, type ComposeDraftRefs } from '@/hooks/useDraftManager';
+import { MAX_POST_TEXT_LENGTH } from '@mention/shared-types/post';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
 import {
   boxHasContent,
@@ -741,8 +742,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const validation = useComposeValidation({
     content: composeContent,
     isPosting,
+    variants,
   });
-  const { hasInvalidSources: invalidSources, isPostButtonEnabled } = validation;
+  const { hasInvalidSources: invalidSources, hasOverlongText, isPostButtonEnabled } = validation;
 
   // Media picker. The destination is chosen per call: the shared media set, or
   // the media a non-primary language shows instead of it.
@@ -1325,6 +1327,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
       return;
     }
+
+    if (invalidSources || hasOverlongText) return;
 
     // A rendition's body does not inherit — the reader is served it verbatim — so
     // a language that overrides images or alt but has no text would publish a
@@ -3750,6 +3754,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 )}
               </ChipRow>
 
+              {hasOverlongText && (
+                <Text accessibilityRole="alert" className="text-destructive text-sm">
+                  {t('compose.textTooLong', {
+                    defaultValue: 'Each post must be {{limit}} characters or fewer.',
+                    limit: MAX_POST_TEXT_LENGTH,
+                  })}
+                </Text>
+              )}
+              {invalidSources && (
+                <Text accessibilityRole="alert" className="text-destructive text-sm">
+                  {t('compose.sources.linksInvalid', {
+                    defaultValue: 'Please fix the highlighted links before posting.',
+                  })}
+                </Text>
+              )}
               <View style={styles.bottomBarSubmit}>
                 {focusedCharCount > 0 ? (
                   <Text className="text-muted-foreground" style={styles.charCount}>

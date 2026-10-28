@@ -1,30 +1,45 @@
 import { useMemo } from 'react';
+import { MAX_POST_TEXT_LENGTH } from '@mention/shared-types/post';
+import { isValidSourceUrl } from '@/utils/composeUtils';
+import type { ComposeVariantsState } from '@/utils/composeVariants';
 import { hasPublishableContent, type ComposeContent } from '@/utils/composeContent';
 
 interface UseComposeValidationProps {
   content: ComposeContent;
   isPosting: boolean;
+  variants?: ComposeVariantsState;
 }
 
-export const useComposeValidation = ({ content, isPosting }: UseComposeValidationProps) => {
+export const useComposeValidation = ({
+  content,
+  isPosting,
+  variants,
+}: UseComposeValidationProps) => {
   const canPostContent = useMemo(() => hasPublishableContent(content), [content]);
 
-  // A source with a URL but no title cannot be published.
-  const hasInvalidSources = useMemo(() => {
-    return content.sources.some((source) => {
-      const url = source?.url?.trim?.() || '';
-      const title = source?.title?.trim?.() || '';
-      return url.length > 0 && title.length === 0;
-    });
-  }, [content.sources]);
-
-  const isPostButtonEnabled = useMemo(() => {
-    return canPostContent && !isPosting && !hasInvalidSources;
-  }, [canPostContent, isPosting, hasInvalidSources]);
+  const hasInvalidSources = useMemo(
+    () =>
+      [content.sources, ...content.threadItems.map((item) => item.sources)].some((sources) =>
+        sources.some((source) => !isValidSourceUrl(source.url)),
+      ),
+    [content.sources, content.threadItems],
+  );
+  const hasOverlongText = useMemo(
+    () =>
+      content.postContent.trim().length > MAX_POST_TEXT_LENGTH ||
+      content.threadItems.some((item) => item.text.trim().length > MAX_POST_TEXT_LENGTH) ||
+      Object.values(variants?.entries ?? {}).some((items) =>
+        Object.values(items).some((item) => item.text.trim().length > MAX_POST_TEXT_LENGTH),
+      ),
+    [content.postContent, content.threadItems, variants],
+  );
+  const isPostButtonEnabled =
+    canPostContent && !isPosting && !hasInvalidSources && !hasOverlongText;
 
   return {
     canPostContent,
     hasInvalidSources,
+    hasOverlongText,
     isPostButtonEnabled,
   };
 };

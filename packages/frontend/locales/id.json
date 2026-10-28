@@ -2758,5 +2758,6 @@
   "communities.postActions.banConfirm": "Larang",
   "communities.postActions.banned": "Dilarang dari komunitas",
   "communities.postActions.banFailed": "Tidak dapat melarang",
-  "sidebar.communities": "Komunitas"
+  "sidebar.communities": "Komunitas",
+  "compose.textTooLong": "Setiap postingan maksimal {{limit}} karakter."
 }

@@ -73,6 +73,13 @@ export const normalizeUrl = (raw: string): string | null => {
   }
   try {
     const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    if (
+      !parsed.hostname.includes('.') ||
+      parsed.hostname.startsWith('.') ||
+      parsed.hostname.endsWith('.')
+    )
+      return null;
     return parsed.toString();
   } catch {
     return null;

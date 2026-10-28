@@ -2790,5 +2790,6 @@
   "communities.postActions.banConfirm": "Banna",
   "communities.postActions.banned": "Bannato dalla community",
   "communities.postActions.banFailed": "Impossibile bannare",
-  "sidebar.communities": "Community"
+  "sidebar.communities": "Community",
+  "compose.textTooLong": "Ogni post deve contenere al massimo {{limit}} caratteri."
 }
