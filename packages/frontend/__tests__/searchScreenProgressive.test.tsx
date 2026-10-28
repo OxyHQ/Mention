@@ -30,7 +30,7 @@ jest.mock('react-i18next', () => ({
 
 jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
-  router: { push: jest.fn() },
+  router: { push: jest.fn(), setParams: jest.fn() },
   useLocalSearchParams: () => ({ q: 'rust' }),
   useIsFocused: () => true,
 }));
@@ -304,3 +304,18 @@ describe('the All search tab', () => {
     client.clear();
   });
 });
+
+it.each(['onClearText', 'onChangeText'])(
+  'clears the URL query when the input clears through %s',
+  async (event) => {
+    const { renderer, client } = await renderScreen();
+    const router = jest.requireMock('expo-router').router;
+    router.setParams.mockClear();
+    const input = renderer.root.findAll((node) => typeof node.props[event] === 'function')[0];
+    if (!input) throw new Error('Search input missing');
+    act(() => input.props[event](''));
+    expect(router.setParams).toHaveBeenCalledWith({ q: '' });
+    act(() => renderer.unmount());
+    client.clear();
+  },
+);
