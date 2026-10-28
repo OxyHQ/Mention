@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestSafetyContext } from '../../utils/safetyRequester';
 import { getDb } from '../../db/postgres';
 import { oxyFileStates } from '../../db/schema/oxyFiles';
@@ -82,4 +82,24 @@ export async function downloadMembershipMedia(
   // Oxy owns the short TTL (currently300s). URLs are returned only here, never
   // persisted, cached, included in teasers, queued notifications or logged.
   return { url: file.url, expiresIn: file.expiresIn };
+}
+
+/** Discard a caller-owned upload draft without deleting their original Oxy file. */
+export async function discardMembershipMedia(
+  communityId: string,
+  mediaId: string,
+  actor: MembershipActor,
+): Promise<void> {
+  const deleted = await getDb()
+    .delete(membershipMedia)
+    .where(
+      and(
+        eq(membershipMedia.id, mediaId),
+        eq(membershipMedia.communityId, communityId),
+        eq(membershipMedia.ownerOxyUserId, actor.accountId),
+        isNull(membershipMedia.contentId),
+      ),
+    )
+    .returning({ id: membershipMedia.id });
+  if (!deleted.length) throw new MembershipError(404, 'Upload draft not found');
 }

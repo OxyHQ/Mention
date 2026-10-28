@@ -1,6 +1,6 @@
 import type { SafetyRequester } from '@oxy.so/contracts';
 import { requireMembershipSafety, membershipSafetyDecisions } from './safety';
-import { and, count, eq, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { MEMBERSHIP_BENEFITS } from '@mention/shared-types';
 import type {
   CreateMembershipCommunityRequest,
@@ -17,11 +17,16 @@ import {
   membershipTierBenefits,
   membershipTiers,
 } from '../../db/schema/memberships';
-import { assertCanPublishAsAccount } from '../publishAsAccount';
+import {
+  membershipAuthorizesActingFor,
+  type OperatedAccountReader,
+  assertCanPublishAsAccount,
+} from '../publishAsAccount';
 import {
   communityById,
   managesCommunity,
   membershipFor,
+  membershipGrantsAccess,
   MembershipError,
   requireManager,
   type CommunityRow,
@@ -127,11 +132,22 @@ export async function membershipLanding(
     community.status === 'draft' ? 'private' : 'public',
   );
   const membership = actor ? await membershipFor(communityId, actor.accountId) : undefined;
+  const viewerBenefits = canManage
+    ? [...MEMBERSHIP_BENEFITS]
+    : membership && membershipGrantsAccess(membership)
+      ? (
+          await getDb()
+            .select({ benefit: membershipTierBenefits.benefit })
+            .from(membershipTierBenefits)
+            .where(eq(membershipTierBenefits.tierId, membership.tierId))
+        ).map((row) => row.benefit)
+      : [];
   return {
     community: communityDto(community),
     tiers: await tiersFor(communityId, canManage),
     membership: membership ? membershipDto(membership) : null,
     canManage,
+    viewerBenefits,
     paidSubscriptionsAvailable: false,
   };
 }
@@ -184,11 +200,11 @@ export async function createMembershipTier(
     };
   });
 }
-export async function setMembershipTierStatus(
+export async function updateMembershipTier(
   communityId: string,
   tierId: string,
   actor: MembershipActor,
-  status: MembershipTier['status'],
+  patch: Partial<Pick<MembershipTier, 'name' | 'description' | 'status' | 'benefits'>>,
 ): Promise<void> {
   await requireManager(await communityById(communityId), actor);
   const [tier] = await getDb()
@@ -197,15 +213,24 @@ export async function setMembershipTierStatus(
     .where(and(eq(membershipTiers.id, tierId), eq(membershipTiers.communityId, communityId)))
     .limit(1);
   if (!tier) throw new MembershipError(404, 'Tier not found');
-  if (tier.kind === 'paid' && status === 'active')
+  if (tier.kind === 'paid' && patch.status === 'active')
     throw new MembershipError(
       409,
       'Paid subscriptions require approved commercial terms and billing configuration',
     );
-  await getDb()
-    .update(membershipTiers)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(membershipTiers.id, tierId));
+  await getDb().transaction(async (tx) => {
+    const { benefits, ...fields } = patch;
+    await tx
+      .update(membershipTiers)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(eq(membershipTiers.id, tierId));
+    if (benefits) {
+      await tx.delete(membershipTierBenefits).where(eq(membershipTierBenefits.tierId, tierId));
+      await tx
+        .insert(membershipTierBenefits)
+        .values([...new Set(benefits)].map((benefit) => ({ tierId, benefit })));
+    }
+  });
 }
 export async function joinFreeMembership(
   communityId: string,
@@ -351,4 +376,58 @@ export async function membershipDirectory(
     requester,
   );
   return rows.filter((row) => allowed.has(`member:${row.oxyUserId}`));
+}
+
+export async function listMyMembershipCommunities(
+  actor: MembershipActor,
+  reader?: OperatedAccountReader,
+) {
+  const accountId = actor.accountId;
+  const accounts = reader ? await reader.accounts.list() : [];
+  const ownerIds = [
+    ...new Set([
+      accountId,
+      ...accounts
+        .filter(
+          (account) =>
+            ['organization', 'project', 'channel'].includes(account.kind) &&
+            membershipAuthorizesActingFor(account.kind, account.callerMembership),
+        )
+        .map((account) => account.accountId),
+    ]),
+  ];
+  const owned = await getDb()
+    .select()
+    .from(membershipCommunities)
+    .where(inArray(membershipCommunities.ownerOxyUserId, ownerIds))
+    .orderBy(desc(membershipCommunities.createdAt))
+    .limit(100);
+  const joined = await getDb()
+    .select({ community: membershipCommunities })
+    .from(communityMemberships)
+    .innerJoin(
+      membershipCommunities,
+      eq(membershipCommunities.id, communityMemberships.communityId),
+    )
+    .where(
+      and(
+        eq(communityMemberships.memberOxyUserId, accountId),
+        eq(communityMemberships.state, 'active'),
+      ),
+    )
+    .orderBy(desc(communityMemberships.startedAt))
+    .limit(100);
+  const communities = [...owned, ...joined.map((row) => row.community)];
+  const safe = await membershipSafetyDecisions(
+    communities.map((row) => ({ id: row.id, authorOxyUserId: row.ownerOxyUserId })),
+    actor.requester,
+  );
+  return {
+    owned: owned.filter((row) => safe.has(row.id)).map(communityDto),
+    joined: joined
+      .filter(
+        (row) => safe.has(row.community.id) && ['active', 'paused'].includes(row.community.status),
+      )
+      .map((row) => communityDto(row.community)),
+  };
 }

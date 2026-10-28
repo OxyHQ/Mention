@@ -158,6 +158,11 @@
       "types": "./dist/commerce.d.ts",
       "import": "./dist/commerce.js",
       "require": "./dist/commerce.js"
+    },
+    "./membership": {
+      "types": "./dist/membership.d.ts",
+      "import": "./dist/membership.js",
+      "require": "./dist/membership.js"
     }
   },
   "scripts": {
