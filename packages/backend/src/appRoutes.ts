@@ -43,6 +43,7 @@ import lanesRoutes, { publicLanesRouter } from './routes/lanes.routes';
 import channelWritersRoutes from './routes/channelWriters.routes';
 import channelDeletionRoutes from './routes/channelDeletion.routes';
 import communitiesRoutes from './routes/communities.routes';
+import { membershipRoutes, publicMembershipRoutes } from './routes/memberships';
 import { requireCommunitiesPreview } from './services/communities/communityPreview';
 import reportsRoutes from './routes/reports.routes';
 import communityNotesRoutes from './routes/communityNotes.routes';
@@ -171,6 +172,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   // the reader's identity only decides whether a RESTRICTED channel is visible
   // at all. The disclosure gate itself is inside the route.
   publicApi.use('/channels', optionalAuth, channelWritersRoutes);
+  publicApi.use('/membership-communities', optionalAuth, publicMembershipRoutes);
   publicApi.use('/mtn/nodes', optionalAuth, mtnNodesRoutes);
   publicApi.use('/statistics', optionalAuth, publicStatisticsRouter);
 
@@ -210,6 +212,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   // same way).
   authenticatedApi.use('/channels', channelDeletionRoutes);
   authenticatedApi.use('/communities', requireCommunitiesPreview, communitiesRoutes);
+  authenticatedApi.use('/membership-communities', membershipRoutes);
   authenticatedApi.use('/reports', reportsRoutes);
   // Writing and rating a note are acts of a person, and CrowdSource is told who
   // by an id it has to be able to trust — so the session, not the body, names

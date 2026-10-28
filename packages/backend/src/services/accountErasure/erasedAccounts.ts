@@ -6,6 +6,7 @@
 
 import {
   isAccountErased as ledgerHasAccount,
+  findErasedAccountIds,
   isErasedUsername,
 } from '../../db/accountErasures/accountErasureRepository';
 import { createCache } from '../../utils/cache';
@@ -17,6 +18,10 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
  * even while the erasure is still running: the profile must stop being served
  * at once, not when the last batch commits.
  */
+export function erasedAccountIds(oxyUserIds: readonly string[]): Promise<Set<string>> {
+  return findErasedAccountIds(oxyUserIds);
+}
+
 export async function isAccountErased(oxyUserId: string): Promise<boolean> {
   return ledgerHasAccount(oxyUserId);
 }
