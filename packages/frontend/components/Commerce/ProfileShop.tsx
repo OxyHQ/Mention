@@ -61,15 +61,13 @@ export function ProfileShop({
   ];
   const available = store.isSuccess && store.data.state === 'available';
   const products = useInfiniteQuery({
-    queryKey: [
-      ...viewerQueryKeys.commerceCatalog(
-        user?.id,
-        accountId,
-        store.data?.state === 'available' ? store.data.ref.id : null,
-        'products',
-      ),
+    queryKey: viewerQueryKeys.commerceCatalog(
+      user?.id,
+      accountId,
+      store.data?.state === 'available' ? store.data.ref.id : null,
+      'products',
       { query, sort: effectiveSort, inStock },
-    ],
+    ),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
       commerceService.storeProducts(
