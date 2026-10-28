@@ -96,3 +96,12 @@ it('checks every language rendition, including ones not currently selected', () 
   };
   expect(validate({ ...empty, postContent: 'ok' }, variants).isPostButtonEnabled).toBe(false);
 });
+
+it.each(['example.com/article', 'http://localhost/article', 'http://[::1]/article'])(
+  'accepts a web source URL %s',
+  (url) => {
+    expect(validate({ ...empty, sources: [{ id: 's', url, title: '' }] }).isPostButtonEnabled).toBe(
+      true,
+    );
+  },
+);
