@@ -1,0 +1,79 @@
+{
+  "candidateBloomVersion": "15.60.3",
+  "candidateBloomRuntimeCommit": "fb5af739",
+  "mentionIntegration": "Explicit expoRouterScrollAdapter at root BloomProvider, canonical viewer/content restoration keys and profile router correction, rebased onto main 66af0918. Local production export only; not proof of deployed revision.",
+  "engine": "WebKit 27.2 headed under Xvfb",
+  "sourceTests": {
+    "feed-geometry.spec.ts": {
+      "sha256": "ad0b1229fb54d4d459349a0ae6f166a7c6ef683bc04a09f0fd1fa77ba937f0bf",
+      "localChange": "Imports only; test body, data, and assertions unchanged."
+    },
+    "notifications-return.spec.ts": {
+      "sha256": "6b10e61312ce9e2e93fe6e319a6017deba2e3479edfcde061cf8ce89fcf646ab",
+      "localChange": "Imports only; test body, data, and assertions unchanged."
+    }
+  },
+  "configuration": {
+    "workers": 1,
+    "retries": 0,
+    "trace": "off",
+    "screenshot": "off",
+    "video": "off",
+    "storageState": "none; notifications uses its existing synthetic fixture session",
+    "preflight": "omitted only in local ignored config",
+    "origin": "https://mention.earth",
+    "assetSource": "local production export at 127.0.0.1:4117"
+  },
+  "fixtureBoundary": {
+    "geometry": "Original page-level fixtures supply 60 posts, profile identity, post detail, replies, thread continuations and delayed image. They retain priority over the added context handler.",
+    "notifications": "Original complete context-level auth/API fixtures registered later retain priority. No real account state used.",
+    "localHarnessDelta": "Copied specs change only fixture/environment imports. An automatic context fixture falls through for app-origin/non-HTTP requests, fulfills OPTIONS, supplies synthetic OAuth client metadata and returns empty items/users/topics/recommendations/trending/accounts/data arrays with hasMore=false for otherwise-unhandled external HTTP. Original candidate fixture supplies all app-origin assets. This prevents ancillary live requests; it does not change scroll, router, layout, DOM, events or assertions.",
+    "limits": "Ancillary live integration, deployed-artifact parity, physical Safari/iOS and native-device behavior are outside this isolated run."
+  },
+  "results": [
+    {
+      "title": "/ keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
+      "status": "passed",
+      "durationMs": 7351,
+      "retry": 0
+    },
+    {
+      "title": "/@geometry-fixture keeps different-height rows contiguous after resizing and returning from a deeply scrolled post",
+      "status": "passed",
+      "durationMs": 7427,
+      "retry": 0
+    },
+    {
+      "title": "feed row measurements follow the scroll owner when entering and leaving Deck",
+      "status": "passed",
+      "durationMs": 5415,
+      "retry": 0
+    },
+    {
+      "title": "delayed feed media keeps neighboring rows contiguous through loading and width changes",
+      "status": "passed",
+      "durationMs": 3634,
+      "retry": 0
+    },
+    {
+      "title": "Notifications returns to its inbox after app Back from a post",
+      "status": "passed",
+      "durationMs": 5417,
+      "retry": 0
+    },
+    {
+      "title": "Notifications returns to its inbox after browser Back from a post",
+      "status": "passed",
+      "durationMs": 3617,
+      "retry": 0
+    }
+  ],
+  "stats": {
+    "startTime": "2026-10-28T05:50:24.164Z",
+    "duration": 34081.289,
+    "expected": 6,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
