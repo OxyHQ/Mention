@@ -361,6 +361,12 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   // account: settings, graph, lists, feeds, notifications
   // ---------------------------------------------------------------------------
   {
+    table: 'commerce_store_daily_metrics',
+    column: 'oxyAccountId',
+    disposition: 'database',
+    why: 'ON DELETE CASCADE from the account storefront removes its anonymous daily totals.',
+  },
+  {
     table: 'account_storefronts',
     column: 'oxyAccountId',
     disposition: 'delete-row',
