@@ -8,12 +8,12 @@
   "main": "dist/server-http.js",
   "dependencies": {
     "@mention/shared-types": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/mcp": "catalog:",
     "zod": "catalog:",
-    "@aws-sdk/credential-provider-node": "3.972.84"
+    "@aws-sdk/credential-provider-node": "3.972.89"
   },
   "scripts": {
     "start": "bun server.ts",
