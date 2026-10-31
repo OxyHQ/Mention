@@ -1,14 +1,11 @@
-import {
-  useAccountAvatarMotion,
-  hasAccountAvatarCharacter,
-} from '@/components/ui/use-account-avatar-motion';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { tokens } from '@oxy.so/bloom/styles';
 import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo, useState, type ReactNode } from 'react';
 import { DropdownMenu, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 
 import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
 import UserName from '../UserName';
@@ -360,9 +357,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     [clusterMembers],
   );
   const showAvatarCluster = collabAvatars.length > 1;
-  const avatarMotion = useAccountAvatarMotion(
-    showAvatarCluster && collabAvatars.some(hasAccountAvatarCharacter),
-  );
 
   // `contextTop` rows are the first children of the flex-1 content column, so the
   // name row is pushed down by each fixed-height context row plus the column gap.
@@ -402,8 +396,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         onPress={isCollabByline ? onPressCollaborators : onPressAvatar}
         style={{ marginTop: compact ? 0 : headerTopOffset, marginRight: compact ? 0 : 12 }}
       >
-        <AvatarGroup
-          motion={avatarMotion}
+        <AccountAvatarGroup
           layout="cluster"
           items={collabAvatars}
           size={avatarSize}

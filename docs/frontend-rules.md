@@ -8,11 +8,12 @@ virtualization findings specifically: `docs/frontend-compiler-notes.md`.
 
 Pass the account identity (`kind` and stored `character`) to Bloom's `Avatar`,
 including feed authors, collaborators, profile/search cards, notifications and
-facepiles. `AccountAvatar` owns only Mention's motion policy: a valid stored bot
+facepiles. `AccountAvatar` and `AccountAvatarGroup` own only Mention's motion policy: a valid stored bot
 character uses `always` when Bloom's public renderer capability reports shared
 live rendering; otherwise it keeps `auto`. Human photos, malformed characters
 and remote bots without a character do not probe the native adapter or fetch
-its compatibility manifest. Never invent a character from a username in the
+its compatibility manifest. Absent and photo-only groups do not mount the capability
+hook; keep that subscription in the valid-character child, not the feed header. Never invent a character from a username in the
 client. Oxy owns creation and repair of missing local bot characters.
 
 The Android app installs `@oxy.so/bloom-avatar-native` and `expo-gl`; adopting the

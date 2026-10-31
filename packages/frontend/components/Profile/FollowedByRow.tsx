@@ -1,12 +1,9 @@
-import {
-  useAccountAvatarMotion,
-  hasAccountAvatarCharacter,
-} from '@/components/ui/use-account-avatar-motion';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useMutualFollowers } from '@/hooks/useMutualFollowers';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -35,7 +32,6 @@ export const FollowedByRow = memo(function FollowedByRow({
   const router = useRouter();
   const { t } = useTranslation();
   const { mutuals, total, isPending } = useMutualFollowers(profileId);
-  const avatarMotion = useAccountAvatarMotion(mutuals.some(hasAccountAvatarCharacter));
 
   const avatarItems = useMemo<AvatarGroupItem[]>(
     () =>
@@ -90,8 +86,7 @@ export const FollowedByRow = memo(function FollowedByRow({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <AvatarGroup
-        motion={avatarMotion}
+      <AccountAvatarGroup
         items={avatarItems}
         size={20}
         max={3}

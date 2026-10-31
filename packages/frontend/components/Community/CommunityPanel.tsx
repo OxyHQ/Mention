@@ -1,12 +1,9 @@
-import {
-  hasAccountAvatarCharacter,
-  useAccountAvatarMotion,
-} from '@/components/ui/use-account-avatar-motion';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useCallback, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/lib/navigation/router';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
@@ -59,7 +56,6 @@ export const CommunityPanel = memo(function CommunityPanel({
     accountKind: 'community',
   });
   const moderates = hosted && operates;
-  const avatarMotion = useAccountAvatarMotion(moderators.some(hasAccountAvatarCharacter));
 
   const moderatorItems = useMemo<AvatarGroupItem[]>(
     () =>
@@ -99,8 +95,7 @@ export const CommunityPanel = memo(function CommunityPanel({
           <Text className="text-muted-foreground text-[13px]">
             {t('communities.moderatedBy', { defaultValue: 'Moderated by' })}
           </Text>
-          <AvatarGroup
-            motion={avatarMotion}
+          <AccountAvatarGroup
             items={moderatorItems}
             size={MODERATOR_AVATAR_SIZE}
             max={MAX_MODERATOR_AVATARS}

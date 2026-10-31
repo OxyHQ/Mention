@@ -1,14 +1,10 @@
-import {
-  hasAccountAvatarCharacter,
-  useAccountAvatarMotion,
-} from '@/components/ui/use-account-avatar-motion';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -131,7 +127,6 @@ export const TrendItemRow = memo(function TrendItemRow({
   const series = trend.series && trend.series.length >= MIN_POLYLINE_POINTS ? trend.series : null;
   const DirectionIcon = series ? null : DIRECTION_ICON[trend.direction || 'flat'];
   const badge = getTrendBadge(trend, t);
-  const avatarMotion = useAccountAvatarMotion((trend.actors ?? []).some(hasAccountAvatarCharacter));
   // Faces are evidence that real accounts are behind the trend, so they only
   // appear where there is room to read them alongside everything else.
   const faces = useMemo(
@@ -222,8 +217,7 @@ export const TrendItemRow = memo(function TrendItemRow({
           ) : null}
           {faces.length > 0 ? (
             <View className="mt-1.5 flex-row">
-              <AvatarGroup
-                motion={avatarMotion}
+              <AccountAvatarGroup
                 items={faces}
                 size={TREND_FACE_SIZE}
                 max={faces.length}

@@ -2,7 +2,9 @@ import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { parseAvatarCharacter, useAvatarRendererCapabilities } from '@oxy.so/bloom/agent-avatar';
 
 /** Use Bloom's public JSON boundary; a malformed stored value keeps the photo fallback. */
-export function hasAccountAvatarCharacter(account: AvatarProps['account']): boolean {
+export function hasAccountAvatarCharacter(
+  account: Pick<NonNullable<AvatarProps['account']>, 'kind' | 'character'> | null | undefined,
+): boolean {
   if (account?.kind !== 'bot') return false;
   try {
     parseAvatarCharacter(account.character);

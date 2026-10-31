@@ -1,7 +1,4 @@
-import {
-  hasAccountAvatarCharacter,
-  useAccountAvatarMotion,
-} from '@/components/ui/use-account-avatar-motion';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
@@ -10,7 +7,7 @@ import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useRouter } from '@/lib/navigation/router';
 import { Text } from '@oxy.so/bloom/typography';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -73,9 +70,6 @@ export function FeedCard({
   variant = 'card',
 }: FeedCardProps) {
   const router = useRouter();
-  const avatarMotion = useAccountAvatarMotion(
-    feed.memberProfiles?.some(hasAccountAvatarCharacter) ?? false,
-  );
   const handlePress = useCallback(() => {
     if (onPress) {
       onPress();
@@ -160,8 +154,7 @@ export function FeedCard({
 
         {/* Right side: avatar cluster or custom slot */}
         {avatarItems.length > 0 ? (
-          <AvatarGroup
-            motion={avatarMotion}
+          <AccountAvatarGroup
             items={avatarItems}
             size={28}
             max={3}

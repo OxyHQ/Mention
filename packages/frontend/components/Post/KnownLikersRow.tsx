@@ -1,11 +1,7 @@
-import {
-  useAccountAvatarMotion,
-  hasAccountAvatarCharacter,
-} from '@/components/ui/use-account-avatar-motion';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
 import { Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useKnownLikers } from '@/hooks/useKnownLikers';
@@ -68,7 +64,6 @@ export const KnownLikersRow = memo(function KnownLikersRow({
 }: KnownLikersRowProps) {
   const { t } = useTranslation();
   const { likers, total, isPending } = useKnownLikers(postId);
-  const avatarMotion = useAccountAvatarMotion(likers.some(hasAccountAvatarCharacter));
 
   // One pass serves both the face pile and the sentence, so a name can never
   // disagree with the avatar it sits next to. A degraded author resolves to an
@@ -126,8 +121,7 @@ export const KnownLikersRow = memo(function KnownLikersRow({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <AvatarGroup
-        motion={avatarMotion}
+      <AccountAvatarGroup
         items={avatarItems}
         size={AVATAR_SIZE}
         max={3}

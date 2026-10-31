@@ -1,7 +1,4 @@
-import {
-  hasAccountAvatarCharacter,
-  useAccountAvatarMotion,
-} from '@/components/ui/use-account-avatar-motion';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
@@ -9,7 +6,7 @@ import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
@@ -63,9 +60,6 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
   const router = useRouter();
   const theme = useTheme();
   const { user } = useAuth();
-  const avatarMotion = useAccountAvatarMotion(
-    pack.memberProfiles?.some(hasAccountAvatarCharacter) ?? false,
-  );
 
   const isOwner = pack.creator?.id ? pack.creator.id === user?.id : false;
 
@@ -125,8 +119,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
       <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
         {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
         {hasAvatars ? (
-          <AvatarGroup
-            motion={avatarMotion}
+          <AccountAvatarGroup
             items={avatarItems}
             size={32}
             variant={MEDIA_VARIANT_AVATAR}
