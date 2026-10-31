@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "検索履歴を更新できませんでした。",
+  "search.history.clearFailed": "検索履歴を消去できませんでした。もう一度お試しください。",
   "post.threadPosition": "スレッド内の投稿 {{index}} / {{total}}",
   "post.viewConversation": "会話を見る",
   "post.threadContinuation": "スレッドの続き（{{count}}）",

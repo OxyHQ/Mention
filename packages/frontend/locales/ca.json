@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "No s’ha pogut actualitzar l’historial de cerca.",
+  "search.history.clearFailed": "No s’ha pogut esborrar l’historial de cerca. Torna-ho a provar.",
   "post.threadPosition": "Publicació {{index}} de {{total}} del fil",
   "post.viewConversation": "Mostra la conversa",
   "post.threadContinuation": "Continuació del fil ({{count}})",

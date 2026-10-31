@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "无法更新搜索历史记录。",
+  "search.history.clearFailed": "无法清除搜索历史记录，请重试。",
   "post.threadPosition": "帖子串中的第 {{index}} / {{total}} 条帖子",
   "post.viewConversation": "查看对话",
   "post.threadContinuation": "帖子串后续（{{count}}）",

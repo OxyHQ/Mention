@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "खोज इतिहास अपडेट नहीं किया जा सका।",
+  "search.history.clearFailed": "खोज इतिहास मिटाया नहीं जा सका। कृपया फिर से कोशिश करें।",
   "post.threadPosition": "थ्रेड की {{total}} में से {{index}} पोस्ट",
   "post.viewConversation": "बातचीत देखें",
   "post.threadContinuation": "थ्रेड का अगला भाग ({{count}})",
