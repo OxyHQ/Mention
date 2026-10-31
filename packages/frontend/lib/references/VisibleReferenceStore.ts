@@ -63,6 +63,7 @@ export class VisibleReferenceStore<T extends { id: string }> {
         this.pending.delete(id);
         const batch = subscribed.inFlight;
         if (batch) {
+          // A batch can still serve other visible references.
           batch.entries.delete(subscribed);
           if (batch.entries.size === 0) batch.controller.abort();
         }
