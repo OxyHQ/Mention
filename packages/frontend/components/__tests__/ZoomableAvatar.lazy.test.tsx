@@ -5,6 +5,15 @@ import type { ZoomableMediaGalleryHandle } from '@oxy.so/bloom/zoomable-media-ga
 const mockOpen = jest.fn();
 const mockMount = jest.fn();
 
+// The resting avatar has its own behavior tests. Isolate this test around the
+// gallery's first open when the component is combined with main's avatar UI.
+jest.mock('@/components/ui/AccountAvatar', () => ({ AccountAvatar: () => null }), { virtual: true });
+jest.mock(
+  '@/components/ui/use-account-avatar-motion',
+  () => ({ hasAccountAvatarCharacter: () => false }),
+  { virtual: true },
+);
+
 jest.mock('@oxy.so/bloom/zoomable-media-gallery', () => {
   const { forwardRef, useImperativeHandle, useEffect } = require('react');
   return {
