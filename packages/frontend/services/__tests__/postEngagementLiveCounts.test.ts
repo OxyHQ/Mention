@@ -49,7 +49,7 @@ jest.mock('@/lib/precacheActorsFromPosts', () => ({
   precacheActorsFromPosts: jest.fn(),
 }));
 jest.mock('@/stores/liveRoomsStore', () => ({
-  useLiveRoomsStore: { getState: () => ({ fetchLiveRooms: jest.fn() }) },
+  useLiveRoomsStore: { getState: () => ({ refreshObservedLiveRooms: jest.fn() }) },
 }));
 
 const mockPosts = new Map<string, FeedItem>();

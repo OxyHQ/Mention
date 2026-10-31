@@ -1,4 +1,4 @@
-import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk';
+import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk/live';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
 import { queryKeys } from '@oxy.so/services/ui/client';

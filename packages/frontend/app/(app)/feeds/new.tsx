@@ -1,5 +1,5 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
-import { FeedBuilder } from '@/components/feeds/FeedBuilder';
+import FeedBuilder from '@/components/feeds/LazyFeedBuilder';
 
 function NewFeedScreen() {
   return <FeedBuilder />;

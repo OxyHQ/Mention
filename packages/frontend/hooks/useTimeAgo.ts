@@ -9,7 +9,7 @@ import { formatTimeAgo } from '@/utils/dateUtils';
  * a minute later it still said "25s" (OxyHQ/Mention#1140). The fix is not a timer
  * per row: a feed mounts dozens of headers and recycles them, and a timer each is
  * dozens of wake-ups and dozens of re-renders a tick. Instead one interval runs
- * while at least one label is mounted, and each label re-derives its own string
+ * while at least one label is mounted and the app is active, and each label re-derives its own string
  * on the tick through `useSyncExternalStore` — which re-renders a row only when
  * its string actually CHANGED. "3h" stays "3h" for an hour and costs nothing but
  * a string comparison per tick.
@@ -28,23 +28,39 @@ function tick(): void {
   for (const listener of listeners) listener();
 }
 
+function startClock(): void {
+  if (interval !== null) return;
+  interval = setInterval(tick, TICK_MS);
+  // A label clock must never be what keeps a process alive (Node: static
+  // rendering, jest). `unref` exists only on Node's timer object.
+  (interval as { unref?: () => void }).unref?.();
+}
+
+function stopClock(): void {
+  if (interval !== null) clearInterval(interval);
+  interval = null;
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   if (listeners.size === 1) {
-    interval = setInterval(tick, TICK_MS);
-    // A label clock must never be what keeps a process alive (Node: static
-    // rendering, jest). `unref` exists only on Node's timer object.
-    (interval as { unref?: () => void }).unref?.();
     appStateSubscription =
       AppState.addEventListener?.('change', (state) => {
-        if (state === 'active') tick();
+        if (state === 'background' || state === 'inactive') {
+          stopClock();
+        } else {
+          startClock();
+          tick();
+        }
       }) ?? null;
+    // React Native may not have received its initial state yet.
+    if (AppState.currentState !== 'background' && AppState.currentState !== 'inactive')
+      startClock();
   }
   return () => {
     listeners.delete(listener);
     if (listeners.size === 0) {
-      if (interval !== null) clearInterval(interval);
-      interval = null;
+      stopClock();
       appStateSubscription?.remove();
       appStateSubscription = null;
     }

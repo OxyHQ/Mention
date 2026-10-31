@@ -9,6 +9,7 @@ import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import type React from 'react';
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { View, Text, TextInput, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
@@ -225,7 +226,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const communitiesPreview = useCommunitiesPreview();
   const supervision = useSupervisionState();
   const mentionSearchCache = useCreateMentionSearchCache();
-  const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore();
+  const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore(
+    useShallow((state) => ({
+      createPost: state.createPost,
+      createThread: state.createThread,
+      createReply: state.createReply,
+      cachePosts: state.cachePosts,
+      boostPost: state.boostPost,
+    })),
+  );
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const rawParams = useLocalSearchParams() as ComposeIntentRawParams;

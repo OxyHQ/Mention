@@ -4,7 +4,7 @@ import {
   LiveConfigProvider,
   LiveRoomProvider,
   useLiveRoom as useSyraLiveRoom,
-} from '@syra.fm/sdk';
+} from '@syra.fm/sdk/live';
 import type { CreateRoomSheetProps } from '@/components/rooms/createRoomTypes';
 import { liveConfig } from '@/lib/liveConfig';
 import { initLiveKit } from '@/lib/livekit';
