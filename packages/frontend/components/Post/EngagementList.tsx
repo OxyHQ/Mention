@@ -62,7 +62,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
         setNextCursor(result.nextCursor);
         setFailed(false);
       } catch (error) {
-        logger.error(`Error loading ${type}`, { error });
+        logger.error(`Error loading ${type}`, error);
         // A failed later page keeps the rows already shown.
         if (!cursor) setFailed(true);
       } finally {
