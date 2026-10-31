@@ -32,7 +32,7 @@ beforeEach(() => {
   hydrate.mockReset();
 });
 afterEach(() => {
-  stops.splice(0).forEach((stop) => stop());
+  for (const stop of stops.splice(0)) stop();
   jest.useRealTimers();
 });
 
@@ -67,6 +67,18 @@ it('drops expired price before refreshing and never restores it after an outage'
   expect(commerceCards.getSnapshot('mercaria:product:expire')).toEqual({ status: 'loading' });
   await jest.advanceTimersByTimeAsync(16);
   expect(commerceCards.getSnapshot('mercaria:product:expire')).toEqual({ status: 'unavailable' });
+});
+it('cancels the actual hydration request when its last card leaves', async () => {
+  hydrate.mockImplementation(() => new Promise(() => {}));
+  const stop = commerceCards.subscribe('mercaria:product:leaving', jest.fn());
+  await jest.advanceTimersByTimeAsync(16);
+  const signal = hydrate.mock.calls[0]?.[1];
+  if (!signal) throw new Error('The hydration request did not start');
+  expect(signal.aborted).toBe(false);
+  stop();
+  expect(signal.aborted).toBe(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(jest.getTimerCount()).toBe(0);
 });
 it('rejects a substituted product identity and stops holding facts after the last reader leaves', async () => {
   const item = product('wrong-product');
