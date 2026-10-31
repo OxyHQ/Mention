@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 50.53,
-      "covered": 14092,
-      "total": 27885
+      "pct": 51.26,
+      "covered": 14421,
+      "total": 28131
     },
     "branches": {
-      "pct": 46.2,
-      "covered": 9661,
-      "total": 20908
+      "pct": 46.9,
+      "covered": 9915,
+      "total": 21138
     },
     "functions": {
-      "pct": 45.63,
-      "covered": 3379,
-      "total": 7405
+      "pct": 46.29,
+      "covered": 3446,
+      "total": 7444
     },
     "lines": {
-      "pct": 51.35,
-      "covered": 12764,
-      "total": 24854
+      "pct": 52.11,
+      "covered": 13050,
+      "total": 25043
     }
   },
   "pins": {
@@ -49,7 +49,7 @@
     },
     "components/providers/AccountSwitchReset.tsx": {
       "statements": 98,
-      "branches": 94,
+      "branches": 96,
       "functions": 100,
       "lines": 100
     },
@@ -594,10 +594,10 @@
       "lines": 100
     },
     "hooks/useRecommendations.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 42,
+      "branches": 34,
+      "functions": 26,
+      "lines": 44
     },
     "hooks/useReelChrome.ts": {
       "statements": 66,
@@ -858,10 +858,10 @@
       "lines": 51
     },
     "lib/keyedAsyncQueue.ts": {
-      "statements": 84,
+      "statements": 92,
       "branches": 100,
-      "functions": 66,
-      "lines": 91
+      "functions": 83,
+      "lines": 100
     },
     "lib/liveConfig.tsx": {
       "statements": 0,
@@ -918,10 +918,10 @@
       "lines": 100
     },
     "lib/oxyServices.ts": {
-      "statements": 0,
+      "statements": 100,
       "branches": 100,
       "functions": 100,
-      "lines": 0
+      "lines": 100
     },
     "lib/precacheActorsFromPosts.ts": {
       "statements": 100,
@@ -1110,10 +1110,10 @@
       "lines": 100
     },
     "services/echoGuard.ts": {
-      "statements": 41,
-      "branches": 22,
-      "functions": 25,
-      "lines": 42
+      "statements": 73,
+      "branches": 66,
+      "functions": 60,
+      "lines": 78
     },
     "services/engagementQueuePersistence.ts": {
       "statements": 94,
@@ -1274,14 +1274,14 @@
     "services/searchService.ts": {
       "statements": 74,
       "branches": 56,
-      "functions": 77,
-      "lines": 77
+      "functions": 80,
+      "lines": 78
     },
     "services/socketService.ts": {
-      "statements": 63,
-      "branches": 47,
-      "functions": 61,
-      "lines": 66
+      "statements": 76,
+      "branches": 60,
+      "functions": 78,
+      "lines": 80
     },
     "services/starterPacksService.ts": {
       "statements": 0,
@@ -1494,10 +1494,10 @@
       "lines": 100
     },
     "utils/authErrors.ts": {
-      "statements": 0,
+      "statements": 14,
       "branches": 0,
       "functions": 0,
-      "lines": 0
+      "lines": 18
     },
     "utils/commerceReferences.ts": {
       "statements": 90,
@@ -1632,10 +1632,10 @@
       "lines": 100
     },
     "utils/groupNotifications.ts": {
-      "statements": 91,
-      "branches": 65,
+      "statements": 94,
+      "branches": 69,
       "functions": 100,
-      "lines": 90
+      "lines": 94
     },
     "utils/hlsSource.ts": {
       "statements": 90,

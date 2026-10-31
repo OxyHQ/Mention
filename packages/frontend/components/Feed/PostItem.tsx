@@ -110,6 +110,13 @@ interface PostItemProps {
    * nesting instead and never set this prop.
    */
   repostedBy?: PostUser;
+  /**
+   * Where `repostedBy` is drawn when a boosted reply is shown under its parent:
+   * `headOnly` on the parent heading the slice (the "Reposted by" line, without
+   * pairing the reposter's avatar with an author they are not), `shownAbove` on
+   * the boosted reply (the avatar pairing, without repeating the line).
+   */
+  repostPlacement?: 'headOnly' | 'shownAbove';
   socialContext?: FeedPostSlice['socialContext'];
   /**
    * Render the FOCUSED post-detail variant: full-width body, the usual action bar,
@@ -159,6 +166,7 @@ const PostItem: React.FC<PostItemProps> = ({
   replyBranch = false,
   attachedBelow = false,
   repostedBy,
+  repostPlacement,
   socialContext,
   isPostDetail: isPostDetailProp = false,
   threadPosition,
@@ -807,7 +815,7 @@ const PostItem: React.FC<PostItemProps> = ({
   // column grows down). The icon keeps `-ml-4` to poke left into the avatar
   // gutter; repost is the outermost reason, then pinned, then reply.
   const contextRows: React.ReactNode[] = [];
-  if (reposter) {
+  if (reposter && repostPlacement !== 'shownAbove') {
     const repostedBy = (
       <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
         {t('post.repostedBy', { defaultValue: 'Reposted by' })}{' '}
@@ -1147,7 +1155,7 @@ const PostItem: React.FC<PostItemProps> = ({
             // its actor are the same account and there is nothing to
             // pair or reorder; passing it would be a no-op wearing
             // the clothes of a rule.
-            boostedBy={reposter}
+            boostedBy={repostPlacement === 'headOnly' ? undefined : reposter}
             date={metadata.createdAt}
             isEdited={metadata.isEdited}
             showBoost={Boolean(viewPost.boost) && !isNested}
@@ -1359,6 +1367,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   // Same original post id can be reposted by different actors across rows;
   // compare the booster so a recycled row never shows a stale "Reposted by".
   prevProps.repostedBy?.id === nextProps.repostedBy?.id &&
+  prevProps.repostPlacement === nextProps.repostPlacement &&
   prevProps.socialContext === nextProps.socialContext;
 
 const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {

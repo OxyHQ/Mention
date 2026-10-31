@@ -5,6 +5,8 @@
  * Two operations:
  *   1. Self-thread grouping: posts with same threadId + same oxyUserId → single slice
  *   2. Reply context injection: posts with parentPostId → prepend parent as context
+ *   3. Boosted-reply context: a boost of a reply → prepend the reply's parent, so
+ *      the repost reads as the thread it belongs to instead of a lone reply
  */
 
 import {
@@ -24,6 +26,14 @@ import { logger } from '../utils/logger';
 export interface ThreadSlicingOptions {
   enableThreadGrouping: boolean;
   enableReplyContext: boolean;
+  /**
+   * Prepend the parent of a BOOSTED reply. Separate from `enableReplyContext`
+   * because it is on for every feed, the profile included: a feed that opts out
+   * of reply context is declining to thread the replies it selected, while a
+   * repost of a reply is a post someone chose to share, which reads as a
+   * non-sequitur without what it answers.
+   */
+  enableBoostedReplyContext: boolean;
   maxSliceSize: number; // max posts per slice (default 3)
   viewerId?: string;
 }
@@ -35,6 +45,8 @@ interface RawPost {
   /** Written as a reply. STORED, never inferred from `parentPostId`. */
   isReply: boolean;
   parentPostId?: string | null;
+  type?: string;
+  boostOf?: string | null;
   threadId?: string | null;
   createdAt?: string | Date;
 }
@@ -60,6 +72,7 @@ function toRawPost(record: PostRecord): RawPost {
 const DEFAULT_OPTIONS: ThreadSlicingOptions = {
   enableThreadGrouping: true,
   enableReplyContext: true,
+  enableBoostedReplyContext: true,
   maxSliceSize: MtnConfig.feed.maxSliceSize,
 };
 
@@ -90,12 +103,15 @@ class ThreadSlicingService {
     }
 
     // Gather thread children and parent posts in parallel
-    const [threadChildrenMap, parentPostMap] = await Promise.all([
+    const [threadChildrenMap, parentPostMap, boostedReplyParents] = await Promise.all([
       opts.enableThreadGrouping
         ? this.fetchThreadChildren(posts, opts.maxSliceSize)
         : Promise.resolve(new Map<string, RawPost[]>()),
       opts.enableReplyContext
         ? this.fetchParentPosts(posts, postById)
+        : Promise.resolve(new Map<string, RawPost>()),
+      opts.enableBoostedReplyContext
+        ? this.fetchBoostedReplyParents(posts, postById)
         : Promise.resolve(new Map<string, RawPost>()),
     ]);
 
@@ -110,6 +126,12 @@ class ThreadSlicingService {
     }
     for (const parentId of parentPostMap.keys()) {
       if (!postById.has(parentId)) {
+        additionalPostIds.push(parentId);
+      }
+    }
+    for (const parent of boostedReplyParents.values()) {
+      const parentId = getPostId(parent);
+      if (!postById.has(parentId) && !parentPostMap.has(parentId)) {
         additionalPostIds.push(parentId);
       }
     }
@@ -185,6 +207,18 @@ class ThreadSlicingService {
             type: 'replyContext',
           }),
         );
+        continue;
+      }
+
+      // A boost of a reply gets the reply's parent above it, as the same
+      // `replyContext` slice a reply would: the boost row renders the reply, so
+      // it is the slice's last item and its subject, and the parent is context.
+      // Without a parent to attach it stays an ordinary single-post slice — a
+      // boost is not itself a reply, and must not be hidden as one.
+      const boostedReplyParent = boostedReplyParents.get(postId);
+      if (boostedReplyParent && !seenPostIds.has(getPostId(boostedReplyParent))) {
+        seenPostIds.add(getPostId(boostedReplyParent));
+        slices.push(buildSlice([boostedReplyParent, post], true, { type: 'replyContext' }));
         continue;
       }
 
@@ -313,6 +347,56 @@ class ThreadSlicingService {
 
     return result;
   }
+
+  /**
+   * The parent of each boosted reply, keyed by the BOOST's id. Two indexed reads
+   * when the page holds boosts and none otherwise: the boosted originals (to learn
+   * which are replies, and to what), then their parents through
+   * {@link fetchParentPosts}, which applies the same publication bar.
+   */
+  private async fetchBoostedReplyParents(
+    posts: RawPost[],
+    postById: Map<string, RawPost>,
+  ): Promise<Map<string, RawPost>> {
+    const result = new Map<string, RawPost>();
+    const boosts = posts.filter(isBoost);
+    if (boosts.length === 0) return result;
+
+    try {
+      const originalIds = [...new Set(boosts.map((boost) => boost.boostOf))];
+      const originals = new Map<string, RawPost>();
+      for (const id of originalIds) {
+        const inPage = postById.get(id);
+        if (inPage) originals.set(id, inPage);
+      }
+      const missing = originalIds.filter((id) => !originals.has(id));
+      if (missing.length > 0) {
+        const records = await findPostRecords(
+          and(inArray(postsTable.id, missing), eq(postsTable.status, 'published')),
+          { orderBy: CHRONO_DESC },
+        );
+        for (const record of records) originals.set(record.id, toRawPost(record));
+      }
+
+      const replies = [...originals.values()].filter((original) => original.parentPostId);
+      if (replies.length === 0) return result;
+      const parents = await this.fetchParentPosts(replies, postById);
+
+      for (const boost of boosts) {
+        const parentId = originals.get(boost.boostOf)?.parentPostId;
+        const parent = parentId ? (parents.get(parentId) ?? postById.get(parentId)) : undefined;
+        if (parent) result.set(getPostId(boost), parent);
+      }
+    } catch (err) {
+      logger.error('[ThreadSlicing] Error fetching boosted reply parents', err);
+    }
+
+    return result;
+  }
+}
+
+function isBoost(post: RawPost): post is RawPost & { boostOf: string } {
+  return post.type === 'boost' && typeof post.boostOf === 'string' && post.boostOf.length > 0;
 }
 
 function getPostId(post: RawPost): string {
