@@ -259,14 +259,14 @@ describe('buildFeedRows — no interstitials (regression guard)', () => {
       sliceKey: 't1+t2',
       isThreadParent: true,
       isThreadChild: false,
-      threadRootId: 't1',
+      threadOpenId: 't1',
     });
     expect(t2).toMatchObject({
       sliceKey: 't1+t2',
       isThreadParent: false,
       isThreadChild: true,
       isThreadLastChild: true,
-      threadRootId: 't1',
+      threadOpenId: 't1',
     });
     expect(p2).toMatchObject({ sliceKey: 'p2', isThreadParent: false });
   });
@@ -279,10 +279,17 @@ describe('buildFeedRows — a boosted reply under its parent', () => {
       ...post('boost-1', 'nate'),
       boost: { originalPost: post('reply-1', 'nate'), actor: reposter },
     } as unknown as HydratedPost;
-    const pair = threadSlice(['parent-1', 'boost-1']);
+    const pair = {
+      ...threadSlice(['parent-1', 'boost-1']),
+      reason: { type: 'replyContext' as const },
+    };
     pair.items[1] = { ...pair.items[1], post: boost };
 
     const [head, reply] = build({ slices: [pair] }).map(asPost);
+
+    // Either row opens the reply (the slice's subject), not the parent above it.
+    expect(head.threadOpenId).toBe('reply-1');
+    expect(reply.threadOpenId).toBe('reply-1');
 
     expect(head).toMatchObject({ headReposter: reposter });
     expect(head.repostShownAbove).toBeUndefined();
@@ -330,7 +337,7 @@ describe('feedRowKey', () => {
       isThreadParent: false,
       isThreadChild: false,
       isThreadLastChild: false,
-      threadRootId: 'p2',
+      threadOpenId: 'p2',
     });
     expect(new Set(rows.map(feedRowKey)).size).toBe(rows.length);
   });

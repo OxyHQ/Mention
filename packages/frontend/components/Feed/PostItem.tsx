@@ -137,13 +137,13 @@ interface PostItemProps {
   /**
    * Thread "unit" wiring (feed rows only). All rows of one thread share the
    * same `sliceKey`; `isThread` is true when this row is part of a multi-post
-   * thread, and `threadRootId` is the thread's root post id. Together they make
+   * thread, and `threadOpenId` is the thread's root post id. Together they make
    * the whole thread behave as one unit: hovering any post highlights every
    * post of the thread (via the shared `threadHoverStore`), and tapping any
-   * post opens the thread at its root. Absent/false for standalone posts.
+   * post opens the thread at `threadOpenId`. Absent/false for standalone posts.
    */
   sliceKey?: string;
-  threadRootId?: string;
+  threadOpenId?: string;
   isThread?: boolean;
   /**
    * Notified right before a tap opens the post detail. A pure observer — it does
@@ -172,7 +172,7 @@ const PostItem: React.FC<PostItemProps> = ({
   threadPosition,
   feedDescriptor,
   sliceKey,
-  threadRootId,
+  threadOpenId,
   isThread = false,
   onOpen,
 }) => {
@@ -383,7 +383,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
   // A thread (multi-post slice) behaves as one unit: every row shares one
   // `sliceKey`, hovering any row highlights them all, and tapping any row opens
-  // the thread at its `threadRootId`. Standalone posts have no slice wiring and
+  // the thread at its `threadOpenId`. Standalone posts have no slice wiring and
   // keep per-post hover + their own detail target.
   const isThreadUnit = Boolean(isThread && sliceKey);
   const setHoveredSlice = useThreadHoverStore((s) => s.setHoveredSlice);
@@ -394,13 +394,13 @@ const PostItem: React.FC<PostItemProps> = ({
   );
 
   // Where opening this row goes: thread posts open the whole thread at its
-  // root; standalone posts open their own detail. The tap and the time label's
+  // subject (`threadOpenId`); standalone posts open their own detail. The tap and the time label's
   // link both read it, so the link a crawler follows is the page a tap opens.
   // `null` when the row opens nothing (the detail view's own main post).
   const openPostHref = useMemo<Href | null>(() => {
     if (!isTappable || !viewPostId) return null;
-    return `/p/${isThreadUnit && threadRootId ? threadRootId : viewPostId}`;
-  }, [isTappable, viewPostId, isThreadUnit, threadRootId]);
+    return `/p/${isThreadUnit && threadOpenId ? threadOpenId : viewPostId}`;
+  }, [isTappable, viewPostId, isThreadUnit, threadOpenId]);
 
   // What opening the post means besides navigating — shared by the row's tap
   // and the time label's link, which navigates by itself.
@@ -1366,7 +1366,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.threadPosition?.total === nextProps.threadPosition?.total &&
   prevProps.feedDescriptor === nextProps.feedDescriptor &&
   prevProps.sliceKey === nextProps.sliceKey &&
-  prevProps.threadRootId === nextProps.threadRootId &&
+  prevProps.threadOpenId === nextProps.threadOpenId &&
   prevProps.isThread === nextProps.isThread &&
   // Same original post id can be reposted by different actors across rows;
   // compare the booster so a recycled row never shows a stale "Reposted by".

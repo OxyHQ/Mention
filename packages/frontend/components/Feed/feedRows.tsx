@@ -62,11 +62,14 @@ export interface PostFeedRow {
   replyBranch?: { continuingDepths: number[]; endsGroup: boolean };
   /**
    * For rows that belong to a real multi-post thread (slice with >1 item), the
-   * id of the thread's ROOT post (the first slice item). Tapping any post of
-   * the thread opens this root so the whole thread is shown. Undefined for
+   * post every row of it opens: the slice's SUBJECT. For a reply slice — a reply
+   * or a reposted reply under its parent — that is the reply, whose detail shows
+   * the parent chain above it; for a self-thread it is the root, whose detail
+   * shows the continuations below. Opening the parent of a reply slice would
+   * bury the reply the reader tapped among that parent's replies. Undefined for
    * standalone posts (single-item slices), which open their own detail.
    */
-  threadRootId?: string;
+  threadOpenId?: string;
   /**
    * A boosted reply arrives as `[parent, boost]`, and its "Reposted by" belongs
    * above the whole thread, not between the parent and the reply: the head row
@@ -261,11 +264,11 @@ export function buildFeedRows({
         shownPostIds.add(displayedPostId(sliceItem.post as FeedItem));
       }
 
-      // Real threads (multi-post slices) share one root: the FIRST item's
-      // post. Every row of the thread carries it so a tap opens the whole
-      // thread at its root. Standalone slices (one item) leave it undefined.
-      const threadRootId =
-        slice.items.length > 1 ? String(slice.items[0]?.post?.id ?? '') : undefined;
+      // Real threads (multi-post slices) open as one unit, at their subject
+      // (see `threadOpenId`). Standalone slices (one item) leave it undefined.
+      const subject = slice.reason?.type === 'replyContext' ? slice.items.at(-1) : slice.items[0];
+      const threadOpenId =
+        slice.items.length > 1 && subject ? displayedPostId(subject.post as FeedItem) : undefined;
       const lastIndex = uniqueSliceItems.length - 1;
       const sliceReposter =
         lastIndex > 0 ? boostActorOf(uniqueSliceItems[lastIndex]?.post as FeedItem) : undefined;
@@ -289,7 +292,7 @@ export function buildFeedRows({
               : undefined,
           nestingDepth: 0,
           truncatedChildCount: 0,
-          threadRootId,
+          threadOpenId,
           ...(sliceReposter && i === 0 && { headReposter: sliceReposter }),
           ...(sliceReposter && i === lastIndex && { repostShownAbove: true }),
         });
@@ -552,8 +555,8 @@ export function renderFeedRow(
         socialContext={row.socialContext}
         feedDescriptor={feedDescriptor}
         sliceKey={row.sliceKey}
-        threadRootId={row.threadRootId}
-        isThread={Boolean(row.threadRootId)}
+        threadOpenId={row.threadOpenId}
+        isThread={Boolean(row.threadOpenId)}
       />
       {showThreadLink && (
         <ShowThreadLink
