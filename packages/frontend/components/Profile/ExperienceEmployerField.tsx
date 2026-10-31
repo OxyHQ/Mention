@@ -4,12 +4,8 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import {
-  ORGANIZATION_NAME_MAX_LENGTH,
-  ORGANIZATION_TYPES,
-  checkContract,
-  createOrganizationCheck,
-} from '@oxy.so/contracts/client';
+import { parseOrganizationDraft } from '@oxy.so/services/organization-draft';
+import { ORGANIZATION_NAME_MAX_LENGTH, ORGANIZATION_TYPES } from '@oxy.so/contracts/client';
 import type {
   CreateOrganization,
   Organization,
@@ -320,11 +316,11 @@ export function ExperienceEmployerField({
                   onPress={() => {
                     // The client twin of the contract's schema: the same verdict,
                     // without loading Zod into the app.
-                    const organization = checkContract(createOrganizationCheck, {
-                      name: query.trim(),
+                    const organization = parseOrganizationDraft({
+                      name: query,
                       organizationType,
-                      websiteUrl: website.trim() || null,
-                      countryCode: country.trim().toUpperCase() || null,
+                      websiteUrl: website,
+                      countryCode: country,
                     });
                     setCreateInvalid(organization === null);
                     if (organization) create.mutate(organization);
