@@ -722,6 +722,13 @@
       "when": 1793189861078,
       "tag": "0102_membership_report_review",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1793475237648,
+      "tag": "0103_drop_notify_email_enabled",
+      "breakpoints": true
     }
   ]
 }

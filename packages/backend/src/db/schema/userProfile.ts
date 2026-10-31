@@ -357,7 +357,6 @@ export const userSettings = pgTable(
 
     // ── notificationPreferences ──
     notifyPushEnabled: boolean().notNull().default(true),
-    notifyEmailEnabled: boolean().notNull().default(false),
     notifyLikes: boolean().notNull().default(true),
     notifyBoosts: boolean().notNull().default(true),
     notifyFollows: boolean().notNull().default(true),
