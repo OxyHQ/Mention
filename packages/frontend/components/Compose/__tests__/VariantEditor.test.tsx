@@ -4,6 +4,17 @@ import TestRenderer, { act } from 'react-test-renderer';
 import type { MentionTextInputHandle } from '@/components/MentionTextInput';
 import VariantEditor from '../VariantEditor';
 
+// Keep the renderer boundary isolated; the account policy has its own contract tests.
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
+}));
+
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, options?: { defaultValue?: string; language?: string }) =>

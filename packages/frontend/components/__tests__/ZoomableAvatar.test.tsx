@@ -23,7 +23,7 @@ jest.mock('react-native', () => {
   const React = jest.requireActual('react');
   const mock = Object.create(actual);
   Object.defineProperty(mock, 'View', {
-    value: React.forwardRef((props: unknown, ref: unknown) => {
+    value: React.forwardRef(function MockMeasuredView(props: unknown, ref: unknown) {
       React.useImperativeHandle(ref, () => ({
         measureInWindow: (callback: (...values: number[]) => void) => callback(0, 0, 90, 90),
       }));
@@ -48,7 +48,10 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 jest.mock('@oxy.so/bloom/zoomable-media-gallery', () => {
   const React = jest.requireActual('react');
   return {
-    ZoomableMediaGallery: React.forwardRef((_props: unknown, ref: unknown) => {
+    ZoomableMediaGallery: React.forwardRef(function MockZoomableGallery(
+      _props: unknown,
+      ref: unknown,
+    ) {
       React.useImperativeHandle(ref, () => ({ open: mockOpen }));
       return null;
     }),

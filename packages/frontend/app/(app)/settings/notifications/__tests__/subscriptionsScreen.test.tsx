@@ -6,6 +6,17 @@ import enMessages from '@/locales/en.json';
 import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
 import { useSubscription } from '@/components/Profile/hooks/useSubscription';
 const mockRankingChanged = jest.fn();
+// Keep the renderer boundary isolated; the account policy has its own contract tests.
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
+}));
+
 jest.mock('@/stores/feedRankingInvalidation', () => ({
   notifyFeedRankingChanged: (...args: unknown[]) => mockRankingChanged(...args),
 }));
