@@ -1,0 +1,11 @@
+-- oxy:deploy-phase=post
+-- Mention sends no notification email. The "Email notifications" setting this
+-- column stored was never read, and stopped being written, accepted or read in
+-- #1681, so nothing in a running release touches it any more. It is `post` so it
+-- only runs once the release without the column is live: the previous release
+-- still selected it.
+--
+-- Metadata-only on Postgres (the column is dropped from the catalog, no rewrite);
+-- `user_settings` is a hot table, so the ACCESS EXCLUSIVE lock is held for the
+-- instant of the catalog change.
+ALTER TABLE "user_settings" DROP COLUMN IF EXISTS "notify_email_enabled";
