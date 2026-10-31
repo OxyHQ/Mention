@@ -1,3 +1,7 @@
+import {
+  useAccountAvatarMotion,
+  hasAccountAvatarCharacter,
+} from '@/components/ui/use-account-avatar-motion';
 import { memo, useMemo } from 'react';
 import { Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -64,6 +68,7 @@ export const KnownLikersRow = memo(function KnownLikersRow({
 }: KnownLikersRowProps) {
   const { t } = useTranslation();
   const { likers, total, isPending } = useKnownLikers(postId);
+  const avatarMotion = useAccountAvatarMotion(likers.some(hasAccountAvatarCharacter));
 
   // One pass serves both the face pile and the sentence, so a name can never
   // disagree with the avatar it sits next to. A degraded author resolves to an
@@ -76,6 +81,8 @@ export const KnownLikersRow = memo(function KnownLikersRow({
         return {
           id: liker.id,
           uri: liker.avatar,
+          kind: liker.kind,
+          character: liker.character,
           displayName: displayNameOrHandle(liker.name.displayName, handle),
           username: handle || undefined,
         };
@@ -120,6 +127,7 @@ export const KnownLikersRow = memo(function KnownLikersRow({
       accessibilityLabel={label}
     >
       <AvatarGroup
+        motion={avatarMotion}
         items={avatarItems}
         size={AVATAR_SIZE}
         max={3}

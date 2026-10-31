@@ -1,3 +1,4 @@
+import type { AccountKind, AvatarCharacter } from '@oxy.so/contracts';
 import { degradedActorSummary } from './degradedActorSummary';
 import { resolveAvatarUrl } from './mediaResolver';
 
@@ -9,6 +10,8 @@ export interface NotificationActorProfile {
   name?: { displayName?: string | null } | null;
   displayName?: string | null;
   avatar?: string | null;
+  kind?: AccountKind;
+  character?: AvatarCharacter | null;
 }
 
 function safeVisualValue(value: unknown, rawIds: Set<string>): string {
@@ -41,6 +44,8 @@ export function toPopulatedActor(
 
   return {
     _id: id,
+    kind: actor?.kind,
+    character: actor?.character,
     username: username || fallback.username,
     name: {
       displayName: resolvedDisplayName || username || fallback.name.displayName,

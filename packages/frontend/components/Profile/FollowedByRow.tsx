@@ -1,3 +1,7 @@
+import {
+  useAccountAvatarMotion,
+  hasAccountAvatarCharacter,
+} from '@/components/ui/use-account-avatar-motion';
 import { memo, useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
@@ -31,12 +35,15 @@ export const FollowedByRow = memo(function FollowedByRow({
   const router = useRouter();
   const { t } = useTranslation();
   const { mutuals, total, isPending } = useMutualFollowers(profileId);
+  const avatarMotion = useAccountAvatarMotion(mutuals.some(hasAccountAvatarCharacter));
 
   const avatarItems = useMemo<AvatarGroupItem[]>(
     () =>
       mutuals.map((mutual) => ({
         id: mutual.id,
         uri: mutual.avatar,
+        kind: mutual.kind,
+        character: mutual.character,
         // Fall back to the handle when a mutual has no display name.
         displayName: displayNameOrHandle(mutual.name.displayName, mutual.username),
         username: mutual.username,
@@ -84,6 +91,7 @@ export const FollowedByRow = memo(function FollowedByRow({
       accessibilityLabel={label}
     >
       <AvatarGroup
+        motion={avatarMotion}
         items={avatarItems}
         size={20}
         max={3}

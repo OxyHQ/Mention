@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { View, Platform } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Button } from '@oxy.so/bloom/button';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
@@ -42,7 +42,12 @@ export const FeedHeader = memo<FeedHeaderProps>(
           accessibilityLabel={t('settings.quickActions.createPost')}
           className="min-w-0 flex-1 flex-row items-center gap-3"
         >
-          <Avatar source={user.avatar || undefined} size={32} variant={MEDIA_VARIANT_AVATAR} />
+          <AccountAvatar
+            account={user ?? undefined}
+            source={user.avatar || undefined}
+            size={32}
+            variant={MEDIA_VARIANT_AVATAR}
+          />
           <Text className="flex-1 text-base leading-5 text-muted-foreground">
             {promptText || t('compose.placeholder')}
           </Text>

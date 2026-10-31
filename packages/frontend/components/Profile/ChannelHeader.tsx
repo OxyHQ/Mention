@@ -89,7 +89,6 @@ export const ChannelHeader = memo(function ChannelHeader({
           height: CHANNEL_AVATAR_SIZE,
           borderRadius: CHANNEL_AVATAR_SIZE / 2,
         }}
-        imageStyle={{}}
       />
       <UserNameComponent
         name={displayName}

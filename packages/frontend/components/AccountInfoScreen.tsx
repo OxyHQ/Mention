@@ -210,6 +210,7 @@ function AccountInfoContent({
             UserName, so it reads as the same identity surface as the profile. */}
       <View className="px-4 pt-4 pb-5 items-center">
         <ZoomableAvatar
+          account={profileData}
           source={avatarUri}
           size={ABOUT_AVATAR_SIZE}
           className="bg-muted"
@@ -218,7 +219,6 @@ function AccountInfoContent({
             height: ABOUT_AVATAR_SIZE,
             borderRadius: ABOUT_AVATAR_SIZE / 2,
           }}
-          imageStyle={{}}
         />
         <UserName
           name={profileData.design.displayName ?? profileData.name?.displayName}

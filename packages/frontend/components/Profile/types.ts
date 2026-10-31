@@ -430,6 +430,7 @@ export type UserNameComponent = React.ComponentType<UserNameProps>;
 export interface ProfileHeaderBaseProps {
   username?: string;
   avatarUri?: string;
+  account?: Pick<ProfileData, 'kind' | 'character' | 'avatar' | 'username'>;
   /** Drives the live-avatar swap and the presence dot; both are skipped without it. */
   profileId?: string;
 }

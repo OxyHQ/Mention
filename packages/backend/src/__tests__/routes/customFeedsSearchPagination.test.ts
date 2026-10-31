@@ -57,7 +57,19 @@ vi.mock('../../services/PostHydrationService', () => ({
             user: {
               id,
               username: `handle_${id}`,
-              avatar: `avatar_${id}`,
+              avatar: id === 'avatar-bot' ? undefined : `avatar_${id}`,
+              ...(id === 'avatar-bot'
+                ? {
+                    kind: 'bot',
+                    character: {
+                      shape: 'circle_two_ears',
+                      color: 'lime',
+                      eyes: 'oval',
+                      eyewear: 'none',
+                      accessory: 'none',
+                    },
+                  }
+                : {}),
               name: { displayName: id },
             },
           },
@@ -702,6 +714,33 @@ describe('POST /feeds and the definition module lists', () => {
 });
 
 describe('GET /feeds/:id — wire format and the legacy fields', () => {
+  it('preserves bot characters across list, marketplace and detail member facepiles', async () => {
+    const owner = uniqueId('owner');
+    viewer = owner;
+    const title = uniqueId('avatar-feed');
+    const feedId = await seedFeed({ ownerOxyUserId: owner, title });
+    await db.insert(customFeedMembers).values([
+      { feedId, oxyUserId: 'avatar-bot', position: 0 },
+      { feedId, oxyUserId: 'photo-member', position: 1 },
+    ]);
+    for (const route of ['/feeds', '/feeds/marketplace', `/feeds/${feedId}`]) {
+      const response = await request(app).get(route).query({ search: title }).expect(200);
+      const item =
+        route === `/feeds/${feedId}`
+          ? response.body
+          : response.body.items.find((candidate: { id: string }) => candidate.id === feedId);
+      expect(item.memberProfiles.map((member: { id: string }) => member.id)).toEqual([
+        'avatar-bot',
+        'photo-member',
+      ]);
+      expect(item.memberProfiles[0]).toMatchObject({
+        kind: 'bot',
+        character: { shape: 'circle_two_ears', color: 'lime' },
+      });
+      expect(item.memberProfiles[0]).not.toHaveProperty('avatar');
+    }
+  });
+
   it('emits _id alongside id, defaults arrays, and OMITS an absent optional', async () => {
     const owner = uniqueId('owner');
     viewer = owner;

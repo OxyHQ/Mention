@@ -80,6 +80,7 @@ export default function StarterPacksScreen() {
           memberCount,
           useCount: p.useCount || 0,
           memberAvatars: p.memberAvatars ?? [],
+          memberProfiles: p.memberProfiles,
           totalMembers: memberCount,
         };
 

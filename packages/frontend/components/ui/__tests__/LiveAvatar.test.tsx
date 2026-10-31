@@ -1,3 +1,12 @@
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
+}));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

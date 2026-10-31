@@ -1,3 +1,4 @@
+import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { authenticatedClient } from '@/utils/api';
 
 /** Resolved owner summary embedded on a starter pack list/detail item. */
@@ -30,6 +31,7 @@ export interface StarterPackSummary {
   memberCount?: number;
   /** Pre-resolved member avatar URLs (up to 8) returned by the list endpoint. */
   memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
   /** Hydrated members (identity + avatar URL) returned by the detail endpoint. */
   members?: StarterPackMember[];
   useCount?: number;

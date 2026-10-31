@@ -4,6 +4,51 @@ Conventions for the Expo/React Native app beyond the general Oxy/Bloom
 frontend gotchas in `~/Oxy/AGENTS.md`. React Compiler and web
 virtualization findings specifically: `docs/frontend-compiler-notes.md`.
 
+## Account avatars
+
+Pass the account identity (`kind` and stored `character`) to Bloom's `Avatar`,
+including feed authors, collaborators, profile/search cards, notifications and
+facepiles. `AccountAvatar` owns only Mention's motion policy: a valid stored bot
+character uses `always` when Bloom's public renderer capability reports shared
+live rendering; otherwise it keeps `auto`. Human photos, malformed characters
+and remote bots without a character do not probe the native adapter or fetch
+its compatibility manifest. Never invent a character from a username in the
+client. Oxy owns creation and repair of missing local bot characters.
+
+The Android app installs `@oxy.so/bloom-avatar-native` and `expo-gl`; adopting the
+adapter requires a native binary rebuild. Its provider URL pins the companion's
+exported runtime revision under
+`https://alia.onl/bloom-character/releases/<revision>/runtime.mjs`. Those assets
+must remain available for released binaries. Web uses Bloom's default runtime.
+iOS and unsupported/incompatible native hosts retain Bloom's `auto` policy;
+this change does not claim shared live rendering on iOS. `LiveAvatar` still
+means the Syra broadcast badge and delegates account appearance to Bloom.
+`ZoomableAvatar` keeps photo zoom for photo accounts; valid 3D characters use
+Bloom's representation without opening an unrelated photo. Its public `onImageError`
+notification disables photo zoom after a failed primary image; replacing the
+source resets that failure without letting a late old event poison the new photo.
+Alia SDK22.9 preserves an inherited/explicit runtime override inside chat icons
+and carries the matching smooth still image; consumer wrappers must not replace
+its provider to repair that contract.
+
+The backend hydration projection retains `character` and user-summary cache v8
+invalidates the previous projection. Anonymous page cache entries expire after
+45 seconds. Frontend feed persistence serializes complete `user`/`authors`
+identities; its normal upsert replaces that JSON even when the post timestamp
+is unchanged. Cached offline rows refresh through the existing feed fetch,
+without clearing unrelated application storage. Author memo comparisons include
+kind and character, so a new recipe for the same author ID reaches Bloom.
+Starter-pack and feed summaries also carry bounded `memberProfiles` identities
+from the existing batched lookup (eight starter-pack members, three feed-list
+members, eight feed-detail faces). The card prefers those identities and reads
+legacy `memberAvatars` only when the new field is absent, allowing independent
+backend/frontend rollout without deriving characters from image URLs.
+
+Gates cover public projection/hydration, notification identity, feed persistence,
+same-ID author updates, photo zoom and the lazy capability boundary. The browser
+`agent-avatars.spec.ts` executes the built app with real Bloom runtime bytes and
+owned feed/profile/search fixtures; it is separate from production API checks.
+
 ## Modular panels and Deck
 
 See [Deck workspace](./deck-workspace.md) for account-scoped persistence,

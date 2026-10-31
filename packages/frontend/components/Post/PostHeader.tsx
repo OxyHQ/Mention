@@ -1,3 +1,7 @@
+import {
+  useAccountAvatarMotion,
+  hasAccountAvatarCharacter,
+} from '@/components/ui/use-account-avatar-motion';
 import { tokens } from '@oxy.so/bloom/styles';
 import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo, useState, type ReactNode } from 'react';
@@ -48,6 +52,7 @@ interface User {
   isFederated?: boolean;
   /** Account kind, so a channel's post header carries the channel marker. */
   kind?: PostUser['kind'];
+  character?: PostUser['character'];
   instance?: string;
 }
 
@@ -343,6 +348,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         ? clusterMembers.map((member) => ({
             id: member.id,
             uri: member.avatar,
+            kind: member.kind,
+            character: member.character,
             displayName: displayNameOrHandle(
               member.name?.displayName,
               getNormalizedUserHandle(member) ?? '',
@@ -353,6 +360,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     [clusterMembers],
   );
   const showAvatarCluster = collabAvatars.length > 1;
+  const avatarMotion = useAccountAvatarMotion(
+    showAvatarCluster && collabAvatars.some(hasAccountAvatarCharacter),
+  );
 
   // `contextTop` rows are the first children of the flex-1 content column, so the
   // name row is pushed down by each fixed-height context row plus the column gap.
@@ -393,6 +403,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         style={{ marginTop: compact ? 0 : headerTopOffset, marginRight: compact ? 0 : 12 }}
       >
         <AvatarGroup
+          motion={avatarMotion}
           layout="cluster"
           items={collabAvatars}
           size={avatarSize}
@@ -404,6 +415,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   ) : (
     <ProfileHoverCard username={user.handle} disable={disableHoverCard}>
       <LiveAvatar
+        account={user ?? undefined}
         userId={authorUserId}
         source={avatarSource}
         variant={avatarVariant}

@@ -480,6 +480,7 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
     // user field. It is what tells a renderer to link a channel's post to
     // `/c/<handle>`, and what `services/publishAsAccount` reads server-side.
     kind: userData.kind,
+    character: userData.character,
     isFederated: isFederated || undefined,
     federation: federation
       ? { domain: federation.domain, actorUri: federation.actorUri, actorId: federation.actorId }

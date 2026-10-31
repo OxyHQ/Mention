@@ -1,10 +1,15 @@
+import {
+  hasAccountAvatarCharacter,
+  useAccountAvatarMotion,
+} from '@/components/ui/use-account-avatar-motion';
+import type { AvatarIdentitySummary } from '@mention/shared-types';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useRouter } from '@/lib/navigation/router';
 import { Text } from '@oxy.so/bloom/typography';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -22,12 +27,15 @@ export interface FeedCardData {
     username: string;
     displayName?: string;
     avatar?: string;
+    kind?: AvatarIdentitySummary['kind'];
+    character?: AvatarIdentitySummary['character'];
   };
   likeCount?: number;
   memberCount?: number;
   subscriberCount?: number;
   topicCount?: number;
   memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
 }
 
 export type FeedCardVariant = 'card' | 'row';
@@ -65,6 +73,9 @@ export function FeedCard({
   variant = 'card',
 }: FeedCardProps) {
   const router = useRouter();
+  const avatarMotion = useAccountAvatarMotion(
+    feed.memberProfiles?.some(hasAccountAvatarCharacter) ?? false,
+  );
   const handlePress = useCallback(() => {
     if (onPress) {
       onPress();
@@ -99,12 +110,21 @@ export function FeedCard({
   }, [feed.displayName, feed.creator, feed.memberCount, feed.likeCount, showLikes]);
 
   const avatarItems: AvatarGroupItem[] = useMemo(() => {
+    if (feed.memberProfiles)
+      return feed.memberProfiles.map((profile) => ({
+        id: profile.id,
+        kind: profile.kind,
+        character: profile.character,
+        uri: profile.avatar,
+        displayName: profile.name?.displayName,
+        username: getNormalizedUserHandle(profile) ?? undefined,
+      }));
     if (!feed.memberAvatars || feed.memberAvatars.length === 0) return [];
     return feed.memberAvatars.map((uri, i) => ({
       id: `member-${i}`,
       uri,
     }));
-  }, [feed.memberAvatars]);
+  }, [feed.memberAvatars, feed.memberProfiles]);
 
   return (
     <PressableScale
@@ -116,7 +136,8 @@ export function FeedCard({
     >
       <View className="flex-row items-center gap-3">
         {/* Avatar */}
-        <Avatar
+        <AccountAvatar
+          account={feed.avatar ? undefined : feed.creator}
           source={feed.avatar || feed.creator?.avatar}
           size={36}
           variant={MEDIA_VARIANT_AVATAR}
@@ -139,7 +160,13 @@ export function FeedCard({
 
         {/* Right side: avatar cluster or custom slot */}
         {avatarItems.length > 0 ? (
-          <AvatarGroup items={avatarItems} size={28} max={3} variant={MEDIA_VARIANT_AVATAR} />
+          <AvatarGroup
+            motion={avatarMotion}
+            items={avatarItems}
+            size={28}
+            max={3}
+            variant={MEDIA_VARIANT_AVATAR}
+          />
         ) : headerRight ? (
           <View>{headerRight}</View>
         ) : null}

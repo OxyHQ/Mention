@@ -12,7 +12,8 @@ import {
 import { starterPackSearchPredicate } from '../utils/searchPredicates';
 import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
 import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
-import type { PostUser } from '@mention/shared-types';
+import type { AvatarIdentitySummary, PostUser } from '@mention/shared-types';
+import { avatarIdentitySummary } from '../utils/avatarIdentitySummary';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
@@ -162,6 +163,7 @@ interface SerializedStarterPack {
 
 /** Shape of each item in the `GET /starter-packs` list response. */
 interface StarterPackListItem extends SerializedStarterPack {
+  memberProfiles: AvatarIdentitySummary[];
   memberAvatars: string[];
   memberCount: number;
 }
@@ -330,10 +332,12 @@ async function enrichWithMemberAvatars(
   }
 
   const avatarById = new Map<string, string>();
+  const profileById = new Map<string, AvatarIdentitySummary>();
   if (uniqueMemberIds.size > 0) {
     try {
       const summaries = await resolveUserSummaries(Array.from(uniqueMemberIds));
       for (const [memberId, { user }] of summaries) {
+        profileById.set(memberId, avatarIdentitySummary(user));
         // Bare Oxy file id (or mirrored URL) — the client resolves it via Bloom's
         // ImageResolver, same as every other avatar surface.
         if (typeof user.avatar === 'string' && user.avatar.length > 0) {
@@ -355,7 +359,11 @@ async function enrichWithMemberAvatars(
       .slice(0, LIST_AVATAR_LIMIT)
       .map((id) => avatarById.get(id))
       .filter((url): url is string => typeof url === 'string');
-    return { ...pack, memberAvatars, memberCount: pack.memberOxyUserIds.length };
+    const memberProfiles = pack.memberOxyUserIds
+      .slice(0, LIST_AVATAR_LIMIT)
+      .map((id) => profileById.get(id))
+      .filter((profile): profile is AvatarIdentitySummary => profile !== undefined);
+    return { ...pack, memberAvatars, memberProfiles, memberCount: pack.memberOxyUserIds.length };
   });
 }
 
