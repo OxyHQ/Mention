@@ -163,28 +163,6 @@ export interface RecommendationNotification extends Notification {
   };
 }
 
-export interface NotificationPreferences {
-  email: boolean;
-  push: boolean;
-  sms: boolean;
-  inApp: boolean;
-  byType: Record<
-    NotificationType,
-    {
-      email: boolean;
-      push: boolean;
-      sms: boolean;
-      inApp: boolean;
-    }
-  >;
-  quietHours: {
-    enabled: boolean;
-    startTime: string; // HH:mm format
-    endTime: string; // HH:mm format
-    timezone: string;
-  };
-}
-
 export interface CreateNotificationRequest {
   oxyUserId: string;
   type: NotificationType;
@@ -223,11 +201,4 @@ export interface MarkNotificationsRequest {
   notificationIds: string[];
   status: NotificationStatus;
   markAllAsRead?: boolean;
-}
-
-export interface NotificationSettings {
-  oxyUserId: string;
-  preferences: NotificationPreferences;
-  createdAt: string;
-  updatedAt: string;
 }

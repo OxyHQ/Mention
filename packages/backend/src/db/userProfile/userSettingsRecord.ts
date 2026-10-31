@@ -146,7 +146,6 @@ export interface InterestsSettings {
 
 export interface NotificationPreferences {
   pushEnabled: boolean;
-  emailEnabled: boolean;
   likes: boolean;
   boosts: boolean;
   follows: boolean;

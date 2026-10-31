@@ -2001,8 +2001,6 @@
   "settings.node.yourNode": "Node-mu",
   "settings.notifications.boosts": "Boost",
   "settings.notifications.boostsDesc": "Saat seseorang mem-boost postinganmu",
-  "settings.notifications.email": "Notifikasi email",
-  "settings.notifications.emailDesc": "Terima ringkasan notifikasimu lewat email",
   "settings.notifications.follows": "Pengikut baru",
   "settings.notifications.followsDesc": "Saat seseorang mengikutimu",
   "settings.notifications.likes": "Suka",

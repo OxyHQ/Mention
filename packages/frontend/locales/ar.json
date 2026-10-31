@@ -2107,8 +2107,6 @@
   "settings.node.yourNode": "عقدتك",
   "settings.notifications.boosts": "إعادات النشر",
   "settings.notifications.boostsDesc": "عندما يعيد أحدهم نشر منشورك",
-  "settings.notifications.email": "إشعارات البريد الإلكتروني",
-  "settings.notifications.emailDesc": "تلقّي ملخّصات إشعاراتك عبر البريد الإلكتروني",
   "settings.notifications.follows": "متابِعون جدد",
   "settings.notifications.followsDesc": "عندما يتابعك أحدهم",
   "settings.notifications.likes": "الإعجابات",
