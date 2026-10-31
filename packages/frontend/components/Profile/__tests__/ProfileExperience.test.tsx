@@ -413,7 +413,7 @@ describe('central employer identity', () => {
     expect(submitted).not.toHaveProperty('companyOxyUserId');
   });
 
-  it('rejects an invalid organization website without creating an account', async () => {
+  it('rejects an invalid website without creating an organization', async () => {
     mockAuth.oxyServices.organizations.search.mockResolvedValue({ items: [], nextCursor: null });
     await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
     act(() => input('Company or organization *').props.onChangeText('Example'));
