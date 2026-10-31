@@ -1,3 +1,12 @@
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
+}));
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';

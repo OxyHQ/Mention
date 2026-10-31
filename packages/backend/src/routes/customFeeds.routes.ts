@@ -1,3 +1,4 @@
+import { avatarIdentitySummary } from '../utils/avatarIdentitySummary';
 import { Router, type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
@@ -344,6 +345,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         isLiked: userId ? likedFeedsSet.has(item.id) : false,
         owner: profilesById.get(item.ownerOxyUserId),
         memberAvatars,
+        memberProfiles: relations.memberOxyUserIds.slice(0, LIST_MEMBER_AVATARS).flatMap((id) => {
+          const profile = profilesById.get(id);
+          return profile ? [avatarIdentitySummary(profile)] : [];
+        }),
         memberCount: relations.memberOxyUserIds.length,
         topicCount: topicCountOf(item),
       };
@@ -526,11 +531,17 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     const feedIds = items.map((item) => item.id);
     const ownerIds = items.map((item) => item.ownerOxyUserId);
 
-    const [relationsByFeed, likedFeedsSet, ownersMap] = await Promise.all([
+    const [relationsByFeed, likedFeedsSet] = await Promise.all([
       loadFeedRelations(getDb(), feedIds),
       userId ? loadLikedFeedIds(userId, feedIds) : Promise.resolve(new Set<string>()),
-      resolveUserProfiles(ownerIds),
     ]);
+    const memberIds = items.flatMap((item) =>
+      (relationsByFeed.get(item.id) ?? emptyRelations()).memberOxyUserIds.slice(
+        0,
+        LIST_MEMBER_AVATARS,
+      ),
+    );
+    const ownersMap = await resolveUserProfiles([...ownerIds, ...memberIds]);
 
     const normalizedItems = items.map((item) => {
       const relations = relationsByFeed.get(item.id) ?? emptyRelations();
@@ -539,6 +550,10 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
         likeCount: item.subscriberCount || 0,
         isLiked: userId ? likedFeedsSet.has(item.id) : false,
         owner: ownersMap.get(item.ownerOxyUserId),
+        memberProfiles: relations.memberOxyUserIds.slice(0, LIST_MEMBER_AVATARS).flatMap((id) => {
+          const profile = ownersMap.get(id);
+          return profile ? [avatarIdentitySummary(profile)] : [];
+        }),
         memberCount: relations.memberOxyUserIds.length,
         topicCount: topicCountOf(item),
       };
@@ -651,6 +666,7 @@ router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res: Respons
       isLiked: likedFeedsSet.has(feedId),
       owner,
       members,
+      memberProfiles: members.slice(0, DETAIL_MEMBER_AVATARS).map(avatarIdentitySummary),
       memberAvatars,
       memberCount: loaded.relations.memberOxyUserIds.length,
       topicCount: topicCountOf(loaded.row),

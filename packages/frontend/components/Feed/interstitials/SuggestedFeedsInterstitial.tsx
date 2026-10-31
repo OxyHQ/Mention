@@ -199,11 +199,15 @@ function SuggestedFeedItem({
     creator: feed.owner
       ? {
           username: feed.owner.username ?? '',
-          displayName: feed.owner.displayName,
-          avatar: feed.owner.avatar,
+          displayName: feed.owner.name?.displayName,
+          kind: feed.owner.kind,
+          character: feed.owner.character,
+          avatar: feed.owner.avatar ?? undefined,
         }
       : undefined,
     memberCount: feed.memberCount,
+    memberProfiles: feed.memberProfiles,
+    memberAvatars: feed.memberAvatars,
     topicCount: feed.topicCount,
   };
 

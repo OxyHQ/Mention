@@ -234,3 +234,23 @@ describe('canonical post cache contract', () => {
     expect(rowToFeedItem(row)).toBeNull();
   });
 });
+
+it('preserves stored agent recipes through canonical feed and SQLite JSON round trips', () => {
+  const character = {
+    shape: 'rounded_head_two_ears',
+    eyes: 'oval',
+    color: 'teal',
+    eyewear: 'none',
+    accessory: 'none',
+  };
+  const original = makePost('agent');
+  const user = { ...original.user, kind: 'bot' as const, character };
+  const post = {
+    ...original,
+    user,
+    authors: [{ ...user, role: 'owner' as const, status: 'accepted' as const }],
+  };
+  const restored = rowToFeedItem(postToRow(toFeedItem(post)));
+  expect(restored?.user.character).toEqual(character);
+  expect(restored?.authors?.[0].character).toEqual(character);
+});

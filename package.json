@@ -10,7 +10,7 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "15.60.6",
+      "@oxy.so/bloom": "/home/nate/Oxy/Bloom/.worktrees/avatar-efficiency-runtime/.local/avatar-release-final/oxy.so-bloom-15.78.0-ccdff4f2be460552.tgz",
       "@oxy.so/contracts": "6.1.0",
       "@oxy.so/core": "7.7.0",
       "@oxy.so/mcp": "1.4.0",

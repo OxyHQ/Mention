@@ -88,6 +88,7 @@ export function StarterPacksTab() {
       memberCount,
       useCount: item.useCount || 0,
       memberAvatars: item.memberAvatars ?? [],
+      memberProfiles: item.memberProfiles,
       totalMembers: memberCount,
     };
 

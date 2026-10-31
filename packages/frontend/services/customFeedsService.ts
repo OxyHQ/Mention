@@ -1,3 +1,4 @@
+import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { authenticatedClient } from '@/utils/api';
 import type {
   CreateCustomFeedRequest,
@@ -20,12 +21,13 @@ interface CustomFeedListParams {
 /**
  * A `CustomFeed` as returned by `GET /feeds/marketplace`, which enriches each
  * item with a resolved owner summary, the viewer's `isLiked` (subscribed) flag,
- * and derived member/topic counts. `memberAvatars` is only populated by the
- * `GET /feeds` list route, so it stays optional here.
+ * and derived member/topic counts. Bounded member identities preserve stored
+ * avatars; legacy URL-only responses remain readable during independent deploys.
  */
 export type MarketplaceFeed = CustomFeed & {
-  owner?: { username?: string; displayName?: string; avatar?: string };
+  owner?: PostUser;
   memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
   topicCount?: number;
 };
 
@@ -48,6 +50,7 @@ export type CustomFeedDetail = CustomFeed & {
   owner?: PostUser | null;
   members?: PostUser[];
   memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
   topicCount?: number;
 };
 

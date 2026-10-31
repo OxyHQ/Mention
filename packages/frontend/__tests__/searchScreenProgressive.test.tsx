@@ -1,3 +1,12 @@
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
+}));
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),

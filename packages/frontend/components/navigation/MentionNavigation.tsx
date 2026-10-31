@@ -2,7 +2,7 @@ import { useCallback, useMemo, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { BloomIconComponent } from '@oxy.so/bloom';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
@@ -56,7 +56,8 @@ export function useMentionDestinations(): AppDestination[] {
   const ProfileAvatar = useMemo<BloomIconComponent>(() => {
     function ProfileAvatar({ width }: { width?: number }) {
       return (
-        <Avatar
+        <AccountAvatar
+          account={user ?? undefined}
           size={width ?? 26}
           source={avatar}
           name={avatarName}
@@ -65,7 +66,7 @@ export function useMentionDestinations(): AppDestination[] {
       );
     }
     return ProfileAvatar;
-  }, [avatar, avatarName]);
+  }, [avatar, avatarName, user]);
   const openAccounts = useCallback(() => {
     haptic('heavy');
     showBottomSheet?.('ManageAccount');

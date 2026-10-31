@@ -43,6 +43,7 @@ vi.mock('../../services/EndorsementSignalService', () => ({
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { starterPackMembers, starterPackUses, starterPacks } from '../../db/schema/lists';
 import starterPackRoutes from '../../routes/starterPacks';
+import { resolveUserSummaries } from '../../services/PostHydrationService';
 
 let db: Database;
 
@@ -343,6 +344,55 @@ describe('GET /starter-packs — scoping modes', () => {
     const res = await request(app).get('/starter-packs').query({ userId: OWNER_ID }).expect(200);
 
     expect(names(res.body)).toEqual([scopedName('Theirs')]);
+  });
+
+  it('retains a bot without a photo in bounded member identities', async () => {
+    const character = {
+      shape: 'circle_two_ears',
+      color: 'lime',
+      eyes: 'oval',
+      eyewear: 'none',
+      accessory: 'none',
+    } as const;
+    await seedPack({ name: scopedName('Agent members'), members: ['photo-member', 'bot-member'] });
+    vi.mocked(resolveUserSummaries).mockResolvedValueOnce(
+      new Map([
+        [
+          'photo-member',
+          {
+            user: {
+              id: 'photo-member',
+              username: 'photo',
+              name: { displayName: 'Photo' },
+              avatar: 'photo-file',
+            },
+          },
+        ],
+        [
+          'bot-member',
+          {
+            user: {
+              id: 'bot-member',
+              username: 'bot',
+              name: { displayName: 'Bot' },
+              kind: 'bot',
+              character,
+            },
+          },
+        ],
+      ]),
+    );
+    const res = await request(app).get('/starter-packs').query({ search: run }).expect(200);
+    expect(res.body.items[0].memberAvatars).toEqual(['photo-file']);
+    expect(res.body.items[0].memberProfiles).toEqual([
+      {
+        id: 'photo-member',
+        username: 'photo',
+        name: { displayName: 'Photo' },
+        avatar: 'photo-file',
+      },
+      { id: 'bot-member', username: 'bot', name: { displayName: 'Bot' }, kind: 'bot', character },
+    ]);
   });
 
   it('carries memberAvatars and memberCount on every item', async () => {

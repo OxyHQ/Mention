@@ -51,6 +51,8 @@ export interface GroupedNotification {
     name?: string;
     username?: string;
     avatar?: string;
+    kind?: NonNullable<TRawNotification['actorId_populated']>['kind'];
+    character?: unknown;
   }[];
   /** Total number of unique actors in this group */
   totalActors: number;
@@ -198,6 +200,8 @@ function extractActor(n: TRawNotification): GroupedActor {
       name: stringValue(populatedName?.displayName),
       username: populated.username,
       avatar: populated.avatar,
+      kind: populated.kind,
+      character: populated.character,
     };
   }
 

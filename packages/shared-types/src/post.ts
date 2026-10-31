@@ -6,7 +6,7 @@ import type { HomiioCaseReference } from './homiio';
 
 import type { ImageVariantName } from '@oxy.so/utils/image';
 import type { CommunityNoteSummary } from './communityNotes';
-import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
+import type { AccountKind, AvatarCharacter, UserNameResponse } from '@oxy.so/contracts';
 import type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
   'resolution-mode': 'import',
 };
@@ -1012,8 +1012,8 @@ export interface PostFilters {
  * Renderers use ONE pattern (identical to Who-to-follow / the profile header):
  *  - name:   `name.displayName`, handle fallback via `getNormalizedUserHandle`
  *            / `displayNameOrHandle` — never show a blank name.
- *  - avatar: `<Avatar source={avatar} variant="thumb" />` through Bloom's
- *            `ImageResolver`. `avatar` is a bare Oxy file id; for a federated
+ *  - avatar: `<Avatar account={user} variant="thumb" />` through Bloom's
+ *            shared character/image owner and `ImageResolver`. `avatar` is a bare Oxy file id; for a federated
  *            actor whose image was mirrored as a raw URL it may be an absolute
  *            `http(s)` URL, which Bloom renders directly.
  *  - handle: `getNormalizedUserHandle(user)` (reads `username` + `federation`/
@@ -1050,10 +1050,26 @@ export interface PostUser {
    * against.
    */
   kind?: AccountKind;
+  /** Canonical stored 3D avatar; absent for accounts without one, including remote bots. */
+  character?: AvatarCharacter;
   isFederated?: boolean;
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
 }
+
+/** Bounded public identity carried beside legacy URL-only member facepiles. */
+export type AvatarIdentitySummary = Pick<
+  PostUser,
+  | 'id'
+  | 'username'
+  | 'name'
+  | 'avatar'
+  | 'kind'
+  | 'character'
+  | 'isFederated'
+  | 'instance'
+  | 'federation'
+>;
 
 /**
  * Owner-only source used to prefill the post editor.

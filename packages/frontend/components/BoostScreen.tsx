@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
@@ -162,7 +162,8 @@ const BoostScreen: React.FC = () => {
           {/* Original Post */}
           <View className="py-4 mt-4">
             <View className="flex-row items-center mb-2">
-              <Avatar
+              <AccountAvatar
+                account={originalPost.user}
                 source={originalPost.user.avatar ?? undefined}
                 size={32}
                 variant={MEDIA_VARIANT_AVATAR}
@@ -189,7 +190,8 @@ const BoostScreen: React.FC = () => {
           {/* Boost Input */}
           <View className="flex-1 mt-4">
             <View className="flex-row mb-3">
-              <Avatar
+              <AccountAvatar
+                account={user ?? undefined}
                 source={user?.avatar}
                 size={48}
                 variant={MEDIA_VARIANT_AVATAR}

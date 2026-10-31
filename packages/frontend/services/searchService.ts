@@ -1,3 +1,4 @@
+import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient, isUnauthorizedError, publicClient } from '@/utils/api';
 import { oxyServices } from '@/lib/oxyServices';
@@ -22,6 +23,8 @@ export type SearchUserResult = User & {
 };
 
 export interface SearchOwnerResult {
+  kind?: AvatarIdentitySummary['kind'];
+  character?: AvatarIdentitySummary['character'];
   username?: string;
   handle?: string;
   displayName?: string;
@@ -30,6 +33,8 @@ export interface SearchOwnerResult {
 }
 
 export interface SearchFeedResult {
+  memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
   id?: string;
   _id?: string;
   uri?: string;

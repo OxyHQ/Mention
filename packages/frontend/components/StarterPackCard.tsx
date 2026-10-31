@@ -1,3 +1,8 @@
+import {
+  hasAccountAvatarCharacter,
+  useAccountAvatarMotion,
+} from '@/components/ui/use-account-avatar-motion';
+import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
@@ -30,6 +35,7 @@ export interface StarterPackCardData {
   useCount: number;
   /** Avatar URIs for the responsive avatar stack */
   memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
   /** Total member count for "+N" calculation (defaults to memberCount) */
   totalMembers?: number;
 }
@@ -57,6 +63,9 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
   const router = useRouter();
   const theme = useTheme();
   const { user } = useAuth();
+  const avatarMotion = useAccountAvatarMotion(
+    pack.memberProfiles?.some(hasAccountAvatarCharacter) ?? false,
+  );
 
   const isOwner = pack.creator?.id ? pack.creator.id === user?.id : false;
 
@@ -87,11 +96,19 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
 
   const avatarItems = useMemo<AvatarGroupItem[]>(
     () =>
+      pack.memberProfiles?.map((profile) => ({
+        id: profile.id,
+        kind: profile.kind,
+        character: profile.character,
+        uri: profile.avatar,
+        displayName: profile.name?.displayName,
+        username: getNormalizedUserHandle(profile) ?? undefined,
+      })) ??
       (pack.memberAvatars ?? []).map((uri, index) => ({
         id: `${pack.id}-avatar-${index}`,
         uri,
       })),
-    [pack.memberAvatars, pack.id],
+    [pack.memberAvatars, pack.memberProfiles, pack.id],
   );
 
   const hasAvatars = avatarItems.length > 0;
@@ -109,6 +126,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
         {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
         {hasAvatars ? (
           <AvatarGroup
+            motion={avatarMotion}
             items={avatarItems}
             size={32}
             variant={MEDIA_VARIANT_AVATAR}

@@ -1,3 +1,7 @@
+import {
+  hasAccountAvatarCharacter,
+  useAccountAvatarMotion,
+} from '@/components/ui/use-account-avatar-motion';
 import { memo, useCallback, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -55,12 +59,15 @@ export const CommunityPanel = memo(function CommunityPanel({
     accountKind: 'community',
   });
   const moderates = hosted && operates;
+  const avatarMotion = useAccountAvatarMotion(moderators.some(hasAccountAvatarCharacter));
 
   const moderatorItems = useMemo<AvatarGroupItem[]>(
     () =>
       moderators.map((moderator) => ({
         id: moderator.id,
         uri: moderator.avatar,
+        kind: moderator.kind,
+        character: moderator.character,
         displayName: moderator.name?.displayName,
         username: getNormalizedUserHandle(moderator) ?? undefined,
       })),
@@ -93,6 +100,7 @@ export const CommunityPanel = memo(function CommunityPanel({
             {t('communities.moderatedBy', { defaultValue: 'Moderated by' })}
           </Text>
           <AvatarGroup
+            motion={avatarMotion}
             items={moderatorItems}
             size={MODERATOR_AVATAR_SIZE}
             max={MAX_MODERATOR_AVATARS}

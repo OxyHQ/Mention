@@ -2,7 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Card } from '@oxy.so/bloom/card';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
@@ -64,7 +64,8 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
             federated authors alike — Bloom's Avatar accepts both shapes
             (and `null`) directly and ignores `variant` for an absolute URL,
             so nothing needs branching or coercing here. */}
-        <Avatar
+        <AccountAvatar
+          account={post.user}
           source={post?.user?.avatar}
           variant={MEDIA_VARIANT_AVATAR}
           size={28}

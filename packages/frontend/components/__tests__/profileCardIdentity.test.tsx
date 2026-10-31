@@ -1,3 +1,12 @@
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
+}));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
@@ -42,8 +51,17 @@ jest.mock('@oxy.so/bloom/avatar', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
-    Avatar: (props: { source?: string | null }) =>
-      ReactActual.createElement(Text, { testID: 'card-avatar' }, props.source ?? ''),
+    Avatar: (props: { source?: string | null; account?: unknown; motion?: string }) =>
+      ReactActual.createElement(
+        ReactActual.Fragment,
+        null,
+        ReactActual.createElement(Text, { testID: 'card-avatar' }, props.source ?? ''),
+        ReactActual.createElement(
+          Text,
+          { testID: 'card-character' },
+          JSON.stringify({ account: props.account, motion: props.motion }),
+        ),
+      ),
   };
 });
 jest.mock('@/components/UserName', () => {
@@ -296,5 +314,34 @@ describe('SuggestedProfileCard resolves its identity the way the row does', () =
     expect(onFollowChange).toHaveBeenCalledWith(true);
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockFollowButtonUsernames[mockFollowButtonUsernames.length - 1]).toBe('ada');
+  });
+});
+
+it('hands the stored agent account to Bloom on search rows and suggested cards', () => {
+  const profile = {
+    id: 'agent',
+    username: 'agent',
+    kind: 'bot' as const,
+    character: {
+      shape: 'rounded_head_two_ears',
+      eyes: 'oval',
+      color: 'teal',
+      eyewear: 'none',
+      accessory: 'none',
+    },
+  };
+  act(() => {
+    mounted = TestRenderer.create(<ProfileCard profile={profile} />);
+  });
+  expect(JSON.parse(probe(mounted!, 'card-character'))).toMatchObject({
+    account: profile,
+    motion: 'always',
+  });
+  act(() => {
+    mounted!.update(<SuggestedProfileCard profile={profile} />);
+  });
+  expect(JSON.parse(probe(mounted!, 'card-character'))).toMatchObject({
+    account: profile,
+    motion: 'always',
   });
 });

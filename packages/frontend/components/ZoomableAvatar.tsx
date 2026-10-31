@@ -1,7 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -9,7 +8,9 @@ import {
   type ViewStyle,
   type ViewInstance,
 } from 'react-native';
-import { Image, type ImageSource, type ImageStyle } from 'expo-image';
+import type { AvatarProps } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
+import { hasAccountAvatarCharacter } from '@/components/ui/use-account-avatar-motion';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -29,10 +30,10 @@ import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-typ
 
 interface ZoomableAvatarProps {
   /** An Oxy file id, an absolute URL, or an expo-image source (a bundled asset). */
-  source?: ImageSource | number | string | undefined | null;
+  source?: AvatarProps['source'];
+  account?: AvatarProps['account'];
   size?: number;
   style?: StyleProp<ViewStyle>;
-  imageStyle?: StyleProp<ImageStyle>;
   className?: string;
   /**
    * Scroll-collapse driver, 0 (expanded) → 1 (fully collapsed). The avatar
@@ -58,39 +59,34 @@ interface ZoomableAvatarProps {
  */
 export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   source,
+  account,
   size = 40,
   style,
-  imageStyle,
   className,
   collapseProgress,
   collapseMinScale = 1,
   collapseTranslateY = 0,
 }) => {
   const { oxyServices } = useAuth();
+  const hasCharacter = hasAccountAvatarCharacter(account);
+  const [imageFailure, setImageFailure] = useState({ source, failed: false });
+  if (imageFailure.source !== source) setImageFailure({ source, failed: false });
+  const errored = imageFailure.source === source && imageFailure.failed;
   const imageResolver = useImageResolver();
-  const [errored, setErrored] = useState(false);
-  // A new source has not failed yet. Reset during render rather than in an
-  // effect, so `thumbUri` below never gets one committed frame of the previous
-  // source's failure — which showed the default avatar over a perfectly good
-  // new image.
-  const [erroredSource, setErroredSource] = useState(source);
-  if (erroredSource !== source) {
-    setErroredSource(source);
-    setErrored(false);
-  }
   const wrapperRef = useRef<ViewInstance>(null);
   const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
 
   // An absolute http(s) `source` is a FINAL, server-resolved URL. A non-http
   // string is a raw Oxy file id (legacy profile-design data) resolved through
   // the app resolver, with `useFileDownloadUrl` as the async fallback.
-  const fileId = typeof source === 'string' && !source.startsWith('http') ? source : undefined;
+  const fileId =
+    !hasCharacter && typeof source === 'string' && !source.startsWith('http') ? source : undefined;
   // The resting avatar is 70–90px, so it takes the 256px square crop; the zoomed
   // image fills most of the screen, so it takes the 2048px rendition. BOTH pass
   // an explicit variant: the app resolver defaults a missing one to the 96px
   // avatar crop, which is what made the zoom look pixelated.
-  const resolvedThumb = imageResolver?.(fileId ?? '', MEDIA_VARIANT_AVATAR_LG);
-  const resolvedFull = imageResolver?.(fileId ?? '', MEDIA_VARIANT_FULL);
+  const resolvedThumb = fileId ? imageResolver?.(fileId, MEDIA_VARIANT_AVATAR_LG) : undefined;
+  const resolvedFull = fileId ? imageResolver?.(fileId, MEDIA_VARIANT_FULL) : undefined;
   const asyncThumb =
     useFileDownloadUrl(oxyServices, errored ? undefined : fileId, {
       variant: MEDIA_VARIANT_AVATAR_LG,
@@ -104,9 +100,10 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   }, [source, errored, resolvedThumb, asyncThumb]);
 
   const zoomUri = useMemo(() => {
+    if (errored) return undefined;
     if (typeof source === 'string' && source.startsWith('http')) return source;
     return resolvedFull ?? thumbUri;
-  }, [source, resolvedFull, thumbUri]);
+  }, [source, errored, resolvedFull, thumbUri]);
 
   const imageSource = useMemo(() => {
     if (thumbUri) return { uri: thumbUri };
@@ -131,7 +128,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   );
 
   const handlePress = useCallback(() => {
-    if (!zoomUri) return;
+    if (hasCharacter || !zoomUri) return;
     void measureThumb().then((rect) => {
       galleryRef.current?.open(
         [{ uri: zoomUri, previewUri: thumbUri, aspectRatio: 1 }],
@@ -139,7 +136,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         rect ?? undefined,
       );
     });
-  }, [measureThumb, zoomUri, thumbUri]);
+  }, [measureThumb, zoomUri, thumbUri, hasCharacter]);
 
   // Resting transform: the scroll-collapse shrink. Neutral (identity) when the
   // host passes no `collapseProgress`.
@@ -158,6 +155,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     <>
       <Pressable
         onPress={handlePress}
+        disabled={hasCharacter || !zoomUri}
         accessibilityLabel="Profile avatar"
         accessibilityRole="image"
       >
@@ -169,16 +167,17 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
               { width: size, height: size, borderRadius: size / 2 },
               style,
               collapseStyle,
+              hasCharacter && { overflow: 'visible' },
             ]}
           >
-            <Image
+            <AccountAvatar
+              account={account}
+              onImageError={() => setImageFailure({ source, failed: true })}
               source={imageSource}
-              cachePolicy="memory-disk"
-              onError={() => setErrored(true)}
-              contentFit="cover"
-              style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }, imageStyle]}
-              transition={200}
-              {...(Platform.OS === 'web' ? ({ draggable: false } as Record<string, unknown>) : {})}
+              fallbackSource={DefaultAvatar}
+              size={size}
+              shape="circle"
+              style={StyleSheet.absoluteFill}
             />
           </Animated.View>
         </View>

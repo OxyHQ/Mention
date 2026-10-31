@@ -1,7 +1,7 @@
 {
   "name": "@mention/backend",
   "version": "1.0.0",
-  "description": "Express 5 / Drizzle on PostgreSQL / Socket.io backend for Mention — the REST API, ActivityPub federation, and web shell",
+  "description": "Express 5 / Drizzle on PostgreSQL / Socket.io backend for Mention \u2014 the REST API, ActivityPub federation, and web shell",
   "license": "UNLICENSED",
   "author": "Mention Team",
   "private": true,
@@ -26,7 +26,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@alia.onl/sdk": "22.1.1",
+    "@alia.onl/sdk": "/tmp/alia-avatar-sdk-candidate/alia.onl-sdk-22.9.0-37d05a7a4b060949.tgz",
     "@aws-sdk/credential-provider-node": "3.972.84",
     "@clarity.surf/sdk": "0.10.0",
     "@crowdsource.you/contracts": "1.1.1",

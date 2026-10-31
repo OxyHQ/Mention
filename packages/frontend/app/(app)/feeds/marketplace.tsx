@@ -77,14 +77,17 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
     creator: item.owner
       ? {
           username: item.owner.username || '',
-          displayName: item.owner.displayName,
-          avatar: item.owner.avatar,
+          displayName: item.owner.name?.displayName,
+          kind: item.owner.kind,
+          character: item.owner.character,
+          avatar: item.owner.avatar ?? undefined,
         }
       : undefined,
     likeCount: item.likeCount,
     memberCount: item.memberCount,
     topicCount: item.topicCount,
     memberAvatars: item.memberAvatars,
+    memberProfiles: item.memberProfiles,
   };
 
   return (

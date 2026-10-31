@@ -51,6 +51,7 @@ const openEditProfile = () => requestSettings('/settings/edit-profile');
 export const ProfileHeader = memo(function ProfileHeader({
   username,
   avatarUri,
+  account,
   isOwnProfile,
   currentUsername,
   profileId,
@@ -130,6 +131,7 @@ export const ProfileHeader = memo(function ProfileHeader({
             ]}
           >
             <LiveAvatar
+              account={account}
               userId={profileId}
               source={avatarUri ?? undefined}
               size={90}
@@ -138,6 +140,7 @@ export const ProfileHeader = memo(function ProfileHeader({
           </Animated.View>
         ) : (
           <ZoomableAvatar
+            account={account}
             source={avatarUri}
             size={90}
             className="bg-muted"
@@ -148,7 +151,6 @@ export const ProfileHeader = memo(function ProfileHeader({
               borderWidth: PROFILE_AVATAR_RING,
               borderColor: surfaceFill,
             }}
-            imageStyle={{}}
             collapseProgress={avatarCollapseProgress}
             collapseMinScale={PROFILE_AVATAR_COLLAPSE_MIN_SCALE}
             collapseTranslateY={PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y}

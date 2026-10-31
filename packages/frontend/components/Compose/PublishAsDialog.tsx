@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -123,7 +123,8 @@ const PublishAsDialog = memo(function PublishAsDialog({
       <Item
         onPress={() => handleSelect(null)}
         leading={
-          <Avatar
+          <AccountAvatar
+            account={user ?? undefined}
             source={user?.avatar}
             size={PICKER_AVATAR_SIZE}
             variant={MEDIA_VARIANT_AVATAR}
@@ -161,7 +162,8 @@ const PublishAsDialog = memo(function PublishAsDialog({
               key={account.accountId}
               onPress={() => handleSelect(account)}
               leading={
-                <Avatar
+                <AccountAvatar
+                  account={account.account}
                   source={account.account.avatar}
                   size={PICKER_AVATAR_SIZE}
                   variant={MEDIA_VARIANT_AVATAR}

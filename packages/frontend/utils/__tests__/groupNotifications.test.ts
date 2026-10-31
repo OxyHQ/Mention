@@ -1,3 +1,4 @@
+import { ZActor } from '@/types/validation';
 import type { TRawNotification } from '@/types/validation';
 import { GROUPABLE_TYPES, groupNotifications } from '../groupNotifications';
 
@@ -348,4 +349,24 @@ describe('groupNotifications', () => {
       expect(idsPerRow(rows)).toEqual([['a', 'b']]);
     });
   });
+});
+
+it('retains the account recipe through validation and grouped notification projection', () => {
+  const character = {
+    shape: 'rounded_head_two_ears',
+    eyes: 'oval',
+    color: 'teal',
+    eyewear: 'none',
+    accessory: 'none',
+  };
+  const actor = ZActor.parse({ username: 'agent', kind: 'bot', character });
+  const item = notification({
+    id: 'agent-notification',
+    type: 'like',
+    entityId: 'post',
+    actorId: 'agent',
+    createdAt: at(0),
+  });
+  const [group] = groupNotifications([{ ...item, actorId_populated: actor }]);
+  expect(group.actors[0]).toMatchObject({ kind: 'bot', character });
 });

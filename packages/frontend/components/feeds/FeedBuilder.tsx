@@ -16,7 +16,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { toast } from '@oxy.so/bloom/toast';
@@ -289,7 +289,12 @@ const AccountPicker = ({
 
       {selected.map((u) => (
         <View key={u.id} className="flex-row items-center gap-3">
-          <Avatar source={u.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
+          <AccountAvatar
+            account={u}
+            source={u.avatar ?? undefined}
+            size={36}
+            variant={MEDIA_VARIANT_AVATAR}
+          />
           <View className="flex-1">
             <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
               {accountName(u)}
@@ -321,7 +326,12 @@ const AccountPicker = ({
           onPress={() => add(u)}
           activeOpacity={0.7}
         >
-          <Avatar source={u.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
+          <AccountAvatar
+            account={u}
+            source={u.avatar ?? undefined}
+            size={36}
+            variant={MEDIA_VARIANT_AVATAR}
+          />
           <View className="flex-1">
             <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
               {accountName(u)}

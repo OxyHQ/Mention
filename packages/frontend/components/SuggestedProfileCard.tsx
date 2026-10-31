@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { FollowButton } from '@/components/FollowButton';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Text } from '@oxy.so/bloom/typography';
@@ -75,7 +75,8 @@ export function SuggestedProfileCard({
         accessibilityRole={press ? 'link' : undefined}
         className="flex-1 items-center gap-2"
       >
-        <Avatar
+        <AccountAvatar
+          account={resolved}
           source={resolved.avatar || undefined}
           size={AVATAR_SIZE}
           variant={MEDIA_VARIANT_AVATAR}

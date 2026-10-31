@@ -24,7 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useComposeExit, type ComposePresentation } from './useComposeExit';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
@@ -3527,6 +3527,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       primaryText={postContent}
                       sharedMedia={mediaIds}
                       hasArticle={hasArticleContent}
+                      account={user ?? undefined}
                       userAvatar={user?.avatar ?? undefined}
                       userVerified={Boolean(user?.verified)}
                       isFocused={focusedItemId === MAIN_ITEM_ID || threadItems.length === 0}
@@ -3605,6 +3606,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         primaryText={item.text}
                         sharedMedia={item.mediaIds}
                         hasArticle={articleHasContent(item.article)}
+                        account={user ?? undefined}
                         userAvatar={user?.avatar ?? undefined}
                         userVerified={Boolean(user?.verified)}
                         isFocused={focusedItemId === item.id}
@@ -3702,7 +3704,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   ) : null}
                   <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                     <TouchableOpacity activeOpacity={0.7}>
-                      <Avatar
+                      <AccountAvatar
+                        account={user ?? undefined}
                         source={user?.avatar}
                         size={40}
                         variant={MEDIA_VARIANT_AVATAR}

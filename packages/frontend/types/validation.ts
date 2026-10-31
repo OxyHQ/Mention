@@ -1,3 +1,4 @@
+import { ACCOUNT_KINDS } from '@oxy.so/contracts/client';
 import { z } from 'zod';
 import { logger } from '@oxy.so/core/logger';
 
@@ -32,6 +33,8 @@ const LEGACY_VIEWER_FIELDS = ['isLiked', 'isDownvoted', 'isBoosted', 'isSaved'] 
 
 // Actor/profile coming from actorId_populated
 export const ZActor = z.object({
+  kind: z.enum(ACCOUNT_KINDS).optional(),
+  character: z.unknown().optional(),
   _id: z.string().optional(),
   id: z.string().optional(),
   username: z.string().optional(),

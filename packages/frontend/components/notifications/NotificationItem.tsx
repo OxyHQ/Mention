@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
@@ -89,6 +89,7 @@ interface ResolvedActor {
   isFederated: boolean;
   /** Oxy account kind, so a channel actor carries the channel marker. */
   kind?: PostUser['kind'];
+  character?: unknown;
 }
 
 /**
@@ -113,6 +114,7 @@ type CachedIdentity = Partial<
     // What the account IS, which decides the marker beside its name. A profile
     // edit never changes it, so it only ever arrives from the cache entry.
     | 'kind'
+    | 'character'
   >
 >;
 
@@ -169,7 +171,8 @@ function mergeActor(
     avatar: cached?.avatar ?? actor?.avatar ?? undefined,
     verified: cached?.verified === true,
     isFederated: cached?.isFederated === true,
-    kind: cached?.kind,
+    kind: cached?.kind ?? actor?.kind,
+    character: cached && Object.hasOwn(cached, 'character') ? cached.character : actor?.character,
   };
 }
 
@@ -282,7 +285,12 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
           style={{ zIndex: shown.length - index }}
         >
           <View className="border-2 border-background rounded-full">
-            <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
+            <AccountAvatar
+              account={actor}
+              source={actor.avatar}
+              size={STACK_AVATAR_SIZE}
+              variant={MEDIA_VARIANT_AVATAR}
+            />
           </View>
         </View>
       ))}
@@ -671,7 +679,8 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
           {/* Avatar column: avatar + themed action-badge overlay. */}
           <View className="relative mr-3">
             <ProfileHoverCard username={resolvedPrimary.handle}>
-              <Avatar
+              <AccountAvatar
+                account={resolvedPrimary}
                 source={resolvedPrimary.avatar}
                 size={AVATAR_SIZE}
                 variant={MEDIA_VARIANT_AVATAR}
@@ -763,7 +772,8 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                           className="flex-row items-center gap-2"
                           accessibilityRole="button"
                         >
-                          <Avatar
+                          <AccountAvatar
+                            account={actor}
                             source={actor.avatar}
                             size={STACK_AVATAR_SIZE}
                             variant={MEDIA_VARIANT_AVATAR}

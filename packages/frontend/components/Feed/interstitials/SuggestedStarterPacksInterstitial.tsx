@@ -181,6 +181,7 @@ function SuggestedStarterPackItem({
     memberCount,
     useCount: pack.useCount ?? 0,
     memberAvatars: pack.memberAvatars ?? [],
+    memberProfiles: pack.memberProfiles,
     totalMembers: memberCount,
   };
 

@@ -1,3 +1,7 @@
+import {
+  hasAccountAvatarCharacter,
+  useAccountAvatarMotion,
+} from '@/components/ui/use-account-avatar-motion';
 import { memo, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
@@ -127,6 +131,7 @@ export const TrendItemRow = memo(function TrendItemRow({
   const series = trend.series && trend.series.length >= MIN_POLYLINE_POINTS ? trend.series : null;
   const DirectionIcon = series ? null : DIRECTION_ICON[trend.direction || 'flat'];
   const badge = getTrendBadge(trend, t);
+  const avatarMotion = useAccountAvatarMotion((trend.actors ?? []).some(hasAccountAvatarCharacter));
   // Faces are evidence that real accounts are behind the trend, so they only
   // appear where there is room to read them alongside everything else.
   const faces = useMemo(
@@ -135,6 +140,8 @@ export const TrendItemRow = memo(function TrendItemRow({
         ? (trend.actors ?? []).map((actor) => ({
             id: actor.id,
             uri: actor.avatar,
+            kind: actor.kind,
+            character: actor.character,
             displayName: actor.name?.displayName,
             username: getNormalizedUserHandle(actor) ?? undefined,
           }))
@@ -216,6 +223,7 @@ export const TrendItemRow = memo(function TrendItemRow({
           {faces.length > 0 ? (
             <View className="mt-1.5 flex-row">
               <AvatarGroup
+                motion={avatarMotion}
                 items={faces}
                 size={TREND_FACE_SIZE}
                 max={faces.length}

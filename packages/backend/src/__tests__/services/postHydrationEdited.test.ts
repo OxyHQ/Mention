@@ -38,7 +38,7 @@ const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserById,
+    users: { get: getUserById },
     getUserFollowing: vi.fn(async () => []),
     getUserFollowers: vi.fn(async () => []),
   }),
@@ -47,7 +47,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
-    getUsersByIds,
+    users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
@@ -215,4 +215,24 @@ describe('metadata.isEdited', () => {
     expect(hydrated).not.toHaveProperty('editHistory');
     expect(hydrated.metadata).not.toHaveProperty('editHistory');
   });
+});
+
+it('preserves the stored agent character on hydrated authors and the warm summary cache', async () => {
+  const character = {
+    shape: 'rounded_head_two_ears',
+    eyes: 'oval',
+    color: 'teal',
+    eyewear: 'none',
+    accessory: 'none',
+  };
+  const account = { ...AUTHOR_ACCOUNT, kind: 'bot', character };
+  getUsersByIds.mockResolvedValue([account]);
+  getUserById.mockResolvedValue(account);
+  const [cold] = await service.hydratePosts([postRow()], { maxDepth: 0 });
+  expect(cold.user).toMatchObject({ kind: 'bot', character });
+  expect(cold.authors?.[0]).toMatchObject({ kind: 'bot', character });
+  getUsersByIds.mockRejectedValue(new Error('warm cache must not refetch'));
+  getUserById.mockRejectedValue(new Error('warm cache must not refetch'));
+  const [warm] = await service.hydratePosts([postRow()], { maxDepth: 0 });
+  expect(warm.user.character).toEqual(character);
 });

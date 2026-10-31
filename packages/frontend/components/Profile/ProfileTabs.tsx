@@ -1,3 +1,4 @@
+import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { lazy, memo, Suspense } from 'react';
 import { View, Text, Platform } from 'react-native';
@@ -308,6 +309,7 @@ interface ProfileFeedItem {
   memberOxyUserIds?: string[];
   keywords?: string[];
   memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
   owner?: { username: string; displayName?: string; avatar?: string };
   likeCount?: number;
   /** The feed generator's own avatar (only set on feed-generator items). */
@@ -416,6 +418,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
               memberCount: feed.memberCount ?? (feed.memberOxyUserIds || []).length,
               topicCount: feed.topicCount ?? (feed.keywords || []).length,
               memberAvatars: feed.memberAvatars || [],
+              memberProfiles: feed.memberProfiles,
               creator: feed.owner,
               likeCount: feed.likeCount,
             }}
@@ -526,7 +529,7 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
       try {
         const params = isOwnProfile ? { mine: true } : { userId: profileId };
         const res = await starterPacksService.list(params);
-        return (res.items || []).map((pack: Record<string, unknown>) => {
+        return (res.items || []).map((pack) => {
           const memberIds = (pack.memberOxyUserIds || []) as string[];
           return {
             id: String(pack._id || pack.id),
@@ -535,7 +538,8 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
             creator: pack.creator as StarterPackCardData['creator'],
             memberCount: memberIds.length,
             useCount: (pack.useCount as number) || 0,
-            memberAvatars: (pack.memberAvatars || []) as string[],
+            memberAvatars: pack.memberAvatars || [],
+            memberProfiles: pack.memberProfiles,
             totalMembers: memberIds.length,
           };
         });

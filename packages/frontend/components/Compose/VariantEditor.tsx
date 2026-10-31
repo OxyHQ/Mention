@@ -1,7 +1,8 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, type ReactNode, type Ref } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import type { AvatarProps } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -31,6 +32,7 @@ interface VariantEditorProps {
   /** Whether the primary item carries an article that can be localized. */
   hasArticle: boolean;
   userAvatar: string | undefined;
+  account?: AvatarProps['account'];
   userVerified: boolean;
   isFocused: boolean;
   isPosting: boolean;
@@ -76,6 +78,7 @@ const VariantEditor = memo(function VariantEditor({
   sharedMedia,
   hasArticle,
   userAvatar,
+  account,
   userVerified,
   isFocused,
   isPosting,
@@ -119,7 +122,8 @@ const VariantEditor = memo(function VariantEditor({
   return (
     <View style={[styles.container, !isFocused && styles.unfocused]}>
       <View style={styles.headerRow}>
-        <Avatar
+        <AccountAvatar
+          account={account}
           source={userAvatar}
           size={AVATAR_SIZE}
           variant={MEDIA_VARIANT_AVATAR}

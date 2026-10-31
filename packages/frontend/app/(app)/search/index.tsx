@@ -331,6 +331,8 @@ function toProfileCardData(user: SearchUserResult): ProfileCardData | null {
     username,
     name: user.name,
     avatar: user.avatar || undefined,
+    kind: user.kind,
+    character: user.character,
     verified: Boolean(user.verified),
     description: user.bio,
     isFederated: user.isFederated || user.type === 'federated',
@@ -390,6 +392,8 @@ function toFeedCardData(feed: SearchFeedResult): FeedCardData | null {
   return {
     id,
     uri: feed.uri || `feed:${id}`,
+    memberProfiles: feed.memberProfiles,
+    memberAvatars: feed.memberAvatars,
     displayName: feed.title || feed.displayName || 'Untitled Feed',
     description: feed.description,
     avatar: feed.avatar,
@@ -398,6 +402,8 @@ function toFeedCardData(feed: SearchFeedResult): FeedCardData | null {
           username: owner.username || owner.handle || '',
           displayName: owner.name?.displayName,
           avatar: owner.avatar,
+          kind: owner.kind,
+          character: owner.character,
         }
       : undefined,
     likeCount: feed.likeCount,
@@ -438,6 +444,7 @@ function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardDa
     memberCount,
     useCount: pack.useCount || 0,
     memberAvatars: pack.memberAvatars ?? [],
+    memberProfiles: pack.memberProfiles,
     totalMembers: memberCount,
   };
 }

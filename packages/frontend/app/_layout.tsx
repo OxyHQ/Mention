@@ -8,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
+import { AVATAR_RUNTIME_REVISION } from '@oxy.so/bloom-avatar-native/runtime-revision';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { useBackWithFallback } from '@oxy.so/bloom/panel-routing/expo-router';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
@@ -166,6 +167,11 @@ export default function RootLayout() {
           under it: on web `useScrollRestoration()` throws outside its provider, so
           a scrollable mounted beside it (a right rail, an overlay) crashes. */}
       <BloomProvider
+        characterRuntimeUrl={
+          Platform.OS === 'web'
+            ? undefined
+            : `https://alia.onl/bloom-character/releases/${AVATAR_RUNTIME_REVISION}/runtime.mjs`
+        }
         scrollAdapter={expoRouterScrollAdapter}
         back={back}
         imageResolver={resolveImageSource}
