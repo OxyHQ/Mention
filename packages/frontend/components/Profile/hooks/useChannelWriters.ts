@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import type { ChannelWriter } from '@mention/shared-types';
 import { channelWritersService } from '@/services/channelWritersService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -54,8 +55,9 @@ export function useChannelWriters(channelOxyUserId: string | undefined): Channel
     queryKey: viewerQueryKeys.channelWriters(user?.id, channelOxyUserId),
     queryFn: ({ pageParam }) => channelWritersService.list(channelOxyUserId ?? '', pageParam),
     initialPageParam: undefined as string | undefined,
-    // The absence of `nextCursor` is the end of the list.
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    // Stop if the server returns an already visited cursor.
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) =>
+      nextUnvisitedCursor(lastPage.nextCursor, pageParams),
     enabled: Boolean(channelOxyUserId),
     // A failure here is an ANSWER — "no writers list" — not something to recover
     // from, so retrying it spends three requests per page view to arrive back at
