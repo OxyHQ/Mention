@@ -161,6 +161,49 @@ describe('public realtime transport', () => {
 });
 
 describe('trends:updated → trendsStore', () => {
+  it('does not fetch on a broadcast until trends have been requested', async () => {
+    publicRealtimeService.connect();
+    liveSocket().emitFromServer(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, {});
+    await settle();
+    expect(mockApiGet).not.toHaveBeenCalled();
+
+    respond([trend('tech', 40)], 'batch-1');
+    await useTrendsStore.getState().fetchTrends();
+    expect(useTrendsStore.getState().trends[0].volume).toBe(40);
+    expect(mockApiGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes when the first requested list is still loading', async () => {
+    publicRealtimeService.connect();
+    let finishFirst: (value: unknown) => void = () => {
+      throw new Error('First request was not started');
+    };
+    let finishSecond: (value: unknown) => void = () => {
+      throw new Error('Second request was not started');
+    };
+    mockApiGet.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFirst = resolve;
+        }),
+    );
+    mockApiGet.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishSecond = resolve;
+        }),
+    );
+    const first = useTrendsStore.getState().fetchTrends();
+    liveSocket().emitFromServer(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, {});
+    expect(mockApiGet).toHaveBeenCalledTimes(2);
+
+    finishFirst({ data: { trending: [trend('tech', 40)], summary: '', recId: 'batch-1' } });
+    await first;
+    finishSecond({ data: { trending: [trend('tech', 55)], summary: '', recId: 'batch-2' } });
+    await settle();
+    expect(useTrendsStore.getState().trends[0].volume).toBe(55);
+  });
+
   it('advances the rendered series when the server publishes a new batch', async () => {
     publicRealtimeService.connect();
 

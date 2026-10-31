@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect } from 'react';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import type { CreateRoomSheetProps } from '@/components/rooms/createRoomTypes';
-import type { Room } from '@syra.fm/sdk';
+import type { Room } from '@syra.fm/sdk/live';
 
 const DeferredLiveFeatureHost = lazy(() => import('./LiveFeatureRuntime'));
 const DeferredCreateRoomSheet = lazy(() =>

@@ -65,6 +65,7 @@ NODE_ENV=production ./gradlew :app:assembleRelease -x lintVitalRelease \
 - Build arm64-only; the multi-ABI build fails at the x86 CMake task.
 - **Metro dev builds must run from `packages/frontend`**, not the repo root — from the root Expo resolves the legacy `expo/AppEntry` and returns HTTP 500.
 - **Development bundles use Noxcturnal**, Expo's oxc transformer (`experiments.noxcturnalTransformWorker` in `app.config.js`). It stays inactive when the project has any Babel config other than the bare Expo preset, so the frontend has no Babel config file: `@/` resolves through `tsconfig.json` paths (Jest maps it in `moduleNameMapper`), and `babel-preset-expo` adds the worklets plugin and the `import.meta` transform itself. Production exports (`NODE_ENV=production`) still use Babel, because Noxcturnal keeps the requires of dead platform branches and pulls native-only packages into the web bundle. Run with `LOG_EVENTS=<file>` to see which files fall back to Babel and why (`transform:noxcturnal:fallback`).
+- **The web export's experimental Metro optimization flags are not native build flags.** On the current Expo/React Native versions, enabling both for Android leaves an ESM import of `react-native-css/native-internal` in the generated script and Hermes refuses it. The normal Android production export succeeds. Revalidate the generated Hermes bundle before enabling those flags for native; a successful Metro graph alone is not enough.
 
 ### Native root profiles and stack replacement
 

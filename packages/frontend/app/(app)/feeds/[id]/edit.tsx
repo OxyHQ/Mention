@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import { customFeedsService } from '@/services/customFeedsService';
-import { FeedBuilder } from '@/components/feeds/FeedBuilder';
+import FeedBuilder from '@/components/feeds/LazyFeedBuilder';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**

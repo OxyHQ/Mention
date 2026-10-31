@@ -262,6 +262,54 @@ describe('groupNotifications', () => {
     expect(rows[0].createdAt).toBe(at(0));
   });
 
+  it('counts each actor once even after the visible actor limit is reached', () => {
+    const rows = groupNotifications(
+      [...Array.from({ length: 10 }, (_, i) => i), 8, 9].map((actor, i) =>
+        notification({
+          id: `notification-${i}`,
+          type: 'like',
+          entityId: 'post-1',
+          actorId: `actor-${actor}`,
+          createdAt: at(i * 1000),
+        }),
+      ),
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].actors).toHaveLength(8);
+    expect(rows[0].totalActors).toBe(10);
+    expect(rows[0].notificationIds).toHaveLength(12);
+    expect(rows[0].expandable).toBe(true);
+  });
+
+  it('updates the lead time when a newer notification arrives out of order', () => {
+    const rows = groupNotifications([
+      notification({
+        id: 'older',
+        type: 'like',
+        entityId: 'p',
+        actorId: 'a',
+        createdAt: at(2 * HOUR_MS),
+      }),
+      notification({
+        id: 'newer',
+        type: 'like',
+        entityId: 'p',
+        actorId: 'b',
+        createdAt: at(HOUR_MS),
+      }),
+      notification({
+        id: 'reply',
+        type: 'reply',
+        entityId: 'p',
+        actorId: 'c',
+        createdAt: at(1.5 * HOUR_MS),
+      }),
+    ]);
+
+    expect(rows.map((row) => row.leadNotification._id)).toEqual(['newer', 'reply']);
+  });
+
   it('leaves non-groupable types as individual rows even on one entity', () => {
     const rows = groupNotifications([
       notification({
