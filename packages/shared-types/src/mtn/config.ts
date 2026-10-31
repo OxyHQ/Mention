@@ -6,7 +6,7 @@
  */
 
 import type { FeedInterstitialKind } from '../feed';
-import { TREND_CATEGORIES } from '../trending';
+import { NEW_TREND_MAX_AGE_MS, TREND_CATEGORIES } from '../trending';
 
 /**
  * The trailing window trending measures over.
@@ -1055,7 +1055,7 @@ export const MtnConfig = {
        * returning after a few hours off the list is not new. Past it the client
        * shows the run's age instead.
        */
-      newTrendMaxAgeMs: 2 * 60 * 60 * 1000,
+      newTrendMaxAgeMs: NEW_TREND_MAX_AGE_MS,
       /**
        * Gap tolerated when reconstructing when a trend STARTED. A term that
        * drops out of one or two batches and returns is the same run, not a new

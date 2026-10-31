@@ -104,6 +104,11 @@
       "import": "./dist/federation.js",
       "require": "./dist/federation.js"
     },
+    "./trending": {
+      "types": "./dist/trending.d.ts",
+      "import": "./dist/trending.js",
+      "require": "./dist/trending.js"
+    },
     "./mtn": {
       "types": "./dist/mtn/index.d.ts",
       "import": "./dist/mtn/index.js",

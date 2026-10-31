@@ -637,7 +637,7 @@ class SocketService {
     }
     this.liveRoomsRefetchTimer = setTimeout(() => {
       this.liveRoomsRefetchTimer = null;
-      void useLiveRoomsStore.getState().fetchLiveRooms({ silent: true });
+      useLiveRoomsStore.getState().refreshObservedLiveRooms();
     }, ROOMS_LIVE_REFETCH_DEBOUNCE_MS);
   }
 

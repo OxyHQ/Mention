@@ -115,13 +115,16 @@ export function groupNotifications(
   // which keeps the list keys unique). A key whose next notification falls
   // outside the window opens a second group and re-points the index at it; the
   // group it was pointing at stays in `rows` with every actor already merged.
-  const rows: GroupedNotification[] = [];
-  const openGroups = new Map<string, { group: GroupedNotification; ordinal: number }>();
+  type Row = { group: GroupedNotification; time: number };
+  type OpenGroup = Row & { ordinal: number; actorIds: Set<string | undefined> };
+  const rows: Row[] = [];
+  const openGroups = new Map<string, OpenGroup>();
 
   for (const n of notifications) {
+    const time = new Date(n.createdAt).getTime();
     // Non-groupable types stay as individual items
     if (!GROUPABLE_TYPES.has(n.type)) {
-      rows.push(toSingle(n));
+      rows.push({ group: toSingle(n), time });
       continue;
     }
 
@@ -141,13 +144,11 @@ export function groupNotifications(
 
     if (open) {
       // Check time window — compare against the lead (most recent) notification
-      const openTime = new Date(open.group.createdAt).getTime();
-      const currentTime = new Date(n.createdAt).getTime();
-      const timeDiff = Math.abs(openTime - currentTime);
+      const timeDiff = Math.abs(open.time - time);
 
       if (timeDiff <= windowMs) {
         // Merge into the group this key is open on
-        mergeIntoGroup(open.group, n);
+        mergeIntoGroup(open, n, time);
         continue;
       }
     }
@@ -155,14 +156,15 @@ export function groupNotifications(
     // First of its key, or outside the open group's window: start a new group
     const ordinal = open ? open.ordinal + 1 : 0;
     const group = toGroup(n, groupKey, entityId, ordinal);
-    rows.push(group);
-    openGroups.set(groupKey, { group, ordinal });
+    const row: OpenGroup = { group, ordinal, time, actorIds: new Set([group.actors[0].id]) };
+    rows.push(row);
+    openGroups.set(groupKey, row);
   }
 
   // Sort by createdAt descending — each row's createdAt is its lead notification's
-  rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  rows.sort((a, b) => b.time - a.time);
 
-  return rows;
+  return rows.map((row) => row.group);
 }
 
 // ---------------------------------------------------------------------------
@@ -258,12 +260,17 @@ function toGroup(
   };
 }
 
-function mergeIntoGroup(group: GroupedNotification, n: TRawNotification): void {
+function mergeIntoGroup(
+  row: { group: GroupedNotification; time: number; actorIds: Set<string | undefined> },
+  n: TRawNotification,
+  time: number,
+): void {
+  const { group, actorIds } = row;
   const actor = extractActor(n);
 
   // Keep track of unique actors (by id)
-  const existingIds = new Set(group.actors.map((a) => a.id));
-  if (!existingIds.has(actor.id)) {
+  if (!actorIds.has(actor.id)) {
+    actorIds.add(actor.id);
     if (group.actors.length < MAX_GROUP_ACTORS) {
       group.actors.push(actor);
     }
@@ -277,9 +284,10 @@ function mergeIntoGroup(group: GroupedNotification, n: TRawNotification): void {
   }
 
   // Update lead notification if this one is more recent
-  if (new Date(n.createdAt).getTime() > new Date(group.createdAt).getTime()) {
+  if (time > row.time) {
     group.createdAt = n.createdAt;
     group.leadNotification = n;
+    row.time = time;
   }
 
   group.isGroup = true;
