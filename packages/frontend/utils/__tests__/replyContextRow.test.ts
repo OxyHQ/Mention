@@ -86,17 +86,16 @@ describe('resolveReplyContextRow', () => {
     expect(row?.authorHandle).toBeUndefined();
   });
 
-  it('still names the parent when it is prepended directly above', () => {
-    // A feed `replyContext` slice renders [parent, reply]. The header is NOT
-    // suppressed there: it names a DIFFERENT author, which is the informative
-    // case and the whole substance of the bug. Redundant context is cheap;
-    // missing context is what was broken.
+  it('renders nothing when the parent is drawn directly above', () => {
+    // A feed `replyContext` slice renders [parent, reply], joined by the thread
+    // line: the header would only repeat the post right above it.
     const row = resolveReplyContextRow({
       post: post({ parentAuthor: PARENT_AUTHOR }),
       isNested: false,
+      parentShownAbove: true,
     });
 
-    expect(row).toEqual({ authorHandle: 'parenthandle', label: 'parenthandle' });
+    expect(row).toBeNull();
   });
 
   it('renders nothing for a self-thread continuation, on a FLAT surface', () => {

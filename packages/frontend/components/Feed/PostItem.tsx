@@ -761,7 +761,11 @@ const PostItem: React.FC<PostItemProps> = ({
 
   // Read off the POST, never passed in — see `resolveReplyContextRow` for the
   // rule and why it lives there rather than in each caller.
-  const replyContextRow = resolveReplyContextRow({ post: viewPost, isNested });
+  const replyContextRow = resolveReplyContextRow({
+    post: viewPost,
+    isNested,
+    parentShownAbove: isThreadChild,
+  });
 
   const postAuthor = displayNameOrHandle(
     author.name?.displayName,
