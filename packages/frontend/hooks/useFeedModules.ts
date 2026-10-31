@@ -11,7 +11,7 @@ import { publicQueryKeys } from '@/lib/viewerQueryKeys';
  * public read; `authenticatedClient` attaches a token when one exists but works
  * anonymously too.
  */
-export function useFeedModules(enabled = true) {
+export function useFeedModules(enabled: boolean) {
   const query = useQuery<ModuleCatalog>({
     queryKey: publicQueryKeys.feedModules(),
     staleTime: 60 * 60 * 1000,
