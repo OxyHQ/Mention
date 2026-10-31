@@ -329,7 +329,6 @@ export default function PokesScreen() {
               />
             ) : undefined
           }
-          showsVerticalScrollIndicator={false}
         >
           {renderContent()}
         </ScreenScrollView>

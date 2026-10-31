@@ -233,7 +233,7 @@ export default function StarterPackDetailScreen() {
           />
         }
       >
-        <ScreenScrollView showsVerticalScrollIndicator={false}>
+        <ScreenScrollView>
           {error ? (
             <View className="items-center justify-center py-16">
               <Text className="text-destructive">{error}</Text>
