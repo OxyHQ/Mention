@@ -18,6 +18,12 @@ export interface ReplyContextRowInput {
   post: HydratedPost | HydratedPostSummary | null | undefined;
   /** This row is a quote card inside another post. */
   isNested: boolean;
+  /**
+   * The parent is the post drawn directly above this one, joined to it by the
+   * thread line (`isThreadChild`): a feed reply slice, a reposted reply under its
+   * parent, the ancestor chain of a post detail.
+   */
+  parentShownAbove?: boolean;
 }
 
 export interface ReplyContextRow {
@@ -46,20 +52,18 @@ export interface ReplyContextRow {
  * never match on exactly those). A continuation therefore arrives with nothing to
  * render, and its thread connector plus "Show this thread" carry the meaning.
  *
- * The one suppression left is `isNested`: a quote card is context for the post
+ * Two suppressions are left. `isNested`: a quote card is context for the post
  * around it, and a reply header inside one describes a relationship the reader
- * did not ask about.
- *
- * Note what is deliberately NOT suppressed: a reply whose parent is prepended
- * directly above it still renders the header. It names a DIFFERENT author, and
- * naming them is the entire point — redundant context is cheap, missing context
- * is the bug.
+ * did not ask about. `parentShownAbove`: the parent is right there, joined by
+ * the thread line, so the header only repeats it — and under a "Reposted by"
+ * line it stacked a second title over the post.
  */
 export function resolveReplyContextRow({
   post,
   isNested,
+  parentShownAbove = false,
 }: ReplyContextRowInput): ReplyContextRow | null {
-  if (isNested) return null;
+  if (isNested || parentShownAbove) return null;
 
   const replyContext = post?.replyContext;
   if (!replyContext) return null;
