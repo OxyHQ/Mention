@@ -24,6 +24,7 @@ import { resetPendingDocuments } from '@/stores/pendingDocuments';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
+import { resetLocalActions } from '@/services/echoGuard';
 import { liveRoomRuntimeController } from '@/context/LiveRoomContext';
 import { claimViewerCache } from '@/db';
 import { viewerCacheId } from '@/lib/viewerQueryKeys';
@@ -120,6 +121,7 @@ export function AccountSwitchReset({
     (previousViewerId: string | null | undefined, clearCachedData: boolean) => {
       // Stop the old identity's event stream before invalidating its state.
       socketService.disconnect();
+      resetLocalActions();
       liveRoomRuntimeController.resetViewerState();
 
       // `clear()` destroys active queries/mutations and removes every cache key,
