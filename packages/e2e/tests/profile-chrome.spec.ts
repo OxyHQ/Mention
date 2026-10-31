@@ -45,6 +45,41 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
+test('viewing a profile does not load the media editing sheet', async ({ page, candidate }) => {
+  const pickerRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/MediaPickerSheet-[0-9a-f]{32}\.js$/.test(new URL(request.url()).pathname)) {
+      pickerRequests.push(request.url());
+    }
+  });
+  await page.goto(`/@${PROFILE_HANDLE}`);
+  await expect(page.getByTestId('profile-sticky-tabs')).toBeVisible();
+  await expect(page.getByText('Profile geometry row 1', { exact: false }).first()).toBeVisible();
+  expect(pickerRequests).toEqual([]);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('the profile avatar opens and reopens its image on the first click', async ({
+  page,
+  candidate,
+}) => {
+  await page.goto(`/@${PROFILE_HANDLE}`);
+  const avatar = page.getByLabel('Profile avatar').first();
+  const close = page.getByLabel('Close media viewer').first();
+  await expect(avatar).toBeVisible();
+  await expect(close).toHaveCount(0);
+
+  await avatar.click();
+  await expect(close).toBeVisible();
+  await expect(page.locator(`img[src="${author.avatar}"]`).last()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(close).not.toBeVisible();
+
+  await avatar.click();
+  await expect(close).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
 for (const width of [390, 1024, 1440]) {
   for (const colorScheme of ['light', 'dark'] as const) {
     test(`profile media and docked chrome share geometry (${width}, ${colorScheme})`, async ({

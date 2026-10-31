@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import type { Room } from '@syra.fm/sdk';
+import type { Room } from '@syra.fm/sdk/live';
 
 export interface CreateRoomFormState {
   isValid: boolean;
