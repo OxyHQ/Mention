@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import { MtnConfig } from '@mention/shared-types/mtn/config';
+import { NEW_TREND_MAX_AGE_MS } from '@mention/shared-types/trending';
 import { getTrendBadge } from '@/components/trending/trendBadge';
 
 // Echo the default so the assertions read as the text a reader sees.
@@ -12,6 +13,15 @@ const ago = (minutes: number) => new Date(now - minutes * MINUTE).toISOString();
 const newWindowMinutes = MtnConfig.trending.detection.newTrendMaxAgeMs / MINUTE;
 
 describe('getTrendBadge', () => {
+  it('uses the same new-trend window as server detection', () => {
+    expect(NEW_TREND_MAX_AGE_MS).toBe(MtnConfig.trending.detection.newTrendMaxAgeMs);
+  });
+
+  it('switches from new to age exactly at the shared window', () => {
+    expect(getTrendBadge({ startedAt: ago(newWindowMinutes - 1) }, t, now)?.tone).toBe('new');
+    expect(getTrendBadge({ startedAt: ago(newWindowMinutes) }, t, now)?.tone).toBe('age');
+  });
+
   it('calls a term that first trended inside the window new', () => {
     expect(getTrendBadge({ startedAt: ago(30), firstSeenAt: ago(30) }, t, now)).toEqual({
       text: 'New',
