@@ -215,7 +215,9 @@ describe('getKnownPostLikers', () => {
     });
   });
 
-  it('omits private/default-private and blocked actors from both sample and total', async () => {
+  it('counts followed likers whatever their profile Likes setting, never a blocked actor', async () => {
+    // `privacy.showLikes` hides a profile Likes tab, not a like on the post:
+    // opted out (`hidden`) and no settings row (`unknown`) are both listed.
     const visible = scope.user('visible'),
       hidden = scope.user('hidden'),
       unknown = scope.user('unknown'),
@@ -238,9 +240,12 @@ describe('getKnownPostLikers', () => {
       [hidden, 'hidden'],
       [blocked, 'blocked'],
     ]);
-    expect((await callEndpoint({ user: { id: scope.user('privacy-viewer') } })).body).toMatchObject(
-      { total: 1, likers: [{ id: visible }] },
-    );
+    const body = (await callEndpoint({ user: { id: scope.user('privacy-viewer') } })).body as {
+      total: number;
+      likers: Array<{ id: string }>;
+    };
+    expect(body.total).toBe(3);
+    expect(body.likers.map((liker) => liker.id).sort()).toEqual([visible, hidden, unknown].sort());
   });
 
   it('withholds all actor evidence when the subject access decision denies reading it', async () => {

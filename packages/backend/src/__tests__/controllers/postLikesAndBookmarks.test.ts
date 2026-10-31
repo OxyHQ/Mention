@@ -264,14 +264,18 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
     expect([...seen].sort()).toEqual([...users].sort());
   });
 
-  it('lists only positive opted-in likes, excluding a downvoter and private activity', async () => {
+  it('lists every positive like, whatever the liker’s profile Likes setting, never a downvoter', async () => {
+    // `privacy.showLikes` hides a person's profile Likes tab, not their like on
+    // a post: with it off (the default, and a missing settings row) the like is
+    // still listed, so the list agrees with the post's counter.
     const { post, newestFirst } = await seedThreeLikes();
     await getDb().update(likes).set({ value: -1 }).where(eq(likes.userId, newestFirst[0]));
     await getDb()
       .update(userSettings)
       .set({ privacyShowLikes: false })
       .where(eq(userSettings.oxyUserId, newestFirst[1]));
-    expect((await page(post.id)).users.map((user) => user.id)).toEqual([newestFirst[2]]);
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, newestFirst[2]));
+    expect((await page(post.id)).users.map((user) => user.id)).toEqual(newestFirst.slice(1));
   });
 
   it('lists only public published boosts, never draft or private reposts', async () => {

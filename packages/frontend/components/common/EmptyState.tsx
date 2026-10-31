@@ -1,4 +1,5 @@
 import { memo, useCallback, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ViewStyle } from 'react-native';
 import { EmptyState as BloomEmptyState, type EmptyStateAction } from '@oxy.so/bloom/empty-state';
 import type { BloomIconComponent } from '@oxy.so/bloom';
@@ -51,6 +52,7 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
   containerStyle,
   testID,
 }) {
+  const { t } = useTranslation();
   const [isRetrying, setIsRetrying] = useState(false);
   const onRetry = error?.onRetry;
 
@@ -76,7 +78,12 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
         description={error.message}
         action={
           onRetry
-            ? { label: 'Try again', onPress: handleRetry, icon: RiRefreshLine, loading: isRetrying }
+            ? {
+                label: t('common.retry', { defaultValue: 'Try again' }),
+                onPress: handleRetry,
+                icon: RiRefreshLine,
+                loading: isRetrying,
+              }
             : undefined
         }
         footer={footer}

@@ -9,7 +9,13 @@ import { resolveUserSummaries } from './PostHydrationService';
 export const MAX_SOCIAL_ACTORS = 500;
 export const MAX_SOCIAL_POSTS = 200;
 
-/** Likes are private by default. A missing settings row never grants consent. */
+/**
+ * A like used as recommendation evidence — pushed into followers' feeds as
+ * "X liked this" — needs the liker's `privacy.showLikes` opt-in, the same one
+ * that publishes their profile Likes tab. A missing settings row never grants
+ * consent. A post's own likers list does not use this: who liked a post is
+ * public on that post (`controllers/posts/engagementLists.ts`).
+ */
 export function publicPositiveLikeSql(): SQL {
   return and(
     eq(likes.value, 1),
