@@ -32,6 +32,13 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [loadingMore, setLoadingMore] = useState(false);
+  // A failed first page is an error, not an empty list: "No likes yet" under a
+  // counter that says otherwise reads as lost data.
+  const [failed, setFailed] = useState(false);
+  const title =
+    type === 'likes'
+      ? t('post.likesTitle', { defaultValue: 'Likes' })
+      : t('post.boostsTitle', { defaultValue: 'Reposts' });
 
   const loadUsers = useCallback(
     async (cursor?: string) => {
@@ -53,8 +60,11 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
 
         setHasMore(result.hasMore);
         setNextCursor(result.nextCursor);
-      } catch {
-        logger.error(`Error loading ${type}`);
+        setFailed(false);
+      } catch (error) {
+        logger.error(`Error loading ${type}`, { error });
+        // A failed later page keeps the rows already shown.
+        if (!cursor) setFailed(true);
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -109,7 +119,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
     return (
       <View className="flex-1 bg-background">
         <PageHeader
-          title={type === 'likes' ? 'Likes' : 'Boosts'}
+          title={title}
           safeArea={false}
           actions={
             <Button
@@ -131,7 +141,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
   return (
     <View className="flex-1 bg-background">
       <PageHeader
-        title={type === 'likes' ? 'Likes' : 'Boosts'}
+        title={title}
         safeArea={false}
         actions={
           <Button
@@ -145,9 +155,24 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
         }
       />
 
-      {users.length === 0 ? (
+      {failed ? (
         <EmptyState
-          title={`No ${type === 'likes' ? 'likes' : 'boosts'} yet`}
+          error={{
+            title: t('post.engagement.loadError', { defaultValue: "Couldn't load this list" }),
+            message: t('post.engagement.loadErrorMessage', {
+              defaultValue: 'Check your connection and try again.',
+            }),
+            onRetry: () => loadUsers(),
+          }}
+          containerStyle={{ flex: 1 }}
+        />
+      ) : users.length === 0 ? (
+        <EmptyState
+          title={
+            type === 'likes'
+              ? t('post.engagement.noLikes', { defaultValue: 'No likes yet' })
+              : t('post.engagement.noBoosts', { defaultValue: 'No reposts yet' })
+          }
           sticker="postNoEngagement"
           containerStyle={{ flex: 1 }}
         />

@@ -1,4 +1,3 @@
-import { publicPositiveLikeSql } from '../../services/socialFeedEvidence';
 import { loadPostEngagementAudience } from '../../services/postEngagementAudience';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 /**
@@ -7,6 +6,14 @@ import { safetyRequesterFor } from '../../utils/safetyRequester';
  *
  * All three page identically and embed the canonical Oxy user, so the page
  * bound and the actor mapping are shared rather than repeated per handler.
+ *
+ * A like on a post is public on that post, like its counter: these lists show
+ * every positive vote, minus the actors the viewer blocked, muted or restricted.
+ * `privacy.showLikes` is NOT consulted here — it governs only the liker's own
+ * profile Likes tab (one person's whole like history), which is a different
+ * disclosure from "who liked this post". Filtering on it made the lists
+ * disagree with the counter: it is off by default, so a post showing "1 like"
+ * opened onto "No likes yet".
  */
 
 import type { Response } from 'express';
@@ -75,15 +82,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     // Same keyset `getPostBoosts` below already uses.
     const excluded = await engagementAudience(req, String(id));
     if (!excluded) return res.status(404).json({ message: 'Post not found' });
-    const conditions: SQL[] = [
-      eq(likesTable.postId, String(id)),
-      and(
-        eq(likesTable.value, 1),
-        req.user?.id
-          ? or(publicPositiveLikeSql(), eq(likesTable.userId, req.user.id))
-          : publicPositiveLikeSql(),
-      ) as SQL,
-    ];
+    const conditions: SQL[] = [eq(likesTable.postId, String(id)), eq(likesTable.value, 1)];
     if (excluded.size) conditions.push(notInArray(likesTable.userId, [...excluded]));
     const parsedCursor = ChronoCursor.parse(cursor);
     if (parsedCursor?.ts !== undefined) {
@@ -204,7 +203,7 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
     const filter = and(
       inArray(likesTable.userId, followingIds),
       eq(likesTable.postId, id),
-      publicPositiveLikeSql(),
+      eq(likesTable.value, 1),
     );
 
     // Unsorted on purpose: the unique `(user_id, post_id)` index answers this
