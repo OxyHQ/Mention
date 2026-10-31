@@ -43,7 +43,12 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { emitPostCreated, emitRepostCreated } from './mtn/MentionRecordEmitter';
 import type { ReplyContext } from './mtn/mentionRecordBuilders';
 import { postCollaborationService } from './PostCollaborationService';
-import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
+import {
+  getNotificationRecipients,
+  getOwnerId,
+  hasPendingCollabInvites,
+  normalizeAuthorship,
+} from '../utils/postAuthorship';
 import { mediaMetadataService } from './MediaMetadataService';
 import { enrichIngestedPosts } from './postEnrichment';
 import { authorVariants, declaredBaseLanguages, toStoredContent } from './postVariants';
@@ -1004,6 +1009,28 @@ class PostCreationService {
     const quoteOf = post.quoteOf;
     const boostOf = post.boostOf;
 
+    // The replied-to, quoted and boosted posts, read once up front: the mention
+    // stage needs the parent's authors too (they hear about this post as a reply,
+    // not a second time as a mention).
+    const idsToFetch = oxyUserId
+      ? [parentPostId, quoteOf, boostOf].filter((id): id is string => Boolean(id))
+      : [];
+    // A failed read costs the reply/quote/boost notices — as it did when it ran
+    // inside their stage — never the mentions, and never an unhandled rejection
+    // from this detached method.
+    const postsMap = new Map<string, PostRecord>();
+    try {
+      if (idsToFetch.length > 0) {
+        for (const related of await loadPostRecords(idsToFetch)) postsMap.set(related.id, related);
+      }
+    } catch (err) {
+      logger.error('PostCreationService: notification stage failed', err);
+    }
+    const parent = parentPostId ? postsMap.get(parentPostId) : undefined;
+    const repliedToIds = parent
+      ? getNotificationRecipients(normalizeAuthorship(parent.authorship))
+      : [];
+
     // Run all notification stages in parallel — they are independent
     const results = await Promise.allSettled([
       // Mention notifications
@@ -1015,30 +1042,21 @@ class PostCreationService {
             post.id,
             oxyUserId,
             isReply ? 'reply' : 'post',
+            repliedToIds,
           );
         }
       })(),
       // Reply / quote / boost notifications
       (async () => {
         if (!oxyUserId) return;
-        const idsToFetch = [parentPostId, quoteOf, boostOf].filter((id): id is string =>
-          Boolean(id),
-        );
-        if (idsToFetch.length === 0) return;
 
-        const relatedPosts = await loadPostRecords(idsToFetch);
-        const postsMap = new Map(relatedPosts.map((p) => [p.id, p]));
-
-        if (parentPostId) {
-          const parent = postsMap.get(parentPostId);
-          if (parent) {
-            await createPostAuthorNotifications(parent.authorship, {
-              actorId: oxyUserId,
-              type: 'reply',
-              entityId: post.id,
-              entityType: 'reply',
-            });
-          }
+        if (parent) {
+          await createPostAuthorNotifications(parent.authorship, {
+            actorId: oxyUserId,
+            type: 'reply',
+            entityId: post.id,
+            entityType: 'reply',
+          });
         }
 
         if (quoteOf) {

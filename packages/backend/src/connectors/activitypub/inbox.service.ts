@@ -101,6 +101,7 @@ import {
 } from './communityRelay';
 import { isBannedFromCommunity } from '../../db/communities/communityBanRepository';
 import { communityOfPost } from '../../services/communities/communityPosting';
+import { getNotificationRecipients, normalizeAuthorship } from '../../utils/postAuthorship';
 
 /**
  * Whether a Note replies to one of our posts or mentions one of our users. Such
@@ -257,6 +258,9 @@ export class InboxProcessingService {
    * reply's PARENT); `entityId` is what the notification points AT (the target
    * post for like/boost, the new reply post for reply) — mirroring the native
    * shapes exactly.
+   *
+   * Resolves to the users it addressed (empty when it skipped or failed), so a
+   * reply's mention pass can leave out the people who just heard about it.
    */
   private async notifyLocalPostOwnerOfEngagement(
     postId: string,
@@ -264,10 +268,10 @@ export class InboxProcessingService {
     type: 'like' | 'boost' | 'reply',
     entityId: string,
     entityType: 'post' | 'reply',
-  ): Promise<void> {
+  ): Promise<string[]> {
     try {
       const post = await loadPostRecord(postId);
-      if (!post || post.federation != null) return;
+      if (!post || post.federation != null) return [];
 
       const { createPostAuthorNotifications } = await import('../../utils/notificationUtils.js');
       await createPostAuthorNotifications(post.authorship, {
@@ -276,9 +280,11 @@ export class InboxProcessingService {
         entityId,
         entityType,
       });
+      return getNotificationRecipients(normalizeAuthorship(post.authorship));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('[Federation] engagement notification failed', { type, error: message });
+      return [];
     }
   }
 
@@ -316,6 +322,7 @@ export class InboxProcessingService {
     actorOxyUserId: string,
     entityId: string,
     entityType: 'post' | 'reply',
+    repliedToIds: readonly string[] = [],
   ): Promise<void> {
     try {
       if (isMentionBroadcast(postMentionCount)) {
@@ -334,7 +341,13 @@ export class InboxProcessingService {
       if (consented.length === 0) return;
 
       const { createMentionNotifications } = await import('../../utils/notificationUtils.js');
-      await createMentionNotifications(consented, entityId, actorOxyUserId, entityType);
+      await createMentionNotifications(
+        consented,
+        entityId,
+        actorOxyUserId,
+        entityType,
+        repliedToIds,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('[Federation] mention notification failed', { error: message });
@@ -802,20 +815,22 @@ export class InboxProcessingService {
     // `threadLink` is set only for replies, and the parent owner's sharing
     // consent was already enforced above; the helper skips a mirrored remote
     // parent (a federated author has no Mention inbox).
-    if (threadLink?.parentPostId) {
-      await this.notifyLocalPostOwnerOfEngagement(
-        threadLink.parentPostId,
-        authorOxyUserId,
-        'reply',
-        createdPost.id,
-        'reply',
-      );
-    }
+    const repliedToIds = threadLink?.parentPostId
+      ? await this.notifyLocalPostOwnerOfEngagement(
+          threadLink.parentPostId,
+          authorOxyUserId,
+          'reply',
+          createdPost.id,
+          'reply',
+        )
+      : [];
 
     // Notify LOCAL @mentioned users exactly like a native mention. Only reached on
     // a genuinely-new Create (the dedup gate returns early on a redelivery), so a
     // redelivered Create never re-notifies. Federated mentions are stored on the
-    // post but not notified (no Mention inbox).
+    // post but not notified (no Mention inbox). The parent's authors were just
+    // told about this reply, and a Mastodon reply always mentions them — they are
+    // left out rather than notified twice for one post.
     if (mentionResult.localIds.length > 0) {
       await this.notifyLocalMentionedUsers(
         mentionResult.localIds,
@@ -823,6 +838,7 @@ export class InboxProcessingService {
         authorOxyUserId,
         createdPost.id,
         threadLink?.parentPostId ? 'reply' : 'post',
+        repliedToIds,
       );
     }
 

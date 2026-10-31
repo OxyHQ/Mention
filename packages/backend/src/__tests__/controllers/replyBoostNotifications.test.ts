@@ -221,11 +221,13 @@ describe('POST /feed/reply', () => {
     expect(await drainBackgroundWork(10_000)).toBe(true);
 
     const replyId = await onlyWrittenPostId((row) => row.parentPostId === parent.id);
+    // The parent's author is passed as already notified (by the reply itself).
     expect(vi.mocked(createMentionNotifications)).toHaveBeenCalledWith(
       [ALICE_OXY_ID],
       replyId,
       USER_ID,
       'reply',
+      [PARENT_AUTHOR_ID],
     );
   });
 });
