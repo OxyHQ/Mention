@@ -582,7 +582,6 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     if (notificationPreferences) {
       const boolFields = [
         'pushEnabled',
-        'emailEnabled',
         'likes',
         'boosts',
         'follows',

@@ -2001,8 +2001,6 @@
   "settings.node.yourNode": "あなたのノード",
   "settings.notifications.boosts": "ブースト",
   "settings.notifications.boostsDesc": "あなたの投稿がブーストされたとき",
-  "settings.notifications.email": "メール通知",
-  "settings.notifications.emailDesc": "通知のまとめをメールで受け取ります",
   "settings.notifications.follows": "新しいフォロワー",
   "settings.notifications.followsDesc": "誰かにフォローされたとき",
   "settings.notifications.likes": "いいね",

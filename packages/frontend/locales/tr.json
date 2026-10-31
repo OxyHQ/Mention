@@ -2001,8 +2001,6 @@
   "settings.node.yourNode": "Düğümün",
   "settings.notifications.boosts": "Yeniden paylaşımlar",
   "settings.notifications.boostsDesc": "Biri gönderini yeniden paylaştığında",
-  "settings.notifications.email": "E-posta bildirimleri",
-  "settings.notifications.emailDesc": "Bildirimlerinin e-posta özetlerini al",
   "settings.notifications.follows": "Yeni takipçiler",
   "settings.notifications.followsDesc": "Biri seni takip ettiğinde",
   "settings.notifications.likes": "Beğeniler",

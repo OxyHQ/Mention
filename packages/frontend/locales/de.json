@@ -2001,8 +2001,6 @@
   "settings.node.yourNode": "Dein Node",
   "settings.notifications.boosts": "Boosts",
   "settings.notifications.boostsDesc": "Wenn jemand deinen Beitrag boostet",
-  "settings.notifications.email": "E-Mail-Benachrichtigungen",
-  "settings.notifications.emailDesc": "Zusammenfassungen deiner Benachrichtigungen per E-Mail erhalten",
   "settings.notifications.follows": "Neue Follower",
   "settings.notifications.followsDesc": "Wenn dir jemand folgt",
   "settings.notifications.likes": "Likes",

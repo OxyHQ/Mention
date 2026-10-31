@@ -99,7 +99,6 @@ export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> =
   'feedSettings.quality.boostHighQuality': 'feedBoostHighQuality',
 
   'notificationPreferences.pushEnabled': 'notifyPushEnabled',
-  'notificationPreferences.emailEnabled': 'notifyEmailEnabled',
   'notificationPreferences.likes': 'notifyLikes',
   'notificationPreferences.boosts': 'notifyBoosts',
   'notificationPreferences.follows': 'notifyFollows',
@@ -154,7 +153,6 @@ const UNSET_VALUE: Readonly<Partial<Record<WritableColumn, unknown>>> = Object.f
   feedBoostHighQuality: true,
   feedFollowingSort: 'chronological',
   notifyPushEnabled: true,
-  notifyEmailEnabled: false,
   notifyLikes: true,
   notifyBoosts: true,
   notifyFollows: true,
@@ -430,7 +428,6 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
     ...(Object.keys(forYou).length > 0 ? { feedTuning: { forYou } } : {}),
     notificationPreferences: {
       pushEnabled: row.notifyPushEnabled,
-      emailEnabled: row.notifyEmailEnabled,
       likes: row.notifyLikes,
       boosts: row.notifyBoosts,
       follows: row.notifyFollows,

@@ -2028,8 +2028,6 @@
   "settings.node.yourNode": "Il tuo nodo",
   "settings.notifications.boosts": "Boost",
   "settings.notifications.boostsDesc": "Quando qualcuno boosta il tuo post",
-  "settings.notifications.email": "Notifiche email",
-  "settings.notifications.emailDesc": "Ricevi riepiloghi delle notifiche via email",
   "settings.notifications.follows": "Nuovi follower",
   "settings.notifications.followsDesc": "Quando qualcuno inizia a seguirti",
   "settings.notifications.likes": "Mi piace",

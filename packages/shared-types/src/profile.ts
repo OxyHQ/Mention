@@ -26,23 +26,12 @@ export interface PersonalInfo {
   birthDate?: string;
 }
 
-export interface ProfileNotificationSettings {
-  email: boolean;
-  push: boolean;
-  sms: boolean;
-  mentionNotifications?: boolean;
-  followNotifications?: boolean;
-  likeNotifications?: boolean;
-  boostNotifications?: boolean;
-}
-
 export interface PrivacySettings {
   profileVisibility: ProfileVisibility;
   showContactInfo: boolean;
 }
 
 export interface ProfileSettings {
-  notifications: ProfileNotificationSettings;
   privacy: PrivacySettings;
   language: string;
   timezone: string;

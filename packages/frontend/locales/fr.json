@@ -2031,8 +2031,6 @@
   "settings.node.yourNode": "Ton nœud",
   "settings.notifications.boosts": "Boosts",
   "settings.notifications.boostsDesc": "Quand quelqu'un booste ton post",
-  "settings.notifications.email": "Notifications par e-mail",
-  "settings.notifications.emailDesc": "Reçois des résumés de tes notifications par e-mail",
   "settings.notifications.follows": "Nouveaux abonnés",
   "settings.notifications.followsDesc": "Quand quelqu'un s'abonne à toi",
   "settings.notifications.likes": "J'aime",

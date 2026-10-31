@@ -2001,8 +2001,6 @@
   "settings.node.yourNode": "你的节点",
   "settings.notifications.boosts": "转发",
   "settings.notifications.boostsDesc": "当有人转发你的帖子时",
-  "settings.notifications.email": "邮件通知",
-  "settings.notifications.emailDesc": "通过邮件接收通知摘要",
   "settings.notifications.follows": "新粉丝",
   "settings.notifications.followsDesc": "当有人关注你时",
   "settings.notifications.likes": "点赞",
