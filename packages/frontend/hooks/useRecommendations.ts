@@ -27,6 +27,7 @@ import type { User } from '@oxy.so/core';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { isAuthError } from '@/utils/authErrors';
 import { logger } from '@oxy.so/core/logger';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import {
   fetchRecommendationsPage,
   deriveExcludeTypes,
@@ -217,7 +218,8 @@ export function useInfiniteRecommendations(
         pageParam ?? undefined,
       ),
     initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) =>
+      nextUnvisitedCursor(lastPage.nextCursor, pageParams),
     enabled,
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
   });

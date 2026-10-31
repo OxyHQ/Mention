@@ -25,14 +25,6 @@
       "expires": "2026-10-31"
     },
     {
-      "advisory": "GHSA-86w9-cpqp-85rv",
-      "package": "node-forge",
-      "scope": "Expo CLI tooling only",
-      "reason": "No patched release exists: the advisory covers `<= 1.4.0` and 1.4.0 is the newest version. The lockfile reaches node-forge only through @expo/cli and @expo/code-signing-certificates, which @expo/cli depends on.",
-      "compensation": "@expo/cli runs on developer and CI machines to bundle and serve the app; nothing in the backend, the MCP server or the shipped app imports node-forge, and Mention ships no expo-updates code signing that verifies with it. The flaw is signature-verification permissiveness in PKCS#1 v1.5, which no runtime path of Mention performs with this library.",
-      "expires": "2026-10-31"
-    },
-    {
       "advisory": "GHSA-mrhx-c7xc-m3w5",
       "package": "zod",
       "scope": "Exact reviewed Zod 3.25.76 resolution under Expo tooling (@expo/cli)",

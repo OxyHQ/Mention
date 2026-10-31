@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import type { FeedType } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { requestFeedPage, takeBootFeedRead } from '@/services/feedPageRead';
 import { usePostsStore } from '@/stores/postsStore';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
@@ -117,12 +118,9 @@ function feedQueryOptions(feed: FeedReadIdentity) {
       }
     },
     initialPageParam: undefined as FeedPageParam,
-    // A page that claims more but hands back the cursor it was read with
-    // would page forever; it is the end.
-    getNextPageParam: (lastPage, _pages, lastPageParam) =>
-      lastPage.hasMore && lastPage.nextCursor && lastPage.nextCursor !== lastPageParam
-        ? lastPage.nextCursor
-        : undefined,
+    // A cursor already visited would repeat pages indefinitely.
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) =>
+      lastPage.hasMore ? nextUnvisitedCursor(lastPage.nextCursor, pageParams) : undefined,
     // Staleness is decided by RULE, never by age: a remount renders the
     // cached pages and requests nothing, unless a write the feed cannot
     // see has happened since its read (the mount effect below). Kept for
