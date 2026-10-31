@@ -20,7 +20,7 @@ import {
   ROOMS_LIVE_REFETCH_DEBOUNCE_MS,
 } from '@/constants/realtimeEvents';
 import { createLogger } from '@oxy.so/core/logger';
-import { wasRecent, type EchoAction } from './echoGuard';
+import { resetLocalActions, wasRecent, type EchoAction } from './echoGuard';
 import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
 import {
   engagementQueueStorageKey,
@@ -317,7 +317,7 @@ class SocketService {
    * that the viewer's own device re-applies a number it already holds.
    */
   private shouldIgnoreEcho(postId: string, action: EchoAction, actorId?: string) {
-    if (actorId && this.currentUserId && actorId === this.currentUserId) return true;
+    if (actorId) return actorId === this.currentUserId;
     return wasRecent(postId, action);
   }
 
@@ -413,6 +413,7 @@ class SocketService {
 
     // Clear all listener maps
     this.presenceListeners.clear();
+    resetLocalActions();
 
     this.currentUserId = undefined;
     this.currentOxy = undefined;

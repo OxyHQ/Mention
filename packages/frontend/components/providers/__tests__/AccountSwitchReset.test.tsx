@@ -17,6 +17,7 @@ import { noteReaderLanguages } from '@/stores/readerLanguageInvalidation';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
+import { markLocalAction, wasRecent } from '@/services/echoGuard';
 import { liveRoomRuntimeController } from '@/context/LiveRoomContext';
 import { claimViewerCache } from '@/db';
 import { getLiveRoomId, setLivePresence } from '@/stores/livePresenceStore';
@@ -335,6 +336,31 @@ describe('AccountSwitchReset identity boundary', () => {
     act(() => renderer.unmount());
   });
 
+  it('does not suppress B events because of a recent action by A', () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    markLocalAction('shared-post', 'save');
+    expect(wasRecent('shared-post', 'save')).toBe(true);
+    mockUser = { id: 'viewer-b' };
+    act(() => {
+      renderer.update(renderBoundary());
+    });
+    expect(wasRecent('shared-post', 'save')).toBe(false);
+    markLocalAction('shared-post', 'save');
+    act(() => {
+      renderer.update(renderBoundary());
+    });
+    expect(wasRecent('shared-post', 'save')).toBe(true);
+    mockUser = { id: 'viewer-a' };
+    act(() => {
+      renderer.update(renderBoundary());
+    });
+    expect(wasRecent('shared-post', 'save')).toBe(false);
+    act(() => renderer.unmount());
+  });
+
   it('does not reuse A state when B is selected directly', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -373,15 +399,19 @@ describe('AccountSwitchReset identity boundary', () => {
       renderer = TestRenderer.create(renderBoundary());
     });
 
+    markLocalAction('logout-post', 'save');
     mockUser = null;
     act(() => {
       renderer!.update(renderBoundary());
     });
+    expect(wasRecent('logout-post', 'save')).toBe(false);
 
+    markLocalAction('guest-post', 'save');
     mockUser = { id: 'viewer-b' };
     act(() => {
       renderer!.update(renderBoundary());
     });
+    expect(wasRecent('guest-post', 'save')).toBe(false);
 
     expect(mockQueryClientClear).toHaveBeenCalledTimes(2);
     expect(mockResetAppearance).toHaveBeenCalledTimes(2);

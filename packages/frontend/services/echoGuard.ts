@@ -40,6 +40,11 @@ export const markLocalAction = (postId: string, action: EchoAction) => {
   recentActions.set(postId, rec);
 };
 
+/** Forget the previous viewer's optimistic actions at the identity boundary. */
+export const resetLocalActions = (): void => {
+  recentActions.clear();
+};
+
 // Reduced window since we have optimistic updates - only need to suppress immediate echo
 export const wasRecent = (postId: string, action: EchoAction, windowMs: number = 500): boolean => {
   const rec = recentActions.get(postId);
