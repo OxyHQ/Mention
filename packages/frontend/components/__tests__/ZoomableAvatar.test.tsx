@@ -8,13 +8,14 @@ const mockMount = jest.fn();
 jest.mock('@oxy.so/bloom/zoomable-media-gallery', () => {
   const { forwardRef, useImperativeHandle, useEffect } = require('react');
   return {
-    ZoomableMediaGallery: forwardRef(
-      (_props: object, ref: React.Ref<ZoomableMediaGalleryHandle>) => {
-        useEffect(() => mockMount(), []);
-        useImperativeHandle(ref, () => ({ open: (...args: unknown[]) => mockOpen(...args) }), []);
-        return null;
-      },
-    ),
+    ZoomableMediaGallery: forwardRef(function MockZoomableMediaGallery(
+      _props: object,
+      ref: React.Ref<ZoomableMediaGalleryHandle>,
+    ) {
+      useEffect(() => mockMount(), []);
+      useImperativeHandle(ref, () => ({ open: (...args: unknown[]) => mockOpen(...args) }), []);
+      return null;
+    }),
   };
 });
 jest.mock('@oxy.so/bloom/image-resolver', () => ({ useImageResolver: () => undefined }));
