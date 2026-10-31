@@ -15,7 +15,6 @@ import { View } from 'react-native';
 
 interface NotificationPreferences {
   pushEnabled: boolean;
-  emailEnabled: boolean;
   likes: boolean;
   boosts: boolean;
   follows: boolean;
@@ -26,7 +25,6 @@ interface NotificationPreferences {
 
 const DEFAULT_PREFS: NotificationPreferences = {
   pushEnabled: true,
-  emailEnabled: false,
   likes: true,
   boosts: true,
   follows: true,
@@ -152,24 +150,6 @@ export default function NotificationSettingsScreen() {
                   onCheckedChange={(v) => updatePreference('pushEnabled', v)}
                   accessibilityLabel={t('settings.notifications.push', {
                     defaultValue: 'Push notifications',
-                  })}
-                />
-              }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.notifications.email', {
-                defaultValue: 'Email notifications',
-              })}
-              description={t('settings.notifications.emailDesc', {
-                defaultValue: 'Receive email summaries of your notifications',
-              })}
-            >
-              {
-                <Switch
-                  checked={prefs.emailEnabled}
-                  onCheckedChange={(v) => updatePreference('emailEnabled', v)}
-                  accessibilityLabel={t('settings.notifications.email', {
-                    defaultValue: 'Email notifications',
                   })}
                 />
               }

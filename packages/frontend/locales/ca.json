@@ -2028,8 +2028,6 @@
   "settings.node.yourNode": "El teu node",
   "settings.notifications.boosts": "Impulsos",
   "settings.notifications.boostsDesc": "Quan algú impulsa la teva publicació",
-  "settings.notifications.email": "Notificacions per correu",
-  "settings.notifications.emailDesc": "Rep resums per correu de les teves notificacions",
   "settings.notifications.follows": "Seguidors nous",
   "settings.notifications.followsDesc": "Quan algú et segueix",
   "settings.notifications.likes": "M'agrada",

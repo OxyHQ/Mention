@@ -2001,8 +2001,6 @@
   "settings.node.yourNode": "आपका नोड",
   "settings.notifications.boosts": "बूस्ट",
   "settings.notifications.boostsDesc": "जब कोई आपकी पोस्ट बूस्ट करे",
-  "settings.notifications.email": "ईमेल सूचनाएँ",
-  "settings.notifications.emailDesc": "अपनी सूचनाओं का सारांश ईमेल पर पाएँ",
   "settings.notifications.follows": "नए फ़ॉलोअर्स",
   "settings.notifications.followsDesc": "जब कोई आपको फ़ॉलो करे",
   "settings.notifications.likes": "पसंद",

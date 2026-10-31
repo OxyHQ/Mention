@@ -2074,8 +2074,6 @@
   "settings.node.yourNode": "Tu nodo",
   "settings.notifications.boosts": "Impulsos",
   "settings.notifications.boostsDesc": "Cuando alguien impulsa tu publicación",
-  "settings.notifications.email": "Notificaciones por correo",
-  "settings.notifications.emailDesc": "Recibe resúmenes de tus notificaciones por correo",
   "settings.notifications.follows": "Nuevos seguidores",
   "settings.notifications.followsDesc": "Cuando alguien te sigue",
   "settings.notifications.likes": "Me gusta",

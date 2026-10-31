@@ -2001,8 +2001,6 @@
   "settings.node.yourNode": "আপনার নোড",
   "settings.notifications.boosts": "বুস্ট",
   "settings.notifications.boostsDesc": "কেউ আপনার পোস্ট বুস্ট করলে",
-  "settings.notifications.email": "ইমেল বিজ্ঞপ্তি",
-  "settings.notifications.emailDesc": "আপনার বিজ্ঞপ্তির সারসংক্ষেপ ইমেলে পান",
   "settings.notifications.follows": "নতুন ফলোয়ার",
   "settings.notifications.followsDesc": "কেউ আপনাকে ফলো করলে",
   "settings.notifications.likes": "লাইক",

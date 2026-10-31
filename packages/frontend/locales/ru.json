@@ -2055,8 +2055,6 @@
   "settings.node.yourNode": "Ваш узел",
   "settings.notifications.boosts": "Продвижения",
   "settings.notifications.boostsDesc": "Когда кто-то продвигает ваш пост",
-  "settings.notifications.email": "Уведомления по электронной почте",
-  "settings.notifications.emailDesc": "Получать сводки уведомлений на электронную почту",
   "settings.notifications.follows": "Новые подписчики",
   "settings.notifications.followsDesc": "Когда на вас подписываются",
   "settings.notifications.likes": "Лайки",

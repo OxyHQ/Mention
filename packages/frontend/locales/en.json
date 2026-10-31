@@ -2423,8 +2423,6 @@
   "settings.node.yourNode": "Your node",
   "settings.notifications.boosts": "Boosts",
   "settings.notifications.boostsDesc": "When someone boosts your post",
-  "settings.notifications.email": "Email notifications",
-  "settings.notifications.emailDesc": "Receive email summaries of your notifications",
   "settings.notifications.follows": "New followers",
   "settings.notifications.followsDesc": "When someone follows you",
   "settings.notifications.likes": "Likes",
