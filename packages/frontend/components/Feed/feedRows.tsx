@@ -67,6 +67,20 @@ export interface PostFeedRow {
    * standalone posts (single-item slices), which open their own detail.
    */
   threadRootId?: string;
+  /**
+   * A boosted reply arrives as `[parent, boost]`, and its "Reposted by" belongs
+   * above the whole thread, not between the parent and the reply: the head row
+   * carries the reposter, and the boost row is told the line is already drawn.
+   */
+  headReposter?: PostUser;
+  repostShownAbove?: boolean;
+}
+
+/** The reposter of a pure boost row whose original is present, else undefined. */
+function boostActorOf(post: FeedItem | undefined): PostUser | undefined {
+  const boost = (post as { boost?: { originalPost?: unknown; actor?: PostUser } } | undefined)
+    ?.boost;
+  return boost?.originalPost ? boost.actor : undefined;
 }
 
 // A recommendation card spliced between post slices. The row carries only the
@@ -252,6 +266,9 @@ export function buildFeedRows({
       // thread at its root. Standalone slices (one item) leave it undefined.
       const threadRootId =
         slice.items.length > 1 ? String(slice.items[0]?.post?.id ?? '') : undefined;
+      const lastIndex = uniqueSliceItems.length - 1;
+      const sliceReposter =
+        lastIndex > 0 ? boostActorOf(uniqueSliceItems[lastIndex]?.post as FeedItem) : undefined;
       for (let i = 0; i < uniqueSliceItems.length; i++) {
         const sliceItem = uniqueSliceItems[i];
         const post = sliceItem.post as FeedItem;
@@ -273,6 +290,8 @@ export function buildFeedRows({
           nestingDepth: 0,
           truncatedChildCount: 0,
           threadRootId,
+          ...(sliceReposter && i === 0 && { headReposter: sliceReposter }),
+          ...(sliceReposter && i === lastIndex && { repostShownAbove: true }),
         });
       }
     }
@@ -526,7 +545,10 @@ export function renderFeedRow(
         replyBranch={Boolean(row.replyBranch && row.nestingDepth > 0)}
         style={row.replyBranch ? styles.branchPost : undefined}
         nestingDepth={row.nestingDepth}
-        repostedBy={boostedOriginal ? boostCtx?.actor : undefined}
+        repostedBy={row.headReposter ?? (boostedOriginal ? boostCtx?.actor : undefined)}
+        repostPlacement={
+          row.headReposter ? 'headOnly' : row.repostShownAbove ? 'shownAbove' : undefined
+        }
         socialContext={row.socialContext}
         feedDescriptor={feedDescriptor}
         sliceKey={row.sliceKey}

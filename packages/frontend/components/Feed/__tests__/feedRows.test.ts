@@ -272,6 +272,25 @@ describe('buildFeedRows — no interstitials (regression guard)', () => {
   });
 });
 
+describe('buildFeedRows — a boosted reply under its parent', () => {
+  it('draws "Reposted by" on the parent heading the slice, not between parent and reply', () => {
+    const reposter = { id: 'nate' };
+    const boost = {
+      ...post('boost-1', 'nate'),
+      boost: { originalPost: post('reply-1', 'nate'), actor: reposter },
+    } as unknown as HydratedPost;
+    const pair = threadSlice(['parent-1', 'boost-1']);
+    pair.items[1] = { ...pair.items[1], post: boost };
+
+    const [head, reply] = build({ slices: [pair] }).map(asPost);
+
+    expect(head).toMatchObject({ headReposter: reposter });
+    expect(head.repostShownAbove).toBeUndefined();
+    expect(reply).toMatchObject({ repostShownAbove: true });
+    expect(reply.headReposter).toBeUndefined();
+  });
+});
+
 // ── Row identity helpers ────────────────────────────────────────────────────
 
 describe('feedRowKey', () => {
