@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.48,
-      "covered": 14499,
-      "total": 28162
+      "pct": 50.53,
+      "covered": 14092,
+      "total": 27885
     },
     "branches": {
-      "pct": 47.05,
-      "covered": 9933,
-      "total": 21111
+      "pct": 46.2,
+      "covered": 9661,
+      "total": 20908
     },
     "functions": {
-      "pct": 46.48,
-      "covered": 3465,
-      "total": 7454
+      "pct": 45.63,
+      "covered": 3379,
+      "total": 7405
     },
     "lines": {
-      "pct": 52.32,
-      "covered": 13117,
-      "total": 25067
+      "pct": 51.35,
+      "covered": 12764,
+      "total": 24854
     }
   },
   "pins": {
@@ -49,7 +49,7 @@
     },
     "components/providers/AccountSwitchReset.tsx": {
       "statements": 98,
-      "branches": 96,
+      "branches": 94,
       "functions": 100,
       "lines": 100
     },
@@ -312,10 +312,10 @@
       "lines": 0
     },
     "hooks/useFeedModules.ts": {
-      "statements": 100,
+      "statements": 0,
       "branches": 100,
-      "functions": 100,
-      "lines": 100
+      "functions": 0,
+      "lines": 0
     },
     "hooks/useFeedPreferences.ts": {
       "statements": 0,
@@ -397,7 +397,7 @@
     },
     "hooks/useLinkDetection.ts": {
       "statements": 95,
-      "branches": 83,
+      "branches": 80,
       "functions": 100,
       "lines": 95
     },
@@ -426,10 +426,10 @@
       "lines": 100
     },
     "hooks/useMentionColorViewer.ts": {
-      "statements": 96,
-      "branches": 96,
+      "statements": 93,
+      "branches": 92,
       "functions": 100,
-      "lines": 95
+      "lines": 91
     },
     "hooks/useMentionNode.ts": {
       "statements": 0,
@@ -594,10 +594,10 @@
       "lines": 100
     },
     "hooks/useRecommendations.ts": {
-      "statements": 42,
-      "branches": 34,
-      "functions": 26,
-      "lines": 44
+      "statements": 0,
+      "branches": 0,
+      "functions": 0,
+      "lines": 0
     },
     "hooks/useReelChrome.ts": {
       "statements": 66,
@@ -708,10 +708,10 @@
       "lines": 0
     },
     "hooks/useTimeAgo.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
+      "statements": 92,
+      "branches": 66,
+      "functions": 85,
+      "lines": 95
     },
     "hooks/useTopicFollows.ts": {
       "statements": 0,
@@ -786,8 +786,8 @@
       "lines": 100
     },
     "lib/bootFeedRead.web.ts": {
-      "statements": 87,
-      "branches": 94,
+      "statements": 83,
+      "branches": 83,
       "functions": 77,
       "lines": 92
     },
@@ -858,10 +858,10 @@
       "lines": 51
     },
     "lib/keyedAsyncQueue.ts": {
-      "statements": 92,
+      "statements": 84,
       "branches": 100,
-      "functions": 83,
-      "lines": 100
+      "functions": 66,
+      "lines": 91
     },
     "lib/liveConfig.tsx": {
       "statements": 0,
@@ -918,10 +918,10 @@
       "lines": 100
     },
     "lib/oxyServices.ts": {
-      "statements": 100,
+      "statements": 0,
       "branches": 100,
       "functions": 100,
-      "lines": 100
+      "lines": 0
     },
     "lib/precacheActorsFromPosts.ts": {
       "statements": 100,
@@ -1110,10 +1110,10 @@
       "lines": 100
     },
     "services/echoGuard.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
+      "statements": 41,
+      "branches": 22,
+      "functions": 25,
+      "lines": 42
     },
     "services/engagementQueuePersistence.ts": {
       "statements": 94,
@@ -1274,14 +1274,14 @@
     "services/searchService.ts": {
       "statements": 74,
       "branches": 56,
-      "functions": 80,
-      "lines": 78
+      "functions": 77,
+      "lines": 77
     },
     "services/socketService.ts": {
-      "statements": 77,
-      "branches": 61,
-      "functions": 82,
-      "lines": 81
+      "statements": 63,
+      "branches": 47,
+      "functions": 61,
+      "lines": 66
     },
     "services/starterPacksService.ts": {
       "statements": 0,
@@ -1398,10 +1398,10 @@
       "lines": 100
     },
     "stores/liveRoomsStore.ts": {
-      "statements": 83,
-      "branches": 74,
-      "functions": 90,
-      "lines": 93
+      "statements": 65,
+      "branches": 35,
+      "functions": 88,
+      "lines": 75
     },
     "stores/pendingDocuments.ts": {
       "statements": 97,
@@ -1440,10 +1440,10 @@
       "lines": 50
     },
     "stores/trendsStore.ts": {
-      "statements": 94,
-      "branches": 92,
-      "functions": 94,
-      "lines": 100
+      "statements": 88,
+      "branches": 80,
+      "functions": 93,
+      "lines": 95
     },
     "stores/video-playback-control.ts": {
       "statements": 100,
@@ -1494,10 +1494,10 @@
       "lines": 100
     },
     "utils/authErrors.ts": {
-      "statements": 14,
+      "statements": 0,
       "branches": 0,
       "functions": 0,
-      "lines": 18
+      "lines": 0
     },
     "utils/commerceReferences.ts": {
       "statements": 90,
@@ -1632,10 +1632,10 @@
       "lines": 100
     },
     "utils/groupNotifications.ts": {
-      "statements": 94,
-      "branches": 72,
+      "statements": 91,
+      "branches": 65,
       "functions": 100,
-      "lines": 94
+      "lines": 90
     },
     "utils/hlsSource.ts": {
       "statements": 90,
