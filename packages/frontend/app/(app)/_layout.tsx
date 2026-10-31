@@ -20,6 +20,7 @@ import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 import { stackSceneLayout } from '@oxy.so/bloom/panel-routing/expo-router';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
 import RegisterPush from '@/components/RegisterPushToken';
+import { PushNotificationOpener } from '@/components/PushNotificationOpener';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
 import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
@@ -269,6 +270,7 @@ export default function AppLayout() {
         />
       </>
       <RegisterPush />
+      <PushNotificationOpener />
       <BootMilestone name="route-mounted" />
       <WelcomeModalGate appIsReady={true} />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}

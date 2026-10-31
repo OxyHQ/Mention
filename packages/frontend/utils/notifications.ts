@@ -88,6 +88,66 @@ export async function setupNotifications() {
   }
 }
 
+/** The string fields Mention's push payload carries (`backend/src/utils/push.ts`). */
+export type PushNotificationData = Record<string, string>;
+
+/**
+ * Responses already acted on, by notification identifier. Module-scoped so a
+ * remount, or the cold-start response also arriving through the listener,
+ * never opens the same push twice.
+ */
+const handledPushOpens = new Set<string>();
+
+type PushOpenModule = Pick<
+  typeof import('expo-notifications'),
+  | 'DEFAULT_ACTION_IDENTIFIER'
+  | 'addNotificationResponseReceivedListener'
+  | 'getLastNotificationResponse'
+  | 'clearLastNotificationResponse'
+>;
+
+/**
+ * Call `onOpen` with the payload of every push the user taps: the one that
+ * launched the app from cold, and each one tapped while it runs. Dismissals
+ * and other actions are ignored. Returns the unsubscribe.
+ */
+export function watchPushOpens(
+  Notifications: PushOpenModule,
+  onOpen: (data: PushNotificationData) => void,
+): () => void {
+  const handle = (response: import('expo-notifications').NotificationResponse | null) => {
+    if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const { request } = response.notification;
+    if (handledPushOpens.has(request.identifier)) return;
+    handledPushOpens.add(request.identifier);
+    Notifications.clearLastNotificationResponse();
+    // An FCM notification tapped from the tray carries its data on the remote
+    // message; one presented in the foreground carries it on the content.
+    const remote = (request.trigger as { remoteMessage?: { data?: unknown } } | null)?.remoteMessage
+      ?.data;
+    const data: PushNotificationData = {};
+    for (const source of [remote, request.content.data]) {
+      if (!source || typeof source !== 'object') continue;
+      for (const [key, value] of Object.entries(source)) {
+        if (typeof value === 'string') data[key] = value;
+      }
+    }
+    onOpen(data);
+  };
+
+  const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+  handle(Notifications.getLastNotificationResponse());
+  return () => subscription.remove();
+}
+
+/** {@link watchPushOpens} on native; a no-op on web, where there is no push. */
+export async function subscribeToPushOpens(
+  onOpen: (data: PushNotificationData) => void,
+): Promise<() => void> {
+  const Notifications = await getNotifications();
+  return Notifications ? watchPushOpens(Notifications, onOpen) : () => undefined;
+}
+
 export type DevicePushToken = { token: string; type: 'fcm' | 'apns' | 'unknown' } | null;
 
 export async function getDevicePushToken(): Promise<DevicePushToken> {

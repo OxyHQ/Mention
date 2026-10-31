@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.26,
-      "covered": 14421,
-      "total": 28131
+      "pct": 51.33,
+      "covered": 14466,
+      "total": 28180
     },
     "branches": {
-      "pct": 46.9,
-      "covered": 9915,
-      "total": 21138
+      "pct": 46.98,
+      "covered": 9945,
+      "total": 21167
     },
     "functions": {
-      "pct": 46.29,
-      "covered": 3446,
-      "total": 7444
+      "pct": 46.31,
+      "covered": 3454,
+      "total": 7457
     },
     "lines": {
-      "pct": 52.11,
-      "covered": 13050,
-      "total": 25043
+      "pct": 52.18,
+      "covered": 13088,
+      "total": 25081
     }
   },
   "pins": {
@@ -1703,11 +1703,17 @@
       "functions": 80,
       "lines": 65
     },
+    "utils/notificationRoute.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "utils/notifications.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 28,
+      "branches": 22,
+      "functions": 15,
+      "lines": 28
     },
     "utils/openExternalLink.ts": {
       "statements": 9,
