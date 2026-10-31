@@ -367,3 +367,136 @@ test('feed, profile and search retain stored agents while photos keep their imag
   await page.screenshot({ path: test.info().outputPath('member-agent-facepiles.png') });
   expect(candidate.scriptErrors).toEqual([]);
 });
+
+test('human profile photos keep tabs, zoom and the bundled fallback usable', async ({
+  page,
+  candidate,
+}) => {
+  const missingPhoto = 'https://media.mention.earth/agent-test-missing.jpg';
+  await page.route(missingPhoto, (route) => route.fulfill({ status: 404, body: 'missing' }));
+  await page.route('**/channels/*/writers**', (route) =>
+    route.fulfill({ status: 404, json: { error: 'Writers are not public' } }),
+  );
+  await page.route('https://api.oxy.so/profiles/username/**', (route) => {
+    const missing = new URL(route.request().url()).pathname.endsWith('missingphoto');
+    const channel = new URL(route.request().url()).pathname.endsWith('channelphoto');
+    return route.fulfill({
+      json: {
+        ...human,
+        id: missing
+          ? '019e23ee-2d68-7000-8001-000000000085'
+          : channel
+            ? '019e23ee-2d68-7000-8001-000000000086'
+            : human.id,
+        username: missing ? 'missingphoto' : channel ? 'channelphoto' : human.username,
+        kind: channel ? 'channel' : human.kind,
+        avatar: missing ? missingPhoto : human.avatar,
+      },
+    });
+  });
+  await page.goto(`/@${human.username}`);
+  const avatar = page.getByLabel('Profile avatar', { exact: true });
+  await expect(page.getByTestId('profile-sticky-tabs')).toBeVisible();
+  await expect
+    .poll(() =>
+      avatar
+        .locator('img')
+        .evaluateAll((images) =>
+          images.some(
+            (image) =>
+              image instanceof HTMLImageElement && image.complete && image.naturalWidth === 128,
+          ),
+        ),
+    )
+    .toBe(true);
+  // Read the displayed photo, not merely its source prop or accessible name.
+  const photoPng = await avatar.screenshot();
+  const center = await page.evaluate(
+    async (png) => {
+      const image = new Image();
+      image.src = png;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      return [...context.getImageData(image.width >> 1, image.height >> 1, 1, 1).data];
+    },
+    `data:image/png;base64,${photoPng.toString('base64')}`,
+  );
+  expect(center).toEqual([70, 113, 155, 255]);
+  const geometry = await avatar.evaluate((element) => {
+    const image = element.querySelector('img')!;
+    return {
+      photo: image.getBoundingClientRect().width,
+      frame: element.getBoundingClientRect().width,
+    };
+  });
+  expect(geometry).toEqual({ photo: 82, frame: 90 });
+  await avatar.click();
+  const closeGallery = page.getByRole('button', { name: 'Close media viewer', exact: true });
+  await expect(closeGallery).toBeVisible();
+  // This control is the full-screen backdrop, whose center is covered by the photo.
+  await page.keyboard.press('Escape');
+  await expect(closeGallery).not.toBeVisible();
+  const mediaTab = page.getByRole('tab', { name: 'Media', exact: true });
+  await mediaTab.focus();
+  await page.keyboard.press('Enter');
+  await expect(mediaTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('profile-sticky-tabs')).toBeVisible();
+  await page.evaluate(() => {
+    history.pushState({}, '', '/@missingphoto');
+    dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect(page.getByTestId('profile-sticky-tabs')).toBeVisible();
+  await expect
+    .poll(() =>
+      avatar
+        .locator('img')
+        .evaluateAll((images) =>
+          images.some(
+            (image) =>
+              image instanceof HTMLImageElement &&
+              image.src.includes('default-avatar.') &&
+              image.complete &&
+              image.naturalWidth === 400,
+          ),
+        ),
+    )
+    .toBe(true);
+  await expect(avatar).toHaveAttribute('aria-disabled', 'true');
+  await expect(closeGallery).not.toBeVisible();
+  await expect(page.getByText('Something went wrong', { exact: true })).not.toBeVisible();
+  await test.info().attach('photo-profile-agent-readiness', {
+    body: JSON.stringify(
+      (await visibleCharacters(page)).map(({ character, ready, errors, width }) => ({
+        character,
+        ready,
+        errors,
+        width,
+      })),
+    ),
+    contentType: 'application/json',
+  });
+  await page.screenshot({ path: test.info().outputPath('profile-photo-fallback.png') });
+  await page.evaluate(() => {
+    history.pushState({}, '', '/@channelphoto');
+    dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect
+    .poll(() =>
+      avatar.evaluate((element) => {
+        const image = element.querySelector('img');
+        return image?.complete && image.naturalWidth === 128
+          ? {
+              photo: image.getBoundingClientRect().width,
+              frame: element.getBoundingClientRect().width,
+            }
+          : null;
+      }),
+    )
+    .toEqual({ photo: 90, frame: 96 });
+  await page.screenshot({ path: test.info().outputPath('channel-photo-frame.png') });
+  expect(candidate.scriptErrors).toEqual([]);
+});

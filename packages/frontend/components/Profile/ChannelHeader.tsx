@@ -17,6 +17,7 @@ import type { ChannelActionsProps, ChannelHeaderProps } from './types';
  * same constant rather than agreeing by convention.
  */
 export const CHANNEL_AVATAR_SIZE = 96;
+const CHANNEL_AVATAR_RING = 3;
 
 /**
  * A CHANNEL's profile header: a CENTRED masthead — the avatar on top, then the
@@ -81,9 +82,10 @@ export const ChannelHeader = memo(function ChannelHeader({
           being hidden. */}
       <ZoomableAvatar
         source={avatarUri}
-        size={CHANNEL_AVATAR_SIZE}
-        className="border-[3px] bg-muted"
+        size={CHANNEL_AVATAR_SIZE - CHANNEL_AVATAR_RING * 2}
+        className="bg-muted"
         style={{
+          borderWidth: CHANNEL_AVATAR_RING,
           borderColor: surfaceFill,
           width: CHANNEL_AVATAR_SIZE,
           height: CHANNEL_AVATAR_SIZE,

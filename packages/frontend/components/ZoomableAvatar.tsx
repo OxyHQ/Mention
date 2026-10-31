@@ -32,6 +32,7 @@ interface ZoomableAvatarProps {
   /** An Oxy file id, an absolute URL, or an expo-image source (a bundled asset). */
   source?: AvatarProps['source'];
   account?: AvatarProps['account'];
+  /** Avatar content diameter; an outer frame supplied in style may include a ring. */
   size?: number;
   style?: StyleProp<ViewStyle>;
   className?: string;
@@ -69,7 +70,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
 }) => {
   const { oxyServices } = useAuth();
   const hasCharacter = hasAccountAvatarCharacter(account);
-  const [imageFailure, setImageFailure] = useState({ source, failed: false });
+  const [imageFailure, setImageFailure] = useState<{
+    source: AvatarProps['source'];
+    failed: boolean;
+    attemptedSource?: AvatarProps['source'];
+  }>({ source, failed: false });
   if (imageFailure.source !== source) setImageFailure({ source, failed: false });
   const errored = imageFailure.source === source && imageFailure.failed;
   const imageResolver = useImageResolver();
@@ -106,11 +111,14 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   }, [source, errored, resolvedFull, thumbUri]);
 
   const imageSource = useMemo(() => {
+    // Bloom owns the photo's fallback. Keep its primary identity stable while
+    // this owner disables zoom and stops resolving the failed file request.
+    if (errored && imageFailure.attemptedSource) return imageFailure.attemptedSource;
     if (thumbUri) return { uri: thumbUri };
     // A non-string source is already an RN image source (bundled asset).
     if (source && typeof source !== 'string' && !errored) return source;
     return DefaultAvatar;
-  }, [thumbUri, source, errored]);
+  }, [thumbUri, source, errored, imageFailure.attemptedSource]);
 
   const measureThumb = useCallback(
     () =>
@@ -172,7 +180,13 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           >
             <AccountAvatar
               account={account}
-              onImageError={() => setImageFailure({ source, failed: true })}
+              onImageError={() =>
+                setImageFailure((current) =>
+                  current.source === source
+                    ? { source, failed: true, attemptedSource: imageSource }
+                    : current,
+                )
+              }
               source={imageSource}
               fallbackSource={DefaultAvatar}
               size={size}

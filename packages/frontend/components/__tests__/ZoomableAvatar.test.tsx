@@ -128,10 +128,16 @@ it('a failed photo disables zoom, while replacement and late old errors keep the
   act(() => {
     tree = TestRenderer.create(<ZoomableAvatar source="https://photo.test/first.jpg" />);
   });
-  const props = mockAvatar.mock.lastCall?.[0] as { onImageError: () => void } | undefined;
+  const props = mockAvatar.mock.lastCall?.[0] as
+    | { onImageError: () => void; source: unknown; fallbackSource: unknown }
+    | undefined;
   if (!props) throw new Error('Avatar did not render');
   const oldError = props.onImageError;
   act(() => oldError());
+  expect(mockAvatar.mock.lastCall?.[0]).toMatchObject({
+    source: props.source,
+    fallbackSource: props.fallbackSource,
+  });
   expect(tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled).toBe(
     true,
   );
@@ -143,5 +149,13 @@ it('a failed photo disables zoom, while replacement and late old errors keep the
   expect(tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled).toBe(
     false,
   );
+  const replacement = mockAvatar.mock.lastCall?.[0] as typeof props;
+  if (!replacement) throw new Error('Replacement avatar did not render');
+  act(() => replacement.onImageError());
+  act(() => oldError());
+  expect(tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled).toBe(
+    true,
+  );
+  expect(mockAvatar.mock.lastCall?.[0]).toMatchObject({ source: replacement.source });
   act(() => tree.unmount());
 });

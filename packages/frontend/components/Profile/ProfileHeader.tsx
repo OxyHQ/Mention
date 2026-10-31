@@ -142,7 +142,7 @@ export const ProfileHeader = memo(function ProfileHeader({
           <ZoomableAvatar
             account={account}
             source={avatarUri}
-            size={90}
+            size={90 - PROFILE_AVATAR_RING * 2}
             className="bg-muted"
             style={{
               width: 90,
