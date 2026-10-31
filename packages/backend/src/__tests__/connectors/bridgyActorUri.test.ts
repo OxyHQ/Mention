@@ -98,15 +98,21 @@ describe('didFromBridgyActorUri', () => {
 });
 
 describe('bridgedMentionAnchorHrefs', () => {
-  it('derives both bsky.app profile forms from a brid.gy Mention tag (did + handle)', () => {
+  it('derives both bsky.app profile forms, bare and behind the Bridgy redirect Mastodon links', () => {
     expect(
       bridgedMentionAnchorHrefs({ href: BRIDGY_ACTOR, name: '@alice.bsky.social@bsky.brid.gy' }),
-    ).toEqual([`https://bsky.app/profile/${DID}`, 'https://bsky.app/profile/alice.bsky.social']);
+    ).toEqual([
+      `https://bsky.app/profile/${DID}`,
+      'https://bsky.app/profile/alice.bsky.social',
+      `https://bsky.brid.gy/r/https://bsky.app/profile/${DID}`,
+      'https://bsky.brid.gy/r/https://bsky.app/profile/alice.bsky.social',
+    ]);
   });
 
-  it('derives only the did form when the tag carries no name', () => {
+  it('derives only the did forms when the tag carries no name', () => {
     expect(bridgedMentionAnchorHrefs({ href: BRIDGY_ACTOR })).toEqual([
       `https://bsky.app/profile/${DID}`,
+      `https://bsky.brid.gy/r/https://bsky.app/profile/${DID}`,
     ]);
   });
 

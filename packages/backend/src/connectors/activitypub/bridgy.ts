@@ -75,8 +75,15 @@ export function didFromBridgyActorUri(actorUri: string): string | undefined {
  * matches neither the actor URI nor the reconstructed `https://bsky.brid.gy/@<handle>`
  * profile URL the generic mention resolver derives. Emitting both bsky.app forms
  * as extra anchor candidates lets a bridged mention resolve to the internal
- * `[mention:<id>]` placeholder exactly like a Mastodon mention does. Returns `[]`
- * for a non-brid.gy tag (zero cost). Pure and synchronous.
+ * `[mention:<id>]` placeholder exactly like a Mastodon mention does.
+ *
+ * A note written ON a fediverse server mentioning a bridged account links it
+ * through Bridgy's redirect instead — Mastodon's anchor is the actor's `url`,
+ * `https://bsky.brid.gy/r/https://bsky.app/profile/<handle>` — so each web
+ * profile form is also emitted wrapped in it. Without that, a Mastodon reply to
+ * a Bluesky account resolved the account but matched no anchor, and the mention
+ * fell back to its bare visible text. Returns `[]` for a non-brid.gy tag (zero
+ * cost). Pure and synchronous.
  */
 export function bridgedMentionAnchorHrefs(tag: { href: string; name?: string }): string[] {
   const did = didFromBridgyActorUri(tag.href);
@@ -90,5 +97,5 @@ export function bridgedMentionAnchorHrefs(tag: { href: string; name?: string }):
   const handle = lastAt > 0 ? cleaned.slice(0, lastAt) : '';
   if (handle) hrefs.push(`${BSKY_APP_ORIGIN}/profile/${handle}`);
 
-  return hrefs;
+  return [...hrefs, ...hrefs.map((profile) => `https://${BRIDGY_FED_BSKY_HOST}/r/${profile}`)];
 }

@@ -85,6 +85,21 @@ describe('inbound brid.gy @mention resolution', () => {
     expect(rewritten.content).toBe(`<p>[mention:${BRIDGED_OXY_ID}] hello</p>`);
   });
 
+  it('rewrites a Mastodon reply’s anchor, which links the bridged account through Bridgy’s redirect', async () => {
+    mocks.getOrFetchActor.mockResolvedValue({ oxyUserId: BRIDGED_OXY_ID });
+    const href = `https://bsky.brid.gy/r/https://bsky.app/profile/${HANDLE}`;
+    const object = {
+      content: `<p><span class="h-card"><a href="${href}" class="u-url mention">@<span>${HANDLE}</span></a></span> hola</p>`,
+      tag: [{ type: 'Mention', href: BRIDGY_ACTOR, name: `@${HANDLE}@bsky.brid.gy` }],
+    };
+
+    const resolved = await resolveInboundMentions(object);
+    const rewritten = applyMentionPlaceholders(object, resolved.anchorMap);
+    expect(rewritten.content).toBe(
+      `<p><span class="h-card">[mention:${BRIDGED_OXY_ID}]</span> hola</p>`,
+    );
+  });
+
   it('still resolves a Mastodon mention (regression): actor-URI tag href, profile-page anchor', async () => {
     mocks.getOrFetchActor.mockResolvedValue({ oxyUserId: 'oxy_bob' });
     const object = {
