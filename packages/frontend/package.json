@@ -49,6 +49,7 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1",
       "^@oxy.so/services/ui/client$": "<rootDir>/../../node_modules/@oxy.so/services/lib/commonjs/ui/client.js",
+      "^@oxy.so/services/organization-draft$": "<rootDir>/../../node_modules/@oxy.so/services/lib/commonjs/ui/utils/organizationDraft.js",
       "^@oxy.so/core/logger$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/logger/index.js",
       "^@oxy.so/contracts$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/index.js",
       "^@oxy.so/contracts/client$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/client/index.js",
