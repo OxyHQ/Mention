@@ -40,6 +40,9 @@ export type TrendEventType =
    */
   | 'unclassified';
 
+/** How long a trend can be labelled new, shared by detection and presentation. */
+export const NEW_TREND_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
 /**
  * The category taxonomy a trend is filed under — the coarse hint shown beneath
  * its label ("Sports", "Politics").
