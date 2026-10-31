@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useUserByUsername } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountCategoryId, AccountKind, OxyServices, User } from '@oxy.so/core';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import {
   useAppearanceStore,
   type UserAppearance,
@@ -52,6 +53,7 @@ export interface ProfileData {
    * signature below, where it would arrive as `unknown` and tempt a cast.
    */
   kind?: AccountKind;
+  character?: AvatarCharacter;
   /**
    * What this account IS, as an ORDERED list of category ids — element 0 is the
    * primary. Named here for the same reason as `kind`: it arrives on the Oxy

@@ -1,10 +1,12 @@
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
+import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
@@ -30,6 +32,7 @@ export interface StarterPackCardData {
   useCount: number;
   /** Avatar URIs for the responsive avatar stack */
   memberAvatars?: string[];
+  memberProfiles?: AvatarIdentitySummary[];
   /** Total member count for "+N" calculation (defaults to memberCount) */
   totalMembers?: number;
 }
@@ -87,11 +90,19 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
 
   const avatarItems = useMemo<AvatarGroupItem[]>(
     () =>
+      pack.memberProfiles?.map((profile) => ({
+        id: profile.id,
+        kind: profile.kind,
+        character: profile.character,
+        uri: profile.avatar,
+        displayName: profile.name?.displayName,
+        username: getNormalizedUserHandle(profile) ?? undefined,
+      })) ??
       (pack.memberAvatars ?? []).map((uri, index) => ({
         id: `${pack.id}-avatar-${index}`,
         uri,
       })),
-    [pack.memberAvatars, pack.id],
+    [pack.memberAvatars, pack.memberProfiles, pack.id],
   );
 
   const hasAvatars = avatarItems.length > 0;
@@ -108,7 +119,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
       <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
         {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
         {hasAvatars ? (
-          <AvatarGroup
+          <AccountAvatarGroup
             items={avatarItems}
             size={32}
             variant={MEDIA_VARIANT_AVATAR}

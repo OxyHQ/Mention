@@ -4,7 +4,8 @@ import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@/components/FollowButton';
 import { ContactRow } from '@oxy.so/bloom/chat-people/contact-row';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Text } from '@oxy.so/bloom/typography';
@@ -69,6 +70,7 @@ export interface ProfileCardData {
    * rows simply show no kind marker rather than the wrong one.
    */
   kind?: AccountKind;
+  character?: AvatarCharacter;
   isAgent?: boolean;
   isAutomated?: boolean;
   instance?: string;
@@ -197,7 +199,8 @@ export function ProfileCard({
         style={{ flex: 1 }}
         onPress={press}
         avatarSlot={
-          <Avatar
+          <AccountAvatar
+            account={resolved}
             source={resolved.avatar || undefined}
             size={size === 'sm' ? 36 : 44}
             variant={MEDIA_VARIANT_AVATAR}

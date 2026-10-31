@@ -1,7 +1,7 @@
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
 import { Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useKnownLikers } from '@/hooks/useKnownLikers';
@@ -76,6 +76,8 @@ export const KnownLikersRow = memo(function KnownLikersRow({
         return {
           id: liker.id,
           uri: liker.avatar,
+          kind: liker.kind,
+          character: liker.character,
           displayName: displayNameOrHandle(liker.name.displayName, handle),
           username: handle || undefined,
         };
@@ -119,7 +121,7 @@ export const KnownLikersRow = memo(function KnownLikersRow({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <AvatarGroup
+      <AccountAvatarGroup
         items={avatarItems}
         size={AVATAR_SIZE}
         max={3}

@@ -1,6 +1,6 @@
 import { useProfileData } from '@/hooks/useProfileData';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { SettingsValueField, type SettingsRowData } from '@oxy.so/bloom/settings-modal';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -34,7 +34,8 @@ export function useOxyIdentityRows({ full = false }: { full?: boolean } = {}): S
       label: t('settings.profile.photo', { defaultValue: 'Profile photo' }),
       control: (
         <Pressable onPress={() => void openAvatarPicker()} accessibilityRole="button">
-          <Avatar
+          <AccountAvatar
+            account={profile ?? undefined}
             source={profile?.avatar}
             name={profile?.design.displayName ?? profile?.username}
             size={40}

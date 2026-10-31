@@ -19,6 +19,17 @@ import type { TRawNotification } from '@/types/validation';
  * is real — a grouped actor the screen never prewarmed has no entry to read.
  */
 
+// Keep the renderer boundary isolated; the account policy has its own contract tests.
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
+}));
+
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: 'viewer-1' } }),
   queryKeys: { users: { detail: (id: string) => ['users', id] } },

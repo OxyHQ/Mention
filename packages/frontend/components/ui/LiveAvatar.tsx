@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Avatar, type AvatarProps } from '@oxy.so/bloom/avatar';
+import type { AvatarProps } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from './AccountAvatar';
 import { useLiveUser } from '@/stores/livePresenceStore';
 import { useRouter } from '@/lib/navigation/router';
 
@@ -44,7 +45,7 @@ export function LiveAvatar({ userId, onPress, live, liveLabel, ...rest }: LiveAv
   const pressable = (userIsLive && Boolean(roomId)) || Boolean(onPress);
 
   return (
-    <Avatar
+    <AccountAvatar
       {...rest}
       live={userIsLive}
       liveLabel={liveLabel ?? t('liveRooms.liveBadge', { defaultValue: 'LIVE' })}

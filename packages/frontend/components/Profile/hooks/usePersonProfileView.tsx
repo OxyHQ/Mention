@@ -448,6 +448,7 @@ export function usePersonProfileView({
         <ProfileHeader
           username={profileData.username}
           avatarUri={avatarUri}
+          account={profileData}
           isOwnProfile={isOwnProfile}
           isFederated={profileData.isFederated}
           actorUri={profileData.actorUri}

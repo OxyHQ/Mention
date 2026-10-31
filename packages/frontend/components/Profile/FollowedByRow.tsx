@@ -1,8 +1,9 @@
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useMutualFollowers } from '@/hooks/useMutualFollowers';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -37,6 +38,8 @@ export const FollowedByRow = memo(function FollowedByRow({
       mutuals.map((mutual) => ({
         id: mutual.id,
         uri: mutual.avatar,
+        kind: mutual.kind,
+        character: mutual.character,
         // Fall back to the handle when a mutual has no display name.
         displayName: displayNameOrHandle(mutual.name.displayName, mutual.username),
         username: mutual.username,
@@ -83,7 +86,7 @@ export const FollowedByRow = memo(function FollowedByRow({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <AvatarGroup
+      <AccountAvatarGroup
         items={avatarItems}
         size={20}
         max={3}

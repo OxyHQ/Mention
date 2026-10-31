@@ -24,6 +24,17 @@ import PostHeader from '@/components/Post/PostHeader';
  *     so abbreviating what is SEEN is not a reason to abbreviate what is HEARD.
  */
 
+// Keep the renderer boundary isolated; the account policy has its own contract tests.
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
+}));
+
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string; time?: string }) => {

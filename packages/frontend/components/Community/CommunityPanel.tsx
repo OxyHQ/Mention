@@ -1,8 +1,9 @@
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useCallback, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/lib/navigation/router';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
@@ -61,6 +62,8 @@ export const CommunityPanel = memo(function CommunityPanel({
       moderators.map((moderator) => ({
         id: moderator.id,
         uri: moderator.avatar,
+        kind: moderator.kind,
+        character: moderator.character,
         displayName: moderator.name?.displayName,
         username: getNormalizedUserHandle(moderator) ?? undefined,
       })),
@@ -92,7 +95,7 @@ export const CommunityPanel = memo(function CommunityPanel({
           <Text className="text-muted-foreground text-[13px]">
             {t('communities.moderatedBy', { defaultValue: 'Moderated by' })}
           </Text>
-          <AvatarGroup
+          <AccountAvatarGroup
             items={moderatorItems}
             size={MODERATOR_AVATAR_SIZE}
             max={MAX_MODERATOR_AVATARS}

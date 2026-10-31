@@ -70,6 +70,17 @@ function mockTranslate(
   return value.replace(/\{\{(\w+)\}\}/g, (_m, name: string) => String(vars[name] ?? ''));
 }
 
+// Keep the renderer boundary isolated; the account policy has its own contract tests.
+jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  parseAvatarCharacter: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).parseAvatarCharacter,
+  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
+}));
+
 jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
   const { View, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');

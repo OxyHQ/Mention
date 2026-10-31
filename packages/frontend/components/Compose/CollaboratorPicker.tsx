@@ -4,7 +4,8 @@ import type React from 'react';
 import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
+import type { AccountKind, AvatarCharacter } from '@oxy.so/contracts';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -19,6 +20,8 @@ export interface CollaboratorUser {
   username: string;
   displayName?: string;
   avatar?: string;
+  kind?: AccountKind;
+  character?: AvatarCharacter;
 }
 
 interface CollaboratorPickerProps {
@@ -65,6 +68,8 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
             handle?: string;
             name?: { displayName?: string };
             avatar?: string | null;
+            kind?: AccountKind;
+            character?: AvatarCharacter;
           }) => {
             const username = profile.username || profile.handle || '';
             const id = profile.id || profile._id || '';
@@ -75,6 +80,8 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                 username,
                 displayName: profile.name?.displayName,
                 avatar: profile.avatar || undefined,
+                kind: profile.kind,
+                character: profile.character,
               },
             ];
           },
@@ -129,7 +136,12 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
               key={collab.id}
               className="flex-row items-center bg-surface border border-border rounded-full pl-1 pr-2 py-1 gap-1"
             >
-              <Avatar source={collab.avatar} size={24} variant={MEDIA_VARIANT_AVATAR} />
+              <AccountAvatar
+                account={collab}
+                source={collab.avatar}
+                size={24}
+                variant={MEDIA_VARIANT_AVATAR}
+              />
               <Text className="text-foreground text-sm" numberOfLines={1}>
                 {displayNameOrHandle(collab.displayName, `@${collab.username}`)}
               </Text>
@@ -187,7 +199,12 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                   className="flex-row items-center px-3 py-2 gap-3"
                   onPress={() => addUser(item)}
                 >
-                  <Avatar source={item.avatar} size={32} variant={MEDIA_VARIANT_AVATAR} />
+                  <AccountAvatar
+                    account={item}
+                    source={item.avatar}
+                    size={32}
+                    variant={MEDIA_VARIANT_AVATAR}
+                  />
                   <View className="flex-1">
                     <Text className="text-foreground text-[15px] font-medium">
                       {displayNameOrHandle(item.displayName, item.username)}

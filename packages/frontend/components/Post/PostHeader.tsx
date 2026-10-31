@@ -1,10 +1,11 @@
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { tokens } from '@oxy.so/bloom/styles';
 import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo, useState, type ReactNode } from 'react';
 import { DropdownMenu, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 
 import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
 import UserName from '../UserName';
@@ -48,6 +49,7 @@ interface User {
   isFederated?: boolean;
   /** Account kind, so a channel's post header carries the channel marker. */
   kind?: PostUser['kind'];
+  character?: PostUser['character'];
   instance?: string;
 }
 
@@ -343,6 +345,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         ? clusterMembers.map((member) => ({
             id: member.id,
             uri: member.avatar,
+            kind: member.kind,
+            character: member.character,
             displayName: displayNameOrHandle(
               member.name?.displayName,
               getNormalizedUserHandle(member) ?? '',
@@ -392,7 +396,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         onPress={isCollabByline ? onPressCollaborators : onPressAvatar}
         style={{ marginTop: compact ? 0 : headerTopOffset, marginRight: compact ? 0 : 12 }}
       >
-        <AvatarGroup
+        <AccountAvatarGroup
           layout="cluster"
           items={collabAvatars}
           size={avatarSize}
@@ -404,6 +408,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   ) : (
     <ProfileHoverCard username={user.handle} disable={disableHoverCard}>
       <LiveAvatar
+        account={user ?? undefined}
         userId={authorUserId}
         source={avatarSource}
         variant={avatarVariant}

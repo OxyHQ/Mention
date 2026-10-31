@@ -102,7 +102,7 @@ jest.mock('@/components/Post/PostHeader', () => {
     __esModule: true,
     default: (props: {
       avatarSource?: string | null;
-      user?: { displayName?: string; handle?: string };
+      user?: { displayName?: string; handle?: string; kind?: string; character?: unknown };
       boostedBy?: { avatar?: string | null };
       authors?: { id: string; avatar?: string | null }[];
     }) =>
@@ -113,6 +113,11 @@ jest.mock('@/components/Post/PostHeader', () => {
           Text,
           { testID: 'author-identity' },
           `${props.avatarSource ?? ''}|${props.user?.displayName ?? ''}|${props.user?.handle ?? ''}`,
+        ),
+        ReactActual.createElement(
+          Text,
+          { testID: 'author-character' },
+          JSON.stringify({ kind: props.user?.kind, character: props.user?.character }),
         ),
         ReactActual.createElement(
           Text,
@@ -347,4 +352,29 @@ describe('every actor on the row follows its identity', () => {
     expect(identityOf(renderer)).toBe('avatar-after|Daily|daily');
     expect(probe(renderer, 'byline-avatars')).toBe('avatar-after,collab-before');
   });
+});
+
+it('repaints a changed character on the same post and author without engagement changes', () => {
+  const character = {
+    shape: 'rounded_head_two_ears',
+    eyes: 'oval',
+    color: 'teal',
+    eyewear: 'none',
+    accessory: 'none',
+  };
+  const before = stalePost();
+  const post = { ...before, user: { ...before.user, kind: 'bot', character } };
+  act(() => {
+    mounted = TestRenderer.create(<PostItem post={post as never} />);
+  });
+  expect(probe(mounted!, 'author-character')).toBe(JSON.stringify({ kind: 'bot', character }));
+  const changed = { ...character, color: 'lime' };
+  act(() => {
+    mounted!.update(
+      <PostItem post={{ ...post, user: { ...post.user, character: changed } } as never} />,
+    );
+  });
+  expect(probe(mounted!, 'author-character')).toBe(
+    JSON.stringify({ kind: 'bot', character: changed }),
+  );
 });

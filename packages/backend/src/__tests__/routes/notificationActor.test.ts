@@ -79,3 +79,21 @@ describe('notifications: toPopulatedActor embedded-actor DTO', () => {
     expect(dto.name.displayName).toBe('Unknown user');
   });
 });
+
+it('preserves an existing bot recipe without inventing one for unresolved or human actors', () => {
+  const character = {
+    shape: 'rounded_head_two_ears',
+    eyes: 'oval',
+    color: 'teal',
+    eyewear: 'none',
+    accessory: 'none',
+  };
+  expect(toPopulatedActor({ id: 'agent', kind: 'bot', character }, 'agent')).toMatchObject({
+    kind: 'bot',
+    character,
+  });
+  expect(
+    toPopulatedActor({ id: 'human', kind: 'personal', avatar: 'photo' }, 'human'),
+  ).toMatchObject({ kind: 'personal', avatar: 'photo' });
+  expect(toPopulatedActor(undefined, 'missing').character).toBeUndefined();
+});
