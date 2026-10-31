@@ -17,6 +17,7 @@ import { queryKeys as sdkQueryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
+import { notificationSubjectHref } from '@/utils/notificationRoute';
 import type { User } from '@oxy.so/core';
 import type { PostUser } from '@mention/shared-types';
 
@@ -494,15 +495,12 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
   const handlePress = useCallback(() => {
     markRead();
-    if (item.type === 'event_updated' || item.type === 'event_cancelled') {
-      router.push(`/events/${item.entityId}`);
-    } else if (item.entityType === 'post' || item.entityType === 'reply') {
-      router.push(`/p/${item.entityId}`);
-    } else if (item.entityType === 'profile') {
-      const href = profileHrefForUser(resolvedPrimary);
-      if (href) router.push(href);
-    }
-  }, [markRead, item.type, item.entityType, item.entityId, resolvedPrimary, router]);
+    const { type, entityType, entityId } = item;
+    const href =
+      notificationSubjectHref({ type, entityType, entityId }) ??
+      (entityType === 'profile' ? profileHrefForUser(resolvedPrimary) : null);
+    if (href) router.push(href);
+  }, [markRead, item, resolvedPrimary, router]);
 
   // Long-press opens a small action sheet offering "Mark as read" (only when the
   // row is unread) and a destructive "Delete". Dismissing the sheet is the
