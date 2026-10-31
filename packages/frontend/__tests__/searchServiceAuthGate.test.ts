@@ -19,7 +19,12 @@
 import type { HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 
-import { getSearchHistoryStorageKey, searchService } from '@/services/searchService';
+import {
+  captureSearchHistoryEpoch,
+  getSearchHistoryStorageKey,
+  isCurrentSearchHistoryEpoch,
+  searchService,
+} from '@/services/searchService';
 
 const mockAuthGet = jest.fn();
 const mockPublicGet = jest.fn();
@@ -174,11 +179,98 @@ beforeEach(() => {
     data: { posts: [hydratedPost('s1')] },
   });
   mockStorageGet.mockResolvedValue([]);
-  mockStorageSet.mockResolvedValue(undefined);
-  mockStorageRemove.mockResolvedValue(undefined);
+  mockStorageSet.mockResolvedValue(true);
+  mockStorageRemove.mockResolvedValue(true);
 });
 
 describe('search history viewer isolation', () => {
+  it('orders an old A write before reset and a new A write while B remains independent', async () => {
+    let finishWrite!: (value: boolean) => void;
+    const pendingWrite = new Promise<boolean>((resolve) => {
+      finishWrite = resolve;
+    });
+    mockStorageSet.mockReturnValueOnce(pendingWrite).mockResolvedValue(true);
+    const keyA = getSearchHistoryStorageKey('race-a');
+    const keyB = getSearchHistoryStorageKey('race-b');
+    const oldEpoch = captureSearchHistoryEpoch('race-a');
+    const old = searchService.addToSearchHistory('private old', 'race-a');
+    for (let i = 0; i < 10 && !mockStorageSet.mock.calls.length; i++) await Promise.resolve();
+    expect(mockStorageSet).toHaveBeenCalledWith(keyA, ['private old']);
+    const reset = searchService.clearSearchHistory('race-a');
+    const newA = searchService.addToSearchHistory('new session', 'race-a');
+    await searchService.addToSearchHistory('viewer b', 'race-b');
+    expect(mockStorageSet).toHaveBeenCalledWith(keyB, ['viewer b']);
+    expect(mockStorageRemove).not.toHaveBeenCalledWith(keyA);
+    expect(isCurrentSearchHistoryEpoch('race-a', oldEpoch)).toBe(false);
+    finishWrite(true);
+    await expect(old).resolves.toEqual([]);
+    await Promise.all([reset, newA]);
+    const oldWriteOrder = mockStorageSet.mock.invocationCallOrder[0];
+    const clearIndex = mockStorageRemove.mock.calls.findIndex(([key]) => key === keyA);
+    const newWriteIndex = mockStorageSet.mock.calls.findIndex(
+      ([key, value]) => key === keyA && value[0] === 'new session',
+    );
+    expect(oldWriteOrder).toBeLessThan(mockStorageRemove.mock.invocationCallOrder[clearIndex]);
+    expect(mockStorageRemove.mock.invocationCallOrder[clearIndex]).toBeLessThan(
+      mockStorageSet.mock.invocationCallOrder[newWriteIndex],
+    );
+  });
+
+  it('discards an old history read and does not save it after reset', async () => {
+    let finishRead!: (value: string[]) => void;
+    mockStorageGet.mockReturnValueOnce(
+      new Promise<string[]>((resolve) => {
+        finishRead = resolve;
+      }),
+    );
+    const old = searchService.addToSearchHistory('private', 'late-a');
+    for (let i = 0; i < 10 && !mockStorageGet.mock.calls.length; i++) await Promise.resolve();
+    expect(mockStorageGet).toHaveBeenCalled();
+    const reset = searchService.clearSearchHistory('late-a');
+    finishRead(['previous']);
+    await expect(old).resolves.toEqual([]);
+    await reset;
+    expect(mockStorageSet).not.toHaveBeenCalled();
+  });
+
+  it('invalidates guest callbacks without deleting guest history', async () => {
+    const guestEpoch = captureSearchHistoryEpoch(undefined);
+    searchService.invalidateSearchHistory();
+    expect(isCurrentSearchHistoryEpoch(undefined, guestEpoch)).toBe(false);
+    expect(mockStorageRemove).not.toHaveBeenCalled();
+    mockStorageGet.mockResolvedValueOnce(['guest history']);
+    await expect(searchService.getSearchHistory()).resolves.toEqual(['guest history']);
+  });
+
+  it('hides old history after failed deletion, retries, and never exposes it during failure', async () => {
+    const viewerId = 'remove-failure';
+    mockStorageRemove
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    mockStorageGet.mockResolvedValue(['private old']);
+    await expect(searchService.clearSearchHistory(viewerId)).rejects.toThrow(
+      'could not be cleared',
+    );
+    await expect(searchService.getSearchHistory(viewerId)).resolves.toEqual([]);
+    expect(mockStorageGet).not.toHaveBeenCalled();
+    await expect(searchService.addToSearchHistory('new', viewerId)).rejects.toThrow(
+      'could not be cleared',
+    );
+    expect(mockStorageSet).not.toHaveBeenCalled();
+    mockStorageGet.mockResolvedValueOnce([]);
+    await expect(searchService.getSearchHistory(viewerId)).resolves.toEqual([]);
+    expect(mockStorageRemove).toHaveBeenCalledTimes(4);
+  });
+
+  it('reports a storage write failure rather than presenting it as saved', async () => {
+    mockStorageSet.mockResolvedValueOnce(false);
+    await expect(searchService.addToSearchHistory('unsaved', 'write-failure')).rejects.toThrow(
+      'could not be saved',
+    );
+  });
+
   it('persists A and B under different storage keys', async () => {
     await searchService.addToSearchHistory('first', 'viewer-a');
     await searchService.addToSearchHistory('second', 'viewer-b');

@@ -1,4 +1,5 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: { error: jest.fn() } }));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
 }));
@@ -7,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SearchScreen from '@/app/(app)/search/index';
 import { searchService, type SearchAllSource, type SearchResults } from '@/services/searchService';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * The "All" search tab renders each section as its source answers.
@@ -35,8 +37,12 @@ jest.mock('expo-router', () => ({
   useIsFocused: () => true,
 }));
 
+let mockViewerId: string | undefined = 'viewer-1';
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ canUsePrivateApi: true, user: { id: 'viewer-1' } }),
+  useAuth: () => ({
+    canUsePrivateApi: Boolean(mockViewerId),
+    user: mockViewerId ? { id: mockViewerId } : null,
+  }),
 }));
 
 jest.mock('@oxy.so/core', () => ({
@@ -55,8 +61,8 @@ jest.mock('@/services/feedService', () => ({ feedService: { getSavedPosts: jest.
 jest.mock('@/utils/storage', () => ({
   Storage: {
     get: jest.fn(async () => null),
-    set: jest.fn(async () => undefined),
-    remove: jest.fn(async () => undefined),
+    set: jest.fn(async () => true),
+    remove: jest.fn(async () => true),
   },
 }));
 
@@ -119,9 +125,16 @@ jest.mock('@oxy.so/bloom/search', () => {
   const React_ = jest.requireActual<typeof import('react')>('react');
   const { TextInput } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    Search: React_.forwardRef<unknown, { value: string }>((props, ref) => (
-      <TextInput ref={ref as never} value={props.value} testID="search-box" />
-    )),
+    Search: React_.forwardRef<unknown, { value: string; onSubmitEditing?: () => void }>(
+      (props, ref) => (
+        <TextInput
+          ref={ref as never}
+          value={props.value}
+          onSubmitEditing={props.onSubmitEditing}
+          testID="search-box"
+        />
+      ),
+    ),
   };
 });
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
@@ -199,6 +212,7 @@ const POSTS: SearchResults = { posts: [{ id: 'p-1' } as never] };
 let releasePosts: (value: SearchResults) => void = () => undefined;
 
 beforeEach(() => {
+  mockViewerId = 'viewer-1';
   jest.spyOn(searchService, 'getSearchHistory').mockResolvedValue([]);
   jest.spyOn(searchService, 'searchAllSource').mockImplementation((source: SearchAllSource) => {
     switch (source) {
@@ -319,3 +333,61 @@ it.each(['onClearText', 'onChangeText'])(
     client.clear();
   },
 );
+
+it('does not restore old history into the query cache after a viewer reset', async () => {
+  let resolve!: (value: string[]) => void;
+  jest.spyOn(searchService, 'addToSearchHistory').mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  const { renderer, client } = await renderScreen();
+  act(() => {
+    renderer.root.findByProps({ testID: 'search-box' }).props.onSubmitEditing();
+  });
+  expect(resolve).toBeDefined();
+  client.clear();
+  await searchService.clearSearchHistory('viewer-1');
+  const key = viewerQueryKeys.searchHistory('viewer-1');
+  client.setQueryData(key, ['new session']);
+  await act(async () => {
+    resolve(['private old']);
+    await Promise.resolve();
+  });
+  expect(client.getQueryData(key)).toEqual(['new session']);
+  act(() => renderer.unmount());
+});
+
+it('rejects a submit callback captured before reset, and permits a fresh callback', async () => {
+  const add = jest.spyOn(searchService, 'addToSearchHistory').mockResolvedValue(['new']);
+  const { renderer } = await renderScreen();
+  const oldSubmit = renderer.root.findByProps({ testID: 'search-box' }).props.onSubmitEditing;
+  await act(async () => {
+    await searchService.clearSearchHistory('viewer-1');
+    await searchService.clearSearchHistory('viewer-b');
+  });
+  act(() => oldSubmit());
+  expect(add).not.toHaveBeenCalled();
+  await act(async () => {
+    renderer.root.findByProps({ testID: 'search-box' }).props.onSubmitEditing();
+    await Promise.resolve();
+  });
+  expect(add).toHaveBeenCalledWith('rust', 'viewer-1');
+  act(() => renderer.unmount());
+});
+
+it('rejects a guest callback captured before sign-in without deleting guest history', async () => {
+  mockViewerId = undefined;
+  const add = jest.spyOn(searchService, 'addToSearchHistory').mockResolvedValue(['guest']);
+  const { renderer } = await renderScreen();
+  const oldSubmit = renderer.root.findByProps({ testID: 'search-box' }).props.onSubmitEditing;
+  act(() => searchService.invalidateSearchHistory());
+  act(() => oldSubmit());
+  expect(add).not.toHaveBeenCalled();
+  await act(async () => {
+    renderer.root.findByProps({ testID: 'search-box' }).props.onSubmitEditing();
+    await Promise.resolve();
+  });
+  expect(add).toHaveBeenCalledWith('rust', undefined);
+  act(() => renderer.unmount());
+});

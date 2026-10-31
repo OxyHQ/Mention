@@ -4,6 +4,7 @@ import { oxyServices } from '@/lib/oxyServices';
 import { feedService } from './feedService';
 import { Storage } from '@/utils/storage';
 import { viewerStorageKey, type ViewerId } from '@/lib/viewerQueryKeys';
+import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
 import type { User } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { StarterPackSummary } from './starterPacksService';
@@ -161,9 +162,35 @@ interface StarterPackListResponse {
 
 const SEARCH_HISTORY_KEY = 'mention_search_history';
 const MAX_SEARCH_HISTORY = 10;
+const enqueueSearchHistory = createKeyedAsyncQueue();
+const searchHistoryEpochs = new Map<string, number>();
+const searchHistoryListeners = new Set<() => void>();
+const blockedSearchHistories = new Set<string>();
+
+/** Retry a failed deletion before exposing or changing that history again. */
+async function prepareSearchHistory(key: string): Promise<boolean> {
+  if (!blockedSearchHistories.has(key)) return true;
+  if (!(await Storage.remove(key))) return false;
+  blockedSearchHistories.delete(key);
+  return true;
+}
 
 export const getSearchHistoryStorageKey = (viewerId: ViewerId): string =>
   viewerStorageKey(SEARCH_HISTORY_KEY, viewerId);
+
+/** Capture before starting async history work; a clear invalidates all older work. */
+export function captureSearchHistoryEpoch(viewerId: ViewerId): number {
+  return searchHistoryEpochs.get(getSearchHistoryStorageKey(viewerId)) ?? 0;
+}
+
+export function isCurrentSearchHistoryEpoch(viewerId: ViewerId, epoch: number): boolean {
+  return captureSearchHistoryEpoch(viewerId) === epoch;
+}
+
+export function subscribeSearchHistoryEpoch(listener: () => void): () => void {
+  searchHistoryListeners.add(listener);
+  return () => searchHistoryListeners.delete(listener);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -725,34 +752,72 @@ class SearchService {
   // --- Search history ---
 
   async getSearchHistory(viewerId?: ViewerId): Promise<string[]> {
-    const history = await Storage.get<string[]>(getSearchHistoryStorageKey(viewerId));
-    return history || [];
+    const key = getSearchHistoryStorageKey(viewerId);
+    const epoch = captureSearchHistoryEpoch(viewerId);
+    return enqueueSearchHistory(key, async () => {
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      if (!(await prepareSearchHistory(key))) return [];
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      const history = await Storage.get<string[]>(key);
+      return isCurrentSearchHistoryEpoch(viewerId, epoch) ? history || [] : [];
+    });
   }
 
   async addToSearchHistory(query: string, viewerId?: ViewerId): Promise<string[]> {
     const trimmed = query.trim();
     if (!trimmed) return this.getSearchHistory(viewerId);
 
-    let history = await this.getSearchHistory(viewerId);
-    // Remove duplicate if exists
-    history = history.filter((item) => item !== trimmed);
-    // Add to front
-    history.unshift(trimmed);
-    // Keep only last N
-    history = history.slice(0, MAX_SEARCH_HISTORY);
-    await Storage.set(getSearchHistoryStorageKey(viewerId), history);
-    return history;
+    const key = getSearchHistoryStorageKey(viewerId);
+    const epoch = captureSearchHistoryEpoch(viewerId);
+    return enqueueSearchHistory(key, async () => {
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      if (!(await prepareSearchHistory(key)))
+        throw new Error('Search history could not be cleared');
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      const current = (await Storage.get<string[]>(key)) || [];
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      const history = [trimmed, ...current.filter((item) => item !== trimmed)].slice(
+        0,
+        MAX_SEARCH_HISTORY,
+      );
+      if (!(await Storage.set(key, history))) throw new Error('Search history could not be saved');
+      return isCurrentSearchHistoryEpoch(viewerId, epoch) ? history : [];
+    });
   }
 
   async removeFromSearchHistory(query: string, viewerId?: ViewerId): Promise<string[]> {
-    let history = await this.getSearchHistory(viewerId);
-    history = history.filter((item) => item !== query);
-    await Storage.set(getSearchHistoryStorageKey(viewerId), history);
-    return history;
+    const key = getSearchHistoryStorageKey(viewerId);
+    const epoch = captureSearchHistoryEpoch(viewerId);
+    return enqueueSearchHistory(key, async () => {
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      if (!(await prepareSearchHistory(key)))
+        throw new Error('Search history could not be cleared');
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      const current = (await Storage.get<string[]>(key)) || [];
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return [];
+      const history = current.filter((item) => item !== query);
+      if (!(await Storage.set(key, history))) throw new Error('Search history could not be saved');
+      return isCurrentSearchHistoryEpoch(viewerId, epoch) ? history : [];
+    });
   }
 
   async clearSearchHistory(viewerId?: ViewerId): Promise<void> {
-    await Storage.remove(getSearchHistoryStorageKey(viewerId));
+    const key = getSearchHistoryStorageKey(viewerId);
+    searchHistoryEpochs.set(key, captureSearchHistoryEpoch(viewerId) + 1);
+    blockedSearchHistories.add(key);
+    const removal = enqueueSearchHistory(key, async () => {
+      if (!(await prepareSearchHistory(key)))
+        throw new Error('Search history could not be cleared');
+    });
+    for (const listener of searchHistoryListeners) listener();
+    await removal;
+  }
+
+  /** Invalidate old callbacks without erasing this viewer's stored history. */
+  invalidateSearchHistory(viewerId?: ViewerId): void {
+    const key = getSearchHistoryStorageKey(viewerId);
+    searchHistoryEpochs.set(key, captureSearchHistoryEpoch(viewerId) + 1);
+    for (const listener of searchHistoryListeners) listener();
   }
 }
 
