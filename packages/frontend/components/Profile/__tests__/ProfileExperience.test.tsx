@@ -377,7 +377,7 @@ describe('central employer identity', () => {
     act(() => {
       input('Title *').props.onChangeText('Engineer');
       input('Start date *').props.onChangeText('2024-01');
-      input('Company or organization *').props.onChangeText('Example');
+      input('Company or organization *').props.onChangeText(' Example ');
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
@@ -386,8 +386,8 @@ describe('central employer identity', () => {
     await press('Organization missing? Add it');
     await waitUntil(() => rendered().includes('does not grant you ownership'), 'the add form');
     act(() => {
-      input('Website (optional)').props.onChangeText('https://example.com');
-      input('Country code (optional, e.g. US)').props.onChangeText('GB');
+      input('Website (optional)').props.onChangeText(' https://example.com ');
+      input('Country code (optional, e.g. US)').props.onChangeText('gb');
     });
     await press('Add to directory');
     await waitUntil(
@@ -411,6 +411,21 @@ describe('central employer identity', () => {
     const submitted = jest.mocked(experienceService.create).mock.calls[0][0];
     expect(submitted).not.toHaveProperty('companyName');
     expect(submitted).not.toHaveProperty('companyOxyUserId');
+  });
+
+  it('rejects an invalid organization website without creating an account', async () => {
+    mockAuth.oxyServices.organizations.search.mockResolvedValue({ items: [], nextCursor: null });
+    await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
+    act(() => input('Company or organization *').props.onChangeText('Example'));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    await waitUntil(() => button('Organization missing? Add it') !== undefined, 'the add offer');
+    await press('Organization missing? Add it');
+    act(() => input('Website (optional)').props.onChangeText('not a URL'));
+    await press('Add to directory');
+    expect(rendered()).toContain('Check the name, website URL and two-letter country code.');
+    expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
   });
 
   it('does not offer directory creation during a search outage', async () => {
