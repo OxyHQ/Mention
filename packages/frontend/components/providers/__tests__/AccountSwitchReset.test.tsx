@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
@@ -294,6 +295,43 @@ describe('AccountSwitchReset identity boundary', () => {
     expect(mockInvalidateSearchHistory).toHaveBeenCalledTimes(1);
     expect(mockInvalidateSearchHistory).toHaveBeenCalledWith();
     expect(mockClearSearchHistory).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it('invalidates guest callbacks when authentication becomes unresolved', () => {
+    mockUser = null;
+    mockPersistedViewerId = 'anon';
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    mockInvalidateSearchHistory.mockClear();
+    mockIsAuthResolved = false;
+    act(() => renderer.update(renderBoundary()));
+    expect(mockInvalidateSearchHistory).toHaveBeenCalledWith();
+    expect(mockClearSearchHistory).not.toHaveBeenCalled();
+    expect(bootVisualShown(renderer)).toBe(true);
+    act(() => renderer.unmount());
+  });
+
+  it('reports a failed history deletion without blocking the next viewer', async () => {
+    const warning = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    const error = new Error('storage unavailable');
+    mockClearSearchHistory.mockRejectedValueOnce(error);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    mockUser = { id: 'viewer-b' };
+    await act(async () => {
+      renderer.update(renderBoundary());
+      await Promise.resolve();
+    });
+    expect(warning).toHaveBeenCalledWith('Failed to clear search history after account change', {
+      error,
+    });
+    expect(mockChildRender).toHaveBeenLastCalledWith('viewer-b');
+    warning.mockRestore();
     act(() => renderer.unmount());
   });
 
