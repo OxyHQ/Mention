@@ -10,11 +10,11 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "15.79.0",
+      "@oxy.so/bloom": "15.79.1",
       "@oxy.so/contracts": "6.1.0",
       "@oxy.so/core": "7.9.1",
       "@oxy.so/mcp": "1.4.0",
-      "@oxy.so/services": "13.13.0",
+      "@oxy.so/services": "13.14.1",
       "@oxy.so/utils": "^1.4.0",
       "@syra.fm/sdk": "0.24.0",
       "@types/bun": "1.4.3",
@@ -130,7 +130,7 @@
     "ob1": "0.87.1",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/core": "7.9.1",
-    "@oxy.so/services": "13.13.0",
+    "@oxy.so/services": "13.14.1",
     "fast-uri": "3.1.8",
     "fast-xml-parser": "5.11.1",
     "ioredis": "6.0.0",
