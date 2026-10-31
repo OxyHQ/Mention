@@ -345,14 +345,18 @@ async function deliverNotifications(
  * @param postId - ID of the post containing the mentions
  * @param actorId - ID of the user who created the post
  * @param entityType - Type of entity ('post' or 'reply')
- * @param emitEvent - Whether to emit real-time events
+ * @param repliedToIds - The replied-to post's notification recipients (owner and
+ *   accepted collaborators), who hear about this post as a REPLY. A reply that
+ *   names the person it answers is one event for them, not two, so they get no
+ *   mention on top. They still count toward the broadcast cap — the cap is about
+ *   how many people the post names.
  */
 export const createMentionNotifications = async (
   mentionUserIds: string[],
   postId: string,
   actorId: string,
   entityType: 'post' | 'reply' = 'post',
-  emitEvent: boolean = true,
+  repliedToIds: readonly string[] = [],
 ): Promise<void> => {
   try {
     if (!mentionUserIds || mentionUserIds.length === 0) return;
@@ -368,15 +372,17 @@ export const createMentionNotifications = async (
       return;
     }
 
+    const repliedTo = new Set(repliedToIds);
     await writeNotifications(
-      uniqueUserIds.map((recipientId) => ({
-        recipientId,
-        actorId,
-        type: 'mention' as const,
-        entityId: postId,
-        entityType,
-      })),
-      { emitEvent },
+      uniqueUserIds
+        .filter((recipientId) => !repliedTo.has(recipientId))
+        .map((recipientId) => ({
+          recipientId,
+          actorId,
+          type: 'mention' as const,
+          entityId: postId,
+          entityType,
+        })),
     );
   } catch (error) {
     logger.error('[Notifications] Error creating mention notifications:', error);

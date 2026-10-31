@@ -153,6 +153,7 @@ describe('POST /posts — a pasted profile link becomes a real mention', () => {
       post.id,
       AUTHOR_ID,
       'post',
+      [],
     );
   });
 

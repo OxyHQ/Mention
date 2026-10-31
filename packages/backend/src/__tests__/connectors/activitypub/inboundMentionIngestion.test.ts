@@ -236,6 +236,7 @@ describe('handleCreate — inbound @mention ingestion', () => {
       CREATED_POST_ID,
       AUTHOR_OXY_ID,
       'post',
+      [],
     );
   });
 
@@ -395,6 +396,7 @@ describe('handleCreate — broadcast notes notify nobody', () => {
       CREATED_POST_ID,
       AUTHOR_OXY_ID,
       'post',
+      [],
     );
   });
 

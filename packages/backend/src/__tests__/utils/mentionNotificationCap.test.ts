@@ -172,6 +172,15 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
   });
 });
 
+describe('createMentionNotifications — a reply that names the person it answers', () => {
+  it('leaves the replied-to authors out, since they already hear about it as a reply', async () => {
+    const [repliedTo, other] = mentionIds(2);
+    await createMentionNotifications([repliedTo, other], POST_ID, AUTHOR, 'reply', [repliedTo]);
+
+    expect(await notifiedRecipients()).toEqual([other]);
+  });
+});
+
 describe('createMentionNotifications — suppression is observable', () => {
   it('logs the suppression with both the mentioned count and the cap', async () => {
     await createMentionNotifications(mentionIds(CAP + 1), POST_ID, AUTHOR, 'post');
