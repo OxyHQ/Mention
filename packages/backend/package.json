@@ -26,7 +26,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@alia.onl/sdk": "22.1.1",
+    "@alia.onl/sdk": "22.9.0",
     "@aws-sdk/credential-provider-node": "3.972.84",
     "@clarity.surf/sdk": "0.10.0",
     "@crowdsource.you/contracts": "1.1.1",
