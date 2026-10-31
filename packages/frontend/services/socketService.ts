@@ -21,6 +21,7 @@ import {
 } from '@/constants/realtimeEvents';
 import { createLogger } from '@oxy.so/core/logger';
 import { wasRecent, type EchoAction } from './echoGuard';
+import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
 import {
   engagementQueueStorageKey,
   parseEngagementQueue,
@@ -90,6 +91,34 @@ interface EngagementUpdate {
   timestamp: number;
 }
 
+interface EngagementReplay {
+  observed: Map<string, Set<keyof EngagementCounts>>;
+  discardStored: boolean;
+}
+
+interface EngagementWriter {
+  generation: number;
+  pending?: { updates: Record<string, EngagementUpdate[]> | null };
+}
+
+const MAX_REPLAY_TRACKED_POSTS = 1000;
+
+function noteLiveEngagement(
+  replay: EngagementReplay,
+  postId: string,
+  counts: EngagementCounts,
+): void {
+  if (replay.discardStored) return;
+  if (!replay.observed.has(postId) && replay.observed.size >= MAX_REPLAY_TRACKED_POSTS) {
+    replay.observed.clear();
+    replay.discardStored = true;
+    return;
+  }
+  const seen = replay.observed.get(postId) ?? new Set<keyof EngagementCounts>();
+  for (const field of COUNT_FIELDS) if (counts[field] !== undefined) seen.add(field);
+  replay.observed.set(postId, seen);
+}
+
 class SocketService {
   private socket: Socket | null = null;
   private isConnected = false;
@@ -140,6 +169,18 @@ class SocketService {
   private readonly ENGAGEMENT_UPDATE_DEBOUNCE_MS = 200; // Batch engagement updates every 200ms
   private readonly MAX_ENGAGEMENT_BATCH_SIZE = 100; // Maximum engagement updates per post
   private engagementPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private socketGeneration = 0;
+  private enqueueEngagementStorage = createKeyedAsyncQueue();
+  private pendingEngagementCleanup = new Map<string, number>();
+  private activeEngagementCleanup = new Set<string>();
+  private activeEngagementReplays = new Set<EngagementReplay>();
+  private activeEngagementLoad?: { viewerId: string; generation: number; promise: Promise<void> };
+  private engagementWriters = new Map<string, EngagementWriter>();
+  private managerListeners?: {
+    attempt: (attempt: number) => void;
+    reconnect: () => void;
+    failed: () => void;
+  };
   private readonly LEGACY_ENGAGEMENT_PERSIST_KEY = 'mention-engagement-queue';
   private readonly ENGAGEMENT_PERSIST_DEBOUNCE_MS = 50;
   // Debounce timer for coalescing live-rooms update signals (participant churn)
@@ -318,6 +359,8 @@ class SocketService {
    * Disconnect from the socket server
    */
   disconnect() {
+    const previousViewerId = this.currentUserId;
+    this.socketGeneration += 1;
     this.socketSession?.dispose();
     this.socketSession = undefined;
     if (this.socket) {
@@ -357,6 +400,12 @@ class SocketService {
     this.feedRefreshes.clear();
     this.feedUpdateQueue.clear();
     this.engagementUpdateQueue.clear();
+    this.activeEngagementReplays.clear();
+    if (previousViewerId) {
+      const key = engagementQueueStorageKey(previousViewerId);
+      this.pendingEngagementCleanup.set(key, this.socketGeneration);
+      this.scheduleEngagementCleanup(key);
+    }
     // A full teardown ends every subscription: `disconnect()` runs on sign-out
     // and on a credential change, and replaying one viewer's rooms onto the
     // next viewer's socket would be a subscription they never asked for.
@@ -477,9 +526,12 @@ class SocketService {
     this.socket.off('user:presence');
     this.socket.off('user:presenceBulk');
     this.socket.off(SOCKET_EVENT_ROOMS_LIVE_UPDATED);
-    this.socket.io.off('reconnect_attempt', this.handleManagerReconnectAttempt);
-    this.socket.io.off('reconnect', this.handleManagerReconnect);
-    this.socket.io.off('reconnect_failed', this.handleManagerReconnectFailed);
+    if (this.managerListeners) {
+      this.socket.io.off('reconnect_attempt', this.managerListeners.attempt);
+      this.socket.io.off('reconnect', this.managerListeners.reconnect);
+      this.socket.io.off('reconnect_failed', this.managerListeners.failed);
+      this.managerListeners = undefined;
+    }
   }
 
   /**
@@ -487,8 +539,10 @@ class SocketService {
    */
   private setupSocketEventListeners() {
     if (!this.socket) return;
+    const generation = this.socketGeneration;
 
     this.socket.on('connect', () => {
+      if (generation !== this.socketGeneration) return;
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.loadPersistedEngagementQueue();
@@ -511,37 +565,53 @@ class SocketService {
     });
 
     this.socket.on('disconnect', () => {
+      if (generation !== this.socketGeneration) return;
       this.isConnected = false;
     });
 
     this.socket.on('connect_error', (error) => {
+      if (generation !== this.socketGeneration) return;
       this.isConnected = false;
       logger.warn('Socket connection failed', { error });
     });
 
     // Reconnection has exactly one owner: Socket.IO's Manager.
-    this.socket.io.on('reconnect_attempt', this.handleManagerReconnectAttempt);
-    this.socket.io.on('reconnect', this.handleManagerReconnect);
-    this.socket.io.on('reconnect_failed', this.handleManagerReconnectFailed);
+    const ifCurrent =
+      <T extends unknown[]>(handler: (...args: T) => void) =>
+      (...args: T) => {
+        if (generation === this.socketGeneration) handler(...args);
+      };
+    this.managerListeners = {
+      attempt: ifCurrent(this.handleManagerReconnectAttempt),
+      reconnect: ifCurrent(this.handleManagerReconnect),
+      failed: ifCurrent(this.handleManagerReconnectFailed),
+    };
+    this.socket.io.on('reconnect_attempt', this.managerListeners.attempt);
+    this.socket.io.on('reconnect', this.managerListeners.reconnect);
+    this.socket.io.on('reconnect_failed', this.managerListeners.failed);
 
     // Feed update events
     this.socket.on('feed:updated', (data) => {
+      if (generation !== this.socketGeneration) return;
       this.handleFeedUpdate(data);
     });
 
     // Post engagement events, from the `post:<id>` rooms this client joined.
     for (const [event, action] of ENGAGEMENT_EVENT_ACTIONS) {
       this.socket.on(event, (data: PostEngagementCountsPayload) => {
+        if (generation !== this.socketGeneration) return;
         this.handleEngagementEvent(action, data);
       });
     }
 
     // Presence events
     this.socket.on('user:presence', (data) => {
+      if (generation !== this.socketGeneration) return;
       this.handlePresenceUpdate(data);
     });
 
     this.socket.on('user:presenceBulk', (data) => {
+      if (generation !== this.socketGeneration) return;
       this.handlePresenceBulkUpdate(data);
     });
 
@@ -551,6 +621,7 @@ class SocketService {
 
     // Live-rooms set changed → debounced silent refetch (coalesces participant churn)
     this.socket.on(SOCKET_EVENT_ROOMS_LIVE_UPDATED, () => {
+      if (generation !== this.socketGeneration) return;
       this.handleLiveRoomsUpdated();
     });
   }
@@ -728,19 +799,19 @@ class SocketService {
    * Queue engagement update for batching
    */
   private queueEngagementUpdate(postId: string, counts: EngagementCounts) {
-    const existingQueue = this.engagementUpdateQueue.get(postId);
-    const queue = existingQueue ?? [];
-    if (!existingQueue) {
-      this.engagementUpdateQueue.set(postId, queue);
+    for (const replay of this.activeEngagementReplays) {
+      noteLiveEngagement(replay, postId, counts);
     }
+    let queue = this.engagementUpdateQueue.get(postId) ?? [];
 
     // Limit queue size to prevent memory issues
     if (queue.length >= this.MAX_ENGAGEMENT_BATCH_SIZE) {
       // Keep only the most recent updates
-      this.engagementUpdateQueue.set(postId, queue.slice(-50));
+      queue = queue.slice(-50);
     }
 
     queue.push({ counts, timestamp: Date.now() });
+    this.engagementUpdateQueue.set(postId, queue);
 
     // Clear existing timer
     if (this.engagementUpdateTimer) {
@@ -758,64 +829,147 @@ class SocketService {
   private persistEngagementQueue(): void {
     const viewerId = this.currentUserId;
     if (!viewerId) return;
+    const generation = this.socketGeneration;
 
     if (this.engagementPersistTimer) clearTimeout(this.engagementPersistTimer);
-    const storageKey = engagementQueueStorageKey(viewerId);
-    this.engagementPersistTimer = setTimeout(async () => {
+    this.engagementPersistTimer = setTimeout(() => {
       this.engagementPersistTimer = null;
-      if (this.currentUserId !== viewerId) return;
+      if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
 
-      try {
-        const serializable: Record<string, EngagementUpdate[]> = {};
-        for (const [key, value] of this.engagementUpdateQueue) {
-          serializable[key] = value;
-        }
-        if (Object.keys(serializable).length === 0) {
-          await AsyncStorage.removeItem(storageKey);
-          return;
-        }
-        await AsyncStorage.setItem(storageKey, serializeEngagementQueue(viewerId, serializable));
-      } catch (e) {
-        logger.debug('Failed to persist engagement queue', { error: e });
+      const serializable: Record<string, EngagementUpdate[]> = {};
+      for (const [key, value] of this.engagementUpdateQueue) {
+        serializable[key] = [...value];
       }
+      this.scheduleEngagementWrite(viewerId, generation, serializable);
     }, this.ENGAGEMENT_PERSIST_DEBOUNCE_MS);
   }
 
-  private async loadPersistedEngagementQueue(): Promise<void> {
+  /** Keep one writer and one replaceable snapshot per viewer/session. */
+  private scheduleEngagementWrite(
+    viewerId: string,
+    generation: number,
+    updates: Record<string, EngagementUpdate[]> | null,
+  ): void {
+    const key = engagementQueueStorageKey(viewerId);
+    const existing = this.engagementWriters.get(key);
+    if (existing?.generation === generation) {
+      existing.pending = { updates };
+      return;
+    }
+
+    const writer: EngagementWriter = { generation, pending: { updates } };
+    this.engagementWriters.set(key, writer);
+    void this.enqueueEngagementStorage(key, async () => {
+      try {
+        while (writer.pending) {
+          const next = writer.pending.updates;
+          writer.pending = undefined;
+          if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
+          await this.ensureEngagementCleanup(key);
+          if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
+          if (!next || Object.keys(next).length === 0) await AsyncStorage.removeItem(key);
+          else await AsyncStorage.setItem(key, serializeEngagementQueue(viewerId, next));
+        }
+      } finally {
+        if (this.engagementWriters.get(key) === writer) this.engagementWriters.delete(key);
+      }
+    }).catch((error) => {
+      logger.debug('Failed to persist engagement queue', { error });
+    });
+  }
+
+  private loadPersistedEngagementQueue(): Promise<void> {
     const viewerId = this.currentUserId;
-    if (!viewerId) return;
+    if (!viewerId) return Promise.resolve();
+    const generation = this.socketGeneration;
+    if (
+      this.activeEngagementLoad?.viewerId === viewerId &&
+      this.activeEngagementLoad.generation === generation
+    )
+      return this.activeEngagementLoad.promise;
+
+    const promise = this.replayPersistedEngagementQueue(viewerId, generation);
+    this.activeEngagementLoad = { viewerId, generation, promise };
+    const release = () => {
+      if (this.activeEngagementLoad?.promise === promise) this.activeEngagementLoad = undefined;
+    };
+    void promise.then(release, release);
+    return promise;
+  }
+
+  private async replayPersistedEngagementQueue(
+    viewerId: string,
+    generation: number,
+  ): Promise<void> {
     const storageKey = engagementQueueStorageKey(viewerId);
+    const liveDuringReplay: EngagementReplay = { observed: new Map(), discardStored: false };
+    for (const [postId, updates] of this.engagementUpdateQueue) {
+      for (const update of updates) noteLiveEngagement(liveDuringReplay, postId, update.counts);
+    }
+    this.activeEngagementReplays.add(liveDuringReplay);
 
     try {
       // v1 had no owner metadata. It is unsafe to replay under any identity.
       void AsyncStorage.removeItem(this.LEGACY_ENGAGEMENT_PERSIST_KEY).catch(() => {});
 
-      const raw = await AsyncStorage.getItem(storageKey);
-      if (!raw) return;
-      if (this.currentUserId !== viewerId) {
-        await AsyncStorage.removeItem(storageKey);
-        return;
-      }
+      await this.enqueueEngagementStorage(storageKey, async () => {
+        if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
+        await this.ensureEngagementCleanup(storageKey);
+        if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
+        const raw = await AsyncStorage.getItem(storageKey);
+        if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
+        if (!raw) return;
 
-      const parsed = parseEngagementQueue<EngagementUpdate>(raw, viewerId);
-      if (!parsed) {
-        await AsyncStorage.removeItem(storageKey);
-        return;
-      }
-      for (const [postId, updates] of Object.entries(parsed)) {
-        if (Array.isArray(updates) && updates.length > 0) {
-          this.engagementUpdateQueue.set(postId, updates);
+        const parsed = parseEngagementQueue<EngagementUpdate>(raw, viewerId);
+        if (parsed && !liveDuringReplay.discardStored) {
+          for (const [postId, updates] of Object.entries(parsed)) {
+            const superseded = liveDuringReplay.observed.get(postId);
+            const retained = updates.flatMap((update) => {
+              const counts = { ...update.counts };
+              for (const field of superseded ?? []) delete counts[field];
+              return COUNT_FIELDS.some((field) => counts[field] !== undefined)
+                ? [{ ...update, counts }]
+                : [];
+            });
+            if (retained.length > 0) {
+              this.engagementUpdateQueue.set(postId, [
+                ...retained,
+                ...(this.engagementUpdateQueue.get(postId) ?? []),
+              ]);
+            }
+          }
+          this.processEngagementQueue();
         }
-      }
-      if (this.currentUserId !== viewerId) {
-        this.engagementUpdateQueue.clear();
         await AsyncStorage.removeItem(storageKey);
-        return;
-      }
-      this.processEngagementQueue();
-      await AsyncStorage.removeItem(storageKey);
+      });
     } catch (e) {
       logger.debug('Failed to load persisted engagement queue', { error: e });
+    } finally {
+      this.activeEngagementReplays.delete(liveDuringReplay);
+    }
+  }
+
+  /** A failed teardown must not make an old queue eligible for replay. */
+  private scheduleEngagementCleanup(storageKey: string): void {
+    if (this.activeEngagementCleanup.has(storageKey)) return;
+    this.activeEngagementCleanup.add(storageKey);
+    void this.enqueueEngagementStorage(storageKey, async () => {
+      try {
+        while (this.pendingEngagementCleanup.has(storageKey)) {
+          await this.ensureEngagementCleanup(storageKey);
+        }
+      } finally {
+        this.activeEngagementCleanup.delete(storageKey);
+      }
+    }).catch((error) => logger.debug('Failed to clear previous engagement queue', { error }));
+  }
+
+  private async ensureEngagementCleanup(storageKey: string): Promise<void> {
+    const cleanupGeneration = this.pendingEngagementCleanup.get(storageKey);
+    if (cleanupGeneration === undefined) return;
+    await AsyncStorage.removeItem(storageKey);
+    if (this.pendingEngagementCleanup.get(storageKey) === cleanupGeneration) {
+      this.pendingEngagementCleanup.delete(storageKey);
     }
   }
 
@@ -881,7 +1035,7 @@ class SocketService {
       clearTimeout(this.engagementPersistTimer);
       this.engagementPersistTimer = null;
     }
-    AsyncStorage.removeItem(engagementQueueStorageKey(viewerId)).catch(() => {});
+    this.scheduleEngagementWrite(viewerId, this.socketGeneration, null);
   }
 
   // Presence event listeners
@@ -948,6 +1102,7 @@ class SocketService {
       this.presenceListeners.set(userId, listeners);
     }
     listeners.add(callback);
+    const subscription = listeners;
 
     // Tell server to subscribe to this user's presence
     if (this.socket?.connected) {
@@ -957,7 +1112,7 @@ class SocketService {
     // Return unsubscribe function
     return () => {
       const listeners = this.presenceListeners.get(userId);
-      if (listeners) {
+      if (listeners === subscription) {
         listeners.delete(callback);
         if (listeners.size === 0) {
           this.presenceListeners.delete(userId);
@@ -974,13 +1129,18 @@ class SocketService {
    * Get online status of a user (async with callback)
    */
   getPresence(userId: string): Promise<boolean> {
-    return new Promise((resolve) => {
+    const generation = this.socketGeneration;
+    return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
         resolve(false);
         return;
       }
 
       this.socket.emit('getPresence', userId, (data: { online: boolean }) => {
+        if (generation !== this.socketGeneration) {
+          reject(new Error('Socket session changed'));
+          return;
+        }
         resolve(data?.online ?? false);
       });
     });
