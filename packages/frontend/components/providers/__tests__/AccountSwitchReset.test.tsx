@@ -399,15 +399,19 @@ describe('AccountSwitchReset identity boundary', () => {
       renderer = TestRenderer.create(renderBoundary());
     });
 
+    markLocalAction('logout-post', 'save');
     mockUser = null;
     act(() => {
       renderer!.update(renderBoundary());
     });
+    expect(wasRecent('logout-post', 'save')).toBe(false);
 
+    markLocalAction('guest-post', 'save');
     mockUser = { id: 'viewer-b' };
     act(() => {
       renderer!.update(renderBoundary());
     });
+    expect(wasRecent('guest-post', 'save')).toBe(false);
 
     expect(mockQueryClientClear).toHaveBeenCalledTimes(2);
     expect(mockResetAppearance).toHaveBeenCalledTimes(2);
