@@ -7,7 +7,9 @@ const mockMount = jest.fn();
 
 // The resting avatar has its own behavior tests. Isolate this test around the
 // gallery's first open when the component is combined with main's avatar UI.
-jest.mock('@/components/ui/AccountAvatar', () => ({ AccountAvatar: () => null }), { virtual: true });
+jest.mock('@/components/ui/AccountAvatar', () => ({ AccountAvatar: () => null }), {
+  virtual: true,
+});
 jest.mock(
   '@/components/ui/use-account-avatar-motion',
   () => ({ hasAccountAvatarCharacter: () => false }),
