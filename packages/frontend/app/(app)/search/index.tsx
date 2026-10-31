@@ -2,7 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,9 @@ import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import {
   searchService,
+  captureSearchHistoryEpoch,
+  isCurrentSearchHistoryEpoch,
+  subscribeSearchHistoryEpoch,
   SEARCH_OPERATORS,
   type SearchFeedResult,
   type SearchHashtagResult,
@@ -44,6 +47,7 @@ import {
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
+import { toast } from '@oxy.so/bloom/toast';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
 import { VirtualList } from '@oxy.so/bloom/list';
@@ -496,6 +500,12 @@ function SearchIndex() {
   }
 
   // --- Search history (Storage-backed, cached by React Query) ---
+  const readHistoryEpoch = useCallback(() => captureSearchHistoryEpoch(viewerId), [viewerId]);
+  const historyEpoch = useSyncExternalStore(
+    subscribeSearchHistoryEpoch,
+    readHistoryEpoch,
+    readHistoryEpoch,
+  );
   const searchHistoryQueryKey = useMemo(() => viewerQueryKeys.searchHistory(viewerId), [viewerId]);
   const { data: searchHistory = [] } = useQuery({
     queryKey: searchHistoryQueryKey,
@@ -515,13 +525,22 @@ function SearchIndex() {
   const commitToHistory = useCallback(
     (term: string) => {
       const trimmed = term.trim();
-      if (!trimmed) return;
+      if (!trimmed || !isCurrentSearchHistoryEpoch(viewerId, historyEpoch)) return;
+      const epoch = historyEpoch;
       searchService
         .addToSearchHistory(trimmed, viewerId)
-        .then(setSearchHistory)
-        .catch((error: unknown) => logger.warn('Failed to save search history', { error }));
+        .then((history) => {
+          if (isCurrentSearchHistoryEpoch(viewerId, epoch)) setSearchHistory(history);
+        })
+        .catch((error: unknown) => {
+          if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return;
+          logger.warn('Failed to save search history', { error });
+          toast.error(
+            t('search.history.updateFailed', { defaultValue: 'Could not update search history.' }),
+          );
+        });
     },
-    [setSearchHistory, viewerId],
+    [setSearchHistory, viewerId, historyEpoch, t],
   );
 
   const commitCurrentQuery = useCallback(() => {
@@ -762,15 +781,39 @@ function SearchIndex() {
 
   const handleRemoveRecent = useCallback(
     async (term: string) => {
-      setSearchHistory(await searchService.removeFromSearchHistory(term, viewerId));
+      if (!isCurrentSearchHistoryEpoch(viewerId, historyEpoch)) return;
+      const epoch = historyEpoch;
+      try {
+        const history = await searchService.removeFromSearchHistory(term, viewerId);
+        if (isCurrentSearchHistoryEpoch(viewerId, epoch)) setSearchHistory(history);
+      } catch (error) {
+        if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return;
+        logger.warn('Failed to update search history', { error });
+        toast.error(
+          t('search.history.updateFailed', { defaultValue: 'Could not update search history.' }),
+        );
+      }
     },
-    [setSearchHistory, viewerId],
+    [setSearchHistory, viewerId, historyEpoch, t],
   );
 
   const handleClearHistory = useCallback(async () => {
-    await searchService.clearSearchHistory(viewerId);
-    setSearchHistory([]);
-  }, [setSearchHistory, viewerId]);
+    if (!isCurrentSearchHistoryEpoch(viewerId, historyEpoch)) return;
+    const clearing = searchService.clearSearchHistory(viewerId);
+    const epoch = captureSearchHistoryEpoch(viewerId);
+    try {
+      await clearing;
+    } catch (error) {
+      if (!isCurrentSearchHistoryEpoch(viewerId, epoch)) return;
+      logger.warn('Failed to clear search history', { error });
+      toast.error(
+        t('search.history.clearFailed', {
+          defaultValue: 'Could not clear search history. Please try again.',
+        }),
+      );
+    }
+    if (isCurrentSearchHistoryEpoch(viewerId, epoch)) setSearchHistory([]);
+  }, [setSearchHistory, viewerId, historyEpoch, t]);
 
   // Seed the box from an operator chip. A parameterised operator contributes its
   // prefix and waits for a value; a complete one (`from:me`, `has:media`) goes in

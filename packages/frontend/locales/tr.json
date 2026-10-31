@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "Arama geçmişi güncellenemedi.",
+  "search.history.clearFailed": "Arama geçmişi temizlenemedi. Lütfen tekrar deneyin.",
   "post.threadPosition": "Dizideki {{total}} gönderiden {{index}}. gönderi",
   "post.viewConversation": "Sohbeti görüntüle",
   "post.threadContinuation": "Dizinin devamı ({{count}})",

@@ -1166,6 +1166,10 @@
     "startSearching": "Search Mention",
     "startDescription": "Find people, posts, hashtags, and more",
     "recentSearches": "Recent searches",
+    "history": {
+      "updateFailed": "Could not update search history.",
+      "clearFailed": "Could not clear search history. Please try again."
+    },
     "operatorHints": "Search operators",
     "operator": {
       "from": "Posts by a specific user",

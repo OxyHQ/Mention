@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
@@ -126,7 +127,10 @@ jest.mock('@/services/feedService', () => ({
 }));
 
 jest.mock('@/services/searchService', () => ({
-  searchService: { clearSearchHistory: jest.fn(() => Promise.resolve()) },
+  searchService: {
+    clearSearchHistory: jest.fn(() => Promise.resolve()),
+    invalidateSearchHistory: jest.fn(),
+  },
 }));
 
 jest.mock('@/services/socketService', () => ({
@@ -157,6 +161,7 @@ const mockResetSafetyInvalidation = resetSafetyInvalidation as jest.Mock;
 const mockNoteReaderLanguages = noteReaderLanguages as jest.Mock;
 const mockSetFeedViewerRequestScope = setFeedViewerRequestScope as jest.Mock;
 const mockClearSearchHistory = searchService.clearSearchHistory as jest.Mock;
+const mockInvalidateSearchHistory = searchService.invalidateSearchHistory as jest.Mock;
 const mockDisconnectSocket = socketService.disconnect as jest.Mock;
 const mockResetLiveRoom = liveRoomRuntimeController.resetViewerState as jest.Mock;
 const mockClaimViewerCache = claimViewerCache as jest.Mock;
@@ -272,6 +277,62 @@ describe('AccountSwitchReset identity boundary', () => {
     act(() => {
       renderer!.unmount();
     });
+  });
+
+  it('invalidates guest callbacks without clearing guest history when signing in', () => {
+    mockUser = null;
+    mockPersistedViewerId = 'anon';
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    mockInvalidateSearchHistory.mockClear();
+    mockClearSearchHistory.mockClear();
+    mockUser = { id: 'viewer-b' };
+    act(() => {
+      renderer.update(renderBoundary());
+    });
+    expect(mockInvalidateSearchHistory).toHaveBeenCalledTimes(1);
+    expect(mockInvalidateSearchHistory).toHaveBeenCalledWith();
+    expect(mockClearSearchHistory).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it('invalidates guest callbacks when authentication becomes unresolved', () => {
+    mockUser = null;
+    mockPersistedViewerId = 'anon';
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    mockInvalidateSearchHistory.mockClear();
+    mockIsAuthResolved = false;
+    act(() => renderer.update(renderBoundary()));
+    expect(mockInvalidateSearchHistory).toHaveBeenCalledWith();
+    expect(mockClearSearchHistory).not.toHaveBeenCalled();
+    expect(bootVisualShown(renderer)).toBe(true);
+    act(() => renderer.unmount());
+  });
+
+  it('reports a failed history deletion without blocking the next viewer', async () => {
+    const warning = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    const error = new Error('storage unavailable');
+    mockClearSearchHistory.mockRejectedValueOnce(error);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    mockUser = { id: 'viewer-b' };
+    await act(async () => {
+      renderer.update(renderBoundary());
+      await Promise.resolve();
+    });
+    expect(warning).toHaveBeenCalledWith('Failed to clear search history after account change', {
+      error,
+    });
+    expect(mockChildRender).toHaveBeenLastCalledWith('viewer-b');
+    warning.mockRestore();
+    act(() => renderer.unmount());
   });
 
   it('does not reuse A state when B is selected directly', () => {

@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "Impossible de mettre à jour l’historique des recherches.",
+  "search.history.clearFailed": "Impossible d’effacer l’historique des recherches. Veuillez réessayer.",
   "post.threadPosition": "Publication {{index}} sur {{total}} du fil",
   "post.viewConversation": "Voir la conversation",
   "post.threadContinuation": "Suite du fil ({{count}})",

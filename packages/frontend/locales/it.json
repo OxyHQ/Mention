@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "Impossibile aggiornare la cronologia delle ricerche.",
+  "search.history.clearFailed": "Impossibile cancellare la cronologia delle ricerche. Riprova.",
   "post.threadPosition": "Post {{index}} di {{total}} del thread",
   "post.viewConversation": "Mostra conversazione",
   "post.threadContinuation": "Continuazione del thread ({{count}})",

@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "Não foi possível atualizar o histórico de pesquisa.",
+  "search.history.clearFailed": "Não foi possível limpar o histórico de pesquisa. Tente novamente.",
   "post.threadPosition": "Publicação {{index}} de {{total}} na sequência",
   "post.viewConversation": "Ver conversa",
   "post.threadContinuation": "Continuação da sequência ({{count}})",

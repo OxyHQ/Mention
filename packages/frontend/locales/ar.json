@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "تعذّر تحديث سجل البحث.",
+  "search.history.clearFailed": "تعذّر مسح سجل البحث. يرجى المحاولة مرة أخرى.",
   "post.threadPosition": "المنشور {{index}} من {{total}} في السلسلة",
   "post.viewConversation": "عرض المحادثة",
   "post.threadContinuation": "متابعة السلسلة ({{count}})",

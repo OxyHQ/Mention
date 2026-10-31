@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getUserLanguages } from '@oxy.so/core';
+import { logger } from '@oxy.so/core/logger';
 import { useAppLanguage } from '@/hooks/useAppLanguage';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
@@ -147,7 +148,9 @@ export function AccountSwitchReset({
       if (previousViewerId) {
         resetRecommendationFiltersViewer(previousViewerId);
         resetCurrentUserPrivacySettingsCache(previousViewerId);
-        void searchService.clearSearchHistory(previousViewerId);
+        void searchService.clearSearchHistory(previousViewerId).catch((error: unknown) => {
+          logger.warn('Failed to clear search history after account change', { error });
+        });
       }
     },
     [queryClient, resetAppearance, resetTheme],
@@ -158,6 +161,7 @@ export function AccountSwitchReset({
       setFeedViewerRequestScope(null);
       const previousViewerId = prevViewerIdRef.current;
       if (previousViewerId) {
+        if (previousViewerId === viewerCacheId(null)) searchService.invalidateSearchHistory();
         clearRuntimeState(
           previousViewerId === viewerCacheId(null) ? undefined : previousViewerId,
           true,
@@ -181,6 +185,9 @@ export function AccountSwitchReset({
     const identityChanged = prev !== null && prev !== viewerId;
 
     if (identityChanged || cacheClaim.reset) {
+      if (identityChanged && prev === viewerCacheId(null)) {
+        searchService.invalidateSearchHistory();
+      }
       // claimViewerCache already replaced persistence atomically. Reset only
       // process-local posts state here so its selector invalidation cannot
       // delete the new viewer-owner marker again.

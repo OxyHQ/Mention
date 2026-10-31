@@ -1,4 +1,6 @@
 {
+  "search.history.updateFailed": "Der Suchverlauf konnte nicht aktualisiert werden.",
+  "search.history.clearFailed": "Der Suchverlauf konnte nicht gelöscht werden. Bitte versuche es erneut.",
   "post.threadPosition": "Beitrag {{index}} von {{total}} im Thread",
   "post.viewConversation": "Unterhaltung ansehen",
   "post.threadContinuation": "Fortsetzung des Threads ({{count}})",
