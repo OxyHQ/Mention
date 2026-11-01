@@ -581,7 +581,9 @@ test('an expandable notification group keeps its control and row gesture indepen
   await page.goto('/notifications');
   const toggle = page.getByRole('button', { name: 'Show all', exact: true });
   await expect(toggle).toHaveCount(1);
-  const row = page.locator('.group').filter({ has: toggle });
+  const row = page
+    .locator('.group')
+    .filter({ has: page.getByText('Grouped notification fixture', { exact: true }) });
   await expect(row).toHaveCount(1);
   const rowBox = await row.boundingBox();
   const toggleBox = await toggle.boundingBox();
