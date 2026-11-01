@@ -15,10 +15,24 @@ import { create } from 'zustand';
  */
 interface ThreadHoverStore {
   hoveredSliceKey: string | null;
-  setHoveredSlice: (key: string | null) => void;
+  owner: object | null;
 }
 
-export const useThreadHoverStore = create<ThreadHoverStore>((set) => ({
+export const useThreadHoverStore = create<ThreadHoverStore>(() => ({
   hoveredSliceKey: null,
-  setHoveredSlice: (key) => set({ hoveredSliceKey: key }),
+  owner: null,
 }));
+
+/** Own the current pointer gesture by component instance, not by post id. */
+export function enterThreadHover(key: string, owner: object): void {
+  useThreadHoverStore.setState({ hoveredSliceKey: key, owner });
+}
+
+/** A recycled/unmounted row or a late hover-out must not clear another row's hover. */
+export function leaveThreadHover(owner: object, key: string): void {
+  useThreadHoverStore.setState((state) =>
+    state.owner === owner && state.hoveredSliceKey === key
+      ? { hoveredSliceKey: null, owner: null }
+      : state,
+  );
+}
