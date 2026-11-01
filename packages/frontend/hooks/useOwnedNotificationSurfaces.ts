@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { NotificationIntent } from '@/types/notificationIntent';
 
 /** Owns each notification surface until it settles or its screen/session ends. */
@@ -8,7 +8,7 @@ export function useOwnedNotificationSurfaces(
 ) {
   const pending = useRef(new Set<AbortController>());
   const mounted = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     mounted.current = true;
     const controllers = pending.current;
     return () => {

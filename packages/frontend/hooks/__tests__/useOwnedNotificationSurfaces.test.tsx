@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { StrictMode, useEffect, useLayoutEffect } from 'react';
+import { renderToString } from 'react-dom/server';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useOwnedNotificationSurfaces } from '../useOwnedNotificationSurfaces';
 import type { NotificationIntent } from '@/types/notificationIntent';
@@ -167,5 +168,78 @@ it('settling one owned layer does not close its sibling', async () => {
   await second;
   expect(layers[1].signal.aborted).toBe(true);
   expect(listeners.size).toBe(0);
+  await act(async () => renderer.unmount());
+});
+
+it('does not present from a row cleanup during screen unmount', async () => {
+  const present = jest.fn(async () => 'opened');
+  function Row({ open }: { open: Open }) {
+    useLayoutEffect(
+      () => () => {
+        void open({ viewerId: 'A', epoch: 1 }, present);
+      },
+      [open],
+    );
+    return null;
+  }
+  function Screen() {
+    const open = useOwnedNotificationSurfaces(
+      () => true,
+      () => () => {},
+    );
+    return <Row open={open} />;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<Screen />);
+  });
+  await act(async () => {
+    renderer.unmount();
+  });
+  expect(present).not.toHaveBeenCalled();
+});
+
+it('can render the owner on the server without a layout-effect warning', () => {
+  const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+  function Screen() {
+    useOwnedNotificationSurfaces(
+      () => true,
+      () => () => {},
+    );
+    return null;
+  }
+  try {
+    expect(renderToString(<Screen />)).toBe('');
+    expect(error).not.toHaveBeenCalled();
+  } finally {
+    error.mockRestore();
+  }
+});
+
+it('continues to own surfaces after StrictMode replays layout effects', async () => {
+  let open!: Open;
+  let layouts = 0;
+  function Screen() {
+    open = useOwnedNotificationSurfaces(
+      () => true,
+      () => () => {},
+    );
+    useLayoutEffect(() => {
+      layouts++;
+    }, []);
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <StrictMode>
+        <Screen />
+      </StrictMode>,
+    );
+  });
+  expect(layouts).toBeGreaterThanOrEqual(2);
+  const present = jest.fn(async () => 'opened');
+  expect(await open({ viewerId: 'A', epoch: 1 }, present)).toBe('opened');
+  expect(present).toHaveBeenCalledTimes(1);
   await act(async () => renderer.unmount());
 });
