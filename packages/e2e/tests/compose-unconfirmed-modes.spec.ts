@@ -57,7 +57,9 @@ for (const mode of ['post', 'reply', 'thread', 'scheduled', 'edit', 'server draf
     if (mode === 'scheduled')
       params.set('scheduledFor', new Date(Date.now() + 86_400_000).toISOString());
     await page.goto(`/compose?${params.toString()}`);
-    const editor = page.getByPlaceholder("What's new?").first();
+    const editor = page
+      .getByPlaceholder(mode === 'reply' ? 'Post your reply' : "What's new?")
+      .first();
     await expect(editor).toBeVisible();
     if (mode === 'edit' || mode === 'server draft') await expect(editor).toHaveValue(originalText);
     else await editor.fill(originalText);
