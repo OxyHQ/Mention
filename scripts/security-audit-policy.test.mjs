@@ -138,8 +138,16 @@ test('missing compensation is invalid', () => {
   delete input.entry.compensation;
   assert.throws(() => exceptionMatches(input), /compensation/);
 });
-test('existing reviewed exceptions retain package, advisory and expiry checks', () => {
-  const legacy = policy.exceptions[0];
+test('an unguarded reviewed exception keeps its package, advisory and expiry checks', () => {
+  // Synthetic, so the test does not depend on which real exceptions are live.
+  const legacy = {
+    advisory: 'GHSA-0000-0000-0000',
+    package: 'example-package',
+    scope: 'build tooling only',
+    reason: 'No patched release exists.',
+    compensation: 'Never reached from a request path.',
+    expires: '2026-12-31',
+  };
   validateAuditException(legacy, new Date('2026-10-24'));
   assert.equal(
     exceptionMatches({
