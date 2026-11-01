@@ -721,7 +721,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
   const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
 
-  const separateGestures = (isGroup && item.expandable) || (isCollabInvite && collabInvitePending);
+  // The invite's post state arrives asynchronously. Select the structure by the
+  // notification type so loading or resolving the invite does not replace the
+  // accessible row while it has focus.
+  const separateGestures = isCollabInvite;
 
   const mainContent = (
     <>

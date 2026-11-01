@@ -597,7 +597,56 @@ test('an expandable notification group keeps its control and row gesture indepen
   await page.mouse.up();
   await expect(page.getByRole('button', { name: 'Show less', exact: true })).toBeVisible();
   await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+  const actor = row.getByText(userB, { exact: true });
+  await expect(actor).toBeVisible();
+  const actorBox = await actor.boundingBox();
+  if (!actorBox) throw new Error('The expanded group actor has no bounds');
+  await page.mouse.move(actorBox.x + actorBox.width / 2, actorBox.y + actorBox.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await expect(page.getByText('Mark as read', { exact: true })).toHaveCount(0);
+  await page.mouse.up();
+  await expect(page).toHaveURL(new RegExp(`/@${userB}$`));
   expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('a focused invitation keeps focus when its pending controls load', async ({
+  page,
+  candidate,
+}) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  await page.route('**/feed/item/collab-post', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    started();
+    await gate;
+    return route.fallback();
+  });
+  try {
+    await page.goto('/notifications');
+    await sent;
+    const action = page.getByRole('button', {
+      name: `${userA} invited you to collaborate on a post`,
+      exact: true,
+    });
+    await expect(action).toHaveCount(1);
+    await action.focus();
+    await expect(action).toBeFocused();
+    release();
+    await expect(page.getByRole('button', { name: 'Accept', exact: true })).toBeVisible();
+    await expect(action).toBeFocused();
+    expect(candidate.scriptErrors).toEqual([]);
+  } finally {
+    release();
+  }
 });
 
 test('a focused ordinary row keeps focus when a realtime notification creates a group', async ({
