@@ -159,3 +159,29 @@ it('a failed photo disables zoom, while replacement and late old errors keep the
   expect(mockAvatar.mock.lastCall?.[0]).toMatchObject({ source: replacement.source });
   act(() => tree.unmount());
 });
+
+it.each([
+  ['https://mention.earth/@alice', 'https://mention.earth/@alice'],
+  [undefined, null],
+])('passes a safe share URL or disables sharing', async (shareUrl, expected) => {
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = TestRenderer.create(
+      <ZoomableAvatar source="https://media.test/private?token=fixture" shareUrl={shareUrl} />,
+    );
+  });
+  await act(async () => {
+    tree.root.findByProps({ accessibilityLabel: 'Profile avatar' }).props.onPress();
+  });
+  expect(mockOpen).toHaveBeenCalledWith(
+    [
+      expect.objectContaining({
+        uri: 'https://media.test/private?token=fixture',
+        shareUrl: expected,
+      }),
+    ],
+    0,
+    expect.anything(),
+  );
+  act(() => tree.unmount());
+});

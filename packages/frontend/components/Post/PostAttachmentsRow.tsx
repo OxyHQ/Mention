@@ -33,6 +33,7 @@ import JobCard from '@/components/Post/JobCard';
 import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { LazyZoomableGallery } from '@/components/common/LazyZoomableGallery';
+import { galleryPostPermalink } from '@/utils/gallerySharePermalink';
 import { videoPosterUrl } from '@/utils/mediaUrls';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import type {
@@ -763,11 +764,12 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
           .map((item) => ({
             uri: item.fullSrc,
+            shareUrl: galleryPostPermalink(postId) ?? null,
             previewUri: item.src,
             alt: item.alt,
             aspectRatio: readMediaAspectRatio(item),
           })),
-      [mediaItems],
+      [mediaItems, postId],
     );
 
     const imageIndexByMediaId = useMemo<Map<string, number>>(() => {

@@ -31,7 +31,8 @@ import {
   useProfileCanonicalHref,
 } from '@/components/Profile/hooks/useProfileAccount';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
-import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
+import { profileRouteFamily, type ProfileRouteFamily } from '@/components/Profile/profileRoute';
+import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
@@ -210,6 +211,9 @@ function AccountInfoContent({
             UserName, so it reads as the same identity surface as the profile. */}
       <View className="px-4 pt-4 pb-5 items-center">
         <ZoomableAvatar
+          shareUrl={
+            galleryProfilePermalink(profileData.username, profileRouteFamily(profileData)) ?? null
+          }
           account={profileData}
           source={avatarUri}
           size={ABOUT_AVATAR_SIZE}

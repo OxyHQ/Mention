@@ -85,6 +85,7 @@ it('opens the measured avatar on the first press without mounting a viewer befor
         uri: 'https://example.test/avatar.jpg',
         previewUri: 'https://example.test/avatar.jpg',
         aspectRatio: 1,
+        shareUrl: null,
       },
     ],
     0,

@@ -156,3 +156,19 @@ describe('AccountInfoScreen — one Fediverse section for every non-Oxy account'
     expect(federationSection(renderer)).toBeUndefined();
   });
 });
+
+describe('avatar gallery share link', () => {
+  it.each([
+    [{ username: 'alice', isFederated: false }, 'https://mention.earth/@alice'],
+    [{ username: 'news', kind: 'channel', isFederated: false }, 'https://mention.earth/c/news'],
+    [
+      { username: 'news@remote.example', kind: 'channel', isFederated: true },
+      'https://mention.earth/@news%40remote.example',
+    ],
+    [{ username: undefined }, null],
+  ])('passes the resolved profile permalink or disables sharing', (profile, expected) => {
+    const renderer = render(profile);
+    expect(renderer.root.findByType('ZoomableAvatar' as never).props.shareUrl).toBe(expected);
+    TestRenderer.act(() => renderer.unmount());
+  });
+});

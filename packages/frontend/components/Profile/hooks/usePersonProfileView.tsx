@@ -45,7 +45,8 @@ import { PrivateBadge } from '../PrivateBadge';
 import { ProfileMovedNotice } from '../ProfileMovedNotice';
 import { ProfileContent } from '../ProfileContent';
 import { ProfileHeader } from '../ProfileHeader';
-import { profileBasePath } from '../profileRoute';
+import { profileBasePath, profileRouteFamily } from '../profileRoute';
+import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
 import {
   buildProfileTabDescriptors,
   followVerbForAccountKind,
@@ -446,6 +447,9 @@ export function usePersonProfileView({
     return (
       <>
         <ProfileHeader
+          galleryShareUrl={
+            galleryProfilePermalink(profileData.username, profileRouteFamily(profileData)) ?? null
+          }
           username={profileData.username}
           avatarUri={avatarUri}
           account={profileData}
