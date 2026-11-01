@@ -145,44 +145,50 @@ export function upsertPosts(posts: FeedItem[]): void {
   if (!db) return;
   try {
     db.execSync('BEGIN TRANSACTION');
-    for (const post of posts) {
-      if (!post.id) continue;
-      const row = postToRow(post);
-      if (!row.id) continue;
+    // runSync prepares and finalizes on every call. Reuse this statement for the
+    // batch and release it even if converting or writing a post fails.
+    const statement = db.prepareSync(UPSERT_POST_SQL);
+    try {
+      for (const post of posts) {
+        if (!post.id) continue;
+        const row = postToRow(post);
+        if (!row.id) continue;
 
-      db.runSync(
-        UPSERT_POST_SQL,
-        row.id,
-        row.user_id,
-        row.type,
-        row.parent_post_id,
-        row.original_post_id,
-        row.quoted_post_id,
-        row.content_json,
-        row.attachments_json,
-        row.link_previews_json,
-        row.permissions_json,
-        row.boost_json,
-        row.context_json,
-        row.user_json,
-        row.likes_count,
-        row.downvotes_count,
-        row.boosts_count,
-        row.replies_count,
-        row.saves_count,
-        row.views_count,
-        row.impressions_count,
-        row.is_liked,
-        row.is_downvoted,
-        row.is_boosted,
-        row.is_saved,
-        row.is_owner,
-        row.visibility,
-        row.created_at,
-        row.updated_at,
-        row.fetched_at,
-        row.raw_json,
-      );
+        statement.executeSync(
+          row.id,
+          row.user_id,
+          row.type,
+          row.parent_post_id,
+          row.original_post_id,
+          row.quoted_post_id,
+          row.content_json,
+          row.attachments_json,
+          row.link_previews_json,
+          row.permissions_json,
+          row.boost_json,
+          row.context_json,
+          row.user_json,
+          row.likes_count,
+          row.downvotes_count,
+          row.boosts_count,
+          row.replies_count,
+          row.saves_count,
+          row.views_count,
+          row.impressions_count,
+          row.is_liked,
+          row.is_downvoted,
+          row.is_boosted,
+          row.is_saved,
+          row.is_owner,
+          row.visibility,
+          row.created_at,
+          row.updated_at,
+          row.fetched_at,
+          row.raw_json,
+        );
+      }
+    } finally {
+      statement.finalizeSync();
     }
     db.execSync('COMMIT');
   } catch (error) {
