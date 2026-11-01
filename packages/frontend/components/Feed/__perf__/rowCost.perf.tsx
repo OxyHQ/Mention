@@ -380,6 +380,26 @@ describe('feed row cost', () => {
     };
   });
 
+  it('renders the link preview fixture with its publisher and cover', async () => {
+    const post = makeRow('linkPreview', 'fixture-check');
+    await act(async () => harness.handle.setPosts([post]));
+    const cards = harness.renderer.root.findAll(
+      (node) =>
+        node.props.url === post.documents?.[0]?.canonicalUrl &&
+        node.props.siteName === 'News' &&
+        Array.isArray(node.props.image),
+    );
+    expect(cards.length).toBeGreaterThan(0);
+    expect(cards[0].props.image[0].uri).toContain('/images/documents/fixture-check');
+    const covers = harness.renderer.root.findAll(
+      (node) =>
+        typeof node.props.recyclingKey === 'string' &&
+        node.props.recyclingKey.includes('/images/documents/fixture-check'),
+    );
+    expect(covers.length).toBeGreaterThan(0);
+    expect(JSON.stringify(harness.renderer.toJSON())).toContain('News');
+  });
+
   it('unrelated mounted rows do not re-render', () => {
     const { handle, renders } = harness;
     const posts = ROW_KINDS.map((kind, i) => makeRow(kind, `iso-${i}`));

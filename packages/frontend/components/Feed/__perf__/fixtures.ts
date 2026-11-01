@@ -114,15 +114,19 @@ export function makeRow(kind: RowKind, seed: string): HydratedPost {
       const post = base(seed, `Worth reading: ${url}`, true);
       post.documents = [
         {
-          url,
+          id: `document-${seed}`,
           requestedUrl: url,
           canonicalUrl: url,
+          type: 'article',
+          status: 'indexed',
+          authors: [],
+          evidence: {},
           title: `Story ${seed}`,
           description: 'A long description of the linked story that wraps onto two lines.',
-          siteName: 'News',
-          image: `https://news.example.test/og/${seed}.jpg`,
+          publisher: 'News',
+          imageUrl: `https://clarity.example.test/images/documents/${seed}`,
         },
-      ] as unknown as HydratedPost['documents'];
+      ];
       return post;
     }
     case 'quote': {

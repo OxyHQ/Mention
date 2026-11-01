@@ -59,11 +59,8 @@ function ListsScreen() {
     },
   });
 
-  // Followed lists: resolve the viewer's `list` entity-follows into full list
-  // DTOs. There is no batch list-by-ids endpoint, so each followed id is
-  // resolved individually; a deleted/private followed list resolves to null and
-  // is dropped. The resolution is part of the query so React Query owns its
-  // cache, dedupe, and identity-keyed refetch — no mount-only effect.
+  // Resolve the viewer's follows in order. The service falls back to individual
+  // reads on older backends and omits lists no longer visible to this viewer.
   const followedQueryKey = viewerQueryKeys.followedLists(viewerId);
   const followedQuery = useQuery<MentionList[]>({
     queryKey: followedQueryKey,
@@ -71,18 +68,7 @@ function ListsScreen() {
     queryFn: async () => {
       const follows = await entityFollowService.getFollowing('list', FOLLOWED_LIST_PAGE_SIZE);
       const ids = follows.items.map((f) => f.entityId);
-      const resolved = await Promise.all(
-        ids.map(async (id) => {
-          try {
-            return await listsService.get(id);
-          } catch {
-            // A followed list that no longer resolves (deleted/private) is
-            // simply omitted from the section rather than failing the query.
-            return null;
-          }
-        }),
-      );
-      return resolved.filter((l): l is MentionList => l !== null);
+      return listsService.resolve(ids);
     },
   });
   const refreshLists = useCallback(
