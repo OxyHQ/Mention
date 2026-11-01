@@ -192,7 +192,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/utils": "catalog:",
     "zod": "catalog:",
-    "@oxy.so/homiio-contracts": "0.2.0",
+    "@oxy.so/homiio-contracts": "0.2.1",
     "@mercaria.co/sdk": "0.8.0"
   },
   "devDependencies": {

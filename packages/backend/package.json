@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "22.9.0",
-    "@aws-sdk/credential-provider-node": "3.972.84",
+    "@aws-sdk/credential-provider-node": "3.972.89",
     "@clarity.surf/sdk": "0.10.0",
     "@crowdsource.you/contracts": "1.1.1",
     "@crowdsource.you/core": "3.1.0",
@@ -47,7 +47,7 @@
     "@peable.to/sdk": "0.5.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "catalog:",
-    "bullmq": "^6.3.16",
+    "bullmq": "^6.5.0",
     "compression": "^1.8.2",
     "drizzle-orm": "0.45.4",
     "eld": "^2.1.0",
