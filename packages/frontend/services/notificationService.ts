@@ -48,6 +48,7 @@ class NotificationService {
         limit: response.data.limit || limit,
       };
     } catch (error) {
+      console.error('CONTROL inbox failure', error instanceof Error ? `${error.name}: ${error.message}\n${error.stack}` : error);
       logger.error('Error fetching notifications', error);
       throw error;
     }
