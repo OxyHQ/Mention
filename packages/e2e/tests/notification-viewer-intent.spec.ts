@@ -223,10 +223,10 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
     const preview = page.getByText(selectedText, { exact: true });
     const row = page.locator('.group').filter({ has: preview });
     await expect(row).toHaveCount(1);
-    const rowAction = row.getByRole('button', {
-      name: `${userA} liked your post`,
-      exact: true,
-    });
+    const rowAction =
+      (await row.getAttribute('role')) === 'button'
+        ? row
+        : row.getByRole('button', { name: `${userA} liked your post`, exact: true });
     await expect(rowAction).toHaveCount(1);
     await expect(rowAction).toHaveAccessibleName(`${userA} liked your post`);
     await preview.scrollIntoViewIfNeeded();
@@ -517,6 +517,85 @@ test('the row background preserves padding hit testing', async ({ page, candidat
   if (!box) throw new Error('The notification row has no bounds');
   await page.mouse.click(box.x + 3, box.y + 3);
   await expect(page).toHaveURL(`${APP_ORIGIN}/p/collab-post`);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('an ordinary notification preserves its accessible name and padding hit target', async ({
+  page,
+  candidate,
+}, testInfo) => {
+  await installSwitchingFixture(page);
+  await page.goto('/notifications');
+  const preview = page.getByText(selectedText, { exact: true });
+  await preview.scrollIntoViewIfNeeded();
+  const row = page.locator('.group').filter({ has: preview });
+  await expect(row).toHaveCount(1);
+  const action =
+    (await row.getAttribute('role')) === 'button'
+      ? row
+      : row.getByRole('button', { name: `${userA} liked your post`, exact: true });
+  await expect(action).toHaveAccessibleName(`${userA} liked your post`);
+  const box = await row.boundingBox();
+  if (!box) throw new Error('The ordinary notification row has no bounds');
+  await testInfo.attach('ordinary-row-geometry', {
+    body: JSON.stringify({ viewport: page.viewportSize(), row: box }),
+    contentType: 'application/json',
+  });
+  await page.mouse.click(box.x + 3, box.y + 3);
+  await expect(page).toHaveURL(/\/p\/notification-navigation-post-15$/);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('an expandable notification group keeps its control and row gesture independent', async ({
+  page,
+  candidate,
+}, testInfo) => {
+  const fixture = await installSwitchingFixture(page);
+  await page.route('**/notifications/_viewer/inbox?*', (route) => {
+    if (new URL(route.request().url()).origin === APP_ORIGIN) return route.fallback();
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    if (fixture.viewer() !== userA || !fixtureViewerMatchesRequest(route.request(), userA))
+      return route.fulfill({
+        status: 409,
+        headers: fixture.headers,
+        json: { code: 'VIEWER_CHANGED' },
+      });
+    const notifications = [userA, userB].map((actorId, index) => ({
+      _id: `group-${index}`,
+      recipientId: userA,
+      actorId,
+      type: 'like',
+      entityId: 'group-post',
+      entityType: 'post',
+      read: false,
+      createdAt: new Date().toISOString(),
+      preview: 'Grouped notification fixture',
+      actorId_populated: { id: actorId, username: actorId, name: { displayName: actorId } },
+    }));
+    return route.fulfill({
+      headers: fixture.headers,
+      json: { notifications, unreadCount: 2, hasMore: false, limit: 20 },
+    });
+  });
+  await page.goto('/notifications');
+  const toggle = page.getByRole('button', { name: 'Show all', exact: true });
+  await expect(toggle).toHaveCount(1);
+  const row = page.locator('.group').filter({ has: toggle });
+  await expect(row).toHaveCount(1);
+  const rowBox = await row.boundingBox();
+  const toggleBox = await toggle.boundingBox();
+  if (!rowBox || !toggleBox) throw new Error('The group or toggle has no bounds');
+  await testInfo.attach('group-row-geometry', {
+    body: JSON.stringify({ viewport: page.viewportSize(), row: rowBox, toggle: toggleBox }),
+    contentType: 'application/json',
+  });
+  await page.mouse.move(toggleBox.x + toggleBox.width / 2, toggleBox.y + toggleBox.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await expect(page.getByText('Mark as read', { exact: true })).toHaveCount(0);
+  await page.mouse.up();
+  await expect(page.getByRole('button', { name: 'Show less', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
   expect(candidate.scriptErrors).toEqual([]);
 });
 
