@@ -24,3 +24,15 @@ it('does not dismiss an existing menu when the new owner is already cancelled', 
   expect(mockDismiss).not.toHaveBeenCalled();
   expect(mockPresentCancelableSheet).not.toHaveBeenCalled();
 });
+
+it('passes ownership through to the cancelable menu surface', async () => {
+  mockPresentCancelableSheet.mockResolvedValue(undefined);
+  const signal = new AbortController().signal;
+  const onClosed = jest.fn();
+  await showCancelableActionMenu({ label: 'Owned', groups: [], signal, onClosed });
+  expect(mockPresentCancelableSheet).toHaveBeenCalledWith(expect.any(Function), {
+    label: 'Owned',
+    signal,
+    onClosed,
+  });
+});
