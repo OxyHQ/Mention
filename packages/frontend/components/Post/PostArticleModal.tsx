@@ -157,7 +157,8 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         entering={ScaleAndFadeIn}
         exiting={ScaleAndFadeOut}
         className="bg-background"
-        style={[contentContainerStyle, { pointerEvents: 'box-none' }]}
+        pointerEvents="box-none"
+        style={contentContainerStyle}
       >
         <Pressable onPress={handleContentPress} style={styles.pressableContent}>
           <View style={headerStyle} className="border-b border-border">
