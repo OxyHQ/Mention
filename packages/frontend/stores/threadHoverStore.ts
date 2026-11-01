@@ -8,8 +8,8 @@ import { create } from 'zustand';
  * WHOLE thread — every post plus the "Show this thread" affordance — so the
  * thread reads as a single unit. CSS `group-hover` can't express that (each
  * post is its own `.group`), so the hovered slice key lives here and every
- * thread row reads it via a selector that returns only ITS boolean, keeping
- * re-renders scoped to the rows whose active state actually flips.
+ * thread overlay reads it via a selector for its own slice. A hover updates
+ * only overlays whose active state changes, without re-rendering each post.
  *
  * Not persisted: this is transient UI state for the current pointer position.
  */
