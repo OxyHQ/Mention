@@ -1,5 +1,6 @@
 import { withAliaSdkCsp } from '@alia.onl/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
+import { EXPECTED_VIEWER_HEADER } from '@mention/shared-types/common';
 import {
   createOxySecurityHeaders,
   oxyTrustProxy,
@@ -129,7 +130,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version, X-Oxy-Edge-Region, X-Oxy-Activity-Id',
+      `Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version, X-Oxy-Edge-Region, X-Oxy-Activity-Id, ${EXPECTED_VIEWER_HEADER}`,
     );
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (

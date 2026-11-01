@@ -33,6 +33,8 @@ import { useUserById } from '@/hooks/useCachedUser';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import { useKnownIdentitySet, type IdentityUpdate } from '@/stores/identityUpdates';
 import type { GroupedNotification } from '@/utils/groupNotifications';
+import type { NotificationIntent } from '@/types/notificationIntent';
+import { normalizeApiError } from '@/utils/apiError';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { presentSheet } from '@/utils/sheet';
@@ -312,15 +314,19 @@ const ACTION_ICON_SIZE = 20;
 interface NotificationItemProps {
   item: GroupedNotification;
   /** Marks the given notification ids read (single -> `[id]`, group -> all ids). */
-  onMarkAsRead: (ids: string[]) => void;
+  onMarkAsRead: (ids: string[], intent?: NotificationIntent) => void;
   /** Deletes the given notification ids (single -> `[id]`, group -> all ids). */
-  onDelete: (ids: string[]) => void;
+  onDelete: (ids: string[], intent?: NotificationIntent) => void;
+  captureIntent: () => NotificationIntent | null;
+  isCurrentIntent: (intent: NotificationIntent) => boolean;
 }
 
 const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   item,
   onMarkAsRead,
   onDelete,
+  captureIntent,
+  isCurrentIntent,
 }) => {
   const router = useRouter();
   const { t } = useTranslation();
@@ -509,6 +515,8 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // row is unread) and a destructive "Delete". Dismissing the sheet is the
   // implicit cancel. Tapping a row acts, then closes the sheet.
   const handleLongPress = useCallback(() => {
+    const intent = captureIntent();
+    if (!intent) return;
     showActionMenu({
       label: t('common.options', { defaultValue: 'Options' }),
       groups: [
@@ -523,7 +531,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                   />
                 ),
                 label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
-                onPress: () => onMarkAsRead(item.notificationIds),
+                onPress: () => onMarkAsRead(item.notificationIds, intent),
               },
             ]
           : [],
@@ -538,7 +546,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             ),
             label: t('notification.delete', { defaultValue: 'Delete' }),
             color: theme.colors.error,
-            onPress: () => onDelete(item.notificationIds),
+            onPress: () => onDelete(item.notificationIds, intent),
           },
         ],
       ],
@@ -551,6 +559,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     onMarkAsRead,
     onDelete,
     item.notificationIds,
+    captureIntent,
   ]);
 
   const openActorProfile = useCallback(
@@ -581,76 +590,113 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   }, [resolvedPrimary, bylineName]);
 
   /** Resolves `true` once the invite is accepted. */
-  const runAccept = useCallback(async (): Promise<boolean> => {
-    if (!postId) return false;
-    setActionLoading(true);
-    try {
-      const result = await feedService.acceptCollabInvite(postId);
-      if (result.post) {
-        // Flip this row's own source of truth (drives the resolved state) AND
-        // propagate the newly-accepted co-authorship to every feed + the post
-        // detail via the shared posts store, so the collaboration shows
-        // everywhere without a manual refresh.
-        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
-        cachePosts([result.post]);
+  const runAccept = useCallback(
+    async (intent: NotificationIntent): Promise<boolean> => {
+      if (!postId || !isCurrentIntent(intent)) return false;
+      setActionLoading(true);
+      try {
+        const result = await feedService.acceptCollabInvite(postId, intent.viewerId);
+        if (!isCurrentIntent(intent)) return false;
+        if (!result.success) throw new Error('Collaboration was not accepted');
+        if (result.post) {
+          // Flip this row's own source of truth (drives the resolved state) AND
+          // propagate the newly-accepted co-authorship to every feed + the post
+          // detail via the shared posts store, so the collaboration shows
+          // everywhere without a manual refresh.
+          queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
+          cachePosts([result.post]);
+        }
+        onMarkAsRead(item.notificationIds, intent);
+        toast(
+          t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }),
+          {
+            type: 'success',
+          },
+        );
+        return true;
+      } catch (error) {
+        if (!isCurrentIntent(intent) || normalizeApiError(error).code === 'VIEWER_CHANGED')
+          return false;
+        logger.error('Failed to accept collab invite', error);
+        toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), {
+          type: 'error',
+        });
+        return false;
+      } finally {
+        setActionLoading(false);
       }
-      onMarkAsRead(item.notificationIds);
-      toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), {
-        type: 'success',
-      });
-      return true;
-    } catch (error) {
-      logger.error('Failed to accept collab invite', error);
-      toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), {
-        type: 'error',
-      });
-      return false;
-    } finally {
-      setActionLoading(false);
-    }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, t, user?.id]);
+    },
+    [
+      postId,
+      queryClient,
+      cachePosts,
+      onMarkAsRead,
+      item.notificationIds,
+      t,
+      user?.id,
+      isCurrentIntent,
+    ],
+  );
 
   /** Resolves `true` once the invite is declined. */
-  const runDecline = useCallback(async (): Promise<boolean> => {
-    if (!postId) return false;
-    setActionLoading(true);
-    try {
-      const result = await feedService.declineCollabInvite(postId);
-      if (result.post) {
-        // Flip this row to the resolved state and reflect the declined status on
-        // any cached copy of the post (private posts return no post here, in which
-        // case the actionable UI is simply dropped — the viewer lost view access).
-        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
-        cachePosts([result.post]);
+  const runDecline = useCallback(
+    async (intent: NotificationIntent): Promise<boolean> => {
+      if (!postId || !isCurrentIntent(intent)) return false;
+      setActionLoading(true);
+      try {
+        const result = await feedService.declineCollabInvite(postId, intent.viewerId);
+        if (!isCurrentIntent(intent)) return false;
+        if (!result.success) throw new Error('Collaboration was not declined');
+        if (result.post) {
+          // Flip this row to the resolved state and reflect the declined status on
+          // any cached copy of the post (private posts return no post here, in which
+          // case the actionable UI is simply dropped — the viewer lost view access).
+          queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
+          cachePosts([result.post]);
+        }
+        onMarkAsRead(item.notificationIds, intent);
+        return true;
+      } catch (error) {
+        if (!isCurrentIntent(intent) || normalizeApiError(error).code === 'VIEWER_CHANGED')
+          return false;
+        logger.error('Failed to decline collab invite', error);
+        toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), {
+          type: 'error',
+        });
+        return false;
+      } finally {
+        setActionLoading(false);
       }
-      onMarkAsRead(item.notificationIds);
-      return true;
-    } catch (error) {
-      logger.error('Failed to decline collab invite', error);
-      toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), {
-        type: 'error',
-      });
-      return false;
-    } finally {
-      setActionLoading(false);
-    }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, t, user?.id]);
+    },
+    [
+      postId,
+      queryClient,
+      cachePosts,
+      onMarkAsRead,
+      item.notificationIds,
+      t,
+      user?.id,
+      isCurrentIntent,
+    ],
+  );
 
   const openAcceptSheet = useCallback(() => {
     if (!inviter) return;
+    const intent = captureIntent();
+    if (!intent) return;
     void presentSheet((surface) => (
       <CollabAcceptSheet
         inviter={inviter}
         onAccept={async () => {
-          if (await runAccept()) surface.dismiss();
+          if ((await runAccept(intent)) || !isCurrentIntent(intent)) surface.dismiss();
         }}
         onDecline={async () => {
-          if (await runDecline()) surface.dismiss();
+          if ((await runDecline(intent)) || !isCurrentIntent(intent)) surface.dismiss();
         }}
         onClose={() => surface.dismiss()}
       />
     ));
-  }, [inviter, runAccept, runDecline]);
+  }, [inviter, runAccept, runDecline, captureIntent, isCurrentIntent]);
 
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
 
@@ -811,7 +857,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                   appearance="subtle"
                   tone="neutral"
                   className="flex-1"
-                  onPress={runDecline}
+                  onPress={() => {
+                    const intent = captureIntent();
+                    if (intent) void runDecline(intent);
+                  }}
                   disabled={actionLoading}
                 >
                   {t('collab.decline', { defaultValue: 'Decline' })}

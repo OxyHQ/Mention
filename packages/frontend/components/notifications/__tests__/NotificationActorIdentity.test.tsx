@@ -165,7 +165,13 @@ function renderRow(item: GroupedNotification = groupedLike()) {
   act(() => {
     mounted = TestRenderer.create(
       <QueryClientProvider client={queryClient as QueryClient}>
-        <NotificationItem item={item} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+        <NotificationItem
+          item={item}
+          onMarkAsRead={jest.fn()}
+          onDelete={jest.fn()}
+          captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+          isCurrentIntent={() => true}
+        />
       </QueryClientProvider>,
     );
   });
@@ -265,7 +271,13 @@ describe('the actor whose profile the row resolves', () => {
     act(() => {
       renderer.update(
         <QueryClientProvider client={queryClient as QueryClient}>
-          <NotificationItem item={actual} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+          <NotificationItem
+            item={actual}
+            onMarkAsRead={jest.fn()}
+            onDelete={jest.fn()}
+            captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+            isCurrentIntent={() => true}
+          />
         </QueryClientProvider>,
       );
     });
@@ -274,7 +286,13 @@ describe('the actor whose profile the row resolves', () => {
     act(() => {
       renderer.update(
         <QueryClientProvider client={queryClient as QueryClient}>
-          <NotificationItem item={system} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+          <NotificationItem
+            item={system}
+            onMarkAsRead={jest.fn()}
+            onDelete={jest.fn()}
+            captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+            isCurrentIntent={() => true}
+          />
         </QueryClientProvider>,
       );
     });
