@@ -149,11 +149,6 @@
       "measured": "0%",
       "reason": "No direct test. Its siblings channelAccountService and channelWritersService are both at 100%; this one is the destructive operation and is the odd one out."
     },
-    "hooks/useExternalActorResolve.ts": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test, so nothing loads the file. __tests__/externalActorQuery.test.ts covers the query shape beside it, not this hook."
-    },
     "hooks/useMentionNode.ts": {
       "since": "2026-08-15",
       "measured": "0%",
@@ -381,7 +376,7 @@
     "domainFiles": 312,
     "pins": 307,
     "unenforceable": 5,
-    "belowBarExemptions": 7,
+    "belowBarExemptions": 6,
     "criticalPaths": 36,
     "snapshotAssertions": 0
   }
