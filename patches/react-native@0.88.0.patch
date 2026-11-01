@@ -1,0 +1,480 @@
+diff --git a/Libraries/Utilities/BackHandler.android.js b/Libraries/Utilities/BackHandler.android.js
+index 597f2eacc..e8396cae1 100644
+--- a/Libraries/Utilities/BackHandler.android.js
++++ b/Libraries/Utilities/BackHandler.android.js
+@@ -19,6 +19,17 @@ type BackPressEventName = 'backPress' | 'hardwareBackPress';
+ type BackPressHandler = (event: HardwareBackPressEvent) => ?boolean;
+ 
+ const _backPressSubscriptions: Array<BackPressHandler> = [];
++let nativeNavigationEnabled = false;
++const nativeNavigationFallbacks: Set<BackPressHandler> = new Set();
++
++function updateNativeNavigation(): void {
++  NativeDeviceEventManager?.setNativeNavigationEnabled(
++    nativeNavigationEnabled,
++    _backPressSubscriptions.some(
++      handler => !nativeNavigationFallbacks.has(handler),
++    ),
++  );
++}
+ 
+ RCTDeviceEventEmitter.addListener(DEVICE_BACK_EVENT, function (nativeEvent) {
+   const options = {};
+@@ -47,12 +58,28 @@ RCTDeviceEventEmitter.addListener(DEVICE_BACK_EVENT, function (nativeEvent) {
+  */
+ type TBackHandler = {
+   readonly exitApp: () => void,
++  readonly setNativeNavigationEnabled: (enabled: boolean) => void,
+   readonly addEventListener: (
+     eventName: BackPressEventName,
+     handler: BackPressHandler,
+-  ) => {remove: () => void, ...},
++    options?: {nativeNavigationFallback?: boolean, ...},
++  ) => {
++    remove: () => void,
++    setNativeNavigationFallback: (enabled: boolean) => void,
++    ...
++  },
+ };
+ const BackHandler: TBackHandler = {
++  /**
++   * Opt into native predictive Back ownership on Android. With no registered
++   * JavaScript handlers, native navigators or the system own Back. Any handler
++   * conservatively restores JavaScript ownership, regardless of its return value.
++   * Configure this once at the navigation root, not per screen.
++   */
++  setNativeNavigationEnabled(enabled: boolean): void {
++    nativeNavigationEnabled = enabled;
++    updateNativeNavigation();
++  },
+   /**
+    * Programmatically exit the app.
+    */
+@@ -67,19 +94,42 @@ const BackHandler: TBackHandler = {
+   /**
+    * Listen for the `hardwareBackPress` event. The handler should return `true`
+    * to prevent the event from bubbling to earlier registered listeners.
++   *
++   * Navigation libraries may mark their fallback as nativeNavigationFallback
++   * only while an equivalent native owner is ready. The fallback remains in the
++   * JS chain, so an unhandled overlay event still navigates. Use the returned
++   * setNativeNavigationFallback method to change ownership without changing
++   * handler ordering. Ordinary application handlers must keep the default.
+    */
+   addEventListener: function (
+     eventName: BackPressEventName,
+     handler: BackPressHandler,
+-  ): {remove: () => void, ...} {
++    options?: {nativeNavigationFallback?: boolean, ...},
++  ): {
++    remove: () => void,
++    setNativeNavigationFallback: (enabled: boolean) => void,
++    ...
++  } {
+     if (_backPressSubscriptions.indexOf(handler) === -1) {
+       _backPressSubscriptions.push(handler);
++      if (options?.nativeNavigationFallback === true) {
++        nativeNavigationFallbacks.add(handler);
++      }
++      if (nativeNavigationEnabled) updateNativeNavigation();
+     }
+     return {
++      setNativeNavigationFallback: (enabled: boolean): void => {
++        if (_backPressSubscriptions.indexOf(handler) === -1) return;
++        if (enabled) nativeNavigationFallbacks.add(handler);
++        else nativeNavigationFallbacks.delete(handler);
++        if (nativeNavigationEnabled) updateNativeNavigation();
++      },
+       remove: (): void => {
+         const index = _backPressSubscriptions.indexOf(handler);
+         if (index !== -1) {
+           _backPressSubscriptions.splice(index, 1);
++          nativeNavigationFallbacks.delete(handler);
++          if (nativeNavigationEnabled) updateNativeNavigation();
+         }
+       },
+     };
+diff --git a/Libraries/Utilities/BackHandler.ios.js b/Libraries/Utilities/BackHandler.ios.js
+index e9bb65f19..17508df36 100644
+--- a/Libraries/Utilities/BackHandler.ios.js
++++ b/Libraries/Utilities/BackHandler.ios.js
+@@ -17,17 +17,25 @@ function emptyFunction(): void {}
+ 
+ type TBackHandler = {
+   exitApp(): void,
++  setNativeNavigationEnabled(enabled: boolean): void,
+   addEventListener(
+     eventName: BackPressEventName,
+     handler: BackPressHandler,
+-  ): {remove: () => void, ...},
++    options?: {nativeNavigationFallback?: boolean, ...},
++  ): {
++    remove: () => void,
++    setNativeNavigationFallback: (enabled: boolean) => void,
++    ...
++  },
+ };
+ 
+ const BackHandler: TBackHandler = {
+   exitApp: emptyFunction,
++  setNativeNavigationEnabled: emptyFunction,
+   addEventListener(_eventName: BackPressEventName, _handler: BackPressHandler) {
+     return {
+       remove: emptyFunction,
++      setNativeNavigationFallback: emptyFunction,
+     };
+   },
+ };
+diff --git a/Libraries/Utilities/BackHandler.js.flow b/Libraries/Utilities/BackHandler.js.flow
+index 4c1debea8..eb4be79d0 100644
+--- a/Libraries/Utilities/BackHandler.js.flow
++++ b/Libraries/Utilities/BackHandler.js.flow
+@@ -24,10 +24,16 @@ export interface HardwareBackPressEvent {
+ 
+ type TBackHandler = {
+   exitApp(): void,
++  setNativeNavigationEnabled(enabled: boolean): void,
+   addEventListener(
+     eventName: BackPressEventName,
+     handler: (event: HardwareBackPressEvent) => ?boolean,
+-  ): {remove: () => void, ...},
++    options?: {nativeNavigationFallback?: boolean, ...},
++  ): {
++    remove: () => void,
++    setNativeNavigationFallback: (enabled: boolean) => void,
++    ...
++  },
+ };
+ 
+ /**
+diff --git a/ReactAndroid/src/main/java/com/facebook/react/BackNavigationCoordinator.java b/ReactAndroid/src/main/java/com/facebook/react/BackNavigationCoordinator.java
+new file mode 100644
+index 000000000..945dc99a3
+--- /dev/null
++++ b/ReactAndroid/src/main/java/com/facebook/react/BackNavigationCoordinator.java
+@@ -0,0 +1,73 @@
++/*
++ * Copyright (c) Meta Platforms, Inc. and affiliates.
++ * Licensed under the MIT license in the root directory of this source tree.
++ */
++package com.facebook.react;
++
++import androidx.annotation.UiThread;
++import java.util.LinkedHashSet;
++import java.util.Set;
++
++/** Activity-scoped ownership shared by native navigators and JavaScript BackHandler. */
++@UiThread
++public final class BackNavigationCoordinator {
++  private int nativeFallbackDepth;
++  private Object owner;
++  private boolean nativeNavigationEnabled;
++  private boolean javaScriptHandlers;
++  private final Set<Runnable> listeners = new LinkedHashSet<>();
++
++  public boolean isNativeNavigationEnabled() {
++    return nativeNavigationEnabled;
++  }
++
++  public boolean hasJavaScriptHandlers() {
++    return javaScriptHandlers;
++  }
++
++  public boolean isJavaScriptEnabled() {
++    return nativeFallbackDepth == 0 && (!nativeNavigationEnabled || javaScriptHandlers);
++  }
++
++  /** Dispatches an unhandled JS Back to native owners without re-entering JS. */
++  public void withNativeFallback(Runnable dispatch) {
++    nativeFallbackDepth++;
++    try {
++      notifyListeners();
++      dispatch.run();
++    } finally {
++      nativeFallbackDepth--;
++      notifyListeners();
++    }
++  }
++
++  private void notifyListeners() {
++    for (Runnable listener : listeners.toArray(new Runnable[0])) listener.run();
++  }
++
++  public void addListener(Runnable listener) {
++    listeners.add(listener);
++  }
++
++  public void removeListener(Runnable listener) {
++    listeners.remove(listener);
++  }
++
++  public void release(Object previousOwner) {
++    if (owner != previousOwner) return;
++    owner = null;
++    updateState(false, false);
++  }
++
++  public void update(Object nextOwner, boolean enabled, boolean hasHandlers) {
++    owner = nextOwner;
++    updateState(enabled, hasHandlers);
++  }
++
++  private void updateState(boolean enabled, boolean hasHandlers) {
++    if (nativeNavigationEnabled == enabled && javaScriptHandlers == hasHandlers) return;
++    nativeNavigationEnabled = enabled;
++    javaScriptHandlers = hasHandlers;
++    notifyListeners();
++  }
++}
+diff --git a/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java b/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java
+index 356bc32c0..1d1e4d3f2 100644
+--- a/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java
++++ b/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java
+@@ -9,6 +9,7 @@ package com.facebook.react;
+ 
+ import android.content.Intent;
+ import android.content.res.Configuration;
++import android.os.Build;
+ import android.os.Bundle;
+ import android.view.KeyEvent;
+ import androidx.activity.OnBackPressedCallback;
+@@ -25,6 +26,23 @@ public abstract class ReactActivity extends AppCompatActivity
+     implements DefaultHardwareBackBtnHandler, PermissionAwareActivity {
+ 
+   private final ReactActivityDelegate mDelegate;
++  private final BackNavigationCoordinator mBackNavigationCoordinator =
++      new BackNavigationCoordinator();
++  private boolean mBackCallbackRegistered;
++
++  public final BackNavigationCoordinator getBackNavigationCoordinator() {
++    return mBackNavigationCoordinator;
++  }
++
++  private void updateBackOwnership() {
++    if (!mBackCallbackRegistered
++        && Build.VERSION.SDK_INT >= 33
++        && mBackNavigationCoordinator.isNativeNavigationEnabled()) {
++      getOnBackPressedDispatcher().addCallback(this, mBackPressedCallback);
++      mBackCallbackRegistered = true;
++    }
++    mBackPressedCallback.setEnabled(mBackNavigationCoordinator.isJavaScriptEnabled());
++  }
+ 
+   // Due to enforced predictive back on targetSdk 36, 'onBackPressed()' is disabled by default.
+   // Using a workaround to trigger it manually.
+@@ -34,7 +52,7 @@ public abstract class ReactActivity extends AppCompatActivity
+         public void handleOnBackPressed() {
+           setEnabled(false);
+           onBackPressed();
+-          setEnabled(true);
++          updateBackOwnership();
+         }
+       };
+ 
+@@ -59,9 +77,12 @@ public abstract class ReactActivity extends AppCompatActivity
+   protected void onCreate(Bundle savedInstanceState) {
+     super.onCreate(savedInstanceState);
+     mDelegate.onCreate(savedInstanceState);
+-    if (AndroidVersion.isAtLeastTargetSdk36(this)) {
++    if (!mBackCallbackRegistered && AndroidVersion.isAtLeastTargetSdk36(this)) {
+       getOnBackPressedDispatcher().addCallback(this, mBackPressedCallback);
++      mBackCallbackRegistered = true;
+     }
++    mBackNavigationCoordinator.addListener(this::updateBackOwnership);
++    updateBackOwnership();
+   }
+ 
+   @Override
+@@ -123,10 +144,14 @@ public abstract class ReactActivity extends AppCompatActivity
+     // Disabling callback so the fallback logic (finish activity) can run
+     // as super.onBackPressed() will call all enabled callbacks in the dispatcher.
+     mBackPressedCallback.setEnabled(false);
+-    super.onBackPressed();
++    if (mBackNavigationCoordinator.isNativeNavigationEnabled()) {
++      mBackNavigationCoordinator.withNativeFallback(() -> super.onBackPressed());
++    } else {
++      super.onBackPressed();
++    }
+     // Re-enable callback to ensure custom back handling works after activity resume
+     // Without this, the callback remains disabled when the app returns from background
+-    mBackPressedCallback.setEnabled(true);
++    updateBackOwnership();
+   }
+ 
+   @Override
+diff --git a/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt b/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt
+index 9ee720cf8..a30bd70e5 100644
+--- a/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt
++++ b/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt
+@@ -10,7 +10,9 @@ package com.facebook.react.modules.core
+ import android.net.Uri
+ import com.facebook.fbreact.specs.NativeDeviceEventManagerSpec
+ import com.facebook.proguard.annotations.DoNotStripAny
++import com.facebook.react.ReactActivity
+ import com.facebook.react.bridge.JavaScriptModule
++import com.facebook.react.bridge.LifecycleEventListener
+ import com.facebook.react.bridge.ReactApplicationContext
+ import com.facebook.react.bridge.UiThreadUtil
+ import com.facebook.react.bridge.buildReadableMap
+@@ -19,9 +21,58 @@ import com.facebook.react.module.annotations.ReactModule
+ /** Native module that handles device hardware events like hardware back presses. */
+ @ReactModule(name = NativeDeviceEventManagerSpec.NAME)
+ public open class DeviceEventManagerModule(
+-    reactContext: ReactApplicationContext?,
+-    backBtnHandler: DefaultHardwareBackBtnHandler?,
+-) : NativeDeviceEventManagerSpec(reactContext) {
++  reactContext: ReactApplicationContext?,
++  backBtnHandler: DefaultHardwareBackBtnHandler?,
++) : NativeDeviceEventManagerSpec(reactContext), LifecycleEventListener {
++  @Volatile private var ownershipInvalidated = false
++  private val ownershipToken = Any()
++  private var coordinator: com.facebook.react.BackNavigationCoordinator? = null
++  private var nativeNavigationEnabled = false
++  private var hasJavaScriptHandlers = false
++
++  init {
++    reactContext?.addLifecycleEventListener(this)
++  }
++
++  private fun updateBackOwnership() {
++    if (ownershipInvalidated) return
++    val next =
++      (reactApplicationContext.currentActivity as? ReactActivity)?.backNavigationCoordinator
++    if (coordinator !== next) coordinator?.release(ownershipToken)
++    coordinator = next
++    next?.update(ownershipToken, nativeNavigationEnabled, hasJavaScriptHandlers)
++  }
++
++  override fun setNativeNavigationEnabled(enabled: Boolean, hasHandlers: Boolean) {
++    reactApplicationContext.runOnUiQueueThread {
++      if (ownershipInvalidated) return@runOnUiQueueThread
++      nativeNavigationEnabled = enabled
++      hasJavaScriptHandlers = hasHandlers
++      updateBackOwnership()
++    }
++  }
++
++  override fun onHostResume() {
++    updateBackOwnership()
++  }
++
++  override fun onHostPause(): Unit = Unit
++
++  override fun onHostDestroy() {
++    coordinator?.release(ownershipToken)
++    coordinator = null
++  }
++
++  override fun invalidate() {
++    ownershipInvalidated = true
++    reactApplicationContext.removeLifecycleEventListener(this)
++    reactApplicationContext.runOnUiQueueThread {
++      coordinator?.release(ownershipToken)
++      coordinator = null
++    }
++    super.invalidate()
++  }
++
+   @DoNotStripAny
+   public fun interface RCTDeviceEventEmitter : JavaScriptModule {
+     public fun emit(eventName: String, data: Any?)
+@@ -35,7 +86,7 @@ public open class DeviceEventManagerModule(
+   /** Sends an event to the JS instance that the hardware back has been pressed. */
+   public open fun emitHardwareBackPressed() {
+     val reactApplicationContext: ReactApplicationContext? =
+-        getReactApplicationContextIfActiveOrWarn()
++      getReactApplicationContextIfActiveOrWarn()
+     val map = buildReadableMap { put("timeStamp", System.nanoTime() / 1_000_000.0) }
+     reactApplicationContext?.emitDeviceEvent("hardwareBackPress", map)
+   }
+@@ -43,7 +94,7 @@ public open class DeviceEventManagerModule(
+   /** Sends an event to the JS instance that a new intent was received. */
+   public open fun emitNewIntentReceived(uri: Uri) {
+     val reactApplicationContext: ReactApplicationContext? =
+-        getReactApplicationContextIfActiveOrWarn()
++      getReactApplicationContextIfActiveOrWarn()
+     val map = buildReadableMap { put("url", uri.toString()) }
+     reactApplicationContext?.emitDeviceEvent("url", map)
+   }
+diff --git a/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js b/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js
+index 4efff76e6..f5d65795e 100644
+--- a/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js
++++ b/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js
+@@ -14,6 +14,10 @@ import * as TurboModuleRegistry from '../../../../Libraries/TurboModule/TurboMod
+ 
+ export interface Spec extends TurboModule {
+   readonly invokeDefaultBackPressHandler: () => void;
++  readonly setNativeNavigationEnabled: (
++    enabled: boolean,
++    hasJavaScriptHandlers: boolean,
++  ) => void;
+ }
+ 
+ export default TurboModuleRegistry.get<Spec>('DeviceEventManager') as ?Spec;
+diff --git a/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts b/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts
+index ac2a530a9..7df391210 100644
+--- a/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts
++++ b/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts
+@@ -34,10 +34,14 @@ export interface HardwareBackPressEvent {
+  */
+ export interface BackHandlerStatic {
+   exitApp(): void;
++  setNativeNavigationEnabled(enabled: boolean): void;
+   addEventListener(
+     eventName: BackPressEventName,
+     handler: (event: HardwareBackPressEvent) => boolean | null | undefined,
+-  ): NativeEventSubscription;
++    options?: {nativeNavigationFallback?: boolean},
++  ): NativeEventSubscription & {
++    setNativeNavigationFallback(enabled: boolean): void;
++  };
+ }
+ 
+ export const BackHandler: BackHandlerStatic;
+diff --git a/types_generated/Libraries/Utilities/BackHandler.d.ts b/types_generated/Libraries/Utilities/BackHandler.d.ts
+index d1d62e048..909fb123a 100644
+--- a/types_generated/Libraries/Utilities/BackHandler.d.ts
++++ b/types_generated/Libraries/Utilities/BackHandler.d.ts
+@@ -4,7 +4,7 @@
+  * This source code is licensed under the MIT license found in the
+  * LICENSE file in the root directory of this source tree.
+  *
+- * @generated SignedSource<<052dcf752ab637296040b0f00b22cf85>>
++ * @generated SignedSource<<d004b5d15d3c34ab0e8de07e69977ac4>>
+  *
+  * This file was translated from Flow by scripts/js-api/build-types/index.js.
+  * Original file: packages/react-native/Libraries/Utilities/BackHandler.js.flow
+@@ -22,8 +22,12 @@ export interface HardwareBackPressEvent {
+ }
+ type TBackHandler = {
+   exitApp(): void;
+-  addEventListener(eventName: BackPressEventName, handler: (event: HardwareBackPressEvent) => boolean | undefined): {
++  setNativeNavigationEnabled(enabled: boolean): void;
++  addEventListener(eventName: BackPressEventName, handler: (event: HardwareBackPressEvent) => boolean | undefined, options?: {
++    nativeNavigationFallback?: boolean | undefined;
++  }): {
+     remove: () => void;
++    setNativeNavigationFallback: (enabled: boolean) => void;
+   };
+ };
+ declare const BackHandler: TBackHandler;
+diff --git a/ReactAndroid/hermes-engine/build.gradle.kts b/ReactAndroid/hermes-engine/build.gradle.kts
+index 0a1ea2abc..6e3936c39 100644
+--- a/ReactAndroid/hermes-engine/build.gradle.kts
++++ b/ReactAndroid/hermes-engine/build.gradle.kts
+@@ -118,13 +118,8 @@ val unzipHermes by
+     tasks.registering(Copy::class) {
+       dependsOn(downloadHermes)
+       from(tarTree(downloadHermesDest)) {
+-        eachFile {
+-          // We flatten the unzip as the tarball contains a `facebook-hermes-<SHA>`
+-          // folder at the top level.
+-          if (this.path.startsWith("facebook-hermes-")) {
+-            this.path = this.path.substringAfter("/")
+-          }
+-        }
++        eachFile { path = path.substringAfter("/") }
++        includeEmptyDirs = false
+       }
+       into(hermesDir)
+     }
