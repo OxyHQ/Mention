@@ -5,6 +5,7 @@ import type { PostSubscriptionListResponse } from '@mention/shared-types';
 import enMessages from '@/locales/en.json';
 import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
 import { useSubscription } from '@/components/Profile/hooks/useSubscription';
+import { waitUntil } from '@/test-support/waitUntil';
 const mockRankingChanged = jest.fn();
 // Keep the renderer boundary isolated; the account policy has its own contract tests.
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
@@ -386,6 +387,28 @@ describe('activity subscriptions screen', () => {
     // The load has SETTLED: no skeleton rows and no spinner left behind.
     expect(renderer.root.findAllByProps({ testID: 'skeleton' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ testID: 'spinner' })).toHaveLength(0);
+  });
+
+  it('stops loading subscriptions when the server returns a cyclic cursor', async () => {
+    mockList.mockImplementation(async (cursor) => ({
+      subscriptions: [],
+      nextCursor: cursor === undefined ? 'first' : cursor === 'first' ? 'second' : 'first',
+    }));
+    const client = makeClient();
+    const renderer = await renderScreen(client);
+    const more = () =>
+      renderer.root.findAll(
+        (node) =>
+          node.props.accessibilityRole === 'button' &&
+          node.findAll((child) => child.props.children === 'Load more').length > 0,
+      )[0];
+    await waitUntil(() => Boolean(more()), 'first subscription page');
+    await act(async () => more().props.onPress());
+    await settle(client);
+    await waitUntil(() => mockList.mock.calls.length === 2 && Boolean(more()), 'second page');
+    await act(async () => more().props.onPress());
+    await waitUntil(() => mockList.mock.calls.length === 3 && !more(), 'cursor cycle ends list');
+    expect(mockList.mock.calls.map(([cursor]) => cursor)).toEqual([undefined, 'first', 'second']);
   });
 
   it('renders a subscribed account as a row', async () => {
