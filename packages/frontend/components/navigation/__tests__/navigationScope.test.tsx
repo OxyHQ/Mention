@@ -18,7 +18,7 @@ jest.mock('@oxy.so/bloom/tab-pager/expo-router', () => ({
     return null;
   },
 }));
-jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
+jest.mock('@/components/ui/AccountAvatar', () => ({ AccountAvatar: () => null }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: () => 0 }));

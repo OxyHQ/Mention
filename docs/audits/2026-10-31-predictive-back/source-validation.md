@@ -25,7 +25,7 @@ Final official-package validation is recorded separately from those diagnostics.
   The `4.30.0` patch preserves Mention's root-replacement changes and adds an
   explicitly enabled native ownership adapter. Default builds use an adapter
   that does not depend on the new React Native API.
-- Bloom: [draft PR #553](https://github.com/OxyHQ/Bloom/pull/553). Diagnostic
+- Bloom: [PR #553](https://github.com/OxyHQ/Bloom/pull/553). Diagnostic
   archives are temporary validation inputs. Final integration must use the
   official registry release produced by protected CI.
 
@@ -151,3 +151,28 @@ The current-main `.4` signed app also builds with the complete existing release
 architecture list. The APK contains both `armeabi-v7a` and `arm64-v8a` libraries
 and its ecosystem signature verifies. Its SHA-256 is
 `df0dbf04b70a69b253811799c47eece1413a835fee7339c6406d32534b507814`. It has not been installed while device control is paused.
+
+
+## Official registry integration — 2026-11-01
+
+Mention consumes `@oxy.so/bloom@15.89.0` from the npm registry, published by
+[Actions run 41261394234](https://github.com/OxyHQ/Bloom/actions/runs/41261394234)
+from merged source `dd5bcd14b731f717aca0d9d37e141b03b6cea362`.
+The npm provenance identifies that source and official release workflow. The
+lockfile registry integrity is
+`sha512-TeONtCGi4a18xkEBkTiJ/VmDpFoRYkixIaAwOSO0aSC4WplCR0nv55qL/VKwStwjIprJjmHuoCpFPpJLY+nxfw==`.
+All 27,154 installed package files were byte-compared with the official Actions
+release archive. No diagnostic or local-file dependency remains.
+
+This integration preserves current-main Oxy Core 7.10.2 and Services 13.14.1.
+Frozen installation, fresh Android prebuild, frontend TypeScript and eight
+focused navigation/shell tests pass. Required pull-request CI runs the complete
+frontend suite, coverage, production web export and bundle budgets on the final
+source. Physical gesture appearance remains unverified; this merge does not
+complete the device acceptance matrix or issue #888's predictive checkboxes.
+
+The native build passes `-PreactNativeArchitectures=armeabi-v7a,arm64-v8a`
+explicitly so the React Native composite build receives the app's existing
+production architecture list as well. The regenerated app configuration still
+contains that same list; no supported architecture is removed. Signing uses the
+existing ecosystem key through the documented password-file properties.
