@@ -1,6 +1,7 @@
 import { Button } from '@oxy.so/bloom/button';
 import { useCallback, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
+import { useShallow } from 'zustand/react/shallow';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -26,7 +27,17 @@ interface TrendsWidgetProps {
 export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   const { t } = useTranslation();
   const { trends, summary, hasFetched, error, hiddenTrendIds, startPolling, stopPolling } =
-    useTrendsStore();
+    useTrendsStore(
+      useShallow((state) => ({
+        trends: state.trends,
+        summary: state.summary,
+        hasFetched: state.hasFetched,
+        error: state.error,
+        hiddenTrendIds: state.hiddenTrendIds,
+        startPolling: state.startPolling,
+        stopPolling: state.stopPolling,
+      })),
+    );
   const router = useRouter();
   const theme = useTheme();
   const getTrendMenuActions = useTrendItemMenu();
