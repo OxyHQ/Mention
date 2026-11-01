@@ -145,15 +145,16 @@ export function upsertPosts(posts: FeedItem[]): void {
   if (!db) return;
   try {
     db.execSync('BEGIN TRANSACTION');
-    // runSync prepares and finalizes on every call. Reuse this statement for the
-    // batch and release it even if converting or writing a post fails.
-    const statement = db.prepareSync(UPSERT_POST_SQL);
+    // runSync prepares and finalizes on every call. Reuse one statement for the
+    // batch, but do not prepare anything if there is no post to write.
+    let statement: ReturnType<typeof db.prepareSync> | undefined;
     try {
       for (const post of posts) {
         if (!post.id) continue;
         const row = postToRow(post);
         if (!row.id) continue;
 
+        statement ??= db.prepareSync(UPSERT_POST_SQL);
         statement.executeSync(
           row.id,
           row.user_id,
@@ -188,7 +189,7 @@ export function upsertPosts(posts: FeedItem[]): void {
         );
       }
     } finally {
-      statement.finalizeSync();
+      statement?.finalizeSync();
     }
     db.execSync('COMMIT');
   } catch (error) {

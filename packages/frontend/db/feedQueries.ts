@@ -89,15 +89,16 @@ export function setFeedItems(feedKey: string, posts: FeedItem[], meta: FeedMetaD
     db.runSync('DELETE FROM feed_items WHERE feed_key = ?', feedKey);
 
     const now = Date.now();
-    const statement = db.prepareSync(INSERT_FEED_ITEM_SQL);
+    let statement: ReturnType<typeof db.prepareSync> | undefined;
     try {
       for (let i = 0; i < posts.length; i++) {
         const postId = posts[i].id;
         if (!postId) continue;
+        statement ??= db.prepareSync(INSERT_FEED_ITEM_SQL);
         statement.executeSync(feedKey, postId, i, null, now);
       }
     } finally {
-      statement.finalizeSync();
+      statement?.finalizeSync();
     }
 
     // Upsert feed meta
@@ -164,11 +165,12 @@ export function appendFeedItems(
     const now = Date.now();
 
     // Insert new items (IGNORE duplicates via PRIMARY KEY)
-    const statement = db.prepareSync(INSERT_FEED_ITEM_SQL);
+    let statement: ReturnType<typeof db.prepareSync> | undefined;
     try {
       for (const post of posts) {
         const postId = post.id;
         if (!postId) continue;
+        statement ??= db.prepareSync(INSERT_FEED_ITEM_SQL);
         const result = statement.executeSync(feedKey, postId, position, null, now);
         // Only advance position if the insert actually happened
         if (result.changes > 0) {
@@ -177,7 +179,7 @@ export function appendFeedItems(
         }
       }
     } finally {
-      statement.finalizeSync();
+      statement?.finalizeSync();
     }
 
     // Update meta

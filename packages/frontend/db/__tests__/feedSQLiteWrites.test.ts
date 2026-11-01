@@ -63,6 +63,7 @@ const post = (id: string): FeedItem =>
     permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },
     viewerState: {
       isOwner: false,
+      isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
       isBoosted: false,
@@ -160,6 +161,23 @@ describe('SQLite feed batch writes', () => {
     const writes = testDb.prepared.filter(({ sql }) => sql.includes(feedSql));
     expect(writes).toHaveLength(2);
     expect(writes[1].finalizeSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not prepare an insert for empty batches or posts without IDs', () => {
+    setFeedItems('home', [post('old')], metadata);
+    testDb.prepared.length = 0;
+    testDb.failPrepare((sql) => {
+      if (sql.includes(postSql) || sql.includes(feedSql)) throw new Error('unexpected prepare');
+    });
+    upsertPosts([]);
+    upsertPosts([post('')]);
+    expect(appendFeedItems('home', [], {})).toEqual([]);
+    expect(appendFeedItems('home', [post('')], {})).toEqual([]);
+    setFeedItems('home', [], metadata);
+    expect(getAllFeedItems('home')).toEqual([]);
+    setFeedItems('home', [post('')], metadata);
+    expect(getAllFeedItems('home')).toEqual([]);
+    expect(testDb.prepared).toEqual([]);
   });
 
   it('keeps the memory path independent of SQLite statements', () => {
