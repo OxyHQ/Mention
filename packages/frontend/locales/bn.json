@@ -1,4 +1,6 @@
 {
+  "compose.deviceDrafts.loadError": "এই ডিভাইসে সংরক্ষিত খসড়াগুলি লোড করা যায়নি",
+  "compose.retryDraftSave": "খসড়া সংরক্ষণের আবার চেষ্টা করুন",
   "search.history.updateFailed": "সার্চের ইতিহাস আপডেট করা যায়নি।",
   "search.history.clearFailed": "সার্চের ইতিহাস মুছে ফেলা যায়নি। আবার চেষ্টা করুন।",
   "post.threadPosition": "থ্রেডের {{total}}টির মধ্যে {{index}} নম্বর পোস্ট",

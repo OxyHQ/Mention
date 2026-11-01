@@ -5,6 +5,12 @@ import { logger } from '@oxy.so/core/logger';
  * Generic storage utility for caching data
  */
 export class Storage {
+  /** Distinguish an absent key from every stored JSON value, including null. */
+  static async getStrict<T>(key: string): Promise<{ found: false } | { found: true; value: T }> {
+    const item = await AsyncStorage.getItem(key);
+    return item === null ? { found: false } : { found: true, value: JSON.parse(item) as T };
+  }
+
   /**
    * Get item from storage
    */

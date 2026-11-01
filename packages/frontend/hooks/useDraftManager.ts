@@ -295,6 +295,7 @@ interface DraftManagerProps {
 
 export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftManagerProps) => {
   const [currentDraftId, setCurrentDraftIdState] = useState<string | null>(null);
+  const [autoSaveError, setAutoSaveError] = useState(false);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * The draft id as of NOW, not as of the last render. A publish reads it after
@@ -386,8 +387,10 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
       if (suspendedRef.current) return;
       try {
         await writeDraft(refs);
+        setAutoSaveError(false);
       } catch (error) {
         logger.error('Error auto-saving draft', error);
+        if (!suspendedRef.current) setAutoSaveError(true);
       }
     },
     [writeDraft],
@@ -402,6 +405,7 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
     async (refs: ComposeDraftRefs) => {
       cancelScheduledAutoSave();
       await writeDraft(refs);
+      setAutoSaveError(false);
     },
     [cancelScheduledAutoSave, writeDraft],
   );
@@ -473,6 +477,7 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
   /** The composer has been emptied after a publish; autosave may resume. */
   const endPublish = useCallback(() => {
     suspendedRef.current = false;
+    setAutoSaveError(false);
   }, []);
 
   const loadDraft = useCallback(
@@ -528,6 +533,7 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
 
   return {
     currentDraftId,
+    autoSaveError,
     setCurrentDraftId,
     autoSaveTimeoutRef,
     autoSave,

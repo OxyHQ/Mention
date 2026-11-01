@@ -1,4 +1,6 @@
 {
+  "compose.deviceDrafts.loadError": "No hemos podido cargar los borradores guardados en este dispositivo",
+  "compose.retryDraftSave": "Reintentar guardar el borrador",
   "search.history.updateFailed": "No se pudo actualizar el historial de búsqueda.",
   "search.history.clearFailed": "No se pudo borrar el historial de búsqueda. Inténtalo de nuevo.",
   "post.threadPosition": "Publicación {{index}} de {{total}} del hilo",

@@ -27,6 +27,8 @@ const mockToast = jest.fn();
 const mockList: {
   items: DraftListItem[];
   isLoading: boolean;
+  deviceError: boolean;
+  refetchDeviceDrafts: jest.Mock;
   serverLoading: boolean;
   serverError: boolean;
   refetchServerDrafts: jest.Mock;
@@ -37,6 +39,8 @@ const mockList: {
 } = {
   items: [],
   isLoading: false,
+  deviceError: false,
+  refetchDeviceDrafts: jest.fn(),
   serverLoading: false,
   serverError: false,
   refetchServerDrafts: jest.fn(),
@@ -186,6 +190,7 @@ describe('DraftsList', () => {
     mockConfirm.mockResolvedValue(true);
     mockList.items = [serverItem(), deviceItem()];
     mockList.isLoading = false;
+    mockList.deviceError = false;
     mockList.serverLoading = false;
     mockList.serverError = false;
     mockList.publishServerDraft.mockResolvedValue(undefined);
@@ -324,6 +329,19 @@ describe('DraftsList', () => {
     });
     expect(mockList.refetchServerDrafts).toHaveBeenCalledTimes(1);
 
+    act(() => tree.unmount());
+  });
+
+  it('reports an unavailable device store beside account drafts and retries it', () => {
+    mockList.items = [serverItem()];
+    mockList.deviceError = true;
+    const tree = renderList();
+
+    expect(textContent(tree)).toContain("We couldn't load the drafts saved on this device");
+    expect(textContent(tree)).toContain('Release notes for 4.2');
+    const retry = tree.root.find((node) => node.props.onPress === mockList.refetchDeviceDrafts);
+    act(() => retry.props.onPress());
+    expect(mockList.refetchDeviceDrafts).toHaveBeenCalledTimes(1);
     act(() => tree.unmount());
   });
 

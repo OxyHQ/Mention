@@ -1,4 +1,6 @@
 {
+  "compose.deviceDrafts.loadError": "Draf yang disimpan di perangkat ini tidak dapat dimuat",
+  "compose.retryDraftSave": "Coba lagi menyimpan draf",
   "search.history.updateFailed": "Riwayat pencarian tidak dapat diperbarui.",
   "search.history.clearFailed": "Riwayat pencarian tidak dapat dihapus. Silakan coba lagi.",
   "post.threadPosition": "Postingan {{index}} dari {{total}} dalam utas",
