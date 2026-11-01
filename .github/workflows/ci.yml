@@ -963,7 +963,18 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         env:
           MENTION_E2E_CANDIDATE_ORIGIN: http://127.0.0.1:4110
-        run: bun run --cwd packages/e2e test
+        run: |
+          row=packages/frontend/components/notifications/NotificationItem.tsx
+          cp "$row" "$RUNNER_TEMP/notification-row-candidate.tsx"
+          trap 'cp "$RUNNER_TEMP/notification-row-candidate.tsx" "$row"' EXIT
+          for iteration in 1 2 3; do
+            git show 550e0db81:"$row" > "$row"
+            echo "NOTIFICATION_ROW_BENCH baseline $iteration"
+            bun run --cwd packages/frontend test:perf --runTestsByPath components/notifications/__perf__/notificationRow.perf.tsx
+            cp "$RUNNER_TEMP/notification-row-candidate.tsx" "$row"
+            echo "NOTIFICATION_ROW_BENCH candidate $iteration"
+            bun run --cwd packages/frontend test:perf --runTestsByPath components/notifications/__perf__/notificationRow.perf.tsx
+          done
       - name: Upload the browser gate report
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
