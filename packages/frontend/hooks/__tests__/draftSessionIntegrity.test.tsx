@@ -1199,3 +1199,25 @@ it('stores mention metadata that is still present in the text', async () => {
   ]);
   act(() => renderer.unmount());
 });
+
+it('reports a publish in flight until it settles, so no other draft opens over it', async () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<Probe />);
+  });
+  expect(latest.isPublishing()).toBe(false);
+  act(() => latest.beginPublish());
+  expect(latest.isPublishing()).toBe(true);
+  await act(async () => {
+    await latest.publishSucceeded();
+  });
+  expect(latest.isPublishing()).toBe(true);
+  act(() => latest.endPublish());
+  expect(latest.isPublishing()).toBe(false);
+  act(() => latest.beginPublish());
+  await act(async () => {
+    await latest.publishFailed(refs('kept'));
+  });
+  expect(latest.isPublishing()).toBe(false);
+  act(() => renderer.unmount());
+});

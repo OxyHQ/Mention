@@ -14,20 +14,21 @@ export function sameDraftContent(a: ComposeDraftRefs, b: ComposeDraftRefs): bool
   );
 }
 
+/**
+ * Whether the editor holds work the publish did not take, and must be kept.
+ * Posting choices (lane, audience, replies…) are not part of a draft: a choice
+ * changed during the request has no content left to apply to, and keeping the
+ * editor for it would save the text just published as a new draft.
+ */
 export function shouldPreservePublishedEditor(
   submitted: ComposeDraftRefs,
   current: ComposeDraftRefs,
   submittedSession: object,
   currentSession: object,
-  submittedChoices: object,
-  currentChoices: object,
   switchingDraft: boolean,
 ): boolean {
   return (
-    switchingDraft ||
-    submittedSession !== currentSession ||
-    submittedChoices !== currentChoices ||
-    !sameDraftContent(submitted, current)
+    switchingDraft || submittedSession !== currentSession || !sameDraftContent(submitted, current)
   );
 }
 

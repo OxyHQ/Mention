@@ -326,6 +326,13 @@ export const useDraftManager = ({
   const suspendedRef = useRef(false);
 
   const getDraftSession = useCallback((): object => draftSessionRef.current, []);
+  /**
+   * True from {@link beginPublish} until the publish settles. The publishing
+   * session is deleted when the post goes out, so another draft must not be
+   * opened meanwhile: saving the editor on the way out would write newer work
+   * into that session, and the cleanup would delete it.
+   */
+  const isPublishing = useCallback(() => publishingSessionRef.current !== null, []);
 
   const cancelScheduledAutoSave = useCallback(() => {
     if (autoSaveTimeoutRef.current) {
@@ -611,6 +618,7 @@ export const useDraftManager = ({
   return {
     currentDraftId,
     getDraftSession,
+    isPublishing,
     autoSaveError,
     draftConflict,
     saveAsCopy,

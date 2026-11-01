@@ -726,6 +726,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const {
     currentDraftId,
     getDraftSession,
+    isPublishing,
     autoSaveError,
     draftConflict: draftRevisionConflict,
     saveAsCopy,
@@ -1307,36 +1308,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   useLayoutEffect(() => {
     latestDraftSnapshot.current = draftSnapshot;
   }, [draftSnapshot]);
-  const publishChoices = useMemo(
-    () => ({
-      collaborators,
-      laneId,
-      publishAs,
-      community,
-      postTitle,
-      alsoPostToProfile,
-      replyPermission,
-      quotesDisabled,
-      isSensitive,
-      quotedPost,
-    }),
-    [
-      collaborators,
-      laneId,
-      publishAs,
-      community,
-      postTitle,
-      alsoPostToProfile,
-      replyPermission,
-      quotesDisabled,
-      isSensitive,
-      quotedPost,
-    ],
-  );
-  const latestPublishChoices = useRef(publishChoices);
-  useLayoutEffect(() => {
-    latestPublishChoices.current = publishChoices;
-  }, [publishChoices]);
   const switchingDraftRef = useRef(false);
   const [switchingDraft, setSwitchingDraft] = useState(false);
   const composerMountedRef = useRef(false);
@@ -1468,7 +1439,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
     const submittedDraft = draftSnapshot;
     const submittedSession = getDraftSession();
-    const submittedChoices = publishChoices;
     setIsPosting(true);
     beginPublish();
     let published = false;
@@ -1716,8 +1686,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         latestDraftSnapshot.current,
         submittedSession,
         getDraftSession(),
-        submittedChoices,
-        latestPublishChoices.current,
         switchingDraftRef.current,
       );
       if (!preserveAfterPublish) {
@@ -1734,8 +1702,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           latestDraftSnapshot.current,
           submittedSession,
           getDraftSession(),
-          submittedChoices,
-          latestPublishChoices.current,
           switchingDraftRef.current,
         );
         return;
@@ -3003,7 +2969,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   iconOnly
                   icon={<RiDraftLine width={20} height={20} fill={theme.colors.text} />}
                   style={styles.iconBtn}
-                  disabled={switchingDraft}
+                  disabled={switchingDraft || isPosting}
                   onPress={() => {
                     let active = true;
                     const opened = presentSheet((surface) => (
@@ -3011,7 +2977,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         <UnpublishedSheet
                           onClose={() => surface.dismiss()}
                           onLoadDraft={async (draft: Draft) => {
-                            if (switchingDraftRef.current) return;
+                            // A sheet opened before a publish began cannot
+                            // switch away from the draft being published.
+                            if (switchingDraftRef.current || isPublishing()) return;
                             switchingDraftRef.current = true;
                             setSwitchingDraft(true);
                             let saved = false;

@@ -174,31 +174,19 @@ it('does not open B if the active session changed during the save', async () => 
   await expect(result).resolves.toEqual({ status: 'changed' });
 });
 
-it('preserves the editor if publication completes during a pending draft switch', () => {
+it('preserves the editor only for work the publish did not take', () => {
   const submitted = snapshot('A');
   const session = {};
-  const choices = {};
-  expect(
-    shouldPreservePublishedEditor(submitted, submitted, session, session, choices, choices, true),
-  ).toBe(true);
-  expect(
-    shouldPreservePublishedEditor(submitted, submitted, session, session, choices, choices, false),
-  ).toBe(false);
+  expect(shouldPreservePublishedEditor(submitted, submitted, session, session, true)).toBe(true);
+  expect(shouldPreservePublishedEditor(submitted, submitted, session, session, false)).toBe(false);
   expect(
     shouldPreservePublishedEditor(
       submitted,
       { ...submitted, postContent: 'later edit' },
       session,
       session,
-      choices,
-      choices,
       false,
     ),
   ).toBe(true);
-  expect(
-    shouldPreservePublishedEditor(submitted, submitted, session, {}, choices, choices, false),
-  ).toBe(true);
-  expect(
-    shouldPreservePublishedEditor(submitted, submitted, session, session, choices, {}, false),
-  ).toBe(true);
+  expect(shouldPreservePublishedEditor(submitted, submitted, session, {}, false)).toBe(true);
 });
