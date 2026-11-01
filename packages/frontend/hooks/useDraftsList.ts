@@ -69,7 +69,13 @@ export function mergeDrafts(deviceDrafts: Draft[], serverDrafts: HydratedPost[])
  * beside the rows it has.
  */
 export function useDraftsList() {
-  const { drafts: deviceDrafts, isLoading: deviceLoading, deleteDraft, loadDrafts } = useDrafts();
+  const {
+    drafts: deviceDrafts,
+    isLoading: deviceLoading,
+    isError: deviceError,
+    deleteDraft,
+    loadDrafts,
+  } = useDrafts();
   const {
     serverDrafts,
     isLoading: serverLoading,
@@ -88,6 +94,8 @@ export function useDraftsList() {
   return {
     items,
     isLoading: deviceLoading,
+    deviceError,
+    refetchDeviceDrafts: loadDrafts,
     serverLoading,
     serverError,
     refetchServerDrafts,

@@ -711,6 +711,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   });
   const {
     currentDraftId,
+    autoSaveError,
     autoSaveTimeoutRef,
     autoSave: autoSaveDraft,
     saveNow: saveDraftNow,
@@ -721,6 +722,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     publishFailed,
     endPublish,
   } = draftManager;
+
+  const announcedAutoSaveError = useRef(false);
+  useEffect(() => {
+    if (autoSaveError && !announcedAutoSaveError.current) {
+      toast(t('compose.saveDraftFailed', "Couldn't save the draft. Try again."), { type: 'error' });
+    }
+    announcedAutoSaveError.current = autoSaveError;
+  }, [autoSaveError, t]);
 
   // Everything the composer holds, as the one content predicate reads it
   // (`utils/composeContent.ts`) — validation, publish, autosave and the close
@@ -1270,6 +1279,24 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       variants,
     ],
   );
+
+  const [retryingDraftSave, setRetryingDraftSave] = useState(false);
+  const retryingDraftSaveRef = useRef(false);
+  const retryDraftSave = useCallback(async () => {
+    if (retryingDraftSaveRef.current) return;
+    retryingDraftSaveRef.current = true;
+    setRetryingDraftSave(true);
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+    try {
+      await autoSaveDraft(draftSnapshot);
+    } finally {
+      retryingDraftSaveRef.current = false;
+      setRetryingDraftSave(false);
+    }
+  }, [autoSaveDraft, autoSaveTimeoutRef, draftSnapshot]);
 
   /**
    * Empty every piece of content the composer holds — text, media, attachments,
@@ -2777,6 +2804,24 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           composer (`app/(app)/_layout.tsx`), so the footer row sits on the
           screen edge and has to clear the gesture area itself. */}
       <View className="flex-1 bg-card pt-safe pb-safe">
+        {autoSaveError && (
+          <View className="px-4 py-3">
+            <Text accessibilityRole="alert" className="text-sm text-destructive">
+              {t('compose.saveDraftFailed', "Couldn't save the draft. Try again.")}
+            </Text>
+            <Button
+              appearance="plain"
+              size="sm"
+              onPress={retryDraftSave}
+              disabled={retryingDraftSave}
+              accessibilityLabel={t('compose.retryDraftSave', {
+                defaultValue: 'Retry saving draft',
+              })}
+            >
+              {t('common.retry', { defaultValue: 'Retry' })}
+            </Button>
+          </View>
+        )}
         {supervision.supervised && (
           <Text className="px-4 py-3 text-sm text-muted-foreground">{t('safety.privatePost')}</Text>
         )}
@@ -4033,6 +4078,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   // The author chose to throw this work away; a stored copy that
                   // could not be deleted must not keep them in the composer.
                   logger.error('Failed to delete the discarded draft', error);
+                  toast(t('compose.deleteDraftError', 'Failed to delete draft'), { type: 'error' });
                 }
                 dismiss();
               },

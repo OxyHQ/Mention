@@ -13,7 +13,10 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 
 jest.mock('@/utils/storage', () => ({
   Storage: {
-    get: (...args: unknown[]) => mockStorageGet(...args),
+    getStrict: async (...args: unknown[]) => {
+      const value = await mockStorageGet(...args);
+      return value === null ? { found: false } : { found: true, value };
+    },
     set: (key: string, value: unknown) => mockStorageSet(key, value),
     remove: (key: string) => mockStorageRemove(key),
   },
