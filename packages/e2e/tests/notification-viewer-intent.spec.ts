@@ -445,6 +445,48 @@ test('keyboard activation of collaboration does not navigate the row', async ({
   expect(candidate.scriptErrors).toEqual([]);
 });
 
+test('clicking a disabled collaboration button does not navigate the row', async ({
+  page,
+  candidate,
+}) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  await page.route('**/posts/collab-post/collaborators/_viewer/decline', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    expect(fixtureViewerMatchesRequest(route.request(), userA)).toBe(true);
+    started();
+    await gate;
+    return route.fulfill({ headers: fixture.headers, json: { success: true } });
+  });
+  try {
+    await page.goto('/notifications');
+    await page.getByRole('button', { name: 'Decline', exact: true }).first().click();
+    await sent;
+    const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+    await expect(accept).toBeDisabled();
+    const box = await accept.boundingBox();
+    if (!box) throw new Error('The disabled collaboration button has no bounds');
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    const unexpected = await page.waitForURL('**/p/collab-post', { timeout: 1000 }).then(
+      () => true,
+      () => false,
+    );
+    expect(unexpected).toBe(false);
+    await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+    expect(candidate.scriptErrors).toEqual([]);
+  } finally {
+    release();
+  }
+});
+
 test('a 404 from an older server fails without retrying an old write route', async ({
   page,
   candidate,
