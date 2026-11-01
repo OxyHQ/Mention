@@ -642,7 +642,9 @@ test('a focused ordinary row keeps focus when a realtime notification creates a 
     entityId: selectedPostId,
     entityType: 'post',
     read: false,
-    createdAt: new Date().toISOString(),
+    // Keep the group's lead timestamp and list position stable so this test
+    // isolates a row update from virtualization caused by reordering.
+    createdAt: new Date(Date.now() - 16 * 60_000).toISOString(),
     preview: selectedText,
     actorId_populated: { id: userB, username: userB, name: { displayName: userB } },
   });
