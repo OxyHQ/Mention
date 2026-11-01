@@ -1,10 +1,12 @@
 import type React from 'react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
+import { toast } from '@oxy.so/bloom/toast';
+import { createLogger } from '@oxy.so/core/logger';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { HydratedPost } from '@mention/shared-types';
@@ -17,11 +19,13 @@ import ScheduledPostPreview from './ScheduledPostPreview';
 import ServerDraftPreview from './ServerDraftPreview';
 import DraftPreview from './DraftPreview';
 
+const logger = createLogger('UnpublishedSheet');
+
 export type UnpublishedTab = 'drafts' | 'scheduled';
 
 interface UnpublishedSheetProps {
   onClose: () => void;
-  onLoadDraft: (draft: Draft) => void;
+  onLoadDraft: (draft: Draft) => void | Promise<void>;
   currentDraftId: string | null;
 }
 
@@ -94,6 +98,38 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   currentDraftId,
 }) => {
   const { t } = useTranslation();
+  const [switchingDraft, setSwitchingDraft] = useState(false);
+  const switchingRef = useRef(false);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  const openDraft = useCallback(
+    async (draft: Draft) => {
+      if (switchingRef.current) return;
+      switchingRef.current = true;
+      setSwitchingDraft(true);
+      try {
+        await onLoadDraft(draft);
+      } catch (error) {
+        logger.error('Failed to open draft', error);
+        if (mountedRef.current)
+          toast(
+            t('compose.deviceDrafts.loadError', {
+              defaultValue: "We couldn't load the drafts saved on this device",
+            }),
+            { type: 'error' },
+          );
+      } finally {
+        switchingRef.current = false;
+        if (mountedRef.current) setSwitchingDraft(false);
+      }
+    },
+    [onLoadDraft, t],
+  );
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<UnpublishedTab>('drafts');
   const [previewPostId, setPreviewPostId] = useState<string | null>(null);
@@ -181,7 +217,7 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
           onBack={closeDraftPreview}
           onEdit={() => {
             closeDraftPreview();
-            onLoadDraft(previewDraft);
+            void openDraft(previewDraft);
           }}
         />
       </View>
@@ -220,40 +256,48 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
         }
       />
 
-      <View className="flex-row border-b border-border" accessibilityRole="tablist">
-        <TabButton
-          label={t('compose.drafts')}
-          isActive={activeTab === 'drafts'}
-          onPress={showDrafts}
-        />
-        <TabButton
-          label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
-          count={scheduledPosts.length}
-          isActive={activeTab === 'scheduled'}
-          onPress={showScheduled}
-        />
-      </View>
+      {switchingDraft && <Text accessibilityRole="alert">{t('common.saving')}</Text>}
+      <View
+        pointerEvents={switchingDraft ? 'none' : 'auto'}
+        accessibilityElementsHidden={switchingDraft}
+        importantForAccessibility={switchingDraft ? 'no-hide-descendants' : 'auto'}
+        style={{ flex: 1 }}
+      >
+        <View className="flex-row border-b border-border" accessibilityRole="tablist">
+          <TabButton
+            label={t('compose.drafts')}
+            isActive={activeTab === 'drafts'}
+            onPress={showDrafts}
+          />
+          <TabButton
+            label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
+            count={scheduledPosts.length}
+            isActive={activeTab === 'scheduled'}
+            onPress={showScheduled}
+          />
+        </View>
 
-      {activeTab === 'drafts' ? (
-        <DraftsList
-          onLoadDraft={onLoadDraft}
-          onPreviewDraft={openDraftPreview}
-          currentDraftId={currentDraftId}
-          onPreviewServerDraft={openServerDraftPreview}
-          onEditServerDraft={editPost}
-        />
-      ) : (
-        <ScheduledPostsList
-          posts={scheduledPosts}
-          isLoading={isLoading}
-          isError={isError}
-          onRetry={refetch}
-          onPreview={openPreview}
-          onEdit={editPost}
-          onCancel={cancelScheduledPost}
-          viewerId={viewerId}
-        />
-      )}
+        {activeTab === 'drafts' ? (
+          <DraftsList
+            onLoadDraft={openDraft}
+            onPreviewDraft={openDraftPreview}
+            currentDraftId={currentDraftId}
+            onPreviewServerDraft={openServerDraftPreview}
+            onEditServerDraft={editPost}
+          />
+        ) : (
+          <ScheduledPostsList
+            posts={scheduledPosts}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={refetch}
+            onPreview={openPreview}
+            onEdit={editPost}
+            onCancel={cancelScheduledPost}
+            viewerId={viewerId}
+          />
+        )}
+      </View>
     </View>
   );
 };

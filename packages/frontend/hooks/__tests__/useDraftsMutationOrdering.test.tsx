@@ -48,6 +48,12 @@ const existing: Draft = {
   updatedAt: 1,
 };
 let latest: ReturnType<typeof useDrafts>;
+const session = (id: string, revision: number | null) => ({
+  id,
+  revision,
+  closed: false,
+  conflicted: false,
+});
 function Probe() {
   latest = useDrafts();
   return null;
@@ -64,7 +70,7 @@ it('retains a new A-session draft when an older A-session read completes late', 
   mockPauseRead = true;
   let oldSave!: Promise<string>;
   await act(async () => {
-    oldSave = latest.saveDraft({ ...existing, postContent: 'old A edit' });
+    oldSave = latest.saveDraft({ ...existing, postContent: 'old A edit' }, session('saved', 0));
   });
   mockViewerId = 'viewer-b';
   await act(async () => {
@@ -76,7 +82,10 @@ it('retains a new A-session draft when an older A-session read completes late', 
   });
   let newSave!: Promise<string>;
   await act(async () => {
-    newSave = latest.saveDraft({ ...existing, id: 'new-a-draft', postContent: 'new A work' });
+    newSave = latest.saveDraft(
+      { ...existing, id: 'new-a-draft', postContent: 'new A work' },
+      session('new-a-draft', null),
+    );
   });
   await act(async () => {
     mockReleaseRead();
@@ -102,7 +111,10 @@ it.each(['delete', 'clear'] as const)(
     mockPauseRead = true;
     let save!: Promise<string>;
     await act(async () => {
-      save = first.saveDraft({ ...existing, id: 'new', postContent: 'new work' });
+      save = first.saveDraft(
+        { ...existing, id: 'new', postContent: 'new work' },
+        session('new', null),
+      );
     });
     await act(async () => {
       renderer.update(
@@ -114,7 +126,7 @@ it.each(['delete', 'clear'] as const)(
     });
     let removal!: Promise<void>;
     await act(async () => {
-      removal = operation === 'delete' ? latest.deleteDraft('saved') : latest.clearAllDrafts();
+      removal = operation === 'delete' ? latest.deleteDraft('saved', 0) : latest.clearAllDrafts();
     });
     await act(async () => {
       mockReleaseRead();
@@ -139,7 +151,7 @@ it('does not let a previous session deletion erase a newer edit of the same draf
   mockPauseRead = true;
   let deletion!: Promise<void>;
   await act(async () => {
-    deletion = latest.deleteDraft('saved');
+    deletion = latest.deleteDraft('saved', 0);
   });
   mockViewerId = 'viewer-b';
   await act(async () => renderer.update(<Probe key="b" />));
@@ -147,14 +159,13 @@ it('does not let a previous session deletion erase a newer edit of the same draf
   await act(async () => renderer.update(<Probe key="a2" />));
   let save!: Promise<string>;
   await act(async () => {
-    save = latest.saveDraft({ ...existing, postContent: 'newest edit' });
+    save = latest.saveDraft({ ...existing, postContent: 'newest edit' }, session('saved', 0));
   });
   await act(async () => {
     mockReleaseRead();
-    await Promise.all([deletion, save]);
+    await deletion;
+    await expect(save).rejects.toMatchObject({ name: 'DraftConflictError' });
   });
-  expect(JSON.parse(mockStore.get(getDraftsStorageKey('viewer-a'))!)[0].postContent).toBe(
-    'newest edit',
-  );
+  expect(JSON.parse(mockStore.get(getDraftsStorageKey('viewer-a'))!)).toEqual([]);
   act(() => renderer.unmount());
 });

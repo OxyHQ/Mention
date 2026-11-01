@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "Este rascunho foi alterado. Revê-o e tenta eliminá-lo novamente.",
+  "compose.draftMissing": "Este rascunho já não está disponível.",
+  "compose.draftConflict": "Este rascunho foi alterado noutro local. Guarda o teu trabalho como cópia.",
+  "compose.saveDraftCopy": "Guardar como cópia",
+  "compose.draftChangedRetry": "O rascunho foi alterado enquanto era guardado. Tenta novamente.",
   "compose.deviceDrafts.loadError": "Não foi possível carregar os rascunhos guardados neste dispositivo",
   "compose.retryDraftSave": "Tentar guardar o rascunho novamente",
   "search.history.updateFailed": "Não foi possível atualizar o histórico de pesquisa.",

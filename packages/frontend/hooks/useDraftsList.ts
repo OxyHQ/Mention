@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { HydratedPost } from '@mention/shared-types';
 import { useDrafts, type Draft } from '@/hooks/useDrafts';
 import { useServerDrafts } from '@/hooks/useServerDrafts';
+import { draftRevision } from '@/utils/draftSession';
 
 /**
  * One row of the drafts screen, from either place a draft can live.
@@ -102,8 +103,8 @@ export function useDraftsList() {
     publishServerDraft,
     deleteServerDraft,
     /** Delete a device draft, then re-read storage so the row goes. */
-    deleteDeviceDraft: async (draftId: string) => {
-      await deleteDraft(draftId);
+    deleteDeviceDraft: async (draft: Draft) => {
+      await deleteDraft(draft.id, draftRevision(draft.localRevision));
       await loadDrafts();
     },
     viewerId,

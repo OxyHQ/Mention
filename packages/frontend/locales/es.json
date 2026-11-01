@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "Este borrador ha cambiado. Revísalo y vuelve a intentar eliminarlo.",
+  "compose.draftMissing": "Este borrador ya no está disponible.",
+  "compose.draftConflict": "Este borrador ha cambiado en otra sesión. Guarda tu trabajo como una copia.",
+  "compose.saveDraftCopy": "Guardar como copia",
+  "compose.draftChangedRetry": "El borrador ha cambiado mientras se guardaba. Vuelve a intentarlo.",
   "compose.deviceDrafts.loadError": "No hemos podido cargar los borradores guardados en este dispositivo",
   "compose.retryDraftSave": "Reintentar guardar el borrador",
   "search.history.updateFailed": "No se pudo actualizar el historial de búsqueda.",

@@ -69,7 +69,7 @@ describe('handlePost', () => {
 
   it('keeps and saves the draft when the publish fails', () => {
     const failure = failurePath(body);
-    expect(failure).toContain('publishFailed(draftSnapshot)');
+    expect(failure).toContain('publishFailed(latestDraftSnapshot.current)');
     expect(failure).not.toContain('resetComposerAfterPublish');
     expect(failure).not.toContain('leaveAfterPublish');
   });
@@ -119,10 +119,11 @@ describe('resuming a draft', () => {
 
   it('closes the Unpublished sheet before restoring the draft, and hands the composer focus', () => {
     expect(at).toBeGreaterThan(-1);
-    expect(sheet.indexOf('surface.dismiss()')).toBeGreaterThan(-1);
-    expect(sheet.indexOf('surface.dismiss()')).toBeLessThan(
-      sheet.indexOf('handleResumeDraft(draft)'),
-    );
+    const restore = sheet.indexOf('handleResumeDraft(result.draft)');
+    expect(restore).toBeGreaterThan(-1);
+    expect(sheet.lastIndexOf('surface.dismiss()', restore)).toBeGreaterThan(-1);
+    expect(sheet).toContain('prepareDraftSwitch(');
+    expect(sheet).toContain('readDraft,');
     expect(resume).toContain('loadDraft(draft)');
     expect(resume).toContain('.focus()');
   });

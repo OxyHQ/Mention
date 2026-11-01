@@ -15,6 +15,12 @@ import { createVariantsState } from '@/utils/composeVariants';
  *   deleted the id its render had captured — none — so it was never removed.
  */
 
+let mockNextDraftId = 1;
+jest.mock('@/utils/draftSession', () => ({
+  ...jest.requireActual('@/utils/draftSession'),
+  createDraftId: () => `draft-${mockNextDraftId++}`,
+}));
+
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   logger: { error: jest.fn() },
@@ -27,8 +33,21 @@ const saveDraft = jest.fn(async (_draft: unknown) => 'draft-1');
 const deleteDraft = jest.fn(async (_id: string) => undefined);
 const onDraftLoad = jest.fn();
 
+let storageTail: Promise<unknown> = Promise.resolve();
 function Probe() {
-  latest = useDraftManager({ saveDraft, deleteDraft, onDraftLoad });
+  const trackedSave = (draft: Parameters<typeof saveDraft>[0]) => {
+    const result = saveDraft(draft);
+    storageTail = result.catch(() => undefined);
+    return result;
+  };
+  const queueDeleteDraft = async (
+    getSession: () => import('@/utils/draftSession').DraftSession,
+  ) => {
+    await storageTail;
+    const id = getSession().id;
+    if (id) await deleteDraft(id);
+  };
+  latest = useDraftManager({ saveDraft: trackedSave, queueDeleteDraft, onDraftLoad });
   return null;
 }
 
@@ -67,6 +86,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  storageTail = Promise.resolve();
+  mockNextDraftId = 1;
   saveDraft.mockImplementation(async () => 'draft-1');
   deleteDraft.mockImplementation(async () => undefined);
   latest = null;
@@ -145,12 +166,12 @@ describe('useDraftManager across a publish', () => {
       settled = manager().publishSucceeded();
     });
     await act(async () => {
-      finishSave('draft-late');
+      finishSave('draft-1');
       await inFlight;
       await settled;
     });
 
-    expect(deleteDraft).toHaveBeenCalledWith('draft-late');
+    expect(deleteDraft).toHaveBeenCalledWith('draft-1');
     expect(manager().currentDraftId).toBeNull();
   });
 
@@ -183,7 +204,7 @@ describe('useDraftManager across a publish', () => {
 
     expect(saveDraft).toHaveBeenCalledTimes(1);
     expect(saveDraft.mock.calls[0][0]).toMatchObject({ postContent: 'the next post' });
-    expect(saveDraft.mock.calls[0][0]).not.toHaveProperty('id', 'draft-1');
+    expect(saveDraft.mock.calls[0][0]).toMatchObject({ id: expect.any(String) });
   });
 
   it('does not fail a published post when deleting its draft fails', async () => {

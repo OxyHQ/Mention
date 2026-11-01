@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "This draft changed. Review it and try deleting again.",
+  "compose.draftMissing": "This draft is no longer available.",
+  "compose.draftConflict": "This draft changed elsewhere. Save your work as a copy.",
+  "compose.saveDraftCopy": "Save as copy",
+  "compose.draftChangedRetry": "Your draft changed while saving. Try again.",
   "post.threadPosition": "Post {{index}} of {{total}} in thread",
   "post.viewConversation": "View conversation",
   "post.threadContinuation": "Thread continuation ({{count}})",

@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "この下書きは変更されました。内容を確認してから再度削除してください。",
+  "compose.draftMissing": "この下書きは利用できなくなりました。",
+  "compose.draftConflict": "この下書きは別の場所で変更されました。作業内容をコピーとして保存してください。",
+  "compose.saveDraftCopy": "コピーとして保存",
+  "compose.draftChangedRetry": "保存中に下書きが変更されました。もう一度お試しください。",
   "compose.deviceDrafts.loadError": "このデバイスに保存された下書きを読み込めませんでした",
   "compose.retryDraftSave": "下書きの保存を再試行",
   "search.history.updateFailed": "検索履歴を更新できませんでした。",

@@ -277,7 +277,7 @@ describe('AccountSwitchReset identity boundary', () => {
         current = useDraftManager({
           saveDraft: () =>
             viewerId === 'viewer-a' ? oldSave : Promise.reject(new Error('new viewer save failed')),
-          deleteDraft: async () => {},
+          queueDeleteDraft: async () => {},
           onDraftLoad: () => {},
         });
         return null;
@@ -297,7 +297,7 @@ describe('AccountSwitchReset identity boundary', () => {
       });
       mockUser = { id: 'viewer-b' };
       act(() => renderer.update(boundary()));
-      act(() => current!.setCurrentDraftId('new-viewer-draft'));
+      act(() => current!.loadDraft({ id: 'new-viewer-draft' }));
       // A successful old save must not clear the new session's error either.
       if (outcome === 'success') {
         await act(async () => current!.autoSave(makeRefs('new viewer')));
