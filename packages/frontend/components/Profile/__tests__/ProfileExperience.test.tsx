@@ -578,6 +578,10 @@ describe('central employer identity', () => {
         await client.resumePausedMutations();
       });
       expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
+      await waitUntil(
+        () => rendered().includes('The organization could not be added. Please try again.'),
+        'the organization creation error',
+      );
     } finally {
       onlineManager.setOnline(true);
     }
