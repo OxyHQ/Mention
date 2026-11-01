@@ -131,3 +131,41 @@ it('does not present when the session changes during subscription', async () => 
   expect(released).toBe(true);
   await act(async () => renderer.unmount());
 });
+
+it('settling one owned layer does not close its sibling', async () => {
+  let open!: Open;
+  let current = true;
+  const listeners = new Set<() => void>();
+  function Screen() {
+    open = useOwnedNotificationSurfaces(
+      () => current,
+      (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    );
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<Screen />);
+  });
+  const layers: { signal: AbortSignal; resolve: (value: string) => void }[] = [];
+  const present: Present = (signal) =>
+    new Promise((resolve) => {
+      layers.push({ signal, resolve });
+      signal.addEventListener('abort', () => resolve('aborted'), { once: true });
+    });
+  const first = open({ viewerId: 'A', epoch: 1 }, present);
+  const second = open({ viewerId: 'A', epoch: 1 }, present);
+  layers[0].resolve('closed');
+  await first;
+  expect(listeners.size).toBe(1);
+  expect(layers[1].signal.aborted).toBe(false);
+  current = false;
+  for (const listener of listeners) listener();
+  await second;
+  expect(layers[1].signal.aborted).toBe(true);
+  expect(listeners.size).toBe(0);
+  await act(async () => renderer.unmount());
+});
