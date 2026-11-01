@@ -39,6 +39,96 @@ it('does not load render-ahead/hidden or unsubscribed queued cards', async () =>
   expect(load).not.toHaveBeenCalled();
 });
 
+it('cancels a batch only after every subscribed reference has left', async () => {
+  const load = jest.fn(
+    (_ids: readonly string[], _options: { signal: AbortSignal }) =>
+      new Promise<ReferenceBatch<Item>>(() => {}),
+  );
+  const store = new VisibleReferenceStore(load);
+  const stopFirst = store.subscribe('case-1', jest.fn());
+  const stopFirstDuplicate = store.subscribe('case-1', jest.fn());
+  const stopSecond = store.subscribe('case-2', jest.fn());
+  await tick();
+
+  const signal = load.mock.calls[0]?.[1].signal;
+  if (!signal) throw new Error('The batch did not start');
+  stopFirst();
+  expect(signal.aborted).toBe(false);
+  stopFirstDuplicate();
+  expect(signal.aborted).toBe(false);
+  stopSecond();
+  expect(signal.aborted).toBe(true);
+  await tick(0);
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+it('does not cancel a new request when an old reference lifetime is removed', async () => {
+  const completions: Array<(result: ReferenceBatch<Item>) => void> = [];
+  const load = jest.fn(
+    (_ids: readonly string[], _options: { signal: AbortSignal }) =>
+      new Promise<ReferenceBatch<Item>>((resolve) => completions.push(resolve)),
+  );
+  const store = new VisibleReferenceStore(load);
+  const stopOld = store.subscribe('case-1', jest.fn());
+  await tick();
+  const oldSignal = load.mock.calls[0]?.[1].signal;
+  stopOld();
+  expect(oldSignal?.aborted).toBe(true);
+
+  const stopNew = store.subscribe('case-1', jest.fn());
+  await tick();
+  const newSignal = load.mock.calls[1]?.[1].signal;
+  expect(newSignal?.aborted).toBe(false);
+  completions[0]?.({ items: [], unavailableIds: ['case-1'] });
+  await tick();
+  expect(newSignal?.aborted).toBe(false);
+  completions[1]?.(ready);
+  await tick();
+  expect(store.getSnapshot('case-1')).toEqual({ status: 'ready', value: item });
+  stopNew();
+});
+
+it('delivers the shared response to references that remain visible', async () => {
+  const completions: Array<(result: ReferenceBatch<Item>) => void> = [];
+  const load = jest.fn(
+    (_ids: readonly string[], _options: { signal: AbortSignal }) =>
+      new Promise<ReferenceBatch<Item>>((resolve) => {
+        completions.push(resolve);
+      }),
+  );
+  const store = new VisibleReferenceStore(load);
+  const stopFirst = store.subscribe('case-1', jest.fn());
+  const stopSecond = store.subscribe('case-2', jest.fn());
+  await tick();
+  stopFirst();
+  expect(load.mock.calls[0]?.[1].signal.aborted).toBe(false);
+  completions[0]?.({ items: [item, { ...item, id: 'case-2' }], unavailableIds: [] });
+  await tick();
+  expect(store.getSnapshot('case-2')).toEqual({
+    status: 'ready',
+    value: { ...item, id: 'case-2' },
+  });
+  stopSecond();
+});
+
+it('does not duplicate an in-flight request when a refresh is requested', async () => {
+  const completions: Array<(result: ReferenceBatch<Item>) => void> = [];
+  const load = jest.fn(
+    (_ids: readonly string[], _options: { signal: AbortSignal }) =>
+      new Promise<ReferenceBatch<Item>>((resolve) => completions.push(resolve)),
+  );
+  const store = new VisibleReferenceStore(load);
+  const stop = store.subscribe('case-1', jest.fn());
+  await tick();
+  store.refresh();
+  await tick();
+  expect(load).toHaveBeenCalledTimes(1);
+  completions[0]?.(ready);
+  await tick();
+  expect(store.getSnapshot('case-1')).toEqual({ status: 'ready', value: item });
+  stop();
+});
+
 it.each(['withdrawn', 'error', 'malformed'] as const)(
   'drops old facts on %s and never restores a stale snapshot',
   async (failure) => {

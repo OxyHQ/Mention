@@ -9,11 +9,15 @@ export interface ReferenceBatch<T> {
 }
 
 type Listener = () => void;
+interface ActiveBatch<T> {
+  controller: AbortController;
+  entries: Set<Entry<T>>;
+}
 interface Entry<T> {
   state: ReferenceState<T>;
   listeners: Set<Listener>;
   refresh?: ReturnType<typeof setTimeout>;
-  inFlight: boolean;
+  inFlight?: ActiveBatch<T>;
 }
 const LOADING = { status: 'loading' } as const;
 const UNAVAILABLE = { status: 'unavailable' } as const;
@@ -45,7 +49,7 @@ export class VisibleReferenceStore<T extends { id: string }> {
   subscribe = (id: string, listener: Listener): (() => void) => {
     let entry = this.entries.get(id);
     if (!entry) {
-      entry = { state: LOADING, listeners: new Set(), inFlight: false };
+      entry = { state: LOADING, listeners: new Set() };
       this.entries.set(id, entry);
       this.queue(id);
     }
@@ -57,6 +61,12 @@ export class VisibleReferenceStore<T extends { id: string }> {
         clearTimeout(subscribed.refresh);
         this.entries.delete(id);
         this.pending.delete(id);
+        const batch = subscribed.inFlight;
+        if (batch) {
+          // A batch can still serve other visible references.
+          batch.entries.delete(subscribed);
+          if (batch.entries.size === 0) batch.controller.abort();
+        }
       }
     };
   };
@@ -89,24 +99,26 @@ export class VisibleReferenceStore<T extends { id: string }> {
     for (const id of this.pending) {
       const entry = this.entries.get(id);
       if (entry && !entry.inFlight) {
-        entry.inFlight = true;
         batch.set(id, entry);
       }
     }
     this.pending.clear();
     if (!batch.size) return;
     const controller = new AbortController();
+    const active: ActiveBatch<T> = { controller, entries: new Set(batch.values()) };
+    for (const entry of active.entries) entry.inFlight = active;
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
     let values = new Map<string, T>();
     try {
+      const aborted = new Promise<never>((_, reject) => {
+        onAbort = () => reject(new Error('Reference provider aborted'));
+        controller.signal.addEventListener('abort', onAbort, { once: true });
+        timeout = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 8_000);
+      });
       const result = await Promise.race([
         this.load([...batch.keys()], { signal: controller.signal }),
-        new Promise<never>((_, reject) => {
-          timeout = setTimeout(() => {
-            controller.abort();
-            reject(new Error('Reference provider timed out'));
-          }, this.options.timeoutMs ?? 8_000);
-        }),
+        aborted,
       ]);
       // Treat malformed/incomplete batches as unavailable, never as old data.
       const ids = [...result.items.map((item) => item.id), ...result.unavailableIds];
@@ -121,11 +133,12 @@ export class VisibleReferenceStore<T extends { id: string }> {
       // No stale fallback; errors deliberately carry no provider facts.
     } finally {
       clearTimeout(timeout);
+      if (onAbort) controller.signal.removeEventListener('abort', onAbort);
     }
     for (const [id, entry] of batch) {
       // A recycled row may now subscribe to the same ID with a new lifetime.
       if (this.entries.get(id) !== entry) continue;
-      entry.inFlight = false;
+      entry.inFlight = undefined;
       const value = values.get(id);
       entry.state = value ? { status: 'ready', value } : UNAVAILABLE;
       this.emit(entry);
