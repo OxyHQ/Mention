@@ -1,4 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
+import { AppState, type AppStateStatus } from 'react-native';
 import { TICK_MS, timeAgoSubscriberCount, useTimeAgo } from '../useTimeAgo';
 
 (
@@ -80,5 +81,51 @@ describe('useTimeAgo', () => {
     expect(renders.get('old')).toBe(before.old);
 
     act(() => tree.unmount());
+  });
+
+  it('pauses in the background and immediately refreshes when active again', () => {
+    let onStateChange: ((state: AppStateStatus) => void) | undefined;
+    const remove = jest.fn();
+    const subscription = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((_type, fn) => {
+        onStateChange = fn;
+        return { remove };
+      });
+    const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
+    act(() => {
+      rendered.current = TestRenderer.create(<Label id="a" date={START - 25_000} />);
+    });
+    const tree = rendered.current;
+    if (!tree) throw new Error('Time label did not render');
+    expect(jest.getTimerCount()).toBe(1);
+    act(() => onStateChange?.('background'));
+    expect(jest.getTimerCount()).toBe(0);
+    act(() => jest.advanceTimersByTime(60_000));
+    expect(tree.toJSON()).toBe('25s');
+    act(() => onStateChange?.('active'));
+    expect(tree.toJSON()).toBe('1m');
+    expect(jest.getTimerCount()).toBe(1);
+    act(() => onStateChange?.('active'));
+    expect(jest.getTimerCount()).toBe(1);
+    act(() => tree.unmount());
+    expect(jest.getTimerCount()).toBe(0);
+    expect(remove).toHaveBeenCalledTimes(1);
+    subscription.mockRestore();
+  });
+
+  it('does not start a ticker when the first label mounts in the background', () => {
+    const originalState = Object.getOwnPropertyDescriptor(AppState, 'currentState');
+    Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'background' });
+    const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
+    act(() => {
+      rendered.current = TestRenderer.create(<Label id="a" date={START - 25_000} />);
+    });
+    const tree = rendered.current;
+    if (!tree) throw new Error('Time label did not render');
+    expect(timeAgoSubscriberCount()).toBe(1);
+    expect(jest.getTimerCount()).toBe(0);
+    act(() => tree.unmount());
+    if (originalState) Object.defineProperty(AppState, 'currentState', originalState);
   });
 });

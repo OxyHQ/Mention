@@ -138,4 +138,69 @@ describe('viewer-owned polling stores', () => {
       jest.useRealTimers();
     }
   });
+
+  it('refreshes socket updates only while a rooms widget is observing', async () => {
+    mockGetLiveRooms.mockResolvedValue([]);
+    const store = useLiveRoomsStore.getState();
+    store.refreshObservedLiveRooms();
+    expect(mockGetLiveRooms).not.toHaveBeenCalled();
+
+    const first = store.startPolling();
+    const second = store.startPolling();
+    expect(mockGetLiveRooms).toHaveBeenCalledTimes(1);
+    store.refreshObservedLiveRooms();
+    expect(mockGetLiveRooms).toHaveBeenCalledTimes(2);
+    store.stopPolling(first);
+    store.refreshObservedLiveRooms();
+    expect(mockGetLiveRooms).toHaveBeenCalledTimes(3);
+    store.stopPolling(second);
+    store.refreshObservedLiveRooms();
+    expect(mockGetLiveRooms).toHaveBeenCalledTimes(3);
+
+    const reopened = store.startPolling();
+    expect(mockGetLiveRooms).toHaveBeenCalledTimes(4);
+    store.stopPolling(reopened);
+    await Promise.resolve();
+  });
+
+  it('updates the displayed host when a room keeps the same id and participant count', async () => {
+    mockGetLiveRooms
+      .mockResolvedValueOnce([room('room')])
+      .mockResolvedValueOnce([{ ...room('room'), host: 'new-host' }]);
+    await useLiveRoomsStore.getState().fetchLiveRooms();
+    await useLiveRoomsStore.getState().fetchLiveRooms({ silent: true });
+    expect(useLiveRoomsStore.getState().rooms[0].host).toBe('new-host');
+  });
+
+  it('does not notify room subscribers when a refresh changes nothing', async () => {
+    mockGetLiveRooms
+      .mockResolvedValueOnce([room('room')])
+      .mockResolvedValueOnce([room('room')])
+      .mockResolvedValueOnce([{ ...room('room'), title: 'Updated' }]);
+    await useLiveRoomsStore.getState().fetchLiveRooms();
+    const notify = jest.fn();
+    const unsubscribe = useLiveRoomsStore.subscribe(notify);
+    await useLiveRoomsStore.getState().fetchLiveRooms({ silent: true });
+    expect(notify).not.toHaveBeenCalled();
+    await useLiveRoomsStore.getState().fetchLiveRooms({ silent: true });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(useLiveRoomsStore.getState().rooms[0].title).toBe('Updated');
+    unsubscribe();
+  });
+
+  it('does not notify trend subscribers when a refresh changes nothing', async () => {
+    mockApiGet
+      .mockResolvedValueOnce({ data: { trending: [{ name: 'first' }] } })
+      .mockResolvedValueOnce({ data: { trending: [{ name: 'first' }] } })
+      .mockResolvedValueOnce({ data: { trending: [{ name: 'second' }] } });
+    await useTrendsStore.getState().fetchTrends();
+    const notify = jest.fn();
+    const unsubscribe = useTrendsStore.subscribe(notify);
+    await useTrendsStore.getState().fetchTrends({ silent: true });
+    expect(notify).not.toHaveBeenCalled();
+    await useTrendsStore.getState().fetchTrends({ silent: true });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(useTrendsStore.getState().trends[0].text).toBe('second');
+    unsubscribe();
+  });
 });

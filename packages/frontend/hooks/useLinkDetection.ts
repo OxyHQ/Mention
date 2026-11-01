@@ -28,7 +28,8 @@ export const useLinkDetection = (text: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { getCached, upsertLink } = useLinksStore();
+  const getCached = useLinksStore((state) => state.getCached);
+  const upsertLink = useLinksStore((state) => state.upsertLink);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -116,13 +117,14 @@ export const useLinkDetection = (text: string) => {
 
       setIsLoading(true);
       setError(null);
-      abortControllerRef.current = new AbortController();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       try {
-        const results = await fetchLinkMetadata(urls, abortControllerRef.current?.signal);
+        const results = await fetchLinkMetadata(urls, controller.signal);
 
         // Check if request was aborted
-        if (abortControllerRef.current?.signal.aborted) {
+        if (controller.signal.aborted) {
           return;
         }
 
@@ -131,12 +133,12 @@ export const useLinkDetection = (text: string) => {
 
         setDetectedLinks(validLinks);
       } catch (err) {
-        if (abortControllerRef.current?.signal.aborted) {
+        if (controller.signal.aborted) {
           return;
         }
         setError(err instanceof Error ? err.message : 'Failed to fetch link metadata');
       } finally {
-        if (!abortControllerRef.current?.signal.aborted) {
+        if (!controller.signal.aborted) {
           setIsLoading(false);
         }
       }

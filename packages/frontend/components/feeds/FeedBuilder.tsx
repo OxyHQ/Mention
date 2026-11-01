@@ -750,7 +750,7 @@ export function FeedBuilder({
   const { t } = useTranslation();
   const { oxyServices, user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const { catalog, isLoading: catalogLoading } = useFeedModules();
+  const { catalog, isLoading: catalogLoading } = useFeedModules(canUsePrivateApi);
 
   const def = initialFeed?.definition;
 

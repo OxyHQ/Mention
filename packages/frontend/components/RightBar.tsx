@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { Activity, useMemo } from 'react';
+import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
 import { View, Platform, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
@@ -26,6 +27,16 @@ const STATIC_FOOTER_URLS = [
 ] as const;
 
 export function RightBar() {
+  const panel = useAppShellPanel();
+  const visible = panel.visibilityReady !== false && panel.active !== false;
+  return (
+    <Activity mode={visible ? 'visible' : 'hidden'}>
+      <RightBarContent />
+    </Activity>
+  );
+}
+
+function RightBarContent() {
   // The /videos screen is the sole writer of `active` — true ONLY while that
   // route is mounted. Reading it here keeps the rail swap reactive and exact
   // (no pathname string-matching), so the immersive rail mounts/unmounts in

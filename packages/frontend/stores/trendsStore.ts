@@ -79,6 +79,7 @@ interface TrendsStore {
   /** Set by the identity boundary; refetches when the set actually changes. */
   setReaderLanguages: (languages: readonly string[]) => void;
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
+  refreshAfterUpdate: () => void;
   resyncAfterReconnect: () => void;
   startPolling: () => number;
   stopPolling: (subscriptionId: number) => void;
@@ -125,7 +126,17 @@ const LEGACY_STORAGE_KEY = 'trends-hidden';
 // Lease IDs keep delayed cleanup from an old identity from touching a new
 // viewer's subscriber count after resetViewerState().
 const pollSubscriptions = new Set<number>();
+const inFlightRequests = new Set<symbol>();
 let nextPollSubscriptionId = 1;
+
+function hasRequestedTrends(state: Pick<TrendsStore, 'hasFetched' | 'error'>): boolean {
+  return (
+    state.hasFetched ||
+    state.error !== null ||
+    inFlightRequests.size > 0 ||
+    pollSubscriptions.size > 0
+  );
+}
 
 export const useTrendsStore = create<TrendsStore>()((set, get) => ({
   trends: [],
@@ -143,22 +154,26 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
     // for its shared cache key, the one authority for that rule.
     const next = [...new Set(languages.map((tag) => tag.trim()).filter(Boolean))];
     if (next.join(',') === get().readerLanguages.join(',')) return;
+    const needsRefresh = hasRequestedTrends(get());
     set({ readerLanguages: next });
-    // The list already on screen was ordered for the previous reader.
-    void get().fetchTrends({ silent: true });
+    // A list already requested was ordered for the previous reader. Do not
+    // fetch one just because the app's language became available at startup.
+    if (needsRefresh) void get().fetchTrends({ silent: !get().isLoading });
   },
 
   fetchTrends: async (opts?: { silent?: boolean }) => {
     const operationEpoch = viewerEpoch;
+    const languages = get().readerLanguages;
+    const request = Symbol();
+    inFlightRequests.add(request);
     const silent = !!opts?.silent;
     if (!silent) set({ isLoading: true, error: null });
     try {
-      const languages = get().readerLanguages;
       const response = await api.get<TrendsApiResponse>('/trending', {
         limit: 10,
         ...(languages.length > 0 ? { lang: languages.join(',') } : {}),
       });
-      if (operationEpoch !== viewerEpoch) return;
+      if (operationEpoch !== viewerEpoch || languages !== get().readerLanguages) return;
       const items: TrendApiItem[] = response.data.trending || [];
       const recId = response.data.recId;
       const next = items.map((item) => {
@@ -205,16 +220,31 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
           // the token is absent whenever a cache entry predates it, and a
           // sparkline that silently kept yesterday's shape would be the
           // quiet version of the invented geometry this chart replaced.
+          // Actors are small JSON responses with nested names and federation
+          // data; compare their contents rather than fresh array references.
           if (
             !a ||
             !b ||
             a.id !== b.id ||
+            a.type !== b.type ||
+            a.text !== b.text ||
+            a.hashtag !== b.hashtag ||
             a.score !== b.score ||
             a.displayName !== b.displayName ||
+            a.description !== b.description ||
+            a.volume !== b.volume ||
+            a.momentum !== b.momentum ||
+            a.rank !== b.rank ||
+            a.created_at !== b.created_at ||
+            a.category !== b.category ||
+            a.startedAt !== b.startedAt ||
+            a.firstSeenAt !== b.firstSeenAt ||
+            a.authorCount !== b.authorCount ||
             a.status !== b.status ||
             a.direction !== b.direction ||
             a.recId !== b.recId ||
-            a.series?.join() !== b.series?.join()
+            a.series?.join() !== b.series?.join() ||
+            JSON.stringify(a.actors) !== JSON.stringify(b.actors)
           ) {
             changed = true;
             break;
@@ -226,14 +256,20 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
 
       if (changed || prevSummary !== nextSummary) {
         set({ trends: next, summary: nextSummary, isLoading: false, hasFetched: true });
-      } else {
+      } else if (get().isLoading || !get().hasFetched) {
         set({ isLoading: false, hasFetched: true });
       }
     } catch (error: unknown) {
-      if (operationEpoch !== viewerEpoch) return;
+      if (operationEpoch !== viewerEpoch || languages !== get().readerLanguages) return;
       const message = error instanceof Error ? error.message : 'Failed to fetch trends';
       if (!silent) set({ error: message, isLoading: false });
+    } finally {
+      inFlightRequests.delete(request);
     }
+  },
+
+  refreshAfterUpdate: () => {
+    if (hasRequestedTrends(get())) void get().fetchTrends({ silent: true });
   },
 
   /**
@@ -287,6 +323,7 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
   resetViewerState: () => {
     viewerEpoch += 1;
     pollSubscriptions.clear();
+    inFlightRequests.clear();
     if (pollHandle) {
       clearInterval(pollHandle);
       pollHandle = null;
