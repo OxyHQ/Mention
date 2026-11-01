@@ -498,18 +498,16 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     return postThumbnailUrl(source);
   }, [item.leadNotification.post, isCollabInvite, collabPost]);
 
-  const markRead = useCallback(() => {
-    if (hasUnread) onMarkAsRead(item.notificationIds);
-  }, [hasUnread, onMarkAsRead, item.notificationIds]);
-
   const handlePress = useCallback(() => {
-    markRead();
+    const intent = captureIntent();
+    if (!intent || !isCurrentIntent(intent)) return;
+    if (hasUnread) onMarkAsRead(item.notificationIds, intent);
     const { type, entityType, entityId } = item;
     const href =
       notificationSubjectHref({ type, entityType, entityId }) ??
       (entityType === 'profile' ? profileHrefForUser(resolvedPrimary) : null);
-    if (href) router.push(href);
-  }, [markRead, item, resolvedPrimary, router]);
+    if (href && isCurrentIntent(intent)) router.push(href);
+  }, [captureIntent, hasUnread, isCurrentIntent, item, onMarkAsRead, resolvedPrimary, router]);
 
   // Long-press opens a small action sheet offering "Mark as read" (only when the
   // row is unread) and a destructive "Delete". Dismissing the sheet is the
@@ -564,10 +562,12 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
   const openActorProfile = useCallback(
     (actor: ResolvedActor) => {
+      const intent = captureIntent();
+      if (!intent || !isCurrentIntent(intent)) return;
       const href = profileHrefForUser(actor);
-      if (href) router.push(href);
+      if (href && isCurrentIntent(intent)) router.push(href);
     },
-    [router],
+    [captureIntent, isCurrentIntent, router],
   );
 
   /**

@@ -160,6 +160,16 @@ const NotificationsScreen: React.FC = () => {
     user?.id,
     oxyServices,
   );
+  const rowIntent = useMemo(
+    () => (user?.id ? { viewerId: user.id, epoch: projectionEpoch } : null),
+    [user?.id, projectionEpoch],
+  );
+  // Rows may remain mounted briefly across a session boundary. They must not
+  // recapture a new epoch from a later session before React replaces them.
+  const captureRowIntent = useCallback(
+    () => (rowIntent && isCurrentIntent(rowIntent) ? rowIntent : null),
+    [rowIntent, isCurrentIntent],
+  );
   const selectProjectedNotifications = useCallback(
     (data: NotificationsInfiniteData) =>
       projectNotificationOptimism(data, 0, operations, {
@@ -587,13 +597,13 @@ const NotificationsScreen: React.FC = () => {
             item={item}
             onMarkAsRead={handleMarkAsRead}
             onDelete={handleDelete}
-            captureIntent={captureIntent}
+            captureIntent={captureRowIntent}
             isCurrentIntent={isCurrentIntent}
           />
         </ErrorBoundary>
       );
     },
-    [t, handleBoundaryError, handleMarkAsRead, handleDelete, captureIntent, isCurrentIntent],
+    [t, handleBoundaryError, handleMarkAsRead, handleDelete, captureRowIntent, isCurrentIntent],
   );
 
   const emptyStateConfig = useMemo((): {

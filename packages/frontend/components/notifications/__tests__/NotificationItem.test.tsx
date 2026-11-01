@@ -42,6 +42,7 @@ const VIEWER_ID = 'viewer-1';
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: 'viewer-1' } }),
+  queryKeys: { users: { detail: (id: string) => ['users', id] } },
 }));
 
 // ── Module boundaries ───────────────────────────────────────────────────────
@@ -71,6 +72,8 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+const mockPush = jest.fn();
+jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 jest.mock('expo-image', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -110,7 +113,10 @@ jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 // The row paints the surface it landed on. Bloom's `styles` subpath ships
 // untranspiled ESM, so it is stubbed here like every other Bloom subpath in
 // this file; the colour only has to be a colour.
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => '#ffffff' }));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  useSurfaceFill: () => '#ffffff',
+  tokens: { hitSlop: { md: 8 } },
+}));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
@@ -277,6 +283,8 @@ async function renderRow(
   state: PostViewerState,
   options?: {
     onDelete?: jest.Mock;
+    onMarkAsRead?: jest.Mock;
+    item?: GroupedNotification;
     captureIntent?: () => { viewerId: string; epoch: number } | null;
     isCurrentIntent?: (intent: { viewerId: string; epoch: number }) => boolean;
   },
@@ -296,8 +304,8 @@ async function renderRow(
     renderer = TestRenderer.create(
       <QueryClientProvider client={queryClient}>
         <NotificationItem
-          item={collabInviteItem()}
-          onMarkAsRead={jest.fn()}
+          item={options?.item ?? collabInviteItem()}
+          onMarkAsRead={options?.onMarkAsRead ?? jest.fn()}
           onDelete={options?.onDelete ?? jest.fn()}
           captureIntent={options?.captureIntent ?? (() => ({ viewerId: 'viewer-1', epoch: 1 }))}
           isCurrentIntent={options?.isCurrentIntent ?? (() => true)}
@@ -337,6 +345,90 @@ function buttonByLabel(root: ReactTestInstance, label: string): ReactTestInstanc
 describe('NotificationItem — collaboration invite', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('does not mark or navigate from a row owned by an earlier session', async () => {
+    let epoch = 1;
+    const original = { viewerId: VIEWER_ID, epoch };
+    const onMarkAsRead = jest.fn();
+    const { renderer } = await renderRow(PENDING, {
+      onMarkAsRead,
+      captureIntent: () => original,
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    epoch = 3;
+    act(() => target.props.onPress());
+    expect(onMarkAsRead).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the row session after marking and before navigation', async () => {
+    let epoch = 1;
+    const original = { viewerId: VIEWER_ID, epoch };
+    const onMarkAsRead = jest.fn(() => {
+      epoch = 2;
+    });
+    const { renderer } = await renderRow(PENDING, {
+      onMarkAsRead,
+      captureIntent: () => original,
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    act(() => target.props.onPress());
+    expect(onMarkAsRead).toHaveBeenCalledWith([NOTIF_ID], original);
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('marks and navigates when the row session remains current', async () => {
+    const onMarkAsRead = jest.fn();
+    const { renderer } = await renderRow(PENDING, { onMarkAsRead });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    act(() => target.props.onPress());
+    expect(onMarkAsRead).toHaveBeenCalledWith([NOTIF_ID], { viewerId: VIEWER_ID, epoch: 1 });
+    expect(mockPush).toHaveBeenCalledWith(`/p/${POST_ID}`);
+  });
+
+  it('blocks stale profile navigation from an expanded group', async () => {
+    let epoch = 1;
+    const original = { viewerId: VIEWER_ID, epoch };
+    const item = {
+      ...collabInviteItem(),
+      isGroup: true,
+      expandable: true,
+      totalActors: 2,
+      actors: [
+        { id: 'owner-1', name: 'Owner', username: 'owner' },
+        { id: 'other-1', name: 'Other', username: 'other' },
+      ],
+    };
+    const { renderer } = await renderRow(PENDING, {
+      item,
+      captureIntent: () => original,
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const expand = renderer.root
+      .findAll(
+        (node) =>
+          node.props.accessibilityRole === 'button' &&
+          typeof node.props.onPress === 'function' &&
+          node.findAllByType(Text).some((text) => text.props.children === 'Show all'),
+      )
+      .at(-1);
+    expect(expand).toBeDefined();
+    act(() => expand?.props.onPress());
+    const profile = renderer.root.findAll(
+      (node) =>
+        node.props.className === 'flex-row items-center gap-2' &&
+        typeof node.props.onPress === 'function',
+    )[0];
+    expect(profile).toBeDefined();
+    act(() => profile.props.onPress());
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    mockPush.mockClear();
+    epoch = 3;
+    act(() => profile.props.onPress());
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it('captures the original intent when the action menu opens, not when a row is pressed', async () => {

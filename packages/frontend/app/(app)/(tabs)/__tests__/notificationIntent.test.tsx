@@ -865,3 +865,21 @@ it.each([
     );
   },
 );
+
+it('an old rendered row cannot recapture a new epoch after ABA without a render', async () => {
+  await mount();
+  const oldRow = mockRows.one;
+  const initial = oldRow.captureIntent();
+  expect(initial).toEqual({ viewerId: 'A', epoch: 1 });
+  mockUserId = 'B';
+  mockEpoch++;
+  mockUserId = 'A';
+  mockEpoch++;
+  expect(oldRow.captureIntent()).toBeNull();
+  await act(async () => {
+    for (const listener of mockTokenListeners) listener();
+    await tick();
+  });
+  expect(mockRows.one.captureIntent()).toEqual({ viewerId: 'A', epoch: 3 });
+  expect(oldRow.captureIntent()).toBeNull();
+});
