@@ -13,7 +13,7 @@ function token(id: string) {
       JSON.stringify({
         sub: id,
         userId: id,
-        sessionId: `session-${id}`,
+        sessionId: id === userA ? 'notification-fixture' : 'fixture-b',
         exp: Math.floor(Date.now() / 1000) + 7200,
       }),
     ).toString('base64url'),
@@ -113,12 +113,16 @@ async function installSwitchingFixture(page: Page) {
 }
 
 test('control: the switching fixture loads the initial inbox', async ({ page, candidate }) => {
-  await installSwitchingFixture(page);
+  const fixture = await installSwitchingFixture(page);
   page.on('console', (message) => { if (message.type() === 'error') console.log('BROWSER ERROR:', message.text()); });
   page.on('pageerror', (error) => console.log('BROWSER EXCEPTION:', error.stack));
   await page.goto('/notifications');
   try {
     await expect(page.getByText(selectedText, { exact: true })).toBeVisible();
+    await fixture.changeTo(userB);
+    await fixture.changeTo(userA);
+    await fixture.changeTo(null);
+    await fixture.changeTo(userA);
   } finally {
     console.log('RECORDED ERRORS:', JSON.stringify(candidate.scriptErrors));
     console.log('INBOX EXCEPTION:', await page.evaluate(() => document.documentElement.dataset.notificationControlError ?? 'none'));
