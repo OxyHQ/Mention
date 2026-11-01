@@ -162,7 +162,7 @@ const NotificationsScreen: React.FC = () => {
   );
 
   // Mark notification(s) as read — group rows pass every id in the group.
-  const markAsReadMutation = useMutation({
+  const { mutate: markAsRead } = useMutation({
     mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.markAsRead(id))),
     onMutate: (ids: string[]) => applyReadPatch(ids),
     onError: (error: unknown) => {
@@ -202,7 +202,7 @@ const NotificationsScreen: React.FC = () => {
   );
 
   // Delete notification(s) — group rows pass every id in the group.
-  const deleteMutation = useMutation({
+  const { mutate: deleteNotification } = useMutation({
     mutationFn: (ids: string[]) =>
       Promise.all(ids.map((id) => notificationService.deleteNotification(id))),
     onMutate: (ids: string[]) => applyRemovePatch(ids),
@@ -259,16 +259,16 @@ const NotificationsScreen: React.FC = () => {
 
   const handleMarkAsRead = useCallback(
     (ids: string[]) => {
-      markAsReadMutation.mutate(ids);
+      markAsRead(ids);
     },
-    [markAsReadMutation],
+    [markAsRead],
   );
 
   const handleDelete = useCallback(
     (ids: string[]) => {
-      deleteMutation.mutate(ids);
+      deleteNotification(ids);
     },
-    [deleteMutation],
+    [deleteNotification],
   );
 
   const handleMarkAllAsRead = useCallback(async () => {

@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 52.85,
-      "covered": 14834,
-      "total": 28068
+      "pct": 53.7,
+      "covered": 15083,
+      "total": 28083
     },
     "branches": {
-      "pct": 48.76,
-      "covered": 10324,
-      "total": 21170
+      "pct": 49.19,
+      "covered": 10426,
+      "total": 21193
     },
     "functions": {
-      "pct": 47.74,
-      "covered": 3545,
-      "total": 7425
+      "pct": 48.53,
+      "covered": 3604,
+      "total": 7426
     },
     "lines": {
-      "pct": 53.7,
-      "covered": 13416,
-      "total": 24980
+      "pct": 54.58,
+      "covered": 13643,
+      "total": 24995
     }
   },
   "pins": {
@@ -768,10 +768,10 @@
       "lines": 100
     },
     "lib/appInitializer.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 69,
+      "branches": 66,
+      "functions": 75,
+      "lines": 68
     },
     "lib/bootFeedRead.ts": {
       "statements": 100,
@@ -1447,7 +1447,7 @@
     },
     "stores/trendsStore.ts": {
       "statements": 95,
-      "branches": 92,
+      "branches": 93,
       "functions": 94,
       "lines": 100
     },
@@ -1602,8 +1602,8 @@
       "lines": 100
     },
     "utils/feedTelemetry.ts": {
-      "statements": 95,
-      "branches": 91,
+      "statements": 96,
+      "branches": 92,
       "functions": 96,
       "lines": 98
     },
@@ -1639,7 +1639,7 @@
     },
     "utils/groupNotifications.ts": {
       "statements": 98,
-      "branches": 76,
+      "branches": 79,
       "functions": 100,
       "lines": 98
     },
@@ -1704,10 +1704,10 @@
       "lines": 100
     },
     "utils/notificationCache.ts": {
-      "statements": 62,
-      "branches": 44,
-      "functions": 80,
-      "lines": 65
+      "statements": 85,
+      "branches": 61,
+      "functions": 100,
+      "lines": 92
     },
     "utils/notificationRoute.ts": {
       "statements": 100,
@@ -1716,10 +1716,10 @@
       "lines": 100
     },
     "utils/notifications.ts": {
-      "statements": 28,
-      "branches": 22,
-      "functions": 15,
-      "lines": 28
+      "statements": 48,
+      "branches": 36,
+      "functions": 33,
+      "lines": 51
     },
     "utils/openExternalLink.ts": {
       "statements": 9,

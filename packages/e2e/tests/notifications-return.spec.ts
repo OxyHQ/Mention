@@ -248,3 +248,64 @@ for (const back of ['app', 'browser'] as const) {
     expect(candidate.scriptErrors).toEqual([]);
   });
 }
+
+test('a failed notification read is refreshed and can be retried', async ({
+  context,
+  page,
+  candidate,
+}) => {
+  await installNotificationFixture(context, 'populated');
+  const notificationId = 'read-retry-fixture';
+  const inbox = {
+    notifications: [
+      {
+        _id: notificationId,
+        recipientId: user.id,
+        actorId: 'system',
+        type: 'welcome',
+        entityId: '',
+        entityType: 'system',
+        read: false,
+        createdAt: new Date().toISOString(),
+        actorId_populated: { _id: 'system', username: 'system' },
+      },
+    ],
+    unreadCount: 1,
+    hasMore: false,
+    limit: 20,
+  };
+  let readAttempts = 0;
+  const headers = {
+    'access-control-allow-origin': APP_ORIGIN,
+    'access-control-allow-credentials': 'true',
+  };
+  await context.route(
+    (url) => url.origin !== APP_ORIGIN && url.pathname === '/notifications',
+    (route) => route.fulfill({ headers, json: inbox }),
+  );
+  await context.route(`**/notifications/${notificationId}/read`, (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    readAttempts += 1;
+    return route.fulfill({ headers, status: readAttempts === 1 ? 500 : 200, json: {} });
+  });
+  await page.goto('/notifications');
+  const welcome = page.getByText('Welcome to Mention! 👋', { exact: true });
+  await expect(welcome).toBeVisible();
+  const refreshed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/notifications' &&
+      response.request().method() === 'GET',
+  );
+  await welcome.click();
+  await expect(page.getByText('Failed to mark notification as read')).toBeVisible();
+  await refreshed;
+  const successfulRead = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/notifications/${notificationId}/read` && response.ok(),
+  );
+  await welcome.click();
+  await successfulRead;
+  expect(readAttempts).toBe(2);
+  await expect(welcome).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
