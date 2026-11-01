@@ -177,9 +177,7 @@ test('preserves both versions when a revision conflict is saved as a copy', asyn
   );
 });
 
-test('publishing A leaves B open and stored when B is selected during the request', async ({
-  page,
-}) => {
+test('no other draft opens while A is publishing, and B stays stored', async ({ page }) => {
   await page.goto('/compose');
   const editor = page.getByPlaceholder("What's new?");
   await expect(editor).toBeVisible();
@@ -188,8 +186,11 @@ test('publishing A leaves B open and stored when B is selected during the reques
   try {
     await page.getByTestId('compose-submit').click();
     await publication.started;
-    await openDraft(page, 'Draft B original');
-    await expect(editor).toHaveValue('Draft B original');
+    // Opening B now would save the editor into A's session, which the
+    // publish then deletes.
+    await expect(
+      page.getByRole('button', { name: 'Open drafts and scheduled posts' }),
+    ).toBeDisabled();
     publication.release();
     await expect
       .poll(async () => {
@@ -200,7 +201,6 @@ test('publishing A leaves B open and stored when B is selected during the reques
         };
       })
       .toEqual({ a: false, b: 'Draft B original' });
-    await expect(editor).toHaveValue('Draft B original');
     expect(publication.payload()).toMatchObject({ content: { text: 'Draft A original' } });
   } finally {
     publication.release();
