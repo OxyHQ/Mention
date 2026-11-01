@@ -51,6 +51,7 @@ const openEditProfile = () => requestSettings('/settings/edit-profile');
 export const ProfileHeader = memo(function ProfileHeader({
   username,
   avatarUri,
+  galleryShareUrl,
   account,
   isOwnProfile,
   currentUsername,
@@ -140,6 +141,7 @@ export const ProfileHeader = memo(function ProfileHeader({
           </Animated.View>
         ) : (
           <ZoomableAvatar
+            shareUrl={galleryShareUrl ?? null}
             account={account}
             source={avatarUri}
             size={90 - PROFILE_AVATAR_RING * 2}

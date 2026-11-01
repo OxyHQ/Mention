@@ -30,6 +30,8 @@ import { DropdownMenuItem } from '@oxy.so/bloom/dropdown-menu';
 import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
+import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
+import { profileRouteFamily } from '@/components/Profile/profileRoute';
 
 // Profile primitives
 import {
@@ -318,6 +320,9 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     return (
       <>
         <ChannelHeader
+          galleryShareUrl={
+            galleryProfilePermalink(profileData.username, profileRouteFamily(profileData)) ?? null
+          }
           displayName={profileData.design.displayName}
           username={profileData.username}
           avatarUri={profileData.design.avatar}
