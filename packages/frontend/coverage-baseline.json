@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.73,
-      "covered": 14503,
-      "total": 28035
+      "pct": 52.19,
+      "covered": 14643,
+      "total": 28057
     },
     "branches": {
-      "pct": 47.67,
-      "covered": 10080,
-      "total": 21145
+      "pct": 48.02,
+      "covered": 10159,
+      "total": 21155
     },
     "functions": {
-      "pct": 46.87,
-      "covered": 3480,
-      "total": 7424
+      "pct": 47.36,
+      "covered": 3517,
+      "total": 7425
     },
     "lines": {
-      "pct": 52.56,
-      "covered": 13116,
-      "total": 24953
+      "pct": 52.99,
+      "covered": 13234,
+      "total": 24970
     }
   },
   "pins": {
@@ -138,10 +138,10 @@
       "lines": 100
     },
     "db/feedQueries.ts": {
-      "statements": 31,
-      "branches": 25,
-      "functions": 40,
-      "lines": 36
+      "statements": 48,
+      "branches": 36,
+      "functions": 46,
+      "lines": 53
     },
     "db/index.ts": {
       "statements": 100,
@@ -163,7 +163,7 @@
     },
     "db/migrations.ts": {
       "statements": 93,
-      "branches": 50,
+      "branches": 66,
       "functions": 100,
       "lines": 93
     },
@@ -174,10 +174,10 @@
       "lines": 100
     },
     "db/postQueries.ts": {
-      "statements": 54,
-      "branches": 41,
+      "statements": 56,
+      "branches": 43,
       "functions": 80,
-      "lines": 59
+      "lines": 60
     },
     "db/schema.ts": {
       "statements": 79,
@@ -366,10 +366,10 @@
       "lines": 0
     },
     "hooks/useInfiniteCatalogSearch.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 86,
+      "branches": 66,
+      "functions": 90,
+      "lines": 85
     },
     "hooks/useJobAttachmentManager.ts": {
       "statements": 100,
@@ -846,10 +846,10 @@
       "lines": 98
     },
     "lib/i18n.ts": {
-      "statements": 52,
-      "branches": 47,
+      "statements": 58,
+      "branches": 69,
       "functions": 33,
-      "lines": 51
+      "lines": 56
     },
     "lib/jobPagination.ts": {
       "statements": 100,
@@ -1212,10 +1212,10 @@
       "lines": 0
     },
     "services/listsService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 55,
+      "branches": 66,
+      "functions": 50,
+      "lines": 47
     },
     "services/membershipsService.ts": {
       "statements": 100,
@@ -1446,7 +1446,7 @@
       "lines": 100
     },
     "stores/trendsStore.ts": {
-      "statements": 94,
+      "statements": 95,
       "branches": 92,
       "functions": 94,
       "lines": 100
