@@ -142,7 +142,10 @@ describe('useDrafts viewer isolation', () => {
     storedList = [draft('written-elsewhere', 1), draft('session', 2)];
 
     await act(async () => {
-      await latestResult!.saveDraft({ ...draft('session', 0), postContent: 'updated' });
+      await latestResult!.saveDraft(
+        { ...draft('session', 0), postContent: 'updated' },
+        { id: 'session', revision: 0, closed: false, conflicted: false },
+      );
     });
 
     expect(storedList.map((item) => item.id).sort()).toEqual(['session', 'written-elsewhere']);
@@ -160,16 +163,19 @@ describe('useDrafts viewer isolation', () => {
     });
 
     await expect(
-      latestResult!.saveDraft({
-        postContent: 'private draft',
-        mediaIds: [],
-        pollOptions: [],
-        showPollCreator: false,
-        location: null,
-        threadItems: [],
-        mentions: [],
-        postingMode: 'beast',
-      }),
+      latestResult!.saveDraft(
+        {
+          postContent: 'private draft',
+          mediaIds: [],
+          pollOptions: [],
+          showPollCreator: false,
+          location: null,
+          threadItems: [],
+          mentions: [],
+          postingMode: 'beast',
+        },
+        { id: 'new', revision: null, closed: false, conflicted: false },
+      ),
     ).rejects.toThrow('authenticated viewer');
     expect(mockStorageSet).not.toHaveBeenCalled();
 
@@ -196,7 +202,12 @@ describe('useDrafts viewer isolation', () => {
     expect(latestResult!.drafts[0].podcast).toEqual({ syraPodcastId: 'show-1' });
     expect(latestResult!.drafts[0].threadItems[0].podcast).toEqual({ syraPodcastId: 'show-1' });
     await act(async () => {
-      await latestResult!.saveDraft(legacy);
+      await latestResult!.saveDraft(legacy, {
+        id: 'legacy',
+        revision: 0,
+        closed: false,
+        conflicted: false,
+      });
     });
     const saved = mockStorageSet.mock.calls.at(-1)?.[1];
     expect(JSON.stringify(saved)).not.toContain('Stale title');

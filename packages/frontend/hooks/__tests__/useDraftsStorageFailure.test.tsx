@@ -37,6 +37,8 @@ const storedDraft: Draft = {
 };
 
 let latest: ReturnType<typeof useDrafts>;
+const save = (draft: Draft, revision: number | null = 0) =>
+  latest.saveDraft(draft, { id: draft.id, revision, closed: false, conflicted: false });
 function Probe() {
   latest = useDrafts();
   return null;
@@ -64,7 +66,7 @@ it('reports a failed edit and keeps the last stored draft in state', async () =>
   mockSetItem.mockRejectedValueOnce(new Error('storage full'));
 
   await act(async () => {
-    await expect(latest.saveDraft({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
+    await expect(save({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
   });
 
   expect(mockSetItem).toHaveBeenCalledWith(
@@ -73,7 +75,7 @@ it('reports a failed edit and keeps the last stored draft in state', async () =>
   );
   expect(latest.drafts[0].postContent).toBe('original text');
   await act(async () => {
-    await latest.saveDraft({ ...storedDraft, postContent: 'new text' });
+    await save({ ...storedDraft, postContent: 'new text' });
   });
   expect(latest.drafts[0].postContent).toBe('new text');
   act(() => renderer!.unmount());
@@ -87,7 +89,7 @@ it('does not overwrite stored drafts when reading them for a save fails', async 
   mockGetItem.mockRejectedValueOnce(new Error('storage unavailable'));
 
   await act(async () => {
-    await expect(latest.saveDraft({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
+    await expect(save({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
   });
 
   expect(mockSetItem).not.toHaveBeenCalled();
@@ -103,12 +105,12 @@ it('reports a failed delete without removing the draft from state', async () => 
   mockSetItem.mockRejectedValueOnce(new Error('storage unavailable'));
 
   await act(async () => {
-    await expect(latest.deleteDraft('saved')).rejects.toThrow();
+    await expect(latest.deleteDraft('saved', 0)).rejects.toThrow();
   });
 
   expect(latest.drafts[0].id).toBe('saved');
   await act(async () => {
-    await latest.deleteDraft('saved');
+    await latest.deleteDraft('saved', 0);
   });
   expect(latest.drafts).toEqual([]);
   act(() => renderer!.unmount());
@@ -141,7 +143,7 @@ it('does not overwrite malformed stored data', async () => {
   });
   mockGetItem.mockResolvedValueOnce('{bad json');
   await act(async () => {
-    await expect(latest.saveDraft({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
+    await expect(save({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
   });
   expect(mockSetItem).not.toHaveBeenCalled();
   act(() => renderer!.unmount());
@@ -156,7 +158,7 @@ it.each(['null', '{}', 'false', '0', '""'])(
     });
     mockGetItem.mockResolvedValueOnce(raw);
     await act(async () => {
-      await expect(latest.saveDraft({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
+      await expect(save({ ...storedDraft, postContent: 'new text' })).rejects.toThrow();
     });
     expect(mockSetItem).not.toHaveBeenCalled();
     act(() => renderer!.unmount());
@@ -170,7 +172,7 @@ it('allows creating a draft when the storage key is actually absent', async () =
     renderer = TestRenderer.create(<Probe />);
   });
   await act(async () => {
-    await latest.saveDraft({ ...storedDraft, postContent: 'new text' });
+    await save({ ...storedDraft, postContent: 'new text' }, null);
   });
   expect(mockSetItem).toHaveBeenCalledWith(
     getDraftsStorageKey('viewer-a'),
@@ -208,9 +210,7 @@ it('does not publish a failed old-account write into the new account', async () 
   );
   let result: Promise<string | Error>;
   await act(async () => {
-    result = latest
-      .saveDraft({ ...storedDraft, postContent: 'old viewer edit' })
-      .catch((error) => error);
+    result = save({ ...storedDraft, postContent: 'old viewer edit' }).catch((error) => error);
   });
   expect(mockSetItem).toHaveBeenCalledWith(
     getDraftsStorageKey('viewer-a'),
@@ -242,7 +242,7 @@ it('does not delete from either account when the owner changes during the read',
   );
   let result: Promise<void | Error>;
   await act(async () => {
-    result = latest.deleteDraft('saved').catch((error) => error);
+    result = latest.deleteDraft('saved', 0).catch((error) => error);
   });
 
   mockViewerId = 'viewer-b';

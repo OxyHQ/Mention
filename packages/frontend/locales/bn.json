@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "এই খসড়াটি পরিবর্তিত হয়েছে। পর্যালোচনা করে আবার মুছে ফেলার চেষ্টা করুন।",
+  "compose.draftMissing": "এই খসড়াটি আর উপলব্ধ নেই।",
+  "compose.draftConflict": "এই খসড়াটি অন্য কোথাও পরিবর্তিত হয়েছে। আপনার কাজ একটি অনুলিপি হিসেবে সংরক্ষণ করুন।",
+  "compose.saveDraftCopy": "অনুলিপি হিসেবে সংরক্ষণ করুন",
+  "compose.draftChangedRetry": "সংরক্ষণের সময় খসড়া পরিবর্তিত হয়েছে। আবার চেষ্টা করুন।",
   "compose.deviceDrafts.loadError": "এই ডিভাইসে সংরক্ষিত খসড়াগুলি লোড করা যায়নি",
   "compose.retryDraftSave": "খসড়া সংরক্ষণের আবার চেষ্টা করুন",
   "search.history.updateFailed": "সার্চের ইতিহাস আপডেট করা যায়নি।",

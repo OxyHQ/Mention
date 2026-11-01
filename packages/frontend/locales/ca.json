@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "Aquest esborrany ha canviat. Revisa'l i torna a provar d'eliminar-lo.",
+  "compose.draftMissing": "Aquest esborrany ja no està disponible.",
+  "compose.draftConflict": "Aquest esborrany ha canviat en un altre lloc. Desa la teva feina com a còpia.",
+  "compose.saveDraftCopy": "Desa com a còpia",
+  "compose.draftChangedRetry": "L'esborrany ha canviat mentre es desava. Torna-ho a provar.",
   "compose.deviceDrafts.loadError": "No hem pogut carregar els esborranys desats en aquest dispositiu",
   "compose.retryDraftSave": "Torna a provar de desar l'esborrany",
   "search.history.updateFailed": "No s’ha pogut actualitzar l’historial de cerca.",
