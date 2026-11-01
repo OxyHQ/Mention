@@ -42,9 +42,10 @@ import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
  * a ref as well as state: state lands on the next render and the second press
  * arrives before that.
  *
- * An unconfirmed publication keeps the capture. No automatic retry is safe:
- * the server may have created the post before the response was lost. A
- * confirmed publication may still return no local model when caching fails.
+ * An unconfirmed publication keeps the capture. The composer does not retry
+ * an uncertain result: the server may have created the post before the response
+ * was lost. Core's existing 401 refresh/replay policy is separate. A confirmed
+ * publication may still return no local model when caching fails.
  *
  * THE COMPOSER IS PUSHED, NEVER SWITCHED TO. The "add text" exit hands the
  * upload over through `pendingShareMedia`, a consume-once buffer that the
