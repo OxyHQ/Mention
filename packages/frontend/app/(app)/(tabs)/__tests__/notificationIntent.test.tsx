@@ -58,7 +58,9 @@ jest.mock('@/services/notificationService', () => ({
 jest.mock('@/components/notifications/NotificationItem', () => {
   const React = require('react');
   return {
-    NotificationItem: React.memo((props: RowActions & { item: { key: string } }) => {
+    NotificationItem: React.memo(function MockNotificationItem(
+      props: RowActions & { item: { key: string } },
+    ) {
       mockRows[props.item.key] = props;
       return null;
     }),
