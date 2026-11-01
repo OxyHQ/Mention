@@ -29,7 +29,7 @@ import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('FeedQueries');
 
-// Shared by the replace and append batches; each prepares it once per transaction.
+// Shared by replace and append; each prepares it at most once per transaction.
 const INSERT_FEED_ITEM_SQL =
   'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)';
 
