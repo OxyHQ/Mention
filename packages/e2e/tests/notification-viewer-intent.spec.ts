@@ -168,7 +168,14 @@ test('a retained failure does not toast under the new viewer', async ({ page, ca
   });
   await page.route('**/notifications/_viewer/*/read', async (route) => {
     if (route.request().method() !== 'PATCH') return route.fallback();
-    expect(route.request().headers()['x-mention-expected-viewer']).toBe(userA);
+    const requestHeaders = route.request().headers();
+    expect(requestHeaders['x-mention-expected-viewer']).toBe(userA);
+    const authorization = requestHeaders.authorization ?? '';
+    expect(authorization).toMatch(/^Bearer /);
+    const claims = JSON.parse(
+      Buffer.from(authorization.slice('Bearer '.length).split('.')[1], 'base64url').toString(),
+    );
+    expect(claims).toMatchObject({ sub: userA, sessionId: 'notification-fixture' });
     started();
     await gate;
     await route
