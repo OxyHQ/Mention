@@ -120,8 +120,9 @@ test('a failed notification read is refreshed and can be retried', async ({
     (url) => url.origin !== APP_ORIGIN && url.pathname === '/notifications',
     (route) => route.fulfill({ headers, json: inbox }),
   );
-  await context.route(`**/notifications/${notificationId}/read`, (route) => {
+  await context.route(`**/notifications/_viewer/${notificationId}/read`, (route) => {
     if (route.request().method() === 'OPTIONS') return route.fallback();
+    expect(route.request().headers()['x-mention-expected-viewer']).toBe(user.id);
     readAttempts += 1;
     return route.fulfill({ headers, status: readAttempts === 1 ? 500 : 200, json: {} });
   });
@@ -138,7 +139,8 @@ test('a failed notification read is refreshed and can be retried', async ({
   await refreshed;
   const successfulRead = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname === `/notifications/${notificationId}/read` && response.ok(),
+      new URL(response.url()).pathname === `/notifications/_viewer/${notificationId}/read` &&
+      response.ok(),
   );
   await welcome.click();
   await successfulRead;
