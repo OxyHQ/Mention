@@ -31,6 +31,8 @@ import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-typ
 interface ZoomableAvatarProps {
   /** An Oxy file id, an absolute URL, or an expo-image source (a bundled asset). */
   source?: AvatarProps['source'];
+  /** Public profile permalink; null disables sharing in the viewer. */
+  shareUrl?: string | null;
   account?: AvatarProps['account'];
   /** Avatar content diameter; an outer frame supplied in style may include a ring. */
   size?: number;
@@ -60,6 +62,7 @@ interface ZoomableAvatarProps {
  */
 export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   source,
+  shareUrl = null,
   account,
   size = 40,
   style,
@@ -139,12 +142,12 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     if (hasCharacter || !zoomUri) return;
     void measureThumb().then((rect) => {
       galleryRef.current?.open(
-        [{ uri: zoomUri, previewUri: thumbUri, aspectRatio: 1 }],
+        [{ uri: zoomUri, previewUri: thumbUri, aspectRatio: 1, shareUrl }],
         0,
         rect ?? undefined,
       );
     });
-  }, [measureThumb, zoomUri, thumbUri, hasCharacter]);
+  }, [measureThumb, zoomUri, thumbUri, hasCharacter, shareUrl]);
 
   // Resting transform: the scroll-collapse shrink. Neutral (identity) when the
   // host passes no `collapseProgress`.
