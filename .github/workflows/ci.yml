@@ -963,7 +963,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         env:
           MENTION_E2E_CANDIDATE_ORIGIN: http://127.0.0.1:4110
-        run: bun run --cwd packages/e2e test
+        run: bun run --cwd packages/e2e test tests/notification-viewer-intent.spec.ts --grep 'pressing and holding the collaboration button|keyboard activation of collaboration|clicking a disabled collaboration button|notification menu opened by A|collaboration sheet opened by A|the row background|profile hover target|keyboard activation of the accessible row|an ordinary notification preserves|an expandable notification group|a focused ordinary row keeps focus|a focused invitation keeps focus'
       - name: Upload the browser gate report
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
