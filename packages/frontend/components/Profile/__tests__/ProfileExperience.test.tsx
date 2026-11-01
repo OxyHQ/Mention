@@ -554,6 +554,35 @@ describe('central employer identity', () => {
     expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
   });
 
+  it('does not create an organization when a paused request resumes in another session', async () => {
+    mockAuth.oxyServices.organizations.search.mockResolvedValue({ items: [], nextCursor: null });
+    await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
+    act(() => input('Company or organization *').props.onChangeText('Example'));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    await waitUntil(() => button('Organization missing? Add it') !== undefined, 'the add offer');
+    await press('Organization missing? Add it');
+    onlineManager.setOnline(false);
+    try {
+      await press('Add to directory');
+      expect(
+        client
+          .getMutationCache()
+          .getAll()
+          .some((mutation) => mutation.state.isPaused),
+      ).toBe(true);
+      mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+      await act(async () => {
+        onlineManager.setOnline(true);
+        await client.resumePausedMutations();
+      });
+      expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
   it('does not offer directory creation during a search outage', async () => {
     mockAuth.oxyServices.organizations.search.mockRejectedValue(new Error('offline'));
     await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
