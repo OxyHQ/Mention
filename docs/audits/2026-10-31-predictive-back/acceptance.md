@@ -1,9 +1,14 @@
 # Android predictive Back acceptance
 
-Status: candidate enabled; physical acceptance pending. The candidate manifest
+Status: native integration enabled; physical acceptance pending. The candidate manifest
 enables predictive Back with source-built React Native, shared native ownership,
 and the Bloom and React Native Screens opt-in adapters. Ordinary Back passing
 is not evidence that the predictive preview works.
+
+On 2026-11-01 the user explicitly requested merging the completed integration
+without waiting for the paused device session. The checks below remain pending
+after merge; issue #888 must not mark predictive rendering as physically verified
+until they are performed. No further device input was made for this merge.
 
 First inspect the diagnostic candidate on a normal signed release APK. Final
 acceptance requires official published Bloom dependencies and repeating the core

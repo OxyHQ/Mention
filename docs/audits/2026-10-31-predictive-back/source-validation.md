@@ -1,12 +1,11 @@
 # Predictive Back source validation
 
 Physical acceptance remains pending; these checks establish source and build
-compatibility, not gesture appearance on a device. The completed Mention app
-gates below describe the first diagnostic candidate (base `f1217ce96`, Bloom
-`.2`, and the RNS backport before the public build capability marker). The
-integration has since rebased onto `49a7e789b`; the updated shared packages and capability contract are now installed. Current
-rebase validation is recorded separately below; final official-package and device
-acceptance remain required.
+compatibility, not gesture appearance on a device. Historical diagnostic results
+below retain their original source and dependency versions. On 2026-11-01 the
+user explicitly requested merging without waiting for exclusive device control;
+physical acceptance remains tracked separately in issue #888 and `acceptance.md`.
+Final official-package validation is recorded separately from those diagnostics.
 
 ## Dependency provenance
 
