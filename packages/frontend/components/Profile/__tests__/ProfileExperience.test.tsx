@@ -2,7 +2,7 @@ jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'
 import type React from 'react';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { waitUntil } from '@/test-support/waitUntil';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Experience } from '@clarity.surf/sdk/experience';
 
 // The first render of the editor is what first reads react-native's lazy
@@ -22,6 +22,7 @@ const mockAuth = {
   isAuthenticated: true,
   canUsePrivateApi: true,
   oxyServices: {
+    http: { getSessionEpoch: jest.fn(() => 0) },
     organizations: { batch: jest.fn(), search: jest.fn(), create: jest.fn() },
     safety: { organizations: jest.fn() },
   },
@@ -159,6 +160,7 @@ beforeEach(() => {
   mockAuth.user = { id: 'person' };
   mockAuth.isAuthenticated = true;
   mockAuth.canUsePrivateApi = true;
+  mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(0);
   jest.mocked(experienceService.list).mockResolvedValue([entry]);
   jest.mocked(experienceService.create).mockResolvedValue(entry);
   jest.mocked(experienceService.update).mockResolvedValue(entry);
@@ -302,6 +304,76 @@ describe('experience visibility and editing', () => {
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
+  it('does not resume a queued save in a different session', async () => {
+    onlineManager.setOnline(false);
+    try {
+      await render(
+        <ExperienceEditor
+          entry={entry}
+          employer={organization}
+          ownerId="person"
+          onClose={jest.fn()}
+          onSaved={jest.fn()}
+        />,
+      );
+      await press('Save');
+      expect(
+        client
+          .getMutationCache()
+          .getAll()
+          .some((mutation) => mutation.state.isPaused),
+      ).toBe(true);
+      mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+      await act(async () => {
+        onlineManager.setOnline(true);
+        await client.resumePausedMutations();
+      });
+      expect(experienceService.update).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
+  it('does not start a retained save or deletion after the session changes', async () => {
+    await render(
+      <ExperienceEditor
+        entry={entry}
+        employer={organization}
+        ownerId="person"
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+      />,
+    );
+    mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+    await press('Save');
+    await press('Delete');
+    expect(experienceService.update).not.toHaveBeenCalled();
+    expect(confirmDialog).not.toHaveBeenCalled();
+  });
+
+  it('does not call the saved callback after a session change', async () => {
+    let finish!: (value: Experience) => void;
+    jest
+      .mocked(experienceService.update)
+      .mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
+    const onSaved = jest.fn();
+    await render(
+      <ExperienceEditor
+        entry={entry}
+        employer={organization}
+        ownerId="person"
+        onClose={jest.fn()}
+        onSaved={onSaved}
+      />,
+    );
+    await press('Save');
+    expect(experienceService.update).toHaveBeenCalledTimes(1);
+    mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+    await act(async () => finish(entry));
+    await settle();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
   it('only deletes a role after confirmation', async () => {
     const onSaved = jest.fn();
     jest.mocked(confirmDialog).mockResolvedValueOnce(false);
@@ -321,6 +393,60 @@ describe('experience visibility and editing', () => {
     await waitUntil(() => onSaved.mock.calls.length > 0, 'the deletion');
     expect(experienceService.remove).toHaveBeenCalledWith('role');
     expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not delete when the session changes while confirmation is open', async () => {
+    let confirm!: (value: boolean) => void;
+    jest.mocked(confirmDialog).mockReturnValueOnce(new Promise((resolve) => (confirm = resolve)));
+    await render(
+      <ExperienceEditor
+        entry={entry}
+        employer={organization}
+        ownerId="person"
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+      />,
+    );
+    await press('Delete');
+    mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+    mockAuth.user = { id: 'another-person' };
+    await act(async () => {
+      renderer.unmount();
+      confirm(true);
+    });
+    await settle();
+    expect(experienceService.remove).not.toHaveBeenCalled();
+  });
+
+  it('does not resume a queued deletion in a different session', async () => {
+    onlineManager.setOnline(false);
+    try {
+      await render(
+        <ExperienceEditor
+          entry={entry}
+          employer={organization}
+          ownerId="person"
+          onClose={jest.fn()}
+          onSaved={jest.fn()}
+        />,
+      );
+      await press('Delete');
+      expect(experienceService.remove).not.toHaveBeenCalled();
+      expect(
+        client
+          .getMutationCache()
+          .getAll()
+          .some((mutation) => mutation.state.isPaused),
+      ).toBe(true);
+      mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+      await act(async () => {
+        onlineManager.setOnline(true);
+        await client.resumePausedMutations();
+      });
+      expect(experienceService.remove).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 });
 
@@ -426,6 +552,35 @@ describe('central employer identity', () => {
     await press('Add to directory');
     expect(rendered()).toContain('Check the name, website URL and two-letter country code.');
     expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
+  });
+
+  it('does not create an organization when a paused request resumes in another session', async () => {
+    mockAuth.oxyServices.organizations.search.mockResolvedValue({ items: [], nextCursor: null });
+    await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
+    act(() => input('Company or organization *').props.onChangeText('Example'));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    await waitUntil(() => button('Organization missing? Add it') !== undefined, 'the add offer');
+    await press('Organization missing? Add it');
+    onlineManager.setOnline(false);
+    try {
+      await press('Add to directory');
+      expect(
+        client
+          .getMutationCache()
+          .getAll()
+          .some((mutation) => mutation.state.isPaused),
+      ).toBe(true);
+      mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+      await act(async () => {
+        onlineManager.setOnline(true);
+        await client.resumePausedMutations();
+      });
+      expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 
   it('does not offer directory creation during a search outage', async () => {

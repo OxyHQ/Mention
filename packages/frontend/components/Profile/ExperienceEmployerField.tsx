@@ -43,6 +43,7 @@ export function ExperienceEmployerField({
 }) {
   const { t } = useTranslation();
   const { user, isAuthenticated, canUsePrivateApi, oxyServices } = useAuth();
+  const [ownerSessionEpoch] = useState(() => oxyServices.http.getSessionEpoch());
   const queryClient = useQueryClient();
   const supervision = useSupervisionState();
   const [selected, setSelected] = useState<Organization | SafetyOrganizationIdentity | undefined>(
@@ -97,11 +98,18 @@ export function ExperienceEmployerField({
   }
   const create = useMutation({
     mutationFn: (organization: CreateOrganization) => {
-      if (!canUsePrivateApi || disabled || !supervision.ready || supervision.supervised)
+      if (
+        !canUsePrivateApi ||
+        disabled ||
+        !supervision.ready ||
+        supervision.supervised ||
+        oxyServices.http.getSessionEpoch() !== ownerSessionEpoch
+      )
         throw new Error('A personal session is required');
       return oxyServices.organizations.create(organization);
     },
     onSuccess: (organization) => {
+      if (oxyServices.http.getSessionEpoch() !== ownerSessionEpoch) return;
       select(organization);
       void queryClient.invalidateQueries({ queryKey: organizationDirectoryQueryKeys.all() });
     },
