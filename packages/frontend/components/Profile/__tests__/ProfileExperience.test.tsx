@@ -593,6 +593,31 @@ describe('central employer identity', () => {
     await waitUntil(() => button('Try again') !== undefined, 'the search error');
     expect(button('Organization missing? Add it')).toBeUndefined();
   });
+
+  it('stops paging when the organization directory repeats a cursor', async () => {
+    mockAuth.oxyServices.organizations.search.mockResolvedValue({
+      items: [],
+      nextCursor: 'repeat',
+    });
+    await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
+    act(() => input('Company or organization *').props.onChangeText('Example'));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    await waitUntil(() => button('Load more') !== undefined, 'the first page');
+    await press('Load more');
+    await waitUntil(
+      () => mockAuth.oxyServices.organizations.search.mock.calls.length === 2,
+      'the next page',
+    );
+    await settle();
+    expect(mockAuth.oxyServices.organizations.search).toHaveBeenLastCalledWith({
+      query: 'Example',
+      limit: 20,
+      cursor: 'repeat',
+    });
+    expect(button('Load more')).toBeUndefined();
+  });
 });
 
 it('withholds unrated history until current supervision permits it and hides cached content on revocation', async () => {
