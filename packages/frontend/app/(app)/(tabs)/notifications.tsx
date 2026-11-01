@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
@@ -24,6 +24,7 @@ import {
   type NotificationListItem,
 } from '@/utils/groupNotifications';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { useOwnedNotificationSurfaces } from '@/hooks/useOwnedNotificationSurfaces';
 import {
   NOTIFICATION_OPTIMISTIC_KEY,
   usePendingNotificationOperations,
@@ -127,13 +128,23 @@ const NotificationsScreen: React.FC = () => {
     const intent = { viewerId: user.id, epoch: oxyServices.http.getSessionEpoch() };
     return isCurrentIntent(intent) ? intent : null;
   }, [user?.id, oxyServices, isCurrentIntent]);
-  const pendingConfirmations = useRef(new Set<AbortController>());
-  useEffect(() => {
-    const confirmations = pendingConfirmations.current;
-    return () => {
-      for (const controller of confirmations) controller.abort();
-    };
-  }, []);
+  const subscribeSession = useCallback(
+    (listener: () => void) => {
+      const unsubscribeUser = useAuthStore.subscribe(listener);
+      try {
+        const unsubscribeToken = oxyServices.session.onChange(listener);
+        return () => {
+          unsubscribeUser();
+          unsubscribeToken();
+        };
+      } catch (error) {
+        unsubscribeUser();
+        throw error;
+      }
+    },
+    [oxyServices],
+  );
+  const ownNotificationSurface = useOwnedNotificationSurfaces(isCurrentIntent, subscribeSession);
   const queryClient = useQueryClient();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -430,35 +441,28 @@ const NotificationsScreen: React.FC = () => {
       return;
     }
 
-    const controller = new AbortController();
-    pendingConfirmations.current.add(controller);
-    const abortIfStale = () => {
-      if (!isCurrentIntent(intent)) controller.abort();
-    };
-    const unsubscribeUser = useAuthStore.subscribe(abortIfStale);
-    const unsubscribeToken = oxyServices.session.onChange(abortIfStale);
-    try {
-      // Subscribe before presenting so a boundary cannot leave a stale dialog open.
-      abortIfStale();
-      const confirmed = await confirmDialog({
+    const confirmed = await ownNotificationSurface(intent, (signal) =>
+      confirmDialog({
         title: t('notification.mark_all_read'),
         message:
           t('notification.mark_all_read_confirm') ||
           'Are you sure you want to mark all notifications as read?',
         okText: t('notification.mark_all_read') || 'Mark All as Read',
         cancelText: t('cancel') || 'Cancel',
-        signal: controller.signal,
-      });
-
-      if (confirmed && isCurrentIntent(intent)) {
-        markAllAsReadMutation.mutate(intent);
-      }
-    } finally {
-      unsubscribeUser();
-      unsubscribeToken();
-      pendingConfirmations.current.delete(controller);
+        signal,
+      }),
+    );
+    if (confirmed && isCurrentIntent(intent)) {
+      markAllAsReadMutation.mutate(intent);
     }
-  }, [captureIntent, isCurrentIntent, markAllAsReadMutation, oxyServices, t, unreadCount]);
+  }, [
+    captureIntent,
+    isCurrentIntent,
+    markAllAsReadMutation,
+    ownNotificationSurface,
+    t,
+    unreadCount,
+  ]);
 
   // Notifications whose actor the backend did NOT populate would each fire their
   // own `getProfileById` from inside NotificationItem — an N+1 across the page.
