@@ -41,7 +41,8 @@ export function useExternalActorResolve(rawQuery: string): ExternalActorResoluti
 
   const { data } = useQuery<ExternalActorResolution | null>({
     queryKey: publicQueryKeys.externalActorResolve(debounced),
-    queryFn: () => feedService.resolveExternalActor(debounced),
+    // React Query aborts only after the last observer leaves this query.
+    queryFn: ({ signal }) => feedService.resolveExternalActor(debounced, signal),
     enabled: isRemoteQuery,
     staleTime: RESOLVE_STALE_TIME,
     gcTime: RESOLVE_GC_TIME,
