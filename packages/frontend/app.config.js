@@ -98,27 +98,10 @@ module.exports = (_config) => {
         versionCode: 2,
         // Must match a client package_name in google-services.json.
         package: APP_ID,
-        // OFF, and the tab history is the reason. Android's predictive back
-        // is handled ENTIRELY natively by react-native-screens: with it on,
-        // `(tabs)` is the root screen of the app's `ExperimentalStack`, so a
-        // back press finishes the activity before any JavaScript runs. The
-        // tab router's `backBehavior: 'history'` therefore never sees the
-        // action and back LEAVES THE APP from any tab — measured on a Pixel
-        // 10 Pro, along with the desync it causes: "The screen '(tabs)' was
-        // removed natively but didn't get removed from JS state", after
-        // which the bottom bar can disappear entirely.
-        //
-        // Neither `BackHandler` (armed, never called) nor `usePreventRemove`
-        // recovers it: the latter does stop the exit, but its callback only
-        // runs from a JS `beforeRemove`, which a native dismiss never emits,
-        // so back becomes inert instead of wrong.
-        //
-        // With the flag off, Android delivers back the ordinary way, the
-        // navigation container dispatches it to the focused navigator, and
-        // the tab router pops its own history — the behaviour it was
-        // configured for. What is lost is the system's back PREVIEW
-        // animation; the stack's own transitions are unaffected.
-        predictiveBackGestureEnabled: false,
+        // Bloom previews root history; Expo/RNScreens own pushed routes. The
+        // source-built RN coordinator preserves JS overlay/guard ownership.
+        // This requires a native rebuild, not only a JavaScript update.
+        predictiveBackGestureEnabled: true,
         // google-services.json carries both earth.mention.app and its .dev
         // variant so either build passes; real FCM needs those registered
         // in Firebase and the file swapped (see the app-variant note above).
@@ -354,6 +337,7 @@ module.exports = (_config) => {
           'expo-sqlite',
           'expo-image',
           'react-native-compressor',
+          ['@oxy.so/bloom', { predictiveBack: true }],
           [
             'expo-build-properties',
             {
@@ -364,6 +348,7 @@ module.exports = (_config) => {
                 },
               },
               android: {
+                buildReactNativeFromSource: true,
                 // compileSdk / targetSdk / build tools come from the Expo SDK
                 // template (SDK 58: 37 / 36 / 37.0.0). SDK 58's Expo modules
                 // require compileSdk 37; a pinned 36 fails the release build
