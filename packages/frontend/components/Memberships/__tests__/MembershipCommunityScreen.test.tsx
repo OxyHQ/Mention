@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Text as MockText } from 'react-native';
 import type { MembershipLandingResponse } from '@mention/shared-types';
+import { waitUntil } from '@/test-support/waitUntil';
 
 let mockViewer = 'viewer-a';
 let mockFocused = true;
@@ -134,6 +135,31 @@ it('never requests a protected page for a nonmember', async () => {
   await mount();
   expect(mockService.content).not.toHaveBeenCalled();
   expect(text()).not.toContain('PRIVATE BODY A');
+});
+it('stops loading member content when the cursor cycles', async () => {
+  mockService.content.mockImplementation(async (_id, cursor) => ({
+    items: [],
+    nextCursor: cursor === undefined ? 'first' : cursor === 'first' ? 'second' : 'first',
+  }));
+  await mount();
+  const more = () =>
+    tree?.root.findAllByType(Button).find((entry) => entry.props.children === 'Load more');
+  await waitUntil(() => Boolean(more()), 'first member content page');
+  await act(async () => more()?.props.onPress());
+  await waitUntil(
+    () => mockService.content.mock.calls.length === 2 && Boolean(more()) && !more()?.props.loading,
+    'second member content page',
+  );
+  await act(async () => more()?.props.onPress());
+  await waitUntil(
+    () => mockService.content.mock.calls.length === 3 && !more(),
+    'cyclic member content cursor ends pagination',
+  );
+  expect(mockService.content.mock.calls.map((args) => args[1])).toEqual([
+    undefined,
+    'first',
+    'second',
+  ]);
 });
 it('hides the previous viewer body immediately on account change and denies the new viewer', async () => {
   await mount();
