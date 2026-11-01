@@ -334,6 +334,23 @@ describe('experience visibility and editing', () => {
     }
   });
 
+  it('does not start a retained save or deletion after the session changes', async () => {
+    await render(
+      <ExperienceEditor
+        entry={entry}
+        employer={organization}
+        ownerId="person"
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+      />,
+    );
+    mockAuth.oxyServices.http.getSessionEpoch.mockReturnValue(1);
+    await press('Save');
+    await press('Delete');
+    expect(experienceService.update).not.toHaveBeenCalled();
+    expect(confirmDialog).not.toHaveBeenCalled();
+  });
+
   it('does not call the saved callback after a session change', async () => {
     let finish!: (value: Experience) => void;
     jest

@@ -46,6 +46,7 @@ export function ExperienceEditor({
     control.open();
   }, [control]);
   const { user, canUsePrivateApi, oxyServices } = useAuth();
+  const [ownerSessionEpoch] = useState(() => oxyServices.http.getSessionEpoch());
   const canEdit = user?.id === ownerId && canUsePrivateApi;
   const [draft, setDraft] = useState<ExperienceInput>(() => ({
     title: entry?.title ?? '',
@@ -91,17 +92,16 @@ export function ExperienceEditor({
     remove.reset();
   }
   function submit() {
-    if (busy || !canEdit) return;
+    if (busy || !canEdit || oxyServices.http.getSessionEpoch() !== ownerSessionEpoch) return;
     const result = validateExperienceInput(draft);
     if (!result.success) {
       setErrors(result.issues.map((issue) => String(issue.path[0])));
       return;
     }
-    save.mutate({ input: result.data, sessionEpoch: oxyServices.http.getSessionEpoch() });
+    save.mutate({ input: result.data, sessionEpoch: ownerSessionEpoch });
   }
   async function deleteEntry() {
-    if (!canEdit || busy) return;
-    const sessionEpoch = oxyServices.http.getSessionEpoch();
+    if (!canEdit || busy || oxyServices.http.getSessionEpoch() !== ownerSessionEpoch) return;
     const confirmed = await confirmDialog({
       title: t('profile.experience.deleteTitle'),
       message: t('profile.experience.deleteDescription'),
@@ -109,8 +109,8 @@ export function ExperienceEditor({
       cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
       destructive: true,
     });
-    if (confirmed && oxyServices.http.getSessionEpoch() === sessionEpoch)
-      remove.mutate(sessionEpoch);
+    if (confirmed && oxyServices.http.getSessionEpoch() === ownerSessionEpoch)
+      remove.mutate(ownerSessionEpoch);
   }
   function textField(
     key: 'title' | 'location' | 'startDate' | 'endDate' | 'description',
