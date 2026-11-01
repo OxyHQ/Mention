@@ -420,7 +420,7 @@ test('pressing and holding the collaboration button does not open the row menu',
   const box = await accept.boundingBox();
   if (!box) throw new Error('The collaboration button has no visible bounds');
   const rowBox = await accept.evaluate((element) => {
-    const row = element.parentElement?.closest('[role="button"]');
+    const row = element.closest('.group');
     if (!row) return null;
     const rect = row.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };

@@ -506,6 +506,17 @@ describe('NotificationItem — collaboration invite', () => {
     expect(stopPropagation).toHaveBeenCalledTimes(2);
   });
 
+  it('places the collaboration controls outside the row long-press responder', async () => {
+    const { renderer } = await renderRow(PENDING);
+    for (const label of ['Accept', 'Decline']) {
+      let ancestor = buttonByLabel(renderer.root, label)?.parent ?? null;
+      while (ancestor) {
+        expect(typeof ancestor.props.onLongPress).not.toBe('function');
+        ancestor = ancestor.parent;
+      }
+    }
+  });
+
   it('does not submit a cancelled sheet when its old callback is invoked', async () => {
     const controller = new AbortController();
     const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>

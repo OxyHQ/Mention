@@ -731,19 +731,20 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // replaces that with the tint (`tailwind-merge` dropped `bg-card` for exactly
   // the same reason when both were classes), so the two stay exclusive.
   return (
-    <Pressable
+    <View
       className={cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5')}
       style={hasUnread ? undefined : { backgroundColor: surfaceFill }}
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
     >
       <SubtleHover />
       <View className="px-3">
         <View className="flex-row items-start justify-between">
           {/* Avatar column: avatar + themed action-badge overlay. */}
-          <View className="relative mr-3">
+          <Pressable
+            className="relative mr-3"
+            onPress={handlePress}
+            onLongPress={handleLongPress}
+            accessible={false}
+          >
             <ProfileHoverCard username={resolvedPrimary.handle}>
               <AccountAvatar
                 account={resolvedPrimary}
@@ -762,70 +763,96 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 fill={BADGE_GLYPH_COLOR}
               />
             </View>
-          </View>
+          </Pressable>
 
           {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
               plus the muted action phrase and the text preview. */}
           <View className="flex-1 gap-1">
-            {showStrip ? (
-              <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} />
-            ) : null}
+            <Pressable
+              className="gap-1"
+              onPress={handlePress}
+              onLongPress={handleLongPress}
+              accessibilityRole="button"
+              accessibilityLabel={accessibilityLabel}
+            >
+              {showStrip ? (
+                <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} />
+              ) : null}
 
-            {/* Byline: bold name + muted @handle + federated badge + "· time". */}
-            <View className="flex-row items-end gap-2">
-              {/* Same hover target as a post byline. Only for a SINGLE actor: a
+              {/* Byline: bold name + muted @handle + federated badge + "· time". */}
+              <View className="flex-row items-end gap-2">
+                {/* Same hover target as a post byline. Only for a SINGLE actor: a
                   grouped byline reads "Alice, Bob and 3 more", so previewing one
                   of them from the whole phrase would be arbitrary. */}
-              <ProfileHoverCard
-                username={isSingleActor ? resolvedPrimary.handle : undefined}
-                style={{ minWidth: 0 }}
-              >
-                <View className="flex-row items-end flex-shrink min-w-0">
-                  <UserName
-                    name={bylineName}
-                    verified={isSingleActor && resolvedPrimary.verified}
-                    style={{ container: { flexShrink: 0 } }}
-                  />
-                  {showHandleLine ? (
-                    <Text
-                      className="text-muted-foreground text-[15px] leading-5"
-                      style={{ flexShrink: 10, minWidth: 0 }}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {` @${resolvedPrimary.handle}`}
-                    </Text>
-                  ) : null}
-                  {isSingleActor ? (
-                    <AccountBadge
-                      isFederated={resolvedPrimary.isFederated}
-                      kind={resolvedPrimary.kind}
-                      size={13}
-                      containerClassName="self-center ml-1"
+                <ProfileHoverCard
+                  username={isSingleActor ? resolvedPrimary.handle : undefined}
+                  style={{ minWidth: 0 }}
+                >
+                  <View className="flex-row items-end flex-shrink min-w-0">
+                    <UserName
+                      name={bylineName}
+                      verified={isSingleActor && resolvedPrimary.verified}
+                      style={{ container: { flexShrink: 0 } }}
                     />
-                  ) : null}
-                </View>
-              </ProfileHoverCard>
-              {timeLabel ? (
-                <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
-                  {'·'} {timeLabel}
+                    {showHandleLine ? (
+                      <Text
+                        className="text-muted-foreground text-[15px] leading-5"
+                        style={{ flexShrink: 10, minWidth: 0 }}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {` @${resolvedPrimary.handle}`}
+                      </Text>
+                    ) : null}
+                    {isSingleActor ? (
+                      <AccountBadge
+                        isFederated={resolvedPrimary.isFederated}
+                        kind={resolvedPrimary.kind}
+                        size={13}
+                        containerClassName="self-center ml-1"
+                      />
+                    ) : null}
+                  </View>
+                </ProfileHoverCard>
+                {timeLabel ? (
+                  <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
+                    {'·'} {timeLabel}
+                  </Text>
+                ) : null}
+              </View>
+
+              {channelText ? (
+                <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
+                  {channelText}
                 </Text>
               ) : null}
-            </View>
 
-            {channelText ? (
-              <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
-                {channelText}
-              </Text>
-            ) : null}
+              {actionText ? (
+                <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
+                  {actionText}
+                </Text>
+              ) : null}
 
-            {actionText ? (
-              <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
-                {actionText}
-              </Text>
-            ) : null}
+              {previewText ? <NotificationPreview text={previewText} /> : null}
 
-            {previewText ? <NotificationPreview text={previewText} /> : null}
+              {isCollabInvite && collabAccepted ? (
+                <View className="flex-row items-center gap-1.5 mt-1">
+                  <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
+                  <Text className="text-muted-foreground text-[15px] leading-5">
+                    {t('collab.youAccepted', { defaultValue: 'You accepted' })}
+                  </Text>
+                </View>
+              ) : null}
+
+              {isCollabInvite && collabDeclined ? (
+                <View className="flex-row items-center gap-1.5 mt-1">
+                  <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
+                  <Text className="text-muted-foreground text-[15px] leading-5">
+                    {t('collab.youDeclined', { defaultValue: 'You declined' })}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
 
             {isGroup && item.expandable ? (
               <View className="mt-1 gap-2">
@@ -898,46 +925,39 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 </Button>
               </View>
             ) : null}
-
-            {isCollabInvite && collabAccepted ? (
-              <View className="flex-row items-center gap-1.5 mt-1">
-                <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
-                <Text className="text-muted-foreground text-[15px] leading-5">
-                  {t('collab.youAccepted', { defaultValue: 'You accepted' })}
-                </Text>
-              </View>
-            ) : null}
-
-            {isCollabInvite && collabDeclined ? (
-              <View className="flex-row items-center gap-1.5 mt-1">
-                <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
-                <Text className="text-muted-foreground text-[15px] leading-5">
-                  {t('collab.youDeclined', { defaultValue: 'You declined' })}
-                </Text>
-              </View>
-            ) : null}
           </View>
 
           {/* Trailing media chip — a compact square still of the post's first
               image, mirroring the feed's thumb variant. Decorative: the row's
               own accessibilityLabel already describes the notification. */}
-          {thumbnailUrl ? (
-            <Image
-              source={{ uri: thumbnailUrl }}
-              className="bg-muted self-center ml-3 rounded-lg"
-              style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
-              contentFit="cover"
-              transition={150}
-              cachePolicy="memory-disk"
-              accessibilityElementsHidden
-              importantForAccessibility="no"
-            />
-          ) : null}
+          {thumbnailUrl || hasUnread ? (
+            <Pressable
+              className="flex-row self-center"
+              onPress={handlePress}
+              onLongPress={handleLongPress}
+              accessible={false}
+            >
+              {thumbnailUrl ? (
+                <Image
+                  source={{ uri: thumbnailUrl }}
+                  className="bg-muted self-center ml-3 rounded-lg"
+                  style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
+                  contentFit="cover"
+                  transition={150}
+                  cachePolicy="memory-disk"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
+              ) : null}
 
-          {hasUnread ? <View className="w-2 h-2 rounded-full bg-primary self-center ml-2" /> : null}
+              {hasUnread ? (
+                <View className="w-2 h-2 rounded-full bg-primary self-center ml-2" />
+              ) : null}
+            </Pressable>
+          ) : null}
         </View>
       </View>
-    </Pressable>
+    </View>
   );
 };
 
