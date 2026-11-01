@@ -2,6 +2,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import type { CommerceReference } from '@mention/shared-types/commerce';
 import { Dimensions, Linking, Text, View } from 'react-native';
 import { useScreenVisible } from '@oxy.so/bloom/screen';
@@ -113,7 +114,8 @@ export function ProfileShop({
         },
         signal,
       ),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _pageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled: available,
     staleTime: 30_000,
   });
@@ -126,7 +128,8 @@ export function ProfileShop({
     ),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => commerceService.storeCollections(accountId, pageParam),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _pageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled: available && showCuration,
     staleTime: 30_000,
   });

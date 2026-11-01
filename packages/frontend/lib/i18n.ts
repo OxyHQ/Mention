@@ -74,7 +74,12 @@ async function loadTranslation(language: string): Promise<ResourceKey | null> {
  */
 export async function setLanguage(language: string): Promise<void> {
   // The SDK supplies the first locale before mounting translated app content.
-  if (!i18n.isInitialized) await initializeI18n(language);
+  let initializedForLanguage = false;
+  if (!i18n.isInitialized) {
+    await initializeI18n(language);
+    initializedForLanguage =
+      i18n.language === language && i18n.hasResourceBundle(language, 'translation');
+  }
   if (!i18n.hasResourceBundle(language, 'translation')) {
     const translation = await loadTranslation(language);
     if (translation) {
@@ -82,7 +87,9 @@ export async function setLanguage(language: string): Promise<void> {
     }
   }
 
-  await i18n.changeLanguage(language);
+  // Initialization already selected this language and emitted languageChanged.
+  // Keep changeLanguage when initialization fell back or the bundle was missing.
+  if (!initializedForLanguage) await i18n.changeLanguage(language);
   if (typeof document !== 'undefined') {
     document.documentElement.lang = i18n.resolvedLanguage ?? language;
   }

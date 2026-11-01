@@ -8,6 +8,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { Card } from '@oxy.so/bloom/card';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -64,7 +65,8 @@ export default function MembershipCommunityScreen() {
     queryKey: membershipKeys.content(user?.id, id, thread),
     queryFn: ({ signal, pageParam }) => membershipsService.content(id, pageParam, thread, signal),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _pageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled: readable,
   });
   const parent = useQuery({

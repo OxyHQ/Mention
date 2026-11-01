@@ -45,7 +45,8 @@ export function ExperienceEditor({
   useEffect(() => {
     control.open();
   }, [control]);
-  const { user, canUsePrivateApi } = useAuth();
+  const { user, canUsePrivateApi, oxyServices } = useAuth();
+  const [ownerSessionEpoch] = useState(() => oxyServices.http.getSessionEpoch());
   const canEdit = user?.id === ownerId && canUsePrivateApi;
   const [draft, setDraft] = useState<ExperienceInput>(() => ({
     title: entry?.title ?? '',
@@ -58,18 +59,30 @@ export function ExperienceEditor({
   }));
   const [errors, setErrors] = useState<string[]>([]);
   const save = useMutation({
-    mutationFn: (input: ExperienceInput) => {
-      if (!canEdit) throw new Error('Experience owner session is not ready');
+    mutationFn: ({ input, sessionEpoch }: { input: ExperienceInput; sessionEpoch: number }) => {
+      if (!canEdit || oxyServices.http.getSessionEpoch() !== sessionEpoch)
+        throw new Error('Experience owner session is not ready');
       return entry ? experienceService.update(entry.id, input) : experienceService.create(input);
     },
-    onSuccess: () => control.close(onSaved),
+    onSuccess: (_result, { sessionEpoch }) => {
+      if (oxyServices.http.getSessionEpoch() === sessionEpoch)
+        control.close(() => {
+          if (oxyServices.http.getSessionEpoch() === sessionEpoch) onSaved();
+        });
+    },
   });
   const remove = useMutation({
-    mutationFn: () => {
-      if (!canEdit || !entry) throw new Error('Experience owner session is not ready');
+    mutationFn: (sessionEpoch: number) => {
+      if (!canEdit || !entry || oxyServices.http.getSessionEpoch() !== sessionEpoch)
+        throw new Error('Experience owner session is not ready');
       return experienceService.remove(entry.id);
     },
-    onSuccess: () => control.close(onSaved),
+    onSuccess: (_result, sessionEpoch) => {
+      if (oxyServices.http.getSessionEpoch() === sessionEpoch)
+        control.close(() => {
+          if (oxyServices.http.getSessionEpoch() === sessionEpoch) onSaved();
+        });
+    },
   });
   const busy = save.isPending || remove.isPending;
   function field<Key extends keyof ExperienceInput>(key: Key, value: ExperienceInput[Key]) {
@@ -79,16 +92,16 @@ export function ExperienceEditor({
     remove.reset();
   }
   function submit() {
-    if (busy || !canEdit) return;
+    if (busy || !canEdit || oxyServices.http.getSessionEpoch() !== ownerSessionEpoch) return;
     const result = validateExperienceInput(draft);
     if (!result.success) {
       setErrors(result.issues.map((issue) => String(issue.path[0])));
       return;
     }
-    save.mutate(result.data);
+    save.mutate({ input: result.data, sessionEpoch: ownerSessionEpoch });
   }
   async function deleteEntry() {
-    if (!canEdit || busy) return;
+    if (!canEdit || busy || oxyServices.http.getSessionEpoch() !== ownerSessionEpoch) return;
     const confirmed = await confirmDialog({
       title: t('profile.experience.deleteTitle'),
       message: t('profile.experience.deleteDescription'),
@@ -96,7 +109,8 @@ export function ExperienceEditor({
       cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
       destructive: true,
     });
-    if (confirmed) remove.mutate();
+    if (confirmed && oxyServices.http.getSessionEpoch() === ownerSessionEpoch)
+      remove.mutate(ownerSessionEpoch);
   }
   function textField(
     key: 'title' | 'location' | 'startDate' | 'endDate' | 'description',

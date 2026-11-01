@@ -172,6 +172,26 @@ it('does not load catalogs or record opens for a disconnected or transferred sto
   expect(service.storeCollections).not.toHaveBeenCalled();
   expect(service.recordMetric).not.toHaveBeenCalled();
 });
+it('shows the store description and available collections when other catalogs fail', async () => {
+  service.storefront.mockResolvedValue({
+    ...store,
+    store: { ...store.store, description: 'Independent shop' },
+  });
+  service.featuredCollections.mockRejectedValue(new Error('featured catalog offline'));
+  service.storeProducts.mockRejectedValue(new Error('products offline'));
+  service.storeCollections.mockResolvedValue({
+    items: [featuredCollection('a')],
+    nextCursor: null,
+  });
+  render(<ProfileShop accountId="account-a" />);
+  await waitUntil(
+    () =>
+      screen().includes('Independent shop') &&
+      screen().includes('commerce.catalogUnavailable') &&
+      screen().includes('mercaria:collection:a'),
+    'description, catalog errors and collection',
+  );
+});
 it('loads both catalogs for the resolved account and presents empty/provider-failure states', async () => {
   service.storeCollections.mockRejectedValue(new Error('provider outage'));
   render(<ProfileShop accountId="account-a" />);
@@ -563,3 +583,52 @@ it('keeps controls before curation and restores independent cached pages after f
   expect(client.getQueryCache().find({ queryKey: key, exact: true })?.getObserversCount()).toBe(1);
   expect(mockListMounts).toBe(1);
 });
+
+it.each(['products', 'collections', 'featured'] as const)(
+  'stops loading %s when the provider returns a cursor cycle',
+  async (catalog) => {
+    const cursorAfter = (cursor?: string) =>
+      cursor === undefined ? 'first' : cursor === 'first' ? 'second' : 'first';
+    if (catalog === 'products') {
+      service.storeProducts.mockImplementation(async (_account, params) => ({
+        items: [],
+        nextCursor: cursorAfter(params?.cursor),
+      }));
+    } else if (catalog === 'collections') {
+      service.storeCollections.mockImplementation(async (_account, cursor) => ({
+        items: [],
+        nextCursor: cursorAfter(cursor),
+      }));
+    } else {
+      service.featuredCollections.mockResolvedValue({
+        items: [featuredCollection('a')],
+        nextCursor: null,
+      });
+      service.featuredCollectionProducts.mockImplementation(async (_account, _id, cursor) => ({
+        items: [],
+        nextCursor: cursorAfter(cursor),
+      }));
+    }
+    const rowKey = catalog === 'featured' ? 'featured-a-more' : `${catalog}-more`;
+    const rows = () =>
+      renderer.root.findByProps({ testID: 'shop-virtual-list' }).props.getData() as {
+        key: string;
+        element?: React.ReactElement<{ onPress: () => void }>;
+      }[];
+    const more = () => rows().find((row) => row.key === rowKey)?.element;
+    const request =
+      catalog === 'products'
+        ? service.storeProducts
+        : catalog === 'collections'
+          ? service.storeCollections
+          : service.featuredCollectionProducts;
+
+    render(<ProfileShop accountId="account-a" />);
+    await waitUntil(() => Boolean(more()), 'first page offers another page');
+    await act(async () => more()?.props.onPress());
+    await waitUntil(() => request.mock.calls.length === 2 && Boolean(more()), 'second page');
+    await act(async () => more()?.props.onPress());
+    await waitUntil(() => request.mock.calls.length === 3 && !more(), 'cycle stops pagination');
+    expect(request).toHaveBeenCalledTimes(3);
+  },
+);

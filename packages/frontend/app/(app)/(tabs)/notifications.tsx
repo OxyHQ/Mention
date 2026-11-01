@@ -34,6 +34,7 @@ import {
   type NotificationsInfiniteData,
 } from '@/utils/notificationCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { getNextNotificationPage } from '@/lib/notificationPagination';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
@@ -118,7 +119,7 @@ const NotificationsScreen: React.FC = () => {
     queryKey: viewerQueryKeys.notifications(user?.id),
     queryFn: ({ pageParam }) => notificationService.getNotifications(pageParam),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    getNextPageParam: getNextNotificationPage,
     enabled: canUsePrivateApi && !!user?.id,
   });
 

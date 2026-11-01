@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { api } from '@/utils/api';
+import { authenticatedClient } from '@/utils/api';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -37,11 +37,11 @@ async function fetchCatalogPage<T>(
   type: CatalogSearchType,
   query: string,
   offset: number,
+  signal: AbortSignal,
 ): Promise<SearchResultPage<T>> {
-  const res = await api.get<PaginatedSearchEnvelope<T>>('profile/media/search', {
-    type,
-    q: query,
-    offset,
+  const res = await authenticatedClient.get<PaginatedSearchEnvelope<T>>('profile/media/search', {
+    params: { type, q: query, offset },
+    signal,
   });
   const rows = res.data?.data ?? [];
   const pagination = res.data?.pagination;
@@ -95,7 +95,8 @@ export function useInfiniteCatalogSearch<T>(
 
   const search = useInfiniteQuery({
     queryKey: viewerQueryKeys.profileMediaSearch(user?.id, type, debouncedQuery),
-    queryFn: ({ pageParam }) => fetchCatalogPage<T>(type, debouncedQuery, pageParam),
+    queryFn: ({ pageParam, signal }) =>
+      fetchCatalogPage<T>(type, debouncedQuery, pageParam, signal),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.hasMore ? last.nextOffset : undefined),
     enabled: (opts?.enabled ?? true) && debouncedQuery.length > 0,

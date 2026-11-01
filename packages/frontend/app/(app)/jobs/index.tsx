@@ -28,6 +28,7 @@ import { Error as ErrorState } from '@/components/Error';
 import { presentSheet } from '@/utils/sheet';
 import { Storage } from '@/utils/storage';
 import { viewerQueryKeys, viewerStorageKey } from '@/lib/viewerQueryKeys';
+import { getNextJobPage } from '@/lib/jobPagination';
 import { jobsService, type MentionJobDiscoveryFilters } from '@/services/jobsService';
 import JobDiscoveryResultCard, {
   ExternalJobReportSheet,
@@ -209,7 +210,7 @@ export default function JobsDiscoveryScreen() {
     queryKey: viewerQueryKeys.jobDiscovery(viewerId, filters),
     queryFn: ({ pageParam }) => jobsService.list({ ...filters, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    getNextPageParam: getNextJobPage,
     staleTime: 60 * 1000,
   });
 

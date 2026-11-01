@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { parseOrganizationDraft } from '@oxy.so/services/organization-draft';
 import { ORGANIZATION_NAME_MAX_LENGTH, ORGANIZATION_TYPES } from '@oxy.so/contracts/client';
 import type {
@@ -43,6 +44,7 @@ export function ExperienceEmployerField({
 }) {
   const { t } = useTranslation();
   const { user, isAuthenticated, canUsePrivateApi, oxyServices } = useAuth();
+  const [ownerSessionEpoch] = useState(() => oxyServices.http.getSessionEpoch());
   const queryClient = useQueryClient();
   const supervision = useSupervisionState();
   const [selected, setSelected] = useState<Organization | SafetyOrganizationIdentity | undefined>(
@@ -80,7 +82,8 @@ export function ExperienceEmployerField({
       });
     },
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _lastPageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled:
       !value &&
       debounced.length >= 2 &&
@@ -97,11 +100,18 @@ export function ExperienceEmployerField({
   }
   const create = useMutation({
     mutationFn: (organization: CreateOrganization) => {
-      if (!canUsePrivateApi || disabled || !supervision.ready || supervision.supervised)
+      if (
+        !canUsePrivateApi ||
+        disabled ||
+        !supervision.ready ||
+        supervision.supervised ||
+        oxyServices.http.getSessionEpoch() !== ownerSessionEpoch
+      )
         throw new Error('A personal session is required');
       return oxyServices.organizations.create(organization);
     },
     onSuccess: (organization) => {
+      if (oxyServices.http.getSessionEpoch() !== ownerSessionEpoch) return;
       select(organization);
       void queryClient.invalidateQueries({ queryKey: organizationDirectoryQueryKeys.all() });
     },
