@@ -1,5 +1,9 @@
 import { authenticatedClient } from '@/utils/api';
 import { notifyListChanged } from '@/services/listMutations';
+import { normalizeApiError } from '@/utils/apiError';
+import { createLogger } from '@oxy.so/core/logger';
+
+const logger = createLogger('ListsService');
 
 export interface MentionListOwner {
   username?: string;
@@ -63,6 +67,28 @@ class ListsService {
   async get(id: string) {
     const res = await authenticatedClient.get(`/lists/${id}`);
     return res.data as MentionList;
+  }
+
+  /** Resolve followed IDs in order, retaining per-list fallback during rollout. */
+  async resolve(ids: string[]): Promise<MentionList[]> {
+    if (ids.length === 0) return [];
+    try {
+      const res = await authenticatedClient.post<{ items: MentionList[] }>('/lists/resolve', {
+        ids,
+      });
+      if (!Array.isArray(res.data?.items)) throw new Error('Invalid list resolution response');
+      return res.data.items;
+    } catch (error) {
+      const { status } = normalizeApiError(error);
+      // The original individual reads omitted every item on a rejected
+      // session. Preserve that result without repeating the same 401 per ID.
+      if (status === 401) return [];
+      // A 403 could belong only to this new endpoint. The individual routes
+      // still decide their own access, as they did before the batch existed.
+      logger.warn('List batch resolution failed; using individual reads', { status });
+      const resolved = await Promise.all(ids.map((id) => this.get(id).catch(() => null)));
+      return resolved.filter((list): list is MentionList => list !== null);
+    }
   }
 
   async create(body: ListWriteBody) {

@@ -53,6 +53,7 @@ jest.mock('@/services/listsService', () => ({
   listsService: {
     list: (...args: unknown[]) => mockListLists(...args),
     get: jest.fn(),
+    resolve: jest.fn().mockResolvedValue([]),
   },
 }));
 jest.mock('@/services/entityFollowService', () => ({

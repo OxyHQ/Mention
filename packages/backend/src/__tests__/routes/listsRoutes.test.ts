@@ -426,6 +426,58 @@ describe('concurrent member writes — a controlled barrier, not a hopeful race'
   });
 });
 
+describe('POST /lists/resolve', () => {
+  it('matches individual readable DTOs in input order and omits missing and forbidden lists', async () => {
+    const first = await seedList({ isPublic: true, members: ['second', 'first'] });
+    const ownPrivate = await seedList({
+      isPublic: false,
+      ownerOxyUserId: VIEWER_ID,
+      members: ['own'],
+    });
+    const forbidden = await seedList({ isPublic: false, members: ['secret'] });
+    const second = await seedList({ isPublic: true, members: ['one'] });
+    const ids = [second, forbidden, 'missing-list', first, ownPrivate, first];
+    const [secondDetail, firstDetail, ownDetail] = await Promise.all(
+      [second, first, ownPrivate].map((id) => request(app).get(`/lists/${id}`).expect(200)),
+    );
+    const res = await request(app).post('/lists/resolve').send({ ids }).expect(200);
+    expect(res.body.items).toEqual([
+      secondDetail.body,
+      firstDetail.body,
+      ownDetail.body,
+      firstDetail.body,
+    ]);
+    expect(JSON.stringify(res.body)).not.toContain('secret');
+  });
+
+  it('requires a session and bounds the requested IDs', async () => {
+    authUserId = undefined;
+    await request(app).post('/lists/resolve').send({ ids: [] }).expect(401);
+    authUserId = VIEWER_ID;
+    await request(app)
+      .post('/lists/resolve')
+      .send({ ids: Array(51).fill('id') })
+      .expect(400);
+    await request(app)
+      .post('/lists/resolve')
+      .send({ ids: [''] })
+      .expect(400);
+    await request(app)
+      .post('/lists/resolve')
+      .send({ ids: [{ id: 'x' }] })
+      .expect(400);
+    expect((await request(app).post('/lists/resolve').send({ ids: [] }).expect(200)).body).toEqual({
+      items: [],
+    });
+    const listId = await seedList({ isPublic: true });
+    const maxPage = await request(app)
+      .post('/lists/resolve')
+      .send({ ids: Array(50).fill(listId) })
+      .expect(200);
+    expect(maxPage.body.items).toHaveLength(50);
+  });
+});
+
 describe('ownership and visibility', () => {
   it('refuses a stranger the detail of a PRIVATE list', async () => {
     const listId = await seedList({ isPublic: false, members: ['secret-member'] });

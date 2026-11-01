@@ -257,6 +257,33 @@ async function nextMemberPosition(tx: Transaction, listId: string): Promise<numb
   return (row?.maxPosition ?? -1) + 1;
 }
 
+/** Resolve a bounded set using the same visibility and DTO as GET /lists/:id. */
+router.post('/resolve', async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  const parsed = z.object({ ids: z.array(z.string().min(1).max(100)).max(50) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid list IDs' });
+  const { ids } = parsed.data;
+  if (ids.length === 0) return res.json({ items: [] });
+  try {
+    const db = getDb();
+    const rows = await db.select().from(accountLists).where(inArray(accountLists.id, ids));
+    const visible = new Map(
+      rows.filter((row) => canViewList(row, userId)).map((row) => [row.id, row]),
+    );
+    const members = await loadMembersByList(db, [...visible.keys()]);
+    return res.json({
+      items: ids.flatMap((id) => {
+        const row = visible.get(id);
+        return row ? [serializeList(row, members.get(id) ?? [])] : [];
+      }),
+    });
+  } catch (error) {
+    logger.error('[Lists] Failed to resolve lists', { userId, error });
+    return res.status(500).json({ error: 'Failed to resolve lists' });
+  }
+});
+
 // Create list (accounts)
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
