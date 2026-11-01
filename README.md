@@ -3,6 +3,9 @@
   Posts are signed records on a chain the author owns, not rows we can quietly rewrite.
 </p>
 
+Mention's source code is publicly available under [Breathe 1.0](./LICENSE),
+Oxy's own source-available license. See [License](#license) for usage terms.
+
 <p align="center">
   <a href="https://mention.earth"><img alt="mention.earth" src="https://img.shields.io/badge/mention.earth-440151?style=flat-square"></a>
   <a href="./LICENSE"><img alt="License Breathe 1.0" src="https://img.shields.io/badge/license-Breathe%201.0-informational?style=flat-square"></a>
