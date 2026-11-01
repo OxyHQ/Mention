@@ -1653,6 +1653,7 @@
   "channels.signInRequired": "Accedi per gestire i tuoi canali",
   "channels.signInRequiredDesc": "Un canale è un account che si segue senza seguire chi ci scrive.",
   "channels.compose.repostFailed": "Pubblicato sul canale, ma non è stato possibile ripubblicarlo sul tuo profilo.",
+  "channels.compose.repostUnconfirmed": "Pubblicato sul canale. Controlla il tuo profilo per verificare se è stato ripubblicato.",
   "channels.compose.scheduledNoRepost": "Programmato. Ripubblicalo sul tuo profilo quando esce.",
   "channels.settings.title": "Impostazioni del canale",
   "channels.settings.operatorOnly": "Solo chi gestisce il canale può amministrarlo",
@@ -2444,7 +2445,7 @@
   },
   "compose": {
     "replyUnconfirmed": "Impossibile confermare la risposta. Controlla la conversazione prima di riprovare.",
-    "publishUnconfirmed": "Impossibile confermare la pubblicazione. Controlla i tuoi post prima di riprovare.",
+    "publishUnconfirmed": "Impossibile confermare il risultato. Controlla se la modifica è stata applicata prima di riprovare.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

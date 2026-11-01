@@ -1633,6 +1633,7 @@
   "channels.signInRequired": "チャンネルを管理するにはログインしてください",
   "channels.signInRequiredDesc": "チャンネルとは、書き手をフォローしなくてもフォローできるアカウントです。",
   "channels.compose.repostFailed": "チャンネルには公開しましたが、あなたのプロフィールへの再投稿に失敗しました。",
+  "channels.compose.repostUnconfirmed": "チャンネルに公開しました。プロフィールへの再投稿を確認してください。",
   "channels.compose.scheduledNoRepost": "予約しました。公開されたら、自分のプロフィールにも再投稿してください。",
   "channels.settings.title": "チャンネルの設定",
   "channels.settings.operatorOnly": "このチャンネルを管理できるのは運営者だけです",
@@ -2415,7 +2416,7 @@
   },
   "compose": {
     "replyUnconfirmed": "返信を確認できませんでした。再試行する前に会話を確認してください。",
-    "publishUnconfirmed": "投稿を確認できませんでした。再試行する前に自分の投稿を確認してください。",
+    "publishUnconfirmed": "結果を確認できませんでした。再試行する前に変更が反映されたか確認してください。",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

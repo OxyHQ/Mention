@@ -255,10 +255,10 @@ interface PostsStoreState {
   refreshFeed: (type: FeedType, filters?: FeedFilters, supersedePending?: boolean) => Promise<void>;
   loadMoreFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
 
-  // A resolved create is confirmed by the server. The returned model may be
-  // empty if the viewer changed or local cache work failed after confirmation.
+  // A resolved create is confirmed by the server. Its ID is retained even if
+  // the viewer changed or local cache work failed after confirmation.
   // An unconfirmed transport outcome rejects; callers must not assume failure.
-  createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
+  createPost: (request: CreatePostRequest) => Promise<{ id: string }>;
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<FeedItem | null>;
   createBoost: (request: CreateBoostRequest) => Promise<void>;
@@ -996,8 +996,7 @@ export const usePostsStore = create<PostsStoreState>()(
     // ── createPost ───────────────────────────────────────────
     createPost: async (request: CreatePostRequest) => {
       const operationEpoch = captureViewerStateEpoch();
-      let confirmed = false;
-      let confirmedPost: FeedItem | null = null;
+      let confirmedId: string | null = null;
       set({ isLoading: true, error: null });
 
       try {
@@ -1005,13 +1004,12 @@ export const usePostsStore = create<PostsStoreState>()(
         if (!response.success || !response.post) {
           throw new Error('Publication result could not be confirmed');
         }
-        confirmed = true;
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
+        confirmedId = response.post.id;
+        if (!isCurrentViewerStateEpoch(operationEpoch)) return { id: confirmedId };
         const rawPost = response.post;
         if (rawPost.metadata.status === 'scheduled') {
-          confirmedPost = toFeedItem(rawPost);
           set({ isLoading: false });
-          return confirmedPost;
+          return { id: confirmedId };
         }
 
         const newPost: FeedItem = {
@@ -1027,7 +1025,6 @@ export const usePostsStore = create<PostsStoreState>()(
           },
           isLocalNew: true,
         };
-        confirmedPost = newPost;
 
         // Write to SQLite
         dbUpsertPost(newPost);
@@ -1054,12 +1051,12 @@ export const usePostsStore = create<PostsStoreState>()(
         notifyFeedChanges(feedKeys);
         invalidateProfileCounts(queryClient, newPost.user?.id);
         set({ isLoading: false, lastRefresh: Date.now() });
-        return newPost;
+        return { id: confirmedId };
       } catch (error) {
-        if (confirmed) {
+        if (confirmedId !== null) {
           logger.error('Post published, but the local cache update failed', error);
           if (isCurrentViewerStateEpoch(operationEpoch)) set({ isLoading: false });
-          return confirmedPost;
+          return { id: confirmedId };
         }
         if (!isCurrentViewerStateEpoch(operationEpoch)) throw error;
         const errorMessage = error instanceof Error ? error.message : 'Failed to create post';

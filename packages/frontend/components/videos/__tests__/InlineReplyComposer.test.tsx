@@ -84,6 +84,7 @@ it.each(['success', 'failure'] as const)(
       renderer.root.find((node) => typeof node.props.onPress === 'function').props.onPress();
     });
     mockSessionEpoch += 1;
+    mockViewerId = 'b';
     await act(async () => {
       if (outcome === 'success') complete();
       else fail(new Error('unknown outcome'));
@@ -126,6 +127,12 @@ it.each(['success', 'failure'] as const)(
       await Promise.resolve();
     });
     expect(onPosted).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.stringMatching(/replyUnconfirmed|confirm.*reply/i),
+      { type: 'error' },
+    );
+    expect(renderer.root.findByType(TextInput).props.value).toBe('hello');
+    expect(mockCreateReply).toHaveBeenCalledTimes(1);
     await act(async () => {
       renderer.root.find((node) => typeof node.props.onPress === 'function').props.onPress();
       await Promise.resolve();
@@ -157,6 +164,83 @@ it('warns of an unconfirmed reply without retrying automatically', async () => {
   expect(renderer.root.findByType(TextInput).props.value).toBe('hello');
   act(() => renderer.unmount());
 });
+
+it('finishes a reply normally when a same-context token refresh keeps the epoch', async () => {
+  let resolve!: (value: unknown) => void;
+  mockCreateReply.mockReturnValueOnce(
+    new Promise((finish) => {
+      resolve = finish;
+    }),
+  );
+  const onPosted = jest.fn();
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    renderer = TestRenderer.create(<InlineReplyComposer postId="p" onPosted={onPosted} />);
+  });
+  act(() => {
+    renderer.root.findByType(TextInput).props.onChangeText('hello');
+  });
+  act(() => {
+    renderer.root.find((node) => typeof node.props.onPress === 'function').props.onPress();
+  });
+  // Core retains this epoch for a token rotation within the same session.
+  await act(async () => {
+    resolve({ id: 'reply' });
+    await Promise.resolve();
+  });
+  expect(onPosted).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findByType(TextInput).props.value).toBe('');
+  expect(mockToast).not.toHaveBeenCalled();
+  expect(mockCreateReply).toHaveBeenCalledTimes(1);
+  act(() => renderer.unmount());
+});
+
+it.each(['aba', 'logout', 'unmount'] as const)(
+  'shows a generic uncertainty warning only to the mounted original viewer after %s',
+  async (transition) => {
+    let reject!: (error: Error) => void;
+    mockCreateReply.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    const onPosted = jest.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<InlineReplyComposer postId="p" onPosted={onPosted} />);
+    });
+    act(() => {
+      renderer.root.findByType(TextInput).props.onChangeText('private text');
+    });
+    act(() => {
+      renderer.root.find((node) => typeof node.props.onPress === 'function').props.onPress();
+    });
+    mockSessionEpoch += 1;
+    mockViewerId = transition === 'logout' ? null : 'b';
+    if (transition === 'aba') {
+      mockSessionEpoch += 1;
+      mockViewerId = 'a';
+    }
+    if (transition === 'unmount') act(() => renderer.unmount());
+    await act(async () => {
+      reject(new Error('unknown outcome'));
+      await Promise.resolve();
+    });
+    if (transition === 'aba') {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.stringMatching(/replyUnconfirmed|confirm.*reply/i),
+        { type: 'error' },
+      );
+      expect(renderer.root.findByType(TextInput).props.value).toBe('private text');
+    } else {
+      expect(mockToast).not.toHaveBeenCalled();
+    }
+    expect(mockCreateReply).toHaveBeenCalledTimes(1);
+    expect(onPosted).not.toHaveBeenCalled();
+    if (transition !== 'unmount') act(() => renderer.unmount());
+  },
+);
 
 it.each(['later reply', 'hello'])(
   'keeps the edit made during a pending reply, including editing back to the original text (%s)',

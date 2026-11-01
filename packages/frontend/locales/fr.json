@@ -1653,6 +1653,7 @@
   "channels.signInRequired": "Connecte-toi pour gérer tes chaînes",
   "channels.signInRequiredDesc": "Une chaîne est un compte que l'on suit sans suivre les personnes qui écrivent pour elle.",
   "channels.compose.repostFailed": "Publié sur la chaîne, mais la reprise sur ton profil a échoué.",
+  "channels.compose.repostUnconfirmed": "Publié sur la chaîne. Vérifie ton profil pour voir si le post y a été partagé.",
   "channels.compose.scheduledNoRepost": "Programmé. Reprends-le sur ton propre profil une fois qu'il sera parti.",
   "channels.settings.title": "Réglages de la chaîne",
   "channels.settings.operatorOnly": "Seul un opérateur peut gérer cette chaîne",
@@ -2447,7 +2448,7 @@
   },
   "compose": {
     "replyUnconfirmed": "Réponse non confirmée. Vérifiez la conversation avant de réessayer.",
-    "publishUnconfirmed": "Publication non confirmée. Vérifiez vos publications avant de réessayer.",
+    "publishUnconfirmed": "Impossible de confirmer le résultat. Vérifie si la modification a été appliquée avant de réessayer.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",
