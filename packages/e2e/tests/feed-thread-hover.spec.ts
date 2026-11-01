@@ -139,13 +139,7 @@ test('thread hover stays synchronized and clears when the hovered row is recycle
   await expect.poll(() => opacity(firstOverlay)).toBe(0);
   await expect.poll(() => opacity(secondOverlay)).toBe(0);
 
-  // The anonymous welcome dialog can open after the long scroll. Dismiss its
-  // backdrop as a user would before clicking the second post in the thread.
-  const dismissWelcome = page.getByRole('button', { name: 'Dismiss Welcome to Mention' });
-  if (await dismissWelcome.isVisible()) {
-    await dismissWelcome.click({ position: { x: 5, y: 5 } });
-    await expect(dismissWelcome).toBeHidden();
-  }
+  expect(candidate.servedPaths.some((path) => path.startsWith('/_expo/static/js/'))).toBe(true);
   await secondRoot.click({ position: { x: box.width - 8, y: 10 } });
   await expect(page).toHaveURL(`/p/${first.id}`);
   expect(candidate.scriptErrors).toEqual([]);
@@ -161,11 +155,7 @@ test.describe('touch', () => {
       .locator(`[data-post-uri="${second.id}"]`)
       .locator('[aria-label="Thread Author: Thread second body"]');
     await expect(secondRoot).toBeVisible();
-    const dismissWelcome = page.getByRole('button', { name: 'Dismiss Welcome to Mention' });
-    if (await dismissWelcome.isVisible()) {
-      await dismissWelcome.tap({ position: { x: 5, y: 5 } });
-      await expect(dismissWelcome).toBeHidden();
-    }
+    expect(candidate.servedPaths.some((path) => path.startsWith('/_expo/static/js/'))).toBe(true);
     await secondRoot.getByText(second.content.text, { exact: true }).tap();
     await expect(page).toHaveURL(`/p/${first.id}`);
     expect(candidate.scriptErrors).toEqual([]);
