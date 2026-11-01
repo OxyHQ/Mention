@@ -1796,10 +1796,12 @@ describe('PostClassificationService — Jev shadow lane', () => {
     config.inference.timeoutMs = 500;
     const start = Date.now();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(start);
-    vi.spyOn(evaluationRepository, 'listShadowCandidates').mockImplementation(async () => {
-      clock.mockReturnValue(start + config.inference.timeoutMs);
-      return [post.id];
-    });
+    const listCandidates = vi
+      .spyOn(evaluationRepository, 'listShadowCandidates')
+      .mockImplementation(async () => {
+        clock.mockReturnValue(start + config.inference.timeoutMs);
+        return [post.id];
+      });
     const evaluate = vi.fn();
     try {
       await new PostClassificationService({ release, evaluate }).processQueue();
@@ -1807,6 +1809,7 @@ describe('PostClassificationService — Jev shadow lane', () => {
       clock.mockRestore();
       config.inference.timeoutMs = originalTimeout;
     }
+    expect(listCandidates).toHaveBeenCalledTimes(1);
     expect(evaluate).not.toHaveBeenCalled();
     expect(await ledgerOf(post.id)).toEqual([]);
   });
