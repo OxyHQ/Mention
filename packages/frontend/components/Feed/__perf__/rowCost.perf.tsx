@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 
 import { appI18n, initializeI18n } from '@/lib/i18n';
 import { usePostsStore } from '@/stores/postsStore';
+import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { VideoPlaybackProvider, VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { renderFeedRow, type PostFeedRow } from '../feedRows';
 import { ROW_KINDS, makeRow, type RowKind } from './fixtures';
@@ -296,6 +297,25 @@ afterAll(() => {
 });
 
 describe('feed row cost', () => {
+  it('does not rerender unrelated attachments when embed preferences hydrate or change', async () => {
+    const { handle, renders } = harness;
+    const posts = ROW_KINDS.map((kind, i) => makeRow(kind, `embed-prefs-${i}`));
+    act(() => {
+      useExternalEmbedsStore.setState({ prefs: {} });
+      usePostsStore.getState().cachePosts(posts);
+      handle.setPosts(posts);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    renders.clear();
+    act(() => useExternalEmbedsStore.setState({ prefs: {} }));
+    expect([...renders.entries()]).toEqual([]);
+    act(() => useExternalEmbedsStore.setState({ prefs: { youtube: 'hide' } }));
+    expect([...renders.entries()]).toEqual([]);
+    act(() => useExternalEmbedsStore.setState({ prefs: {} }));
+  });
+
   it.each(ROW_KINDS.map((kind) => [kind]))('%s', async (kind) => {
     const { renderer, handle, renders, queryClient } = harness;
     const mountMs: number[] = [];

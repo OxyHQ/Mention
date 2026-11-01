@@ -263,11 +263,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // URLs) needs only the app's one OxyServices instance — the same object
     // OxyProvider holds — not a subscription to the whole auth context, which
     // re-rendered every mounted attachment row on any session change (#1103).
-    // Per-provider external-embed prefs, read once (selector) so the link branch
-    // can decide between the inline player and the static card without a hook in
-    // the render loop.
-    const embedPrefs = useExternalEmbedsStore((state) => state.prefs);
-
     const mediaArray = useMemo(() => (Array.isArray(media) ? media : []), [media]);
     const attachmentDescriptors = useMemo(
       () => (Array.isArray(attachments) ? attachments : []),
@@ -593,19 +588,18 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // Index (within `items`) of the ONE link allowed to render an inline player:
     // the first embeddable link the viewer hasn't disabled for its provider. Every
     // other link — embeddable or not — renders as a static preview card, so a post
-    // never shows two players. Recomputed when the items or the per-provider prefs
-    // change, so toggling a preference flips the render with no effect/state sync.
-    const primaryEmbedIndex = useMemo(
-      () =>
-        items.findIndex(
-          (item) =>
-            item.type === 'link' &&
-            canEmbed(
-              item.embedParams,
-              item.embedParams ? embedPrefs[item.embedParams.source] : undefined,
-            ),
-        ),
-      [items, embedPrefs],
+    // never shows two players. Select the resulting index rather than the prefs
+    // object: hydration or a preference for another provider should not rerender
+    // every attachment row. The player observes its own preference separately.
+    const primaryEmbedIndex = useExternalEmbedsStore((state) =>
+      items.findIndex(
+        (item) =>
+          item.type === 'link' &&
+          canEmbed(
+            item.embedParams,
+            item.embedParams ? state.prefs[item.embedParams.source] : undefined,
+          ),
+      ),
     );
 
     // A media cell takes the hero form only when it is the ONLY thing in the row.
