@@ -122,6 +122,12 @@ function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 let viewerEpoch = 0;
+// Overlapping reads for one viewer/language can finish out of order. Preserve
+// the newest successful request without discarding an older success merely
+// because a later request started and then failed.
+let nextRequestId = 0;
+let lastSuccessfulRequestId = 0;
+let lastVisibleErrorRequestId = 0;
 const LEGACY_STORAGE_KEY = 'trends-hidden';
 // Lease IDs keep delayed cleanup from an old identity from touching a new
 // viewer's subscriber count after resetViewerState().
@@ -164,6 +170,7 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
   fetchTrends: async (opts?: { silent?: boolean }) => {
     const operationEpoch = viewerEpoch;
     const languages = get().readerLanguages;
+    const requestId = ++nextRequestId;
     const request = Symbol();
     inFlightRequests.add(request);
     const silent = !!opts?.silent;
@@ -173,7 +180,12 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
         limit: 10,
         ...(languages.length > 0 ? { lang: languages.join(',') } : {}),
       });
-      if (operationEpoch !== viewerEpoch || languages !== get().readerLanguages) return;
+      if (
+        operationEpoch !== viewerEpoch ||
+        languages !== get().readerLanguages ||
+        requestId < lastSuccessfulRequestId
+      )
+        return;
       const items: TrendApiItem[] = response.data.trending || [];
       const recId = response.data.recId;
       const next = items.map((item) => {
@@ -254,15 +266,33 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
 
       const nextSummary = response.data.summary || '';
 
+      lastSuccessfulRequestId = requestId;
+      const clearError = get().error !== null && requestId > lastVisibleErrorRequestId;
+
       if (changed || prevSummary !== nextSummary) {
-        set({ trends: next, summary: nextSummary, isLoading: false, hasFetched: true });
-      } else if (get().isLoading || !get().hasFetched) {
-        set({ isLoading: false, hasFetched: true });
+        set({
+          trends: next,
+          summary: nextSummary,
+          isLoading: false,
+          hasFetched: true,
+          ...(clearError ? { error: null } : {}),
+        });
+      } else if (get().isLoading || !get().hasFetched || clearError) {
+        set({ isLoading: false, hasFetched: true, ...(clearError ? { error: null } : {}) });
       }
     } catch (error: unknown) {
-      if (operationEpoch !== viewerEpoch || languages !== get().readerLanguages) return;
+      if (
+        operationEpoch !== viewerEpoch ||
+        languages !== get().readerLanguages ||
+        requestId < lastSuccessfulRequestId ||
+        requestId < lastVisibleErrorRequestId
+      )
+        return;
       const message = error instanceof Error ? error.message : 'Failed to fetch trends';
-      if (!silent) set({ error: message, isLoading: false });
+      if (!silent) {
+        lastVisibleErrorRequestId = requestId;
+        set({ error: message, isLoading: false });
+      }
     } finally {
       inFlightRequests.delete(request);
     }
