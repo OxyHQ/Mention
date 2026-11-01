@@ -16,6 +16,7 @@ import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
 import { Error as ErrorState } from '@/components/Error';
 import { presentSheet } from '@/utils/sheet';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { getNextJobApplicationPage } from '@/lib/jobPagination';
 import { jobApplicationsService, isJobForbiddenError } from '@/services/jobApplicationsService';
 import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailSheet';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -61,7 +62,7 @@ export default function JobApplicationsScreen() {
         cursor: pageParam,
       }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    getNextPageParam: getNextJobApplicationPage,
     // This endpoint is employer-only (401/403 otherwise) — gate on
     // `canUsePrivateApi`, not just a truthy jobId, so this doesn't fire an
     // authenticated request during the SSO-restore window before auth is
