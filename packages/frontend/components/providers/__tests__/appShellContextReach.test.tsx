@@ -95,7 +95,8 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   // `TabPagerProvider` needs the viewer's handle to recognise `/@<own handle>`
   // as the profile tab (on web `/you` redirects there). Signed out is the
   // simplest true state for a shell-shape test.
-  useAuth: () => ({ user: undefined }),
+  useAuth: () => ({ user: undefined, isAuthResolved: true, canUsePrivateApi: false }),
+  useOxy: () => ({ activeSessionId: null }),
 }));
 
 jest.mock('react-i18next', () => ({

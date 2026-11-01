@@ -1,25 +1,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-/**
- * Expo Router's ExperimentalStack is the app's only native stack — the standard
- * Stack lets Android finish the Activity, and Expo forbids mixing the two native
- * stack implementations in one app. That much is unchanged.
- *
- * What changed is the SYSTEM predictive-back gesture, which this file used to
- * require. It is answered entirely natively, and `(tabs)` is the stack's root
- * screen, so a back press finished the Activity before any JavaScript ran: the
- * tab router's `backBehavior: 'history'` was never asked and back LEFT THE APP
- * from every tab, leaving react-native-screens to report "The screen '(tabs)'
- * was removed natively but didn't get removed from JS state" (after which the
- * bottom bar has been seen to disappear). Measured on a Pixel 10 Pro, together
- * with both JS-side rescues failing: `BackHandler` arms and is never called, and
- * `usePreventRemove` stops the exit but its callback only runs from a JS
- * `beforeRemove`, which a native dismiss never emits — so back went inert.
- *
- * The tab history lives in JavaScript, so back has to reach JavaScript. The
- * gesture's PREVIEW animation is what that costs; the stack's own transitions
- * are unaffected.
+/** Native ownership is shared by Bloom's root pager and Expo's native stack.
+ * These wiring checks supplement shared behavioral tests and device acceptance.
  */
 
 const frontendRoot = resolve(__dirname, '../../..');
@@ -53,9 +36,11 @@ function importedExpoRouterNames(source: string): string[] {
 }
 
 describe('Android predictive-back navigation wiring', () => {
-  it('leaves the native Android back callback to JavaScript', () => {
+  it('enables predictive Back with the source-built ownership coordinator', () => {
     const appConfig = readFileSync(join(frontendRoot, 'app.config.js'), 'utf8');
-    expect(appConfig).toMatch(/predictiveBackGestureEnabled:\s*false/);
+    expect(appConfig).toMatch(/predictiveBackGestureEnabled:\s*true/);
+    expect(appConfig).toMatch(/buildReactNativeFromSource:\s*true/);
+    expect(appConfig).toMatch(/\['@oxy\.so\/bloom',\s*\{\s*predictiveBack:\s*true/);
   });
 
   it('uses ExperimentalStack for every app-owned native navigator', () => {

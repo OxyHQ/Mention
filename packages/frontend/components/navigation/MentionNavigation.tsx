@@ -25,7 +25,7 @@ import { RiVideoFill } from '@oxy.so/bloom/icons/RiVideoFill';
 import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
 import type { AppDestination } from '@oxy.so/bloom/tab-pager';
 import { TabPagerProvider } from '@oxy.so/bloom/tab-pager/expo-router';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { requestSettings } from '@/components/settings/settingsRoutes';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
@@ -177,5 +177,22 @@ export function useMentionDestinations(): AppDestination[] {
  * then reloads.
  */
 export function MentionNavigation({ children }: { children: ReactNode }) {
-  return <TabPagerProvider destinations={useMentionDestinations()}>{children}</TabPagerProvider>;
+  const { user, isAuthResolved, canUsePrivateApi } = useAuth();
+  const { activeSessionId } = useOxy();
+  // A predictive gesture cannot commit history from a different account or
+  // session, including a new session belonging to the same account.
+  const navigationScopeKey = JSON.stringify([
+    isAuthResolved,
+    canUsePrivateApi,
+    user?.id ?? null,
+    activeSessionId ?? null,
+  ]);
+  return (
+    <TabPagerProvider
+      destinations={useMentionDestinations()}
+      navigationScopeKey={navigationScopeKey}
+    >
+      {children}
+    </TabPagerProvider>
+  );
 }
