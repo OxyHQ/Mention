@@ -4,6 +4,7 @@ import { expect, test } from '../fixtures';
 import {
   fixtureViewerMatchesRequest,
   installNotificationFixture,
+  selectedPostId,
   selectedText,
   user,
 } from '../notificationFixture';
@@ -596,6 +597,59 @@ test('an expandable notification group keeps its control and row gesture indepen
   await page.mouse.up();
   await expect(page.getByRole('button', { name: 'Show less', exact: true })).toBeVisible();
   await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('a focused ordinary row keeps focus when a realtime notification creates a group', async ({
+  page,
+  candidate,
+}) => {
+  await installSwitchingFixture(page);
+  let emitNotification!: (notification: unknown) => void;
+  let connected!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    connected = resolve;
+  });
+  await page.routeWebSocket('**/socket.io/**', (socket) => {
+    socket.send(
+      '0{"sid":"fixture","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}',
+    );
+    socket.onMessage((message) => {
+      if (typeof message !== 'string' || !message.startsWith('40/notifications,')) return;
+      socket.send('40/notifications,{"sid":"notification-fixture"}');
+      emitNotification = (notification) =>
+        socket.send(`42/notifications,${JSON.stringify(['notification', notification])}`);
+      connected();
+    });
+  });
+  await page.goto('/notifications');
+  const preview = page.getByText(selectedText, { exact: true });
+  await preview.scrollIntoViewIfNeeded();
+  const row = page.locator('.group').filter({ has: preview });
+  const action =
+    (await row.getAttribute('role')) === 'button'
+      ? row
+      : row.getByRole('button', { name: `${userA} liked your post`, exact: true });
+  await expect(action).toHaveAccessibleName(`${userA} liked your post`);
+  await action.focus();
+  await expect(action).toBeFocused();
+  await ready;
+  emitNotification({
+    _id: 'notification-realtime-group',
+    recipientId: userA,
+    actorId: userB,
+    type: 'like',
+    entityId: selectedPostId,
+    entityType: 'post',
+    read: false,
+    createdAt: new Date().toISOString(),
+    preview: selectedText,
+    actorId_populated: { id: userB, username: userB, name: { displayName: userB } },
+  });
+  await expect(row.getByRole('button', { name: 'Show all', exact: true })).toBeVisible();
+  const groupedAction =
+    (await row.getAttribute('role')) === 'button' ? row : row.getByRole('button').first();
+  await expect(groupedAction).toBeFocused();
   expect(candidate.scriptErrors).toEqual([]);
 });
 
