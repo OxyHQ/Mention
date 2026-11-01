@@ -128,6 +128,7 @@ let viewerEpoch = 0;
 let nextRequestId = 0;
 let lastSuccessfulRequestId = 0;
 let lastVisibleErrorRequestId = 0;
+let visibleRequestId: number | null = null;
 const LEGACY_STORAGE_KEY = 'trends-hidden';
 // Lease IDs keep delayed cleanup from an old identity from touching a new
 // viewer's subscriber count after resetViewerState().
@@ -174,7 +175,15 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
     const request = Symbol();
     inFlightRequests.add(request);
     const silent = !!opts?.silent;
-    if (!silent) set({ isLoading: true, error: null });
+    if (!silent) {
+      visibleRequestId = requestId;
+      set({ isLoading: true, error: null });
+    }
+    const settleVisible = () => {
+      if (operationEpoch !== viewerEpoch || visibleRequestId !== requestId) return false;
+      visibleRequestId = null;
+      return true;
+    };
     try {
       const response = await api.get<TrendsApiResponse>('/trending', {
         limit: 10,
@@ -268,17 +277,22 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
 
       lastSuccessfulRequestId = requestId;
       const clearError = get().error !== null && requestId > lastVisibleErrorRequestId;
+      // A later successful silent read supersedes the visible read too: the
+      // visible response can no longer commit, so it must not hold a spinner
+      // open indefinitely if its network request stalls.
+      if (visibleRequestId !== null && visibleRequestId <= requestId) visibleRequestId = null;
+      const isLoading = visibleRequestId !== null;
 
       if (changed || prevSummary !== nextSummary) {
         set({
           trends: next,
           summary: nextSummary,
-          isLoading: false,
+          isLoading,
           hasFetched: true,
           ...(clearError ? { error: null } : {}),
         });
-      } else if (get().isLoading || !get().hasFetched || clearError) {
-        set({ isLoading: false, hasFetched: true, ...(clearError ? { error: null } : {}) });
+      } else if (get().isLoading !== isLoading || !get().hasFetched || clearError) {
+        set({ isLoading, hasFetched: true, ...(clearError ? { error: null } : {}) });
       }
     } catch (error: unknown) {
       if (
@@ -289,12 +303,13 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
       )
         return;
       const message = error instanceof Error ? error.message : 'Failed to fetch trends';
-      if (!silent) {
+      if (!silent && settleVisible()) {
         lastVisibleErrorRequestId = requestId;
         set({ error: message, isLoading: false });
       }
     } finally {
       inFlightRequests.delete(request);
+      if (settleVisible() && get().isLoading) set({ isLoading: false });
     }
   },
 
@@ -352,6 +367,7 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
 
   resetViewerState: () => {
     viewerEpoch += 1;
+    visibleRequestId = null;
     pollSubscriptions.clear();
     inFlightRequests.clear();
     if (pollHandle) {
