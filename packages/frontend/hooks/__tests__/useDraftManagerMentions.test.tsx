@@ -16,7 +16,11 @@ const deleteDraft = jest.fn(async () => undefined);
 const onDraftLoad = jest.fn();
 
 function Probe() {
-  latest = useDraftManager({ saveDraft, deleteDraft, onDraftLoad });
+  latest = useDraftManager({
+    saveDraft,
+    queueDeleteDraft: async () => {},
+    onDraftLoad,
+  });
   return null;
 }
 

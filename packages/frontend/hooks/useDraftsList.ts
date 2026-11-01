@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { HydratedPost } from '@mention/shared-types';
 import { useDrafts, type Draft } from '@/hooks/useDrafts';
 import { useServerDrafts } from '@/hooks/useServerDrafts';
+import { draftRevision } from '@/utils/draftSession';
 
 /**
  * One row of the drafts screen, from either place a draft can live.
@@ -69,7 +70,13 @@ export function mergeDrafts(deviceDrafts: Draft[], serverDrafts: HydratedPost[])
  * beside the rows it has.
  */
 export function useDraftsList() {
-  const { drafts: deviceDrafts, isLoading: deviceLoading, deleteDraft, loadDrafts } = useDrafts();
+  const {
+    drafts: deviceDrafts,
+    isLoading: deviceLoading,
+    isError: deviceError,
+    deleteDraft,
+    loadDrafts,
+  } = useDrafts();
   const {
     serverDrafts,
     isLoading: serverLoading,
@@ -88,14 +95,16 @@ export function useDraftsList() {
   return {
     items,
     isLoading: deviceLoading,
+    deviceError,
+    refetchDeviceDrafts: loadDrafts,
     serverLoading,
     serverError,
     refetchServerDrafts,
     publishServerDraft,
     deleteServerDraft,
     /** Delete a device draft, then re-read storage so the row goes. */
-    deleteDeviceDraft: async (draftId: string) => {
-      await deleteDraft(draftId);
+    deleteDeviceDraft: async (draft: Draft) => {
+      await deleteDraft(draft.id, draftRevision(draft.localRevision));
       await loadDrafts();
     },
     viewerId,

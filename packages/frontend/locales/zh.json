@@ -1,4 +1,11 @@
 {
+  "compose.deleteDraftChanged": "此草稿已更改。请检查后重试删除。",
+  "compose.draftMissing": "此草稿已不可用。",
+  "compose.draftConflict": "此草稿已在其他位置更改。请将您的工作保存为副本。",
+  "compose.saveDraftCopy": "另存为副本",
+  "compose.draftChangedRetry": "保存时草稿发生了更改。请重试。",
+  "compose.deviceDrafts.loadError": "无法加载保存在此设备上的草稿",
+  "compose.retryDraftSave": "重试保存草稿",
   "search.history.updateFailed": "无法更新搜索历史记录。",
   "search.history.clearFailed": "无法清除搜索历史记录，请重试。",
   "post.threadPosition": "帖子串中的第 {{index}} / {{total}} 条帖子",

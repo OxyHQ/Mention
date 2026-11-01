@@ -1,4 +1,11 @@
 {
+  "compose.deleteDraftChanged": "Ce brouillon a changé. Vérifiez-le et réessayez de le supprimer.",
+  "compose.draftMissing": "Ce brouillon n’est plus disponible.",
+  "compose.draftConflict": "Ce brouillon a été modifié ailleurs. Enregistrez votre travail sous forme de copie.",
+  "compose.saveDraftCopy": "Enregistrer une copie",
+  "compose.draftChangedRetry": "Votre brouillon a changé pendant son enregistrement. Réessayez.",
+  "compose.deviceDrafts.loadError": "Impossible de charger les brouillons enregistrés sur cet appareil",
+  "compose.retryDraftSave": "Réessayer d'enregistrer le brouillon",
   "search.history.updateFailed": "Impossible de mettre à jour l’historique des recherches.",
   "search.history.clearFailed": "Impossible d’effacer l’historique des recherches. Veuillez réessayer.",
   "post.threadPosition": "Publication {{index}} sur {{total}} du fil",

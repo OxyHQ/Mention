@@ -1,4 +1,11 @@
 {
+  "compose.deleteDraftChanged": "تغيرت هذه المسودة. راجعها وحاول حذفها مرة أخرى.",
+  "compose.draftMissing": "لم تعد هذه المسودة متاحة.",
+  "compose.draftConflict": "تغيرت هذه المسودة في مكان آخر. احفظ عملك كنسخة.",
+  "compose.saveDraftCopy": "حفظ كنسخة",
+  "compose.draftChangedRetry": "تغيرت المسودة أثناء الحفظ. حاول مرة أخرى.",
+  "compose.deviceDrafts.loadError": "تعذر تحميل المسودات المحفوظة على هذا الجهاز",
+  "compose.retryDraftSave": "إعادة محاولة حفظ المسودة",
   "search.history.updateFailed": "تعذّر تحديث سجل البحث.",
   "search.history.clearFailed": "تعذّر مسح سجل البحث. يرجى المحاولة مرة أخرى.",
   "post.threadPosition": "المنشور {{index}} من {{total}} في السلسلة",
