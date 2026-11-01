@@ -1,3 +1,4 @@
+import { recoverChunkError } from '@/lib/chunkReload';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +9,7 @@ const logger = createLogger('ErrorBoundary');
 
 /** The one report for every boundary: this last-resort one and the shell's panels. */
 export function reportBoundaryError(error: Error, errorInfo: ErrorInfo): void {
+  recoverChunkError(error);
   logger.error('Error caught by boundary', error, { errorInfo });
 }
 

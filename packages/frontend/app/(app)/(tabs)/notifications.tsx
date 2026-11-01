@@ -11,6 +11,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
+import { recoverChunkError } from '@/lib/chunkReload';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { createLogger } from '@oxy.so/core/logger';
 import { notificationService } from '@/services/notificationService';
@@ -387,6 +388,7 @@ const NotificationsScreen: React.FC = () => {
   }, [listItems, t]);
 
   const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
+    recoverChunkError(error);
     notificationLogger.error('Error caught by boundary', error, { errorInfo });
   }, []);
 

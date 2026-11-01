@@ -8,3 +8,8 @@
 export function registerChunkErrorRecovery(): void {
   // intentionally empty on native
 }
+
+/** Native bundles have no stale web chunks to recover. */
+export function recoverChunkError(_error: unknown): void {
+  // intentionally empty on native
+}

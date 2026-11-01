@@ -1,3 +1,4 @@
+import { recoverChunkError } from '@/lib/chunkReload';
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
@@ -51,6 +52,7 @@ export class PostErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
+    recoverChunkError(error);
     logger.warn(
       `[PostErrorBoundary] Post ${this.props.postId || 'unknown'} crashed: ${error.message}`,
     );
