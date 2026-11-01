@@ -120,12 +120,7 @@ export default function StarterPacksScreen() {
             defaultValue: 'A starter pack is a set of accounts you recommend following together.',
           })}
         >
-          <ScreenScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerClassName="px-3 pt-2.5"
-          >
-            {content}
-          </ScreenScrollView>
+          <ScreenScrollView contentContainerClassName="px-3 pt-2.5">{content}</ScreenScrollView>
         </SignInRequired>
       </Screen>
     </>

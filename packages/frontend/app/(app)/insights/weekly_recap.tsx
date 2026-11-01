@@ -69,7 +69,7 @@ export default function WeeklyRecapScreen() {
           }}
         />
       ) : (
-        <ScreenScrollView showsVerticalScrollIndicator={false}>{content}</ScreenScrollView>
+        <ScreenScrollView>{content}</ScreenScrollView>
       )}
     </Screen>
   );

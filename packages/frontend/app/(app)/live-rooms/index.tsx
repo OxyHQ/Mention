@@ -212,7 +212,6 @@ const LiveRoomsScreen = () => {
           })}
         >
           <ScreenScrollView
-            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
