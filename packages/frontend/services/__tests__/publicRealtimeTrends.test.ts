@@ -161,6 +161,42 @@ describe('public realtime transport', () => {
 });
 
 describe('trends:updated → trendsStore', () => {
+  it('keeps the broadcast refresh when the earlier initial read finishes last', async () => {
+    publicRealtimeService.connect();
+    let finishInitial!: (value: unknown) => void;
+    let finishBroadcast!: (value: unknown) => void;
+    mockApiGet
+      .mockImplementationOnce(() => new Promise((resolve) => (finishInitial = resolve)))
+      .mockImplementationOnce(() => new Promise((resolve) => (finishBroadcast = resolve)));
+
+    const initial = useTrendsStore.getState().fetchTrends();
+    liveSocket().emitFromServer(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, {});
+    expect(mockApiGet).toHaveBeenCalledTimes(2);
+    finishBroadcast({ data: { trending: [trend('tech', 55)], recId: 'batch-2' } });
+    await settle();
+    finishInitial({ data: { trending: [trend('tech', 40)], recId: 'batch-1' } });
+    await initial;
+    expect(useTrendsStore.getState().trends[0].volume).toBe(55);
+    expect(useTrendsStore.getState().trends[0].recId).toBe('batch-2');
+  });
+
+  it('ignores a broadcast read from the prior viewer after reset', async () => {
+    publicRealtimeService.connect();
+    respond([trend('tech', 40)], 'initial');
+    await useTrendsStore.getState().fetchTrends();
+    let finishOldViewer!: (value: unknown) => void;
+    mockApiGet.mockImplementationOnce(() => new Promise((resolve) => (finishOldViewer = resolve)));
+    liveSocket().emitFromServer(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, {});
+    useTrendsStore.getState().resetViewerState();
+    respond([trend('tech', 90)], 'current');
+    await useTrendsStore.getState().fetchTrends();
+    finishOldViewer({ data: { trending: [trend('tech', 55)], recId: 'old-viewer' } });
+    await settle();
+
+    expect(useTrendsStore.getState().trends[0].volume).toBe(90);
+    expect(useTrendsStore.getState().trends[0].recId).toBe('current');
+  });
+
   it('does not fetch on a broadcast until trends have been requested', async () => {
     publicRealtimeService.connect();
     liveSocket().emitFromServer(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, {});
