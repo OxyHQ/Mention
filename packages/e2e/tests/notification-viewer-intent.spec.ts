@@ -1,7 +1,12 @@
 import type { Page } from '@playwright/test';
 import { APP_ORIGIN } from '../environment';
 import { expect, test } from '../fixtures';
-import { installNotificationFixture, selectedText, user } from '../notificationFixture';
+import {
+  fixtureViewerMatchesRequest,
+  installNotificationFixture,
+  selectedText,
+  user,
+} from '../notificationFixture';
 
 const userA = user.id;
 const userB = 'remote-switch-viewer';
@@ -112,12 +117,18 @@ async function installSwitchingFixture(page: Page) {
       return route.fallback();
     return route.fulfill({ headers, json: profile(remote) });
   });
-  await page.route('**/notifications/unread-count', (route) =>
-    route.fulfill({ headers, json: { count: 20 } }),
-  );
-  await page.route('**/notifications?*', (route) => {
+  await page.route('**/notifications/_viewer/unread-count', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    if (!remote || !fixtureViewerMatchesRequest(route.request(), remote))
+      return route.fulfill({ status: 409, headers, json: { code: 'VIEWER_CHANGED' } });
+    return route.fulfill({ headers, json: { count: 20 } });
+  });
+  await page.route('**/notifications/_viewer/inbox?*', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
     if (new URL(route.request().url()).origin === APP_ORIGIN || remote === userA)
       return route.fallback();
+    if (!remote || !fixtureViewerMatchesRequest(route.request(), remote))
+      return route.fulfill({ status: 409, headers, json: { code: 'VIEWER_CHANGED' } });
     return route.fulfill({
       headers,
       json: { notifications: [], unreadCount: 0, hasMore: false, limit: 20 },
@@ -262,8 +273,16 @@ test('a retained failure does not toast under the new viewer', async ({ page, ca
 
 test('a collaboration sheet opened by A cannot answer after A→B→A', async ({ page, candidate }) => {
   const fixture = await installSwitchingFixture(page);
-  await page.route('**/notifications?*', (route) => {
+  await page.route('**/notifications/_viewer/inbox?*', (route) => {
     if (new URL(route.request().url()).origin === APP_ORIGIN) return route.fallback();
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    const current = fixture.viewer();
+    if (!current || !fixtureViewerMatchesRequest(route.request(), current))
+      return route.fulfill({
+        status: 409,
+        headers: fixture.headers,
+        json: { code: 'VIEWER_CHANGED' },
+      });
     const notifications =
       fixture.viewer() === userA
         ? [

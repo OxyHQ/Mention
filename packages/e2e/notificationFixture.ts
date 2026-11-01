@@ -1,4 +1,4 @@
-import type { BrowserContext } from '@playwright/test';
+import type { BrowserContext, Request } from '@playwright/test';
 import { APP_ORIGIN } from './environment';
 
 export const user = {
@@ -17,6 +17,18 @@ export const postText = 'Notification navigation regression post';
 const postId = 'notification-navigation-post';
 export const selectedPostId = `${postId}-15`;
 export const selectedText = `${postText} 15`;
+
+/** Check the synthetic token subject and precondition as the fixture's server. */
+export function fixtureViewerMatchesRequest(request: Request, expected: string): boolean {
+  const headers = request.headers();
+  const bearer = headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+  try {
+    const subject = JSON.parse(Buffer.from(bearer?.split('.')[1] ?? '', 'base64url').toString());
+    return headers['x-mention-expected-viewer'] === expected && subject.sub === expected;
+  } catch {
+    return false;
+  }
+}
 
 export async function installNotificationFixture(
   context: BrowserContext,
@@ -66,6 +78,11 @@ export async function installNotificationFixture(
     };
     const json = (body: unknown) => route.fulfill({ headers, json: body });
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (
+      (path === '/notifications/_viewer/inbox' || path === '/notifications/_viewer/unread-count') &&
+      !fixtureViewerMatchesRequest(request, user.id)
+    )
+      return route.fulfill({ status: 409, headers, json: { code: 'VIEWER_CHANGED' } });
     if (path.startsWith('/auth/oauth/client/'))
       return json({
         application: {
@@ -102,7 +119,7 @@ export async function installNotificationFixture(
     if (path === '/safety/supervision') return json({ self: null, children: [], invitations: [] });
     if (path.includes('settings') || path.includes('preferences') || path.includes('entitlements'))
       return json({});
-    if (path === '/notifications')
+    if (path === '/notifications' || path === '/notifications/_viewer/inbox')
       return json({
         notifications: Array.from({ length: 20 }, (_, index) => ({
           _id: `notification-navigation-like-${index}`,

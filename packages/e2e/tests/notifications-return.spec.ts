@@ -2,6 +2,7 @@
 import { APP_ORIGIN } from '../environment';
 import { expect, test } from '../fixtures';
 import {
+  fixtureViewerMatchesRequest,
   installNotificationFixture,
   postText,
   selectedPostId,
@@ -117,8 +118,12 @@ test('a failed notification read is refreshed and can be retried', async ({
     'access-control-allow-credentials': 'true',
   };
   await context.route(
-    (url) => url.origin !== APP_ORIGIN && url.pathname === '/notifications',
-    (route) => route.fulfill({ headers, json: inbox }),
+    (url) => url.origin !== APP_ORIGIN && url.pathname === '/notifications/_viewer/inbox',
+    (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      expect(fixtureViewerMatchesRequest(route.request(), user.id)).toBe(true);
+      return route.fulfill({ headers, json: inbox });
+    },
   );
   await context.route(`**/notifications/_viewer/${notificationId}/read`, (route) => {
     if (route.request().method() === 'OPTIONS') return route.fallback();
@@ -131,7 +136,7 @@ test('a failed notification read is refreshed and can be retried', async ({
   await expect(welcome).toBeVisible();
   const refreshed = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname === '/notifications' &&
+      new URL(response.url()).pathname === '/notifications/_viewer/inbox' &&
       response.request().method() === 'GET',
   );
   await welcome.click();
