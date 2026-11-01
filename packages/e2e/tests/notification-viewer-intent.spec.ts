@@ -301,6 +301,78 @@ test('a retained failure does not toast under the new viewer', async ({ page, ca
   }
 });
 
+async function installCollaborationFixture(
+  page: Page,
+  fixture: Awaited<ReturnType<typeof installSwitchingFixture>>,
+) {
+  await page.route('**/notifications/_viewer/inbox?*', (route) => {
+    if (new URL(route.request().url()).origin === APP_ORIGIN) return route.fallback();
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    const current = fixture.viewer();
+    if (!current || !fixtureViewerMatchesRequest(route.request(), current))
+      return route.fulfill({
+        status: 409,
+        headers: fixture.headers,
+        json: { code: 'VIEWER_CHANGED' },
+      });
+    const notifications =
+      fixture.viewer() === userA
+        ? [
+            {
+              _id: 'collab-notification',
+              recipientId: userA,
+              actorId: userA,
+              type: 'collab_invite',
+              entityId: 'collab-post',
+              entityType: 'post',
+              read: false,
+              createdAt: new Date().toISOString(),
+              actorId_populated: {
+                id: userA,
+                username: userA,
+                name: { displayName: 'Navigation Viewer' },
+              },
+            },
+          ]
+        : [];
+    return route.fulfill({
+      headers: fixture.headers,
+      json: { notifications, unreadCount: notifications.length, hasMore: false, limit: 20 },
+    });
+  });
+  await page.route('**/feed/item/collab-post', (route) =>
+    route.fulfill({
+      headers: fixture.headers,
+      json: {
+        id: 'collab-post',
+        user: profile(userA),
+        content: { text: 'Collaboration fixture' },
+        visibility: 'public',
+        attachments: {},
+        authors: [],
+        permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: true },
+        metadata: {
+          status: 'published',
+          visibility: 'public',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        engagement: { replies: 0, likes: 0, boosts: 0, saves: 0 },
+        viewerState: {
+          isOwner: false,
+          isLiked: false,
+          isDownvoted: false,
+          isBoosted: false,
+          isSaved: false,
+          isCollaborator: false,
+          collabInvitePending: true,
+          viewerRole: 'collaborator',
+        },
+      },
+    }),
+  );
+}
+
 for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
   test(`a collaboration sheet opened by A closes after ${scenario}`, async ({
     page,
@@ -312,72 +384,7 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
       const path = new URL(request.url()).pathname;
       if (request.method() === 'POST' && path.includes('/collaborators/')) writes.push(path);
     });
-    await page.route('**/notifications/_viewer/inbox?*', (route) => {
-      if (new URL(route.request().url()).origin === APP_ORIGIN) return route.fallback();
-      if (route.request().method() === 'OPTIONS') return route.fallback();
-      const current = fixture.viewer();
-      if (!current || !fixtureViewerMatchesRequest(route.request(), current))
-        return route.fulfill({
-          status: 409,
-          headers: fixture.headers,
-          json: { code: 'VIEWER_CHANGED' },
-        });
-      const notifications =
-        fixture.viewer() === userA
-          ? [
-              {
-                _id: 'collab-notification',
-                recipientId: userA,
-                actorId: userA,
-                type: 'collab_invite',
-                entityId: 'collab-post',
-                entityType: 'post',
-                read: false,
-                createdAt: new Date().toISOString(),
-                actorId_populated: {
-                  id: userA,
-                  username: userA,
-                  name: { displayName: 'Navigation Viewer' },
-                },
-              },
-            ]
-          : [];
-      return route.fulfill({
-        headers: fixture.headers,
-        json: { notifications, unreadCount: notifications.length, hasMore: false, limit: 20 },
-      });
-    });
-    await page.route('**/feed/item/collab-post', (route) =>
-      route.fulfill({
-        headers: fixture.headers,
-        json: {
-          id: 'collab-post',
-          user: profile(userA),
-          content: { text: 'Collaboration fixture' },
-          visibility: 'public',
-          attachments: {},
-          authors: [],
-          permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: true },
-          metadata: {
-            status: 'published',
-            visibility: 'public',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          engagement: { replies: 0, likes: 0, boosts: 0, saves: 0 },
-          viewerState: {
-            isOwner: false,
-            isLiked: false,
-            isDownvoted: false,
-            isBoosted: false,
-            isSaved: false,
-            isCollaborator: false,
-            collabInvitePending: true,
-            viewerRole: 'collaborator',
-          },
-        },
-      }),
-    );
+    await installCollaborationFixture(page, fixture);
     await page.goto('/notifications');
     await page.getByRole('button', { name: 'Accept', exact: true }).first().click();
     await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
@@ -400,6 +407,43 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
     expect(candidate.scriptErrors).toEqual([]);
   });
 }
+
+test('pressing and holding the collaboration button does not open the row menu', async ({
+  page,
+  candidate,
+}) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  await page.goto('/notifications');
+  const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+  await expect(accept).toBeVisible();
+  const box = await accept.boundingBox();
+  if (!box) throw new Error('The collaboration button has no visible bounds');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  // Hold longer than the native-web long-press threshold before releasing.
+  await page.waitForTimeout(800);
+  await expect(page.getByText('Mark as read', { exact: true })).toHaveCount(0);
+  await page.mouse.up();
+  await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+  await expect(page.getByText('Accept invite?', { exact: true })).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('keyboard activation of collaboration does not navigate the row', async ({
+  page,
+  candidate,
+}) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  await page.goto('/notifications');
+  const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+  await accept.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+  await expect(page.getByText('Accept invite?', { exact: true })).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
 
 test('a 404 from an older server fails without retrying an old write route', async ({
   page,
