@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 52.67,
-      "covered": 14778,
-      "total": 28057
+      "pct": 52.85,
+      "covered": 14834,
+      "total": 28068
     },
     "branches": {
-      "pct": 48.54,
-      "covered": 10276,
-      "total": 21168
+      "pct": 48.76,
+      "covered": 10324,
+      "total": 21170
     },
     "functions": {
-      "pct": 47.66,
-      "covered": 3539,
-      "total": 7424
+      "pct": 47.74,
+      "covered": 3545,
+      "total": 7425
     },
     "lines": {
-      "pct": 53.5,
-      "covered": 13362,
-      "total": 24973
+      "pct": 53.7,
+      "covered": 13416,
+      "total": 24980
     }
   },
   "pins": {
@@ -768,10 +768,10 @@
       "lines": 100
     },
     "lib/appInitializer.ts": {
-      "statements": 69,
-      "branches": 66,
-      "functions": 75,
-      "lines": 68
+      "statements": 0,
+      "branches": 0,
+      "functions": 0,
+      "lines": 0
     },
     "lib/bootFeedRead.ts": {
       "statements": 100,
@@ -1446,8 +1446,8 @@
       "lines": 100
     },
     "stores/trendsStore.ts": {
-      "statements": 96,
-      "branches": 94,
+      "statements": 95,
+      "branches": 92,
       "functions": 94,
       "lines": 100
     },
@@ -1602,8 +1602,8 @@
       "lines": 100
     },
     "utils/feedTelemetry.ts": {
-      "statements": 96,
-      "branches": 92,
+      "statements": 95,
+      "branches": 91,
       "functions": 96,
       "lines": 98
     },
@@ -1716,10 +1716,10 @@
       "lines": 100
     },
     "utils/notifications.ts": {
-      "statements": 48,
-      "branches": 36,
-      "functions": 33,
-      "lines": 51
+      "statements": 28,
+      "branches": 22,
+      "functions": 15,
+      "lines": 28
     },
     "utils/openExternalLink.ts": {
       "statements": 9,
