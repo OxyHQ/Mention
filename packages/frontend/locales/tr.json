@@ -1,4 +1,6 @@
 {
+  "compose.deviceDrafts.loadError": "Bu cihazda kaydedilen taslaklar yüklenemedi",
+  "compose.retryDraftSave": "Taslağı kaydetmeyi yeniden dene",
   "search.history.updateFailed": "Arama geçmişi güncellenemedi.",
   "search.history.clearFailed": "Arama geçmişi temizlenemedi. Lütfen tekrar deneyin.",
   "post.threadPosition": "Dizideki {{total}} gönderiden {{index}}. gönderi",

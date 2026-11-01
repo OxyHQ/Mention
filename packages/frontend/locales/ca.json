@@ -1,4 +1,6 @@
 {
+  "compose.deviceDrafts.loadError": "No hem pogut carregar els esborranys desats en aquest dispositiu",
+  "compose.retryDraftSave": "Torna a provar de desar l'esborrany",
   "search.history.updateFailed": "No s’ha pogut actualitzar l’historial de cerca.",
   "search.history.clearFailed": "No s’ha pogut esborrar l’historial de cerca. Torna-ho a provar.",
   "post.threadPosition": "Publicació {{index}} de {{total}} del fil",

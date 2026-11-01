@@ -22,6 +22,8 @@ import { liveRoomRuntimeController } from '@/context/LiveRoomContext';
 import { claimViewerCache } from '@/db';
 import { getLiveRoomId, setLivePresence } from '@/stores/livePresenceStore';
 import { AccountSwitchReset } from '../AccountSwitchReset';
+import { useDraftManager, type ComposeDraftRefs } from '@/hooks/useDraftManager';
+import { createVariantsState } from '@/utils/composeVariants';
 
 const mockLocale: { language: string | undefined } = { language: 'en-US' };
 let mockUser: { id: string; languages?: string[] } | null = { id: 'viewer-a' };
@@ -238,6 +240,80 @@ describe('AccountSwitchReset identity boundary', () => {
     });
     mockClearSearchHistory.mockResolvedValue(undefined);
   });
+
+  it.each(['success', 'failure'] as const)(
+    'keeps the new composer session intact when the old save ends in %s',
+    async (outcome) => {
+      let finishOld: (id: string) => void = () => {};
+      let failOld: (error: Error) => void = () => {};
+      const oldSave = new Promise<string>((resolve, reject) => {
+        finishOld = resolve;
+        failOld = reject;
+      });
+      let current: ReturnType<typeof useDraftManager> | undefined;
+      const makeRefs = (postContent: string): ComposeDraftRefs => ({
+        postContent,
+        mediaIds: [],
+        pollOptions: [],
+        pollTitle: '',
+        showPollCreator: false,
+        location: null,
+        sources: [],
+        article: null,
+        event: null,
+        room: null,
+        podcast: null,
+        job: null,
+        threadItems: [],
+        mentions: [],
+        postingMode: 'thread',
+        attachmentOrder: [],
+        scheduledAt: null,
+        currentDraftId: null,
+        variants: createVariantsState('en'),
+      });
+      const log = jest.spyOn(logger, 'error').mockImplementation(() => {});
+      function ComposerProbe({ viewerId }: { viewerId: string }) {
+        current = useDraftManager({
+          saveDraft: () =>
+            viewerId === 'viewer-a' ? oldSave : Promise.reject(new Error('new viewer save failed')),
+          deleteDraft: async () => {},
+          onDraftLoad: () => {},
+        });
+        return null;
+      }
+      const boundary = () => (
+        <AccountSwitchReset fallback={<BootVisual />}>
+          <ComposerProbe viewerId={mockUser?.id ?? ''} />
+        </AccountSwitchReset>
+      );
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(boundary());
+      });
+      let pending!: Promise<void>;
+      act(() => {
+        pending = current!.autoSave(makeRefs('old viewer'));
+      });
+      mockUser = { id: 'viewer-b' };
+      act(() => renderer.update(boundary()));
+      act(() => current!.setCurrentDraftId('new-viewer-draft'));
+      // A successful old save must not clear the new session's error either.
+      if (outcome === 'success') {
+        await act(async () => current!.autoSave(makeRefs('new viewer')));
+        expect(current!.autoSaveError).toBe(true);
+      }
+      await act(async () => {
+        if (outcome === 'success') finishOld('old-viewer-draft');
+        else failOld(new Error('old viewer save failed'));
+        await pending;
+      });
+      expect(current!.currentDraftId).toBe('new-viewer-draft');
+      expect(current!.autoSaveError).toBe(outcome === 'success');
+      act(() => renderer.unmount());
+      log.mockRestore();
+    },
+  );
 
   it('clears private state and appearance on A → logout before anonymous UI renders', () => {
     let renderer: TestRenderer.ReactTestRenderer;

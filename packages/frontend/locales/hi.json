@@ -1,4 +1,6 @@
 {
+  "compose.deviceDrafts.loadError": "इस डिवाइस पर सहेजे गए ड्राफ़्ट लोड नहीं हो सके",
+  "compose.retryDraftSave": "ड्राफ़्ट को फिर से सहेजने का प्रयास करें",
   "search.history.updateFailed": "खोज इतिहास अपडेट नहीं किया जा सका।",
   "search.history.clearFailed": "खोज इतिहास मिटाया नहीं जा सका। कृपया फिर से कोशिश करें।",
   "post.threadPosition": "थ्रेड की {{total}} में से {{index}} पोस्ट",

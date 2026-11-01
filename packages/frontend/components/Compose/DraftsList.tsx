@@ -68,6 +68,8 @@ const DraftsList: React.FC<DraftsListProps> = ({
   const {
     items,
     isLoading,
+    deviceError,
+    refetchDeviceDrafts,
     serverLoading,
     serverError,
     refetchServerDrafts,
@@ -405,7 +407,20 @@ const DraftsList: React.FC<DraftsListProps> = ({
     <FeedSkeleton count={2} />
   ) : undefined;
 
-  if (items.length === 0 && serverStatus === undefined) {
+  const deviceStatus = deviceError ? (
+    <View className="items-center py-4 px-8 border-b border-border">
+      <Text className="text-sm text-center text-muted-foreground">
+        {t('compose.deviceDrafts.loadError', {
+          defaultValue: "We couldn't load the drafts saved on this device",
+        })}
+      </Text>
+      <Button className="mt-3" onPress={refetchDeviceDrafts}>
+        {t('common.retry', { defaultValue: 'Retry' })}
+      </Button>
+    </View>
+  ) : undefined;
+
+  if (items.length === 0 && serverStatus === undefined && deviceStatus === undefined) {
     return (
       <EmptyState
         title={t('compose.noDrafts')}
@@ -423,7 +438,14 @@ const DraftsList: React.FC<DraftsListProps> = ({
       // Prefixed by origin: a device draft's id and a post id come from
       // different generators, and nothing promises they never meet.
       keyExtractor={(item) => `${item.origin}:${item.id}`}
-      ListHeaderComponent={serverStatus}
+      ListHeaderComponent={
+        serverStatus || deviceStatus ? (
+          <>
+            {deviceStatus}
+            {serverStatus}
+          </>
+        ) : undefined
+      }
       className="flex-1"
     />
   );
