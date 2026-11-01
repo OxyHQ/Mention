@@ -121,5 +121,6 @@ test('control: the switching fixture loads the initial inbox', async ({ page, ca
     await expect(page.getByText(selectedText, { exact: true })).toBeVisible();
   } finally {
     console.log('RECORDED ERRORS:', JSON.stringify(candidate.scriptErrors));
+    console.log('INBOX EXCEPTION:', await page.evaluate(() => document.documentElement.dataset.notificationControlError ?? 'none'));
   }
 });
