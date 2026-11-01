@@ -164,7 +164,9 @@ lockfile registry integrity is
 All 27,154 installed package files were byte-compared with the official Actions
 release archive. No diagnostic or local-file dependency remains.
 
-This integration preserves current-main Oxy Core 7.10.2 and Services 13.14.1.
+The initial official-package candidate used Oxy Core 7.10.2 and Services 13.14.1.
+The final rebase preserves current-main Contracts 6.2.0, Core 7.10.3, Services
+13.15.3 and the Expo CLI/Zod security fix.
 Frozen installation, fresh Android prebuild, frontend TypeScript and eight
 focused navigation/shell tests pass. Required pull-request CI runs the complete
 frontend suite, coverage, production web export and bundle budgets on the final
