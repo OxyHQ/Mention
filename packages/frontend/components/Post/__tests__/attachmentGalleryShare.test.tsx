@@ -42,7 +42,10 @@ const mockOpen = jest.fn();
 jest.mock('@/components/common/LazyZoomableGallery', () => {
   const React = jest.requireActual('react');
   return {
-    LazyZoomableGallery: React.forwardRef((_props: unknown, ref: unknown) => {
+    LazyZoomableGallery: React.forwardRef(function MockLazyZoomableGallery(
+      _props: unknown,
+      ref: unknown,
+    ) {
       React.useImperativeHandle(ref, () => ({ open: mockOpen }));
       return null;
     }),
