@@ -8,6 +8,7 @@ import {
   cancelEvent,
 } from '../controllers/posts/events';
 import { Router, type Response } from 'express';
+import { requireExpectedViewer } from '../middleware/requireExpectedViewer';
 import { createPost } from '../controllers/posts/createPost';
 import { createThread } from '../controllers/posts/createThread';
 import {
@@ -197,6 +198,8 @@ router.get('/:id/boosts', getPostBoosts);
 // Protected routes with parameters
 router.post('/:id/collaborators/accept', acceptCollabInvite);
 router.post('/:id/collaborators/decline', declineCollabInvite);
+router.post('/:id/collaborators/_viewer/accept', requireExpectedViewer, acceptCollabInvite);
+router.post('/:id/collaborators/_viewer/decline', requireExpectedViewer, declineCollabInvite);
 router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
 router.put('/:id/event/attendance', ...postWriteRateLimiters, registerEvent);
 router.delete('/:id/event/attendance', ...postWriteRateLimiters, withdrawEvent);

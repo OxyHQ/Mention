@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
-import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -42,7 +42,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { SEO } from '@/components/SEO';
 import { requestSettings } from '@/components/settings/settingsRoutes';
-import { Error } from '@/components/Error';
+import { Error as ErrorDisplay } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
 import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
@@ -50,6 +50,7 @@ import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
+import type { NotificationIntent } from '@/types/notificationIntent';
 
 const notificationLogger = createLogger('Notifications');
 
@@ -57,6 +58,7 @@ const notificationLogger = createLogger('Notifications');
 type TimeBucket = 'today' | 'this_week' | 'earlier';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+type RowIntent = NotificationIntent & { ids: string[] };
 
 /**
  * Which section a notification falls into, relative to `now`:
@@ -94,6 +96,20 @@ type TabUnreadCounts = Record<FilterableTab, number>;
 
 const NotificationsScreen: React.FC = () => {
   const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const isCurrentIntent = useCallback(
+    (intent: NotificationIntent) =>
+      canUsePrivateApi &&
+      user?.id === intent.viewerId &&
+      useAuthStore.getState().user?.id === intent.viewerId &&
+      oxyServices.session.isAuthenticated &&
+      oxyServices.http.getSessionEpoch() === intent.epoch,
+    [canUsePrivateApi, user?.id, oxyServices],
+  );
+  const captureIntent = useCallback((): NotificationIntent | null => {
+    if (!user?.id) return null;
+    const intent = { viewerId: user.id, epoch: oxyServices.http.getSessionEpoch() };
+    return isCurrentIntent(intent) ? intent : null;
+  }, [user?.id, oxyServices, isCurrentIntent]);
   const queryClient = useQueryClient();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -140,6 +156,43 @@ const NotificationsScreen: React.FC = () => {
   // the list via the shared cache reducers below.
   const unreadCount = useUnreadCount();
   const notificationsQueryKey = useMemo(() => viewerQueryKeys.notifications(user?.id), [user?.id]);
+  const patchWithRollback = useCallback(
+    (apply: () => void) => {
+      const unreadKey = viewerQueryKeys.unreadNotifications(user?.id);
+      const previousList =
+        queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
+      const previousUnread = queryClient.getQueryData<number>(unreadKey);
+      apply();
+      const listQuery = queryClient
+        .getQueryCache()
+        .find({ queryKey: notificationsQueryKey, exact: true });
+      const unreadQuery = queryClient.getQueryCache().find({ queryKey: unreadKey, exact: true });
+      const listVersion = listQuery?.state.dataUpdateCount;
+      const unreadVersion = unreadQuery?.state.dataUpdateCount;
+      return () => {
+        if (
+          listQuery &&
+          queryClient.getQueryCache().find({ queryKey: notificationsQueryKey, exact: true }) ===
+            listQuery &&
+          listQuery.state.dataUpdateCount === listVersion
+        ) {
+          if (previousList === undefined)
+            queryClient.removeQueries({ queryKey: notificationsQueryKey, exact: true });
+          else queryClient.setQueryData(notificationsQueryKey, previousList);
+        }
+        if (
+          unreadQuery &&
+          queryClient.getQueryCache().find({ queryKey: unreadKey, exact: true }) === unreadQuery &&
+          unreadQuery.state.dataUpdateCount === unreadVersion
+        ) {
+          if (previousUnread === undefined)
+            queryClient.removeQueries({ queryKey: unreadKey, exact: true });
+          else queryClient.setQueryData(unreadKey, previousUnread);
+        }
+      };
+    },
+    [queryClient, notificationsQueryKey, user?.id],
+  );
 
   // Optimistically patch the cached list + badge in place (no invalidate/
   // refetch flicker). The server echo to `user:<id>` reconciles idempotently.
@@ -163,9 +216,20 @@ const NotificationsScreen: React.FC = () => {
 
   // Mark notification(s) as read — group rows pass every id in the group.
   const { mutate: markAsRead } = useMutation({
-    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.markAsRead(id))),
-    onMutate: (ids: string[]) => applyReadPatch(ids),
-    onError: (error: unknown) => {
+    mutationFn: (intent: RowIntent) => {
+      if (!isCurrentIntent(intent)) throw new Error('Notification session changed');
+      return Promise.all(
+        intent.ids.map((id) => notificationService.markAsRead(id, intent.viewerId)),
+      );
+    },
+    onMutate: (intent: RowIntent) =>
+      isCurrentIntent(intent) ? patchWithRollback(() => applyReadPatch(intent.ids)) : undefined,
+    onError: (error: unknown, intent, rollback) => {
+      if (!isCurrentIntent(intent)) return;
+      if (normalizeApiError(error).code === 'VIEWER_CHANGED') {
+        rollback?.();
+        return;
+      }
       notificationLogger.error('Error marking notification as read', error);
       toast(t('notification.mark_read_error') || 'Failed to mark notification as read', {
         type: 'error',
@@ -203,15 +267,26 @@ const NotificationsScreen: React.FC = () => {
 
   // Delete notification(s) — group rows pass every id in the group.
   const { mutate: deleteNotification } = useMutation({
-    mutationFn: (ids: string[]) =>
-      Promise.all(ids.map((id) => notificationService.deleteNotification(id))),
-    onMutate: (ids: string[]) => applyRemovePatch(ids),
-    onSuccess: () => {
+    mutationFn: (intent: RowIntent) => {
+      if (!isCurrentIntent(intent)) throw new Error('Notification session changed');
+      return Promise.all(
+        intent.ids.map((id) => notificationService.deleteNotification(id, intent.viewerId)),
+      );
+    },
+    onMutate: (intent: RowIntent) =>
+      isCurrentIntent(intent) ? patchWithRollback(() => applyRemovePatch(intent.ids)) : undefined,
+    onSuccess: (_data, intent) => {
+      if (!isCurrentIntent(intent)) return;
       toast(t('notification.deleted', { defaultValue: 'Notification deleted' }), {
         type: 'success',
       });
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, intent, rollback) => {
+      if (!isCurrentIntent(intent)) return;
+      if (normalizeApiError(error).code === 'VIEWER_CHANGED') {
+        rollback?.();
+        return;
+      }
       notificationLogger.error('Error deleting notification', error);
       toast(t('notification.delete_error', { defaultValue: 'Failed to delete notification' }), {
         type: 'error',
@@ -225,19 +300,31 @@ const NotificationsScreen: React.FC = () => {
 
   // Mark all as read mutation
   const markAllAsReadMutation = useMutation({
-    mutationFn: () => notificationService.markAllAsRead(),
-    onMutate: () => {
-      queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
-        data ? markAllNotificationsRead(data) : data,
-      );
-      queryClient.setQueryData<number>(viewerQueryKeys.unreadNotifications(user?.id), 0);
+    mutationFn: (intent: NotificationIntent) => {
+      if (!isCurrentIntent(intent)) throw new Error('Notification session changed');
+      return notificationService.markAllAsRead(intent.viewerId);
     },
-    onSuccess: () => {
+    onMutate: (intent: NotificationIntent) =>
+      isCurrentIntent(intent)
+        ? patchWithRollback(() => {
+            queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
+              data ? markAllNotificationsRead(data) : data,
+            );
+            queryClient.setQueryData<number>(viewerQueryKeys.unreadNotifications(user?.id), 0);
+          })
+        : undefined,
+    onSuccess: (_data, intent) => {
+      if (!isCurrentIntent(intent)) return;
       toast(t('notification.mark_all_read_success') || 'All notifications marked as read', {
         type: 'success',
       });
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, intent, rollback) => {
+      if (!isCurrentIntent(intent)) return;
+      if (normalizeApiError(error).code === 'VIEWER_CHANGED') {
+        rollback?.();
+        return;
+      }
       const { status: statusCode, message: errorMessage } = normalizeApiError(error);
       notificationLogger.error('Error marking all notifications as read', error, { statusCode });
       toast(
@@ -258,20 +345,24 @@ const NotificationsScreen: React.FC = () => {
   }, [refetch]);
 
   const handleMarkAsRead = useCallback(
-    (ids: string[]) => {
-      markAsRead(ids);
+    (ids: string[], openedIntent?: NotificationIntent) => {
+      const intent = openedIntent ?? captureIntent();
+      if (intent && isCurrentIntent(intent)) markAsRead({ ...intent, ids });
     },
-    [markAsRead],
+    [captureIntent, isCurrentIntent, markAsRead],
   );
 
   const handleDelete = useCallback(
-    (ids: string[]) => {
-      deleteNotification(ids);
+    (ids: string[], openedIntent?: NotificationIntent) => {
+      const intent = openedIntent ?? captureIntent();
+      if (intent && isCurrentIntent(intent)) deleteNotification({ ...intent, ids });
     },
-    [deleteNotification],
+    [captureIntent, isCurrentIntent, deleteNotification],
   );
 
   const handleMarkAllAsRead = useCallback(async () => {
+    const intent = captureIntent();
+    if (!intent) return;
     if (unreadCount === 0) {
       toast(t('notification.all_already_read') || 'All notifications are already read', {
         type: 'info',
@@ -288,10 +379,10 @@ const NotificationsScreen: React.FC = () => {
       cancelText: t('cancel') || 'Cancel',
     });
 
-    if (confirmed) {
-      markAllAsReadMutation.mutate();
+    if (confirmed && isCurrentIntent(intent)) {
+      markAllAsReadMutation.mutate(intent);
     }
-  }, [markAllAsReadMutation, t, unreadCount]);
+  }, [captureIntent, isCurrentIntent, markAllAsReadMutation, t, unreadCount]);
 
   // Notifications whose actor the backend did NOT populate would each fire their
   // own `getProfileById` from inside NotificationItem — an N+1 across the page.
@@ -412,11 +503,17 @@ const NotificationsScreen: React.FC = () => {
           retryLabel={t('error.boundary.retry')}
           onError={handleBoundaryError}
         >
-          <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} onDelete={handleDelete} />
+          <NotificationItem
+            item={item}
+            onMarkAsRead={handleMarkAsRead}
+            onDelete={handleDelete}
+            captureIntent={captureIntent}
+            isCurrentIntent={isCurrentIntent}
+          />
         </ErrorBoundary>
       );
     },
-    [t, handleBoundaryError, handleMarkAsRead, handleDelete],
+    [t, handleBoundaryError, handleMarkAsRead, handleDelete, captureIntent, isCurrentIntent],
   );
 
   const emptyStateConfig = useMemo((): {
@@ -489,7 +586,7 @@ const NotificationsScreen: React.FC = () => {
   );
 
   const renderErrorState = () => (
-    <Error
+    <ErrorDisplay
       title={t('notification.error.load', { defaultValue: 'Failed to load notifications' })}
       message={t('notification.error.message', {
         defaultValue: 'Unable to fetch your notifications. Please try again.',

@@ -2,6 +2,9 @@
  * Common utility types and enums shared across Mention frontend and backend
  */
 
+/** Request intent; the server still authenticates the effective viewer itself. */
+export const EXPECTED_VIEWER_HEADER = 'X-Mention-Expected-Viewer';
+
 // Common enums
 
 // Common interfaces

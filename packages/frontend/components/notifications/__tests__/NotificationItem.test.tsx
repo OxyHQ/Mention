@@ -171,8 +171,14 @@ jest.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
-jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
+const mockPresentSheet = jest.fn();
+jest.mock('@/utils/sheet', () => ({
+  presentSheet: (...args: unknown[]) => mockPresentSheet(...args),
+}));
+const mockShowActionMenu = jest.fn();
+jest.mock('@/components/common/ActionMenu', () => ({
+  showActionMenu: (...args: unknown[]) => mockShowActionMenu(...args),
+}));
 
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
@@ -267,7 +273,14 @@ async function flush(): Promise<void> {
   });
 }
 
-async function renderRow(state: PostViewerState): Promise<{
+async function renderRow(
+  state: PostViewerState,
+  options?: {
+    onDelete?: jest.Mock;
+    captureIntent?: () => { viewerId: string; epoch: number } | null;
+    isCurrentIntent?: (intent: { viewerId: string; epoch: number }) => boolean;
+  },
+): Promise<{
   renderer: TestRenderer.ReactTestRenderer;
   queryClient: QueryClient;
 }> {
@@ -282,7 +295,13 @@ async function renderRow(state: PostViewerState): Promise<{
   await act(async () => {
     renderer = TestRenderer.create(
       <QueryClientProvider client={queryClient}>
-        <NotificationItem item={collabInviteItem()} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+        <NotificationItem
+          item={collabInviteItem()}
+          onMarkAsRead={jest.fn()}
+          onDelete={options?.onDelete ?? jest.fn()}
+          captureIntent={options?.captureIntent ?? (() => ({ viewerId: 'viewer-1', epoch: 1 }))}
+          isCurrentIntent={options?.isCurrentIntent ?? (() => true)}
+        />
       </QueryClientProvider>,
     );
   });
@@ -318,6 +337,86 @@ function buttonByLabel(root: ReactTestInstance, label: string): ReactTestInstanc
 describe('NotificationItem — collaboration invite', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('captures the original intent when the action menu opens, not when a row is pressed', async () => {
+    let epoch = 1;
+    const onDelete = jest.fn();
+    const { renderer } = await renderRow(PENDING, {
+      onDelete,
+      captureIntent: () => ({ viewerId: 'viewer-1', epoch }),
+    });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    expect(target).toBeDefined();
+    act(() => target.props.onLongPress());
+    const menu = mockShowActionMenu.mock.calls[0][0] as {
+      groups: { onPress: () => void; label: string }[][];
+    };
+    epoch = 3;
+    const action = menu.groups.flat().find((item) => item.label === 'Delete');
+    expect(action).toBeDefined();
+    act(() => action?.onPress());
+    expect(onDelete).toHaveBeenCalledWith([NOTIF_ID], { viewerId: 'viewer-1', epoch: 1 });
+  });
+
+  it('does not submit a collaboration sheet opened in an earlier session', async () => {
+    let epoch = 1;
+    const { renderer } = await renderRow(PENDING, {
+      captureIntent: () => ({ viewerId: VIEWER_ID, epoch }),
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const accept = buttonByLabel(renderer.root, 'Accept');
+    await act(async () => {
+      accept?.props.onPress();
+    });
+    const createSheet = mockPresentSheet.mock.calls[0][0] as (surface: { dismiss: () => void }) => {
+      props: { onAccept: () => Promise<void> };
+    };
+    const dismiss = jest.fn();
+    const sheet = createSheet({ dismiss });
+    epoch = 3;
+    await act(async () => {
+      await sheet.props.onAccept();
+    });
+    expect(mockAccept).not.toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('does not update the post cache when a decline resolves after a session change', async () => {
+    let epoch = 1;
+    let resolve!: (value: { success: boolean; post: HydratedPost }) => void;
+    mockDecline.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const { renderer } = await renderRow(PENDING, {
+      captureIntent: () => ({ viewerId: VIEWER_ID, epoch }),
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const decline = buttonByLabel(renderer.root, 'Decline');
+    await act(async () => {
+      decline?.props.onPress();
+    });
+    expect(mockDecline).toHaveBeenCalledWith(POST_ID, VIEWER_ID);
+    epoch = 2;
+    await act(async () => {
+      resolve({ success: true, post: collabPost(DECLINED) });
+      await Promise.resolve();
+    });
+    expect(mockCachePosts).not.toHaveBeenCalled();
+  });
+
+  it('does not treat an unsuccessful collaboration reply as success', async () => {
+    mockDecline.mockResolvedValue({ success: false, post: collabPost(DECLINED) });
+    const { renderer } = await renderRow(PENDING);
+    const decline = buttonByLabel(renderer.root, 'Decline');
+    await act(async () => {
+      decline?.props.onPress();
+    });
+    await flush();
+    expect(mockCachePosts).not.toHaveBeenCalled();
+    expect(texts(renderer.root)).toContain('Decline');
   });
 
   it('shows Accept/Decline while the invite is pending, with no resolved label', async () => {
@@ -362,7 +461,7 @@ describe('NotificationItem — collaboration invite', () => {
 
     // The mutation ran, and its returned post was pushed into the shared cache
     // (the same mechanism post edits/deletes use to refresh feed + detail).
-    expect(mockDecline).toHaveBeenCalledWith(POST_ID);
+    expect(mockDecline).toHaveBeenCalledWith(POST_ID, VIEWER_ID);
     expect(mockCachePosts).toHaveBeenCalledWith([collabPost(DECLINED)]);
 
     // The row is now resolved — no longer actionable.

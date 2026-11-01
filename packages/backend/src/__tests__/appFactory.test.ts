@@ -178,6 +178,7 @@ describe('createApp', () => {
       .options('/anything')
       .set('Host', 'api.mention.earth')
       .expect('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
+      .expect('Access-Control-Allow-Headers', /X-Mention-Expected-Viewer/i)
       .expect('Access-Control-Max-Age', '86400')
       .expect(204);
   });

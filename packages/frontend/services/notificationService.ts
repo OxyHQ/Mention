@@ -2,6 +2,7 @@ import { authenticatedClient } from '../utils/api';
 import { createLogger } from '@oxy.so/core/logger';
 import type { TRawNotification } from '@/types/validation';
 import { loadNotificationValidation } from '@/lib/notificationValidation';
+import { viewerIntent } from '@/utils/viewerIntent';
 
 const logger = createLogger('NotificationService');
 
@@ -56,9 +57,13 @@ class NotificationService {
   /**
    * Mark a notification as read
    */
-  async markAsRead(notificationId: string): Promise<void> {
+  async markAsRead(notificationId: string, viewerId: string): Promise<void> {
     try {
-      await authenticatedClient.patch(`/notifications/${notificationId}/read`);
+      await authenticatedClient.patch(
+        `/notifications/_viewer/${notificationId}/read`,
+        undefined,
+        viewerIntent(viewerId),
+      );
     } catch (error) {
       logger.error('Error marking notification as read', error);
       throw error;
@@ -68,10 +73,12 @@ class NotificationService {
   /**
    * Mark all notifications as read
    */
-  async markAllAsRead(): Promise<{ message: string }> {
+  async markAllAsRead(viewerId: string): Promise<{ message: string }> {
     try {
       const response = await authenticatedClient.patch<{ message: string }>(
-        '/notifications/read-all',
+        '/notifications/_viewer/read-all',
+        undefined,
+        viewerIntent(viewerId),
       );
       return response.data || { message: 'All notifications marked as read' };
     } catch (error) {
@@ -98,9 +105,12 @@ class NotificationService {
   /**
    * Delete a notification
    */
-  async deleteNotification(notificationId: string): Promise<void> {
+  async deleteNotification(notificationId: string, viewerId: string): Promise<void> {
     try {
-      await authenticatedClient.delete(`/notifications/${notificationId}`);
+      await authenticatedClient.delete(
+        `/notifications/_viewer/${notificationId}`,
+        viewerIntent(viewerId),
+      );
     } catch (error) {
       logger.error('Error deleting notification', error);
       throw error;
@@ -110,9 +120,13 @@ class NotificationService {
   /**
    * Archive a notification
    */
-  async archiveNotification(notificationId: string): Promise<void> {
+  async archiveNotification(notificationId: string, viewerId: string): Promise<void> {
     try {
-      await authenticatedClient.patch(`/notifications/${notificationId}/archive`);
+      await authenticatedClient.patch(
+        `/notifications/_viewer/${notificationId}/archive`,
+        undefined,
+        viewerIntent(viewerId),
+      );
     } catch (error) {
       logger.error('Error archiving notification', error);
       throw error;

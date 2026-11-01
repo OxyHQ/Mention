@@ -32,6 +32,7 @@ import {
 } from '../modules/mention-widgets/feedWidgetSync';
 import { type FeedFilters, feedThreadParentId, normalizeFeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
+import { viewerIntent } from '@/utils/viewerIntent';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
@@ -908,20 +909,26 @@ class FeedService {
 
   async acceptCollabInvite(
     postId: string,
+    viewerId: string,
   ): Promise<{ success: boolean; post: HydratedPost | null }> {
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
-      `/posts/${postId}/collaborators/accept`,
+      `/posts/${postId}/collaborators/_viewer/accept`,
+      undefined,
+      viewerIntent(viewerId),
     );
-    return { success: true, post: response?.data?.post ?? null };
+    return { success: response.data.success === true, post: response.data.post ?? null };
   }
 
   async declineCollabInvite(
     postId: string,
+    viewerId: string,
   ): Promise<{ success: boolean; post: HydratedPost | null }> {
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
-      `/posts/${postId}/collaborators/decline`,
+      `/posts/${postId}/collaborators/_viewer/decline`,
+      undefined,
+      viewerIntent(viewerId),
     );
-    return { success: true, post: response?.data?.post ?? null };
+    return { success: response.data.success === true, post: response.data.post ?? null };
   }
 
   async stopCollabSharing(
