@@ -13,9 +13,9 @@ export function useUnreadCount(): number {
   const { operations, epoch } = usePendingNotificationOperations(user?.id, oxyServices);
   const { data } = useQuery({
     queryKey: viewerQueryKeys.unreadNotifications(user?.id),
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       if (!user?.id) throw new Error('Notification viewer is unavailable');
-      return notificationService.getUnreadCountForViewer(user.id);
+      return notificationService.getUnreadCountForViewer(user.id, signal);
     },
     enabled: canUsePrivateApi && !!user?.id,
     staleTime: 60_000,

@@ -695,3 +695,173 @@ it('AUDIT: same-viewer epoch replacement restores a paused mutation that is neve
   expect(list?.find((row) => row._id === 'one')?.read).toBe(false);
   expect(client.getQueryData(viewerQueryKeys.unreadNotifications('A'))).toBe(2);
 });
+
+it('AUDIT: an older inbox read cannot overwrite a later confirmed write', async () => {
+  let release!: (value: unknown) => void;
+  const read = new Promise<unknown>((resolve) => {
+    release = resolve;
+  });
+  mockGetNotifications.mockImplementation(() => read);
+  mockMarkAsRead.mockResolvedValue(undefined);
+  await mount();
+  let inFlight!: Promise<void>;
+  await act(async () => {
+    inFlight = client.refetchQueries({ queryKey: viewerQueryKeys.notifications('A'), exact: true });
+    await tick();
+  });
+  await act(async () => {
+    mockRows.one.onMarkAsRead(['one']);
+    await tick();
+    await tick();
+  });
+  expect(
+    client.getQueryData<TestCache>(viewerQueryKeys.notifications('A'))?.pages[0].notifications[0]
+      .read,
+  ).toBe(true);
+  await act(async () => {
+    release({
+      notifications: [notification('one'), notification('two')],
+      unreadCount: 2,
+      hasMore: false,
+      limit: 20,
+    });
+    await inFlight;
+  });
+  expect(
+    client.getQueryData<TestCache>(viewerQueryKeys.notifications('A'))?.pages[0].notifications[0]
+      .read,
+  ).toBe(true);
+});
+
+it('AUDIT: cancelling an older read preserves a realtime update received during it', async () => {
+  let release!: (value: unknown) => void;
+  const read = new Promise<unknown>((resolve) => {
+    release = resolve;
+  });
+  mockGetNotifications.mockImplementation(() => read);
+  mockMarkAsRead.mockResolvedValue(undefined);
+  await mount();
+  let inFlight!: Promise<void>;
+  await act(async () => {
+    inFlight = client.refetchQueries({ queryKey: viewerQueryKeys.notifications('A'), exact: true });
+    await tick();
+  });
+  await act(async () => {
+    client.setQueryData<TestCache>(
+      viewerQueryKeys.notifications('A'),
+      (old) =>
+        old && {
+          ...old,
+          pages: old.pages.map((entry) => ({
+            ...entry,
+            notifications: [notification('new'), ...entry.notifications],
+          })),
+        },
+    );
+    await tick();
+    mockRows.one.onMarkAsRead(['one']);
+    await tick();
+    await tick();
+  });
+  await act(async () => {
+    release({
+      notifications: [notification('one'), notification('two')],
+      unreadCount: 2,
+      hasMore: false,
+      limit: 20,
+    });
+    await inFlight;
+  });
+  const ids = client
+    .getQueryData<TestCache>(viewerQueryKeys.notifications('A'))
+    ?.pages[0].notifications.map((item) => item._id);
+  expect(ids).toEqual(['new', 'one', 'two']);
+});
+
+it('AUDIT: a refetch started during cancellation cannot overwrite a confirmed write', async () => {
+  let releaseOld!: (value: unknown) => void;
+  let releaseNext!: (value: unknown) => void;
+  const old = new Promise<unknown>((resolve) => {
+    releaseOld = resolve;
+  });
+  const next = new Promise<unknown>((resolve) => {
+    releaseNext = resolve;
+  });
+  mockGetNotifications.mockReturnValueOnce(old).mockReturnValueOnce(next);
+  mockMarkAsRead.mockResolvedValue(undefined);
+  await mount();
+  let secondStarted = false;
+  const stop = client.getQueryCache().subscribe((event) => {
+    if (
+      !secondStarted &&
+      event.type === 'updated' &&
+      event.action.type === 'error' &&
+      event.query.queryKey.join('|') === viewerQueryKeys.notifications('A').join('|')
+    ) {
+      secondStarted = true;
+      void client.refetchQueries({ queryKey: viewerQueryKeys.notifications('A'), exact: true });
+    }
+  });
+  try {
+    await act(async () => {
+      void client.refetchQueries({ queryKey: viewerQueryKeys.notifications('A'), exact: true });
+      await tick();
+      mockRows.one.onMarkAsRead(['one']);
+      await tick();
+      await tick();
+      await tick();
+    });
+    expect(secondStarted).toBe(true);
+    await act(async () => {
+      releaseOld({
+        notifications: [notification('one'), notification('two')],
+        unreadCount: 2,
+        hasMore: false,
+        limit: 20,
+      });
+      releaseNext({
+        notifications: [notification('one'), notification('two')],
+        unreadCount: 2,
+        hasMore: false,
+        limit: 20,
+      });
+      await tick();
+      await tick();
+    });
+    expect(
+      client.getQueryData<TestCache>(viewerQueryKeys.notifications('A'))?.pages[0].notifications[0]
+        .read,
+    ).toBe(true);
+  } finally {
+    stop();
+  }
+});
+
+it.each([
+  ['read', ['one', 'two']],
+  ['read', ['two', 'one']],
+  ['delete', ['one', 'two']],
+  ['delete', ['two', 'one']],
+] as const)(
+  'reconciles a grouped %s when a mismatch and ambiguous failure occur in either order (%s)',
+  async (kind, ids) => {
+    const changed = Object.assign(new Error('changed'), { code: 'VIEWER_CHANGED', status: 409 });
+    const ambiguous = new Error('connection lost after dispatch');
+    const operation = kind === 'read' ? mockMarkAsRead : mockDelete;
+    operation.mockImplementation((id: string) =>
+      Promise.reject(id === 'one' ? changed : ambiguous),
+    );
+    client.setQueryData(viewerQueryKeys.unreadNotifications('A'), 2);
+    await mount();
+    await act(async () => {
+      if (kind === 'read') mockRows.one.onMarkAsRead([...ids]);
+      else mockRows.one.onDelete([...ids]);
+      for (let i = 0; i < 12; i++) await tick();
+    });
+    expect(mockGetNotifications).toHaveBeenCalledWith('A', undefined, 20);
+    expect(mockToast).toHaveBeenCalledWith(
+      kind === 'read' ? 'notification.mark_read_error' : 'Failed to delete notification',
+      { type: 'error' },
+    );
+  },
+);

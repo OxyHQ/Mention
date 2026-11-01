@@ -65,6 +65,18 @@ type TimeBucket = 'today' | 'this_week' | 'earlier';
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 type RowIntent = NotificationIntent & { ids: string[] };
 
+function throwGroupedFailure(outcomes: PromiseSettledResult<void>[]): void {
+  const failures = outcomes.filter(
+    (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
+  );
+  // A viewer mismatch proves only that particular request did not mutate. A
+  // different failure may be ambiguous and must still trigger reconciliation.
+  const failure =
+    failures.find(({ reason }) => normalizeApiError(reason).code !== 'VIEWER_CHANGED') ??
+    failures[0];
+  if (failure) throw failure.reason;
+}
+
 /**
  * Which section a notification falls into, relative to `now`:
  * - `today`    — on or after the local start of today.
@@ -159,9 +171,9 @@ const NotificationsScreen: React.FC = () => {
     isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: viewerQueryKeys.notifications(user?.id),
-    queryFn: ({ pageParam }) => {
+    queryFn: ({ pageParam, signal }) => {
       if (!user?.id) throw new Error('Notification viewer is unavailable');
-      return notificationService.getNotificationsForViewer(user.id, pageParam);
+      return notificationService.getNotificationsForViewer(user.id, pageParam, 20, signal);
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: getNextNotificationPage,
@@ -205,6 +217,19 @@ const NotificationsScreen: React.FC = () => {
     [captureIntent, isCurrentIntent, queryClient],
   );
 
+  const cancelObsoleteReads = useCallback(() => {
+    // Keep realtime data received since a fetch began: the default revert:true
+    // would restore the pre-fetch snapshot and erase it on cancellation.
+    void queryClient.cancelQueries(
+      { queryKey: notificationsQueryKey, exact: true },
+      { revert: false },
+    );
+    void queryClient.cancelQueries(
+      { queryKey: viewerQueryKeys.unreadNotifications(user?.id), exact: true },
+      { revert: false },
+    );
+  }, [queryClient, notificationsQueryKey, user?.id]);
+
   // Only confirmed writes update the authoritative cache; pending intent is projected.
   const applyReadPatch = useCallback(
     (ids: string[]) => {
@@ -232,17 +257,22 @@ const NotificationsScreen: React.FC = () => {
       const outcomes = await Promise.allSettled(
         [...new Set(intent.ids)].map(async (id) => {
           await notificationService.markAsRead(id, intent.viewerId);
-          if (isCurrentIntent(intent)) applyReadPatch([id]);
-          else await reconcileOrMarkStale(intent);
+          if (isCurrentIntent(intent)) {
+            cancelObsoleteReads();
+            if (isCurrentIntent(intent)) applyReadPatch([id]);
+            else await reconcileOrMarkStale(intent);
+          } else await reconcileOrMarkStale(intent);
         }),
       );
-      const rejected = outcomes.find((outcome) => outcome.status === 'rejected');
-      if (rejected?.status === 'rejected') throw rejected.reason;
+      throwGroupedFailure(outcomes);
     },
-    onMutate: (intent: RowIntent) =>
-      isCurrentIntent(intent)
+    onMutate: (intent: RowIntent) => {
+      if (!isCurrentIntent(intent)) return undefined;
+      cancelObsoleteReads();
+      return isCurrentIntent(intent)
         ? { ...intent, kind: 'read' as const, ids: [...intent.ids] }
-        : undefined,
+        : undefined;
+    },
     onError: async (error: unknown, intent) => {
       const current = isCurrentIntent(intent);
       if (normalizeApiError(error).code === 'VIEWER_CHANGED' && current) return;
@@ -288,17 +318,22 @@ const NotificationsScreen: React.FC = () => {
       const outcomes = await Promise.allSettled(
         [...new Set(intent.ids)].map(async (id) => {
           await notificationService.deleteNotification(id, intent.viewerId);
-          if (isCurrentIntent(intent)) applyRemovePatch([id]);
-          else await reconcileOrMarkStale(intent);
+          if (isCurrentIntent(intent)) {
+            cancelObsoleteReads();
+            if (isCurrentIntent(intent)) applyRemovePatch([id]);
+            else await reconcileOrMarkStale(intent);
+          } else await reconcileOrMarkStale(intent);
         }),
       );
-      const rejected = outcomes.find((outcome) => outcome.status === 'rejected');
-      if (rejected?.status === 'rejected') throw rejected.reason;
+      throwGroupedFailure(outcomes);
     },
-    onMutate: (intent: RowIntent) =>
-      isCurrentIntent(intent)
+    onMutate: (intent: RowIntent) => {
+      if (!isCurrentIntent(intent)) return undefined;
+      cancelObsoleteReads();
+      return isCurrentIntent(intent)
         ? { ...intent, kind: 'delete' as const, ids: [...intent.ids] }
-        : undefined,
+        : undefined;
+    },
     onSuccess: (_data, intent) => {
       if (!isCurrentIntent(intent)) return;
       toast(t('notification.deleted', { defaultValue: 'Notification deleted' }), {
@@ -326,6 +361,8 @@ const NotificationsScreen: React.FC = () => {
     },
     onMutate: (intent: NotificationIntent) => {
       if (!isCurrentIntent(intent)) return undefined;
+      cancelObsoleteReads();
+      if (!isCurrentIntent(intent)) return undefined;
       const data = queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
       return {
         ...intent,
@@ -334,7 +371,10 @@ const NotificationsScreen: React.FC = () => {
       };
     },
     onSuccess: async (_data, intent, operation) => {
-      if (isCurrentIntent(intent) && operation) applyReadPatch(operation.ids);
+      if (isCurrentIntent(intent) && operation) {
+        cancelObsoleteReads();
+        if (isCurrentIntent(intent)) applyReadPatch(operation.ids);
+      }
       await reconcileOrMarkStale(intent);
       if (isCurrentIntent(intent)) {
         toast(t('notification.mark_all_read_success') || 'All notifications marked as read', {
@@ -665,7 +705,7 @@ const NotificationsScreen: React.FC = () => {
       );
     }
 
-    if (error) {
+    if (error && !notificationsData) {
       return renderErrorState();
     }
 

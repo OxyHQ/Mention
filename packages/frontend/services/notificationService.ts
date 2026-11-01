@@ -35,8 +35,9 @@ class NotificationService {
     viewerId: string,
     cursor?: string,
     limit: number = 20,
+    signal?: AbortSignal,
   ): Promise<NotificationsResponse> {
-    return this.fetchNotifications('/notifications/_viewer/inbox', cursor, limit, viewerId);
+    return this.fetchNotifications('/notifications/_viewer/inbox', cursor, limit, viewerId, signal);
   }
 
   private async fetchNotifications(
@@ -44,6 +45,7 @@ class NotificationService {
     cursor: string | undefined,
     limit: number,
     viewerId?: string,
+    signal?: AbortSignal,
   ): Promise<NotificationsResponse> {
     try {
       const params: { limit: number; cursor?: string } = { limit };
@@ -56,6 +58,7 @@ class NotificationService {
         authenticatedClient.get<Partial<NotificationsResponse>>(path, {
           params,
           ...(viewerId ? { headers: expectedViewerHeaders(viewerId) } : {}),
+          ...(signal ? { signal } : {}),
         }),
         loadNotificationValidation(),
       ]);
@@ -122,10 +125,10 @@ class NotificationService {
   }
 
   /** A protected reconciliation failure must not be reported as a zero badge. */
-  async getUnreadCountForViewer(viewerId: string): Promise<number> {
+  async getUnreadCountForViewer(viewerId: string, signal?: AbortSignal): Promise<number> {
     const response = await authenticatedClient.get<{ count?: number }>(
       '/notifications/_viewer/unread-count',
-      { headers: expectedViewerHeaders(viewerId) },
+      { headers: expectedViewerHeaders(viewerId), ...(signal ? { signal } : {}) },
     );
     return response.data.count || 0;
   }
