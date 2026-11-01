@@ -23,9 +23,6 @@ import { logger } from '@oxy.so/core/logger';
 const RELOAD_STAMP_KEY = 'mention:chunkReloadAt';
 /** A second chunk failure within this window is a real break, not a stale hash. */
 const RELOAD_COOLDOWN_MS = 10_000;
-/** Metro serves the web route chunks from this path prefix. */
-const EXPO_CHUNK_PATH = '/_expo/static/js/';
-
 let registered = false;
 
 /** Read an error-like value's `name`/`message` as plain strings (metadata-safe). */
@@ -111,6 +108,11 @@ function recover(error: unknown): void {
   window.location.reload();
 }
 
+/** Recover chunk failures caught by a React error boundary. */
+export function recoverChunkError(error: unknown): void {
+  if (typeof window !== 'undefined' && isChunkLoadError(error)) recover(error);
+}
+
 export function registerChunkErrorRecovery(): void {
   if (registered) return;
   registered = true;
@@ -128,24 +130,13 @@ export function registerChunkErrorRecovery(): void {
   // an unhandled promise rejection. We never preventDefault — this is additive.
   window.addEventListener('unhandledrejection', (event) => {
     const reason: unknown = event.reason;
-    if (isChunkLoadError(reason)) recover(reason);
+    recoverChunkError(reason);
   });
 
-  // Fallback path: a dynamic-import `<script>` failing fires an `error` event
-  // that does NOT bubble, so it is only observable in the capture phase. Scope
-  // recovery to Expo's own chunk scripts so unrelated resource errors (images,
-  // third-party scripts) never trigger a reload.
-  window.addEventListener(
-    'error',
-    (event) => {
-      const target = event.target;
-      if (target instanceof HTMLScriptElement && target.src.includes(EXPO_CHUNK_PATH)) {
-        recover(new Error(`Route chunk script failed to load: ${target.src}`));
-        return;
-      }
-      const err: unknown = event.error;
-      if (isChunkLoadError(err)) recover(err);
-    },
-    true,
-  );
+  // A resource error may belong to a dynamic import whose caller handles the
+  // rejected promise (for example, a dialog with a retry button). Reload only
+  // for uncaught execution errors here; unhandled imports are covered above.
+  window.addEventListener('error', (event) => {
+    recoverChunkError(event.error);
+  });
 }

@@ -1,3 +1,4 @@
+import { recoverChunkError } from '@/lib/chunkReload';
 import type React from 'react';
 import { Component, type ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
@@ -15,6 +16,7 @@ class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError:
     return { hasError: true };
   }
   componentDidCatch(error: Error) {
+    recoverChunkError(error);
     logger.error('Widget crashed', error);
   }
   render() {
