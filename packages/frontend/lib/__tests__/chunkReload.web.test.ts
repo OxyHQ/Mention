@@ -55,7 +55,8 @@ describe('chunk error recovery', () => {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: fakeWindow });
     const { registerChunkErrorRecovery } = require('../chunkReload.web');
     registerChunkErrorRecovery();
-    return { listeners, reload };
+    const { recoverChunkError } = require('../chunkReload.web');
+    return { listeners, reload, recoverChunkError };
   }
 
   it('leaves a handled script load failure to its caller', () => {
@@ -75,6 +76,14 @@ describe('chunk error recovery', () => {
   it('reloads for an uncaught missing shared module', () => {
     const { listeners, reload } = register();
     listeners.error({ error: new Error('Requiring unknown module "908".') });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers chunk failures reported by a React error boundary', () => {
+    const { reload, recoverChunkError } = register();
+    recoverChunkError(new Error('ordinary render error'));
+    expect(reload).not.toHaveBeenCalled();
+    recoverChunkError(Object.assign(new Error('offline'), { name: 'AsyncRequireError' }));
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });

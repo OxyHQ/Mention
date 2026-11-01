@@ -1,3 +1,4 @@
+import { reportBoundaryError } from '@/components/AppErrorBoundary';
 import { FeedUpdatePolicyProvider } from '@/components/Feed/FeedUpdatePolicy';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Suspense, useState } from 'react';
@@ -206,6 +207,7 @@ function DeckColumnContent() {
   return (
     <PanelRouterProvider routes={deckRoutes} notFound={<NotFoundScreen />}>
       <PanelErrorBoundary
+        onError={reportBoundaryError}
         resetKey={navigation.entry.key}
         emptyState={{ action: { label: t('common.retry'), onPress: retryFailedDeckRoutes } }}
       >
