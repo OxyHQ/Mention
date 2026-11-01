@@ -5,7 +5,6 @@
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SplashScreen from 'expo-splash-screen';
 
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { setupNotifications } from '@/utils/notifications';
@@ -99,13 +98,8 @@ export class AppInitializer {
 
       logger.debug('All tasks settled', { statuses: results.map((r) => r.status) });
 
-      // Hide splash screen
-      try {
-        await SplashScreen.hideAsync();
-      } catch (error) {
-        logger.warn('Failed to hide native splash screen', { error });
-      }
-
+      // The native splash is not hidden here: settled startup tasks say nothing
+      // about whether a screen has been drawn. <NativeSplashRelease> owns that.
       logger.debug('Initialization complete');
       return { success: true };
     } catch (error) {

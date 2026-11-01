@@ -71,7 +71,7 @@ it.each(['android', 'ios'])(
 );
 
 it.each(['channel', 'mute'] as const)(
-  'waits for %s readiness before hiding the splash',
+  'waits for %s readiness before resolving, and never releases the splash itself',
   async (last) => {
     const channel = deferred();
     const channelStarted = deferred();
@@ -88,15 +88,20 @@ it.each(['channel', 'mute'] as const)(
     expect(mockSetHandler.mock.invocationCallOrder[0]).toBeLessThan(
       mockSetChannel.mock.invocationCallOrder[0],
     );
-    expect(mockHideSplash).not.toHaveBeenCalled();
+    let settled = false;
+    void initialization.then(() => {
+      settled = true;
+    });
     if (last === 'channel') mute.resolve();
     else channel.resolve();
     await nextTurn();
-    expect(mockHideSplash).not.toHaveBeenCalled();
+    expect(settled).toBe(false);
     if (last === 'channel') channel.resolve();
     else mute.resolve();
     await expect(initialization).resolves.toEqual({ success: true });
-    expect(mockHideSplash).toHaveBeenCalledTimes(1);
+    // The route tree's first layout releases the splash (<NativeSplashRelease>);
+    // settled startup tasks say nothing about whether anything was drawn.
+    expect(mockHideSplash).not.toHaveBeenCalled();
   },
 );
 

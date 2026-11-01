@@ -4,7 +4,7 @@ import { enableFreeze } from 'react-native-screens';
 import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
-import * as SplashScreen from 'expo-splash-screen';
+import { preventNativeSplashAutoHide } from '@oxy.so/expo-splash';
 import { useEffect, useState } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
@@ -15,6 +15,7 @@ import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
+import { NativeSplashRelease } from '@/components/NativeSplashRelease';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
 import { SEOHandoff } from '@/components/SEOHandoff';
 import { PwaHead } from '@/components/PwaHead';
@@ -59,13 +60,10 @@ startHomeFeedBootRead();
 enableFreeze(true);
 registerChunkErrorRecovery();
 
-// NATIVE ONLY: hold the OS splash until `appIsReady` flips (hidden in RootLayout),
-// making the held OS splash the single native splash; the custom <AppSplashScreen>
-// overlay is web-only. Skipped on web. `preventAutoHideAsync` may reject if called
-// too late — swallow it (the OS splash then just hides at the first JS frame).
-if (Platform.OS !== 'web') {
-  SplashScreen.preventAutoHideAsync().catch(() => {});
-}
+// NATIVE ONLY: hold the OS splash until the route tree has laid out — released by
+// <NativeSplashRelease> below, its only owner — making the held OS splash the single
+// native splash; the custom <AppSplashScreen> overlay is web-only. No-op on web.
+preventNativeSplashAutoHide();
 
 // Resolve file IDs → download URLs for Bloom's useImageResolver(). Honors the
 // rendition `variant` a caller forwards. This resolver is AVATAR-ONLY in practice
@@ -142,14 +140,11 @@ export default function RootLayout() {
     };
   }, []);
 
-  // NATIVE ONLY: hide the held OS splash once ready — it stayed up until this exact
-  // moment, so there is no blank gap before the first real frame. No-op on web.
-  // Housekeeping nobody waits on starts only after the route tree is released.
+  // Housekeeping nobody waits on starts only after the route tree is released. The
+  // native splash is NOT hidden here: readiness of the startup tasks says nothing
+  // about whether anything has been drawn (see <NativeSplashRelease>).
   useEffect(() => {
     if (!appIsReady) return;
-    if (Platform.OS !== 'web') {
-      SplashScreen.hideAsync().catch(() => {});
-    }
     AppInitializer.runDeferredMaintenance();
   }, [appIsReady]);
 
@@ -216,6 +211,8 @@ export default function RootLayout() {
                       above it. It must sit at the ROOT: a flight outlives the screen
                       that started it, which is the entire point. */}
                   <MediaFlightLayer />
+                  {/* Last, so it lays out in the same commit as the first screen. */}
+                  {Platform.OS !== 'web' && <NativeSplashRelease />}
                 </MentionSettingsProvider>
               </PortalProvider>
             </>
