@@ -420,7 +420,10 @@ it('keeps the confirmation open across a same-session token refresh', async () =
     await tick();
     for (const listener of mockTokenListeners) listener();
   });
-  const signal = (mockConfirm.mock.calls[0][0] as { signal: AbortSignal }).signal;
+  const { signal, onClosed } = mockConfirm.mock.calls[0][0] as {
+    signal: AbortSignal;
+    onClosed: () => void;
+  };
   expect(signal.aborted).toBe(false);
   await act(async () => {
     resolve(true);
@@ -428,8 +431,48 @@ it('keeps the confirmation open across a same-session token refresh', async () =
     await tick();
   });
   expect(mockMarkAll).toHaveBeenCalledWith('A');
+  expect(signal.aborted).toBe(false);
+  expect(mockAuthListeners.size).toBe(1);
+  expect(mockTokenListeners.size).toBe(2);
+  onClosed();
   expect(mockAuthListeners.size).toBe(0);
   expect(mockTokenListeners.size).toBe(1);
+});
+
+it('keeps the confirmation owned after its answer until its visual exit finishes', async () => {
+  let resolve!: (confirmed: boolean) => void;
+  mockConfirm.mockReturnValue(
+    new Promise<boolean>((done) => {
+      resolve = done;
+    }),
+  );
+  mockMarkAll.mockResolvedValue({ message: 'ok' });
+  await mount();
+  await act(async () => {
+    markAllButton().props.onPress();
+    await tick();
+  });
+  const { signal, onClosed } = mockConfirm.mock.calls[0][0] as {
+    signal: AbortSignal;
+    onClosed: () => void;
+  };
+  await act(async () => {
+    resolve(true);
+    await tick();
+    await tick();
+  });
+  expect(mockMarkAll).toHaveBeenCalledTimes(1);
+  expect(signal.aborted).toBe(false);
+  await act(async () => {
+    mockUserId = 'B';
+    mockEpoch++;
+    for (const listener of mockTokenListeners) listener();
+    await tick();
+  });
+  expect(signal.aborted).toBe(true);
+  expect(mockMarkAll).toHaveBeenCalledTimes(1);
+  onClosed();
+  expect(mockAuthListeners.size).toBe(0);
 });
 
 it('does not mark all if the session changes after confirmation resolves but before continuation', async () => {
