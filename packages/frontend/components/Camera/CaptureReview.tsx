@@ -97,9 +97,8 @@ export function CaptureReview({
       </Pressable>
 
       <View style={styles.actions}>
-        {/* Two different failures, and the difference matters to what the reader
-            does next: one means the file never left the device, the other means
-            it did and no post came of it. Neither loses the capture. */}
+        {/* Upload and publication failures need different next steps. A failed
+            publication response does not prove the server made no post. */}
         {uploadFailed ? (
           <Text className="text-white text-base leading-6 text-center mb-3">
             {t('camera.uploadFailed', {
@@ -110,7 +109,8 @@ export function CaptureReview({
         {publishFailed ? (
           <Text className="text-white text-base leading-6 text-center mb-3">
             {t('camera.publishFailed', {
-              defaultValue: "That didn't post. Your capture is still here — try again.",
+              defaultValue:
+                'Could not confirm publication. Check your posts before trying again. Your capture is still here.',
             })}
           </Text>
         ) : null}

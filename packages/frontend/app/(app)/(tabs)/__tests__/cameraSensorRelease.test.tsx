@@ -34,6 +34,18 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: { assetUpload: jest.fn() } }));
 
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useOxy: () => ({ sessionClient: null, sessionMode: 'account' }),
+  useAuth: () => ({
+    user: { id: 'a' },
+    canUsePrivateApi: true,
+    oxyServices: {
+      http: { getSessionEpoch: () => 1 },
+      session: { userId: 'a', isAuthenticated: true },
+    },
+  }),
+}));
+
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: unknown) => unknown) => selector({ createPost: jest.fn() }),
 }));

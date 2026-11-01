@@ -3,6 +3,7 @@ import { commerceReferenceKey, readCommerceReferences } from '@/utils/commerceRe
 import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
 import { FeedSkeleton, FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
+import { useViewerOperationGuard } from '@/hooks/useViewerOperationGuard';
 import { homiioCaseFromText } from '@mention/shared-types/homiio';
 import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
@@ -47,7 +48,7 @@ import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
-import { feedService } from '@/services/feedService';
+import { feedService, PublicationUnconfirmedError } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost, PostUser } from '@mention/shared-types';
 import { COMMUNITY_POST_TITLE_MAX_LENGTH } from '@mention/shared-types/community';
 import {
@@ -237,6 +238,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const intentConflictControl = useDialogControl();
   const translateOverwriteControl = useDialogControl();
   const { user, showBottomSheet, oxyServices } = useAuth();
+  const { captureOwner, isMounted } = useViewerOperationGuard();
   const communitiesPreview = useCommunitiesPreview();
   const supervision = useSupervisionState();
   const mentionSearchCache = useCreateMentionSearchCache();
@@ -546,6 +548,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     });
   }, [variants, setThreadItems]);
   const [isPosting, setIsPosting] = useState(false);
+  const publishOperationRef = useRef<symbol | null>(null);
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission[]>(['anyone']);
   const reviewReplies = false;
@@ -1418,7 +1421,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   };
 
   const handlePost = async (options?: { publishNow?: boolean }) => {
-    if (isPosting || switchingDraftRef.current || !user || !supervision.ready) return;
+    const isCurrentOwner = captureOwner();
+    if (
+      isPosting ||
+      publishOperationRef.current ||
+      switchingDraftRef.current ||
+      !user ||
+      !supervision.ready ||
+      !isCurrentOwner
+    )
+      return;
 
     // Editing a scheduled post: "Post now" is explicit, and so is clearing the
     // schedule — the post then has no time left to wait for, so Save publishes
@@ -1435,7 +1447,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         okText: t('compose.scheduled.publishNow', { defaultValue: 'Post now' }),
         cancelText: t('common.cancel'),
       });
-      if (!confirmed) return;
+      if (!confirmed || !isCurrentOwner() || publishOperationRef.current) return;
     }
 
     const scheduledAtValue = publishNow ? null : scheduledAt;
@@ -1469,6 +1481,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     const submittedDraft = draftSnapshot;
     const submittedSession = getDraftSession();
     const submittedChoices = publishChoices;
+    const operation = Symbol('publish');
+    publishOperationRef.current = operation;
     setIsPosting(true);
     beginPublish();
     let published = false;
@@ -1607,13 +1621,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           }),
         );
         if (publishNow) {
+          if (!isCurrentOwner()) {
+            void publishFailed(latestDraftSnapshot.current);
+            return;
+          }
           await api.post(`/posts/${editPostId}/publish`);
         }
         // Propagate the edited post to the shared post cache so the feed, profile
         // and detail reflect the change immediately (the same store every new post
         // flows through) — without this the edit is invisible until a manual
         // refresh, since the detail only revalidates on its original mount.
-        cachePosts([updatedPost]);
+        if (isCurrentOwner()) cachePosts([updatedPost]);
       } else if (allPosts.length === 1) {
         const created = await createPost(allPosts[0]);
 
@@ -1626,7 +1644,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // nothing on anyone's profile to repost, and the client is long gone by
         // the time it goes out. Saying so is the only honest option — the switch
         // promised something this path cannot deliver.
-        if (mainPost.publishAsOxyUserId && alsoPostToProfile) {
+        if (mainPost.publishAsOxyUserId && alsoPostToProfile && isCurrentOwner()) {
           if (wasScheduled) {
             toast(
               t('channels.compose.scheduledNoRepost', {
@@ -1643,13 +1661,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               logger.error('Failed to repost a channel post to the profile', error, {
                 postId: String(created.id),
               });
-              toast(
-                t('channels.compose.repostFailed', {
-                  defaultValue:
-                    'Published to the channel, but reposting it to your profile failed.',
-                }),
-                { type: 'error' },
-              );
+              if (isCurrentOwner()) {
+                toast(
+                  t('channels.compose.repostFailed', {
+                    defaultValue:
+                      'Published to the channel, but reposting it to your profile failed.',
+                  }),
+                  { type: 'error' },
+                );
+              }
             }
           }
         }
@@ -1676,20 +1696,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // `currentDraftId` does not know about yet.
       await publishSucceeded();
 
-      // A scheduled post lands in the queue instead of a feed, so nothing else
-      // revalidates it — drop the cached list so the Unpublished sheet shows the
-      // post the user just scheduled rather than the pre-schedule snapshot.
-      if (wasScheduled) {
-        queryClient.invalidateQueries({
-          queryKey: viewerQueryKeys.scheduledPosts(user?.id),
-        });
-      }
-      // Likewise a server draft: it is only ever read back through that sheet.
-      if (isEditMode && editingServerDraft) {
-        queryClient.invalidateQueries({
-          queryKey: viewerQueryKeys.serverDrafts(user?.id),
-        });
-      }
+      preserveAfterPublish = shouldPreservePublishedEditor(
+        submittedDraft,
+        latestDraftSnapshot.current,
+        submittedSession,
+        getDraftSession(),
+        submittedChoices,
+        latestPublishChoices.current,
+        switchingDraftRef.current,
+      );
 
       const successMessage = replyToPostId
         ? t('Your reply has been posted!')
@@ -1705,21 +1720,35 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 time: formatScheduledLabel(scheduledAtValue),
               })
             : t('Post published successfully');
+
+      // The old draft still belongs to this operation; the current screen may
+      // now belong to somebody else and must not receive its UI effects.
+      if (!isCurrentOwner()) {
+        if (captureOwner()) toast(successMessage, { type: 'success' });
+        return;
+      }
+
+      // A scheduled post lands in the queue instead of a feed, so nothing else
+      // revalidates it — drop the cached list so the Unpublished sheet shows the
+      // post the user just scheduled rather than the pre-schedule snapshot.
+      if (wasScheduled) {
+        queryClient.invalidateQueries({
+          queryKey: viewerQueryKeys.scheduledPosts(user?.id),
+        });
+      }
+      // Likewise a server draft: it is only ever read back through that sheet.
+      if (isEditMode && editingServerDraft) {
+        queryClient.invalidateQueries({
+          queryKey: viewerQueryKeys.serverDrafts(user?.id),
+        });
+      }
+
       haptic('light');
       toast(successMessage, { type: 'success' });
 
       // Clear the published snapshot only when no newer work or draft switch
       // happened during the request. Otherwise keep the editor and persist its
       // current contents after publishing releases autosave.
-      preserveAfterPublish = shouldPreservePublishedEditor(
-        submittedDraft,
-        latestDraftSnapshot.current,
-        submittedSession,
-        getDraftSession(),
-        submittedChoices,
-        latestPublishChoices.current,
-        switchingDraftRef.current,
-      );
       if (!preserveAfterPublish) {
         resetComposerAfterPublish();
         leaveAfterPublish();
@@ -1738,6 +1767,18 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           latestPublishChoices.current,
           switchingDraftRef.current,
         );
+        return;
+      }
+      if (!isCurrentOwner()) {
+        void publishFailed(latestDraftSnapshot.current);
+        if (captureOwner()) {
+          toast(
+            t('compose.publishUnconfirmed', {
+              defaultValue: 'Could not confirm publication. Check your posts before trying again.',
+            }),
+            { type: 'error' },
+          );
+        }
         return;
       }
       const { reason, normalized } = classifyApiError(error);
@@ -1767,7 +1808,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         }),
       };
 
-      toast(reasonToToast[reason], { type: 'error' });
+      const unconfirmed =
+        error instanceof PublicationUnconfirmedError || reason === 'network' || reason === 'server';
+      toast(
+        unconfirmed
+          ? t('compose.publishUnconfirmed', {
+              defaultValue: 'Could not confirm publication. Check your posts before trying again.',
+            })
+          : reasonToToast[reason],
+        { type: 'error' },
+      );
 
       // The work is still a draft: keep it in the composer AND in storage.
       void publishFailed(latestDraftSnapshot.current);
@@ -1776,7 +1826,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         endPublish();
         if (preserveAfterPublish) void autoSaveDraft(latestDraftSnapshot.current);
       }
-      setIsPosting(false);
+      if (publishOperationRef.current === operation) {
+        publishOperationRef.current = null;
+        if (isMounted()) setIsPosting(false);
+      }
     }
   };
 

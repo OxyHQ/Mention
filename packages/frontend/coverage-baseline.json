@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.85,
-      "covered": 14681,
-      "total": 28311
+      "pct": 52.12,
+      "covered": 14810,
+      "total": 28410
     },
     "branches": {
-      "pct": 47.68,
-      "covered": 10180,
-      "total": 21347
+      "pct": 48.01,
+      "covered": 10293,
+      "total": 21438
     },
     "functions": {
-      "pct": 46.71,
-      "covered": 3488,
-      "total": 7467
+      "pct": 46.85,
+      "covered": 3503,
+      "total": 7476
     },
     "lines": {
-      "pct": 52.66,
-      "covered": 13267,
-      "total": 25191
+      "pct": 52.92,
+      "covered": 13378,
+      "total": 25276
     }
   },
   "pins": {
@@ -749,6 +749,12 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useViewerOperationGuard.ts": {
+      "statements": 100,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useVisibleReference.ts": {
       "statements": 100,
       "branches": 100,
@@ -1152,10 +1158,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 51,
-      "branches": 44,
-      "functions": 42,
-      "lines": 52
+      "statements": 56,
+      "branches": 59,
+      "functions": 48,
+      "lines": 58
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1410,10 +1416,10 @@
       "lines": 98
     },
     "stores/postsStore.ts": {
-      "statements": 77,
-      "branches": 58,
+      "statements": 79,
+      "branches": 62,
       "functions": 72,
-      "lines": 83
+      "lines": 85
     },
     "stores/profileCountsInvalidation.ts": {
       "statements": 100,

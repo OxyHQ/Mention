@@ -256,6 +256,8 @@ interface PostsStoreState {
   loadMoreFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
 
   // Content creation
+  /** A resolved write was confirmed by the server; a null/empty model means
+   * the viewer changed or updating the local cache failed after confirmation. */
   createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<FeedItem | null>;
@@ -994,24 +996,21 @@ export const usePostsStore = create<PostsStoreState>()(
     // ── createPost ───────────────────────────────────────────
     createPost: async (request: CreatePostRequest) => {
       const operationEpoch = captureViewerStateEpoch();
+      let confirmed = false;
+      let confirmedPost: FeedItem | null = null;
       set({ isLoading: true, error: null });
 
       try {
         const response = await feedService.createPost(request);
+        if (!response.success || !response.post)
+          throw new Error('Publication result could not be confirmed');
+        confirmed = true;
         if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
-        if (!response.success) {
-          set({ isLoading: false });
-          return null;
-        }
-
         const rawPost = response.post;
-        if (!rawPost) {
-          set({ isLoading: false });
-          return null;
-        }
         if (rawPost.metadata.status === 'scheduled') {
+          confirmedPost = toFeedItem(rawPost);
           set({ isLoading: false });
-          return toFeedItem(rawPost);
+          return confirmedPost;
         }
 
         const newPost: FeedItem = {
@@ -1027,6 +1026,7 @@ export const usePostsStore = create<PostsStoreState>()(
           },
           isLocalNew: true,
         };
+        confirmedPost = newPost;
 
         // Write to SQLite
         dbUpsertPost(newPost);
@@ -1055,7 +1055,12 @@ export const usePostsStore = create<PostsStoreState>()(
         set({ isLoading: false, lastRefresh: Date.now() });
         return newPost;
       } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
+        if (confirmed) {
+          logger.error('Post published, but the local cache update failed', error);
+          if (isCurrentViewerStateEpoch(operationEpoch)) set({ isLoading: false });
+          return confirmedPost;
+        }
+        if (!isCurrentViewerStateEpoch(operationEpoch)) throw error;
         const errorMessage = error instanceof Error ? error.message : 'Failed to create post';
         set({ isLoading: false, error: errorMessage });
         throw error;
@@ -1065,16 +1070,16 @@ export const usePostsStore = create<PostsStoreState>()(
     // ── createThread ─────────────────────────────────────────
     createThread: async (request: CreateThreadRequest) => {
       const operationEpoch = captureViewerStateEpoch();
+      let confirmed = false;
+      let confirmedPosts: FeedItem[] = [];
       set({ isLoading: true, error: null });
 
       try {
         const response = await feedService.createThread(request);
+        if (!response.success || !response.posts?.length)
+          throw new Error('Publication result could not be confirmed');
+        confirmed = true;
         if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
-        if (!response.success || !response.posts) {
-          set({ isLoading: false });
-          return [];
-        }
-
         const newPosts: FeedItem[] = response.posts.map((post) => ({
           ...toFeedItem(post),
           engagement: {
@@ -1088,6 +1093,7 @@ export const usePostsStore = create<PostsStoreState>()(
           },
           isLocalNew: true,
         }));
+        confirmedPosts = newPosts;
 
         // Write to SQLite
         dbUpsertPosts(newPosts);
@@ -1122,7 +1128,12 @@ export const usePostsStore = create<PostsStoreState>()(
         set({ isLoading: false, lastRefresh: Date.now() });
         return newPosts;
       } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
+        if (confirmed) {
+          logger.error('Thread published, but the local cache update failed', error);
+          if (isCurrentViewerStateEpoch(operationEpoch)) set({ isLoading: false });
+          return confirmedPosts;
+        }
+        if (!isCurrentViewerStateEpoch(operationEpoch)) throw error;
         const errorMessage = error instanceof Error ? error.message : 'Failed to create thread';
         set({ isLoading: false, error: errorMessage });
         throw error;
@@ -1134,6 +1145,8 @@ export const usePostsStore = create<PostsStoreState>()(
       const operationEpoch = captureViewerStateEpoch();
       const postId = request.postId;
       let previousPost: FeedItem | null = null;
+      let confirmed = false;
+      let confirmedReply: FeedItem | null = null;
 
       set({ isLoading: true, error: null });
 
@@ -1149,18 +1162,17 @@ export const usePostsStore = create<PostsStoreState>()(
         }
 
         const response = await feedService.createReply(request);
+        if (!response.success || !response.reply)
+          throw new Error('Publication result could not be confirmed');
+        confirmed = true;
         if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to create reply');
-        }
-
         // The reply itself, hydrated by the server for this viewer: cache it
         // like any other post, and hand it to the thread's replies feed, which
         // would otherwise not show it until a pull-to-refresh.
         let reply: FeedItem | null = null;
         if (response.reply) {
           reply = { ...toFeedItem(response.reply), isLocalNew: true };
+          confirmedReply = reply;
           dbUpsertPost(reply);
           notifyPostChanges([reply.id]);
           publishNewLocalReply(reply);
@@ -1168,7 +1180,12 @@ export const usePostsStore = create<PostsStoreState>()(
         set({ isLoading: false });
         return reply;
       } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
+        if (confirmed) {
+          logger.error('Reply published, but the local cache update failed', error);
+          if (isCurrentViewerStateEpoch(operationEpoch)) set({ isLoading: false });
+          return confirmedReply;
+        }
+        if (!isCurrentViewerStateEpoch(operationEpoch)) throw error;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
         const errorMessage = error instanceof Error ? error.message : 'Failed to create reply';
         set({ isLoading: false, error: errorMessage });

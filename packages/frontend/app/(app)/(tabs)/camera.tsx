@@ -11,6 +11,7 @@ import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { usePostsStore } from '@/stores/postsStore';
 import { setPendingShareMedia } from '@/utils/pendingShareMedia';
 import { buildCapturePost } from '@/utils/postBuilder';
+import { useViewerOperationGuard } from '@/hooks/useViewerOperationGuard';
 
 /**
  * The camera, as a page of the tab pager — reached by swiping right off Home and
@@ -39,13 +40,10 @@ import { buildCapturePost } from '@/utils/postBuilder';
  * a ref as well as state: state lands on the next render and the second press
  * arrives before that.
  *
- * A POST THAT DID NOT HAPPEN KEEPS THE CAPTURE. `createPost` RETURNS `null` on
- * three paths that never throw — the response reported no success, it carried no
- * post, or the viewer changed mid-flight — and treating a resolved promise as a
- * published post threw the capture away with nothing to show for it. Nothing is
- * retried automatically either: on the viewer-epoch path the request may well
- * have reached the server, so re-sending it is how one capture becomes two
- * posts. The reader is left on their capture, told, and decides.
+ * AN UNCONFIRMED POST KEEPS THE CAPTURE. A rejected request or incomplete
+ * response can still follow a server commit, so the reader is asked to check
+ * their posts before retrying. A viewer change also prevents the old operation
+ * from navigating or updating the next account's screen.
  *
  * THE COMPOSER IS PUSHED, NEVER SWITCHED TO. The "add text" exit hands the
  * upload over through `pendingShareMedia`, a consume-once buffer that the
@@ -71,6 +69,7 @@ export default function CameraPage() {
   const working = useRef(false);
   const { selectTab } = useTabPager();
   const createPost = usePostsStore((state) => state.createPost);
+  const { captureOwner, isMounted } = useViewerOperationGuard();
 
   const clearCapture = useCallback(() => {
     setCapture(null);
@@ -89,51 +88,50 @@ export default function CameraPage() {
   }, [clearCapture]);
 
   const publishNow = useCallback(async () => {
-    if (!capture || working.current) return;
+    const isCurrentOwner = captureOwner();
+    if (!capture || working.current || !isCurrentOwner) return;
     working.current = true;
     setPublishing(true);
     setPublishFailed(false);
     try {
       const uploaded = await upload(capture);
+      if (!isCurrentOwner()) return;
       // `upload` reports its own failure through `uploadFailed`, which the review
       // screen is showing. Leaving the reader on their capture is the only
       // outcome that does not lose it.
       if (!uploaded) return;
 
-      const created = await createPost(buildCapturePost(uploaded.media));
-      if (!created) {
-        // Resolved, but nothing was published. Deliberately not retried: on the
-        // viewer-epoch path the request may have reached the server anyway.
-        logger.warn('publishing a capture produced no post');
-        setPublishFailed(true);
-        return;
-      }
+      await createPost(buildCapturePost(uploaded.media));
+      if (!isCurrentOwner()) return;
       leaveToFeed();
     } catch (error) {
-      logger.warn('publishing a capture failed', { error });
-      setPublishFailed(true);
+      if (isCurrentOwner()) {
+        logger.warn('publishing a capture failed', { error });
+        setPublishFailed(true);
+      }
     } finally {
       working.current = false;
-      setPublishing(false);
+      if (isMounted()) setPublishing(false);
     }
-  }, [capture, upload, createPost, leaveToFeed]);
+  }, [capture, upload, createPost, leaveToFeed, captureOwner, isMounted]);
 
   const addText = useCallback(async () => {
-    if (!capture || working.current) return;
+    const isCurrentOwner = captureOwner();
+    if (!capture || working.current || !isCurrentOwner) return;
     working.current = true;
     setPublishing(true);
     setPublishFailed(false);
     try {
       const uploaded = await upload(capture);
-      if (!uploaded) return;
+      if (!uploaded || !isCurrentOwner()) return;
       setPendingShareMedia([{ id: uploaded.media.id, contentType: uploaded.contentType }]);
       clearCapture();
       router.push('/compose');
     } finally {
       working.current = false;
-      setPublishing(false);
+      if (isMounted()) setPublishing(false);
     }
-  }, [capture, upload, clearCapture, router]);
+  }, [capture, upload, clearCapture, router, captureOwner, isMounted]);
 
   // A dark surface, so Bloom gives it light status-bar content while it is the
   // page in front. Black even before the camera mounts: the pager brings this
