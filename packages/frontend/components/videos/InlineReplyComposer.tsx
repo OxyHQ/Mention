@@ -7,7 +7,9 @@ import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
+import { logger } from '@oxy.so/core/logger';
 import { usePostsStore } from '@/stores/postsStore';
+import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
 
 interface InlineReplyComposerProps {
   postId: string;
@@ -41,8 +43,11 @@ export function InlineReplyComposer({
   // was the rail's answer given in the sheet too.
   const surfaceFill = useSurfaceFill();
   const createReply = usePostsStore((s) => s.createReply);
+  const { capture, isMounted } = usePublicationContinuation();
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const editRevision = useRef(0);
+  const activeSubmission = useRef<symbol | null>(null);
   const inputRef = useRef<TextInputInstance | null>(null);
 
   // Only a change taken while this composer was mounted counts. Seeding the ref
@@ -57,18 +62,42 @@ export function InlineReplyComposer({
 
   const handleSubmit = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed || submitting) return;
+    const isCurrentOwner = capture();
+    if (!trimmed || submitting || activeSubmission.current) return;
+    if (!isCurrentOwner) {
+      toast(t('common.error', { defaultValue: 'Something went wrong' }), { type: 'error' });
+      return;
+    }
+    const revision = editRevision.current;
+    const operation = Symbol('reply');
+    activeSubmission.current = operation;
     setSubmitting(true);
+    let confirmed = false;
     try {
       await createReply({ postId, content: { text: trimmed } });
-      setText('');
+      confirmed = true;
+      if (!isCurrentOwner()) return;
+      if (editRevision.current === revision) setText('');
       onPosted();
-    } catch {
-      toast(t('common.error', { defaultValue: 'Something went wrong' }), { type: 'error' });
+    } catch (error) {
+      if (confirmed) {
+        logger.error('Reply posted, but updating the conversation failed', error);
+      } else if (isCurrentOwner()) {
+        toast(
+          t('compose.replyUnconfirmed', {
+            defaultValue:
+              'Could not confirm your reply. Check the conversation before trying again.',
+          }),
+          { type: 'error' },
+        );
+      }
     } finally {
-      setSubmitting(false);
+      if (activeSubmission.current === operation) {
+        activeSubmission.current = null;
+        if (isMounted()) setSubmitting(false);
+      }
     }
-  }, [text, submitting, createReply, postId, onPosted, t]);
+  }, [text, submitting, createReply, postId, onPosted, t, capture, isMounted]);
 
   return (
     <>
@@ -77,7 +106,10 @@ export function InlineReplyComposer({
         <Textarea
           inputRef={inputRef}
           value={text}
-          onChangeText={setText}
+          onChangeText={(value) => {
+            editRevision.current += 1;
+            setText(value);
+          }}
           placeholder={t('videos.addComment')}
           size="sm"
           rows={1}

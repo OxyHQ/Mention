@@ -23,7 +23,7 @@ interface CaptureReviewProps {
   uploadProgress?: AssetUploadStageProgress | null;
   /** The capture never left the device. */
   uploadFailed: boolean;
-  /** It uploaded, but no post was created. The capture is still here. */
+  /** Publication could not be confirmed. The capture is still here. */
   publishFailed: boolean;
 }
 
@@ -110,7 +110,8 @@ export function CaptureReview({
         {publishFailed ? (
           <Text className="text-white text-base leading-6 text-center mb-3">
             {t('camera.publishFailed', {
-              defaultValue: "That didn't post. Your capture is still here — try again.",
+              defaultValue:
+                'Could not confirm publication. Check your posts before trying again. Your capture is still here.',
             })}
           </Text>
         ) : null}

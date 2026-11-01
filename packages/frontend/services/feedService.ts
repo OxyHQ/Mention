@@ -336,6 +336,24 @@ function getDedupeKey(request: ExtendedFeedRequest): string {
   ]);
 }
 
+/** A request may have committed even when its response cannot confirm it. */
+export class PublicationUnconfirmedError extends Error {
+  constructor() {
+    super('The publication result could not be confirmed');
+    this.name = 'PublicationUnconfirmedError';
+  }
+}
+
+function isConfirmedPost(value: unknown): value is HydratedPost {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'id' in value &&
+    typeof value.id === 'string' &&
+    value.id.trim().length > 0
+  );
+}
+
 class FeedService {
   /**
    * Get feed data from backend.
@@ -578,14 +596,10 @@ class FeedService {
     );
     const data = response?.data;
 
-    if (data && typeof data === 'object' && data.post) {
-      return {
-        success: typeof data.success === 'boolean' ? data.success : true,
-        post: data.post,
-      };
+    if (data?.success !== true || !isConfirmedPost(data.post)) {
+      throw new PublicationUnconfirmedError();
     }
-
-    return { success: true, post: null };
+    return { success: true, post: data.post };
   }
 
   /**
@@ -600,14 +614,17 @@ class FeedService {
     }>('/posts/thread', request);
     const data = response?.data;
 
-    if (data && typeof data === 'object' && Array.isArray(data.posts)) {
-      return {
-        success: typeof data.success === 'boolean' ? data.success : true,
-        posts: data.posts,
-      };
+    if (
+      data?.success !== true ||
+      !Array.isArray(data.posts) ||
+      data.posts.length === 0 ||
+      data.posts.length !== request.posts.length ||
+      !data.posts.every(isConfirmedPost) ||
+      new Set(data.posts.map((post) => post.id)).size !== data.posts.length
+    ) {
+      throw new PublicationUnconfirmedError();
     }
-
-    return { success: true, posts: [] };
+    return { success: true, posts: data.posts };
   }
 
   /**
@@ -631,10 +648,10 @@ class FeedService {
       backendRequest,
     );
     const data = response?.data;
-    return {
-      success: typeof data?.success === 'boolean' ? data.success : true,
-      reply: data?.reply ?? null,
-    };
+    if (data?.success !== true || !isConfirmedPost(data.reply)) {
+      throw new PublicationUnconfirmedError();
+    }
+    return { success: true, reply: data.reply };
   }
 
   /**

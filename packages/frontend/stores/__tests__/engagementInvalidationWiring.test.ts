@@ -15,6 +15,7 @@ import { usePostsStore } from '../postsStore';
 const mockPosts = new Map<string, FeedItem>();
 
 const mockInvalidate = jest.fn();
+const mockLocalError = jest.fn();
 
 jest.mock('@/stores/engagementInvalidation', () => ({
   invalidateEngagementLists: (...args: unknown[]) => mockInvalidate(...args),
@@ -28,6 +29,7 @@ jest.mock('@/stores/profileCountsInvalidation', () => ({
 const mockFeedService = {
   createPost: jest.fn(),
   createThread: jest.fn(),
+  createReply: jest.fn(),
   voteItem: jest.fn(),
   removeVote: jest.fn(),
   saveItem: jest.fn(),
@@ -40,6 +42,7 @@ jest.mock('@/services/feedService', () => ({
   feedService: {
     createPost: (...args: unknown[]) => mockFeedService.createPost(...args),
     createThread: (...args: unknown[]) => mockFeedService.createThread(...args),
+    createReply: (...args: unknown[]) => mockFeedService.createReply(...args),
     voteItem: (...args: unknown[]) => mockFeedService.voteItem(...args),
     removeVote: (...args: unknown[]) => mockFeedService.removeVote(...args),
     saveItem: (...args: unknown[]) => mockFeedService.saveItem(...args),
@@ -84,13 +87,14 @@ jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
 jest.mock('@/stores/feedQueryCache', () => ({
   publishNewLocalPost: jest.fn(),
+  publishNewLocalReply: jest.fn(),
   publishRemovedLocalPost: jest.fn(),
 }));
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({
     debug: jest.fn(),
-    error: jest.fn(),
+    error: (...args: unknown[]) => mockLocalError(...args),
     warn: jest.fn(),
     info: jest.fn(),
   }),
@@ -217,7 +221,7 @@ describe('postsStore refreshes the profile counters a write changes', () => {
       success: true,
       posts: [published('t-1', 'author-1'), published('t-2', 'author-1')],
     });
-    await usePostsStore.getState().createThread({ posts: [] } as never);
+    await usePostsStore.getState().createThread({ posts: [{}, {}] } as never);
     expect(mockInvalidateCounts).toHaveBeenCalledWith(expect.anything(), 'author-1');
   });
 
@@ -242,3 +246,179 @@ describe('postsStore refreshes the profile counters a write changes', () => {
     expect(mockInvalidateCounts).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('publish outcomes after a viewer change', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPosts.clear();
+  });
+
+  it.each(['createPost', 'createThread', 'createReply'] as const)(
+    '%s keeps a successful stale response out of the new viewer state',
+    async (method) => {
+      let complete!: (value: unknown) => void;
+      mockFeedService[method].mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+      const request =
+        method === 'createPost'
+          ? { content: { text: 'A' } }
+          : method === 'createThread'
+            ? { posts: [{}] }
+            : { postId: 'parent', content: { text: 'A' } };
+      const operation = usePostsStore.getState()[method](request as never);
+      usePostsStore.getState().resetViewerState({ clearCachedData: true });
+      usePostsStore.setState({ error: 'B state', isLoading: true });
+      complete({ success: true, post: { id: 'a' }, posts: [{ id: 'a' }], reply: { id: 'a' } });
+      await expect(operation).resolves.toEqual(method === 'createThread' ? [] : null);
+      expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
+      expect(mockPosts.size).toBe(0);
+    },
+  );
+
+  it.each(['createPost', 'createThread', 'createReply'] as const)(
+    '%s propagates a stale HTTP failure without changing the new viewer state',
+    async (method) => {
+      let reject!: (error: Error) => void;
+      mockFeedService[method].mockImplementation(
+        () =>
+          new Promise((_resolve, rejectPromise) => {
+            reject = rejectPromise;
+          }),
+      );
+      const request =
+        method === 'createPost'
+          ? { content: { text: 'A' } }
+          : method === 'createThread'
+            ? { posts: [{}] }
+            : { postId: 'parent', content: { text: 'A' } };
+      const operation = usePostsStore.getState()[method](request as never);
+      const expected = expect(operation).rejects.toThrow('HTTP 500');
+      usePostsStore.getState().resetViewerState({ clearCachedData: true });
+      usePostsStore.setState({ error: 'B state', isLoading: true });
+      reject(new Error('HTTP 500'));
+      await expected;
+      expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
+      expect(mockPosts.size).toBe(0);
+    },
+  );
+
+  it.each(['createPost', 'createThread', 'createReply'] as const)(
+    '%s propagates an ambiguous session-change outcome without changing the new viewer state',
+    async (method) => {
+      let reject!: (error: Error) => void;
+      mockFeedService[method].mockImplementation(
+        () =>
+          new Promise((_resolve, rejectPromise) => {
+            reject = rejectPromise;
+          }),
+      );
+      const request =
+        method === 'createPost'
+          ? { content: { text: 'A' } }
+          : method === 'createThread'
+            ? { posts: [{}] }
+            : { postId: 'parent', content: { text: 'A' } };
+      const operation = usePostsStore.getState()[method](request as never);
+      const expected = expect(operation).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
+      usePostsStore.getState().resetViewerState({ clearCachedData: true });
+      usePostsStore.setState({ error: 'B state', isLoading: true });
+      reject(Object.assign(new Error('Outcome unknown'), { code: 'AUTH_SESSION_CHANGED' }));
+      await expected;
+      expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
+      expect(mockPosts.size).toBe(0);
+    },
+  );
+
+  it.each(['createPost', 'createThread', 'createReply'] as const)(
+    '%s rejects a negative or incomplete response while viewer is current',
+    async (method) => {
+      const request =
+        method === 'createPost'
+          ? { content: { text: 'A' } }
+          : method === 'createThread'
+            ? { posts: [{ content: { text: 'A' } }] }
+            : { postId: 'parent', content: { text: 'A' } };
+      for (const result of [
+        { success: false, post: null, posts: [], reply: null },
+        { success: true, post: null, posts: [], reply: null },
+      ]) {
+        mockFeedService[method].mockResolvedValueOnce(result);
+        await expect(usePostsStore.getState()[method](request as never)).rejects.toThrow();
+      }
+    },
+  );
+});
+
+it.each(['createPost', 'createThread', 'createReply'] as const)(
+  '%s preserves confirmed success when updating the local cache fails',
+  async (method) => {
+    const post = {
+      id: 'confirmed',
+      user: { id: 'author' },
+      content: { text: 'hi' },
+      attachments: {},
+      documents: [],
+      authors: [],
+      engagement: { likes: 0, replies: 0, boosts: 0, saves: 0, downvotes: 0 },
+      viewerState: {},
+      permissions: {},
+      metadata: { createdAt: '2026-09-25T10:00:00.000Z', status: 'published' },
+    };
+    const cache = jest.requireMock('@/stores/feedQueryCache');
+    const update =
+      method === 'createReply' ? cache.publishNewLocalReply : cache.publishNewLocalPost;
+    update.mockImplementationOnce(() => {
+      usePostsStore.getState().resetViewerState({ clearCachedData: true });
+      usePostsStore.setState({ error: 'B state', isLoading: true });
+      throw new Error('local cache failed');
+    });
+    mockFeedService[method].mockResolvedValueOnce({
+      success: true,
+      post,
+      posts: [post],
+      reply: post,
+    });
+    const request =
+      method === 'createPost'
+        ? { content: { text: 'hi' } }
+        : method === 'createThread'
+          ? { posts: [{ content: { text: 'hi' } }] }
+          : { postId: 'parent', content: { text: 'hi' } };
+    await expect(usePostsStore.getState()[method](request as never)).resolves.toBeTruthy();
+    expect(mockLocalError).toHaveBeenCalledWith(
+      expect.stringContaining('local cache update failed'),
+      expect.any(Error),
+    );
+    expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
+  },
+);
+
+it.each(['createPost', 'createThread', 'createReply'] as const)(
+  '%s keeps confirmation even when the returned model cannot be hydrated locally',
+  async (method) => {
+    const partial = { id: 'confirmed-id' };
+    mockFeedService[method].mockResolvedValueOnce({
+      success: true,
+      post: partial,
+      posts: [partial],
+      reply: partial,
+    });
+    const request =
+      method === 'createPost'
+        ? { content: { text: 'hi' } }
+        : method === 'createThread'
+          ? { posts: [{ content: { text: 'hi' } }] }
+          : { postId: 'parent', content: { text: 'hi' } };
+    await expect(usePostsStore.getState()[method](request as never)).resolves.toEqual(
+      method === 'createThread' ? [] : null,
+    );
+    expect(mockLocalError).toHaveBeenCalledWith(
+      expect.stringContaining('local cache update failed'),
+      expect.any(Error),
+    );
+  },
+);

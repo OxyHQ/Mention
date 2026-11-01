@@ -2219,7 +2219,7 @@
     "addText": "Añadir texto",
     "publish": "Publicar",
     "uploadFailed": "No se ha subido. Revisa la conexión e inténtalo otra vez.",
-    "publishFailed": "No se ha publicado. Tu captura sigue aquí — inténtalo otra vez.",
+    "publishFailed": "No se ha podido confirmar la publicación. Comprueba tus publicaciones antes de volver a intentarlo. Tu captura sigue aquí.",
     "preparing": "Preparando…",
     "recordingFailed": "No se pudo grabar. Inténtalo de nuevo.",
     "open": "Abrir cámara"
@@ -2489,6 +2489,8 @@
     "open": "Abrir"
   },
   "compose": {
+    "replyUnconfirmed": "No se ha podido confirmar tu respuesta. Comprueba la conversación antes de volver a intentarlo.",
+    "publishUnconfirmed": "No se ha podido confirmar la publicación. Comprueba tus publicaciones antes de volver a intentarlo.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",
