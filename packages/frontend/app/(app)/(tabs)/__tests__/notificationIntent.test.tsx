@@ -23,12 +23,18 @@ type RowActions = {
 };
 const mockRows: Record<string, RowActions> = {};
 const mockToast = jest.fn();
+const mockAuthListeners = new Set<() => void>();
+const mockTokenListeners = new Set<() => void>();
 const mockT = (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key;
 const mockAuth = {
   oxyServices: {
     users: { getMany: jest.fn() },
     http: { getSessionEpoch: () => mockEpoch },
     session: {
+      onChange: (listener: () => void) => {
+        mockTokenListeners.add(listener);
+        return () => mockTokenListeners.delete(listener);
+      },
       get userId() {
         return mockUserId;
       },
@@ -44,7 +50,13 @@ const mockAuth = {
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ ...mockAuth, user: { id: mockUserId } }),
   OxyAuthPrompt: () => null,
-  useAuthStore: { getState: () => ({ user: mockUserId ? { id: mockUserId } : null }) },
+  useAuthStore: {
+    getState: () => ({ user: mockUserId ? { id: mockUserId } : null }),
+    subscribe: (listener: () => void) => {
+      mockAuthListeners.add(listener);
+      return () => mockAuthListeners.delete(listener);
+    },
+  },
 }));
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
@@ -188,6 +200,8 @@ function ui() {
 beforeEach(() => {
   mockUserId = 'A';
   mockEpoch = 1;
+  mockAuthListeners.clear();
+  mockTokenListeners.clear();
   mockMarkAll.mockReset();
   mockConfirm.mockReset();
   for (const key of Object.keys(mockRows)) delete mockRows[key];
@@ -328,6 +342,88 @@ for (const kind of ['switch', 'aba', 'logout', 'relogin'] as const) {
     expect(mockToast).not.toHaveBeenCalled();
   });
 }
+it('aborts the owned confirmation on logout without unmounting the screen', async () => {
+  mockConfirm.mockImplementation(
+    ({ signal }: { signal: AbortSignal }) =>
+      new Promise<boolean>((resolve) => signal.addEventListener('abort', () => resolve(false))),
+  );
+  await mount();
+  await act(async () => {
+    markAllButton().props.onPress();
+    await tick();
+  });
+  const signal = (mockConfirm.mock.calls[0][0] as { signal: AbortSignal }).signal;
+  expect(signal.aborted).toBe(false);
+  await act(async () => {
+    mockUserId = null;
+    mockEpoch++;
+    for (const listener of mockTokenListeners) listener();
+    await tick();
+  });
+  expect(signal.aborted).toBe(true);
+  expect(mockMarkAll).not.toHaveBeenCalled();
+  expect(mockAuthListeners.size).toBe(0);
+  expect(mockTokenListeners.size).toBe(0);
+});
+
+for (const change of ['viewer', 'epoch', 'unmount'] as const) {
+  it(`aborts the owned confirmation on ${change}`, async () => {
+    mockConfirm.mockImplementation(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise<boolean>((resolve) => signal.addEventListener('abort', () => resolve(false))),
+    );
+    await mount();
+    await act(async () => {
+      markAllButton().props.onPress();
+      await tick();
+    });
+    const signal = (mockConfirm.mock.calls[0][0] as { signal: AbortSignal }).signal;
+    await act(async () => {
+      if (change === 'viewer') {
+        mockUserId = 'B';
+        for (const listener of mockAuthListeners) listener();
+      } else if (change === 'epoch') {
+        mockEpoch++;
+        for (const listener of mockTokenListeners) listener();
+      } else {
+        renderer?.unmount();
+        renderer = undefined;
+      }
+      await tick();
+    });
+    expect(signal.aborted).toBe(true);
+    expect(mockMarkAll).not.toHaveBeenCalled();
+    expect(mockAuthListeners.size).toBe(0);
+    expect(mockTokenListeners.size).toBe(0);
+  });
+}
+
+it('keeps the confirmation open across a same-session token refresh', async () => {
+  let resolve!: (confirmed: boolean) => void;
+  mockConfirm.mockReturnValue(
+    new Promise<boolean>((done) => {
+      resolve = done;
+    }),
+  );
+  mockMarkAll.mockResolvedValue({ message: 'ok' });
+  await mount();
+  await act(async () => {
+    markAllButton().props.onPress();
+    await tick();
+    for (const listener of mockTokenListeners) listener();
+  });
+  const signal = (mockConfirm.mock.calls[0][0] as { signal: AbortSignal }).signal;
+  expect(signal.aborted).toBe(false);
+  await act(async () => {
+    resolve(true);
+    await tick();
+    await tick();
+  });
+  expect(mockMarkAll).toHaveBeenCalledWith('A');
+  expect(mockAuthListeners.size).toBe(0);
+  expect(mockTokenListeners.size).toBe(0);
+});
+
 it('still submits and reports a successful mark-all for the same session', async () => {
   mockConfirm.mockResolvedValue(true);
   mockMarkAll.mockResolvedValue({ message: 'ok' });

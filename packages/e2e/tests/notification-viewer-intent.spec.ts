@@ -72,27 +72,31 @@ async function installSwitchingFixture(page: Page) {
       },
     });
   });
+  const deviceSync = () => ({
+    state: {
+      deviceId: 'fixture-device',
+      accounts: remote
+        ? [
+            { accountId: userA, sessionId: 'notification-fixture', authuser: 0 },
+            { accountId: userB, sessionId: 'fixture-b', authuser: 1 },
+          ]
+        : [],
+      activeAccountId: remote,
+      revision,
+      updatedAt: Date.now(),
+    },
+    activeToken: remote ? { accessToken: token(remote), expiresAt } : null,
+  });
   await page.route('**/session/device/state', (route) => {
     stateCalls++;
-    return route.fulfill({
-      headers,
-      json: {
-        state: {
-          deviceId: 'fixture-device',
-          accounts: remote
-            ? [
-                { accountId: userA, sessionId: 'notification-fixture', authuser: 0 },
-                { accountId: userB, sessionId: 'fixture-b', authuser: 1 },
-              ]
-            : [],
-          activeAccountId: remote,
-          revision,
-          updatedAt: Date.now(),
-        },
-        activeToken: remote ? { accessToken: token(remote), expiresAt } : null,
-      },
-    });
+    return route.fulfill({ headers, json: deviceSync() });
   });
+  for (const action of ['add', 'switch']) {
+    await page.route(`**/session/device/${action}`, (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      return route.fulfill({ headers, json: deviceSync() });
+    });
+  }
   await page.route('**/session/user/**', (route) =>
     remote ? route.fulfill({ headers, json: profile(remote) }) : route.abort(),
   );
@@ -172,10 +176,12 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
     await page.goto('/notifications');
     await expect(page.getByText(selectedText, { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Mark all as read', exact: true }).click();
-    await expect(
-      page.getByText('Are you sure you want to mark all notifications as read?', { exact: true }),
-    ).toBeVisible();
+    const question = page.getByText('Are you sure you want to mark all notifications as read?', {
+      exact: true,
+    });
+    await expect(question).toBeVisible();
     await fixture.changeTo(scenario === 'logout' || scenario === 'relogin' ? null : userB);
+    await expect(question).toHaveCount(0);
     if (scenario === 'aba' || scenario === 'relogin') await fixture.changeTo(userA);
     const unexpected = page
       .waitForRequest(
@@ -186,11 +192,7 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
         { timeout: 1000 },
       )
       .catch(() => null);
-    const question = page.getByText('Are you sure you want to mark all notifications as read?', {
-      exact: true,
-    });
-    if (await question.isVisible())
-      await page.getByRole('button', { name: 'Mark all as read', exact: true }).last().click();
+    await expect(question).toHaveCount(0);
     expect(await unexpected).toBeNull();
     expect(writes).toEqual([]);
     expect(candidate.scriptErrors).toEqual([]);
