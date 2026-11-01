@@ -220,11 +220,18 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
         writes.push(path);
     });
     await page.goto('/notifications');
-    const row = page.getByRole('button').filter({ hasText: selectedText });
+    const preview = page.getByText(selectedText, { exact: true });
+    const row = page.locator('.group').filter({ has: preview });
     await expect(row).toHaveCount(1);
-    await row.scrollIntoViewIfNeeded();
-    const box = await row.boundingBox();
-    if (!box) throw new Error('The notification row has no visible bounds');
+    const rowAction = row.getByRole('button', {
+      name: `${userA} liked your post`,
+      exact: true,
+    });
+    await expect(rowAction).toHaveCount(1);
+    await expect(rowAction).toHaveAccessibleName(`${userA} liked your post`);
+    await preview.scrollIntoViewIfNeeded();
+    const box = await preview.boundingBox();
+    if (!box) throw new Error('The notification preview has no visible bounds');
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     const mark = page.getByText('Mark as read', { exact: true });
@@ -526,6 +533,7 @@ test('the row background and collaboration buttons have distinct keyboard focus'
   const buttons = row.getByRole('button');
   await expect(buttons).toHaveCount(3);
   const rowAction = buttons.first();
+  await expect(rowAction).toHaveAccessibleName(`${userA} invited you to collaborate on a post`);
   await rowAction.focus();
   await expect(rowAction).toBeFocused();
   await page.keyboard.press('Tab');
@@ -533,6 +541,24 @@ test('the row background and collaboration buttons have distinct keyboard focus'
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
   await expect(page.getByText('Accept invite?', { exact: true })).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('keyboard activation of the accessible row opens its post', async ({ page, candidate }) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  await page.goto('/notifications');
+  const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+  await expect(accept).toBeVisible();
+  const row = page.locator('.group').filter({ has: accept });
+  const rowAction = row.getByRole('button', {
+    name: `${userA} invited you to collaborate on a post`,
+    exact: true,
+  });
+  await expect(rowAction).toHaveCount(1);
+  await rowAction.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(`${APP_ORIGIN}/p/collab-post`);
   expect(candidate.scriptErrors).toEqual([]);
 });
 
