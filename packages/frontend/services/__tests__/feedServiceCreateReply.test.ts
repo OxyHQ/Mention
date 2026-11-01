@@ -48,16 +48,55 @@ describe('feedService.createReply', () => {
       hashtags: [],
     });
   });
+});
 
-  it('reports the server’s own success flag, and no reply when it sent none', async () => {
-    mockAuthenticatedPost.mockResolvedValue({ data: { success: false } });
-    await expect(
-      feedService.createReply({ postId: 'parent-1', content: { text: 'hi' } }),
-    ).resolves.toEqual({ success: false, reply: null });
+describe('publication response confirmation', () => {
+  beforeEach(() => jest.clearAllMocks());
+  const submissions = [
+    [
+      'post',
+      () => feedService.createPost({ content: { text: 'hi' } } as never),
+      { success: true, post: { id: 'p' } },
+    ],
+    [
+      'thread',
+      () => feedService.createThread({ posts: [{ content: { text: 'hi' } }] } as never),
+      { success: true, posts: [{ id: 'p' }] },
+    ],
+    [
+      'reply',
+      () => feedService.createReply({ postId: 'parent', content: { text: 'hi' } }),
+      { success: true, reply: { id: 'p' } },
+    ],
+  ] as const;
 
-    mockAuthenticatedPost.mockResolvedValue({ data: undefined });
+  it.each(submissions)('%s accepts a confirmed result', async (_kind, submit, data) => {
+    mockAuthenticatedPost.mockResolvedValueOnce({ data });
+    await expect(submit()).resolves.toEqual(data);
+  });
+
+  it.each(submissions)(
+    '%s treats negative and incomplete responses as unconfirmed',
+    async (_kind, submit) => {
+      for (const data of [
+        { success: false },
+        undefined,
+        { success: true },
+        { success: true, post: null, posts: [], reply: null },
+        { success: true, post: {}, posts: [{}], reply: {} },
+      ]) {
+        mockAuthenticatedPost.mockResolvedValueOnce({ data });
+        await expect(submit()).rejects.toThrow();
+      }
+    },
+  );
+
+  it('does not treat a partial thread response as confirmation of the whole thread', async () => {
+    mockAuthenticatedPost.mockResolvedValueOnce({ data: { success: true, posts: [{ id: 'p' }] } });
     await expect(
-      feedService.createReply({ postId: 'parent-1', content: { text: 'hi' } }),
-    ).resolves.toEqual({ success: true, reply: null });
+      feedService.createThread({
+        posts: [{ content: { text: 'one' } }, { content: { text: 'two' } }],
+      } as never),
+    ).rejects.toThrow();
   });
 });

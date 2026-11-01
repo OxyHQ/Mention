@@ -1693,6 +1693,8 @@
   "post.boostUnavailable": "This post is no longer available",
   "post.quoteUnavailable": "This quoted post is unavailable",
   "compose": {
+    "replyUnconfirmed": "Could not confirm your reply. Check the conversation before trying again.",
+    "publishUnconfirmed": "Could not confirm publication. Check your posts before trying again.",
     "languages": {
       "pickerTitle": "Post language",
       "alreadyAdded": "Already added",
@@ -2567,7 +2569,7 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "publishFailed": "Could not confirm publication. Check your posts before trying again. Your capture is still here.",
     "preparing": "Preparing…",
     "recordingFailed": "Recording failed. Please try again.",
     "open": "Open camera"

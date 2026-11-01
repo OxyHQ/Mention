@@ -2173,7 +2173,7 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "publishFailed": "Impossibile confermare la pubblicazione. Controlla i tuoi post prima di riprovare. La tua acquisizione è ancora qui.",
     "preparing": "Preparazione…",
     "recordingFailed": "Registrazione non riuscita. Riprova.",
     "open": "Apri fotocamera"
@@ -2443,6 +2443,8 @@
     "open": "Apri"
   },
   "compose": {
+    "replyUnconfirmed": "Impossibile confermare la risposta. Controlla la conversazione prima di riprovare.",
+    "publishUnconfirmed": "Impossibile confermare la pubblicazione. Controlla i tuoi post prima di riprovare.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

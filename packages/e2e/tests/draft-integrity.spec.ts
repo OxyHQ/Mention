@@ -1,5 +1,10 @@
 import type { Page } from '@playwright/test';
-import { DRAFT_KEY, installDraftFixture, type FixtureDraft } from '../draftFixture';
+import {
+  DRAFT_KEY,
+  DRAFT_VIEWER_ID,
+  installDraftFixture,
+  type FixtureDraft,
+} from '../draftFixture';
 import { APP_ORIGIN } from '../environment';
 import { expect, test } from '../fixtures';
 
@@ -42,7 +47,21 @@ async function holdPublication(
     markStarted();
     await gate;
     await route.fulfill({
-      json: { success: true, post: null },
+      json: {
+        success: true,
+        post: {
+          id: 'draft-fixture-published',
+          user: { id: DRAFT_VIEWER_ID, username: DRAFT_VIEWER_ID },
+          content: { text: 'Fixture post' },
+          attachments: {},
+          documents: [],
+          authors: [],
+          engagement: { likes: 0, replies: 0, boosts: 0, saves: 0, downvotes: 0 },
+          viewerState: {},
+          permissions: {},
+          metadata: { status: 'published', createdAt: new Date().toISOString() },
+        },
+      },
       headers: {
         'access-control-allow-origin': APP_ORIGIN,
         'access-control-allow-credentials': 'true',

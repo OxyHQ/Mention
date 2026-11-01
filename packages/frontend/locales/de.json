@@ -2146,7 +2146,7 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "publishFailed": "Die Veröffentlichung konnte nicht bestätigt werden. Prüfe deine Beiträge, bevor du es erneut versuchst. Deine Aufnahme ist noch da.",
     "preparing": "Vorbereitung…",
     "recordingFailed": "Die Aufnahme ist fehlgeschlagen. Bitte versuche es erneut.",
     "open": "Kamera öffnen"
@@ -2414,6 +2414,8 @@
     "open": "Öffnen"
   },
   "compose": {
+    "replyUnconfirmed": "Deine Antwort konnte nicht bestätigt werden. Prüfe die Unterhaltung, bevor du es erneut versuchst.",
+    "publishUnconfirmed": "Die Veröffentlichung konnte nicht bestätigt werden. Prüfe deine Beiträge, bevor du es erneut versuchst.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

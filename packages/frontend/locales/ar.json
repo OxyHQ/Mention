@@ -2252,7 +2252,7 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "publishFailed": "تعذر تأكيد النشر. تحقّق من منشوراتك قبل المحاولة مجددًا. لا تزال اللقطة محفوظة هنا.",
     "preparing": "جارٍ التحضير…",
     "recordingFailed": "فشل التسجيل. يُرجى المحاولة مرة أخرى.",
     "open": "فتح الكاميرا"
@@ -2528,6 +2528,8 @@
     "open": "فتح"
   },
   "compose": {
+    "replyUnconfirmed": "تعذر تأكيد ردك. تحقّق من المحادثة قبل المحاولة مجددًا.",
+    "publishUnconfirmed": "تعذر تأكيد النشر. تحقّق من منشوراتك قبل المحاولة مجددًا.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",
