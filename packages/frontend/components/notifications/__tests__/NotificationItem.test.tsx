@@ -533,26 +533,34 @@ describe('NotificationItem — collaboration invite', () => {
     expect(targets[0].props.accessibilityRole).toBe('button');
   });
 
-  it.each(['collaboration', 'expandable group'])('separates controls for %s rows', async (kind) => {
-    const source = collabInviteItem();
-    const item =
-      kind === 'collaboration'
-        ? source
-        : ({
-            ...source,
-            type: 'like',
-            isGroup: true,
-            expandable: true,
-            totalActors: 2,
-            actors: [
-              { id: 'owner-1', name: 'Owner', username: 'owner' },
-              { id: 'other-1', name: 'Other', username: 'other' },
-            ],
-            leadNotification: { ...source.leadNotification, type: 'like' },
-          } as GroupedNotification);
-    const { renderer } = await renderRow(PENDING, { item });
+  it.each([
+    ['pending', PENDING],
+    ['accepted', ACCEPTED],
+    ['declined', DECLINED],
+  ])('keeps the same separated gesture structure for a %s invite', async (_label, state) => {
+    const { renderer } = await renderRow(state as PostViewerState);
     const targets = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function');
     expect(targets).toHaveLength(3);
+    expect(targets.filter((node) => node.props.accessibilityRole === 'button')).toHaveLength(1);
+  });
+
+  it('retains the common gesture structure for expandable groups', async () => {
+    const source = collabInviteItem();
+    const item = {
+      ...source,
+      type: 'like',
+      isGroup: true,
+      expandable: true,
+      totalActors: 2,
+      actors: [
+        { id: 'owner-1', name: 'Owner', username: 'owner' },
+        { id: 'other-1', name: 'Other', username: 'other' },
+      ],
+      leadNotification: { ...source.leadNotification, type: 'like' },
+    } as GroupedNotification;
+    const { renderer } = await renderRow(PENDING, { item });
+    const targets = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function');
+    expect(targets).toHaveLength(1);
     expect(targets.filter((node) => node.props.accessibilityRole === 'button')).toHaveLength(1);
   });
 
