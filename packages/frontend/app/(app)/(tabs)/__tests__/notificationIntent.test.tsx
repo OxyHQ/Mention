@@ -432,6 +432,56 @@ it('keeps the confirmation open across a same-session token refresh', async () =
   expect(mockTokenListeners.size).toBe(1);
 });
 
+it('does not mark all if the session changes after confirmation resolves but before continuation', async () => {
+  let confirm!: (yes: boolean) => void;
+  mockConfirm.mockReturnValue(
+    new Promise<boolean>((resolve) => {
+      confirm = resolve;
+    }),
+  );
+  await mount();
+  await act(async () => {
+    markAllButton().props.onPress();
+    await tick();
+  });
+  await act(async () => {
+    confirm(true);
+    mockEpoch++;
+    for (const listener of mockTokenListeners) listener();
+    await tick();
+    await tick();
+  });
+  expect(mockMarkAll).not.toHaveBeenCalled();
+  expect(mockAuthListeners.size).toBe(0);
+  expect(mockTokenListeners.size).toBe(1);
+});
+
+it('does not mark all after the screen unmount is committed', async () => {
+  let confirm!: (yes: boolean) => void;
+  mockConfirm.mockReturnValue(
+    new Promise<boolean>((resolve) => {
+      confirm = resolve;
+    }),
+  );
+  await mount();
+  await act(async () => {
+    markAllButton().props.onPress();
+    await tick();
+  });
+  act(() => {
+    confirm(true);
+    renderer?.unmount();
+    renderer = undefined;
+  });
+  await act(async () => {
+    await tick();
+    await tick();
+  });
+  expect(mockMarkAll).not.toHaveBeenCalled();
+  expect(mockAuthListeners.size).toBe(0);
+  expect(mockTokenListeners.size).toBe(0);
+});
+
 it('still submits and reports a successful mark-all for the same session', async () => {
   mockConfirm.mockResolvedValue(true);
   mockMarkAll.mockResolvedValue({ message: 'ok' });
