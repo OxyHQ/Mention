@@ -102,7 +102,10 @@ jest.mock('../notificationDescriptors', () => ({
 }));
 jest.mock('@/lib/utils', () => ({ cn: (...args: unknown[]) => args.filter(Boolean).join(' ') }));
 jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(), presentCancelableSheet: jest.fn() }));
-jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
+jest.mock('@/components/common/ActionMenu', () => ({
+  showActionMenu: jest.fn(),
+  showCancelableActionMenu: jest.fn(),
+}));
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));

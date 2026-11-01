@@ -186,6 +186,7 @@ jest.mock('@/utils/sheet', () => ({
 const mockShowActionMenu = jest.fn();
 jest.mock('@/components/common/ActionMenu', () => ({
   showActionMenu: (...args: unknown[]) => mockShowActionMenu(...args),
+  showCancelableActionMenu: (...args: unknown[]) => mockShowActionMenu(...args),
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({

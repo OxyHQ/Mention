@@ -38,7 +38,7 @@ import { normalizeApiError } from '@/utils/apiError';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { presentCancelableSheet } from '@/utils/sheet';
-import { showActionMenu } from '@/components/common/ActionMenu';
+import { showCancelableActionMenu } from '@/components/common/ActionMenu';
 import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
 import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { feedService } from '@/services/feedService';
@@ -520,7 +520,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     const intent = captureIntent();
     if (!intent) return;
     void ownNotificationSurface(intent, (signal) =>
-      showActionMenu({
+      showCancelableActionMenu({
         signal,
         label: t('common.options', { defaultValue: 'Options' }),
         groups: [

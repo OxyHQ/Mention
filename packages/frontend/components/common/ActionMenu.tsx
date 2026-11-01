@@ -39,8 +39,6 @@ interface ActionMenuRequest {
   label: string;
   /** One card per group. Empty groups are dropped. */
   groups: ActionMenuAction[][];
-  /** Optional owner: abort closes only this menu. */
-  signal?: AbortSignal;
 }
 
 /** The menu currently on screen, so `hideActionMenu()` can dismiss it. */
@@ -60,7 +58,7 @@ let activeMenu: SurfaceControls | null = null;
  * A row requests the menu's dismissal before running its action; the exit
  * animation may still be in progress when the action runs.
  */
-export function showActionMenu(request: ActionMenuRequest): Promise<void> {
+function presentActionMenu(request: ActionMenuRequest & { signal?: AbortSignal }): Promise<void> {
   if (request.signal?.aborted) return Promise.resolve();
   activeMenu?.dismiss();
   if (request.signal?.aborted) return Promise.resolve();
@@ -88,6 +86,17 @@ export function showActionMenu(request: ActionMenuRequest): Promise<void> {
   return presentation.then(() => {
     if (activeMenu === own) activeMenu = null;
   });
+}
+
+export function showActionMenu(request: ActionMenuRequest): void {
+  void presentActionMenu(request);
+}
+
+/** Present a menu bound to one owner without changing the historical API. */
+export function showCancelableActionMenu(
+  request: ActionMenuRequest & { signal: AbortSignal },
+): Promise<void> {
+  return presentActionMenu(request);
 }
 
 /** Close the action menu without running an action. */

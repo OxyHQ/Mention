@@ -108,12 +108,18 @@ describe('action menu wiring', () => {
       // host rather than hand-rolling a third one.
       join('app', '(app)', 'lanes.tsx'),
       join('components', 'Feed', 'showRepostMenu.tsx'),
-      // A notification's long-press: mark as read, delete.
-      join('components', 'notifications', 'NotificationItem.tsx'),
       // Opening Allo (a profile's Message, a post's Send) when it is not
       // installed: get Allo, or open it on the web (#1140).
       join('hooks', 'useOpenInAllo.tsx'),
     ]);
+  });
+
+  it('uses an owned menu for notification long presses', () => {
+    const source = readFileSync(
+      join(FRONTEND, 'components', 'notifications', 'NotificationItem.tsx'),
+      'utf8',
+    );
+    expect(source).toMatch(/showCancelableActionMenu\(/);
   });
 
   // Dialog on a wide viewport, bottom sheet on a phone — the placement is the
