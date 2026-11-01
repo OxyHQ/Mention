@@ -9,6 +9,7 @@ import type { EventData } from './useEventManager';
 import type { RoomAttachmentData } from './useRoomManager';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerStorageKey } from '@/lib/viewerQueryKeys';
+import { draftMutationQueue } from '@/utils/draftMutationQueue';
 import { useRefSync } from '@/hooks/useRefSync';
 
 const logger = createLogger('useDrafts');
@@ -175,21 +176,23 @@ export const useDrafts = () => {
         throw new Error('An authenticated viewer is required to save drafts');
       }
       try {
-        const currentDrafts = await readStoredDrafts(operationViewerId);
-        const now = Date.now();
-        const draftId = draft.id || `draft_${now}_${Math.random().toString(36).slice(2, 11)}`;
-        const existing = currentDrafts.find((d) => d.id === draftId);
+        return await draftMutationQueue.run(operationViewerId, async () => {
+          const currentDrafts = await readStoredDrafts(operationViewerId);
+          const now = Date.now();
+          const draftId = draft.id || `draft_${now}_${Math.random().toString(36).slice(2, 11)}`;
+          const existing = currentDrafts.find((d) => d.id === draftId);
 
-        const draftToSave: Draft = {
-          ...draft,
-          id: draftId,
-          createdAt: existing ? existing.createdAt : now,
-          updatedAt: now,
-        };
+          const draftToSave: Draft = {
+            ...draft,
+            id: draftId,
+            createdAt: existing ? existing.createdAt : now,
+            updatedAt: now,
+          };
 
-        // Newest first, as the list is kept: the saved draft is the newest.
-        await saveDrafts([draftToSave, ...currentDrafts.filter((d) => d.id !== draftId)]);
-        return draftId;
+          // Newest first, as the list is kept: the saved draft is the newest.
+          await saveDrafts([draftToSave, ...currentDrafts.filter((d) => d.id !== draftId)]);
+          return draftId;
+        });
       } catch (error) {
         logger.error('Error saving draft', error);
         throw error;
@@ -206,21 +209,23 @@ export const useDrafts = () => {
         throw new Error('An authenticated viewer is required to delete drafts');
       }
       try {
-        logger.debug(`deleteDraft called with draftId: ${draftId}`);
-        const currentDrafts = await readStoredDrafts(operationViewerId);
-        if (viewerIdRef.current !== operationViewerId) {
-          throw new Error('Draft owner changed before deletion');
-        }
+        await draftMutationQueue.run(operationViewerId, async () => {
+          logger.debug(`deleteDraft called with draftId: ${draftId}`);
+          const currentDrafts = await readStoredDrafts(operationViewerId);
+          if (viewerIdRef.current !== operationViewerId) {
+            throw new Error('Draft owner changed before deletion');
+          }
 
-        // Filter out the draft to delete
-        const newDrafts = currentDrafts.filter((d) => d.id !== draftId);
-        logger.debug(
-          `Drafts after filtering: ${newDrafts.length}, removed: ${currentDrafts.length - newDrafts.length}`,
-        );
+          // Filter out the draft to delete
+          const newDrafts = currentDrafts.filter((d) => d.id !== draftId);
+          logger.debug(
+            `Drafts after filtering: ${newDrafts.length}, removed: ${currentDrafts.length - newDrafts.length}`,
+          );
 
-        // Save the updated drafts list
-        await saveDrafts(newDrafts);
-        logger.debug('Drafts saved to storage');
+          // Save the updated drafts list
+          await saveDrafts(newDrafts);
+          logger.debug('Drafts saved to storage');
+        });
       } catch (error) {
         logger.error('Error deleting draft', error);
         throw error;
@@ -245,12 +250,14 @@ export const useDrafts = () => {
       return;
     }
     try {
-      const removed = await Storage.remove(getDraftsStorageKey(operationViewerId));
-      if (!removed) throw new Error('Failed to clear drafts');
-      if (viewerIdRef.current === operationViewerId) {
-        setDrafts([]);
-        setIsError(false);
-      }
+      await draftMutationQueue.run(operationViewerId, async () => {
+        const removed = await Storage.remove(getDraftsStorageKey(operationViewerId));
+        if (!removed) throw new Error('Failed to clear drafts');
+        if (viewerIdRef.current === operationViewerId) {
+          setDrafts([]);
+          setIsError(false);
+        }
+      });
     } catch (error) {
       logger.error('Error clearing drafts', error);
       throw error;
