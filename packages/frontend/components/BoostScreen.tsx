@@ -46,7 +46,8 @@ const BoostScreen: React.FC = () => {
   const [originalPost, setOriginalPost] = useState<FeedItem | null>(null);
   const textInputRef = useRef<TextInputInstance>(null);
 
-  const { getPostById, createBoost } = usePostsStore();
+  const getPostById = usePostsStore((state) => state.getPostById);
+  const createBoost = usePostsStore((state) => state.createBoost);
 
   useEffect(() => {
     const loadOriginal = async () => {

@@ -217,7 +217,10 @@ export function useInfiniteRecommendations(
         pageParam ?? undefined,
       ),
     initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) =>
+      lastPage.nextCursor && !pageParams.includes(lastPage.nextCursor)
+        ? lastPage.nextCursor
+        : undefined,
     enabled,
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
   });

@@ -55,7 +55,7 @@ export function startHomeFeedBootRead(): void {
   }
 
   let stopped = false;
-  const unsubscribe = oxyServices.http.addTokenChangeListener((token) => {
+  const onToken = (token: string | null) => {
     if (!token || stopped) return;
     stop();
     void languageReady.then(() => {
@@ -63,11 +63,14 @@ export function startHomeFeedBootRead(): void {
       // Still the same bearer when the request leaves, and it names an account.
       if (viewerId && accessToken() === token) startBootFeedRead(viewerId);
     });
-  });
+  };
+  const unsubscribe = oxyServices.http.addTokenChangeListener(onToken);
   const timer = setTimeout(() => stop(), SESSION_WAIT_MS);
   function stop() {
     stopped = true;
     clearTimeout(timer);
     unsubscribe();
   }
+  // The listener only reports changes; the session may already have landed.
+  onToken(accessToken());
 }

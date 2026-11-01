@@ -1,5 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
+import { useLinksStore } from '@/stores/linksStore';
 import { useLinkDetection } from '../useLinkDetection';
 
 /**
@@ -31,9 +32,16 @@ jest.mock('@/services/feedService', () => ({
 jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
-jest.mock('@/stores/linksStore', () => ({
-  useLinksStore: () => ({ getCached: mockGetCached, upsertLink: mockUpsertLink }),
-}));
+jest.mock('@/stores/linksStore', () => {
+  const { create } = jest.requireActual<typeof import('zustand')>('zustand');
+  return {
+    useLinksStore: create(() => ({
+      dataVersion: 0,
+      getCached: (...args: unknown[]) => mockGetCached(...args),
+      upsertLink: (...args: unknown[]) => mockUpsertLink(...args),
+    })),
+  };
+});
 
 function Probe({ text }: { text: string }) {
   useLinkDetection(text);
@@ -42,13 +50,16 @@ function Probe({ text }: { text: string }) {
 
 /** Which URLs the composer actually asked for a preview of. */
 async function requestedPreviewUrls(text: string): Promise<string[]> {
+  let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    TestRenderer.create(<Probe text={text} />);
+    renderer = TestRenderer.create(<Probe text={text} />);
   });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(600);
   });
-  return mockResolve.mock.calls.flatMap(([urls]) => urls as string[]);
+  const urls = mockResolve.mock.calls.flatMap(([requested]) => requested as string[]);
+  act(() => renderer.unmount());
+  return urls;
 }
 
 function preview(url: string) {
@@ -83,6 +94,69 @@ it('asks for every uncached link in one backend call', async () => {
   expect(urls).toEqual(['https://example.com/a', 'https://example.org/b']);
   expect(mockUpsertLink).toHaveBeenCalledTimes(2);
 });
+
+it('does not rerender when an unrelated link cache entry changes', () => {
+  let renders = 0;
+  function RenderProbe() {
+    renders += 1;
+    useLinkDetection('');
+    return null;
+  }
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = TestRenderer.create(<RenderProbe />);
+  });
+  const before = renders;
+  act(() => useLinksStore.setState((state) => ({ dataVersion: state.dataVersion + 1 })));
+  expect(renders).toBe(before);
+  act(() => tree.unmount());
+});
+
+it.each(['before', 'after'] as const)(
+  'ignores an aborted preview response settling %s the newer request',
+  async (order) => {
+    type PreviewResponse = { previews: ReturnType<typeof preview>[]; pending: string[] };
+    let resolveOld!: (response: PreviewResponse) => void;
+    let resolveNew!: (response: PreviewResponse) => void;
+    mockResolve
+      .mockReturnValueOnce(new Promise<PreviewResponse>((resolve) => (resolveOld = resolve)))
+      .mockReturnValueOnce(new Promise<PreviewResponse>((resolve) => (resolveNew = resolve)));
+    let result!: ReturnType<typeof useLinkDetection>;
+    function RenderProbe({ text }: { text: string }) {
+      result = useLinkDetection(text);
+      return null;
+    }
+    let tree!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<RenderProbe text="https://example.com/old" />);
+    });
+    await act(async () => jest.advanceTimersByTimeAsync(500));
+    act(() => tree.update(<RenderProbe text="https://example.com/new" />));
+    await act(async () => jest.advanceTimersByTimeAsync(500));
+    const finishOld = () =>
+      act(async () => {
+        resolveOld({ previews: [preview('https://example.com/old')], pending: [] });
+        await Promise.resolve();
+      });
+    const finishNew = () =>
+      act(async () => {
+        resolveNew({ previews: [preview('https://example.com/new')], pending: [] });
+        await Promise.resolve();
+      });
+    if (order === 'before') {
+      await finishOld();
+      expect(result.isLoading).toBe(true);
+      expect(result.detectedLinks).toEqual([]);
+      await finishNew();
+    } else {
+      await finishNew();
+      await finishOld();
+    }
+    expect(result.isLoading).toBe(false);
+    expect(result.detectedLinks.map((link) => link.url)).toEqual(['https://example.com/new']);
+    act(() => tree.unmount());
+  },
+);
 
 it('uses cached metadata without another request', async () => {
   mockGetCached.mockReturnValue({
@@ -166,8 +240,9 @@ describe('the composer resolves only what it does not already have', () => {
       return null;
     }
 
+    let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      TestRenderer.create(
+      renderer = TestRenderer.create(
         <Reader text="https://example.org/fresh then https://example.com/cached" />,
       );
     });
@@ -180,6 +255,7 @@ describe('the composer resolves only what it does not already have', () => {
       'https://example.org/fresh',
       'https://example.com/cached',
     ]);
+    act(() => renderer.unmount());
   });
 });
 
@@ -211,6 +287,7 @@ describe('an answer that arrives after the draft changed', () => {
       settle(settleFirst as (value: unknown) => void, failFirst as (error: unknown) => void);
       await jest.advanceTimersByTimeAsync(600);
     });
+    act(() => renderer?.unmount());
   }
 
   it('is dropped rather than cached', async () => {

@@ -1,6 +1,7 @@
 import { OxyServices } from '@oxy.so/core';
 const mockGetFeed = jest.fn();
 const mockAddPosts = jest.fn();
+const mockRefreshObservedRooms = jest.fn();
 const mockState = { feedUI: { for_you: { isLoading: false } }, addPostsToFeed: mockAddPosts };
 const mockHandlers = new Map<string, (value?: unknown) => void>();
 const mockSocket = {
@@ -18,7 +19,7 @@ jest.mock('@/stores/postsStore', () => ({
   usePostsStore: { getState: () => mockState, subscribe: () => () => {} },
 }));
 jest.mock('@/stores/liveRoomsStore', () => ({
-  useLiveRoomsStore: { getState: () => ({ fetchLiveRooms: jest.fn() }) },
+  useLiveRoomsStore: { getState: () => ({ refreshObservedLiveRooms: mockRefreshObservedRooms }) },
 }));
 jest.mock('../feedService', () => ({
   feedService: { getFeed: (...args: unknown[]) => mockGetFeed(...args) },
@@ -108,6 +109,16 @@ describe('feed broadcasts carry invalidation, not content authority', () => {
     signal({ type: 'for_you', post: { id: 'unavailable' } });
     await flush();
     expect(mockAddPosts).not.toHaveBeenCalled();
+  });
+  it('coalesces room signals and delegates to the observed-only refresh', async () => {
+    const roomSignal = mockHandlers.get('rooms:live:updated');
+    expect(roomSignal).toBeDefined();
+    roomSignal?.();
+    roomSignal?.();
+    roomSignal?.();
+    expect(mockRefreshObservedRooms).not.toHaveBeenCalled();
+    await flush();
+    expect(mockRefreshObservedRooms).toHaveBeenCalledTimes(1);
   });
 });
 

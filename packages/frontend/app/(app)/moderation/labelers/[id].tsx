@@ -428,7 +428,6 @@ const LabelerDetailScreen: React.FC = () => {
     >
       <ScreenScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

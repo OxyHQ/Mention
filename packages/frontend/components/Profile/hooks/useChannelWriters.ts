@@ -54,8 +54,11 @@ export function useChannelWriters(channelOxyUserId: string | undefined): Channel
     queryKey: viewerQueryKeys.channelWriters(user?.id, channelOxyUserId),
     queryFn: ({ pageParam }) => channelWritersService.list(channelOxyUserId ?? '', pageParam),
     initialPageParam: undefined as string | undefined,
-    // The absence of `nextCursor` is the end of the list.
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    // Stop if the server returns an already visited cursor.
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) =>
+      lastPage.nextCursor && !pageParams.includes(lastPage.nextCursor)
+        ? lastPage.nextCursor
+        : undefined,
     enabled: Boolean(channelOxyUserId),
     // A failure here is an ANSWER — "no writers list" — not something to recover
     // from, so retrying it spends three requests per page view to arrive back at

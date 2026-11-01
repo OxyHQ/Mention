@@ -75,7 +75,7 @@ export default function PlusScreen() {
 
   return (
     <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
-      <ScreenScrollView showsVerticalScrollIndicator={false}>
+      <ScreenScrollView>
         <SubscriptionPlans
           productName="Mention"
           plans={plans}
