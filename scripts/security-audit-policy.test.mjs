@@ -141,7 +141,7 @@ for (const [name, mutate] of [
     assert.equal(exceptionMatches(input), false);
   });
 
-test('approved review expires immediately after November 4 UTC', () => {
+test('a guarded review expires immediately after its UTC cutoff', () => {
   const input = base();
   assert.equal(input.entry.expires, '2026-11-04');
   input.today = new Date('2026-11-04T23:59:59.999Z');
