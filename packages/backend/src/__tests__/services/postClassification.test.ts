@@ -1767,8 +1767,12 @@ describe('PostClassificationService — Jev shadow lane', () => {
     await padBatch(1);
     respondWith([]);
     let signal: AbortSignal | undefined;
+    // Preparation uses real database I/O. Freeze the cycle's clock until the
+    // evaluator starts so database load cannot consume the budget first.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
     const evaluate = vi.fn((input: { signal: AbortSignal }) => {
       signal = input.signal;
+      clock.mockRestore();
       return new Promise<jevShadow.ShadowSignals>(() => {});
     });
     const originalTimeout = config.inference.timeoutMs;
@@ -1776,10 +1780,38 @@ describe('PostClassificationService — Jev shadow lane', () => {
     try {
       await new PostClassificationService({ release, evaluate }).processQueue();
     } finally {
+      clock.mockRestore();
       config.inference.timeoutMs = originalTimeout;
     }
+    expect(evaluate).toHaveBeenCalledTimes(1);
     expect(signal?.aborted).toBe(true);
     expect(await ledgerOf(post.id)).toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
+  });
+
+  it('does not claim or send when preparation exhausts the cycle deadline', async () => {
+    const post = await englishSubject('Synthetic slow preparation');
+    await padBatch(1);
+    respondWith([]);
+    const originalTimeout = config.inference.timeoutMs;
+    config.inference.timeoutMs = 500;
+    const start = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(start);
+    const listCandidates = vi
+      .spyOn(evaluationRepository, 'listShadowCandidates')
+      .mockImplementation(async () => {
+        clock.mockReturnValue(start + config.inference.timeoutMs);
+        return [post.id];
+      });
+    const evaluate = vi.fn();
+    try {
+      await new PostClassificationService({ release, evaluate }).processQueue();
+    } finally {
+      clock.mockRestore();
+      config.inference.timeoutMs = originalTimeout;
+    }
+    expect(listCandidates).toHaveBeenCalledTimes(1);
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(await ledgerOf(post.id)).toEqual([]);
   });
 
   it('recovers missing usage in the cycle without evaluating the original claim again', async () => {
