@@ -40,17 +40,15 @@ jest.mock('@/services/notificationService', () => ({
 jest.mock('@/components/notifications/NotificationItem', () => {
   const React = require('react');
   return {
-    NotificationItem: React.memo(
-      (props: {
-        item: { key: string };
-        onMarkAsRead: (ids: string[]) => void;
-        onDelete: (ids: string[]) => void;
-      }) => {
-        mockRows[props.item.key] = props;
-        mockRenders.push(props.item.key);
-        return null;
-      },
-    ),
+    NotificationItem: React.memo(function MockNotificationItem(props: {
+      item: { key: string };
+      onMarkAsRead: (ids: string[]) => void;
+      onDelete: (ids: string[]) => void;
+    }) {
+      mockRows[props.item.key] = props;
+      mockRenders.push(props.item.key);
+      return null;
+    }),
   };
 });
 jest.mock('@/components/NotificationsList', () => {
