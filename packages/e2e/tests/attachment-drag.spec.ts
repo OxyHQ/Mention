@@ -65,6 +65,22 @@ test('dragging post images scrolls the row without opening the viewer; clicking 
       }
       throw new Error('image has no horizontal scroll host');
     });
+  // Inspect the browser's actual window listeners: a mounted carousel must
+  // subscribe to pointer movement only while its mouse gesture is active.
+  const cdp = await page.context().newCDPSession(page);
+  const windowListeners = async (): Promise<Record<string, number>> => {
+    const { result, exceptionDetails } = await cdp.send('Runtime.evaluate', {
+      expression: `(() => {
+        const listeners = getEventListeners(window);
+        return Object.fromEntries(['blur', 'mouseup', 'mousemove'].map((type) => [type, (listeners[type] ?? []).length]));
+      })()`,
+      includeCommandLineAPI: true,
+      returnByValue: true,
+    });
+    if (exceptionDetails) throw new Error('Could not inspect window listeners');
+    return result.value as Record<string, number>;
+  };
+  const idleListeners = await windowListeners();
   const box = await image.boundingBox();
   if (!box) throw new Error('image has no layout');
   const x = box.x + Math.min(box.width - 20, 240);
@@ -72,8 +88,14 @@ test('dragging post images scrolls the row without opening the viewer; clicking 
   // Even a stationary press is cancelled when the window loses focus.
   await page.mouse.move(x, y);
   await page.mouse.down();
+  await expect.poll(windowListeners).toEqual({
+    blur: idleListeners.blur + 1,
+    mouseup: idleListeners.mouseup + 1,
+    mousemove: idleListeners.mousemove + 1,
+  });
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await page.mouse.up();
+  await expect.poll(windowListeners).toEqual(idleListeners);
   await expect(page.getByRole('button', { name: 'Close media viewer', exact: true })).toHaveCount(
     0,
   );

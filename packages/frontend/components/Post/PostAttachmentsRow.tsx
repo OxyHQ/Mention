@@ -902,11 +902,17 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         startXPos = event.pageX;
         startScrollLeft = element.scrollLeft;
         element.style.userSelect = 'none';
+        window.addEventListener('blur', cancelDragging);
+        window.addEventListener('mouseup', stopDragging);
+        window.addEventListener('mousemove', handleMouseMove);
       };
 
       const stopDragging = () => {
         if (!isDragging) return;
         isDragging = false;
+        window.removeEventListener('blur', cancelDragging);
+        window.removeEventListener('mouseup', stopDragging);
+        window.removeEventListener('mousemove', handleMouseMove);
         element.style.removeProperty('user-select');
       };
 
@@ -941,17 +947,12 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       element.addEventListener('mousedown', handleMouseDown);
       element.addEventListener('dragstart', preventNativeDrag);
       element.addEventListener('click', handleClickCapture, true);
-      window.addEventListener('blur', cancelDragging);
-      window.addEventListener('mouseup', stopDragging);
-      window.addEventListener('mousemove', handleMouseMove);
 
       return () => {
         element.removeEventListener('mousedown', handleMouseDown);
         element.removeEventListener('dragstart', preventNativeDrag);
         element.removeEventListener('click', handleClickCapture, true);
-        window.removeEventListener('blur', cancelDragging);
-        window.removeEventListener('mouseup', stopDragging);
-        window.removeEventListener('mousemove', handleMouseMove);
+        stopDragging();
         element.style.removeProperty('user-select');
       };
     }, [items.length]);
