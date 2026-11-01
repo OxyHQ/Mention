@@ -271,91 +271,104 @@ test('a retained failure does not toast under the new viewer', async ({ page, ca
   }
 });
 
-test('a collaboration sheet opened by A cannot answer after A→B→A', async ({ page, candidate }) => {
-  const fixture = await installSwitchingFixture(page);
-  await page.route('**/notifications/_viewer/inbox?*', (route) => {
-    if (new URL(route.request().url()).origin === APP_ORIGIN) return route.fallback();
-    if (route.request().method() === 'OPTIONS') return route.fallback();
-    const current = fixture.viewer();
-    if (!current || !fixtureViewerMatchesRequest(route.request(), current))
-      return route.fulfill({
-        status: 409,
-        headers: fixture.headers,
-        json: { code: 'VIEWER_CHANGED' },
-      });
-    const notifications =
-      fixture.viewer() === userA
-        ? [
-            {
-              _id: 'collab-notification',
-              recipientId: userA,
-              actorId: userA,
-              type: 'collab_invite',
-              entityId: 'collab-post',
-              entityType: 'post',
-              read: false,
-              createdAt: new Date().toISOString(),
-              actorId_populated: {
-                id: userA,
-                username: userA,
-                name: { displayName: 'Navigation Viewer' },
-              },
-            },
-          ]
-        : [];
-    return route.fulfill({
-      headers: fixture.headers,
-      json: { notifications, unreadCount: notifications.length, hasMore: false, limit: 20 },
+for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
+  test(`a collaboration sheet opened by A closes after ${scenario}`, async ({
+    page,
+    candidate,
+  }) => {
+    const fixture = await installSwitchingFixture(page);
+    const writes: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (request.method() === 'POST' && path.includes('/collaborators/')) writes.push(path);
     });
-  });
-  await page.route('**/feed/item/collab-post', (route) =>
-    route.fulfill({
-      headers: fixture.headers,
-      json: {
-        id: 'collab-post',
-        user: profile(userA),
-        content: { text: 'Collaboration fixture' },
-        visibility: 'public',
-        attachments: {},
-        authors: [],
-        permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: true },
-        metadata: {
-          status: 'published',
+    await page.route('**/notifications/_viewer/inbox?*', (route) => {
+      if (new URL(route.request().url()).origin === APP_ORIGIN) return route.fallback();
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      const current = fixture.viewer();
+      if (!current || !fixtureViewerMatchesRequest(route.request(), current))
+        return route.fulfill({
+          status: 409,
+          headers: fixture.headers,
+          json: { code: 'VIEWER_CHANGED' },
+        });
+      const notifications =
+        fixture.viewer() === userA
+          ? [
+              {
+                _id: 'collab-notification',
+                recipientId: userA,
+                actorId: userA,
+                type: 'collab_invite',
+                entityId: 'collab-post',
+                entityType: 'post',
+                read: false,
+                createdAt: new Date().toISOString(),
+                actorId_populated: {
+                  id: userA,
+                  username: userA,
+                  name: { displayName: 'Navigation Viewer' },
+                },
+              },
+            ]
+          : [];
+      return route.fulfill({
+        headers: fixture.headers,
+        json: { notifications, unreadCount: notifications.length, hasMore: false, limit: 20 },
+      });
+    });
+    await page.route('**/feed/item/collab-post', (route) =>
+      route.fulfill({
+        headers: fixture.headers,
+        json: {
+          id: 'collab-post',
+          user: profile(userA),
+          content: { text: 'Collaboration fixture' },
           visibility: 'public',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          attachments: {},
+          authors: [],
+          permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: true },
+          metadata: {
+            status: 'published',
+            visibility: 'public',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          engagement: { replies: 0, likes: 0, boosts: 0, saves: 0 },
+          viewerState: {
+            isOwner: false,
+            isLiked: false,
+            isDownvoted: false,
+            isBoosted: false,
+            isSaved: false,
+            isCollaborator: false,
+            collabInvitePending: true,
+            viewerRole: 'collaborator',
+          },
         },
-        engagement: { replies: 0, likes: 0, boosts: 0, saves: 0 },
-        viewerState: {
-          isOwner: false,
-          isLiked: false,
-          isDownvoted: false,
-          isBoosted: false,
-          isSaved: false,
-          isCollaborator: false,
-          collabInvitePending: true,
-          viewerRole: 'collaborator',
-        },
-      },
-    }),
-  );
-  await page.goto('/notifications');
-  await page.getByRole('button', { name: 'Accept', exact: true }).first().click();
-  await expect(page.getByText('Accept invite?', { exact: true })).toBeVisible();
-  await fixture.changeTo(userB);
-  await fixture.changeTo(userA);
-  const unexpected = page
-    .waitForRequest(
-      (request) =>
-        request.method() === 'POST' && new URL(request.url()).pathname.includes('/collaborators/'),
-      { timeout: 1000 },
-    )
-    .catch(() => null);
-  if (await page.getByText('Accept invite?', { exact: true }).isVisible())
-    await page.getByRole('button', { name: 'Accept', exact: true }).last().click();
-  expect(await unexpected).toBeNull();
-  expect(candidate.scriptErrors).toEqual([]);
-});
+      }),
+    );
+    await page.goto('/notifications');
+    await page.getByRole('button', { name: 'Accept', exact: true }).first().click();
+    const question = page.getByText('Accept invite?', { exact: true });
+    await expect(question).toBeVisible();
+    await fixture.changeTo(scenario === 'logout' || scenario === 'relogin' ? null : userB);
+    await expect(question).toHaveCount(0);
+    if (scenario === 'aba' || scenario === 'relogin') await fixture.changeTo(userA);
+    const unexpected = page
+      .waitForRequest(
+        (request) =>
+          request.method() === 'POST' &&
+          new URL(request.url()).pathname.includes('/collaborators/'),
+        { timeout: 1000 },
+      )
+      .catch(() => null);
+    await expect(question).toHaveCount(0);
+    expect(await unexpected).toBeNull();
+    expect(writes).toEqual([]);
+    expect(candidate.scriptErrors).toEqual([]);
+  });
+}
 
 test('a 404 from an older server fails without retrying an old write route', async ({
   page,
