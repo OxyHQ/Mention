@@ -3,6 +3,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { useTranslation } from 'react-i18next';
 import { Search } from '@oxy.so/bloom/search';
 import { Item } from '@oxy.so/bloom/item';
@@ -37,7 +38,8 @@ export default function CommercePickerSheet({
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       commerceService.products({ query: term || undefined, cursor: pageParam }),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _pageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled: mode === 'products',
     staleTime: 30_000,
   });
@@ -45,7 +47,8 @@ export default function CommercePickerSheet({
     queryKey: viewerQueryKeys.commerceCatalog(user?.id, accountId, null, 'collections'),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => commerceService.storeCollections(accountId ?? '', pageParam),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _pageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled: mode === 'collections' && Boolean(accountId),
     staleTime: 30_000,
   });
