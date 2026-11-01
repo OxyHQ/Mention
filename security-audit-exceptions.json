@@ -1,30 +1,6 @@
 {
   "exceptions": [
     {
-      "advisory": "GHSA-mh99-v99m-4gvg",
-      "package": "brace-expansion",
-      "scope": "frontend build tooling only",
-      "reason": "Expo, Jest and ESLint still resolve the legacy CommonJS API. Forcing brace-expansion 5 across those dependency contracts is a breaking transitive override.",
-      "compensation": "No server request path or shipped application bundle invokes glob expansion; CI passes only repository-owned paths and patterns.",
-      "expires": "2026-10-31"
-    },
-    {
-      "advisory": "GHSA-vfj7-8cjw-p6xm",
-      "package": "braces",
-      "scope": "Metro and Jest file matching, build and test time only",
-      "reason": "No patched release exists: the advisory covers `<= 3.0.3` and 3.0.3, published 2024-05-21, is the newest version. The lockfile reaches braces only through micromatch, which only metro-file-map, @expo/metro-file-map, jest-haste-map, jest-config, @jest/core, @jest/transform and jest-message-util depend on.",
-      "compensation": "Those tools expand the repository's own committed glob patterns on developer and CI machines. No backend, MCP or shipped app code imports micromatch or braces, so no request reaches the parser, and supplying a malicious pattern requires commit access. DoS-only, CVSS 7.5.",
-      "expires": "2026-10-31"
-    },
-    {
-      "advisory": "GHSA-ch52-4w7c-c8xp",
-      "package": "http-cache-semantics",
-      "scope": "@expo/ngrok tunnel for local development only",
-      "reason": "No patched release exists: the advisory covers `<= 4.2.0` and 4.2.0 is the newest version. The lockfile reaches it only through cacheable-request <- got <- @expo/ngrok, a devDependency of the frontend used to tunnel `expo start --tunnel`.",
-      "compensation": "The tunnel client caches its own requests to the ngrok service on a developer machine. It is not in the backend, the MCP server or any shipped bundle, and it serves no other user, so there is no cross-user cache to disclose.",
-      "expires": "2026-10-31"
-    },
-    {
       "advisory": "GHSA-mrhx-c7xc-m3w5",
       "package": "zod",
       "scope": "Exact reviewed Zod 3.25.76 resolution under Expo tooling (@expo/cli)",

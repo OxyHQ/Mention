@@ -138,8 +138,15 @@ test('missing compensation is invalid', () => {
   delete input.entry.compensation;
   assert.throws(() => exceptionMatches(input), /compensation/);
 });
-test('existing reviewed exceptions retain package, advisory and expiry checks', () => {
-  const legacy = policy.exceptions[0];
+test('reviewed exceptions retain package, advisory and expiry checks', () => {
+  const legacy = {
+    advisory: 'GHSA-example',
+    package: 'example-package',
+    scope: 'test',
+    reason: 'test',
+    compensation: 'test',
+    expires: '2026-10-31',
+  };
   validateAuditException(legacy, new Date('2026-10-24'));
   assert.equal(
     exceptionMatches({
