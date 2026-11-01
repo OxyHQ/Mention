@@ -84,8 +84,10 @@ function referenceOnlyDraft(draft: Draft): Draft {
 
 /** The viewer's drafts as stored — never a list held in some component's state. */
 async function readStoredDrafts(viewerId: string): Promise<Draft[]> {
-  const stored = await Storage.get<Draft[]>(getDraftsStorageKey(viewerId));
-  return Array.isArray(stored) ? stored.map(referenceOnlyDraft) : [];
+  const stored = await Storage.getStrict<unknown>(getDraftsStorageKey(viewerId));
+  if (!stored.found) return [];
+  if (!Array.isArray(stored.value)) throw new Error('Stored drafts are not a list');
+  return (stored.value as Draft[]).map(referenceOnlyDraft);
 }
 
 export const useDrafts = () => {
@@ -104,6 +106,7 @@ export const useDrafts = () => {
   const viewerIdRef = useRefSync(viewerId);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
 
   // Load drafts from storage
   const loadDrafts = useCallback(async () => {
@@ -111,6 +114,7 @@ export const useDrafts = () => {
     if (!operationViewerId) {
       setDrafts([]);
       setIsLoading(false);
+      setIsError(false);
       return;
     }
 
@@ -121,10 +125,11 @@ export const useDrafts = () => {
       // Newest first. Sorted on read too: a list written by an older build may
       // not be in order.
       setDrafts([...storedDrafts].sort((a, b) => b.updatedAt - a.updatedAt));
+      setIsError(false);
     } catch (error) {
       if (viewerIdRef.current !== operationViewerId) return;
       logger.error('Error loading drafts', error);
-      setDrafts([]);
+      setIsError(true);
     } finally {
       if (viewerIdRef.current === operationViewerId) {
         setIsLoading(false);
@@ -140,16 +145,17 @@ export const useDrafts = () => {
         throw new Error('An authenticated viewer is required to save drafts');
       }
       try {
-        await Storage.set(
+        const saved = await Storage.set(
           getDraftsStorageKey(operationViewerId),
           newDrafts.map(referenceOnlyDraft),
         );
+        if (!saved) throw new Error('Failed to write drafts');
         if (viewerIdRef.current === operationViewerId) {
           setDrafts(newDrafts.map(referenceOnlyDraft));
+          setIsError(false);
         }
       } catch (error) {
         logger.error('Error saving drafts', error);
-        if (viewerIdRef.current !== operationViewerId) return;
         throw error;
       }
     },
@@ -202,7 +208,9 @@ export const useDrafts = () => {
       try {
         logger.debug(`deleteDraft called with draftId: ${draftId}`);
         const currentDrafts = await readStoredDrafts(operationViewerId);
-        if (viewerIdRef.current !== operationViewerId) return;
+        if (viewerIdRef.current !== operationViewerId) {
+          throw new Error('Draft owner changed before deletion');
+        }
 
         // Filter out the draft to delete
         const newDrafts = currentDrafts.filter((d) => d.id !== draftId);
@@ -237,9 +245,11 @@ export const useDrafts = () => {
       return;
     }
     try {
-      await Storage.remove(getDraftsStorageKey(operationViewerId));
+      const removed = await Storage.remove(getDraftsStorageKey(operationViewerId));
+      if (!removed) throw new Error('Failed to clear drafts');
       if (viewerIdRef.current === operationViewerId) {
         setDrafts([]);
+        setIsError(false);
       }
     } catch (error) {
       logger.error('Error clearing drafts', error);
@@ -253,6 +263,7 @@ export const useDrafts = () => {
     // device; assigning it to the first restored session would leak drafts.
     void Storage.remove(LEGACY_DRAFTS_STORAGE_KEY).catch(() => {});
     setDrafts([]);
+    setIsError(false);
     if (!viewerId) {
       setIsLoading(false);
       return;
@@ -263,6 +274,7 @@ export const useDrafts = () => {
   return {
     drafts,
     isLoading,
+    isError,
     saveDraft,
     deleteDraft,
     getDraft,

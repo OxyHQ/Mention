@@ -1,4 +1,6 @@
 {
+  "compose.deviceDrafts.loadError": "Не удалось загрузить черновики, сохранённые на этом устройстве",
+  "compose.retryDraftSave": "Повторить сохранение черновика",
   "search.history.updateFailed": "Не удалось обновить историю поиска.",
   "search.history.clearFailed": "Не удалось очистить историю поиска. Попробуйте ещё раз.",
   "post.threadPosition": "Публикация {{index}} из {{total}} в ветке",
