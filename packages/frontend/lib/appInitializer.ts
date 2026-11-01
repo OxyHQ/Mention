@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
-import { hasNotificationPermission, setupNotifications } from '@/utils/notifications';
+import { setupNotifications } from '@/utils/notifications';
 import { logger } from '@oxy.so/core/logger';
 
 export interface InitializationResult {
@@ -33,7 +33,6 @@ async function setupNotificationsIfNeeded(): Promise<void> {
 
   try {
     await setupNotifications();
-    await hasNotificationPermission();
   } catch (error) {
     logger.warn('Failed to setup notifications', { error });
   }

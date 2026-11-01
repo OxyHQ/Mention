@@ -27,18 +27,6 @@ export async function canOfferNotificationPermission(): Promise<boolean> {
   return permission.status === 'undetermined' && permission.canAskAgain;
 }
 
-export async function hasNotificationPermission(): Promise<boolean> {
-  const Notifications = await getNotifications();
-  if (!Notifications) return false;
-  try {
-    const { status } = await Notifications.getPermissionsAsync();
-    return status === 'granted';
-  } catch (e) {
-    logger.warn('Failed to get notification permissions status', { error: e });
-    return false;
-  }
-}
-
 export async function createNotification(
   title: string,
   body: string,
