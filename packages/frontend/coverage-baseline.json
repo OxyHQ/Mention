@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 54.02,
-      "covered": 15324,
-      "total": 28367
+      "pct": 54.66,
+      "covered": 15697,
+      "total": 28715
     },
     "branches": {
-      "pct": 49.43,
-      "covered": 10579,
-      "total": 21401
+      "pct": 50,
+      "covered": 10858,
+      "total": 21713
     },
     "functions": {
-      "pct": 48.75,
-      "covered": 3642,
-      "total": 7470
+      "pct": 49.52,
+      "covered": 3729,
+      "total": 7529
     },
     "lines": {
-      "pct": 54.87,
-      "covered": 13849,
-      "total": 25238
+      "pct": 55.52,
+      "covered": 14164,
+      "total": 25507
     }
   },
   "pins": {
@@ -467,6 +467,18 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useOwnedNotificationSurfaces.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "hooks/usePendingNotificationOperations.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/usePipAspectRatio.ts": {
       "statements": 100,
       "branches": 100,
@@ -726,10 +738,10 @@
       "lines": 88
     },
     "hooks/useUnreadCount.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 70,
+      "branches": 42,
+      "functions": 66,
+      "lines": 77
     },
     "hooks/useVideoFeed.ts": {
       "statements": 99,
@@ -1158,10 +1170,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 52,
-      "branches": 44,
-      "functions": 44,
-      "lines": 53
+      "statements": 54,
+      "branches": 46,
+      "functions": 48,
+      "lines": 55
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1236,10 +1248,10 @@
       "lines": 0
     },
     "services/notificationService.ts": {
-      "statements": 21,
-      "branches": 66,
-      "functions": 16,
-      "lines": 21
+      "statements": 69,
+      "branches": 75,
+      "functions": 88,
+      "lines": 69
     },
     "services/pokeService.ts": {
       "statements": 0,
@@ -1470,10 +1482,10 @@
       "lines": 100
     },
     "utils/alerts.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 50,
+      "branches": 28,
+      "functions": 33,
+      "lines": 50
     },
     "utils/api.ts": {
       "statements": 50,
@@ -1721,7 +1733,25 @@
       "functions": 100,
       "lines": 92
     },
+    "utils/notificationOptimism.ts": {
+      "statements": 95,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/notificationReconciliation.ts": {
+      "statements": 88,
+      "branches": 74,
+      "functions": 100,
+      "lines": 97
+    },
     "utils/notificationRoute.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/notificationSurfaceOwner.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
