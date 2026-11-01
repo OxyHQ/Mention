@@ -6,7 +6,21 @@ import { exceptionMatches, validateAuditException } from './security-audit-polic
 const policy = JSON.parse(
   readFileSync(new URL('../security-audit-exceptions.json', import.meta.url)),
 );
-const entry = policy.exceptions.find((item) => item.advisory === 'GHSA-mrhx-c7xc-m3w5');
+// A synthetic historical review keeps the guarded-exception rules tested even
+// after the vulnerable Zod 3 resolution and its production exception are gone.
+const entry = {
+  advisory: 'GHSA-mrhx-c7xc-m3w5',
+  package: 'zod',
+  scope: 'test',
+  reason: 'test',
+  compensation: 'test',
+  expires: '2026-11-04',
+  resolutionGuard: {
+    vulnerableRange: '<4.6.6',
+    resolutions: { '@expo/cli/zod': 'zod@3.25.76' },
+    owners: { '@expo/cli': '@expo/cli@58.1.15' },
+  },
+};
 const base = () => ({
   entry: structuredClone(entry),
   packageName: 'zod',
@@ -23,6 +37,13 @@ const base = () => ({
   ),
   proof: 'Independent review of actual current call paths and residual risk.',
   today: new Date('2026-10-24T00:00:00Z'),
+});
+
+test('production policy no longer exempts the removed vulnerable Zod resolution', () => {
+  assert.equal(
+    policy.exceptions.some((item) => item.advisory === entry.advisory),
+    false,
+  );
 });
 
 test('accepts only the reviewed vulnerable graph alongside patched Zod', () => {
