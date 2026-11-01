@@ -58,11 +58,17 @@ export function ExperienceEditor({
   }));
   const [errors, setErrors] = useState<string[]>([]);
   const save = useMutation({
-    mutationFn: (input: ExperienceInput) => {
-      if (!canEdit) throw new Error('Experience owner session is not ready');
+    mutationFn: ({ input, sessionEpoch }: { input: ExperienceInput; sessionEpoch: number }) => {
+      if (!canEdit || oxyServices.http.getSessionEpoch() !== sessionEpoch)
+        throw new Error('Experience owner session is not ready');
       return entry ? experienceService.update(entry.id, input) : experienceService.create(input);
     },
-    onSuccess: () => control.close(onSaved),
+    onSuccess: (_result, { sessionEpoch }) => {
+      if (oxyServices.http.getSessionEpoch() === sessionEpoch)
+        control.close(() => {
+          if (oxyServices.http.getSessionEpoch() === sessionEpoch) onSaved();
+        });
+    },
   });
   const remove = useMutation({
     mutationFn: (sessionEpoch: number) => {
@@ -70,7 +76,12 @@ export function ExperienceEditor({
         throw new Error('Experience owner session is not ready');
       return experienceService.remove(entry.id);
     },
-    onSuccess: () => control.close(onSaved),
+    onSuccess: (_result, sessionEpoch) => {
+      if (oxyServices.http.getSessionEpoch() === sessionEpoch)
+        control.close(() => {
+          if (oxyServices.http.getSessionEpoch() === sessionEpoch) onSaved();
+        });
+    },
   });
   const busy = save.isPending || remove.isPending;
   function field<Key extends keyof ExperienceInput>(key: Key, value: ExperienceInput[Key]) {
@@ -86,7 +97,7 @@ export function ExperienceEditor({
       setErrors(result.issues.map((issue) => String(issue.path[0])));
       return;
     }
-    save.mutate(result.data);
+    save.mutate({ input: result.data, sessionEpoch: oxyServices.http.getSessionEpoch() });
   }
   async function deleteEntry() {
     if (!canEdit || busy) return;
