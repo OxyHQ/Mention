@@ -27,3 +27,63 @@ describe('isChunkLoadError', () => {
     expect(isChunkLoadError(error)).toBe(false);
   });
 });
+
+describe('chunk error recovery', () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+
+  afterEach(() => {
+    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
+
+  function register() {
+    jest.resetModules();
+    const listeners: Record<string, (event: unknown) => void> = {};
+    const reload = jest.fn();
+    const storage = new Map<string, string>();
+    const fakeWindow = {
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        listeners[type] = listener;
+      },
+      location: { reload },
+      sessionStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+      },
+    };
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: fakeWindow });
+    const { registerChunkErrorRecovery } = require('../chunkReload.web');
+    registerChunkErrorRecovery();
+    const { recoverChunkError } = require('../chunkReload.web');
+    return { listeners, reload, recoverChunkError };
+  }
+
+  it('leaves a handled script load failure to its caller', () => {
+    const { listeners, reload } = register();
+    listeners.error({ target: { src: '/_expo/static/js/web/account.js' } });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('reloads once for an unhandled lazy chunk rejection', () => {
+    const { listeners, reload } = register();
+    const reason = Object.assign(new Error('offline'), { name: 'AsyncRequireError' });
+    listeners.unhandledrejection({ reason });
+    listeners.unhandledrejection({ reason });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads for an uncaught missing shared module', () => {
+    const { listeners, reload } = register();
+    listeners.error({ error: new Error('Requiring unknown module "908".') });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers chunk failures reported by a React error boundary', () => {
+    const { reload, recoverChunkError } = register();
+    recoverChunkError(new Error('ordinary render error'));
+    expect(reload).not.toHaveBeenCalled();
+    recoverChunkError(Object.assign(new Error('offline'), { name: 'AsyncRequireError' }));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+});

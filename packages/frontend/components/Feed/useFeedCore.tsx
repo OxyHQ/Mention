@@ -1,3 +1,4 @@
+import { recoverChunkError } from '@/lib/chunkReload';
 import { useFeedVisibility } from '@/hooks/useFeedVisibility';
 import { useFeedLiveUpdates } from './FeedUpdatePolicy';
 import type React from 'react';
@@ -324,6 +325,7 @@ export function useFeedCore(props: FeedProps) {
 const EMPTY_ROWS: FeedRow[] = [];
 
 function logBoundaryError(error: Error, errorInfo: React.ErrorInfo): void {
+  recoverChunkError(error);
   logger.error('Error caught by boundary', error, { errorInfo });
 }
 
