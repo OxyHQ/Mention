@@ -1,4 +1,5 @@
 import type { AccountKind, AvatarCharacter } from '@oxy.so/contracts';
+import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import { degradedActorSummary } from './degradedActorSummary';
 import { resolveAvatarUrl } from './mediaResolver';
 
@@ -34,7 +35,7 @@ export function toPopulatedActor(
   const rawIds = new Set([id, String(fallbackId || '')].filter(Boolean));
 
   // `system` is a synthetic actor name, not an Oxy identifier.
-  if (id === 'system') rawIds.delete('system');
+  if (id === SYSTEM_NOTIFICATION_ACTOR_ID) rawIds.delete(SYSTEM_NOTIFICATION_ACTOR_ID);
 
   const username = safeVisualValue(actor?.username, rawIds);
   const resolvedDisplayName = safeVisualValue(

@@ -251,6 +251,37 @@ describe('a grouped notification follows every actor it names', () => {
 describe('the actor whose profile the row resolves', () => {
   const asked = () => (useUserById as jest.Mock).mock.calls.map((call) => call[0]);
 
+  it('does not look up the synthetic system actor and still resolves a real actor after reuse', () => {
+    const system = groupedLike();
+    system.actors[0] = { id: 'system', name: 'System', username: 'system' };
+    system.isGroup = false;
+    system.actors = [system.actors[0]];
+
+    const renderer = renderRow(system);
+    expect(asked().at(-1)).toBeUndefined();
+    expect(JSON.stringify(renderer.toJSON())).toContain('System');
+
+    const actual = groupedLike();
+    act(() => {
+      renderer.update(
+        <QueryClientProvider client={queryClient as QueryClient}>
+          <NotificationItem item={actual} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+        </QueryClientProvider>,
+      );
+    });
+    expect(asked().at(-1)).toBe(PRIMARY_ID);
+
+    act(() => {
+      renderer.update(
+        <QueryClientProvider client={queryClient as QueryClient}>
+          <NotificationItem item={system} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+        </QueryClientProvider>,
+      );
+    });
+    expect(asked().at(-1)).toBeUndefined();
+    expect(JSON.stringify(renderer.toJSON())).toContain('System');
+  });
+
   it('asks about a uuid v7 actor id', () => {
     const uuidActor = '01a0821e-d61a-7a78-b5d1-afb1850bd5a4';
     const item = groupedLike();

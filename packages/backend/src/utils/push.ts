@@ -10,6 +10,7 @@ import { userSettings } from '../db/schema/userProfile';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 import { chunk } from '@oxy.so/utils/text';
+import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 
 let firebaseInitialized = false;
 
@@ -240,10 +241,10 @@ export async function formatPushForNotification(
   // Best-effort: hydrate actor for title/body
   let actorName = 'Someone';
   try {
-    if (n.actorId && n.actorId !== 'system') {
+    if (n.actorId && n.actorId !== SYSTEM_NOTIFICATION_ACTOR_ID) {
       const actor = await lookups.actor(n.actorId);
       actorName = actor?.name?.displayName ?? actorName;
-    } else if (n.actorId === 'system') {
+    } else if (n.actorId === SYSTEM_NOTIFICATION_ACTOR_ID) {
       actorName = 'System';
     }
   } catch (error) {
