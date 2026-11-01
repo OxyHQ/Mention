@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { MtnConfig } from '@mention/shared-types/mtn/config';
+import { NEW_TREND_MAX_AGE_MS } from '@mention/shared-types/trending';
 import type { Trend } from '@/interfaces/Trend';
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -39,10 +39,9 @@ export function getTrendBadge(
   const ageMs = now - startedAt;
   if (ageMs < 0) return null;
 
-  const { newTrendMaxAgeMs } = MtnConfig.trending.detection;
-  if (ageMs < newTrendMaxAgeMs) {
+  if (ageMs < NEW_TREND_MAX_AGE_MS) {
     const firstSeenAt = trend.firstSeenAt ? Date.parse(trend.firstSeenAt) : startedAt;
-    const isNew = !Number.isNaN(firstSeenAt) && now - firstSeenAt < newTrendMaxAgeMs;
+    const isNew = !Number.isNaN(firstSeenAt) && now - firstSeenAt < NEW_TREND_MAX_AGE_MS;
     return isNew ? { text: t('trend.badge.new', { defaultValue: 'New' }), tone: 'new' } : null;
   }
 
