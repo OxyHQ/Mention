@@ -174,7 +174,9 @@ function renderRow(item: GroupedNotification = groupedLike()) {
           onDelete={jest.fn()}
           captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
           isCurrentIntent={() => true}
-          ownNotificationSurface={async (_intent, present) => present(new AbortController().signal)}
+          ownNotificationSurface={async (_intent, present) =>
+            present(new AbortController().signal, () => {})
+          }
         />
       </QueryClientProvider>,
     );
@@ -282,7 +284,7 @@ describe('the actor whose profile the row resolves', () => {
             captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
             isCurrentIntent={() => true}
             ownNotificationSurface={async (_intent, present) =>
-              present(new AbortController().signal)
+              present(new AbortController().signal, () => {})
             }
           />
         </QueryClientProvider>,
@@ -300,7 +302,7 @@ describe('the actor whose profile the row resolves', () => {
             captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
             isCurrentIntent={() => true}
             ownNotificationSurface={async (_intent, present) =>
-              present(new AbortController().signal)
+              present(new AbortController().signal, () => {})
             }
           />
         </QueryClientProvider>,

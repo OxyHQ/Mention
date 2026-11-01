@@ -451,7 +451,7 @@ const NotificationsScreen: React.FC = () => {
       return;
     }
 
-    const confirmed = await ownNotificationSurface(intent, (signal) =>
+    const confirmed = await ownNotificationSurface(intent, (signal, onClosed) =>
       confirmDialog({
         title: t('notification.mark_all_read'),
         message:
@@ -460,6 +460,7 @@ const NotificationsScreen: React.FC = () => {
         okText: t('notification.mark_all_read') || 'Mark All as Read',
         cancelText: t('cancel') || 'Cancel',
         signal,
+        onClosed,
       }),
     );
     if (confirmed && isCurrentIntent(intent)) {

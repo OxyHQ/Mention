@@ -519,9 +519,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const handleLongPress = useCallback(() => {
     const intent = captureIntent();
     if (!intent) return;
-    void ownNotificationSurface(intent, (signal) =>
+    void ownNotificationSurface(intent, (signal, onClosed) =>
       showCancelableActionMenu({
         signal,
+        onClosed,
         label: t('common.options', { defaultValue: 'Options' }),
         groups: [
           hasUnread
@@ -692,7 +693,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     if (!inviter) return;
     const intent = captureIntent();
     if (!intent) return;
-    void ownNotificationSurface(intent, (signal) =>
+    void ownNotificationSurface(intent, (signal, onClosed) =>
       presentCancelableSheet(
         (surface) => (
           <OwnedSurfaceContent signal={signal}>
@@ -712,7 +713,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             />
           </OwnedSurfaceContent>
         ),
-        { signal },
+        { signal, onClosed },
       ),
     );
   }, [inviter, runAccept, runDecline, captureIntent, isCurrentIntent, ownNotificationSurface]);

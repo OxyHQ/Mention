@@ -58,10 +58,12 @@ let activeMenu: SurfaceControls | null = null;
  * A row requests the menu's dismissal before running its action; the exit
  * animation may still be in progress when the action runs.
  */
-function presentActionMenu(request: ActionMenuRequest & { signal?: AbortSignal }): Promise<void> {
-  if (request.signal?.aborted) return Promise.resolve();
+function presentActionMenu(
+  request: ActionMenuRequest & { signal?: AbortSignal; onClosed?: () => void },
+): Promise<void> {
+  if (request.signal?.aborted) return Promise.resolve().then(() => request.onClosed?.());
   activeMenu?.dismiss();
-  if (request.signal?.aborted) return Promise.resolve();
+  if (request.signal?.aborted) return Promise.resolve().then(() => request.onClosed?.());
   let own: SurfaceControls | null = null;
   const render: SurfaceRenderFn = (surface) => {
     own = surface;
@@ -81,7 +83,11 @@ function presentActionMenu(request: ActionMenuRequest & { signal?: AbortSignal }
     );
   };
   const presentation = request.signal
-    ? presentCancelableSheet(render, { label: request.label, signal: request.signal })
+    ? presentCancelableSheet(render, {
+        label: request.label,
+        signal: request.signal,
+        onClosed: request.onClosed,
+      })
     : presentSheet(render, { label: request.label });
   return presentation.then(() => {
     if (activeMenu === own) activeMenu = null;
@@ -94,7 +100,7 @@ export function showActionMenu(request: ActionMenuRequest): void {
 
 /** Present a menu bound to one owner without changing the historical API. */
 export function showCancelableActionMenu(
-  request: ActionMenuRequest & { signal: AbortSignal },
+  request: ActionMenuRequest & { signal: AbortSignal; onClosed?: () => void },
 ): Promise<void> {
   return presentActionMenu(request);
 }

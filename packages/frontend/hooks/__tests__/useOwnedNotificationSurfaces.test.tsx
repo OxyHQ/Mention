@@ -6,7 +6,7 @@ import { buildMenuGroups } from '@/components/common/actionMenuGroups';
 import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
 import type { NotificationIntent } from '@/types/notificationIntent';
 
-type Present = (signal: AbortSignal) => Promise<string>;
+type Present = (signal: AbortSignal, onClosed: () => void) => Promise<string>;
 type Open = (intent: NotificationIntent, present: Present) => Promise<string | undefined>;
 
 it.each(['logout', 'ABA', 'same-account replacement'])(
@@ -153,19 +153,22 @@ it('settling one owned layer does not close its sibling', async () => {
   await act(async () => {
     renderer = TestRenderer.create(<Screen />);
   });
-  const layers: { signal: AbortSignal; resolve: (value: string) => void }[] = [];
-  const present: Present = (signal) =>
+  const layers: { signal: AbortSignal; resolve: (value: string) => void; closed: () => void }[] =
+    [];
+  const present: Present = (signal, closed) =>
     new Promise((resolve) => {
-      layers.push({ signal, resolve });
+      layers.push({ signal, resolve, closed });
       signal.addEventListener('abort', () => resolve('aborted'), { once: true });
     });
   const first = open({ viewerId: 'A', epoch: 1 }, present);
   const second = open({ viewerId: 'A', epoch: 1 }, present);
   layers[0].resolve('closed');
   expect(await first).toBe('closed');
-  expect(listeners.size).toBe(1);
-  expect(layers[0].signal.aborted).toBe(true);
+  expect(listeners.size).toBe(2);
+  expect(layers[0].signal.aborted).toBe(false);
   expect(layers[1].signal.aborted).toBe(false);
+  layers[0].closed();
+  expect(listeners.size).toBe(1);
   current = false;
   for (const listener of listeners) listener();
   await second;
@@ -345,7 +348,7 @@ it('discards a confirmed result when the session changes before its continuation
   await act(async () => renderer.unmount());
 });
 
-it('keeps an open surface through a valid refresh and releases its subscriptions on settlement', async () => {
+it('keeps an open surface through a valid refresh and releases its subscription on closure', async () => {
   let open!: Open;
   const listeners = new Set<() => void>();
   const subscribe = (listener: () => void) => {
@@ -362,10 +365,12 @@ it('keeps an open surface through a valid refresh and releases its subscriptions
   });
   let signal!: AbortSignal;
   let complete!: (value: string) => void;
+  let closed!: () => void;
   let result!: Promise<string | undefined>;
   await act(async () => {
-    result = open({ viewerId: 'A', epoch: 1 }, (next) => {
+    result = open({ viewerId: 'A', epoch: 1 }, (next, onClosed) => {
       signal = next;
+      closed = onClosed;
       return new Promise((resolve) => {
         complete = resolve;
       });
@@ -379,7 +384,9 @@ it('keeps an open surface through a valid refresh and releases its subscriptions
     complete('confirmed');
   });
   expect(await result).toBe('confirmed');
-  expect(signal.aborted).toBe(true);
+  expect(signal.aborted).toBe(false);
+  expect(listeners.size).toBe(1);
+  closed();
   expect(listeners.size).toBe(0);
   await act(async () => renderer.unmount());
 });
@@ -420,7 +427,10 @@ it('retires the old owner when its subscription source is replaced', async () =>
   await result;
   expect(signal.aborted).toBe(true);
   expect(firstListeners.size).toBe(0);
-  const present = jest.fn(async () => 'opened');
+  const present = jest.fn(async (_signal: AbortSignal, closed: () => void) => {
+    closed();
+    return 'opened';
+  });
   expect(await oldOpen({ viewerId: 'A', epoch: 1 }, present)).toBeUndefined();
   expect(present).not.toHaveBeenCalled();
   expect(await open({ viewerId: 'A', epoch: 1 }, present)).toBe('opened');
@@ -479,7 +489,7 @@ it('keeps a separately owned child open when its menu settles', async () => {
     groups[0][0].onPress();
     await menu;
   });
-  expect(menuSignal.aborted).toBe(true);
+  expect(menuSignal.aborted).toBe(false);
   expect(childSignal.aborted).toBe(false);
   current = false;
   await act(async () => {
@@ -490,14 +500,19 @@ it('keeps a separately owned child open when its menu settles', async () => {
   await act(async () => renderer.unmount());
 });
 
-it('hides owner content when dismissal resolves before the visual exit', async () => {
+it('keeps ownership through exit and hides content if the session changes', async () => {
   let open!: Open;
   let signal!: AbortSignal;
   let complete!: (value: string) => void;
+  let current = true;
+  const listeners = new Set<() => void>();
   function Screen() {
     open = useOwnedNotificationSurfaces(
-      () => true,
-      () => () => {},
+      () => current,
+      (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
     );
     return null;
   }
@@ -523,7 +538,13 @@ it('hides owner content when dismissal resolves before the visual exit', async (
     await result;
   });
   expect(await result).toBe('confirmed');
+  expect(visualExit.toJSON()).toBe('private content');
+  await act(async () => {
+    current = false;
+    for (const listener of listeners) listener();
+  });
   expect(visualExit.toJSON()).toBeNull();
+  expect(listeners.size).toBe(0);
   await act(async () => {
     screen.unmount();
     visualExit.unmount();

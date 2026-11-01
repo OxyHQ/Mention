@@ -18,7 +18,9 @@ it('does not dismiss an existing menu when the new owner is already cancelled', 
   void showActionMenu({ label: 'Existing', groups: [] });
   const owner = new AbortController();
   owner.abort();
-  await showCancelableActionMenu({ label: 'Stale', groups: [], signal: owner.signal });
+  const onClosed = jest.fn();
+  await showCancelableActionMenu({ label: 'Stale', groups: [], signal: owner.signal, onClosed });
+  expect(onClosed).toHaveBeenCalledTimes(1);
   expect(mockDismiss).not.toHaveBeenCalled();
   expect(mockPresentCancelableSheet).not.toHaveBeenCalled();
 });

@@ -7,6 +7,7 @@ export interface ConfirmOptions {
   cancelText?: string;
   destructive?: boolean;
   signal?: AbortSignal;
+  onClosed?: () => void;
 }
 
 export interface AlertOptions {
@@ -21,7 +22,7 @@ export interface AlertOptions {
  * cancels or dismisses it.
  */
 export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
-  const { title, message, okText, cancelText, destructive, signal } = options;
+  const { title, message, okText, cancelText, destructive, signal, onClosed } = options;
   const confirmation = {
     title,
     description: message || undefined,
@@ -29,6 +30,7 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
     cancelLabel: cancelText,
     destructive,
     signal,
+    onClosed,
   } satisfies SurfaceConfirmOptions;
   return confirm(confirmation);
 }

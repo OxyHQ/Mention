@@ -274,7 +274,7 @@ notifyManager.setScheduler((callback) => callback());
 const mountedRenderers: TestRenderer.ReactTestRenderer[] = [];
 const queryClients: QueryClient[] = [];
 const ownSurface: OwnNotificationSurface = async (_intent, present) =>
-  present(new AbortController().signal);
+  present(new AbortController().signal, () => {});
 
 afterEach(async () => {
   await act(async () => {
@@ -509,11 +509,14 @@ describe('NotificationItem — collaboration invite', () => {
   it('does not submit a cancelled sheet when its old callback is invoked', async () => {
     const controller = new AbortController();
     const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>
-      present(controller.signal);
+      present(controller.signal, () => {});
     const { renderer } = await renderRow(PENDING, { ownNotificationSurface });
     const accept = buttonByLabel(renderer.root, 'Accept');
     await act(async () => accept?.props.onPress());
-    expect(mockPresentSheet.mock.calls[0][1]).toEqual({ signal: controller.signal });
+    expect(mockPresentSheet.mock.calls[0][1]).toEqual({
+      signal: controller.signal,
+      onClosed: expect.any(Function),
+    });
     const createSheet = mockPresentSheet.mock.calls[0][0] as (surface: { dismiss: () => void }) => {
       props: { children: { props: { onAccept: () => Promise<void> } } };
     };
@@ -526,7 +529,7 @@ describe('NotificationItem — collaboration invite', () => {
   it('passes the row owner signal to the long-press menu', async () => {
     const controller = new AbortController();
     const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>
-      present(controller.signal);
+      present(controller.signal, () => {});
     const { renderer } = await renderRow(PENDING, { ownNotificationSurface });
     const row = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
     act(() => row.props.onLongPress());
