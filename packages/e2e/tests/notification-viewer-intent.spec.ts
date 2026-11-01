@@ -915,3 +915,30 @@ test('AUDIT: holding plain preview text opens the row menu', async ({ page, cand
   await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
   expect(candidate.scriptErrors).toEqual([]);
 });
+
+test('AUDIT: clicking a whitespace character in the preview opens the post', async ({ page, candidate }) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture, 'Plain preview text');
+  await page.goto('/notifications');
+  const preview = page.getByText('Plain preview text', { exact: true });
+  await expect(preview).toBeVisible();
+  const box = await preview.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const offset = node.textContent?.indexOf(' ');
+      if (offset !== undefined && offset >= 0) {
+        const range = document.createRange();
+        range.setStart(node, offset);
+        range.setEnd(node, offset + 1);
+        const rect = range.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }
+    }
+    return null;
+  });
+  if (!box || !box.width || !box.height) throw new Error('Missing whitespace character bounds');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page).toHaveURL(`${APP_ORIGIN}/p/collab-post`);
+  expect(candidate.scriptErrors).toEqual([]);
+});
