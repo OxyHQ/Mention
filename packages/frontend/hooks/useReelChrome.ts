@@ -12,8 +12,7 @@ import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { createLogger } from '@oxy.so/core/logger';
 import type { MediaPixelSize } from '@/utils/mediaTypes';
-import { useVideoPlayback } from '@/context/VideoPlaybackContext';
-import { useVideoPlaybackControl } from '@/stores/video-playback-control';
+import { useVideoPlayback, useVideoPlaybackControl } from '@oxy.so/bloom/video-playback';
 import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
 
 /**

@@ -133,7 +133,7 @@ jest.mock('@/utils/feedTelemetry', () => ({
   useFeedImpressionTracker: () => ({ current: { syncVisible: jest.fn() } }),
 }));
 
-jest.mock('@/context/VideoPlaybackContext', () => ({
+jest.mock('@oxy.so/bloom/video-playback', () => ({
   VideoViewabilityProvider: ({ children }: { children?: React.ReactNode }) => children ?? null,
   VideoViewabilityScope: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));

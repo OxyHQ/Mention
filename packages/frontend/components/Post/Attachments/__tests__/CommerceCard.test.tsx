@@ -5,9 +5,7 @@ import { commerceService } from '@/services/commerceService';
 
 let mockSnapshot: { status: string; value?: unknown } = { status: 'loading' };
 jest.mock('@/hooks/useVisibleReference', () => ({ useVisibleReference: () => mockSnapshot }));
-jest.mock('@/hooks/useReferenceVisibility', () => ({
-  useReferenceVisibility: () => ({ nativeID: 'commerce-test', visible: true }),
-}));
+jest.mock('@oxy.so/bloom/video-playback', () => ({ useViewableVisible: () => true }));
 jest.mock('@/lib/references/commerceCards', () => ({
   commerceCards: {},
   recordCommerceHandoff: (id: string) =>

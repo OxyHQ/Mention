@@ -1,7 +1,8 @@
-import { Text, View, type DimensionValue } from 'react-native';
+import { useRef } from 'react';
+import { Text, View, type DimensionValue, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { PostPodcastContent } from '@mention/shared-types/post';
-import { useReferenceVisibility } from '@/hooks/useReferenceVisibility';
+import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { syraPodcastCards } from '@/lib/references/syraPodcastCards';
 import { PodcastCard } from './PodcastCard';
@@ -24,12 +25,13 @@ export function PostPodcastAttachment({
   onPress?: () => void;
 }) {
   const { t } = useTranslation();
-  const { nativeID, visible } = useReferenceVisibility(postId);
+  const cardRef = useRef<ViewInstance>(null);
+  const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
   const state = useVisibleReference(syraPodcastCards, podcast.syraPodcastId, visible);
   const value = state.status === 'ready' ? state.value : undefined;
   return (
     <View
-      nativeID={nativeID}
+      ref={cardRef}
       testID="syra-podcast-card"
       style={{ width, height }}
       className="rounded-2xl overflow-hidden"

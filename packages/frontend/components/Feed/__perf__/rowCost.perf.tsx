@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 
 import { appI18n, initializeI18n } from '@/lib/i18n';
 import { usePostsStore } from '@/stores/postsStore';
-import { VideoPlaybackProvider, VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
+import { VideoPlaybackProvider, VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { renderFeedRow, type PostFeedRow } from '../feedRows';
 import { ROW_KINDS, makeRow, type RowKind } from './fixtures';
 import budgets from './budgets.json';

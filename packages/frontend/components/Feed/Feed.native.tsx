@@ -29,7 +29,7 @@ import {
   createViewableKeysStore,
   VideoViewabilityProvider,
   VideoViewabilityScope,
-} from '@/context/VideoPlaybackContext';
+} from '@oxy.so/bloom/video-playback';
 import {
   type FeedItem,
   type FeedRow,

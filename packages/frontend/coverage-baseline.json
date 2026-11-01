@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.33,
-      "covered": 14466,
-      "total": 28180
+      "pct": 50.99,
+      "covered": 14238,
+      "total": 27919
     },
     "branches": {
-      "pct": 46.98,
-      "covered": 9945,
-      "total": 21167
+      "pct": 46.77,
+      "covered": 9841,
+      "total": 21040
     },
     "functions": {
-      "pct": 46.31,
-      "covered": 3454,
-      "total": 7457
+      "pct": 45.94,
+      "covered": 3395,
+      "total": 7390
     },
     "lines": {
-      "pct": 52.18,
-      "covered": 13088,
-      "total": 25081
+      "pct": 51.86,
+      "covered": 12895,
+      "total": 24862
     }
   },
   "pins": {
@@ -616,12 +616,6 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
-    },
-    "hooks/useReferenceVisibility.ts": {
-      "statements": 47,
-      "branches": 50,
-      "functions": 40,
-      "lines": 53
     },
     "hooks/useReloadOnFeedRuleChange.ts": {
       "statements": 100,
@@ -1444,12 +1438,6 @@
       "branches": 80,
       "functions": 93,
       "lines": 95
-    },
-    "stores/video-playback-control.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
     },
     "stores/videoMuteStore.ts": {
       "statements": 0,

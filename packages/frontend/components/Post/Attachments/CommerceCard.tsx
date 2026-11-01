@@ -1,7 +1,8 @@
+import { useRef } from 'react';
 import { Image } from 'expo-image';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, Text, View, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useReferenceVisibility } from '@/hooks/useReferenceVisibility';
+import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { commerceCards, recordCommerceHandoff } from '@/lib/references/commerceCards';
 import { cn } from '@/lib/utils';
@@ -19,7 +20,8 @@ export function CommerceCard({
   height?: number;
 }) {
   const { t, i18n } = useTranslation();
-  const { nativeID, visible } = useReferenceVisibility(postId);
+  const cardRef = useRef<ViewInstance>(null);
+  const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
   const state = useVisibleReference(commerceCards, referenceId, visible);
   const value = state.status === 'ready' ? state.value : undefined;
   const product = value && 'product' in value ? value.product : undefined;
@@ -27,7 +29,7 @@ export function CommerceCard({
   const image = product?.primaryImage ?? collection?.image;
   return (
     <View
-      nativeID={nativeID}
+      ref={cardRef}
       testID="commerce-card"
       style={{ height }}
       className={cn('border border-border bg-card rounded-[14px] overflow-hidden', className)}

@@ -124,8 +124,12 @@ Feed and reel videos render the same `PlaybackVideoView` in Bloom's persistent
 media node. Its stable internal ref owns HLS, so changing the presenter preserves
 the element, decoder and buffer. Source replacement belongs to that view and is
 serialized; presenters supply the desired source and never replace it themselves.
-`VideoPlaybackContext` decides eligibility; `video-playback-control` combines those
+Which video plays is Bloom's (`@oxy.so/bloom/video-playback`, `docs/video-playback.mdx`
+there): `useVideoPlayback` decides eligibility (one audible player, visible on a
+visible screen, PiP owner exempt), and `useVideoPlaybackControl` combines those
 answers once per shared player, retains the first-frame state, and gates loading.
+Mention keeps only what depends on its own storage and sources: the persisted mute
+preference (`videoMuteStore`), the player registry and the reel's PiP session.
 A hidden feed cannot pause the player adopted by the reel. Neighbor preloading is
 bounded by the reel window and stops when the screen or document is inactive,
 except for the actual PiP owner. Media selection includes both post and media index.
