@@ -183,6 +183,8 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Verify Oxy dependency health
         run: bun run doctor:oxy
+      - name: Verify Android shared device-session autolinking
+        run: node scripts/check-android-device-session-autolinking.mjs
       # Formatting and linting for every package (biome.jsonc). The frontend's
       # minimal ESLint (Expo rules Biome lacks) still runs inside `check`.
       - name: Biome format and lint
