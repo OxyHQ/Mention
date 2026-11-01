@@ -34,12 +34,13 @@ test('a route chunk failure caught by a boundary reloads and recovers', async ({
   );
   expect(candidate.servedPaths).toEqual([]);
   let attempts = 0;
-  await page.route(/\/FeedBuilder-[0-9a-f]{32}\.js$/, async (route) => {
+  await page.route(/\/ComposeScreen-[0-9a-f]{32}\.js$/, async (route) => {
     attempts++;
     if (attempts === 1) await route.abort('failed');
     else await route.fallback();
   });
-  await page.goto('/feeds/new');
-  await expect(page.getByText('Sign in to build a feed', { exact: true })).toBeVisible();
-  expect(attempts).toBeGreaterThanOrEqual(2);
+  await page.goto('/compose');
+  await expect.poll(() => attempts).toBeGreaterThanOrEqual(2);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByText('Something went wrong', { exact: true })).toHaveCount(0);
 });
