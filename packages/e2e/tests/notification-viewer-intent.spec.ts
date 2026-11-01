@@ -411,7 +411,7 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
 test('pressing and holding the collaboration button does not open the row menu', async ({
   page,
   candidate,
-}) => {
+}, testInfo) => {
   const fixture = await installSwitchingFixture(page);
   await installCollaborationFixture(page, fixture);
   await page.goto('/notifications');
@@ -419,6 +419,17 @@ test('pressing and holding the collaboration button does not open the row menu',
   await expect(accept).toBeVisible();
   const box = await accept.boundingBox();
   if (!box) throw new Error('The collaboration button has no visible bounds');
+  const rowBox = await accept.evaluate((element) => {
+    const row = element.parentElement?.closest('[role="button"]');
+    if (!row) return null;
+    const rect = row.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  });
+  expect(rowBox).not.toBeNull();
+  await testInfo.attach('collaboration-gesture-geometry', {
+    body: JSON.stringify({ viewport: page.viewportSize(), row: rowBox, accept: box }),
+    contentType: 'application/json',
+  });
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   // Hold longer than the native-web long-press threshold before releasing.
