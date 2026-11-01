@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "Bu taslak değişti. Kontrol edip silmeyi yeniden deneyin.",
+  "compose.draftMissing": "Bu taslak artık kullanılamıyor.",
+  "compose.draftConflict": "Bu taslak başka bir yerde değişti. Çalışmanızı kopya olarak kaydedin.",
+  "compose.saveDraftCopy": "Kopya olarak kaydet",
+  "compose.draftChangedRetry": "Taslağınız kaydedilirken değişti. Tekrar deneyin.",
   "compose.deviceDrafts.loadError": "Bu cihazda kaydedilen taslaklar yüklenemedi",
   "compose.retryDraftSave": "Taslağı kaydetmeyi yeniden dene",
   "search.history.updateFailed": "Arama geçmişi güncellenemedi.",

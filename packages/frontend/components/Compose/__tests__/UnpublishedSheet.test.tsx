@@ -13,6 +13,7 @@ import UnpublishedSheet from '../UnpublishedSheet';
  */
 
 const mockRouterPush = jest.fn();
+const mockToast = jest.fn();
 
 const mockScheduled: {
   scheduledPosts: { id: string }[];
@@ -76,6 +77,7 @@ jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual('react-native');
   return { Button: TouchableOpacity };
 });
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 
 jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
 
@@ -96,6 +98,7 @@ jest.mock('../DraftsList', () => {
     // hand the sheet a device draft and an account draft to act on.
     default: (props: {
       onPreviewDraft: (draft: { id: string }) => void;
+      onLoadDraft: (draft: { id: string }) => void;
       onPreviewServerDraft: (post: { id: string }) => void;
       onEditServerDraft: (post: { id: string }) => void;
     }) =>
@@ -103,6 +106,12 @@ jest.mock('../DraftsList', () => {
         View,
         null,
         react.createElement(RNText, null, 'DRAFTS PANEL'),
+        react.createElement(TouchableOpacity, {
+          key: 'load',
+          accessibilityRole: 'button',
+          accessibilityLabel: 'draft-load',
+          onPress: () => props.onLoadDraft({ id: 'draft-1' }),
+        }),
         react.createElement(TouchableOpacity, {
           key: 'server-preview',
           accessibilityRole: 'button',
@@ -306,6 +315,69 @@ describe('UnpublishedSheet', () => {
     jest.clearAllMocks();
     mockScheduled.scheduledPosts = [];
     mockServerDrafts.serverDrafts = [];
+  });
+
+  it('announces saving, ignores repeated selection, and restores interaction after cancellation', async () => {
+    let finish!: () => void;
+    const promise = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const onLoadDraft = jest.fn(() => promise);
+    const tree = renderSheet({ onLoadDraft });
+    press(tree, 'draft-load');
+    press(tree, 'draft-load');
+    expect(onLoadDraft).toHaveBeenCalledTimes(1);
+    expect(textContent(tree)).toContain('common.saving');
+    expect(
+      tree.root.findAll((node) => node.props.accessibilityRole === 'alert').length,
+    ).toBeGreaterThan(0);
+    await act(async () => {
+      finish();
+      await promise;
+    });
+    expect(textContent(tree)).not.toContain('common.saving');
+    press(tree, 'draft-load');
+    expect(onLoadDraft).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await promise;
+    });
+    act(() => tree.unmount());
+  });
+
+  it('can be closed and reopened while an earlier selection is pending', async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const first = jest.fn(() => pending);
+    const oldTree = renderSheet({ onLoadDraft: first });
+    press(oldTree, 'draft-load');
+    act(() => oldTree.unmount());
+    const second = jest.fn();
+    const newTree = renderSheet({ onLoadDraft: second });
+    press(newTree, 'draft-load');
+    expect(second).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish();
+      await pending;
+    });
+    act(() => newTree.unmount());
+  });
+
+  it('reports an unexpected selection failure and restores interaction', async () => {
+    const onLoadDraft = jest.fn(async () => {
+      throw new Error('unexpected');
+    });
+    const tree = renderSheet({ onLoadDraft });
+    press(tree, 'draft-load');
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockToast).toHaveBeenCalledWith("We couldn't load the drafts saved on this device", {
+      type: 'error',
+    });
+    expect(textContent(tree)).not.toContain('common.saving');
+    act(() => tree.unmount());
   });
 
   it('offers a Scheduled tab beside Drafts, opening on Drafts', () => {

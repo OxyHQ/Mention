@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "Questa bozza è cambiata. Controllala e riprova a eliminarla.",
+  "compose.draftMissing": "Questa bozza non è più disponibile.",
+  "compose.draftConflict": "Questa bozza è stata modificata altrove. Salva il tuo lavoro come copia.",
+  "compose.saveDraftCopy": "Salva come copia",
+  "compose.draftChangedRetry": "La bozza è cambiata durante il salvataggio. Riprova.",
   "compose.deviceDrafts.loadError": "Impossibile caricare le bozze salvate su questo dispositivo",
   "compose.retryDraftSave": "Riprova a salvare la bozza",
   "search.history.updateFailed": "Impossibile aggiornare la cronologia delle ricerche.",

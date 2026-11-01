@@ -3,6 +3,7 @@ import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { Draft } from '@/hooks/useDrafts';
 import type { DraftListItem } from '@/hooks/useDraftsList';
+import { DraftConflictError } from '@/utils/draftSession';
 import { scheduledPostFixture } from '@/__fixtures__/scheduledPost';
 import DraftsList from '../DraftsList';
 
@@ -277,9 +278,24 @@ describe('DraftsList', () => {
 
     press(tree, 'compose.deleteDraft', 1);
     await flush();
-    expect(mockList.deleteDeviceDraft).toHaveBeenCalledWith('device-draft-1');
+    expect(mockList.deleteDeviceDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'device-draft-1' }),
+    );
     expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }));
 
+    act(() => tree.unmount());
+  });
+
+  it('refreshes and explains a delete conflict instead of deleting newer work', async () => {
+    mockList.deleteDeviceDraft.mockRejectedValueOnce(new DraftConflictError());
+    const tree = renderList();
+    press(tree, 'compose.deleteDraft', 1);
+    await flush();
+    expect(mockList.refetchDeviceDrafts).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith(
+      'This draft changed. Review it and try deleting again.',
+      { type: 'error' },
+    );
     act(() => tree.unmount());
   });
 

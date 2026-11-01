@@ -10,6 +10,12 @@ import type { RoomAttachmentData } from './useRoomManager';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { draftMutationQueue } from '@/utils/draftMutationQueue';
+import {
+  createDraftId,
+  draftRevision,
+  DraftConflictError,
+  type DraftSession,
+} from '@/utils/draftSession';
 import { useRefSync } from '@/hooks/useRefSync';
 
 const logger = createLogger('useDrafts');
@@ -56,13 +62,17 @@ export interface Draft extends DraftBox {
   languages?: DraftVariants;
   createdAt: number;
   updatedAt: number;
+  /** Checked under this runtime's account queue; legacy drafts omit it. */
+  localRevision?: number;
 }
 
 /**
  * A draft as a CALLER submits it. The id is optional (absent means "create") and
  * the timestamps are owned by {@link useDrafts}, never by the composer.
  */
-export type DraftInput = Omit<Draft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string };
+export type DraftInput = Omit<Draft, 'id' | 'createdAt' | 'updatedAt' | 'localRevision'> & {
+  id?: string;
+};
 
 const LEGACY_DRAFTS_STORAGE_KEY = '@mention_drafts';
 const DRAFTS_STORAGE_KEY = '@mention_drafts:v2';
@@ -81,6 +91,46 @@ function referenceOnlyDraft(draft: Draft): Draft {
         ...(item.podcast === undefined ? {} : { podcast: podcastReference(item.podcast) }),
       })) ?? [],
   };
+}
+
+/** Compare exactly what storage would retain, ignoring storage-owned metadata. */
+function sameStoredContent(existing: Draft, incoming: DraftInput): boolean {
+  const {
+    id: _existingId,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    localRevision: _revision,
+    ...stored
+  } = existing;
+  const { id: _incomingId, ...next } = incoming;
+  const storedJson = JSON.stringify(stored);
+  const nextJson = JSON.stringify(next);
+  if (storedJson === nextJson) return true;
+  return sameJsonValue(JSON.parse(storedJson), JSON.parse(nextJson));
+}
+
+/** JSON object key order is not content; array order is. */
+function sameJsonValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((value, index) => sameJsonValue(value, b[index]))
+    );
+  }
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(right, key) && sameJsonValue(left[key], right[key]),
+    )
+  );
 }
 
 /** The viewer's drafts as stored — never a list held in some component's state. */
@@ -170,7 +220,7 @@ export const useDrafts = () => {
   // from it would silently drop that write, or add a second copy of a draft it
   // did not know was already there.
   const saveDraft = useCallback(
-    async (draft: DraftInput) => {
+    async (draft: DraftInput, session: DraftSession) => {
       const operationViewerId = viewerId;
       if (!operationViewerId) {
         throw new Error('An authenticated viewer is required to save drafts');
@@ -179,18 +229,38 @@ export const useDrafts = () => {
         return await draftMutationQueue.run(operationViewerId, async () => {
           const currentDrafts = await readStoredDrafts(operationViewerId);
           const now = Date.now();
-          const draftId = draft.id || `draft_${now}_${Math.random().toString(36).slice(2, 11)}`;
+          const draftId = draft.id || createDraftId();
+          if (session.id !== draftId) throw new DraftConflictError();
           const existing = currentDrafts.find((d) => d.id === draftId);
+          const existingRevision = existing ? draftRevision(existing.localRevision) : null;
+          if (
+            existing &&
+            session.revision !== null &&
+            session.revision !== existingRevision &&
+            sameStoredContent(existing, draft)
+          ) {
+            session.revision = existingRevision;
+            return draftId;
+          }
+          if (
+            (session.revision === null && existing) ||
+            (session.revision !== null && (!existing || existingRevision !== session.revision))
+          )
+            throw new DraftConflictError();
+          const nextRevision = (session.revision ?? 0) + 1;
+          if (!Number.isSafeInteger(nextRevision)) throw new DraftConflictError();
 
           const draftToSave: Draft = {
             ...draft,
             id: draftId,
             createdAt: existing ? existing.createdAt : now,
             updatedAt: now,
+            localRevision: nextRevision,
           };
 
           // Newest first, as the list is kept: the saved draft is the newest.
           await saveDrafts([draftToSave, ...currentDrafts.filter((d) => d.id !== draftId)]);
+          session.revision = nextRevision;
           return draftId;
         });
       } catch (error) {
@@ -202,18 +272,30 @@ export const useDrafts = () => {
   );
 
   // Delete a draft
-  const deleteDraft = useCallback(
-    async (draftId: string) => {
+  const queueDeleteDraft = useCallback(
+    async (getSession: () => DraftSession) => {
       const operationViewerId = viewerId;
       if (!operationViewerId) {
         throw new Error('An authenticated viewer is required to delete drafts');
       }
       try {
         await draftMutationQueue.run(operationViewerId, async () => {
+          const session = getSession();
+          const draftId = session.id;
+          if (!draftId) return;
           logger.debug(`deleteDraft called with draftId: ${draftId}`);
           const currentDrafts = await readStoredDrafts(operationViewerId);
           if (viewerIdRef.current !== operationViewerId) {
             throw new Error('Draft owner changed before deletion');
+          }
+          const existing = currentDrafts.find((draft) => draft.id === draftId);
+          if (session.revision === null && !existing) return;
+          if (
+            !existing ||
+            session.revision === null ||
+            draftRevision(existing.localRevision) !== session.revision
+          ) {
+            throw new DraftConflictError();
           }
 
           // Filter out the draft to delete
@@ -232,6 +314,27 @@ export const useDrafts = () => {
       }
     },
     [saveDrafts, viewerId],
+  );
+
+  const deleteDraft = useCallback(
+    (draftId: string, revision: number) =>
+      queueDeleteDraft(() => ({ id: draftId, revision, closed: true, conflicted: false })),
+    [queueDeleteDraft],
+  );
+
+  /** Read a current draft after earlier local mutations have completed. */
+  const readDraft = useCallback(
+    async (draftId: string): Promise<Draft | undefined> => {
+      const operationViewerId = viewerId;
+      if (!operationViewerId) throw new Error('An authenticated viewer is required to read drafts');
+      return draftMutationQueue.run(operationViewerId, async () => {
+        const currentDrafts = await readStoredDrafts(operationViewerId);
+        if (viewerIdRef.current !== operationViewerId)
+          throw new Error('Draft owner changed before read');
+        return currentDrafts.find((draft) => draft.id === draftId);
+      });
+    },
+    [viewerId],
   );
 
   // Get a draft by ID
@@ -284,6 +387,8 @@ export const useDrafts = () => {
     isError,
     saveDraft,
     deleteDraft,
+    queueDeleteDraft,
+    readDraft,
     getDraft,
     clearAllDrafts,
     loadDrafts,
