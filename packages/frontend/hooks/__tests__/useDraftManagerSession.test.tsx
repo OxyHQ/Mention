@@ -14,6 +14,12 @@ import { createVariantsState } from '@/utils/composeVariants';
  *  - "Discard" left the autosaved draft behind: it only closed the composer.
  */
 
+let mockNextDraftId = 1;
+jest.mock('@/utils/draftSession', () => ({
+  ...jest.requireActual('@/utils/draftSession'),
+  createDraftId: () => `draft-${mockNextDraftId++}`,
+}));
+
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   logger: { error: jest.fn() },
@@ -35,8 +41,21 @@ const deleteDraft = jest.fn(async (id: string) => {
 });
 const onDraftLoad = jest.fn();
 
+let storageTail: Promise<unknown> = Promise.resolve();
 function Probe() {
-  latest = useDraftManager({ saveDraft, deleteDraft, onDraftLoad });
+  const trackedSave = (draft: Parameters<typeof saveDraft>[0]) => {
+    const result = saveDraft(draft);
+    storageTail = result.catch(() => undefined);
+    return result;
+  };
+  const queueDeleteDraft = async (
+    getSession: () => import('@/utils/draftSession').DraftSession,
+  ) => {
+    await storageTail;
+    const id = getSession().id;
+    if (id) await deleteDraft(id);
+  };
+  latest = useDraftManager({ saveDraft: trackedSave, queueDeleteDraft, onDraftLoad });
   return null;
 }
 
@@ -107,6 +126,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  storageTail = Promise.resolve();
+  mockNextDraftId = 1;
   stored = new Map();
   nextId = 1;
   latest = null;

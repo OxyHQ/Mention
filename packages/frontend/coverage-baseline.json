@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.67,
-      "covered": 14511,
-      "total": 28082
+      "pct": 51.84,
+      "covered": 14679,
+      "total": 28311
     },
     "branches": {
-      "pct": 47.47,
-      "covered": 10052,
-      "total": 21173
+      "pct": 47.66,
+      "covered": 10177,
+      "total": 21349
     },
     "functions": {
-      "pct": 46.56,
-      "covered": 3461,
-      "total": 7433
+      "pct": 46.68,
+      "covered": 3486,
+      "total": 7467
     },
     "lines": {
-      "pct": 52.49,
-      "covered": 13123,
-      "total": 24997
+      "pct": 52.65,
+      "covered": 13265,
+      "total": 25191
     }
   },
   "pins": {
@@ -276,16 +276,16 @@
       "lines": 100
     },
     "hooks/useDraftManager.ts": {
-      "statements": 96,
-      "branches": 80,
-      "functions": 97,
-      "lines": 97
+      "statements": 100,
+      "branches": 82,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useDrafts.ts": {
       "statements": 89,
-      "branches": 77,
-      "functions": 80,
-      "lines": 91
+      "branches": 83,
+      "functions": 87,
+      "lines": 92
     },
     "hooks/useDraftsList.ts": {
       "statements": 56,
@@ -1547,6 +1547,12 @@
       "functions": 100,
       "lines": 100
     },
+    "utils/draftSession.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "utils/embedPlayer.ts": {
       "statements": 25,
       "branches": 25,
@@ -1766,6 +1772,12 @@
     "utils/postSchedule.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/prepareDraftSwitch.ts": {
+      "statements": 95,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },

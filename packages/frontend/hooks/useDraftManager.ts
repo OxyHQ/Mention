@@ -18,6 +18,12 @@ import {
 } from '@/utils/composeContent';
 import type { ArticleData } from './useArticleManager';
 import type { Draft, DraftBox, DraftInput } from './useDrafts';
+import {
+  createDraftId,
+  draftRevision,
+  DraftConflictError,
+  type DraftSession,
+} from '@/utils/draftSession';
 import type { EventData } from './useEventManager';
 import type { LocationData } from './useLocationManager';
 import type { JobAttachmentData } from './useJobAttachmentManager';
@@ -274,8 +280,8 @@ export interface ComposeDraftRefs extends ComposeContent {
 }
 
 interface DraftManagerProps {
-  saveDraft: (draft: DraftInput) => Promise<string>;
-  deleteDraft: (draftId: string) => Promise<void>;
+  saveDraft: (draft: DraftInput, session: DraftSession) => Promise<string>;
+  queueDeleteDraft: (getSession: () => DraftSession) => Promise<void>;
   onDraftLoad: (
     draft: DraftBoxContent & {
       postContent: string;
@@ -293,19 +299,24 @@ interface DraftManagerProps {
   ) => void;
 }
 
-export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftManagerProps) => {
+export const useDraftManager = ({
+  saveDraft,
+  queueDeleteDraft,
+  onDraftLoad,
+}: DraftManagerProps) => {
   const [currentDraftId, setCurrentDraftIdState] = useState<string | null>(null);
   const [autoSaveError, setAutoSaveError] = useState(false);
+  const [draftConflict, setDraftConflict] = useState(false);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /**
-   * The draft id as of NOW, not as of the last render. A publish reads it after
-   * awaiting the network, by which time an autosave that fired mid-request may
-   * have created the draft — the rendered `currentDraftId` its closure captured
-   * would still say there is none, and that draft would outlive the post it
-   * duplicates.
-   */
-  const draftIdRef = useRef<string | null>(null);
-  /** The draft write in flight, if any — every later write and delete settles it first. */
+  /** Each opened draft has its own identity and revision, even while old writes finish. */
+  const draftSessionRef = useRef<DraftSession>({
+    id: null,
+    revision: null,
+    closed: false,
+    conflicted: false,
+  });
+  const publishingSessionRef = useRef<DraftSession | null>(null);
+  /** Writes issued by this composer run in order; storage orders mutations across composers. */
   const pendingSaveRef = useRef<Promise<void> | null>(null);
   /**
    * True while something else owns the draft and an autosave must not touch it:
@@ -314,10 +325,7 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
    */
   const suspendedRef = useRef(false);
 
-  const setCurrentDraftId = useCallback((draftId: string | null) => {
-    draftIdRef.current = draftId;
-    setCurrentDraftIdState(draftId);
-  }, []);
+  const getDraftSession = useCallback((): object => draftSessionRef.current, []);
 
   const cancelScheduledAutoSave = useCallback(() => {
     if (autoSaveTimeoutRef.current) {
@@ -345,26 +353,35 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
   );
 
   /**
-   * Write the composer's content to THE draft of this editing session — the one
-   * {@link draftIdRef} names, created on the first write — or delete that draft
-   * when the composer has been emptied. Writes are chained, never concurrent:
-   * each runs after the one before it has settled and reads the draft id only
-   * then, so a second write always updates the draft the first one created
-   * instead of starting another (OxyHQ/Mention#1124).
+   * Write to the session captured at invocation, even if a different draft is
+   * opened while this write waits. Reserve a new ID before the first async write
+   * so a discard can reserve deletion without waiting for its result.
    */
   const writeDraft = useCallback(
     async (refs: ComposeDraftRefs) => {
+      const session = draftSessionRef.current;
       const write = async () => {
-        const draftId = draftIdRef.current;
+        if (session.closed) return;
+        const draftId = session.id;
         if (!hasDraftContent(refs)) {
           if (draftId) {
-            await deleteDraft(draftId);
-            setCurrentDraftId(null);
+            await queueDeleteDraft(() => session);
+            session.id = null;
+            session.revision = null;
+            if (draftSessionRef.current === session) setCurrentDraftIdState(null);
           }
           return;
         }
-        const savedId = await saveDraft(buildDraftData({ ...refs, currentDraftId: draftId }));
-        setCurrentDraftId(savedId);
+        const reservedId = draftId ?? createDraftId();
+        session.id = reservedId;
+        const savedId = await saveDraft(
+          buildDraftData({ ...refs, currentDraftId: reservedId }),
+          session,
+        );
+        if (!session.closed) {
+          session.id = savedId;
+          if (draftSessionRef.current === session) setCurrentDraftIdState(savedId);
+        }
       };
       // With nothing in flight the write starts NOW, not a microtask later.
       const run = pendingSaveRef.current ? pendingSaveRef.current.then(write) : write();
@@ -376,7 +393,7 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
         if (pendingSaveRef.current === settled) pendingSaveRef.current = null;
       }
     },
-    [buildDraftData, saveDraft, deleteDraft, setCurrentDraftId],
+    [buildDraftData, saveDraft, queueDeleteDraft],
   );
 
   /** The debounced background save. A failure is logged; the next change retries it. */
@@ -385,12 +402,18 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
       // A post being published is not a draft. Saving it now would persist the
       // very text the publish is about to put in the feed.
       if (suspendedRef.current) return;
+      const session = draftSessionRef.current;
+      if (session.conflicted) return;
       try {
         await writeDraft(refs);
-        setAutoSaveError(false);
+        if (draftSessionRef.current === session) setAutoSaveError(false);
       } catch (error) {
         logger.error('Error auto-saving draft', error);
-        if (!suspendedRef.current) setAutoSaveError(true);
+        if (error instanceof DraftConflictError) session.conflicted = true;
+        if (!suspendedRef.current && draftSessionRef.current === session) {
+          setAutoSaveError(true);
+          if (error instanceof DraftConflictError) setDraftConflict(true);
+        }
       }
     },
     [writeDraft],
@@ -404,24 +427,52 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
   const saveNow = useCallback(
     async (refs: ComposeDraftRefs) => {
       cancelScheduledAutoSave();
-      await writeDraft(refs);
-      setAutoSaveError(false);
+      const session = draftSessionRef.current;
+      try {
+        if (session.conflicted) throw new DraftConflictError();
+        await writeDraft(refs);
+        if (draftSessionRef.current === session) setAutoSaveError(false);
+      } catch (error) {
+        if (error instanceof DraftConflictError) session.conflicted = true;
+        if (draftSessionRef.current === session) {
+          setAutoSaveError(true);
+          if (error instanceof DraftConflictError) setDraftConflict(true);
+        }
+        throw error;
+      }
     },
     [cancelScheduledAutoSave, writeDraft],
   );
 
+  /** Keep the editor contents and start a new local draft after a conflict. */
+  const saveAsCopy = useCallback(
+    async (refs: ComposeDraftRefs) => {
+      cancelScheduledAutoSave();
+      draftSessionRef.current = { id: null, revision: null, closed: false, conflicted: false };
+      setCurrentDraftIdState(null);
+      setDraftConflict(false);
+      await saveNow(refs);
+    },
+    [cancelScheduledAutoSave, saveNow],
+  );
+
   /**
-   * The session's draft is spent — a publish took it, or the author threw it
-   * away. Autosave stops, a write already in flight is allowed to land, and then
-   * whatever draft exists NOW (see {@link draftIdRef}) is deleted.
+   * Close this session and reserve its deletion immediately in the account
+   * queue. Already-started storage writes land first; its queued snapshots skip.
    */
-  const deleteSessionDraft = useCallback(async () => {
-    suspendedRef.current = true;
-    if (pendingSaveRef.current) await pendingSaveRef.current;
-    const draftId = draftIdRef.current;
-    setCurrentDraftId(null);
-    if (draftId) await deleteDraft(draftId);
-  }, [deleteDraft, setCurrentDraftId]);
+  const deleteSessionDraft = useCallback(
+    async (session: DraftSession) => {
+      suspendedRef.current = true;
+      session.closed = true;
+      try {
+        await queueDeleteDraft(() => session);
+      } finally {
+        session.id = null;
+        if (draftSessionRef.current === session) setCurrentDraftIdState(null);
+      }
+    },
+    [queueDeleteDraft],
+  );
 
   /**
    * "Discard": the work of this session is thrown away, including whatever the
@@ -431,7 +482,7 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
    */
   const discard = useCallback(async () => {
     cancelScheduledAutoSave();
-    await deleteSessionDraft();
+    await deleteSessionDraft(draftSessionRef.current);
   }, [cancelScheduledAutoSave, deleteSessionDraft]);
 
   /**
@@ -439,22 +490,21 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
    * and any autosave that fires before the publish settles is a no-op.
    */
   const beginPublish = useCallback(() => {
+    publishingSessionRef.current = draftSessionRef.current;
     suspendedRef.current = true;
     cancelScheduledAutoSave();
   }, [cancelScheduledAutoSave]);
 
   /**
-   * The publish succeeded, so the draft it came from is spent: let any autosave
-   * already in flight land, then delete whatever draft exists NOW (see
-   * {@link draftIdRef}). Autosave stays off until {@link endPublish} — the
-   * composer still holds the published text until it resets itself.
+   * The publish succeeded, so delete the draft session captured when it began.
+   * A draft opened or copied during the request belongs to a different session.
    *
    * A failed delete is logged, not thrown: the post is out, and the author must
    * not be told otherwise because a local cleanup failed.
    */
   const publishSucceeded = useCallback(async () => {
     try {
-      await deleteSessionDraft();
+      await deleteSessionDraft(publishingSessionRef.current ?? draftSessionRef.current);
     } catch (error) {
       logger.error('Error deleting a published draft', error);
     }
@@ -469,6 +519,12 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
   const publishFailed = useCallback(
     async (refs: ComposeDraftRefs) => {
       suspendedRef.current = false;
+      publishingSessionRef.current = null;
+      if (draftSessionRef.current.conflicted) {
+        setAutoSaveError(true);
+        setDraftConflict(true);
+        return;
+      }
       await autoSave(refs);
     },
     [autoSave],
@@ -477,11 +533,32 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
   /** The composer has been emptied after a publish; autosave may resume. */
   const endPublish = useCallback(() => {
     suspendedRef.current = false;
-    setAutoSaveError(false);
+    const publishedSession = publishingSessionRef.current;
+    publishingSessionRef.current = null;
+    if (draftSessionRef.current === publishedSession) {
+      draftSessionRef.current = { id: null, revision: null, closed: false, conflicted: false };
+      setDraftConflict(false);
+      setAutoSaveError(false);
+    }
   }, []);
 
   const loadDraft = useCallback(
     (draft: StoredDraft) => {
+      let revision = 0;
+      let conflicted = false;
+      try {
+        revision = draftRevision(draft.localRevision);
+      } catch {
+        conflicted = true;
+      }
+      draftSessionRef.current = {
+        id: readString(draft.id) ?? null,
+        revision,
+        closed: false,
+        conflicted,
+      };
+      setAutoSaveError(conflicted);
+      setDraftConflict(conflicted);
       const storedJob = isRecord(draft.job) ? draft.job : null;
       const mentionJobId = storedJob ? readString(storedJob.mentionJobId) : undefined;
       const jobEmployerOxyUserId = storedJob ? readString(storedJob.employerOxyUserId) : undefined;
@@ -526,15 +603,17 @@ export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftMa
         languages: draft.languages,
       });
 
-      setCurrentDraftId(readString(draft.id) ?? null);
+      setCurrentDraftIdState(readString(draft.id) ?? null);
     },
-    [onDraftLoad, setCurrentDraftId],
+    [onDraftLoad],
   );
 
   return {
     currentDraftId,
+    getDraftSession,
     autoSaveError,
-    setCurrentDraftId,
+    draftConflict,
+    saveAsCopy,
     autoSaveTimeoutRef,
     autoSave,
     saveNow,

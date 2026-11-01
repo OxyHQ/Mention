@@ -8,7 +8,16 @@ import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import type React from 'react';
-import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  lazy,
+  Suspense,
+} from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { View, Text, TextInput, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
@@ -102,6 +111,11 @@ import {
 } from '@/utils/composeContent';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useRefSync } from '@/hooks/useRefSync';
+import {
+  DraftReadError,
+  prepareDraftSwitch,
+  shouldPreservePublishedEditor,
+} from '@/utils/prepareDraftSwitch';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
@@ -217,7 +231,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const theme = useTheme();
   const haptic = useHaptics();
   const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
-  const { drafts, saveDraft, deleteDraft } = useDrafts();
+  const { drafts, saveDraft, queueDeleteDraft, readDraft } = useDrafts();
   const discardControl = useDialogControl();
   const clearAllControl = useDialogControl();
   const intentConflictControl = useDialogControl();
@@ -680,7 +694,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // Draft manager
   const draftManager = useDraftManager({
     saveDraft,
-    deleteDraft,
+    queueDeleteDraft,
     onDraftLoad: (draft) => {
       setMainMentionState(
         reconcileMentionTextValue(
@@ -711,7 +725,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   });
   const {
     currentDraftId,
+    getDraftSession,
     autoSaveError,
+    draftConflict: draftRevisionConflict,
+    saveAsCopy,
     autoSaveTimeoutRef,
     autoSave: autoSaveDraft,
     saveNow: saveDraftNow,
@@ -726,10 +743,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const announcedAutoSaveError = useRef(false);
   useEffect(() => {
     if (autoSaveError && !announcedAutoSaveError.current) {
-      toast(t('compose.saveDraftFailed', "Couldn't save the draft. Try again."), { type: 'error' });
+      toast(
+        draftRevisionConflict
+          ? t('compose.draftConflict', {
+              defaultValue: 'This draft changed elsewhere. Save your work as a copy.',
+            })
+          : t('compose.saveDraftFailed', "Couldn't save the draft. Try again."),
+        { type: 'error' },
+      );
     }
     announcedAutoSaveError.current = autoSaveError;
-  }, [autoSaveError, t]);
+  }, [autoSaveError, draftRevisionConflict, t]);
 
   // Everything the composer holds, as the one content predicate reads it
   // (`utils/composeContent.ts`) — validation, publish, autosave and the close
@@ -1279,6 +1303,49 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       variants,
     ],
   );
+  const latestDraftSnapshot = useRef(draftSnapshot);
+  useLayoutEffect(() => {
+    latestDraftSnapshot.current = draftSnapshot;
+  }, [draftSnapshot]);
+  const publishChoices = useMemo(
+    () => ({
+      collaborators,
+      laneId,
+      publishAs,
+      community,
+      postTitle,
+      alsoPostToProfile,
+      replyPermission,
+      quotesDisabled,
+      isSensitive,
+      quotedPost,
+    }),
+    [
+      collaborators,
+      laneId,
+      publishAs,
+      community,
+      postTitle,
+      alsoPostToProfile,
+      replyPermission,
+      quotesDisabled,
+      isSensitive,
+      quotedPost,
+    ],
+  );
+  const latestPublishChoices = useRef(publishChoices);
+  useLayoutEffect(() => {
+    latestPublishChoices.current = publishChoices;
+  }, [publishChoices]);
+  const switchingDraftRef = useRef(false);
+  const [switchingDraft, setSwitchingDraft] = useState(false);
+  const composerMountedRef = useRef(false);
+  useEffect(() => {
+    composerMountedRef.current = true;
+    return () => {
+      composerMountedRef.current = false;
+    };
+  }, []);
 
   const [retryingDraftSave, setRetryingDraftSave] = useState(false);
   const retryingDraftSaveRef = useRef(false);
@@ -1291,12 +1358,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       autoSaveTimeoutRef.current = null;
     }
     try {
-      await autoSaveDraft(draftSnapshot);
+      if (draftRevisionConflict) await saveAsCopy(draftSnapshot);
+      else await autoSaveDraft(draftSnapshot);
+    } catch (error) {
+      logger.error('Failed to save a draft copy', error);
     } finally {
       retryingDraftSaveRef.current = false;
       setRetryingDraftSave(false);
     }
-  }, [autoSaveDraft, autoSaveTimeoutRef, draftSnapshot]);
+  }, [autoSaveDraft, autoSaveTimeoutRef, draftRevisionConflict, draftSnapshot, saveAsCopy]);
 
   /**
    * Empty every piece of content the composer holds — text, media, attachments,
@@ -1348,7 +1418,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   };
 
   const handlePost = async (options?: { publishNow?: boolean }) => {
-    if (isPosting || !user || !supervision.ready) return;
+    if (isPosting || switchingDraftRef.current || !user || !supervision.ready) return;
 
     // Editing a scheduled post: "Post now" is explicit, and so is clearing the
     // schedule — the post then has no time left to wait for, so Save publishes
@@ -1396,9 +1466,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       return;
     }
 
+    const submittedDraft = draftSnapshot;
+    const submittedSession = getDraftSession();
+    const submittedChoices = publishChoices;
     setIsPosting(true);
     beginPublish();
     let published = false;
+    let preserveAfterPublish = false;
     try {
       // A handle typed at the very end of a box never had anything typed after
       // it, so the input never saw it completed. Resolve every handle still
@@ -1634,18 +1708,36 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       haptic('light');
       toast(successMessage, { type: 'success' });
 
-      // Empty the composer, then take it out of reach. Both halves matter: the
-      // tab composer stays MOUNTED for the life of the app, so leaving it full
-      // offered the published text again on the next compose; and a composer
-      // left one Back (or one tab switch) away was a duplicate post waiting to
-      // happen (OxyHQ/Mention#1140).
-      resetComposerAfterPublish();
-      leaveAfterPublish();
+      // Clear the published snapshot only when no newer work or draft switch
+      // happened during the request. Otherwise keep the editor and persist its
+      // current contents after publishing releases autosave.
+      preserveAfterPublish = shouldPreservePublishedEditor(
+        submittedDraft,
+        latestDraftSnapshot.current,
+        submittedSession,
+        getDraftSession(),
+        submittedChoices,
+        latestPublishChoices.current,
+        switchingDraftRef.current,
+      );
+      if (!preserveAfterPublish) {
+        resetComposerAfterPublish();
+        leaveAfterPublish();
+      }
     } catch (error) {
       if (published) {
         // The post is out; what failed is the local cleanup after it. Never
         // tell the author a published post failed to publish.
         logger.error('Composer cleanup after publish failed', error);
+        preserveAfterPublish = shouldPreservePublishedEditor(
+          submittedDraft,
+          latestDraftSnapshot.current,
+          submittedSession,
+          getDraftSession(),
+          submittedChoices,
+          latestPublishChoices.current,
+          switchingDraftRef.current,
+        );
         return;
       }
       const { reason, normalized } = classifyApiError(error);
@@ -1678,9 +1770,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       toast(reasonToToast[reason], { type: 'error' });
 
       // The work is still a draft: keep it in the composer AND in storage.
-      void publishFailed(draftSnapshot);
+      void publishFailed(latestDraftSnapshot.current);
     } finally {
-      if (published) endPublish();
+      if (published) {
+        endPublish();
+        if (preserveAfterPublish) void autoSaveDraft(latestDraftSnapshot.current);
+      }
       setIsPosting(false);
     }
   };
@@ -2804,21 +2899,30 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           composer (`app/(app)/_layout.tsx`), so the footer row sits on the
           screen edge and has to clear the gesture area itself. */}
       <View className="flex-1 bg-card pt-safe pb-safe">
+        {switchingDraft && <Text accessibilityRole="alert">{t('common.saving')}</Text>}
         {autoSaveError && (
           <View className="px-4 py-3">
             <Text accessibilityRole="alert" className="text-sm text-destructive">
-              {t('compose.saveDraftFailed', "Couldn't save the draft. Try again.")}
+              {draftRevisionConflict
+                ? t('compose.draftConflict', {
+                    defaultValue: 'This draft changed elsewhere. Save your work as a copy.',
+                  })
+                : t('compose.saveDraftFailed', "Couldn't save the draft. Try again.")}
             </Text>
             <Button
               appearance="plain"
               size="sm"
               onPress={retryDraftSave}
               disabled={retryingDraftSave}
-              accessibilityLabel={t('compose.retryDraftSave', {
-                defaultValue: 'Retry saving draft',
-              })}
+              accessibilityLabel={
+                draftRevisionConflict
+                  ? t('compose.saveDraftCopy', { defaultValue: 'Save as copy' })
+                  : t('compose.retryDraftSave', { defaultValue: 'Retry saving draft' })
+              }
             >
-              {t('common.retry', { defaultValue: 'Retry' })}
+              {draftRevisionConflict
+                ? t('compose.saveDraftCopy', { defaultValue: 'Save as copy' })
+                : t('common.retry', { defaultValue: 'Retry' })}
             </Button>
           </View>
         )}
@@ -2899,19 +3003,84 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   iconOnly
                   icon={<RiDraftLine width={20} height={20} fill={theme.colors.text} />}
                   style={styles.iconBtn}
+                  disabled={switchingDraft}
                   onPress={() => {
-                    void presentSheet((surface) => (
+                    let active = true;
+                    const opened = presentSheet((surface) => (
                       <Suspense fallback={null}>
                         <UnpublishedSheet
                           onClose={() => surface.dismiss()}
-                          onLoadDraft={(draft: Draft) => {
-                            surface.dismiss();
-                            handleResumeDraft(draft);
+                          onLoadDraft={async (draft: Draft) => {
+                            if (switchingDraftRef.current) return;
+                            switchingDraftRef.current = true;
+                            setSwitchingDraft(true);
+                            let saved = false;
+                            try {
+                              const result = await prepareDraftSwitch(
+                                draft.id,
+                                () => latestDraftSnapshot.current,
+                                getDraftSession,
+                                async (snapshot) => {
+                                  await saveDraftNow(snapshot);
+                                  saved = true;
+                                },
+                                readDraft,
+                                () => active && composerMountedRef.current,
+                              );
+                              if (result.status === 'cancelled') return;
+                              if (result.status === 'changed') {
+                                surface.dismiss();
+                                toast(
+                                  t('compose.draftChangedRetry', {
+                                    defaultValue: 'Your draft changed while saving. Try again.',
+                                  }),
+                                  { type: 'error' },
+                                );
+                                return;
+                              }
+                              if (result.status === 'missing') {
+                                surface.dismiss();
+                                toast(
+                                  t('compose.draftMissing', {
+                                    defaultValue: 'This draft is no longer available.',
+                                  }),
+                                  { type: 'error' },
+                                );
+                                return;
+                              }
+                              surface.dismiss();
+                              if (result.status === 'ready') handleResumeDraft(result.draft);
+                            } catch (error) {
+                              logger.error('Failed to switch draft', error);
+                              if (active && composerMountedRef.current) {
+                                surface.dismiss();
+                                if (error instanceof DraftReadError || saved) {
+                                  toast(
+                                    t('compose.deviceDrafts.loadError', {
+                                      defaultValue:
+                                        "We couldn't load the drafts saved on this device",
+                                    }),
+                                    { type: 'error' },
+                                  );
+                                }
+                              }
+                            } finally {
+                              switchingDraftRef.current = false;
+                              if (composerMountedRef.current) setSwitchingDraft(false);
+                            }
                           }}
                           currentDraftId={currentDraftId}
                         />
                       </Suspense>
                     ));
+                    void opened.then(
+                      () => {
+                        active = false;
+                      },
+                      () => {
+                        active = false;
+                      },
+                    );
                   }}
                   accessibilityLabel={t('compose.openDrafts.a11y', {
                     defaultValue: 'Open drafts and scheduled posts',
@@ -4062,9 +4231,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   dismiss();
                 } catch (error) {
                   logger.error('Failed to save draft', error);
-                  toast(t('compose.saveDraftFailed', "Couldn't save the draft. Try again."), {
-                    type: 'error',
-                  });
                 }
               },
             },

@@ -1,4 +1,9 @@
 {
+  "compose.deleteDraftChanged": "Dieser Entwurf wurde geändert. Prüfe ihn und versuche erneut, ihn zu löschen.",
+  "compose.draftMissing": "Dieser Entwurf ist nicht mehr verfügbar.",
+  "compose.draftConflict": "Dieser Entwurf wurde an anderer Stelle geändert. Speichere deine Arbeit als Kopie.",
+  "compose.saveDraftCopy": "Als Kopie speichern",
+  "compose.draftChangedRetry": "Dein Entwurf wurde während des Speicherns geändert. Versuche es erneut.",
   "compose.deviceDrafts.loadError": "Die auf diesem Gerät gespeicherten Entwürfe konnten nicht geladen werden",
   "compose.retryDraftSave": "Entwurf erneut speichern",
   "search.history.updateFailed": "Der Suchverlauf konnte nicht aktualisiert werden.",
