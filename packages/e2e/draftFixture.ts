@@ -12,7 +12,10 @@ export interface FixtureDraft {
   updatedAt: number;
 }
 
-export async function installDraftFixture(context: BrowserContext): Promise<void> {
+export async function installDraftFixture(
+  context: BrowserContext,
+  options: { seedDrafts?: boolean } = {},
+): Promise<void> {
   const user = {
     id: DRAFT_VIEWER_ID,
     username: DRAFT_VIEWER_ID,
@@ -39,7 +42,7 @@ export async function installDraftFixture(context: BrowserContext): Promise<void
     'fixture',
   ].join('.');
   await context.addInitScript(
-    ({ user, token, expiresAt, draftKey }) => {
+    ({ user, token, expiresAt, draftKey, seedDrafts }) => {
       localStorage.setItem('welcome_modal_seen', 'true');
       localStorage.setItem(
         'oxy.auth.v1',
@@ -64,10 +67,14 @@ export async function installDraftFixture(context: BrowserContext): Promise<void
         createdAt: 1,
         updatedAt: 1,
       });
-      localStorage.setItem(
-        draftKey,
-        JSON.stringify([draft('a', 'Draft A original'), draft('b', 'Draft B original')]),
-      );
+      if (seedDrafts) {
+        localStorage.setItem(
+          draftKey,
+          JSON.stringify([draft('a', 'Draft A original'), draft('b', 'Draft B original')]),
+        );
+      } else {
+        localStorage.removeItem(draftKey);
+      }
       const state = window as typeof window & { __failDraftWrites?: boolean };
       state.__failDraftWrites = false;
       const setItem = Storage.prototype.setItem;
@@ -77,7 +84,7 @@ export async function installDraftFixture(context: BrowserContext): Promise<void
         return setItem.call(this, key, value);
       };
     },
-    { user, token, expiresAt, draftKey: DRAFT_KEY },
+    { user, token, expiresAt, draftKey: DRAFT_KEY, seedDrafts: options.seedDrafts !== false },
   );
   await context.routeWebSocket('**/*', (socket) => socket.close());
   await context.route('**/*', async (route) => {

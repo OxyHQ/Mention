@@ -43,7 +43,7 @@ describe('handlePost', () => {
   it('stops autosave before the request, so a debounce cannot re-save the post', () => {
     const begin = body.indexOf('beginPublish();');
     expect(begin).toBeGreaterThan(-1);
-    expect(begin).toBeLessThan(body.indexOf('await createPost('));
+    expect(begin).toBeLessThan(body.indexOf('await publishPostWithRepost('));
     expect(begin).toBeLessThan(body.indexOf('await createReply('));
     expect(begin).toBeLessThan(body.indexOf('await createThread('));
     expect(begin).toBeLessThan(body.indexOf('feedService.editPost('));

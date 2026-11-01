@@ -1697,6 +1697,7 @@
   "channels.signInRequired": "Inicia sesión para gestionar tus canales",
   "channels.signInRequiredDesc": "Un canal es una cuenta que la gente sigue sin seguir a quienes escriben en ella.",
   "channels.compose.repostFailed": "Se publicó en el canal, pero no se pudo republicar en tu perfil.",
+  "channels.compose.repostUnconfirmed": "Se publicó en el canal. Comprueba tu perfil para ver si se republicó.",
   "channels.compose.scheduledNoRepost": "Programada. Republícala en tu perfil cuando se publique.",
   "channels.settings.title": "Ajustes del canal",
   "channels.settings.operatorOnly": "Solo quien gestiona el canal puede administrarlo",
@@ -2219,7 +2220,7 @@
     "addText": "Añadir texto",
     "publish": "Publicar",
     "uploadFailed": "No se ha subido. Revisa la conexión e inténtalo otra vez.",
-    "publishFailed": "No se ha publicado. Tu captura sigue aquí — inténtalo otra vez.",
+    "publishFailed": "No se ha podido confirmar la publicación. Comprueba tus publicaciones antes de volver a intentarlo. Tu captura sigue aquí.",
     "preparing": "Preparando…",
     "recordingFailed": "No se pudo grabar. Inténtalo de nuevo.",
     "open": "Abrir cámara"
@@ -2489,6 +2490,8 @@
     "open": "Abrir"
   },
   "compose": {
+    "replyUnconfirmed": "No se ha podido confirmar tu respuesta. Comprueba la conversación antes de volver a intentarlo.",
+    "publishUnconfirmed": "No se pudo confirmar el resultado. Comprueba si se aplicó el cambio antes de volver a intentarlo.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",
