@@ -721,6 +721,93 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
   const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
 
+  const separateGestures = (isGroup && item.expandable) || (isCollabInvite && collabInvitePending);
+
+  const mainContent = (
+    <>
+      {showStrip ? <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} /> : null}
+
+      {/* Byline: bold name + muted @handle + federated badge + "· time". */}
+      <View className="flex-row items-end gap-2">
+        {/* Same hover target as a post byline. Only for a SINGLE actor: a
+                  grouped byline reads "Alice, Bob and 3 more", so previewing one
+                  of them from the whole phrase would be arbitrary. */}
+        <ProfileHoverCard
+          username={isSingleActor ? resolvedPrimary.handle : undefined}
+          style={{ minWidth: 0 }}
+        >
+          <View className="flex-row items-end flex-shrink min-w-0">
+            <UserName
+              name={bylineName}
+              verified={isSingleActor && resolvedPrimary.verified}
+              style={{ container: { flexShrink: 0 } }}
+            />
+            {showHandleLine ? (
+              <Text
+                className="text-muted-foreground text-[15px] leading-5"
+                style={{ flexShrink: 10, minWidth: 0 }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {` @${resolvedPrimary.handle}`}
+              </Text>
+            ) : null}
+            {isSingleActor ? (
+              <AccountBadge
+                isFederated={resolvedPrimary.isFederated}
+                kind={resolvedPrimary.kind}
+                size={13}
+                containerClassName="self-center ml-1"
+              />
+            ) : null}
+          </View>
+        </ProfileHoverCard>
+        {timeLabel ? (
+          <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
+            {'·'} {timeLabel}
+          </Text>
+        ) : null}
+      </View>
+
+      {channelText ? (
+        <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
+          {channelText}
+        </Text>
+      ) : null}
+
+      {actionText ? (
+        <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
+          {actionText}
+        </Text>
+      ) : null}
+
+      {previewText ? <NotificationPreview text={previewText} /> : null}
+    </>
+  );
+
+  const avatarContent = (
+    <>
+      <ProfileHoverCard username={resolvedPrimary.handle}>
+        <AccountAvatar
+          account={resolvedPrimary}
+          source={resolvedPrimary.avatar}
+          size={AVATAR_SIZE}
+          variant={MEDIA_VARIANT_AVATAR}
+        />
+      </ProfileHoverCard>
+      <View
+        className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
+        style={{ backgroundColor: badgeColor }}
+      >
+        <descriptor.icon
+          width={BADGE_ICON_SIZE}
+          height={BADGE_ICON_SIZE}
+          fill={BADGE_GLYPH_COLOR}
+        />
+      </View>
+    </>
+  );
+
   // Row anatomy copied (NOT imported) from PostItem + PostHeader: a full-width,
   // edge-to-edge Pressable (background + bottom border span the whole width, the
   // group-hover wash matches the feed) with the horizontal padding living INSIDE
@@ -730,56 +817,18 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // A read row is opaque in the colour of the column it sits in; an unread one
   // replaces that with the tint (`tailwind-merge` dropped `bg-card` for exactly
   // the same reason when both were classes), so the two stay exclusive.
-  return (
-    <View
-      className={cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5')}
-      style={hasUnread ? undefined : { backgroundColor: surfaceFill }}
-    >
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={handlePress}
-        onLongPress={handleLongPress}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-      />
+  const rowContent = (
+    <>
       <SubtleHover />
-      <View className="px-3" pointerEvents="box-none">
-        <View className="flex-row items-start justify-between" pointerEvents="box-none">
+      <View className="px-3" pointerEvents={separateGestures ? 'box-none' : undefined}>
+        <View
+          className="flex-row items-start justify-between"
+          pointerEvents={separateGestures ? 'box-none' : undefined}
+        >
           {/* Avatar column: avatar + themed action-badge overlay. */}
-          <Pressable
-            className="relative mr-3"
-            onPress={handlePress}
-            onLongPress={handleLongPress}
-            accessible={false}
-            tabIndex={-1}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          >
-            <ProfileHoverCard username={resolvedPrimary.handle}>
-              <AccountAvatar
-                account={resolvedPrimary}
-                source={resolvedPrimary.avatar}
-                size={AVATAR_SIZE}
-                variant={MEDIA_VARIANT_AVATAR}
-              />
-            </ProfileHoverCard>
-            <View
-              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
-              style={{ backgroundColor: badgeColor }}
-            >
-              <descriptor.icon
-                width={BADGE_ICON_SIZE}
-                height={BADGE_ICON_SIZE}
-                fill={BADGE_GLYPH_COLOR}
-              />
-            </View>
-          </Pressable>
-
-          {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
-              plus the muted action phrase and the text preview. */}
-          <View className="flex-1 gap-1" pointerEvents="box-none">
+          {separateGestures ? (
             <Pressable
-              className="gap-1"
+              className="relative mr-3"
               onPress={handlePress}
               onLongPress={handleLongPress}
               accessible={false}
@@ -787,84 +836,30 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
-              {showStrip ? (
-                <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} />
-              ) : null}
-
-              {/* Byline: bold name + muted @handle + federated badge + "· time". */}
-              <View className="flex-row items-end gap-2">
-                {/* Same hover target as a post byline. Only for a SINGLE actor: a
-                  grouped byline reads "Alice, Bob and 3 more", so previewing one
-                  of them from the whole phrase would be arbitrary. */}
-                <ProfileHoverCard
-                  username={isSingleActor ? resolvedPrimary.handle : undefined}
-                  style={{ minWidth: 0 }}
-                >
-                  <View className="flex-row items-end flex-shrink min-w-0">
-                    <UserName
-                      name={bylineName}
-                      verified={isSingleActor && resolvedPrimary.verified}
-                      style={{ container: { flexShrink: 0 } }}
-                    />
-                    {showHandleLine ? (
-                      <Text
-                        className="text-muted-foreground text-[15px] leading-5"
-                        style={{ flexShrink: 10, minWidth: 0 }}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {` @${resolvedPrimary.handle}`}
-                      </Text>
-                    ) : null}
-                    {isSingleActor ? (
-                      <AccountBadge
-                        isFederated={resolvedPrimary.isFederated}
-                        kind={resolvedPrimary.kind}
-                        size={13}
-                        containerClassName="self-center ml-1"
-                      />
-                    ) : null}
-                  </View>
-                </ProfileHoverCard>
-                {timeLabel ? (
-                  <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
-                    {'·'} {timeLabel}
-                  </Text>
-                ) : null}
-              </View>
-
-              {channelText ? (
-                <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
-                  {channelText}
-                </Text>
-              ) : null}
-
-              {actionText ? (
-                <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
-                  {actionText}
-                </Text>
-              ) : null}
-
-              {previewText ? <NotificationPreview text={previewText} /> : null}
-
-              {isCollabInvite && collabAccepted ? (
-                <View className="flex-row items-center gap-1.5 mt-1">
-                  <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
-                  <Text className="text-muted-foreground text-[15px] leading-5">
-                    {t('collab.youAccepted', { defaultValue: 'You accepted' })}
-                  </Text>
-                </View>
-              ) : null}
-
-              {isCollabInvite && collabDeclined ? (
-                <View className="flex-row items-center gap-1.5 mt-1">
-                  <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
-                  <Text className="text-muted-foreground text-[15px] leading-5">
-                    {t('collab.youDeclined', { defaultValue: 'You declined' })}
-                  </Text>
-                </View>
-              ) : null}
+              {avatarContent}
             </Pressable>
+          ) : (
+            <View className="relative mr-3">{avatarContent}</View>
+          )}
+
+          {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
+              plus the muted action phrase and the text preview. */}
+          <View className="flex-1 gap-1" pointerEvents={separateGestures ? 'box-none' : undefined}>
+            {separateGestures ? (
+              <Pressable
+                className="gap-1"
+                onPress={handlePress}
+                onLongPress={handleLongPress}
+                accessible={false}
+                tabIndex={-1}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {mainContent}
+              </Pressable>
+            ) : (
+              mainContent
+            )}
 
             {isGroup && item.expandable ? (
               <View className="mt-1 gap-2">
@@ -937,42 +932,85 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 </Button>
               </View>
             ) : null}
+
+            {isCollabInvite && collabAccepted ? (
+              <View
+                className="flex-row items-center gap-1.5 mt-1"
+                pointerEvents={separateGestures ? 'none' : undefined}
+              >
+                <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
+                <Text className="text-muted-foreground text-[15px] leading-5">
+                  {t('collab.youAccepted', { defaultValue: 'You accepted' })}
+                </Text>
+              </View>
+            ) : null}
+
+            {isCollabInvite && collabDeclined ? (
+              <View
+                className="flex-row items-center gap-1.5 mt-1"
+                pointerEvents={separateGestures ? 'none' : undefined}
+              >
+                <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
+                <Text className="text-muted-foreground text-[15px] leading-5">
+                  {t('collab.youDeclined', { defaultValue: 'You declined' })}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {/* Trailing media chip — a compact square still of the post's first
               image, mirroring the feed's thumb variant. Decorative: the row's
               own accessibilityLabel already describes the notification. */}
-          {thumbnailUrl || hasUnread ? (
-            <Pressable
-              className="flex-row self-center"
-              onPress={handlePress}
-              onLongPress={handleLongPress}
-              accessible={false}
-              tabIndex={-1}
+          {thumbnailUrl ? (
+            <Image
+              source={{ uri: thumbnailUrl }}
+              className="bg-muted self-center ml-3 rounded-lg"
+              style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
+              contentFit="cover"
+              transition={150}
+              cachePolicy="memory-disk"
               accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              {thumbnailUrl ? (
-                <Image
-                  source={{ uri: thumbnailUrl }}
-                  className="bg-muted self-center ml-3 rounded-lg"
-                  style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
-                  contentFit="cover"
-                  transition={150}
-                  cachePolicy="memory-disk"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                />
-              ) : null}
-
-              {hasUnread ? (
-                <View className="w-2 h-2 rounded-full bg-primary self-center ml-2" />
-              ) : null}
-            </Pressable>
+              importantForAccessibility="no"
+              pointerEvents={separateGestures ? 'none' : undefined}
+            />
+          ) : null}
+          {hasUnread ? (
+            <View
+              className="w-2 h-2 rounded-full bg-primary self-center ml-2"
+              pointerEvents={separateGestures ? 'none' : undefined}
+            />
           ) : null}
         </View>
       </View>
-    </View>
+    </>
+  );
+  const rowClass = cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5');
+  const rowStyle = hasUnread ? undefined : { backgroundColor: surfaceFill };
+  if (separateGestures) {
+    return (
+      <View className={rowClass} style={rowStyle}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handlePress}
+          onLongPress={handleLongPress}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+        />
+        {rowContent}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      className={rowClass}
+      style={rowStyle}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
+      {rowContent}
+    </Pressable>
   );
 };
 

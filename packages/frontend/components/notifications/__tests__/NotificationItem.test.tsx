@@ -517,6 +517,45 @@ describe('NotificationItem — collaboration invite', () => {
     }
   });
 
+  it('keeps one row gesture target for ordinary notifications', async () => {
+    const source = collabInviteItem();
+    const item = {
+      ...source,
+      type: 'like',
+      leadNotification: { ...source.leadNotification, type: 'like' },
+    } as GroupedNotification;
+    const { renderer } = await renderRow(PENDING, { item });
+    const targets = renderer.root.findAll(
+      (node) =>
+        typeof node.props.onLongPress === 'function' && node.props.accessibilityRole === 'button',
+    );
+    expect(targets).toHaveLength(1);
+    expect(targets[0].props.accessibilityRole).toBe('button');
+  });
+
+  it.each(['collaboration', 'expandable group'])('separates controls for %s rows', async (kind) => {
+    const source = collabInviteItem();
+    const item =
+      kind === 'collaboration'
+        ? source
+        : ({
+            ...source,
+            type: 'like',
+            isGroup: true,
+            expandable: true,
+            totalActors: 2,
+            actors: [
+              { id: 'owner-1', name: 'Owner', username: 'owner' },
+              { id: 'other-1', name: 'Other', username: 'other' },
+            ],
+            leadNotification: { ...source.leadNotification, type: 'like' },
+          } as GroupedNotification);
+    const { renderer } = await renderRow(PENDING, { item });
+    const targets = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function');
+    expect(targets).toHaveLength(3);
+    expect(targets.filter((node) => node.props.accessibilityRole === 'button')).toHaveLength(1);
+  });
+
   it('does not submit a cancelled sheet when its old callback is invoked', async () => {
     const controller = new AbortController();
     const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>
