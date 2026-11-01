@@ -13,7 +13,7 @@ function token(id: string) {
       JSON.stringify({
         sub: id,
         userId: id,
-        sessionId: `session-${id}`,
+        sessionId: id === userA ? 'notification-fixture' : 'fixture-b',
         exp: Math.floor(Date.now() / 1000) + 7200,
       }),
     ).toString('base64url'),
