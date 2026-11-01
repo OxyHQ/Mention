@@ -7,7 +7,6 @@ import { useAppShell } from '@oxy.so/bloom/app-shell';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { ProfileButton } from '@oxy.so/services/ui/client';
-import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountDialogMenuItem } from '@oxy.so/services';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiHome5Line } from '@oxy.so/bloom/icons/RiHome5Line';
@@ -22,7 +21,6 @@ import { useTheme } from '@oxy.so/bloom/theme';
 function MentionSidebarFooter({ collapsed }: { collapsed: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { signIn } = useAuth();
   const { selectDestination } = useTabPager();
   const { closeDrawer } = useAppShell();
   const menuItems = useMemo<AccountDialogMenuItem[]>(
@@ -65,10 +63,7 @@ function MentionSidebarFooter({ collapsed }: { collapsed: boolean }) {
         closeDrawer();
         selectDestination('you');
       }}
-      onAddAccount={() => {
-        closeDrawer();
-        signIn().catch(() => {});
-      }}
+      onBeforeAddAccount={closeDrawer}
     />
   );
 }

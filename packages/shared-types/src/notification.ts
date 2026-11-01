@@ -2,6 +2,9 @@
  * Notification-related types for Mention social network
  */
 
+/** Synthetic actor used for system-generated notifications; not an Oxy account. */
+export const SYSTEM_NOTIFICATION_ACTOR_ID = 'system';
+
 export enum NotificationType {
   EVENT_UPDATED = 'event_updated',
   EVENT_CANCELLED = 'event_cancelled',

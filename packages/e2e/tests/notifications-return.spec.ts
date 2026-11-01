@@ -20,7 +20,10 @@ const postId = 'notification-navigation-post';
 const selectedPostId = `${postId}-15`;
 const selectedText = `${postText} 15`;
 
-async function installNotificationFixture(context: BrowserContext) {
+async function installNotificationFixture(
+  context: BrowserContext,
+  systemActor?: 'populated' | 'unpopulated',
+) {
   const expiresAt = new Date(Date.now() + 7_200_000).toISOString();
   const token = [
     Buffer.from('{"alg":"none","typ":"JWT"}').toString('base64url'),
@@ -85,6 +88,12 @@ async function installNotificationFixture(context: BrowserContext) {
         nextDeviceSecret: 'fixture-only',
         user,
       });
+    if (path === '/users/notification-actor-real')
+      return json({
+        id: 'notification-actor-real',
+        username: 'notification-actor-real',
+        name: { displayName: 'Real notification actor' },
+      });
     if (path.startsWith('/session/user/') || path === '/users/me' || path === `/users/${user.id}`)
       return json(user);
     if (path.includes('/session/sessions') || path.startsWith('/session/device/sessions/'))
@@ -99,14 +108,30 @@ async function installNotificationFixture(context: BrowserContext) {
         notifications: Array.from({ length: 20 }, (_, index) => ({
           _id: `notification-navigation-like-${index}`,
           recipientId: user.id,
-          actorId: user.id,
-          type: 'like',
+          actorId:
+            systemActor && index === 0
+              ? 'system'
+              : systemActor && index === 1
+                ? 'notification-actor-real'
+                : user.id,
+          type: systemActor && index === 0 ? 'welcome' : 'like',
           entityId: `${postId}-${index}`,
           entityType: 'post',
           read: true,
           createdAt: new Date(Date.now() - index * 60_000).toISOString(),
           preview: `${postText} ${index}`,
-          actorId_populated: { id: user.id, username: user.username, name: user.name },
+          actorId_populated:
+            systemActor && index === 0
+              ? systemActor === 'populated'
+                ? { _id: 'system', username: 'system', name: { displayName: 'System' } }
+                : undefined
+              : systemActor && index === 1
+                ? {
+                    _id: 'notification-actor-real',
+                    username: 'notification-actor-real',
+                    name: { displayName: 'Real notification actor' },
+                  }
+                : { id: user.id, username: user.username, name: user.name },
         })),
         unreadCount: 0,
         hasMore: false,
@@ -144,6 +169,42 @@ async function installNotificationFixture(context: BrowserContext) {
       return json({ posts: [], items: [], hasMore: false, nextCursor: null });
     if (path.startsWith('/socket.io')) return route.abort();
     return json({ items: [], data: [], nextCursor: null });
+  });
+}
+
+for (const systemActor of ['populated', 'unpopulated'] as const) {
+  test(`a ${systemActor} system actor renders without an Oxy lookup`, async ({
+    context,
+    page,
+    candidate,
+  }) => {
+    await installNotificationFixture(context, systemActor);
+    const systemRequests: string[] = [];
+    const realActorRead = page.waitForResponse((response) =>
+      response.url().endsWith('/users/notification-actor-real'),
+    );
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/users/system') systemRequests.push(url.pathname);
+      if (url.pathname === '/users/by-ids' && request.method() === 'POST') {
+        const body = request.postDataJSON() as { ids?: string[] } | null;
+        if (body?.ids?.includes('system')) systemRequests.push(url.pathname);
+      }
+    });
+
+    await page.goto('/notifications');
+    await expect(page.getByText('Welcome to Mention! 👋', { exact: true })).toBeVisible();
+    await realActorRead;
+    await expect(page.getByText('Real notification actor', { exact: true }).first()).toBeVisible();
+    await page.getByText(selectedText, { exact: true }).click();
+    await expect(page).toHaveURL(`${APP_ORIGIN}/p/${selectedPostId}`);
+    await page.goBack();
+    await expect(page.getByText(selectedText, { exact: true })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await expect(page.getByText('Welcome to Mention! 👋', { exact: true })).toBeVisible();
+    expect(systemRequests).toEqual([]);
+    expect(candidate.scriptErrors).toEqual([]);
   });
 }
 

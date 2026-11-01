@@ -65,6 +65,7 @@ export const ChannelHeader = memo(function ChannelHeader({
   displayName,
   username,
   avatarUri,
+  galleryShareUrl,
   verified,
   isPrivate,
   privacySettings,
@@ -81,6 +82,7 @@ export const ChannelHeader = memo(function ChannelHeader({
           and cannot host a live room — the states could not occur, rather than
           being hidden. */}
       <ZoomableAvatar
+        shareUrl={galleryShareUrl ?? null}
         source={avatarUri}
         size={CHANNEL_AVATAR_SIZE - CHANNEL_AVATAR_RING * 2}
         className="bg-muted"

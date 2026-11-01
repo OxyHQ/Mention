@@ -1166,14 +1166,17 @@ class FeedService {
    * back to the existing local people search. Network errors propagate so React
    * Query can surface a retryable error state.
    */
-  async resolveExternalActor(handle: string): Promise<ExternalActorResolution | null> {
+  async resolveExternalActor(
+    handle: string,
+    signal?: AbortSignal,
+  ): Promise<ExternalActorResolution | null> {
     // No not-found branch: "nobody by that handle" is an ORDINARY answer to a
     // search probe, so the endpoint says it with `{ actor: null }` and a 200
     // rather than a 404. A thrown error here is now a real fault and stays
     // thrown — it is not quietly folded into "no match" the way a 404 was.
     const response = await authenticatedClient.get<{ actor: ExternalActorResolution | null }>(
       '/federation/resolve',
-      { params: { handle } },
+      { params: { handle }, signal },
     );
     return response.data?.actor ?? null;
   }

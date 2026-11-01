@@ -30,6 +30,7 @@ import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { getDescriptor, type TranslateFn } from './notificationDescriptors';
 import { useUserById } from '@/hooks/useCachedUser';
+import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import { useKnownIdentitySet, type IdentityUpdate } from '@/stores/identityUpdates';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { POST_ITEM_SPACING } from '@/styles/shared';
@@ -348,12 +349,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // Resolve the PRIMARY actor from the Oxy user cache reactively (the screen
   // prewarms it via `prewarmUsersByIds`). Cached fields are merged over the raw
   // `actors[0]`, so names + real avatars appear even when the backend's
-  // `actorId_populated` is empty. An actor with no id is a malformed payload and
-  // there is nothing to look up — but that is now the ONLY thing this skips: the
-  // gate used to also be an id-SHAPE test, which is what silently stopped
-  // resolving every account created after Oxy's ids became uuid v7.
+  // `actorId_populated` is empty. An actor with no id cannot be looked up; the
+  // system actor below is synthetic. All other IDs are passed through without an
+  // id-SHAPE test, which used to exclude accounts created with uuid v7.
   const primaryOxyId = primaryActor?.id;
-  const cachedPrimary = useUserById(primaryOxyId);
+  // System notifications name a synthetic actor, not an Oxy account.
+  const cachedPrimary = useUserById(
+    primaryOxyId === SYSTEM_NOTIFICATION_ACTOR_ID ? undefined : primaryOxyId,
+  );
   const knownIdentities = useKnownIdentitySet(item.actors.map((actor) => actor.id));
   const resolvedPrimary = useMemo(
     () =>
