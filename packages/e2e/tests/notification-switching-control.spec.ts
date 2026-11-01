@@ -72,27 +72,31 @@ async function installSwitchingFixture(page: Page) {
       },
     });
   });
+  const deviceSync = () => ({
+    state: {
+      deviceId: 'fixture-device',
+      accounts: remote
+        ? [
+            { accountId: userA, sessionId: 'notification-fixture', authuser: 0 },
+            { accountId: userB, sessionId: 'fixture-b', authuser: 1 },
+          ]
+        : [],
+      activeAccountId: remote,
+      revision,
+      updatedAt: Date.now(),
+    },
+    activeToken: remote ? { accessToken: token(remote), expiresAt } : null,
+  });
   await page.route('**/session/device/state', (route) => {
     stateCalls++;
-    return route.fulfill({
-      headers,
-      json: {
-        state: {
-          deviceId: 'fixture-device',
-          accounts: remote
-            ? [
-                { accountId: userA, sessionId: 'notification-fixture', authuser: 0 },
-                { accountId: userB, sessionId: 'fixture-b', authuser: 1 },
-              ]
-            : [],
-          activeAccountId: remote,
-          revision,
-          updatedAt: Date.now(),
-        },
-        activeToken: remote ? { accessToken: token(remote), expiresAt } : null,
-      },
-    });
+    return route.fulfill({ headers, json: deviceSync() });
   });
+  for (const action of ['add', 'switch']) {
+    await page.route(`**/session/device/${action}`, (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      return route.fulfill({ headers, json: deviceSync() });
+    });
+  }
   await page.route('**/session/user/**', (route) =>
     remote ? route.fulfill({ headers, json: profile(remote) }) : route.abort(),
   );
