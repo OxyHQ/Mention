@@ -29,6 +29,10 @@ import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('FeedQueries');
 
+// Shared by replace and append; each prepares it at most once per transaction.
+const INSERT_FEED_ITEM_SQL =
+  'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)';
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
@@ -85,19 +89,16 @@ export function setFeedItems(feedKey: string, posts: FeedItem[], meta: FeedMetaD
     db.runSync('DELETE FROM feed_items WHERE feed_key = ?', feedKey);
 
     const now = Date.now();
-    for (let i = 0; i < posts.length; i++) {
-      const post = posts[i];
-      const postId = post.id;
-      if (!postId) continue;
-
-      db.runSync(
-        'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)',
-        feedKey,
-        postId,
-        i,
-        null,
-        now,
-      );
+    let statement: ReturnType<typeof db.prepareSync> | undefined;
+    try {
+      for (let i = 0; i < posts.length; i++) {
+        const postId = posts[i].id;
+        if (!postId) continue;
+        statement ??= db.prepareSync(INSERT_FEED_ITEM_SQL);
+        statement.executeSync(feedKey, postId, i, null, now);
+      }
+    } finally {
+      statement?.finalizeSync();
     }
 
     // Upsert feed meta
@@ -164,23 +165,21 @@ export function appendFeedItems(
     const now = Date.now();
 
     // Insert new items (IGNORE duplicates via PRIMARY KEY)
-    for (const post of posts) {
-      const postId = post.id;
-      if (!postId) continue;
-
-      const result = db.runSync(
-        'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)',
-        feedKey,
-        postId,
-        position,
-        null,
-        now,
-      );
-      // Only advance position if the insert actually happened
-      if (result.changes > 0) {
-        position++;
-        appended.push(post);
+    let statement: ReturnType<typeof db.prepareSync> | undefined;
+    try {
+      for (const post of posts) {
+        const postId = post.id;
+        if (!postId) continue;
+        statement ??= db.prepareSync(INSERT_FEED_ITEM_SQL);
+        const result = statement.executeSync(feedKey, postId, position, null, now);
+        // Only advance position if the insert actually happened
+        if (result.changes > 0) {
+          position++;
+          appended.push(post);
+        }
       }
+    } finally {
+      statement?.finalizeSync();
     }
 
     // Update meta

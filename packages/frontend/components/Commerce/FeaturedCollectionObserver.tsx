@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import type { MercariaPage, MercariaProductSummary } from '@mercaria.co/sdk';
 import { useScreenVisible } from '@oxy.so/bloom/screen';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { viewerQueryKeys, type ViewerId } from '@/lib/viewerQueryKeys';
 import { commerceService } from '@/services/commerceService';
 
@@ -42,7 +43,8 @@ export function FeaturedCollectionObserver({
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
       commerceService.featuredCollectionProducts(accountId, collectionId, pageParam, signal),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _pageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled: visible,
     staleTime: 30_000,
     refetchInterval: visible ? 30_000 : false,

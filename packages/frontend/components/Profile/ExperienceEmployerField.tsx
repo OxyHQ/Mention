@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { parseOrganizationDraft } from '@oxy.so/services/organization-draft';
 import { ORGANIZATION_NAME_MAX_LENGTH, ORGANIZATION_TYPES } from '@oxy.so/contracts/client';
 import type {
@@ -81,7 +82,8 @@ export function ExperienceEmployerField({
       });
     },
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _lastPageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled:
       !value &&
       debounced.length >= 2 &&

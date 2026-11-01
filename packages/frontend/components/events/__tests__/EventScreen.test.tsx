@@ -3,6 +3,7 @@ import type { EventState } from '@oxy.so/mention-contracts';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Switch } from 'react-native';
+import { waitUntil } from '@/test-support/waitUntil';
 import EventScreen from '../../../app/(app)/events/[id]';
 
 let mockUser = 'attendee';
@@ -11,6 +12,12 @@ const mockRegister = jest.fn(async (_id: string, publicAttendance: boolean) => {
   mockEvent = { ...mockEvent, viewerAttendance: { public: publicAttendance } };
   return mockEvent;
 });
+const mockAttendees = jest.fn(
+  async (_id: string, _full: boolean, _viewer: boolean, _cursor?: string) => ({
+    items: [],
+    nextCursor: null as string | null,
+  }),
+);
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: mockUser }, signIn: jest.fn() }),
 }));
@@ -33,7 +40,7 @@ jest.mock('@/services/eventsService', () => ({
   eventsService: {
     get: async () => mockEvent,
     register: (...args: [string, boolean]) => mockRegister(...args),
-    attendees: async () => ({ items: [], nextCursor: null }),
+    attendees: (...args: [string, boolean, boolean, string?]) => mockAttendees(...args),
   },
 }));
 
@@ -63,6 +70,8 @@ function button(tree: TestRenderer.ReactTestRenderer, label: string) {
 beforeEach(() => {
   mockUser = 'attendee';
   mockRegister.mockClear();
+  mockAttendees.mockReset();
+  mockAttendees.mockResolvedValue({ items: [], nextCursor: null });
   mockEvent = {
     postId: 'event-one',
     name: 'Community meeting',
@@ -131,6 +140,45 @@ it('clears unsaved public visibility when the signed-in account changes', async 
   await act(async () => button(tree, 'Register').props.onPress());
   await settle();
   expect(mockRegister).toHaveBeenCalledWith('event-one', false);
+  act(() => tree.unmount());
+  cache.clear();
+});
+
+it('stops loading the attendee roster when a cursor cycles', async () => {
+  mockAttendees.mockImplementation(async (_id, _full, _viewer, cursor) => ({
+    items: [],
+    nextCursor: cursor === undefined ? 'first' : cursor === 'first' ? 'second' : 'first',
+  }));
+  const { tree, cache } = await mount();
+  await act(async () => button(tree, 'View public attendees').props.onPress());
+  await waitUntil(() => Boolean(button(tree, 'Load more')), 'first roster page');
+  await act(async () => button(tree, 'Load more').props.onPress());
+  await waitUntil(
+    () =>
+      mockAttendees.mock.calls.length === 2 &&
+      Boolean(button(tree, 'Load more')) &&
+      !button(tree, 'Load more').props.disabled,
+    'second roster page',
+  );
+  await act(async () => button(tree, 'Load more').props.onPress());
+  await waitUntil(
+    () => mockAttendees.mock.calls.length === 3 && !button(tree, 'Load more'),
+    'cyclic roster cursor ends pagination',
+  );
+  expect(mockAttendees.mock.calls.map((args) => args[3])).toEqual([undefined, 'first', 'second']);
+  act(() => tree.unmount());
+  cache.clear();
+});
+
+it('shows an error when the attendee roster cannot be loaded', async () => {
+  mockAttendees.mockRejectedValue(new Error('Roster unavailable'));
+  const { tree, cache } = await mount();
+  await act(async () => button(tree, 'View public attendees').props.onPress());
+  await waitUntil(
+    () => JSON.stringify(tree.toJSON()).includes('Could not load attendees.'),
+    'roster error',
+  );
+  expect(button(tree, 'Load more')).toBeUndefined();
   act(() => tree.unmount());
   cache.clear();
 });
