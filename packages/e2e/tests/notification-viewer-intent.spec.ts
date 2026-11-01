@@ -46,6 +46,32 @@ async function installSwitchingFixture(page: Page) {
     'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers': '*',
   };
+  await page.route('**/auth/signin/email/start', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    return route.fulfill({
+      headers,
+      json: {
+        requestId: 'fixture-request',
+        requestSecret: 'a'.repeat(43),
+        expiresAt: Date.now() + 60_000,
+      },
+    });
+  });
+  await page.route('**/auth/signin/email/confirm', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    if (!remote) return route.abort();
+    return route.fulfill({
+      headers,
+      json: {
+        sessionId: remote === userA ? 'notification-fixture' : 'fixture-b',
+        deviceId: 'fixture-device',
+        deviceSecret: 'fixture-only',
+        expiresAt,
+        accessToken: token(remote),
+        user: profile(remote),
+      },
+    });
+  });
   await page.route('**/session/device/state', (route) => {
     stateCalls++;
     return route.fulfill({
@@ -98,8 +124,18 @@ async function installSwitchingFixture(page: Page) {
     viewer: () => remote,
     async changeTo(next: string | null) {
       const before = stateCalls;
+      const previous = remote;
       remote = next;
       revision++;
+      if (!previous && next) {
+        await page.getByRole('button', { name: 'Sign in with Oxy' }).click();
+        await page.getByTestId('signin-identifier').fill(next);
+        await page.getByTestId('signin-identifier-continue').click();
+        await page.getByTestId('signin-code').fill('123456');
+        await page.getByTestId('signin-code-continue').click();
+        await expect(page.getByText(next, { exact: true }).first()).toBeVisible();
+        return;
+      }
       await page.evaluate(() => {
         const channel = new BroadcastChannel('oxy.session');
         channel.postMessage({ type: 'commit', at: Date.now() });
