@@ -200,7 +200,7 @@ test('an incomplete response keeps the draft and warns before retrying', async (
   await openA(page);
   await page.getByTestId('compose-submit').click();
   await expect(
-    page.getByText('Could not confirm publication. Check your posts before trying again.'),
+    page.getByText('Could not confirm the result. Check whether the change took effect before trying again.'),
   ).toBeVisible();
   await expect(page.getByPlaceholder("What's new?")).toHaveValue('Draft A original');
   await expect
@@ -231,7 +231,7 @@ for (const status of [400, 500] as const) {
     await openA(page);
     await page.getByTestId('compose-submit').click();
     await expect(
-      page.getByText('Could not confirm publication. Check your posts before trying again.'),
+      page.getByText('Could not confirm the result. Check whether the change took effect before trying again.'),
     ).toBeVisible();
     await expect(page.getByPlaceholder("What's new?")).toHaveValue('Draft A original');
     await expect
@@ -287,7 +287,7 @@ test('a replaced session for the same viewer releases the composer after a pendi
     await newProjection;
     release();
     await expect(
-      page.getByText('Could not confirm publication. Check your posts before trying again.'),
+      page.getByText('Could not confirm the result. Check whether the change took effect before trying again.'),
     ).toBeVisible();
     await expect(page.getByTestId('compose-submit')).toBeEnabled();
     await expect(page.getByPlaceholder("What's new?")).toHaveValue('Draft A original');

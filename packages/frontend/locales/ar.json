@@ -1713,6 +1713,7 @@
   "channels.signInRequired": "سجّل الدخول لإدارة قنواتك",
   "channels.signInRequiredDesc": "القناة حساب يتابعه الناس دون متابعة من يكتبون له.",
   "channels.compose.repostFailed": "تم النشر في القناة، لكن فشلت إعادة نشره في ملفك الشخصي.",
+  "channels.compose.repostUnconfirmed": "تم النشر في القناة. تحقق من ملفك الشخصي لمعرفة ما إذا أُعيد نشره.",
   "channels.compose.scheduledNoRepost": "تمت الجدولة. أعد نشره في ملفك الشخصي بعد صدوره.",
   "channels.settings.title": "إعدادات القناة",
   "channels.settings.operatorOnly": "لا يمكن إدارة هذه القناة إلا لمشغّل",
@@ -2529,7 +2530,7 @@
   },
   "compose": {
     "replyUnconfirmed": "تعذر تأكيد ردك. تحقّق من المحادثة قبل المحاولة مجددًا.",
-    "publishUnconfirmed": "تعذر تأكيد النشر. تحقّق من منشوراتك قبل المحاولة مجددًا.",
+    "publishUnconfirmed": "تعذر تأكيد النتيجة. تحقق مما إذا تم تطبيق التغيير قبل إعادة المحاولة.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

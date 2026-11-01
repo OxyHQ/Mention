@@ -138,6 +138,7 @@ import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPi
 import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
 import PublishAsDialog from '@/components/Compose/PublishAsDialog';
+import { publishPostWithRepost } from '@/components/Compose/publishPost';
 import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
 import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuilder';
@@ -1459,6 +1460,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     let published = false;
     let preserveAfterPublish = false;
     let requestStarted = false;
+    const warnUnconfirmed = () =>
+      toast(
+        t('compose.publishUnconfirmed', {
+          defaultValue:
+            'Could not confirm the result. Check whether the change took effect before trying again.',
+        }),
+        { type: 'error' },
+      );
     try {
       // A handle typed at the very end of a box never had anything typed after
       // it, so the input never saw it completed. Resolve every handle still
@@ -1604,6 +1613,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         );
         if (publishNow) {
           if (!isCurrentOwner()) {
+            if (capturePublication()) warnUnconfirmed();
             void publishFailed(latestDraftSnapshot.current);
             return;
           }
@@ -1620,8 +1630,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           return;
         }
         requestStarted = true;
-        const created = await createPost(allPosts[0]);
-
         // "Also post to my profile" is a BOOST of the channel's post, made after
         // it exists — the boost is a real row with the AUTHOR as its owner, and
         // every surface already renders it as "reposted by X" above the channel's
@@ -1631,33 +1639,33 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // nothing on anyone's profile to repost, and the client is long gone by
         // the time it goes out. Saying so is the only honest option — the switch
         // promised something this path cannot deliver.
-        if (mainPost.publishAsOxyUserId && alsoPostToProfile && isCurrentOwner()) {
-          if (wasScheduled) {
+        const repostRequested = Boolean(mainPost.publishAsOxyUserId && alsoPostToProfile);
+        const result = await publishPostWithRepost({
+          request: allPosts[0],
+          createPost,
+          boostPost,
+          shouldRepost: repostRequested && !wasScheduled,
+          isCurrentOwner,
+        });
+        if (isCurrentOwner()) {
+          if (repostRequested && wasScheduled) {
             toast(
               t('channels.compose.scheduledNoRepost', {
                 defaultValue: 'Scheduled. Repost it to your own profile once it goes out.',
               }),
               { type: 'info' },
             );
-          } else if (created?.id) {
-            try {
-              await boostPost({ postId: String(created.id) });
-            } catch (error) {
-              // The post itself published — only the copy failed, and the author
-              // can still repost it by hand, so this never fails the publish.
-              logger.error('Failed to repost a channel post to the profile', error, {
-                postId: String(created.id),
-              });
-              if (isCurrentOwner()) {
-                toast(
-                  t('channels.compose.repostFailed', {
-                    defaultValue:
-                      'Published to the channel, but reposting it to your profile failed.',
-                  }),
-                  { type: 'error' },
-                );
-              }
-            }
+          } else if (result.repost === 'unconfirmed') {
+            logger.error('Could not confirm channel repost', result.error, {
+              postId: result.postId,
+            });
+            toast(
+              t('channels.compose.repostUnconfirmed', {
+                defaultValue:
+                  'Published to the channel. Check your profile to see whether it was reposted.',
+              }),
+              { type: 'error' },
+            );
           }
         }
       } else {
@@ -1684,6 +1692,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // A result from a screen that no longer owns this continuation must not
       // delete its draft or navigate the newly mounted account away.
       if (!isCurrentOwner()) {
+        if (capturePublication()) warnUnconfirmed();
         void publishFailed(latestDraftSnapshot.current);
         return;
       }
@@ -1789,15 +1798,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // A replacement session for the same projected viewer may still show a
       // generic uncertainty warning; a different viewer must not receive it.
       if (isCurrentOwner() || capturePublication()) {
-        toast(
-          requestStarted
-            ? t('compose.publishUnconfirmed', {
-                defaultValue:
-                  'Could not confirm publication. Check your posts before trying again.',
-              })
-            : reasonToToast[reason],
-          { type: 'error' },
-        );
+        if (requestStarted) warnUnconfirmed();
+        else toast(reasonToToast[reason], { type: 'error' });
       }
 
       // The work is still a draft: keep it in the composer AND in storage.

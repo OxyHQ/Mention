@@ -1633,6 +1633,7 @@
   "channels.signInRequired": "Melde dich an, um deine Kanäle zu verwalten",
   "channels.signInRequiredDesc": "Ein Kanal ist ein Konto, dem Menschen folgen, ohne den Personen zu folgen, die dafür schreiben.",
   "channels.compose.repostFailed": "Im Kanal veröffentlicht, aber das Teilen in dein Profil ist fehlgeschlagen.",
+  "channels.compose.repostUnconfirmed": "Im Kanal veröffentlicht. Prüfe dein Profil, um zu sehen, ob der Beitrag geteilt wurde.",
   "channels.compose.scheduledNoRepost": "Geplant. Teile den Beitrag in dein eigenes Profil, sobald er erschienen ist.",
   "channels.settings.title": "Kanaleinstellungen",
   "channels.settings.operatorOnly": "Nur ein Betreiber kann diesen Kanal verwalten",
@@ -2415,7 +2416,7 @@
   },
   "compose": {
     "replyUnconfirmed": "Deine Antwort konnte nicht bestätigt werden. Prüfe die Unterhaltung, bevor du es erneut versuchst.",
-    "publishUnconfirmed": "Die Veröffentlichung konnte nicht bestätigt werden. Prüfe deine Beiträge, bevor du es erneut versuchst.",
+    "publishUnconfirmed": "Das Ergebnis konnte nicht bestätigt werden. Prüfe vor einem erneuten Versuch, ob die Änderung übernommen wurde.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

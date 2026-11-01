@@ -73,23 +73,27 @@ export function InlineReplyComposer({
     activeSubmission.current = operation;
     setSubmitting(true);
     let confirmed = false;
+    const warnUnconfirmed = () =>
+      toast(
+        t('compose.replyUnconfirmed', {
+          defaultValue: 'Could not confirm your reply. Check the conversation before trying again.',
+        }),
+        { type: 'error' },
+      );
     try {
       await createReply({ postId, content: { text: trimmed } });
       confirmed = true;
-      if (!isCurrentOwner()) return;
+      if (!isCurrentOwner()) {
+        if (capture()) warnUnconfirmed();
+        return;
+      }
       if (editRevision.current === revision) setText('');
       onPosted();
     } catch (error) {
       if (confirmed) {
         logger.error('Reply posted, but updating the conversation failed', error);
-      } else if (isCurrentOwner()) {
-        toast(
-          t('compose.replyUnconfirmed', {
-            defaultValue:
-              'Could not confirm your reply. Check the conversation before trying again.',
-          }),
-          { type: 'error' },
-        );
+      } else if (isCurrentOwner() || capture()) {
+        warnUnconfirmed();
       }
     } finally {
       if (activeSubmission.current === operation) {

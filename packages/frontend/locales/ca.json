@@ -1653,6 +1653,7 @@
   "channels.signInRequired": "Inicia la sessió per gestionar els teus canals",
   "channels.signInRequiredDesc": "Un canal és un compte que la gent segueix sense seguir les persones que hi escriuen.",
   "channels.compose.repostFailed": "S'ha publicat al canal, però no s'ha pogut tornar a publicar al teu perfil.",
+  "channels.compose.repostUnconfirmed": "S’ha publicat al canal. Comprova el teu perfil per veure si s’hi ha tornat a publicar.",
   "channels.compose.scheduledNoRepost": "Programada. Torna-la a publicar al teu propi perfil quan surti.",
   "channels.settings.title": "Configuració del canal",
   "channels.settings.operatorOnly": "Només un operador pot gestionar aquest canal",
@@ -2444,7 +2445,7 @@
   },
   "compose": {
     "replyUnconfirmed": "No s’ha pogut confirmar la resposta. Comprova la conversa abans de tornar-ho a provar.",
-    "publishUnconfirmed": "No s’ha pogut confirmar la publicació. Comprova les teves publicacions abans de tornar-ho a provar.",
+    "publishUnconfirmed": "No s’ha pogut confirmar el resultat. Comprova si el canvi s’ha aplicat abans de tornar-ho a intentar.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

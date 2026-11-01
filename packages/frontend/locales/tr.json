@@ -1633,6 +1633,7 @@
   "channels.signInRequired": "Kanallarını yönetmek için giriş yap",
   "channels.signInRequiredDesc": "Kanal, insanların onun için yazanları takip etmeden takip ettiği bir hesaptır.",
   "channels.compose.repostFailed": "Kanalda yayınlandı ama profilinde yeniden paylaşılamadı.",
+  "channels.compose.repostUnconfirmed": "Kanalda yayınlandı. Yeniden paylaşılıp paylaşılmadığını görmek için profilini kontrol et.",
   "channels.compose.scheduledNoRepost": "Zamanlandı. Yayına çıktığında kendi profilinde yeniden paylaş.",
   "channels.settings.title": "Kanal ayarları",
   "channels.settings.operatorOnly": "Bu kanalı yalnızca bir operatör yönetebilir",
@@ -2415,7 +2416,7 @@
   },
   "compose": {
     "replyUnconfirmed": "Yanıtınız doğrulanamadı. Tekrar denemeden önce konuşmayı kontrol edin.",
-    "publishUnconfirmed": "Paylaşım doğrulanamadı. Tekrar denemeden önce gönderilerinizi kontrol edin.",
+    "publishUnconfirmed": "Sonuç doğrulanamadı. Yeniden denemeden önce değişikliğin uygulanıp uygulanmadığını kontrol et.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

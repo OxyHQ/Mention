@@ -1,4 +1,5 @@
 import type { FeedItem } from '@/db';
+import { publishPostWithRepost } from '@/components/Compose/publishPost';
 import { usePostsStore } from '../postsStore';
 
 /**
@@ -273,7 +274,9 @@ describe('publish outcomes after a viewer change', () => {
       usePostsStore.getState().resetViewerState({ clearCachedData: true });
       usePostsStore.setState({ error: 'B state', isLoading: true });
       complete({ success: true, post: { id: 'a' }, posts: [{ id: 'a' }], reply: { id: 'a' } });
-      await expect(operation).resolves.toEqual(method === 'createThread' ? [] : null);
+      await expect(operation).resolves.toEqual(
+        method === 'createPost' ? { id: 'a' } : method === 'createThread' ? [] : null,
+      );
       expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
       expect(mockPosts.size).toBe(0);
     },
@@ -397,9 +400,84 @@ it.each(['createPost', 'createThread', 'createReply'] as const)(
   },
 );
 
+it.each(['confirmed', 'unconfirmed'] as const)(
+  'uses a confirmed post ID for a %s repost even when local model conversion fails',
+  async (outcome) => {
+    mockFeedService.createPost.mockReset();
+    mockFeedService.createPost.mockResolvedValueOnce({
+      success: true,
+      post: { id: 'channel-post' },
+    });
+    const repostError = new Error('repost response lost');
+    const boostPost = jest.fn();
+    if (outcome === 'confirmed') boostPost.mockResolvedValueOnce(undefined);
+    else boostPost.mockRejectedValueOnce(repostError);
+
+    const result = await publishPostWithRepost({
+      request: { content: { text: 'channel post' } } as never,
+      createPost: usePostsStore.getState().createPost,
+      boostPost,
+      shouldRepost: true,
+      isCurrentOwner: () => true,
+    });
+
+    expect(result).toEqual(
+      outcome === 'confirmed'
+        ? { postId: 'channel-post', repost: 'confirmed' }
+        : { postId: 'channel-post', repost: 'unconfirmed', error: repostError },
+    );
+    expect(mockFeedService.createPost).toHaveBeenCalledTimes(1);
+    expect(boostPost).toHaveBeenCalledTimes(1);
+    expect(boostPost).toHaveBeenCalledWith({ postId: 'channel-post' });
+  },
+);
+
+it('does not repost or resend after the owner changes while the post is pending', async () => {
+  let finish!: (value: unknown) => void;
+  mockFeedService.createPost.mockReset();
+  mockFeedService.createPost.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const boostPost = jest.fn();
+  let current = true;
+  const result = publishPostWithRepost({
+    request: { content: { text: 'channel post' } } as never,
+    createPost: usePostsStore.getState().createPost,
+    boostPost,
+    shouldRepost: true,
+    isCurrentOwner: () => current,
+  });
+  current = false;
+  finish({ success: true, post: { id: 'channel-post' } });
+  await expect(result).resolves.toEqual({ postId: 'channel-post', repost: 'skipped' });
+  expect(mockFeedService.createPost).toHaveBeenCalledTimes(1);
+  expect(boostPost).not.toHaveBeenCalled();
+});
+
+it('does not attempt a repost or resend when the original publication is unconfirmed', async () => {
+  mockFeedService.createPost.mockReset();
+  mockFeedService.createPost.mockRejectedValueOnce(new Error('unknown publication outcome'));
+  const boostPost = jest.fn();
+  await expect(
+    publishPostWithRepost({
+      request: { content: { text: 'channel post' } } as never,
+      createPost: usePostsStore.getState().createPost,
+      boostPost,
+      shouldRepost: true,
+      isCurrentOwner: () => true,
+    }),
+  ).rejects.toThrow('unknown publication outcome');
+  expect(mockFeedService.createPost).toHaveBeenCalledTimes(1);
+  expect(boostPost).not.toHaveBeenCalled();
+});
+
 it.each(['createPost', 'createThread', 'createReply'] as const)(
   '%s keeps confirmation even when the returned model cannot be hydrated locally',
   async (method) => {
+    mockFeedService[method].mockClear();
     const partial = { id: 'confirmed-id' };
     mockFeedService[method].mockResolvedValueOnce({
       success: true,
@@ -414,8 +492,9 @@ it.each(['createPost', 'createThread', 'createReply'] as const)(
           ? { posts: [{ content: { text: 'hi' } }] }
           : { postId: 'parent', content: { text: 'hi' } };
     await expect(usePostsStore.getState()[method](request as never)).resolves.toEqual(
-      method === 'createThread' ? [] : null,
+      method === 'createPost' ? { id: 'confirmed-id' } : method === 'createThread' ? [] : null,
     );
+    expect(mockFeedService[method]).toHaveBeenCalledTimes(1);
     expect(mockLocalError).toHaveBeenCalledWith(
       expect.stringContaining('local cache update failed'),
       expect.any(Error),

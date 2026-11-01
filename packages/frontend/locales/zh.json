@@ -1633,6 +1633,7 @@
   "channels.signInRequired": "登录后即可管理你的频道",
   "channels.signInRequiredDesc": "频道是一种人们可以关注、但无需关注其撰稿人的账号。",
   "channels.compose.repostFailed": "已发布到该频道，但转发到你的主页失败。",
+  "channels.compose.repostUnconfirmed": "已发布到频道。请检查你的主页，确认是否已转发。",
   "channels.compose.scheduledNoRepost": "已设置定时发布。发出之后，记得把它转发到你自己的主页。",
   "channels.settings.title": "频道设置",
   "channels.settings.operatorOnly": "只有运营者才能管理此频道",
@@ -2415,7 +2416,7 @@
   },
   "compose": {
     "replyUnconfirmed": "无法确认你的回复。请先检查对话，再重试。",
-    "publishUnconfirmed": "无法确认是否发布。请先检查你的帖子，再重试。",
+    "publishUnconfirmed": "无法确认结果。请先检查更改是否已生效，再重试。",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

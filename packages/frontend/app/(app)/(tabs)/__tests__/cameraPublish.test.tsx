@@ -257,7 +257,7 @@ describe('posting a capture', () => {
   });
 
   it('leaves after confirmation even when the local post model is unavailable', async () => {
-    mockCreatePost.mockResolvedValue(null);
+    mockCreatePost.mockResolvedValue({ id: 'post_1' });
     mountWithCapture();
 
     await pressPublishAndSettle();
@@ -317,6 +317,7 @@ describe('posting a capture', () => {
     });
     await settleUpload();
     mockSessionEpoch += 1;
+    mockViewerId = 'b';
     await act(async () => {
       reject(new Error('uncertain'));
       await Promise.resolve();
@@ -325,4 +326,44 @@ describe('posting a capture', () => {
     expect(capturedProps.busy).toBe(false);
     expect(mockSelectTab).not.toHaveBeenCalled();
   });
+
+  it.each(['same viewer', 'aba', 'logout', 'unmount'] as const)(
+    'only warns the mounted original viewer about an uncertain result after %s',
+    async (transition) => {
+      let reject!: (error: Error) => void;
+      mockCreatePost.mockReturnValueOnce(
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+      );
+      const renderer = mountWithCapture();
+      act(() => {
+        void (capturedProps.onPublish as () => Promise<void>)();
+      });
+      await settleUpload();
+      mockSessionEpoch += 1;
+      if (transition === 'logout') mockViewerId = null;
+      if (transition === 'aba') {
+        mockViewerId = 'b';
+        mockSessionEpoch += 1;
+        mockViewerId = 'a';
+      }
+      if (transition === 'unmount') {
+        act(() => renderer.unmount());
+        mounted.splice(mounted.indexOf(renderer), 1);
+      }
+      await act(async () => {
+        reject(new Error('unknown outcome'));
+        await Promise.resolve();
+      });
+      if (transition === 'same viewer' || transition === 'aba') {
+        expect(capturedProps.capture).toBeTruthy();
+        expect(capturedProps.publishFailed).toBe(true);
+      } else if (transition === 'logout') {
+        expect(capturedProps.publishFailed).toBe(false);
+      }
+      expect(mockSelectTab).not.toHaveBeenCalled();
+      expect(mockCreatePost).toHaveBeenCalledTimes(1);
+    },
+  );
 });

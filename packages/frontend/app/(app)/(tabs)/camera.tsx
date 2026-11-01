@@ -110,11 +110,14 @@ export default function CameraPage() {
       if (!isCurrentOwner()) return;
 
       await createPost(buildCapturePost(uploaded.media));
-      if (!isCurrentOwner()) return;
+      if (!isCurrentOwner()) {
+        if (capturePublication()) setPublishFailed(true);
+        return;
+      }
       leaveToFeed();
     } catch (error) {
       logger.warn('publishing a capture failed', { error });
-      if (isCurrentOwner()) setPublishFailed(true);
+      if (isCurrentOwner() || capturePublication()) setPublishFailed(true);
     } finally {
       working.current = false;
       if (isPublicationMounted()) setPublishing(false);

@@ -1653,6 +1653,7 @@
   "channels.signInRequired": "Inicia sessão para gerires os teus canais",
   "channels.signInRequiredDesc": "Um canal é uma conta que as pessoas seguem sem seguirem quem escreve para ela.",
   "channels.compose.repostFailed": "Publicado no canal, mas a republicação no teu perfil falhou.",
+  "channels.compose.repostUnconfirmed": "Publicado no canal. Verifica o teu perfil para saber se foi republicado.",
   "channels.compose.scheduledNoRepost": "Agendado. Republica-o no teu próprio perfil quando sair.",
   "channels.settings.title": "Definições do canal",
   "channels.settings.operatorOnly": "Só um operador pode gerir este canal",
@@ -2444,7 +2445,7 @@
   },
   "compose": {
     "replyUnconfirmed": "Não foi possível confirmar sua resposta. Verifique a conversa antes de tentar novamente.",
-    "publishUnconfirmed": "Não foi possível confirmar a publicação. Verifique suas publicações antes de tentar novamente.",
+    "publishUnconfirmed": "Não foi possível confirmar o resultado. Verifica se a alteração foi aplicada antes de tentares novamente.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",
