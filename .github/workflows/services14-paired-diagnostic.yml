@@ -1,0 +1,111 @@
+name: Services 14 paired export and autolinking (diagnostic only)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: base
+            sha: f531db31160e50b16e324207b3599dd7b707c008
+          - label: candidate
+            sha: 6e3aa11ca94674a026e7f2cc764011232a379879
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Check inputs and install the frozen graph
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ matrix.sha }}'
+          mkdir -p "$RUNNER_TEMP/result"
+          git rev-parse HEAD > "$RUNNER_TEMP/result/commit.txt"
+          sha256sum bun.lock > "$RUNNER_TEMP/result/lock-sha256.txt"
+          bun install --frozen-lockfile --ignore-scripts
+          bun run doctor:oxy
+      - name: Resolve iOS and Android native modules
+        run: |
+          set -euo pipefail
+          cd packages/frontend
+          cli="$(node -p 'require("node:path").join(require("node:path").dirname(require.resolve("expo-modules-autolinking/package.json")), "bin/expo-modules-autolinking.js")')"
+          node "$cli" resolve --platform android --json > "$RUNNER_TEMP/result/android.json"
+          node "$cli" resolve --platform apple --json > "$RUNNER_TEMP/result/apple.json"
+          cd ../..
+          bun run oxy-doctor-expo-android --project-root=packages/frontend \
+            --require-source=SharedDeviceSessionPublish.kt \
+            --require-source=SharedDeviceSessionSweep.kt \
+            --require-source=OxyDeviceSessionStore.kt
+      - name: Build the production web bundle
+        run: |
+          set -euo pipefail
+          bun run build:shared-types
+          bun run --cwd packages/frontend build:analyze
+          bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_ENV: production
+          EXPO_PUBLIC_API_URL: https://api.mention.earth
+      - name: Enforce existing budgets and record the report
+        run: bun run --cwd packages/frontend analyze-bundle -- --ci --json "$RUNNER_TEMP/result/report.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: services14-${{ matrix.label }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/result
+          retention-days: 2
+  compare:
+    if: always()
+    needs: export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: services14-*-${{ github.run_id }}
+          path: paired
+      - name: Compare reports and selected native modules
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const root = `paired/services14-`;
+          const run = process.env.GITHUB_RUN_ID;
+          const read = (label, name) => JSON.parse(fs.readFileSync(`${root}${label}-${run}/${name}`, 'utf8'));
+          const before = read('base', 'report.json');
+          const after = read('candidate', 'report.json');
+          console.log('Base metrics:', JSON.stringify(before.metrics));
+          console.log('Candidate metrics:', JSON.stringify(after.metrics));
+          for (const [name, value] of Object.entries(after.metrics)) {
+            if (typeof value === 'number' && typeof before.metrics[name] === 'number') {
+              console.log(`${name}: ${before.metrics[name]} -> ${value} (${value - before.metrics[name] >= 0 ? '+' : ''}${value - before.metrics[name]})`);
+            }
+          }
+          for (const platform of ['android', 'apple']) {
+            const a = read('base', `${platform}.json`);
+            const b = read('candidate', `${platform}.json`);
+            const first = a.modules.filter(x => x.packageName === '@oxy.so/services');
+            const second = b.modules.filter(x => x.packageName === '@oxy.so/services');
+            assert.equal(first.length, 1); assert.equal(second.length, 1);
+            assert.equal(first[0].packageVersion, '13.16.0');
+            assert.equal(second[0].packageVersion, '14.0.0');
+            console.log(platform, 'base selected:', JSON.stringify(first[0]));
+            console.log(platform, 'candidate selected:', JSON.stringify(second[0]));
+            first[0].packageVersion = second[0].packageVersion;
+            assert.deepEqual(b, a, `${platform} autolinking differs beyond the Services version`);
+            console.log(platform, 'complete resolver output matches after the declared Services version');
+          }
+          JS
