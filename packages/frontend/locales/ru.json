@@ -1,4 +1,11 @@
 {
+  "compose.deleteDraftChanged": "Черновик изменился. Проверьте его и повторите удаление.",
+  "compose.draftMissing": "Этот черновик больше недоступен.",
+  "compose.draftConflict": "Этот черновик изменился в другом месте. Сохраните свою работу как копию.",
+  "compose.saveDraftCopy": "Сохранить копию",
+  "compose.draftChangedRetry": "Черновик изменился во время сохранения. Попробуйте ещё раз.",
+  "compose.deviceDrafts.loadError": "Не удалось загрузить черновики, сохранённые на этом устройстве",
+  "compose.retryDraftSave": "Повторить сохранение черновика",
   "search.history.updateFailed": "Не удалось обновить историю поиска.",
   "search.history.clearFailed": "Не удалось очистить историю поиска. Попробуйте ещё раз.",
   "post.threadPosition": "Публикация {{index}} из {{total}} в ветке",

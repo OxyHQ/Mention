@@ -14,6 +14,12 @@ import { createVariantsState } from '@/utils/composeVariants';
  *  - "Discard" left the autosaved draft behind: it only closed the composer.
  */
 
+let mockNextDraftId = 1;
+jest.mock('@/utils/draftSession', () => ({
+  ...jest.requireActual('@/utils/draftSession'),
+  createDraftId: () => `draft-${mockNextDraftId++}`,
+}));
+
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   logger: { error: jest.fn() },
@@ -35,8 +41,21 @@ const deleteDraft = jest.fn(async (id: string) => {
 });
 const onDraftLoad = jest.fn();
 
+let storageTail: Promise<unknown> = Promise.resolve();
 function Probe() {
-  latest = useDraftManager({ saveDraft, deleteDraft, onDraftLoad });
+  const trackedSave = (draft: Parameters<typeof saveDraft>[0]) => {
+    const result = saveDraft(draft);
+    storageTail = result.catch(() => undefined);
+    return result;
+  };
+  const queueDeleteDraft = async (
+    getSession: () => import('@/utils/draftSession').DraftSession,
+  ) => {
+    await storageTail;
+    const id = getSession().id;
+    if (id) await deleteDraft(id);
+  };
+  latest = useDraftManager({ saveDraft: trackedSave, queueDeleteDraft, onDraftLoad });
   return null;
 }
 
@@ -107,6 +126,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  storageTail = Promise.resolve();
+  mockNextDraftId = 1;
   stored = new Map();
   nextId = 1;
   latest = null;
@@ -116,6 +137,42 @@ beforeEach(() => {
 });
 
 describe('a draft keeps what the author attached', () => {
+  it('reports an autosave failure until a later save succeeds', async () => {
+    saveDraft.mockRejectedValueOnce(new Error('storage full'));
+    await act(async () => {
+      await manager().autoSave(refs({ postContent: 'unsaved work' }));
+    });
+    expect(manager().autoSaveError).toBe(true);
+    expect(stored.size).toBe(0);
+
+    await act(async () => {
+      await manager().autoSave(refs({ postContent: 'unsaved work' }));
+    });
+    expect(manager().autoSaveError).toBe(false);
+    expect([...stored.values()][0].postContent).toBe('unsaved work');
+  });
+
+  it('saves newer work after a failed write without reviving the older snapshot', async () => {
+    let rejectFirst: (error: Error) => void = () => {};
+    saveDraft.mockImplementationOnce(
+      () => new Promise<string>((_resolve, reject) => (rejectFirst = reject)),
+    );
+    let first: Promise<void>;
+    let second: Promise<void>;
+    act(() => {
+      first = manager().autoSave(refs({ postContent: 'older text' }));
+      second = manager().autoSave(refs({ postContent: 'newer text' }));
+    });
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      rejectFirst(new Error('storage unavailable'));
+      await Promise.all([first!, second!]);
+    });
+    expect(saveDraft).toHaveBeenCalledTimes(2);
+    expect([...stored.values()].map((draft) => draft.postContent)).toEqual(['newer text']);
+    expect(manager().autoSaveError).toBe(false);
+  });
+
   it('stores and restores an event-only draft, with its place in the order', async () => {
     await act(async () => {
       await manager().autoSave(refs({ event: EVENT, attachmentOrder: ['event'] }));
@@ -267,6 +324,25 @@ describe('"Save draft" updates the session draft', () => {
 
     expect(stored.size).toBe(1);
     expect(stored.get('draft-1')?.postContent).toBe('typed more');
+  });
+
+  it('saves the latest text before closing when a pending autosave fails', async () => {
+    let rejectFirst: (error: Error) => void = () => {};
+    saveDraft.mockImplementationOnce(
+      () => new Promise<string>((_resolve, reject) => (rejectFirst = reject)),
+    );
+    let autosave!: Promise<void>;
+    let manual!: Promise<void>;
+    act(() => {
+      autosave = manager().autoSave(refs({ postContent: 'older text' }));
+      manual = manager().saveNow(refs({ postContent: 'latest text' }));
+    });
+    await act(async () => {
+      rejectFirst(new Error('storage unavailable'));
+      await Promise.all([autosave, manual]);
+    });
+    expect([...stored.values()].map((draft) => draft.postContent)).toEqual(['latest text']);
+    expect(manager().autoSaveError).toBe(false);
   });
 
   it('cancels the pending debounce so it cannot write after the save', async () => {

@@ -18,6 +18,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { Draft } from '@/hooks/useDrafts';
+import { DraftConflictError } from '@/utils/draftSession';
 import { useDraftsList, type DraftListItem } from '@/hooks/useDraftsList';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
@@ -68,6 +69,8 @@ const DraftsList: React.FC<DraftsListProps> = ({
   const {
     items,
     isLoading,
+    deviceError,
+    refetchDeviceDrafts,
     serverLoading,
     serverError,
     refetchServerDrafts,
@@ -79,7 +82,8 @@ const DraftsList: React.FC<DraftsListProps> = ({
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const handleDeleteDeviceDraft = useCallback(
-    async (draftId: string) => {
+    async (draft: Draft) => {
+      const draftId = draft.id;
       const confirmed = await confirmDialog({
         title: t('compose.deleteDraft'),
         message: t('compose.deleteDraftConfirm'),
@@ -91,16 +95,26 @@ const DraftsList: React.FC<DraftsListProps> = ({
 
       try {
         setBusyId(draftId);
-        await deleteDeviceDraft(draftId);
+        await deleteDeviceDraft(draft);
         toast(t('compose.draftDeleted'), { type: 'success' });
       } catch (error) {
         logger.error('Error deleting draft', error);
-        toast(t('compose.deleteDraftError'), { type: 'error' });
+        if (error instanceof DraftConflictError) {
+          await refetchDeviceDrafts();
+          toast(
+            t('compose.deleteDraftChanged', {
+              defaultValue: 'This draft changed. Review it and try deleting again.',
+            }),
+            { type: 'error' },
+          );
+        } else {
+          toast(t('compose.deleteDraftError'), { type: 'error' });
+        }
       } finally {
         setBusyId(null);
       }
     },
-    [deleteDeviceDraft, t],
+    [deleteDeviceDraft, refetchDeviceDrafts, t],
   );
 
   const handlePublishServerDraft = useCallback(
@@ -238,7 +252,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
       const openPreview = () =>
         isServer ? onPreviewServerDraft(item.post) : onPreviewDraft(item.draft);
       const remove = () =>
-        isServer ? handleDeleteServerDraft(item.post) : handleDeleteDeviceDraft(item.id);
+        isServer ? handleDeleteServerDraft(item.post) : handleDeleteDeviceDraft(item.draft);
 
       // The current-draft tint is `bg-primary/10`, not
       // `theme.colors.primary + '15'`: that token is an `rgb(...)` string, so a
@@ -405,7 +419,20 @@ const DraftsList: React.FC<DraftsListProps> = ({
     <FeedSkeleton count={2} />
   ) : undefined;
 
-  if (items.length === 0 && serverStatus === undefined) {
+  const deviceStatus = deviceError ? (
+    <View className="items-center py-4 px-8 border-b border-border">
+      <Text className="text-sm text-center text-muted-foreground">
+        {t('compose.deviceDrafts.loadError', {
+          defaultValue: "We couldn't load the drafts saved on this device",
+        })}
+      </Text>
+      <Button className="mt-3" onPress={refetchDeviceDrafts}>
+        {t('common.retry', { defaultValue: 'Retry' })}
+      </Button>
+    </View>
+  ) : undefined;
+
+  if (items.length === 0 && serverStatus === undefined && deviceStatus === undefined) {
     return (
       <EmptyState
         title={t('compose.noDrafts')}
@@ -423,7 +450,14 @@ const DraftsList: React.FC<DraftsListProps> = ({
       // Prefixed by origin: a device draft's id and a post id come from
       // different generators, and nothing promises they never meet.
       keyExtractor={(item) => `${item.origin}:${item.id}`}
-      ListHeaderComponent={serverStatus}
+      ListHeaderComponent={
+        serverStatus || deviceStatus ? (
+          <>
+            {deviceStatus}
+            {serverStatus}
+          </>
+        ) : undefined
+      }
       className="flex-1"
     />
   );

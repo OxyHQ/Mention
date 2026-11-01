@@ -1,4 +1,11 @@
 {
+  "compose.deleteDraftChanged": "Draf ini berubah. Tinjau dan coba hapus lagi.",
+  "compose.draftMissing": "Draf ini tidak lagi tersedia.",
+  "compose.draftConflict": "Draf ini berubah di tempat lain. Simpan pekerjaan Anda sebagai salinan.",
+  "compose.saveDraftCopy": "Simpan sebagai salinan",
+  "compose.draftChangedRetry": "Draf Anda berubah saat disimpan. Coba lagi.",
+  "compose.deviceDrafts.loadError": "Draf yang disimpan di perangkat ini tidak dapat dimuat",
+  "compose.retryDraftSave": "Coba lagi menyimpan draf",
   "search.history.updateFailed": "Riwayat pencarian tidak dapat diperbarui.",
   "search.history.clearFailed": "Riwayat pencarian tidak dapat dihapus. Silakan coba lagi.",
   "post.threadPosition": "Postingan {{index}} dari {{total}} dalam utas",
