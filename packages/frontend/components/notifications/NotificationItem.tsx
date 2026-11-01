@@ -721,7 +721,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
   const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
 
-  const separateGestures = (isGroup && item.expandable) || (isCollabInvite && collabInvitePending);
+  // The invite's post state arrives asynchronously. Select the structure by the
+  // notification type so loading or resolving the invite does not replace the
+  // accessible row while it has focus.
+  const separateGestures = isCollabInvite;
 
   const mainContent = (
     <>
@@ -852,8 +855,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 onLongPress={handleLongPress}
                 accessible={false}
                 tabIndex={-1}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
               >
                 {mainContent}
               </Pressable>
@@ -908,7 +909,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 Once the viewer has responded, the row shows a resolved label
                 instead — so a handled invite is never actionable again. */}
             {isCollabInvite && collabInvitePending ? (
-              <View className="flex-row gap-2 mt-2">
+              <View className="flex-row gap-2 mt-2" pointerEvents="box-none">
                 <Button
                   className="flex-1"
                   onPress={openAcceptSheet}
