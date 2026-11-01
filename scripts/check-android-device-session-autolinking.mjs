@@ -36,7 +36,11 @@ const nativeDir = join(dirname(servicesManifest), 'android');
 if (realpathSync(projects[0].sourceDir) !== realpathSync(nativeDir)) {
   throw new Error('OxyDeviceSessionModule must come from the installed Oxy Services package.');
 }
-for (const source of ['OxyDeviceSessionModule.kt', 'SharedDeviceSessionSweep.kt']) {
+for (const source of [
+  'OxyDeviceSessionModule.kt',
+  'SharedDeviceSessionSweep.kt',
+  'OxyDeviceSessionStore.kt',
+]) {
   if (!existsSync(join(nativeDir, 'src/main/java/so/oxy/devicesession', source))) {
     throw new Error(`Installed Oxy Services is missing Android source ${source}.`);
   }
