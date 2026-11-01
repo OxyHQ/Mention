@@ -107,13 +107,17 @@ describe('appendFeedItems', () => {
       execSync: jest.fn(),
       getFirstSync: jest.fn(() => null),
       getAllSync: jest.fn(() => []),
-      runSync: jest.fn((query: string, ...params: unknown[]) => {
-        if (!query.includes('INTO feed_items')) return { changes: 1, lastInsertRowId: 0 };
-        const id = String(params[1]);
-        const joined = !inFeed.has(id);
-        inFeed.add(id);
-        return { changes: joined ? 1 : 0, lastInsertRowId: 0 };
-      }),
+      runSync: jest.fn(() => ({ changes: 1, lastInsertRowId: 0 })),
+      prepareSync: jest.fn((query: string) => ({
+        executeSync: jest.fn((...params: unknown[]) => {
+          if (!query.includes('INTO feed_items')) return { changes: 1, lastInsertRowId: 0 };
+          const id = String(params[1]);
+          const joined = !inFeed.has(id);
+          inFeed.add(id);
+          return { changes: joined ? 1 : 0, lastInsertRowId: 0 };
+        }),
+        finalizeSync: jest.fn(),
+      })),
     };
     mockGetDb.mockReturnValue(db);
 

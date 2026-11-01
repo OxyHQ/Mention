@@ -19,6 +19,7 @@ const DB_NAME = 'mention.db';
 /** Minimal database surface used by the cache layer. */
 export interface SQLiteDb {
   execSync(sql: string): void;
+  prepareSync(sql: string): Pick<SQLite.SQLiteStatement, 'executeSync' | 'finalizeSync'>;
   runSync(
     sql: string,
     ...params: SQLite.SQLiteBindValue[]
