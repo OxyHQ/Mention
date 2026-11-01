@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.54,
-      "covered": 14445,
-      "total": 28023
+      "pct": 52.02,
+      "covered": 14730,
+      "total": 28314
     },
     "branches": {
-      "pct": 47.43,
-      "covered": 10028,
-      "total": 21142
+      "pct": 47.92,
+      "covered": 10226,
+      "total": 21337
     },
     "functions": {
-      "pct": 46.52,
-      "covered": 3453,
-      "total": 7422
+      "pct": 47.04,
+      "covered": 3513,
+      "total": 7467
     },
     "lines": {
-      "pct": 52.37,
-      "covered": 13064,
-      "total": 24943
+      "pct": 52.83,
+      "covered": 13311,
+      "total": 25194
     }
   },
   "pins": {
@@ -276,16 +276,16 @@
       "lines": 100
     },
     "hooks/useDraftManager.ts": {
-      "statements": 96,
-      "branches": 80,
-      "functions": 97,
-      "lines": 96
+      "statements": 100,
+      "branches": 82,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useDrafts.ts": {
-      "statements": 58,
-      "branches": 50,
-      "functions": 61,
-      "lines": 60
+      "statements": 89,
+      "branches": 83,
+      "functions": 87,
+      "lines": 92
     },
     "hooks/useDraftsList.ts": {
       "statements": 56,
@@ -846,10 +846,10 @@
       "lines": 98
     },
     "lib/i18n.ts": {
-      "statements": 52,
-      "branches": 47,
+      "statements": 58,
+      "branches": 69,
       "functions": 33,
-      "lines": 51
+      "lines": 56
     },
     "lib/jobPagination.ts": {
       "statements": 100,
@@ -1547,9 +1547,21 @@
       "functions": 100,
       "lines": 100
     },
+    "utils/draftMutationQueue.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "utils/draftPreview.ts": {
       "statements": 100,
       "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/draftSession.ts": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
@@ -1772,6 +1784,12 @@
     "utils/postSchedule.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/prepareDraftSwitch.ts": {
+      "statements": 95,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
