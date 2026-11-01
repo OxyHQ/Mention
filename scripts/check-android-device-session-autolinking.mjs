@@ -38,6 +38,7 @@ if (realpathSync(projects[0].sourceDir) !== realpathSync(nativeDir)) {
 }
 for (const source of [
   'OxyDeviceSessionModule.kt',
+  'SharedDeviceSessionPublish.kt',
   'SharedDeviceSessionSweep.kt',
   'OxyDeviceSessionStore.kt',
 ]) {
