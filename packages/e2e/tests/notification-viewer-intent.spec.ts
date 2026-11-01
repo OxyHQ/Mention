@@ -210,6 +210,35 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
   });
 }
 
+for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
+  test(`a notification menu opened by A closes after ${scenario}`, async ({ page, candidate }) => {
+    const fixture = await installSwitchingFixture(page);
+    const writes: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (['PATCH', 'DELETE'].includes(request.method()) && path.includes('/notifications/'))
+        writes.push(path);
+    });
+    await page.goto('/notifications');
+    const row = page.getByRole('button').filter({ hasText: selectedText });
+    await expect(row).toHaveCount(1);
+    await row.scrollIntoViewIfNeeded();
+    const box = await row.boundingBox();
+    if (!box) throw new Error('The notification row has no visible bounds');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    const mark = page.getByText('Mark as read', { exact: true });
+    await expect(mark).toBeVisible();
+    await page.mouse.up();
+    await fixture.changeTo(scenario === 'logout' || scenario === 'relogin' ? null : userB);
+    await expect(mark).toHaveCount(0);
+    if (scenario === 'aba' || scenario === 'relogin') await fixture.changeTo(userA);
+    await expect(mark).toHaveCount(0);
+    expect(writes).toEqual([]);
+    expect(candidate.scriptErrors).toEqual([]);
+  });
+}
+
 test('a retained failure does not toast under the new viewer', async ({ page, candidate }) => {
   const fixture = await installSwitchingFixture(page);
   let release!: () => void;

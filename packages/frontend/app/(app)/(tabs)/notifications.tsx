@@ -599,11 +599,20 @@ const NotificationsScreen: React.FC = () => {
             onDelete={handleDelete}
             captureIntent={captureRowIntent}
             isCurrentIntent={isCurrentIntent}
+            ownNotificationSurface={ownNotificationSurface}
           />
         </ErrorBoundary>
       );
     },
-    [t, handleBoundaryError, handleMarkAsRead, handleDelete, captureRowIntent, isCurrentIntent],
+    [
+      t,
+      handleBoundaryError,
+      handleMarkAsRead,
+      handleDelete,
+      captureRowIntent,
+      isCurrentIntent,
+      ownNotificationSurface,
+    ],
   );
 
   const emptyStateConfig = useMemo((): {

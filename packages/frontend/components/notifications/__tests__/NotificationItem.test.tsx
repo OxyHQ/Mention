@@ -19,6 +19,7 @@ import {
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { TRawNotification } from '@/types/validation';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { NotificationItem } from '../NotificationItem';
 
 /**
@@ -180,6 +181,7 @@ jest.mock('@/lib/utils', () => ({
 const mockPresentSheet = jest.fn();
 jest.mock('@/utils/sheet', () => ({
   presentSheet: (...args: unknown[]) => mockPresentSheet(...args),
+  presentCancelableSheet: (...args: unknown[]) => mockPresentSheet(...args),
 }));
 const mockShowActionMenu = jest.fn();
 jest.mock('@/components/common/ActionMenu', () => ({
@@ -261,6 +263,8 @@ notifyManager.setScheduler((callback) => callback());
 
 const mountedRenderers: TestRenderer.ReactTestRenderer[] = [];
 const queryClients: QueryClient[] = [];
+const ownSurface: OwnNotificationSurface = async (_intent, present) =>
+  present(new AbortController().signal);
 
 afterEach(async () => {
   await act(async () => {
@@ -285,6 +289,7 @@ async function renderRow(
     onDelete?: jest.Mock;
     onMarkAsRead?: jest.Mock;
     item?: GroupedNotification;
+    ownNotificationSurface?: OwnNotificationSurface;
     captureIntent?: () => { viewerId: string; epoch: number } | null;
     isCurrentIntent?: (intent: { viewerId: string; epoch: number }) => boolean;
   },
@@ -309,6 +314,7 @@ async function renderRow(
           onDelete={options?.onDelete ?? jest.fn()}
           captureIntent={options?.captureIntent ?? (() => ({ viewerId: 'viewer-1', epoch: 1 }))}
           isCurrentIntent={options?.isCurrentIntent ?? (() => true)}
+          ownNotificationSurface={options?.ownNotificationSurface ?? ownSurface}
         />
       </QueryClientProvider>,
     );
@@ -462,16 +468,43 @@ describe('NotificationItem — collaboration invite', () => {
       accept?.props.onPress();
     });
     const createSheet = mockPresentSheet.mock.calls[0][0] as (surface: { dismiss: () => void }) => {
-      props: { onAccept: () => Promise<void> };
+      props: { children: { props: { onAccept: () => Promise<void> } } };
     };
     const dismiss = jest.fn();
     const sheet = createSheet({ dismiss });
     epoch = 3;
     await act(async () => {
-      await sheet.props.onAccept();
+      await sheet.props.children.props.onAccept();
     });
     expect(mockAccept).not.toHaveBeenCalled();
     expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('does not submit a cancelled sheet when its old callback is invoked', async () => {
+    const controller = new AbortController();
+    const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>
+      present(controller.signal);
+    const { renderer } = await renderRow(PENDING, { ownNotificationSurface });
+    const accept = buttonByLabel(renderer.root, 'Accept');
+    await act(async () => accept?.props.onPress());
+    expect(mockPresentSheet.mock.calls[0][1]).toEqual({ signal: controller.signal });
+    const createSheet = mockPresentSheet.mock.calls[0][0] as (surface: { dismiss: () => void }) => {
+      props: { children: { props: { onAccept: () => Promise<void> } } };
+    };
+    const sheet = createSheet({ dismiss: jest.fn() });
+    controller.abort();
+    await act(async () => sheet.props.children.props.onAccept());
+    expect(mockAccept).not.toHaveBeenCalled();
+  });
+
+  it('passes the row owner signal to the long-press menu', async () => {
+    const controller = new AbortController();
+    const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>
+      present(controller.signal);
+    const { renderer } = await renderRow(PENDING, { ownNotificationSurface });
+    const row = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    act(() => row.props.onLongPress());
+    expect(mockShowActionMenu.mock.calls[0][0].signal).toBe(controller.signal);
   });
 
   it('does not update the post cache when a decline resolves after a session change', async () => {

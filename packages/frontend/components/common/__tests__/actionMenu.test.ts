@@ -39,12 +39,32 @@ describe('buildMenuGroups', () => {
     expect(original.onPress).toBe(original.onPress);
     expect(groups[0][0].label).toBe('Mute');
   });
+
+  it('does not execute an action after its owner aborts', () => {
+    const owner = new AbortController();
+    const close = jest.fn();
+    const run = jest.fn();
+    const groups = buildMenuGroups([[action('Delete', run)]], close, owner.signal);
+    owner.abort();
+    groups[0][0].onPress();
+    expect(close).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('does not execute an action if closing crosses its session boundary', () => {
+    const owner = new AbortController();
+    const run = jest.fn();
+    const groups = buildMenuGroups([[action('Delete', run)]], () => owner.abort(), owner.signal);
+    groups[0][0].onPress();
+    expect(run).not.toHaveBeenCalled();
+  });
 });
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     if (
       entry === 'node_modules' ||
+      entry === '__tests__' ||
       entry === '.expo' ||
       entry === 'dist' ||
       entry.startsWith('.')

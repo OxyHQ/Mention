@@ -37,8 +37,10 @@ import type { NotificationIntent } from '@/types/notificationIntent';
 import { normalizeApiError } from '@/utils/apiError';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-import { presentSheet } from '@/utils/sheet';
+import { presentCancelableSheet } from '@/utils/sheet';
 import { showActionMenu } from '@/components/common/ActionMenu';
+import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
+import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
@@ -319,6 +321,7 @@ interface NotificationItemProps {
   onDelete: (ids: string[], intent?: NotificationIntent) => void;
   captureIntent: () => NotificationIntent | null;
   isCurrentIntent: (intent: NotificationIntent) => boolean;
+  ownNotificationSurface: OwnNotificationSurface;
 }
 
 const NotificationItemComponent: React.FC<NotificationItemProps> = ({
@@ -327,6 +330,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   onDelete,
   captureIntent,
   isCurrentIntent,
+  ownNotificationSurface,
 }) => {
   const router = useRouter();
   const { t } = useTranslation();
@@ -515,40 +519,43 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const handleLongPress = useCallback(() => {
     const intent = captureIntent();
     if (!intent) return;
-    showActionMenu({
-      label: t('common.options', { defaultValue: 'Options' }),
-      groups: [
-        hasUnread
-          ? [
-              {
-                icon: (
-                  <RiCheckDoubleLine
-                    width={ACTION_ICON_SIZE}
-                    height={ACTION_ICON_SIZE}
-                    fill={theme.colors.textSecondary}
-                  />
-                ),
-                label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
-                onPress: () => onMarkAsRead(item.notificationIds, intent),
-              },
-            ]
-          : [],
-        [
-          {
-            icon: (
-              <RiDeleteBinLine
-                width={ACTION_ICON_SIZE}
-                height={ACTION_ICON_SIZE}
-                fill={theme.colors.error}
-              />
-            ),
-            label: t('notification.delete', { defaultValue: 'Delete' }),
-            color: theme.colors.error,
-            onPress: () => onDelete(item.notificationIds, intent),
-          },
+    void ownNotificationSurface(intent, (signal) =>
+      showActionMenu({
+        signal,
+        label: t('common.options', { defaultValue: 'Options' }),
+        groups: [
+          hasUnread
+            ? [
+                {
+                  icon: (
+                    <RiCheckDoubleLine
+                      width={ACTION_ICON_SIZE}
+                      height={ACTION_ICON_SIZE}
+                      fill={theme.colors.textSecondary}
+                    />
+                  ),
+                  label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
+                  onPress: () => onMarkAsRead(item.notificationIds, intent),
+                },
+              ]
+            : [],
+          [
+            {
+              icon: (
+                <RiDeleteBinLine
+                  width={ACTION_ICON_SIZE}
+                  height={ACTION_ICON_SIZE}
+                  fill={theme.colors.error}
+                />
+              ),
+              label: t('notification.delete', { defaultValue: 'Delete' }),
+              color: theme.colors.error,
+              onPress: () => onDelete(item.notificationIds, intent),
+            },
+          ],
         ],
-      ],
-    });
+      }),
+    );
   }, [
     hasUnread,
     theme.colors.textSecondary,
@@ -558,6 +565,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     onDelete,
     item.notificationIds,
     captureIntent,
+    ownNotificationSurface,
   ]);
 
   const openActorProfile = useCallback(
@@ -684,19 +692,30 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     if (!inviter) return;
     const intent = captureIntent();
     if (!intent) return;
-    void presentSheet((surface) => (
-      <CollabAcceptSheet
-        inviter={inviter}
-        onAccept={async () => {
-          if ((await runAccept(intent)) || !isCurrentIntent(intent)) surface.dismiss();
-        }}
-        onDecline={async () => {
-          if ((await runDecline(intent)) || !isCurrentIntent(intent)) surface.dismiss();
-        }}
-        onClose={() => surface.dismiss()}
-      />
-    ));
-  }, [inviter, runAccept, runDecline, captureIntent, isCurrentIntent]);
+    void ownNotificationSurface(intent, (signal) =>
+      presentCancelableSheet(
+        (surface) => (
+          <OwnedSurfaceContent signal={signal}>
+            <CollabAcceptSheet
+              inviter={inviter}
+              onAccept={async () => {
+                if (signal.aborted) return;
+                if (!isCurrentIntent(intent)) return surface.dismiss();
+                if ((await runAccept(intent)) || !isCurrentIntent(intent)) surface.dismiss();
+              }}
+              onDecline={async () => {
+                if (signal.aborted) return;
+                if (!isCurrentIntent(intent)) return surface.dismiss();
+                if ((await runDecline(intent)) || !isCurrentIntent(intent)) surface.dismiss();
+              }}
+              onClose={() => surface.dismiss()}
+            />
+          </OwnedSurfaceContent>
+        ),
+        { signal },
+      ),
+    );
+  }, [inviter, runAccept, runDecline, captureIntent, isCurrentIntent, ownNotificationSurface]);
 
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
 

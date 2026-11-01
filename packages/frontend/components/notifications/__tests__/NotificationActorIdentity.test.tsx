@@ -101,7 +101,7 @@ jest.mock('../notificationDescriptors', () => ({
   }),
 }));
 jest.mock('@/lib/utils', () => ({ cn: (...args: unknown[]) => args.filter(Boolean).join(' ') }));
-jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(), presentCancelableSheet: jest.fn() }));
 jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
@@ -171,6 +171,7 @@ function renderRow(item: GroupedNotification = groupedLike()) {
           onDelete={jest.fn()}
           captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
           isCurrentIntent={() => true}
+          ownNotificationSurface={async (_intent, present) => present(new AbortController().signal)}
         />
       </QueryClientProvider>,
     );
@@ -277,6 +278,9 @@ describe('the actor whose profile the row resolves', () => {
             onDelete={jest.fn()}
             captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
             isCurrentIntent={() => true}
+            ownNotificationSurface={async (_intent, present) =>
+              present(new AbortController().signal)
+            }
           />
         </QueryClientProvider>,
       );
@@ -292,6 +296,9 @@ describe('the actor whose profile the row resolves', () => {
             onDelete={jest.fn()}
             captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
             isCurrentIntent={() => true}
+            ownNotificationSurface={async (_intent, present) =>
+              present(new AbortController().signal)
+            }
           />
         </QueryClientProvider>,
       );

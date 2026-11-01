@@ -25,6 +25,7 @@ export interface ActionMenuAction {
 export function buildMenuGroups(
   groups: ActionMenuAction[][],
   close: () => void,
+  signal?: AbortSignal,
 ): ActionMenuAction[][] {
   return groups
     .filter((actions) => actions.length > 0)
@@ -32,8 +33,9 @@ export function buildMenuGroups(
       actions.map((action) => ({
         ...action,
         onPress: () => {
+          if (signal?.aborted) return;
           close();
-          action.onPress();
+          if (!signal?.aborted) action.onPress();
         },
       })),
     );

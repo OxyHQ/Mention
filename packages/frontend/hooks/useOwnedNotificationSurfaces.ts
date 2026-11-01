@@ -1,11 +1,16 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { NotificationIntent } from '@/types/notificationIntent';
 
+export type OwnNotificationSurface = <Result>(
+  intent: NotificationIntent,
+  present: (signal: AbortSignal) => Promise<Result>,
+) => Promise<Result | undefined>;
+
 /** Owns each notification surface until it settles or its screen/session ends. */
 export function useOwnedNotificationSurfaces(
   isCurrent: (intent: NotificationIntent) => boolean,
   subscribe: (listener: () => void) => () => void,
-) {
+): OwnNotificationSurface {
   const pending = useRef(new Set<AbortController>());
   const mounted = useRef(false);
   useLayoutEffect(() => {
