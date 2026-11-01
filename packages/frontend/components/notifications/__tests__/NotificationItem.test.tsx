@@ -679,3 +679,19 @@ describe('NotificationItem — collaboration invite', () => {
     expect(rendered).not.toContain('Decline');
   });
 });
+
+it('AUDIT_PREVIEW: the native preview has no accessibility-hidden ancestor', async () => {
+  const initial = collabInviteItem();
+  const item = { ...initial, leadNotification: { ...initial.leadNotification, preview: 'Read #AuditTopic' } };
+  const { renderer } = await renderRow(PENDING, { item });
+  const preview = renderer.root.findAllByType(Text).find((node) => node.props.children === 'Read #AuditTopic');
+  expect(preview).toBeDefined();
+  let ancestor = preview?.parent ?? null;
+  const hidden: string[] = [];
+  while (ancestor) {
+    if (ancestor.props.accessibilityElementsHidden === true) hidden.push('accessibilityElementsHidden');
+    if (ancestor.props.importantForAccessibility === 'no-hide-descendants') hidden.push('no-hide-descendants');
+    ancestor = ancestor.parent;
+  }
+  expect(hidden).toEqual([]);
+});

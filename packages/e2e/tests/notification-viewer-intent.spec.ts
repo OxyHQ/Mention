@@ -857,3 +857,61 @@ test('AUDIT_PREVIEW: keyboard can find and activate a preview link', async ({ pa
   await expect(page).toHaveURL(`${APP_ORIGIN}/hashtag/AuditTopic`);
   expect(candidate.scriptErrors).toEqual([]);
 });
+
+test('AUDIT: tapping the gap between invite actions opens the row', async ({
+  page,
+  candidate,
+}, testInfo) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  await page.goto('/notifications');
+  const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+  const decline = page.getByRole('button', { name: 'Decline', exact: true }).first();
+  await expect(accept).toBeVisible();
+  await expect(decline).toBeVisible();
+  const left = await accept.boundingBox();
+  const right = await decline.boundingBox();
+  if (!left || !right) throw new Error('Missing invite button bounds');
+  const gap = right.x - (left.x + left.width);
+  expect(gap).toBeGreaterThan(0);
+  const point = {
+    x: left.x + left.width + gap / 2,
+    y: Math.max(left.y, right.y) + Math.min(left.height, right.height) / 2,
+  };
+  const hit = await page.evaluate(({ x, y }) => {
+    const node = document.elementFromPoint(x, y);
+    return { tag: node?.tagName, className: node?.getAttribute('class'), text: node?.textContent };
+  }, point);
+  await testInfo.attach('invite-gap-hit', {
+    body: JSON.stringify({ left, right, gap, point, hit }),
+    contentType: 'application/json',
+  });
+  await page.mouse.click(point.x, point.y);
+  await expect(page).toHaveURL(`${APP_ORIGIN}/p/collab-post`);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('AUDIT: plain preview text opens the post', async ({ page, candidate }) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture, 'Plain preview text');
+  await page.goto('/notifications');
+  await page.getByText('Plain preview text', { exact: true }).click();
+  await expect(page).toHaveURL(`${APP_ORIGIN}/p/collab-post`);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('AUDIT: holding plain preview text opens the row menu', async ({ page, candidate }) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture, 'Plain preview text');
+  await page.goto('/notifications');
+  const preview = page.getByText('Plain preview text', { exact: true });
+  await expect(preview).toBeVisible();
+  const box = await preview.boundingBox();
+  if (!box) throw new Error('Missing preview bounds');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(page.getByText('Mark as read', { exact: true })).toBeVisible();
+  await page.mouse.up();
+  await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+  expect(candidate.scriptErrors).toEqual([]);
+});
