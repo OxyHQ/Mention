@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.53,
-      "covered": 14443,
-      "total": 28023
+      "pct": 51.85,
+      "covered": 14681,
+      "total": 28311
     },
     "branches": {
-      "pct": 47.42,
-      "covered": 10027,
-      "total": 21142
+      "pct": 47.68,
+      "covered": 10180,
+      "total": 21347
     },
     "functions": {
-      "pct": 46.49,
-      "covered": 3451,
-      "total": 7422
+      "pct": 46.71,
+      "covered": 3488,
+      "total": 7467
     },
     "lines": {
-      "pct": 52.36,
-      "covered": 13062,
-      "total": 24943
+      "pct": 52.66,
+      "covered": 13267,
+      "total": 25191
     }
   },
   "pins": {
@@ -276,16 +276,16 @@
       "lines": 100
     },
     "hooks/useDraftManager.ts": {
-      "statements": 96,
-      "branches": 80,
-      "functions": 97,
-      "lines": 96
+      "statements": 100,
+      "branches": 82,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useDrafts.ts": {
-      "statements": 58,
-      "branches": 50,
-      "functions": 61,
-      "lines": 60
+      "statements": 89,
+      "branches": 83,
+      "functions": 87,
+      "lines": 92
     },
     "hooks/useDraftsList.ts": {
       "statements": 56,
@@ -1541,9 +1541,21 @@
       "functions": 100,
       "lines": 100
     },
+    "utils/draftMutationQueue.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "utils/draftPreview.ts": {
       "statements": 100,
       "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/draftSession.ts": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
@@ -1766,6 +1778,12 @@
     "utils/postSchedule.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/prepareDraftSwitch.ts": {
+      "statements": 95,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
