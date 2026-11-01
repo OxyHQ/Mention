@@ -834,7 +834,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                     {resolvedActors.map((actor, index) => (
                       <ProfileHoverCard key={actor.id ?? `slot-${index}`} username={actor.handle}>
                         <Pressable
-                          onPress={() => openActorProfile(actor)}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            openActorProfile(actor);
+                          }}
                           className="flex-row items-center gap-2"
                           accessibilityRole="button"
                         >
@@ -851,7 +854,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                   </View>
                 ) : null}
                 <Pressable
-                  onPress={toggleExpanded}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    toggleExpanded();
+                  }}
                   hitSlop={tokens.hitSlop.md}
                   accessibilityRole="button"
                 >
@@ -869,13 +875,19 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 instead — so a handled invite is never actionable again. */}
             {isCollabInvite && collabInvitePending ? (
               <View className="flex-row gap-2 mt-2">
-                <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
+                <Button
+                  className="flex-1"
+                  onPress={openAcceptSheet}
+                  disabled={actionLoading}
+                  stopPropagation
+                >
                   {t('collab.accept', { defaultValue: 'Accept' })}
                 </Button>
                 <Button
                   appearance="subtle"
                   tone="neutral"
                   className="flex-1"
+                  stopPropagation
                   onPress={() => {
                     const intent = captureIntent();
                     if (intent) void runDecline(intent);

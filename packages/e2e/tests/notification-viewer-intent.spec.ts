@@ -230,6 +230,7 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
     const mark = page.getByText('Mark as read', { exact: true });
     await expect(mark).toBeVisible();
     await page.mouse.up();
+    await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
     await fixture.changeTo(scenario === 'logout' || scenario === 'relogin' ? null : userB);
     await expect(mark).toHaveCount(0);
     if (scenario === 'aba' || scenario === 'relogin') await fixture.changeTo(userA);
@@ -379,6 +380,7 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
     );
     await page.goto('/notifications');
     await page.getByRole('button', { name: 'Accept', exact: true }).first().click();
+    await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
     const question = page.getByText('Accept invite?', { exact: true });
     await expect(question).toBeVisible();
     await fixture.changeTo(scenario === 'logout' || scenario === 'relogin' ? null : userB);

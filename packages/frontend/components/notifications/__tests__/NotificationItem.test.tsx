@@ -94,12 +94,21 @@ jest.mock('@oxy.so/bloom/button', () => {
       children,
       onPress,
       disabled,
+      stopPropagation,
     }: {
       children?: React.ReactNode;
       onPress?: () => void;
       disabled?: boolean;
+      stopPropagation?: boolean;
     }) => (
-      <RNTouchable onPress={onPress} disabled={disabled} accessibilityRole="button">
+      <RNTouchable
+        onPress={(event) => {
+          if (stopPropagation) event?.stopPropagation();
+          onPress?.();
+        }}
+        disabled={disabled}
+        accessibilityRole="button"
+      >
         <RNText>{children}</RNText>
       </RNTouchable>
     ),
@@ -423,19 +432,23 @@ describe('NotificationItem — collaboration invite', () => {
       )
       .at(-1);
     expect(expand).toBeDefined();
-    act(() => expand?.props.onPress());
+    const stopPropagation = jest.fn();
+    act(() => expand?.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
     const profile = renderer.root.findAll(
       (node) =>
         node.props.className === 'flex-row items-center gap-2' &&
         typeof node.props.onPress === 'function',
     )[0];
     expect(profile).toBeDefined();
-    act(() => profile.props.onPress());
+    act(() => profile.props.onPress({ stopPropagation }));
     expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(stopPropagation).toHaveBeenCalledTimes(2);
     mockPush.mockClear();
     epoch = 3;
-    act(() => profile.props.onPress());
+    act(() => profile.props.onPress({ stopPropagation }));
     expect(mockPush).not.toHaveBeenCalled();
+    expect(stopPropagation).toHaveBeenCalledTimes(3);
   });
 
   it('captures the original intent when the action menu opens, not when a row is pressed', async () => {
@@ -479,6 +492,18 @@ describe('NotificationItem — collaboration invite', () => {
     });
     expect(mockAccept).not.toHaveBeenCalled();
     expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('stops row activation when the embedded collaboration buttons are pressed', async () => {
+    const { renderer } = await renderRow(PENDING);
+    const stopPropagation = jest.fn();
+    const accept = buttonByLabel(renderer.root, 'Accept');
+    act(() => accept?.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    const decline = buttonByLabel(renderer.root, 'Decline');
+    mockDecline.mockResolvedValue({ success: true });
+    await act(async () => decline?.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledTimes(2);
   });
 
   it('does not submit a cancelled sheet when its old callback is invoked', async () => {
