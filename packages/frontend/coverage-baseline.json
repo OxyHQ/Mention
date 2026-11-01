@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 52.19,
-      "covered": 14643,
-      "total": 28057
+      "pct": 52.85,
+      "covered": 14834,
+      "total": 28068
     },
     "branches": {
-      "pct": 48.02,
-      "covered": 10159,
-      "total": 21155
+      "pct": 48.76,
+      "covered": 10324,
+      "total": 21170
     },
     "functions": {
-      "pct": 47.36,
-      "covered": 3517,
+      "pct": 47.74,
+      "covered": 3545,
       "total": 7425
     },
     "lines": {
-      "pct": 52.99,
-      "covered": 13234,
-      "total": 24970
+      "pct": 53.7,
+      "covered": 13416,
+      "total": 24980
     }
   },
   "pins": {
@@ -306,10 +306,10 @@
       "lines": 100
     },
     "hooks/useExternalActorResolve.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useFeedModules.ts": {
       "statements": 100,
@@ -1158,10 +1158,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 51,
+      "statements": 52,
       "branches": 44,
-      "functions": 42,
-      "lines": 52
+      "functions": 44,
+      "lines": 53
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1338,10 +1338,10 @@
       "lines": 74
     },
     "stores/externalEmbedsStore.ts": {
-      "statements": 50,
-      "branches": 38,
+      "statements": 54,
+      "branches": 50,
       "functions": 43,
-      "lines": 54
+      "lines": 59
     },
     "stores/feedQueryCache.ts": {
       "statements": 100,
@@ -1477,7 +1477,7 @@
     },
     "utils/api.ts": {
       "statements": 50,
-      "branches": 41,
+      "branches": 50,
       "functions": 46,
       "lines": 50
     },
@@ -1554,10 +1554,10 @@
       "lines": 100
     },
     "utils/embedPlayer.ts": {
-      "statements": 25,
-      "branches": 25,
+      "statements": 57,
+      "branches": 53,
       "functions": 100,
-      "lines": 24
+      "lines": 57
     },
     "utils/emojiData.ts": {
       "statements": 0,
