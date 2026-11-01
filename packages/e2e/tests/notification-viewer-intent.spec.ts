@@ -498,6 +498,60 @@ test('clicking a disabled collaboration button does not navigate the row', async
   }
 });
 
+test('the row background preserves padding hit testing', async ({ page, candidate }) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  await page.goto('/notifications');
+  const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+  await expect(accept).toBeVisible();
+  const row = page.locator('.group').filter({ has: accept });
+  await expect(row).toHaveCount(1);
+  const box = await row.boundingBox();
+  if (!box) throw new Error('The notification row has no bounds');
+  await page.mouse.click(box.x + 3, box.y + 3);
+  await expect(page).toHaveURL(`${APP_ORIGIN}/p/collab-post`);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('the row background and collaboration buttons have distinct keyboard focus', async ({
+  page,
+  candidate,
+}) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  await page.goto('/notifications');
+  const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+  await expect(accept).toBeVisible();
+  const row = page.locator('.group').filter({ has: accept });
+  const buttons = row.getByRole('button');
+  await expect(buttons).toHaveCount(3);
+  const rowAction = buttons.first();
+  await rowAction.focus();
+  await expect(rowAction).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(accept).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+  await expect(page.getByText('Accept invite?', { exact: true })).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('the profile hover target remains interactive above the row background', async ({
+  page,
+  candidate,
+}) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture);
+  await page.goto('/notifications');
+  const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+  await expect(accept).toBeVisible();
+  const row = page.locator('.group').filter({ has: accept });
+  const hover = row.locator('[aria-haspopup]').first();
+  await hover.hover();
+  await expect(hover).toHaveAttribute('aria-expanded', 'true');
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
 test('a 404 from an older server fails without retrying an old write route', async ({
   page,
   candidate,

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Pressable, Text } from 'react-native';
+import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
@@ -735,15 +735,25 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
       className={cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5')}
       style={hasUnread ? undefined : { backgroundColor: surfaceFill }}
     >
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+      />
       <SubtleHover />
-      <View className="px-3">
-        <View className="flex-row items-start justify-between">
+      <View className="px-3" pointerEvents="box-none">
+        <View className="flex-row items-start justify-between" pointerEvents="box-none">
           {/* Avatar column: avatar + themed action-badge overlay. */}
           <Pressable
             className="relative mr-3"
             onPress={handlePress}
             onLongPress={handleLongPress}
             accessible={false}
+            tabIndex={-1}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
           >
             <ProfileHoverCard username={resolvedPrimary.handle}>
               <AccountAvatar
@@ -767,13 +777,15 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
           {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
               plus the muted action phrase and the text preview. */}
-          <View className="flex-1 gap-1">
+          <View className="flex-1 gap-1" pointerEvents="box-none">
             <Pressable
               className="gap-1"
               onPress={handlePress}
               onLongPress={handleLongPress}
-              accessibilityRole="button"
-              accessibilityLabel={accessibilityLabel}
+              accessible={false}
+              tabIndex={-1}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
             >
               {showStrip ? (
                 <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} />
@@ -936,6 +948,9 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               onPress={handlePress}
               onLongPress={handleLongPress}
               accessible={false}
+              tabIndex={-1}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
             >
               {thumbnailUrl ? (
                 <Image
