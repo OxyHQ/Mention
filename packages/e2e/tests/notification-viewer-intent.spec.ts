@@ -131,8 +131,13 @@ async function installSwitchingFixture(page: Page) {
         await page.getByRole('button', { name: 'Sign in with Oxy' }).click();
         await page.getByTestId('signin-identifier').fill(next);
         await page.getByTestId('signin-identifier-continue').click();
-        await page.getByTestId('signin-code').fill('123456');
-        await page.getByTestId('signin-code-continue').click();
+        const signIn = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === '/auth/signin/email/confirm' &&
+            response.request().method() === 'POST',
+        );
+        await page.getByTestId('signin-code-0').fill('123456');
+        expect((await signIn).ok()).toBe(true);
         await expect(page.getByText(next, { exact: true }).first()).toBeVisible();
         return;
       }
