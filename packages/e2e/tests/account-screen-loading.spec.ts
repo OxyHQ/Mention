@@ -35,94 +35,104 @@ test.beforeEach(async ({ page, context }) => {
   );
 });
 
-test('loads the account screen on first use and shows progress while the chunk is delayed', async ({
-  page,
-  candidate,
-}) => {
-  let release: (() => void) | undefined;
-  let requested = false;
-  page.on('request', (request) => {
-    if (isScreenChunk(new URL(request.url()))) requested = true;
-  });
-  try {
-    await page.goto('/');
-    await expect(page.getByTestId('mention-shell-panels-main-surface-bounds')).toBeVisible();
-    await page.waitForLoadState('networkidle');
-    expect(requested).toBe(false);
-    await page.route(isScreenChunk, async (route) => {
-      await new Promise<void>((resolve) => {
-        release = resolve;
+for (const viewport of [
+  { name: 'desktop', width: 1440, height: 900 },
+  { name: 'phone', width: 390, height: 844 },
+]) {
+  test.describe(viewport.name, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test('loads the account screen on first use and shows progress while the chunk is delayed', async ({
+      page,
+      candidate,
+    }) => {
+      let release: (() => void) | undefined;
+      let requested = false;
+      page.on('request', (request) => {
+        if (isScreenChunk(new URL(request.url()))) requested = true;
       });
-      await route.fallback();
+      try {
+        await page.goto('/');
+        await expect(page.getByTestId('mention-shell-panels-main-surface-bounds')).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        expect(requested).toBe(false);
+        await page.route(isScreenChunk, async (route) => {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          await route.fallback();
+        });
+        await page
+          .getByRole('button', { name: /sign in/i })
+          .first()
+          .click();
+        await expect.poll(() => requested).toBe(true);
+        await expect.poll(() => typeof release).toBe('function');
+        await expect(page.getByRole('progressbar', { name: 'Loading...' })).toBeVisible();
+        release?.();
+        await expect(page.getByText('Email or username', { exact: true })).toBeVisible();
+        expect(candidate.scriptErrors.filter((error) => error.startsWith('uncaught'))).toEqual([]);
+      } finally {
+        release?.();
+      }
     });
-    await page
-      .getByRole('button', { name: /sign in/i })
-      .first()
-      .click();
-    await expect.poll(() => requested).toBe(true);
-    await expect(page.getByRole('progressbar', { name: 'Loading...' })).toBeVisible();
-    release?.();
-    await expect(page.getByText('Email or username', { exact: true })).toBeVisible();
-    expect(candidate.scriptErrors.filter((error) => error.startsWith('uncaught'))).toEqual([]);
-  } finally {
-    release?.();
-  }
-});
 
-test('retries a failed screen download and opens sign-in', async ({ page, candidate }) => {
-  let attempts = 0;
-  await page.route(isScreenChunk, async (route) => {
-    attempts += 1;
-    if (attempts === 1) await route.abort('failed');
-    else await route.fallback();
-  });
-  await page.goto('/');
-  await expect(page.getByTestId('mention-shell-panels-main-surface-bounds')).toBeVisible();
-  await page.waitForLoadState('networkidle');
-  await page
-    .getByRole('button', { name: /sign in/i })
-    .first()
-    .click();
-  await page.getByRole('button', { name: 'Try again' }).click();
-  await expect(page.getByText('Email or username', { exact: true })).toBeVisible();
-  expect(attempts).toBeGreaterThanOrEqual(2);
-  expect(candidate.scriptErrors.filter((error) => error.startsWith('uncaught'))).toEqual([]);
-});
-
-test('closing during a delayed download does not reopen the account dialog', async ({
-  page,
-  candidate,
-}) => {
-  expect(candidate.servedPaths).toEqual([]);
-  let release: (() => void) | undefined;
-  let requested = false;
-  await page.route(isScreenChunk, async (route) => {
-    requested = true;
-    await new Promise<void>((resolve) => {
-      release = resolve;
+    test('retries a failed screen download and opens sign-in', async ({ page, candidate }) => {
+      let attempts = 0;
+      await page.route(isScreenChunk, async (route) => {
+        attempts += 1;
+        if (attempts === 1) await route.abort('failed');
+        else await route.fallback();
+      });
+      await page.goto('/');
+      await expect(page.getByTestId('mention-shell-panels-main-surface-bounds')).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      await page
+        .getByRole('button', { name: /sign in/i })
+        .first()
+        .click();
+      await page.getByRole('button', { name: 'Try again' }).click();
+      await expect(page.getByText('Email or username', { exact: true })).toBeVisible();
+      expect(attempts).toBeGreaterThanOrEqual(2);
+      expect(candidate.scriptErrors.filter((error) => error.startsWith('uncaught'))).toEqual([]);
     });
-    await route.fallback();
+
+    test('closing during a delayed download does not reopen the account dialog', async ({
+      page,
+      candidate,
+    }) => {
+      expect(candidate.servedPaths).toEqual([]);
+      let release: (() => void) | undefined;
+      let requested = false;
+      await page.route(isScreenChunk, async (route) => {
+        requested = true;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await route.fallback();
+      });
+      try {
+        await page.goto('/');
+        await expect(page.getByTestId('mention-shell-panels-main-surface-bounds')).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        await page
+          .getByRole('button', { name: /sign in/i })
+          .first()
+          .click();
+        await expect.poll(() => requested).toBe(true);
+        await expect(page.getByRole('progressbar', { name: 'Loading...' })).toBeVisible();
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        const response = page.waitForResponse(
+          (item) => isScreenChunk(new URL(item.url())) && item.ok(),
+        );
+        release?.();
+        await response;
+        await page.waitForLoadState('networkidle');
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+      } finally {
+        release?.();
+      }
+    });
   });
-  try {
-    await page.goto('/');
-    await expect(page.getByTestId('mention-shell-panels-main-surface-bounds')).toBeVisible();
-    await page.waitForLoadState('networkidle');
-    await page
-      .getByRole('button', { name: /sign in/i })
-      .first()
-      .click();
-    await expect.poll(() => requested).toBe(true);
-    await expect(page.getByRole('progressbar', { name: 'Loading...' })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    const response = page.waitForResponse(
-      (item) => isScreenChunk(new URL(item.url())) && item.ok(),
-    );
-    release?.();
-    await response;
-    await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-  } finally {
-    release?.();
-  }
-});
+}
