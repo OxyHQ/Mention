@@ -12,10 +12,9 @@ import TestRenderer, { act } from 'react-test-renderer';
  * second press went straight through: the upload is cached by URI, so it
  * returned instantly and created a SECOND post from one capture.
  *
- * TWO. `postsStore.createPost` returns `null` on three paths that never
- * throw — the response reported no success, it carried no post, or the viewer
- * changed mid-flight. Treating a resolved promise as a published post threw the
- * capture away with nothing published.
+ * TWO. An unconfirmed response keeps the capture and asks the reader to check
+ * before retrying. A confirmed response can lack a local model if its cache
+ * update failed; that is still a publication, not an invitation to resend it.
  *
  * The upload here is the REAL hook against a mocked `assets.upload`, because the
  * gap between the two `busy` flags is the whole bug — mocking the hook would
@@ -24,6 +23,10 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 let capturedProps: Record<string, unknown> = {};
 const mockCreatePost = jest.fn();
+const mockSelectTab = jest.fn();
+let mockSessionEpoch = 1;
+let mockViewerId: string | null = 'a';
+const mockToast = jest.fn();
 const mockSetPendingShareMedia = jest.fn();
 let mockResolveUpload: ((value: unknown) => void) | undefined;
 
@@ -46,6 +49,20 @@ jest.mock('@/lib/oxyServices', () => ({
   },
 }));
 
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useAuthStore: { getState: () => ({ user: mockViewerId ? { id: mockViewerId } : null }) },
+  useOxy: () => ({ sessionClient: null, sessionMode: 'account' }),
+  useAuth: () => ({
+    user: mockViewerId ? { id: mockViewerId } : null,
+    canUsePrivateApi: true,
+    oxyServices: {
+      http: { getSessionEpoch: () => mockSessionEpoch },
+      session: { userId: 'a', isAuthenticated: true },
+    },
+  }),
+}));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: unknown) => unknown) =>
     selector({ createPost: mockCreatePost }),
@@ -61,7 +78,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/tab-pager', () => ({
-  useTabPager: () => ({ selectTab: jest.fn() }),
+  useTabPager: () => ({ selectTab: mockSelectTab }),
 }));
 
 let viewfinderProps: Record<string, unknown> = {};
@@ -152,11 +169,26 @@ beforeEach(() => {
   capturedProps = {};
   viewfinderProps = {};
   mockResolveUpload = undefined;
+  mockSessionEpoch = 1;
+  mockViewerId = 'a';
+  mockToast.mockReset();
+  mockSelectTab.mockReset();
   mockCreatePost.mockReset();
   mockSetPendingShareMedia.mockReset();
 });
 
 describe('posting a capture', () => {
+  it('reports an unavailable session without starting an upload', async () => {
+    mockViewerId = null;
+    mountWithCapture();
+    await act(async () => {
+      await (capturedProps.onPublish as () => Promise<void>)();
+    });
+    expect(mockToast).toHaveBeenCalled();
+    expect(mockCreatePost).not.toHaveBeenCalled();
+    expect(mockResolveUpload).toBeUndefined();
+    expect(capturedProps.capture).toBeTruthy();
+  });
   it('creates ONE post however many times the button is pressed', async () => {
     // `createPost` never settles, which is exactly the window the bug lived in.
     mockCreatePost.mockReturnValue(new Promise(() => {}));
@@ -224,15 +256,14 @@ describe('posting a capture', () => {
     expect(capturedProps.busy).toBe(true);
   });
 
-  it('KEEPS the capture when the store creates no post', async () => {
-    // `null` is a resolved promise and three real paths return it.
+  it('leaves after confirmation even when the local post model is unavailable', async () => {
     mockCreatePost.mockResolvedValue(null);
     mountWithCapture();
 
     await pressPublishAndSettle();
 
-    expect(capturedProps.capture).toBeTruthy();
-    expect(capturedProps.publishFailed).toBe(true);
+    expect(mockSelectTab).toHaveBeenCalledWith('index');
+    expect(capturedProps.publishFailed).toBe(false);
   });
 
   it('keeps it when the store throws, too', async () => {
@@ -259,5 +290,39 @@ describe('posting a capture', () => {
     // The guard released on the failure path — otherwise the second press would
     // be a no-op and the capture would be stuck.
     expect(mockCreatePost).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not publish an upload after the viewer changes', async () => {
+    mountWithCapture();
+    act(() => {
+      void (capturedProps.onPublish as () => Promise<void>)();
+    });
+    mockSessionEpoch += 1;
+    await settleUpload();
+    expect(mockCreatePost).not.toHaveBeenCalled();
+    expect(mockSelectTab).not.toHaveBeenCalled();
+    expect(capturedProps.busy).toBe(false);
+  });
+
+  it('does not show a stale failure or navigate after the viewer changes', async () => {
+    let reject!: (error: Error) => void;
+    mockCreatePost.mockReturnValue(
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+    );
+    mountWithCapture();
+    act(() => {
+      void (capturedProps.onPublish as () => Promise<void>)();
+    });
+    await settleUpload();
+    mockSessionEpoch += 1;
+    await act(async () => {
+      reject(new Error('uncertain'));
+      await Promise.resolve();
+    });
+    expect(capturedProps.publishFailed).toBe(false);
+    expect(capturedProps.busy).toBe(false);
+    expect(mockSelectTab).not.toHaveBeenCalled();
   });
 });

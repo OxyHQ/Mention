@@ -2146,7 +2146,7 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "publishFailed": "Publikasi belum dapat dipastikan. Periksa postingan Anda sebelum mencoba lagi. Hasil tangkapan Anda masih ada.",
     "preparing": "Menyiapkan…",
     "recordingFailed": "Perekaman gagal. Silakan coba lagi.",
     "open": "Buka kamera"
@@ -2414,6 +2414,8 @@
     "open": "Buka"
   },
   "compose": {
+    "replyUnconfirmed": "Balasan Anda belum dapat dipastikan. Periksa percakapan sebelum mencoba lagi.",
+    "publishUnconfirmed": "Publikasi belum dapat dipastikan. Periksa postingan Anda sebelum mencoba lagi.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",

@@ -1,5 +1,10 @@
 import type { Page } from '@playwright/test';
-import { DRAFT_KEY, installDraftFixture, type FixtureDraft } from '../draftFixture';
+import {
+  DRAFT_KEY,
+  DRAFT_VIEWER_ID,
+  installDraftFixture,
+  type FixtureDraft,
+} from '../draftFixture';
 import { APP_ORIGIN } from '../environment';
 import { expect, test } from '../fixtures';
 
@@ -41,8 +46,41 @@ async function holdPublication(
     body = route.request().postDataJSON();
     markStarted();
     await gate;
+    // The create endpoint's successful contract contains the hydrated post.
+    // This synthetic DTO follows the same shape used by the feed fixtures.
+    const post = {
+      id: 'f1ca1c57-616d-4010-9c23-d0c2f579c23a',
+      user: {
+        id: DRAFT_VIEWER_ID,
+        username: DRAFT_VIEWER_ID,
+        name: { displayName: 'Draft Viewer' },
+      },
+      authors: [],
+      attachments: {},
+      documents: [],
+      content: {
+        text: (body as { content?: { text?: string } }).content?.text ?? '',
+      },
+      metadata: {
+        visibility: 'public',
+        status: 'published',
+        createdAt: '2026-10-23T08:00:00.000Z',
+        updatedAt: '2026-10-23T08:00:00.000Z',
+      },
+      engagement: { likes: 0, downvotes: 0, replies: 0, boosts: 0, views: 0 },
+      permissions: { canReply: true, canDelete: true, canPin: true, canViewSources: true },
+      viewerState: {
+        isOwner: true,
+        isCollaborator: false,
+        isLiked: false,
+        isDownvoted: false,
+        isBoosted: false,
+        isSaved: false,
+      },
+    };
     await route.fulfill({
-      json: { success: true, post: null },
+      status: 201,
+      json: { success: true, post },
       headers: {
         'access-control-allow-origin': APP_ORIGIN,
         'access-control-allow-credentials': 'true',

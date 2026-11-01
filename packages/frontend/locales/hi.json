@@ -2146,7 +2146,7 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "publishFailed": "प्रकाशन की पुष्टि नहीं हो सकी। दोबारा कोशिश करने से पहले अपनी पोस्ट जाँचें। आपका कैप्चर अभी यहीं है।",
     "preparing": "तैयारी हो रही है…",
     "recordingFailed": "रिकॉर्डिंग विफल रही। कृपया फिर से कोशिश करें।",
     "open": "कैमरा खोलें"
@@ -2414,6 +2414,8 @@
     "open": "खोलें"
   },
   "compose": {
+    "replyUnconfirmed": "आपके जवाब की पुष्टि नहीं हो सकी। दोबारा कोशिश करने से पहले बातचीत जाँचें।",
+    "publishUnconfirmed": "प्रकाशन की पुष्टि नहीं हो सकी। दोबारा कोशिश करने से पहले अपनी पोस्ट जाँचें।",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",
