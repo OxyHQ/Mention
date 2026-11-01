@@ -51,7 +51,8 @@ import {
 } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
-import { useThreadHoverStore } from '@/stores/threadHoverStore';
+import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
+import { ThreadHoverOverlay } from './ThreadHoverOverlay';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -386,12 +387,9 @@ const PostItem: React.FC<PostItemProps> = ({
   // the thread at its `threadOpenId`. Standalone posts have no slice wiring and
   // keep per-post hover + their own detail target.
   const isThreadUnit = Boolean(isThread && sliceKey);
-  const setHoveredSlice = useThreadHoverStore((s) => s.setHoveredSlice);
-  // Scoped selector: only THIS slice's active boolean — a post re-renders only
-  // when its own active state flips, never on unrelated hover changes.
-  const isThreadHoverActive = useThreadHoverStore(
-    (s) => isThreadUnit && s.hoveredSliceKey === sliceKey,
-  );
+  // A post can appear in more than one pane. Ownership must be per instance so
+  // a late hover-out or unmount cannot clear another pane's active gesture.
+  const [hoverOwner] = useState(() => ({}));
 
   // Where opening this row goes: thread posts open the whole thread at its
   // subject (`threadOpenId`); standalone posts open their own detail. The tap and the time label's
@@ -1084,13 +1082,20 @@ const PostItem: React.FC<PostItemProps> = ({
         {...(isTappable ? { onPress: goToPost } : {})}
         {...(isThreadUnit
           ? {
-              onHoverIn: () => setHoveredSlice(sliceKey ?? null),
-              onHoverOut: () => setHoveredSlice(null),
+              onHoverIn: () => {
+                if (sliceKey) enterThreadHover(sliceKey, hoverOwner);
+              },
+              onHoverOut: () => {
+                if (sliceKey) leaveThreadHover(hoverOwner, sliceKey);
+              },
             }
           : {})}
       >
-        {isTappable &&
-          (isThreadUnit ? <SubtleHover active={isThreadHoverActive} /> : <SubtleHover />)}
+        {isThreadUnit && sliceKey ? (
+          <ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} visible={isTappable} />
+        ) : isTappable ? (
+          <SubtleHover />
+        ) : null}
         {/* Thread line above avatar — connects from previous post's bottom.
                     Ends `headerTopOffset` below the top, leaving the same small gap
                     before the avatar as the below-avatar line has (tracking the
