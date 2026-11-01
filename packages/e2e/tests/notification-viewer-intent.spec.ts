@@ -312,6 +312,7 @@ test('a retained failure does not toast under the new viewer', async ({ page, ca
 async function installCollaborationFixture(
   page: Page,
   fixture: Awaited<ReturnType<typeof installSwitchingFixture>>,
+  previewText = 'Collaboration fixture',
 ) {
   await page.route('**/notifications/_viewer/inbox?*', (route) => {
     if (new URL(route.request().url()).origin === APP_ORIGIN) return route.fallback();
@@ -354,7 +355,7 @@ async function installCollaborationFixture(
       json: {
         id: 'collab-post',
         user: profile(userA),
-        content: { text: 'Collaboration fixture' },
+        content: { text: previewText },
         visibility: 'public',
         attachments: {},
         authors: [],
@@ -828,5 +829,31 @@ test('a 404 from an older server fails without retrying an old write route', asy
     page.getByText('Failed to mark notification as read', { exact: true }),
   ).toBeVisible();
   expect(writes).toEqual(['/notifications/_viewer/notification-navigation-like-15/read']);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('AUDIT_PREVIEW: keyboard can find and activate a preview link', async ({ page, candidate }, testInfo) => {
+  const fixture = await installSwitchingFixture(page);
+  await installCollaborationFixture(page, fixture, 'Read #AuditTopic');
+  await page.goto('/notifications');
+  const action = page.getByRole('button', { name: `${userA} invited you to collaborate on a post`, exact: true });
+  const link = page.getByRole('link', { name: '#AuditTopic', exact: true });
+  await expect(action).toBeVisible();
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAccessibleName('#AuditTopic');
+  await testInfo.attach('preview-link-semantics', {
+    body: JSON.stringify(await link.evaluate((node) => ({
+      tag: node.tagName,
+      href: node.getAttribute('href'),
+      tabIndex: (node as HTMLElement).tabIndex,
+      hiddenAncestor: Boolean(node.closest('[aria-hidden="true"]')),
+    }))),
+    contentType: 'application/json',
+  });
+  await action.focus();
+  await page.keyboard.press('Tab');
+  await expect(link).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(`${APP_ORIGIN}/hashtag/AuditTopic`);
   expect(candidate.scriptErrors).toEqual([]);
 });
