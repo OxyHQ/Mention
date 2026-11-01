@@ -32,7 +32,7 @@ import {
 } from '../modules/mention-widgets/feedWidgetSync';
 import { type FeedFilters, feedThreadParentId, normalizeFeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
-import { viewerIntent } from '@/utils/viewerIntent';
+import { expectedViewerHeaders } from '@mention/shared-types/common';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
@@ -914,7 +914,7 @@ class FeedService {
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
       `/posts/${postId}/collaborators/_viewer/accept`,
       undefined,
-      viewerIntent(viewerId),
+      { headers: expectedViewerHeaders(viewerId) },
     );
     return { success: response.data.success === true, post: response.data.post ?? null };
   }
@@ -926,7 +926,7 @@ class FeedService {
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
       `/posts/${postId}/collaborators/_viewer/decline`,
       undefined,
-      viewerIntent(viewerId),
+      { headers: expectedViewerHeaders(viewerId) },
     );
     return { success: response.data.success === true, post: response.data.post ?? null };
   }

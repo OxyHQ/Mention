@@ -2,7 +2,7 @@ import { authenticatedClient } from '../utils/api';
 import { createLogger } from '@oxy.so/core/logger';
 import type { TRawNotification } from '@/types/validation';
 import { loadNotificationValidation } from '@/lib/notificationValidation';
-import { viewerIntent } from '@/utils/viewerIntent';
+import { expectedViewerHeaders } from '@mention/shared-types/common';
 
 const logger = createLogger('NotificationService');
 
@@ -59,11 +59,9 @@ class NotificationService {
    */
   async markAsRead(notificationId: string, viewerId: string): Promise<void> {
     try {
-      await authenticatedClient.patch(
-        `/notifications/_viewer/${notificationId}/read`,
-        undefined,
-        viewerIntent(viewerId),
-      );
+      await authenticatedClient.patch(`/notifications/_viewer/${notificationId}/read`, undefined, {
+        headers: expectedViewerHeaders(viewerId),
+      });
     } catch (error) {
       logger.error('Error marking notification as read', error);
       throw error;
@@ -78,7 +76,7 @@ class NotificationService {
       const response = await authenticatedClient.patch<{ message: string }>(
         '/notifications/_viewer/read-all',
         undefined,
-        viewerIntent(viewerId),
+        { headers: expectedViewerHeaders(viewerId) },
       );
       return response.data || { message: 'All notifications marked as read' };
     } catch (error) {
@@ -107,10 +105,9 @@ class NotificationService {
    */
   async deleteNotification(notificationId: string, viewerId: string): Promise<void> {
     try {
-      await authenticatedClient.delete(
-        `/notifications/_viewer/${notificationId}`,
-        viewerIntent(viewerId),
-      );
+      await authenticatedClient.delete(`/notifications/_viewer/${notificationId}`, {
+        headers: expectedViewerHeaders(viewerId),
+      });
     } catch (error) {
       logger.error('Error deleting notification', error);
       throw error;
@@ -125,7 +122,7 @@ class NotificationService {
       await authenticatedClient.patch(
         `/notifications/_viewer/${notificationId}/archive`,
         undefined,
-        viewerIntent(viewerId),
+        { headers: expectedViewerHeaders(viewerId) },
       );
     } catch (error) {
       logger.error('Error archiving notification', error);

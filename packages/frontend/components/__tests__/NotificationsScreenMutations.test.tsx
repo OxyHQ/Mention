@@ -18,7 +18,11 @@ const mockRenders: string[] = [];
 const mockToast = jest.fn();
 const mockT = (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key;
 const mockAuth = {
-  oxyServices: { users: { getMany: jest.fn() } },
+  oxyServices: {
+    users: { getMany: jest.fn() },
+    http: { getSessionEpoch: () => 1 },
+    session: { isAuthenticated: true },
+  },
   isAuthResolved: true,
   canUsePrivateApi: true,
   isPrivateApiPending: false,
@@ -27,6 +31,7 @@ jest.mock('@oxy.so/core/logger', () => ({ createLogger: () => ({ error: jest.fn(
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ ...mockAuth, user: { id: mockUserId } }),
   OxyAuthPrompt: () => null,
+  useAuthStore: { getState: () => ({ user: { id: mockUserId } }) },
 }));
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
@@ -217,7 +222,7 @@ it('does not rerender unchanged rows when read mutation settles', async () => {
     await settled;
   });
   expect(mockRenders).toEqual([]);
-  expect(mockMarkAsRead).toHaveBeenCalledWith('one');
+  expect(mockMarkAsRead).toHaveBeenCalledWith('one', 'A');
 });
 
 it('keeps callbacks current when the viewer changes A → B → A', async () => {
@@ -253,7 +258,10 @@ it('keeps callbacks current when the viewer changes A → B → A', async () => 
     await oldSettled;
   });
   expect(notificationsFor('B').pages[0].notifications[0].read).toBe(true);
-  expect(mockMarkAsRead.mock.calls).toEqual([['one'], ['b']]);
+  expect(mockMarkAsRead.mock.calls).toEqual([
+    ['one', 'A'],
+    ['b', 'B'],
+  ]);
 });
 it('resynchronizes the list and reports a failed read', async () => {
   const op = deferred();
@@ -298,7 +306,7 @@ it('still renders incoming realtime cache updates after a successful deletion', 
     op.resolve();
     await settled;
   });
-  expect(mockDelete).toHaveBeenCalledWith('one');
+  expect(mockDelete).toHaveBeenCalledWith('one', 'A');
   expect(mockToast).toHaveBeenCalled();
   await act(async () => {
     client.setQueryData<NotificationsInfiniteData>(viewerQueryKeys.notifications('A'), (data) =>
