@@ -25,6 +25,7 @@ import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
+import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import {
   toPopulatedActor,
   type NotificationActorProfile as ActorProfile,
@@ -291,7 +292,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // cache, and BESIDE the post hydration below rather than before it: the two
     // share nothing. It never rejects, so nothing waits on it to fail.
     const profileIdsToResolve = Array.from(
-      new Set([...uniqueActorIds, ...channelRecipientIds].filter((id) => id !== 'system')),
+      new Set(
+        [...uniqueActorIds, ...channelRecipientIds].filter(
+          (id) => id !== SYSTEM_NOTIFICATION_ACTOR_ID,
+        ),
+      ),
     );
     const profilesRead = resolveActorProfiles(profileIdsToResolve);
 
@@ -403,8 +408,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     const profilesMap = await profilesRead;
-    if (uniqueActorIds.includes('system')) {
-      profilesMap.set('system', SYSTEM_ACTOR);
+    if (uniqueActorIds.includes(SYSTEM_NOTIFICATION_ACTOR_ID)) {
+      profilesMap.set(SYSTEM_NOTIFICATION_ACTOR_ID, SYSTEM_ACTOR);
     }
 
     // Check if there are more results

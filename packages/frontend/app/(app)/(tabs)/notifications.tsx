@@ -48,6 +48,7 @@ import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
+import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 
 const notificationLogger = createLogger('Notifications');
 
@@ -310,11 +311,11 @@ const NotificationsScreen: React.FC = () => {
                   '',
               )
             : '';
-      // Every non-empty `actorId` is an Oxy account id — the column is
-      // `text NOT NULL` and holds one. The id-SHAPE test that stood here
+      // Apart from the synthetic system actor, a non-empty `actorId` is an Oxy
+      // account id. The id-SHAPE test that stood here
       // is what dropped every account created after Oxy's ids became uuid
       // v7 out of this batch, leaving those rows to per-row resolution.
-      if (id) ids.add(id);
+      if (id && id !== SYSTEM_NOTIFICATION_ACTOR_ID) ids.add(id);
     }
     return Array.from(ids);
   }, [allNotifications]);

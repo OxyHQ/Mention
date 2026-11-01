@@ -22,6 +22,7 @@ import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
 import { toPopulatedActor, type NotificationActorProfile } from './notificationActor';
 import { mapWithConcurrency } from './concurrency';
+import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 
 /**
  * In-flight notification writes per fan-out.
@@ -236,7 +237,7 @@ async function refreshRepeatedNotifications(
 }
 
 const SYSTEM_ACTOR: NotificationActorProfile = {
-  id: 'system',
+  id: SYSTEM_NOTIFICATION_ACTOR_ID,
   username: 'system',
   displayName: 'System',
 };
@@ -254,7 +255,7 @@ function createDeliveryLookups(): PushLookups & {
   const actors = new Map<string, Promise<NotificationActorProfile | null>>();
   return {
     actor(actorId) {
-      if (actorId === 'system') return Promise.resolve(SYSTEM_ACTOR);
+      if (actorId === SYSTEM_NOTIFICATION_ACTOR_ID) return Promise.resolve(SYSTEM_ACTOR);
       let pending = actors.get(actorId);
       if (!pending) {
         pending = getServiceOxyClient()
@@ -400,7 +401,7 @@ export const createWelcomeNotification = async (
     await createNotification(
       {
         recipientId: userId,
-        actorId: 'system', // System-generated notification
+        actorId: SYSTEM_NOTIFICATION_ACTOR_ID,
         type: 'welcome',
         entityId: userId,
         entityType: 'profile',

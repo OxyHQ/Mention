@@ -37,6 +37,7 @@ import {
 import { serializeNotification } from '../utils/notificationUtils';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
+import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 
 /**
  * Minimal read-surface of an actor profile consumed by `toPopulatedActor`.
@@ -44,7 +45,7 @@ import { logger } from '../utils/logger';
  * while the synthetic `system` actor only needs these fields.
  */
 export const SYSTEM_ACTOR: ActorProfile = {
-  id: 'system',
+  id: SYSTEM_NOTIFICATION_ACTOR_ID,
   username: 'system',
   name: { displayName: 'System' },
   avatar: undefined,
@@ -66,7 +67,7 @@ export async function enrichNotificationActor(
 ): Promise<EnrichedNotification> {
   const actorId = notification.actorId;
   let actor: ActorProfile | undefined;
-  if (actorId === 'system') {
+  if (actorId === SYSTEM_NOTIFICATION_ACTOR_ID) {
     actor = SYSTEM_ACTOR;
   } else if (actorId) {
     try {
