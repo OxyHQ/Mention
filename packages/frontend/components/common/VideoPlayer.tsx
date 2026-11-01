@@ -286,6 +286,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const player = externalPlayer ?? ownPlayer;
   const desiredSource = usedFallback && fallbackSrc ? fallbackSrc : src;
 
+  const scheduleHideControls = useCallback(() => {
+    // Feed previews and GIFs do not render the full controls at all.
+    if (!tracksTime) return;
+    if (hideControlsTimer.current !== null) {
+      clearTimeout(hideControlsTimer.current);
+      hideControlsTimer.current = null;
+    }
+    hideControlsTimer.current = setTimeout(() => {
+      hideControlsTimer.current = null;
+      setShowControls(false);
+    }, CONTROLS_HIDE_DELAY);
+  }, [tracksTime]);
+
   // The setup callback above only ever runs for the player built here, so a
   // borrowed one is configured from this effect instead. Idempotent property
   // writes, so running it for both is simpler than branching and cannot drift.
@@ -300,14 +313,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     );
   }, [player, gif, loop, tracksTime]);
 
-  const scheduleHideControls = useCallback(() => {
-    if (hideControlsTimer.current) {
-      clearTimeout(hideControlsTimer.current);
+  // An existing hide timer belongs to full controls, never to a feed preview
+  // or GIF. Entering full mode may not emit playingChange if this player was
+  // already playing, so start its timer from the current player state.
+  useEffect(() => {
+    if (!tracksTime) {
+      if (hideControlsTimer.current !== null) clearTimeout(hideControlsTimer.current);
+      hideControlsTimer.current = null;
+    } else if (showControls && player.playing && hideControlsTimer.current === null) {
+      scheduleHideControls();
     }
-    hideControlsTimer.current = setTimeout(() => {
-      setShowControls(false);
-    }, CONTROLS_HIDE_DELAY);
-  }, []);
+  }, [tracksTime, showControls, player, scheduleHideControls]);
 
   // Sync mute state from global store (GIFs stay force-muted regardless).
   useEffect(() => {
@@ -384,8 +400,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   useEffect(() => {
     return () => {
-      if (hideControlsTimer.current) {
+      if (hideControlsTimer.current !== null) {
         clearTimeout(hideControlsTimer.current);
+        hideControlsTimer.current = null;
       }
       if (seekSettleTimer.current) {
         clearTimeout(seekSettleTimer.current);
@@ -408,8 +425,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setManualPlayback(false);
       player.pause();
       // Keep controls visible when paused
-      if (hideControlsTimer.current) {
+      if (hideControlsTimer.current !== null) {
         clearTimeout(hideControlsTimer.current);
+        hideControlsTimer.current = null;
       }
       return;
     }
