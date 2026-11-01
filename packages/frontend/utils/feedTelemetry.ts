@@ -302,8 +302,12 @@ export class FeedImpressionTracker {
     if (this.disposed || !this.active) return;
     let remaining = Infinity;
     const now = Date.now();
-    for (const entry of this.pending.values()) {
-      if (entry.sent || entry.visibleSince === null) continue;
+    // Only visible posts can have a running dwell span. The pending map also
+    // retains hidden posts for deduplication and late-auth reporting, so its
+    // size can grow throughout a long feed session.
+    for (const postUri of this.visible) {
+      const entry = this.pending.get(postUri);
+      if (!entry || entry.sent || entry.visibleSince === null) continue;
       remaining = Math.min(
         remaining,
         MAX_MEASURED_DWELL_MS - entry.durationMs - Math.max(0, now - entry.visibleSince),
