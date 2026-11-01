@@ -5,6 +5,7 @@ import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tansta
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { EventEditor } from '@/components/Compose/EventEditor';
@@ -49,7 +50,8 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       eventsService.attendees(id, !!event?.canManage, !!viewerId, pageParam),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page, _pages, _pageParam, pageParams) =>
+      nextUnvisitedCursor(page.nextCursor, pageParams),
     enabled: roster && !!event,
     staleTime: 0,
     gcTime: 0,
