@@ -108,6 +108,11 @@ function recover(error: unknown): void {
   window.location.reload();
 }
 
+/** Recover chunk failures caught by a React error boundary. */
+export function recoverChunkError(error: unknown): void {
+  if (typeof window !== 'undefined' && isChunkLoadError(error)) recover(error);
+}
+
 export function registerChunkErrorRecovery(): void {
   if (registered) return;
   registered = true;
@@ -125,13 +130,13 @@ export function registerChunkErrorRecovery(): void {
   // an unhandled promise rejection. We never preventDefault — this is additive.
   window.addEventListener('unhandledrejection', (event) => {
     const reason: unknown = event.reason;
-    if (isChunkLoadError(reason)) recover(reason);
+    recoverChunkError(reason);
   });
 
   // A resource error may belong to a dynamic import whose caller handles the
   // rejected promise (for example, a dialog with a retry button). Reload only
   // for uncaught execution errors here; unhandled imports are covered above.
   window.addEventListener('error', (event) => {
-    if (isChunkLoadError(event.error)) recover(event.error);
+    recoverChunkError(event.error);
   });
 }
