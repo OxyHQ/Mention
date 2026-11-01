@@ -15,6 +15,7 @@ import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mentio
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
+import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import {
   useInfiniteQuery,
@@ -56,8 +57,8 @@ export default function ActivitySubscriptionsScreen() {
       queryKey: subscriptionsKey,
       queryFn: ({ pageParam }) => subscriptionService.list(pageParam, PAGE_LIMIT),
       initialPageParam: undefined as string | undefined,
-      // The absence of `nextCursor` is the end of the list.
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      getNextPageParam: (lastPage, _pages, _pageParam, pageParams) =>
+        nextUnvisitedCursor(lastPage.nextCursor, pageParams),
       enabled: canUsePrivateApi,
     });
 
