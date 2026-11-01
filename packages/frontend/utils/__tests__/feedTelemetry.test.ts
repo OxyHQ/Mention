@@ -245,6 +245,80 @@ describe('FeedImpressionTracker', () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 
+  it('arms the cap for the earliest remaining visible dwell after a hidden span', () => {
+    let authenticated = false;
+    const tracker = new FeedImpressionTracker('for_you', () => authenticated);
+    tracker.setVisible('p1');
+    jest.advanceTimersByTime(20_000);
+    tracker.setHidden('p1'); // retained, but cannot yet report
+    tracker.setVisible('p2');
+    jest.advanceTimersByTime(5_000);
+    tracker.setVisible('p1');
+    authenticated = true;
+
+    jest.advanceTimersByTime(9_999);
+    expect(sentInteractions()).toHaveLength(0);
+    jest.advanceTimersByTime(1);
+    tracker.setHidden('p2');
+    tracker.dispose();
+    expect(sentInteractions()).toEqual([
+      expect.objectContaining({ postUri: 'p1', durationMs: 30_000 }),
+      expect.objectContaining({ postUri: 'p2', durationMs: 15_000 }),
+    ]);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('does not start a timer for an empty viewport or re-arm for a reported post', () => {
+    const tracker = new FeedImpressionTracker('for_you');
+    tracker.syncVisible([]);
+    expect(jest.getTimerCount()).toBe(0);
+    tracker.setVisible('p1');
+    jest.advanceTimersByTime(31_000);
+    expect(sentInteractions()).toEqual([expect.objectContaining({ postUri: 'p1' })]);
+    expect(jest.getTimerCount()).toBe(0);
+    // A new visible post recalculates the timer while the reported one remains visible.
+    tracker.setVisible('p2');
+    expect(jest.getTimerCount()).toBe(1);
+    jest.advanceTimersByTime(30_000);
+    tracker.dispose();
+    expect(sentInteractions().map((interaction) => interaction.postUri)).toEqual(['p1', 'p2']);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('retries a qualified hidden impression on native visibility updates after auth arrives', () => {
+    let authenticated = false;
+    const tracker = new FeedImpressionTracker('for_you', () => authenticated);
+    tracker.syncVisible(['p1']);
+    jest.advanceTimersByTime(1_500);
+    tracker.syncVisible([]);
+    expect(sentInteractions()).toHaveLength(0);
+    authenticated = true;
+    tracker.syncVisible(['p2']);
+    jest.advanceTimersByTime(1_000);
+    expect(sentInteractions()).toEqual([
+      expect.objectContaining({ postUri: 'p1', durationMs: 1_500 }),
+    ]);
+    tracker.dispose();
+    expect(sentInteractions().map((interaction) => interaction.postUri)).toEqual(['p1', 'p2']);
+  });
+
+  it('continues tracking later impressions after a batch fails', async () => {
+    mockSendFeedInteractions.mockRejectedValueOnce(new Error('offline'));
+    const tracker = new FeedImpressionTracker('for_you');
+    tracker.setVisible('p1');
+    jest.advanceTimersByTime(1_500);
+    tracker.setHidden('p1');
+    await jest.advanceTimersByTimeAsync(1_000);
+
+    tracker.setVisible('p2');
+    jest.advanceTimersByTime(1_500);
+    tracker.setHidden('p2');
+    tracker.dispose();
+    await Promise.resolve();
+    expect(sentInteractions().map((interaction) => interaction.postUri)).toEqual(['p1', 'p2']);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
   it('excludes background time and preserves viewport membership on resume', () => {
     const tracker = new FeedImpressionTracker('for_you');
     tracker.setVisible('p1');
