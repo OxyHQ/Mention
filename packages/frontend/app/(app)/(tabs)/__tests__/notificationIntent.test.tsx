@@ -20,6 +20,7 @@ type RowActions = {
   onMarkAsRead: (ids: string[], intent?: NotificationIntent) => void;
   onDelete: (ids: string[], intent?: NotificationIntent) => void;
   captureIntent: () => NotificationIntent | null;
+  item: { hasUnread: boolean };
 };
 const mockRows: Record<string, RowActions> = {};
 const mockToast = jest.fn();
@@ -61,6 +62,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
     getNotifications: (...args: unknown[]) => mockGetNotifications(...args),
+    getNotificationsForViewer: (...args: unknown[]) => mockGetNotifications(...args),
     markAsRead: (...args: unknown[]) => mockMarkAsRead(...args),
     deleteNotification: (...args: unknown[]) => mockDelete(...args),
     markAllAsRead: (...args: unknown[]) => mockMarkAll(...args),
@@ -208,6 +210,12 @@ beforeEach(() => {
   mockMarkAsRead.mockReset();
   mockDelete.mockReset();
   mockGetNotifications.mockReset();
+  mockGetNotifications.mockImplementation(async () => ({
+    notifications: [notification('one'), notification('two')],
+    unreadCount: 2,
+    hasMore: false,
+    limit: 20,
+  }));
   mockToast.mockReset();
   client = new QueryClient({
     defaultOptions: { queries: { staleTime: Infinity, retry: false }, mutations: { retry: false } },
@@ -363,7 +371,7 @@ it('aborts the owned confirmation on logout without unmounting the screen', asyn
   expect(signal.aborted).toBe(true);
   expect(mockMarkAll).not.toHaveBeenCalled();
   expect(mockAuthListeners.size).toBe(0);
-  expect(mockTokenListeners.size).toBe(0);
+  expect(mockTokenListeners.size).toBe(1);
 });
 
 for (const change of ['viewer', 'epoch', 'unmount'] as const) {
@@ -394,7 +402,7 @@ for (const change of ['viewer', 'epoch', 'unmount'] as const) {
     expect(signal.aborted).toBe(true);
     expect(mockMarkAll).not.toHaveBeenCalled();
     expect(mockAuthListeners.size).toBe(0);
-    expect(mockTokenListeners.size).toBe(0);
+    expect(mockTokenListeners.size).toBe(change === 'unmount' ? 0 : 1);
   });
 }
 
@@ -421,7 +429,7 @@ it('keeps the confirmation open across a same-session token refresh', async () =
   });
   expect(mockMarkAll).toHaveBeenCalledWith('A');
   expect(mockAuthListeners.size).toBe(0);
-  expect(mockTokenListeners.size).toBe(0);
+  expect(mockTokenListeners.size).toBe(1);
 });
 
 it('still submits and reports a successful mark-all for the same session', async () => {
@@ -489,10 +497,11 @@ it('reverts a rejected viewer mismatch without refetching under the wrong bearer
     mockRows.one.onMarkAsRead(['one']);
     await tick();
   });
+  expect(mockRows.one.item.hasUnread).toBe(false);
   expect(
     client.getQueryData<TestCache>(viewerQueryKeys.notifications('A'))?.pages[0].notifications[0]
       .read,
-  ).toBe(true);
+  ).toBe(false);
   await act(async () => {
     op.reject(Object.assign(new Error('changed'), { code: 'VIEWER_CHANGED', status: 409 }));
     await tick();
@@ -608,4 +617,81 @@ it('executes an action menu within its original session', async () => {
     await tick();
   });
   expect(mockDelete).toHaveBeenCalledWith('one', 'A');
+});
+
+it('AUDIT: concurrent independent writes preserve a rejected row', async () => {
+  const rejected = deferred();
+  const accepted = deferred();
+  mockMarkAsRead.mockImplementation((id: string) =>
+    id === 'one' ? rejected.promise : accepted.promise,
+  );
+  client.setQueryData(viewerQueryKeys.unreadNotifications('A'), 2);
+  await mount();
+  await act(async () => {
+    mockRows.one.onMarkAsRead(['one']);
+    await tick();
+    mockRows.two.onMarkAsRead(['two']);
+    await tick();
+  });
+  await act(async () => {
+    accepted.resolve();
+    await tick();
+    rejected.reject(Object.assign(new Error('changed'), { code: 'VIEWER_CHANGED', status: 409 }));
+    await tick();
+    await tick();
+  });
+  const list = client.getQueryData<TestCache>(viewerQueryKeys.notifications('A'))?.pages[0]
+    .notifications;
+  expect(list?.find((row) => row._id === 'one')?.read).toBe(false);
+  expect(list?.find((row) => row._id === 'two')?.read).toBe(true);
+  expect(client.getQueryData(viewerQueryKeys.unreadNotifications('A'))).toBe(1);
+});
+
+it('AUDIT: a partial grouped success is not reverted on viewer mismatch', async () => {
+  const rejected = deferred();
+  const accepted = deferred();
+  mockMarkAsRead.mockImplementation((id: string) =>
+    id === 'one' ? rejected.promise : accepted.promise,
+  );
+  client.setQueryData(viewerQueryKeys.unreadNotifications('A'), 2);
+  await mount();
+  await act(async () => {
+    mockRows.one.onMarkAsRead(['one', 'two']);
+    await tick();
+  });
+  await act(async () => {
+    accepted.resolve();
+    await tick();
+    rejected.reject(Object.assign(new Error('changed'), { code: 'VIEWER_CHANGED', status: 409 }));
+    await tick();
+    await tick();
+  });
+  const list = client.getQueryData<TestCache>(viewerQueryKeys.notifications('A'))?.pages[0]
+    .notifications;
+  expect(list?.find((row) => row._id === 'one')?.read).toBe(false);
+  expect(list?.find((row) => row._id === 'two')?.read).toBe(true);
+  expect(client.getQueryData(viewerQueryKeys.unreadNotifications('A'))).toBe(1);
+});
+
+it('AUDIT: same-viewer epoch replacement restores a paused mutation that is never sent', async () => {
+  onlineManager.setOnline(false);
+  mockMarkAsRead.mockResolvedValue(undefined);
+  client.setQueryData(viewerQueryKeys.unreadNotifications('A'), 2);
+  await mount();
+  await act(async () => {
+    mockRows.one.onMarkAsRead(['one']);
+    await tick();
+  });
+  mockEpoch++;
+  await act(async () => {
+    onlineManager.setOnline(true);
+    await client.resumePausedMutations();
+    await tick();
+    await tick();
+  });
+  expect(mockMarkAsRead).not.toHaveBeenCalled();
+  const list = client.getQueryData<TestCache>(viewerQueryKeys.notifications('A'))?.pages[0]
+    .notifications;
+  expect(list?.find((row) => row._id === 'one')?.read).toBe(false);
+  expect(client.getQueryData(viewerQueryKeys.unreadNotifications('A'))).toBe(2);
 });

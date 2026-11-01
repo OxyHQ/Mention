@@ -27,6 +27,24 @@ class NotificationService {
    * The cursor is an opaque backend pagination token.
    */
   async getNotifications(cursor?: string, limit: number = 20): Promise<NotificationsResponse> {
+    return this.fetchNotifications('/notifications', cursor, limit);
+  }
+
+  /** A reconciliation read bound to the effective authenticated subject. */
+  async getNotificationsForViewer(
+    viewerId: string,
+    cursor?: string,
+    limit: number = 20,
+  ): Promise<NotificationsResponse> {
+    return this.fetchNotifications('/notifications/_viewer/inbox', cursor, limit, viewerId);
+  }
+
+  private async fetchNotifications(
+    path: string,
+    cursor: string | undefined,
+    limit: number,
+    viewerId?: string,
+  ): Promise<NotificationsResponse> {
     try {
       const params: { limit: number; cursor?: string } = { limit };
 
@@ -35,7 +53,10 @@ class NotificationService {
       }
 
       const [response, { validateNotifications }] = await Promise.all([
-        authenticatedClient.get<Partial<NotificationsResponse>>('/notifications', { params }),
+        authenticatedClient.get<Partial<NotificationsResponse>>(path, {
+          params,
+          ...(viewerId ? { headers: expectedViewerHeaders(viewerId) } : {}),
+        }),
         loadNotificationValidation(),
       ]);
 
@@ -98,6 +119,15 @@ class NotificationService {
       logger.error('Error fetching unread count', error);
       return 0;
     }
+  }
+
+  /** A protected reconciliation failure must not be reported as a zero badge. */
+  async getUnreadCountForViewer(viewerId: string): Promise<number> {
+    const response = await authenticatedClient.get<{ count?: number }>(
+      '/notifications/_viewer/unread-count',
+      { headers: expectedViewerHeaders(viewerId) },
+    );
+    return response.data.count || 0;
   }
 
   /**

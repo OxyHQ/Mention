@@ -8,6 +8,28 @@ export interface NotificationOptimisticOperation {
   epoch: number;
 }
 
+/** Count only distinct, currently unread rows covered by a current intent. */
+export function countNotificationOptimism(
+  data: NotificationsInfiniteData | undefined,
+  operations: readonly NotificationOptimisticOperation[],
+  scope: { viewerId: string | null | undefined; epoch: number },
+): number {
+  if (!data || !scope.viewerId || operations.length === 0) return 0;
+  const ids = new Set<string>();
+  for (const operation of operations) {
+    if (operation.viewerId !== scope.viewerId || operation.epoch !== scope.epoch) continue;
+    for (const id of operation.ids) ids.add(id);
+  }
+  if (ids.size === 0) return 0;
+  const counted = new Set<string>();
+  for (const page of data.pages) {
+    for (const notification of page.notifications) {
+      if (!notification.read && ids.has(notification._id)) counted.add(notification._id);
+    }
+  }
+  return counted.size;
+}
+
 /**
  * Project pending actions without modifying the authoritative query data.
  * `read-all` affects only rows actually observed when it started: a later page

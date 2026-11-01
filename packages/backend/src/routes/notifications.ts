@@ -178,7 +178,7 @@ function pathId(value: string | string[] | undefined): string {
 }
 
 // Get notifications for current user
-router.get('/', async (req: AuthRequest, res: Response) => {
+const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -478,7 +478,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       hasMore: false,
     });
   }
-});
+};
+router.get('/', listNotificationsHandler);
+router.get('/_viewer/inbox', requireExpectedViewer, listNotificationsHandler);
 
 // Notifications are SERVER-AUTHORED ONLY. There is intentionally no
 // client-callable creation route: legitimate notifications are created as
@@ -544,7 +546,7 @@ router.patch('/read-all', markAllAsReadHandler);
 router.patch('/_viewer/read-all', requireExpectedViewer, markAllAsReadHandler);
 
 // Unread count endpoint
-router.get('/unread-count', async (req: AuthRequest, res: Response) => {
+const unreadCountHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
@@ -553,7 +555,9 @@ router.get('/unread-count', async (req: AuthRequest, res: Response) => {
   } catch {
     res.status(500).json({ message: 'Error fetching unread count' });
   }
-});
+};
+router.get('/unread-count', unreadCountHandler);
+router.get('/_viewer/unread-count', requireExpectedViewer, unreadCountHandler);
 
 // Archive a notification (soft action)
 const archiveNotificationHandler = async (req: AuthRequest, res: Response) => {

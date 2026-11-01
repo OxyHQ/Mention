@@ -77,6 +77,23 @@ beforeEach(() => {
 });
 afterAll(() => oxy.dispose());
 
+describe('guarded reconciliation reads', () => {
+  it.each(['/_viewer/inbox', '/_viewer/unread-count'])(
+    'rejects a mismatched or missing viewer before inbox authorization at %s',
+    async (path) => {
+      for (const viewer of ['A', null]) {
+        let call = request(app)
+          .get(`/notifications${path}`)
+          .set('Authorization', `Bearer ${token('B')}`);
+        if (viewer) call = call.set('X-Mention-Expected-Viewer', viewer);
+        const response = await call;
+        expect(response.status).toBe(viewer ? 409 : 400);
+        expect(effects.inbox).not.toHaveBeenCalled();
+      }
+    },
+  );
+});
+
 describe('notification viewer precondition after real Oxy authentication', () => {
   const paths = [
     { method: 'patch' as const, path: '/_viewer/read-all' },

@@ -6,6 +6,13 @@ import { supervisedActionForRequest } from '../../middleware/supervisedAction';
 import { createRequireMcpOrOxyAuth } from '../../mcp/middleware/mcpAuth';
 
 const equivalent = [
+  { method: 'GET' as const, legacy: '/notifications', guarded: '/notifications/_viewer/inbox' },
+  {
+    method: 'GET' as const,
+    legacy: '/notifications/unread-count',
+    guarded: '/notifications/_viewer/unread-count',
+  },
+
   {
     method: 'PATCH' as const,
     legacy: '/notifications/n/read',
@@ -39,7 +46,7 @@ describe('supervised notification authorization through production middleware', 
       app.use('/api', (_req, res) => res.sendStatus(204));
       for (const path of [legacy, guarded]) {
         const response = await request(app)
-          [method.toLowerCase() as 'patch' | 'delete'](`/api${path}`)
+          [method.toLowerCase() as 'get' | 'patch' | 'delete'](`/api${path}`)
           .set('Authorization', 'Bearer synthetic-supervised-session');
         expect(response.status).toBe(204);
         expect(auth.mock.lastCall?.[0]).toEqual(
