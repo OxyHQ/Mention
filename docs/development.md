@@ -55,6 +55,12 @@ forever.
 
 ## Local Android release APK
 
+Oxy Services 13.15.5 changes the Android device-session module. A lockfile
+update or JavaScript deployment does not update that module in an existing
+installation; include the dependency in a new native build to ship the change.
+The CI autolinking check verifies module discovery and source presence, not a
+compiled or distributed Android binary.
+
 ```bash
 cd packages/frontend/android
 NODE_ENV=production ./gradlew :app:assembleRelease -x lintVitalRelease \
