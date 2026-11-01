@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { useRouter } from '@/lib/navigation/router';
 import type {
@@ -15,8 +16,8 @@ import type {
 import PostItem from './PostItem';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import FeedInterstitial from './interstitials/FeedInterstitial';
-import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
-import { useThreadHoverStore } from '@/stores/threadHoverStore';
+import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
+import { ThreadHoverOverlay } from './ThreadHoverOverlay';
 import { createLogger } from '@oxy.so/core/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, type ReplyNode } from '@/utils/feedUtils';
 import { THREAD_LINE_WIDTH, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
@@ -467,17 +468,16 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({
   sliceKey,
   onPress,
 }) => {
-  const active = useThreadHoverStore((s) => s.hoveredSliceKey === sliceKey);
-  const setHoveredSlice = useThreadHoverStore((s) => s.setHoveredSlice);
+  const [hoverOwner] = useState(() => ({}));
   return (
     <Pressable
       className="border-border"
       style={styles.showThreadLink}
       onPress={onPress}
-      onHoverIn={() => setHoveredSlice(sliceKey)}
-      onHoverOut={() => setHoveredSlice(null)}
+      onHoverIn={() => enterThreadHover(sliceKey, hoverOwner)}
+      onHoverOut={() => leaveThreadHover(hoverOwner, sliceKey)}
     >
-      <SubtleHover active={active} />
+      <ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} />
       <Text className="text-primary text-sm font-medium">Show this thread</Text>
     </Pressable>
   );
