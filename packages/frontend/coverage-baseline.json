@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 51.73,
-      "covered": 14503,
-      "total": 28035
+      "pct": 52.57,
+      "covered": 14740,
+      "total": 28037
     },
     "branches": {
-      "pct": 47.67,
-      "covered": 10080,
-      "total": 21145
+      "pct": 48.39,
+      "covered": 10236,
+      "total": 21151
     },
     "functions": {
-      "pct": 46.87,
-      "covered": 3480,
-      "total": 7424
+      "pct": 47.53,
+      "covered": 3528,
+      "total": 7422
     },
     "lines": {
-      "pct": 52.56,
-      "covered": 13116,
-      "total": 24953
+      "pct": 53.41,
+      "covered": 13330,
+      "total": 24955
     }
   },
   "pins": {
@@ -138,10 +138,10 @@
       "lines": 100
     },
     "db/feedQueries.ts": {
-      "statements": 31,
-      "branches": 25,
-      "functions": 40,
-      "lines": 36
+      "statements": 48,
+      "branches": 36,
+      "functions": 46,
+      "lines": 53
     },
     "db/index.ts": {
       "statements": 100,
@@ -163,7 +163,7 @@
     },
     "db/migrations.ts": {
       "statements": 93,
-      "branches": 50,
+      "branches": 66,
       "functions": 100,
       "lines": 93
     },
@@ -174,10 +174,10 @@
       "lines": 100
     },
     "db/postQueries.ts": {
-      "statements": 54,
-      "branches": 41,
+      "statements": 56,
+      "branches": 43,
       "functions": 80,
-      "lines": 59
+      "lines": 60
     },
     "db/schema.ts": {
       "statements": 79,
@@ -306,10 +306,10 @@
       "lines": 100
     },
     "hooks/useExternalActorResolve.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useFeedModules.ts": {
       "statements": 100,
@@ -366,10 +366,10 @@
       "lines": 0
     },
     "hooks/useInfiniteCatalogSearch.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 86,
+      "branches": 66,
+      "functions": 90,
+      "lines": 85
     },
     "hooks/useJobAttachmentManager.ts": {
       "statements": 100,
@@ -768,10 +768,10 @@
       "lines": 100
     },
     "lib/appInitializer.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 69,
+      "branches": 66,
+      "functions": 75,
+      "lines": 68
     },
     "lib/bootFeedRead.ts": {
       "statements": 100,
@@ -846,10 +846,10 @@
       "lines": 98
     },
     "lib/i18n.ts": {
-      "statements": 52,
-      "branches": 47,
+      "statements": 58,
+      "branches": 69,
       "functions": 33,
-      "lines": 51
+      "lines": 56
     },
     "lib/jobPagination.ts": {
       "statements": 100,
@@ -1158,10 +1158,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 51,
+      "statements": 52,
       "branches": 44,
-      "functions": 42,
-      "lines": 52
+      "functions": 44,
+      "lines": 53
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1338,10 +1338,10 @@
       "lines": 74
     },
     "stores/externalEmbedsStore.ts": {
-      "statements": 50,
-      "branches": 38,
+      "statements": 54,
+      "branches": 50,
       "functions": 43,
-      "lines": 54
+      "lines": 59
     },
     "stores/feedQueryCache.ts": {
       "statements": 100,
@@ -1446,7 +1446,7 @@
       "lines": 100
     },
     "stores/trendsStore.ts": {
-      "statements": 94,
+      "statements": 95,
       "branches": 92,
       "functions": 94,
       "lines": 100
@@ -1477,7 +1477,7 @@
     },
     "utils/api.ts": {
       "statements": 50,
-      "branches": 41,
+      "branches": 50,
       "functions": 46,
       "lines": 50
     },
@@ -1554,10 +1554,10 @@
       "lines": 100
     },
     "utils/embedPlayer.ts": {
-      "statements": 25,
-      "branches": 25,
+      "statements": 57,
+      "branches": 53,
       "functions": 100,
-      "lines": 24
+      "lines": 57
     },
     "utils/emojiData.ts": {
       "statements": 0,
@@ -1716,10 +1716,10 @@
       "lines": 100
     },
     "utils/notifications.ts": {
-      "statements": 28,
-      "branches": 22,
-      "functions": 15,
-      "lines": 28
+      "statements": 48,
+      "branches": 36,
+      "functions": 33,
+      "lines": 51
     },
     "utils/openExternalLink.ts": {
       "statements": 9,
