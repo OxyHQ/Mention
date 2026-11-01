@@ -597,6 +597,11 @@ test('an expandable notification group keeps its control and row gesture indepen
   await page.mouse.up();
   await expect(page.getByRole('button', { name: 'Show less', exact: true })).toBeVisible();
   await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+  await page.getByRole('button', { name: 'Show less', exact: true }).click();
+  const keyboardToggle = page.getByRole('button', { name: 'Show all', exact: true });
+  await keyboardToggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Show less', exact: true })).toBeVisible();
   const actor = row.getByText(userB, { exact: true });
   await expect(actor).toBeVisible();
   const actorBox = await actor.boundingBox();
@@ -608,6 +613,46 @@ test('an expandable notification group keeps its control and row gesture indepen
   await page.mouse.up();
   await expect(page).toHaveURL(new RegExp(`/@${userB}$`));
   expect(candidate.scriptErrors).toEqual([]);
+});
+
+test.describe('touch emulation', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test('holding an invitation control does not activate the row', async ({ page, candidate }) => {
+    const fixture = await installSwitchingFixture(page);
+    await installCollaborationFixture(page, fixture);
+    await page.goto('/notifications');
+    const accept = page.getByRole('button', { name: 'Accept', exact: true }).first();
+    await expect(accept).toBeVisible();
+    const box = await accept.boundingBox();
+    if (!box) throw new Error('The collaboration button has no visible bounds');
+    await page.evaluate(() => {
+      document.addEventListener(
+        'touchstart',
+        () => {
+          (window as typeof window & { __fixtureTouchStarted?: boolean }).__fixtureTouchStarted =
+            true;
+        },
+        { once: true, capture: true },
+      );
+    });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
+    });
+    await page.waitForTimeout(800);
+    expect(
+      await page.evaluate(
+        () => (window as typeof window & { __fixtureTouchStarted?: boolean }).__fixtureTouchStarted,
+      ),
+    ).toBe(true);
+    await expect(page.getByText('Mark as read', { exact: true })).toHaveCount(0);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(page).toHaveURL(`${APP_ORIGIN}/notifications`);
+    await expect(page.getByText('Accept invite?', { exact: true })).toBeVisible();
+    expect(candidate.scriptErrors).toEqual([]);
+  });
 });
 
 test('a focused invitation keeps focus when its pending controls load', async ({
