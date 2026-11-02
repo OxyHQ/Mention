@@ -261,6 +261,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: 'SELECT-only in a READ ONLY transaction; tests additionally pass their own postIds.',
   },
+  reportNodeinfoAuthors: {
+    scope: 'caller-scoped',
+    reason: 'SELECT-only aggregate counts in a READ ONLY transaction; the suite asserts deltas.',
+  },
   evalFeedQuality: {
     scope: 'caller-scoped',
     reason: 'Reads feed_interactions since a cutoff and scores them; no writes.',
