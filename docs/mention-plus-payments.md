@@ -23,6 +23,15 @@ the exact standalone Mention Plus product, capability and offer:
 - `EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_ID`: the published annual individual offer ID.
 - `EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_VERSION`: its exact positive integer version.
 
+For the hosted web app, store these six public identities in the repository or
+`production` environment GitHub Actions variables. `deploy-frontends.yml` passes
+them explicitly to the Expo build; they are not secrets. Changing a value requires
+a new verified frontend build/deploy. Setting Worker runtime variables does not
+change the already-inlined bundle. Missing values continue to disable purchasing.
+For native builds, supply the same reviewed identities in the selected EAS build
+environment before building; the hosted-web workflow does not configure native apps.
+The frontend never receives provider credentials or a client-supplied price.
+
 The central catalogue must be configured, allow purchases, and expose exactly one
 matching individual product offer for each selected cadence with an approved price. The backend
 must also accept that offer under its commercial eligibility rules and have the
