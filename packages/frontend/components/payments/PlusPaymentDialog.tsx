@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, View } from 'react-native';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
-import { oxyAccountIdSchema } from '@oxy.so/contracts';
+import { parseContract, personalPlanCheckoutRequestCheck } from '@oxy.so/contracts/client';
 import { authenticatedApiCall } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -82,12 +82,14 @@ function PaymentContent({ onClose }: { onClose(): void }) {
       if (!isCurrent()) return;
       const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
         if (!isCurrent()) throw new Error('Account changed');
-        return oxyServices.billing.startPersonalPlanCheckout({
-          expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
-          offerId: offer.offerId,
-          offerVersion: offer.offerVersion,
-          idempotencyKey: key,
-        });
+        return oxyServices.billing.startPersonalPlanCheckout(
+          parseContract(personalPlanCheckoutRequestCheck, {
+            expectedSubjectAccountId: user.id,
+            offerId: offer.offerId,
+            offerVersion: offer.offerVersion,
+            idempotencyKey: key,
+          }),
+        );
       });
       if (!isCurrent()) return;
       if (result.state === 'pending') {
