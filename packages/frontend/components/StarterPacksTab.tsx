@@ -125,7 +125,7 @@ export function StarterPacksTab() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
+  list: { paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 32 },
   cardWrapper: { marginBottom: 8 },
   emptyState: { paddingVertical: 36, paddingHorizontal: 20 },
   createButton: { paddingVertical: 12, borderRadius: 20, alignItems: 'center', marginBottom: 16 },

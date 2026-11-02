@@ -1306,7 +1306,9 @@ function SearchIndex() {
               return (
                 <View>
                   {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-                    <StarterPackCardSkeleton key={`pack-skeleton-${index}`} />
+                    <View key={`pack-skeleton-${index}`} className="w-full px-3 py-2">
+                      <StarterPackCardSkeleton />
+                    </View>
                   ))}
                 </View>
               );
