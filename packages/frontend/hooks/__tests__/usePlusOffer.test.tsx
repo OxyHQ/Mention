@@ -26,6 +26,7 @@ const mockOffer = {
   price: { currency: 'USD', amountMinorUnits: 500, interval: 'month' },
 };
 let mockHasAccess = false;
+let mockPurchaseAvailable = true;
 let mockQueryError = false;
 jest.mock('@/config', () => ({
   MENTION_PLUS_OFFER_ID: 'offer',
@@ -47,7 +48,9 @@ jest.mock('@tanstack/react-query', () => ({
   useQuery: (options: { queryKey: unknown[]; enabled: boolean; queryFn(): Promise<unknown> }) => {
     mockQueryOptions.push(options);
     return {
-      data: options.queryKey.includes('mention-plus-access') ? mockHasAccess : mockOffer,
+      data: options.queryKey.includes('mention-plus-access')
+        ? mockHasAccess
+        : { offer: mockOffer, purchaseAvailable: mockPurchaseAvailable },
       isPending: false,
       isError: mockQueryError,
     };
@@ -63,6 +66,7 @@ beforeEach(() => {
   mockSession = 'session-a';
   mockSignedIn = true;
   mockHasAccess = false;
+  mockPurchaseAvailable = true;
   mockQueryError = false;
   mockQueryOptions = [];
   mockPlans.mockResolvedValue({ productId: 'product', purchase: 'available', plans: [mockOffer] });
@@ -82,7 +86,10 @@ it('fetches public product pricing while signed out and keeps access disabled', 
   });
   expect(mockQueryOptions[0].enabled).toBe(true);
   expect(mockQueryOptions[1].enabled).toBe(false);
-  expect(await mockQueryOptions[0].queryFn()).toEqual(mockOffer);
+  expect(await mockQueryOptions[0].queryFn()).toEqual({
+    offer: mockOffer,
+    purchaseAvailable: true,
+  });
   expect(mockPlans).toHaveBeenCalledWith('product');
   expect(mockResult.hasAccess).toBe(false);
 });
@@ -192,7 +199,7 @@ it('checks the exact annual binding against the approved monthly amount and keep
   act(() => {
     renderer = TestRenderer.create(<AnnualProbe />);
   });
-  expect(await mockQueryOptions[0].queryFn()).toEqual(annual);
+  expect(await mockQueryOptions[0].queryFn()).toEqual({ offer: annual, purchaseAvailable: true });
   expect(mockResult.binding).toMatchObject({ offerId: 'annual', offerVersion: 2 });
   expect(mockQueryOptions[0].queryKey).toContain('offer');
   expect(mockQueryOptions[0].queryKey).toContain('annual');
@@ -201,5 +208,23 @@ it('checks the exact annual binding against the approved monthly amount and keep
     purchase: 'available',
     plans: [mockOffer, { ...annual, price: { ...annual.price, amountMinorUnits: 4900 } }],
   });
-  expect(await mockQueryOptions[0].queryFn()).toBeNull();
+  expect(await mockQueryOptions[0].queryFn()).toEqual({ offer: null, purchaseAvailable: false });
+});
+
+it('shows an exact published price while purchase readiness remains unavailable', async () => {
+  mockPurchaseAvailable = false;
+  mockPlans.mockResolvedValue({
+    productId: 'product',
+    purchase: 'unavailable',
+    plans: [mockOffer],
+  });
+  act(() => {
+    renderer = TestRenderer.create(<Probe />);
+  });
+  expect(await mockQueryOptions[0].queryFn()).toEqual({
+    offer: mockOffer,
+    purchaseAvailable: false,
+  });
+  expect(mockResult.offer).toEqual(mockOffer);
+  expect(mockResult.purchaseAvailable).toBe(false);
 });

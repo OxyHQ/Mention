@@ -2956,5 +2956,6 @@
   "plus.payment.signInRequired": "Inicia sesión para suscribirte o comprobar si ya tienes Mention Plus.",
   "plus.payment.yearlyPrice": "{{price}} / año, impuestos incluidos",
   "plus.payment.priceSuffix.month": "/ mes",
-  "plus.payment.priceSuffix.year": "/ año"
+  "plus.payment.priceSuffix.year": "/ año",
+  "plus.payment.notReady": "Este plan aún no acepta pagos. No se te cobrará. Inténtalo de nuevo más tarde."
 }

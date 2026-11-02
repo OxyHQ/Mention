@@ -6,6 +6,7 @@ let mockOffer: typeof offer | null;
 const mockPlans = jest.fn();
 const mockAccess = jest.fn();
 let mockHasAccess = false;
+let mockPurchaseAvailable = true;
 let mockSignedIn = true;
 let mockDisplayCurrency = 'USD';
 const mockFormatUsd = jest.fn(() => 'EUR conversion unavailable');
@@ -57,7 +58,9 @@ jest.mock('@oxy.so/core', () => ({
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidate }),
   useQuery: (options: { queryKey: string[] }) => ({
-    data: options.queryKey.includes('mention-plus-access') ? mockHasAccess : mockOffer,
+    data: options.queryKey.includes('mention-plus-access')
+      ? mockHasAccess
+      : { offer: mockOffer, purchaseAvailable: mockPurchaseAvailable },
     isError: false,
     isPending: false,
   }),
@@ -124,6 +127,7 @@ beforeEach(() => {
   mockUser = { id: 'account-a' };
   mockSession = 'session-a';
   mockHasAccess = false;
+  mockPurchaseAvailable = true;
   mockSignedIn = true;
   mockDisplayCurrency = 'USD';
   mockAccess.mockImplementation(async () => ({
@@ -362,4 +366,15 @@ it('USD display preference adds no estimate or rate dependency to checkout', asy
   expect(mockFormatUsd).not.toHaveBeenCalled();
   await press('plus.payment.continue');
   expect(mockCheckout).toHaveBeenCalledTimes(1);
+});
+
+it('displays published terms without starting payment when the catalogue is not ready', async () => {
+  mockPurchaseAvailable = false;
+  await mount();
+  expect(JSON.stringify(renderer.toJSON())).toContain(offer.displayName);
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.notReady');
+  expect(button('plus.payment.continue')).toBeUndefined();
+  expect(mockCheckout).not.toHaveBeenCalled();
+  expect(mockKey).not.toHaveBeenCalled();
+  expect(window.open).not.toHaveBeenCalled();
 });

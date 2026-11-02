@@ -29,6 +29,7 @@ import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusChe
 type Message =
   | 'loading'
   | 'unavailable'
+  | 'notReady'
   | 'failed'
   | 'pending'
   | 'fulfilled'
@@ -71,6 +72,7 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
     hasAccess,
     checkingAccess,
     accessFailed,
+    purchaseAvailable,
   } = usePlusOffer(cadence);
   // Hold the reviewed commercial terms through pending/recovery; a refetch must
   // not relabel an operation already sent with a different price or offer.
@@ -111,10 +113,22 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
               : failed || accessFailed
                 ? 'failed'
                 : offer
-                  ? null
+                  ? purchaseAvailable
+                    ? null
+                    : 'notReady'
                   : 'unavailable',
       );
-  }, [offer, loading, failed, started, canUsePrivateApi, hasAccess, checkingAccess, accessFailed]);
+  }, [
+    offer,
+    loading,
+    failed,
+    started,
+    canUsePrivateApi,
+    hasAccess,
+    checkingAccess,
+    accessFailed,
+    purchaseAvailable,
+  ]);
 
   async function purchase(openWindow: boolean) {
     if (
@@ -122,7 +136,7 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
       !mentionPlusBinding ||
       !user?.id ||
       !canUsePrivateApi ||
-      (openWindow && (hasAccess || checkingAccess || accessFailed)) ||
+      (openWindow && (!purchaseAvailable || hasAccess || checkingAccess || accessFailed)) ||
       (!openWindow && !hasOperation) ||
       locked.current
     )
@@ -281,16 +295,21 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
             {t('plus.payment.signIn')}
           </Button>
         )}
-        {offer && canUsePrivateApi && !checkingAccess && !accessFailed && !done && (
-          <Button
-            disabled={busy}
-            onPress={() => {
-              void purchase(true);
-            }}
-          >
-            {t('plus.payment.continue')}
-          </Button>
-        )}
+        {offer &&
+          purchaseAvailable &&
+          canUsePrivateApi &&
+          !checkingAccess &&
+          !accessFailed &&
+          !done && (
+            <Button
+              disabled={busy}
+              onPress={() => {
+                void purchase(true);
+              }}
+            >
+              {t('plus.payment.continue')}
+            </Button>
+          )}
         {offer && hasOperation && !done && (
           <Button
             disabled={busy}
