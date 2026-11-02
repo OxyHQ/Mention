@@ -62,6 +62,11 @@ export interface Draft extends DraftBox {
   languages?: DraftVariants;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Set when a publication of this draft ended without a confirmed outcome, so
+   * the post may already exist. Cleared when the draft is published or deleted.
+   */
+  publicationUncertainAt?: number;
   /** Checked under this runtime's account queue; legacy drafts omit it. */
   localRevision?: number;
 }

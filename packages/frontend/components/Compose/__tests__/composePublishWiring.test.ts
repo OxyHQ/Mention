@@ -69,7 +69,10 @@ describe('handlePost', () => {
 
   it('keeps and saves the draft when the publish fails', () => {
     const failure = failurePath(body);
-    expect(failure).toContain('publishFailed(latestDraftSnapshot.current)');
+    expect(failure).toContain('retainDraft();');
+    expect(body).toContain(
+      'publishFailed(latestDraftSnapshot.current, { uncertain: requestStarted })',
+    );
     expect(failure).not.toContain('resetComposerAfterPublish');
     expect(failure).not.toContain('leaveAfterPublish');
   });

@@ -34,3 +34,24 @@ it('releases and cleans up after a synchronous exception', async () => {
   await Promise.resolve();
   expect(queue.size).toBe(0);
 });
+
+it('holds a cross-tab lock for the viewer while a mutation runs', async () => {
+  const held: string[] = [];
+  const target = globalThis.navigator;
+  Object.defineProperty(target, 'locks', {
+    configurable: true,
+    value: {
+      request: async (name: string, callback: () => Promise<unknown>) => {
+        held.push(name);
+        return callback();
+      },
+    },
+  });
+  try {
+    const queue = new DraftMutationQueue();
+    expect(await queue.run('a', async () => 'done')).toBe('done');
+    expect(held).toEqual(['mention-drafts:a']);
+  } finally {
+    delete (target as { locks?: unknown }).locks;
+  }
+});

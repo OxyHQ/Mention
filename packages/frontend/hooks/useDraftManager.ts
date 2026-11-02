@@ -282,6 +282,8 @@ export interface ComposeDraftRefs extends ComposeContent {
 interface DraftManagerProps {
   saveDraft: (draft: DraftInput, session: DraftSession) => Promise<string>;
   queueDeleteDraft: (getSession: () => DraftSession) => Promise<void>;
+  /** A loaded draft carries the stored warning that its publication was unconfirmed. */
+  onPublicationUncertain?: () => void;
   onDraftLoad: (
     draft: DraftBoxContent & {
       postContent: string;
@@ -303,10 +305,18 @@ export const useDraftManager = ({
   saveDraft,
   queueDeleteDraft,
   onDraftLoad,
+  onPublicationUncertain,
 }: DraftManagerProps) => {
   const [currentDraftId, setCurrentDraftIdState] = useState<string | null>(null);
   const [autoSaveError, setAutoSaveError] = useState(false);
   const [draftConflict, setDraftConflict] = useState(false);
+  /**
+   * When a publication of this draft ended without a confirmed outcome. It is
+   * stored with the draft, so the warning survives a closed editor, a restart
+   * and an account switch: whoever reopens the draft learns that it may already
+   * be published before publishing it again.
+   */
+  const publicationUncertainAtRef = useRef<number | null>(null);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Each opened draft has its own identity and revision, even while old writes finish. */
   const draftSessionRef = useRef<DraftSession>({
@@ -355,6 +365,9 @@ export const useDraftManager = ({
       })),
       postingMode: refs.postingMode,
       scheduledAt: refs.scheduledAt ? refs.scheduledAt.toISOString() : null,
+      ...(publicationUncertainAtRef.current === null
+        ? {}
+        : { publicationUncertainAt: publicationUncertainAtRef.current }),
     }),
     [],
   );
@@ -404,16 +417,17 @@ export const useDraftManager = ({
   );
 
   /** The debounced background save. A failure is logged; the next change retries it. */
-  const autoSave = useCallback(
-    async (refs: ComposeDraftRefs) => {
+  const persistAutoSave = useCallback(
+    async (refs: ComposeDraftRefs): Promise<boolean> => {
       // A post being published is not a draft. Saving it now would persist the
       // very text the publish is about to put in the feed.
-      if (suspendedRef.current) return;
+      if (suspendedRef.current) return false;
       const session = draftSessionRef.current;
-      if (session.conflicted) return;
+      if (session.conflicted) return false;
       try {
         await writeDraft(refs);
         if (draftSessionRef.current === session) setAutoSaveError(false);
+        return true;
       } catch (error) {
         logger.error('Error auto-saving draft', error);
         if (error instanceof DraftConflictError) session.conflicted = true;
@@ -421,9 +435,17 @@ export const useDraftManager = ({
           setAutoSaveError(true);
           if (error instanceof DraftConflictError) setDraftConflict(true);
         }
+        return false;
       }
     },
     [writeDraft],
+  );
+
+  const autoSave = useCallback(
+    async (refs: ComposeDraftRefs): Promise<void> => {
+      await persistAutoSave(refs);
+    },
+    [persistAutoSave],
   );
 
   /**
@@ -524,17 +546,21 @@ export const useDraftManager = ({
    * changes the composer's content to re-arm it.
    */
   const publishFailed = useCallback(
-    async (refs: ComposeDraftRefs) => {
+    async (refs: ComposeDraftRefs, options?: { uncertain?: boolean }): Promise<boolean> => {
       suspendedRef.current = false;
       publishingSessionRef.current = null;
+      if (options?.uncertain) {
+        const at = Date.now();
+        publicationUncertainAtRef.current = at;
+      }
       if (draftSessionRef.current.conflicted) {
         setAutoSaveError(true);
         setDraftConflict(true);
-        return;
+        return false;
       }
-      await autoSave(refs);
+      return persistAutoSave(refs);
     },
-    [autoSave],
+    [persistAutoSave],
   );
 
   /** The composer has been emptied after a publish; autosave may resume. */
@@ -542,6 +568,7 @@ export const useDraftManager = ({
     suspendedRef.current = false;
     const publishedSession = publishingSessionRef.current;
     publishingSessionRef.current = null;
+    publicationUncertainAtRef.current = null;
     if (draftSessionRef.current === publishedSession) {
       draftSessionRef.current = { id: null, revision: null, closed: false, conflicted: false };
       setDraftConflict(false);
@@ -566,6 +593,13 @@ export const useDraftManager = ({
       };
       setAutoSaveError(conflicted);
       setDraftConflict(conflicted);
+      const uncertainAt =
+        typeof draft.publicationUncertainAt === 'number' &&
+        Number.isFinite(draft.publicationUncertainAt)
+          ? draft.publicationUncertainAt
+          : null;
+      publicationUncertainAtRef.current = uncertainAt;
+      if (uncertainAt !== null) onPublicationUncertain?.();
       const storedJob = isRecord(draft.job) ? draft.job : null;
       const mentionJobId = storedJob ? readString(storedJob.mentionJobId) : undefined;
       const jobEmployerOxyUserId = storedJob ? readString(storedJob.employerOxyUserId) : undefined;
@@ -612,7 +646,7 @@ export const useDraftManager = ({
 
       setCurrentDraftIdState(readString(draft.id) ?? null);
     },
-    [onDraftLoad],
+    [onDraftLoad, onPublicationUncertain],
   );
 
   return {

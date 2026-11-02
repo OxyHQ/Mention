@@ -697,9 +697,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     scheduleManager;
 
   // Draft manager
+  const unconfirmedMessage = t('compose.publishUnconfirmed', {
+    defaultValue:
+      'Could not confirm the result. Check whether the change took effect before trying again.',
+  });
   const draftManager = useDraftManager({
     saveDraft,
     queueDeleteDraft,
+    onPublicationUncertain: () => toast(unconfirmedMessage, { type: 'error' }),
     onDraftLoad: (draft) => {
       setMainMentionState(
         reconcileMentionTextValue(
@@ -1460,14 +1465,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     let published = false;
     let preserveAfterPublish = false;
     let requestStarted = false;
-    const warnUnconfirmed = () =>
-      toast(
-        t('compose.publishUnconfirmed', {
-          defaultValue:
-            'Could not confirm the result. Check whether the change took effect before trying again.',
-        }),
-        { type: 'error' },
+    const warnUnconfirmed = () => toast(unconfirmedMessage, { type: 'error' });
+    // Keep the author's work as a draft. Once a request was sent the draft is
+    // stored with a durable warning, because the post may already exist. When
+    // this editor is gone nobody sees an inline save error, so say it here.
+    const retainDraft = () => {
+      void publishFailed(latestDraftSnapshot.current, { uncertain: requestStarted }).then(
+        (saved) => {
+          if (!saved && !isPublicationMounted()) {
+            toast(t('compose.saveDraftFailed', "Couldn't save the draft. Try again."), {
+              type: 'error',
+            });
+          }
+        },
       );
+    };
     try {
       // A handle typed at the very end of a box never had anything typed after
       // it, so the input never saw it completed. Resolve every handle still
@@ -1575,7 +1587,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // Send to backend
       if (replyToPostId) {
         if (!isCurrentOwner()) {
-          void publishFailed(latestDraftSnapshot.current);
+          retainDraft();
           return;
         }
         requestStarted = true;
@@ -1591,7 +1603,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // too, or editing a multilingual post would strip every language but the
         // primary.
         if (!isCurrentOwner()) {
-          void publishFailed(latestDraftSnapshot.current);
+          retainDraft();
           return;
         }
         requestStarted = true;
@@ -1614,7 +1626,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         if (publishNow) {
           if (!isCurrentOwner()) {
             if (capturePublication()) warnUnconfirmed();
-            void publishFailed(latestDraftSnapshot.current);
+            retainDraft();
             return;
           }
           await api.post(`/posts/${editPostId}/publish`);
@@ -1626,7 +1638,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         if (isCurrentOwner()) cachePosts([updatedPost]);
       } else if (allPosts.length === 1) {
         if (!isCurrentOwner()) {
-          void publishFailed(latestDraftSnapshot.current);
+          retainDraft();
           return;
         }
         requestStarted = true;
@@ -1670,7 +1682,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         }
       } else {
         if (!isCurrentOwner()) {
-          void publishFailed(latestDraftSnapshot.current);
+          retainDraft();
           return;
         }
         requestStarted = true;
@@ -1693,7 +1705,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // delete its draft or navigate the newly mounted account away.
       if (!isCurrentOwner()) {
         if (capturePublication()) warnUnconfirmed();
-        void publishFailed(latestDraftSnapshot.current);
+        retainDraft();
         return;
       }
       published = true;
@@ -1803,7 +1815,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       }
 
       // The work is still a draft: keep it in the composer AND in storage.
-      void publishFailed(latestDraftSnapshot.current);
+      retainDraft();
     } finally {
       if (published) {
         endPublish();
