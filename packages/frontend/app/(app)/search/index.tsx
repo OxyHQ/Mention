@@ -297,13 +297,12 @@ async function fetchSearchPage(
       };
     }
     case 'lists': {
-      // Auth-gated (`/lists`) — see the posts tab above.
-      if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
       const offset = typeof pageParam === 'number' ? pageParam : 0;
       const { lists, hasMore, nextOffset } = await searchService.searchListsPage(
         query,
         offset,
         signal,
+        !canUsePrivateApi,
       );
       return {
         results: { ...EMPTY_RESULTS, lists },
@@ -464,7 +463,7 @@ function SearchIndex() {
   const params = useLocalSearchParams();
   const urlQuery = (params.q as string) || '';
 
-  // The auth-gated search sources (posts, lists, saved) 401 until the PRIVATE
+  // The auth-gated search sources (posts and saved) 401 until the PRIVATE
   // API is ready — which lags `isAuthenticated` by 5–25s during the SSO
   // cold-boot. `canUsePrivateApi` both GATES those fetchers (so they never fire
   // early → no 401 noise) and is KEYED into the search query below, so the query

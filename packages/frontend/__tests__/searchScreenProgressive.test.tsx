@@ -129,7 +129,23 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   ),
 }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: mockStub('loading') }));
-jest.mock('@oxy.so/bloom/tabs', () => ({ Tabs: mockStub('tabs'), TabsTrigger: mockStub('tab') }));
+jest.mock('@oxy.so/bloom/tabs', () => {
+  const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    Tabs: ({
+      children,
+      onValueChange,
+    }: {
+      children: React.ReactNode;
+      onValueChange: (id: string) => void;
+    }) => (
+      <RNText testID="tabs" onPress={() => onValueChange('lists')}>
+        {children}
+      </RNText>
+    ),
+    TabsTrigger: mockStub('tab'),
+  };
+});
 jest.mock('@oxy.so/bloom/search', () => {
   const React_ = jest.requireActual<typeof import('react')>('react');
   const { TextInput } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -267,6 +283,20 @@ async function settle(): Promise<void> {
 function has(renderer: ReactTestRenderer, testID: string): boolean {
   return renderer.root.findAll((node) => node.props.testID === testID).length > 0;
 }
+
+it('searches public lists from the Lists tab for a signed-out viewer', async () => {
+  mockViewerId = undefined;
+  const searchLists = jest.spyOn(searchService, 'searchListsPage').mockResolvedValue({
+    lists: [{ id: 'public-list', title: 'Rust list' }],
+    hasMore: false,
+    nextOffset: 20,
+  });
+  const { renderer } = await renderScreen();
+  await act(async () => renderer.root.findByProps({ testID: 'tabs' }).props.onPress());
+  await settle();
+  expect(searchLists).toHaveBeenCalledWith('rust', 0, expect.any(AbortSignal), true);
+  act(() => renderer.unmount());
+});
 
 function text(renderer: ReactTestRenderer): string {
   return renderer.root

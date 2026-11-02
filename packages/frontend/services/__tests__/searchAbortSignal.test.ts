@@ -282,6 +282,28 @@ describe('search AbortSignal propagation', () => {
     expect(mockGetSavedPosts).toHaveBeenCalledWith(expect.objectContaining({ page: 2, signal }));
   });
 
+  it('searches public lists without a session and retains pagination and cancellation', async () => {
+    const signal = new AbortController().signal;
+    mockPublicGet.mockResolvedValueOnce({
+      data: {
+        items: [{ id: 'public-list', title: 'Mention' }],
+        pagination: { offset: 20, limit: 20, hasMore: true },
+      },
+    });
+
+    const page = await searchService.searchListsPage('mention', 20, signal, true);
+
+    expect(mockPublicGet).toHaveBeenCalledWith('/search/lists', {
+      params: { q: 'mention', limit: 20, offset: 20 },
+      signal,
+    });
+    expect(page).toEqual({
+      lists: [{ id: 'public-list', title: 'Mention' }],
+      hasMore: true,
+      nextOffset: 40,
+    });
+  });
+
   it('passes the signal through the paginated people tab', async () => {
     const signal = new AbortController().signal;
 

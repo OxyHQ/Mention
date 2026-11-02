@@ -288,3 +288,60 @@ describe('GET /search/overview', () => {
     }
   });
 });
+
+describe('GET /search/lists', () => {
+  it('pages public lists without exposing private lists, even to their owner', async () => {
+    const inserted = await getDb()
+      .insert(accountLists)
+      .values([
+        { ownerOxyUserId: VIEWER, title: `${TERM} public first`, isPublic: true },
+        { ownerOxyUserId: 'other-viewer', title: `${TERM} public second`, isPublic: true },
+        { ownerOxyUserId: VIEWER, title: `${TERM} private own`, isPublic: false },
+        { ownerOxyUserId: 'other-viewer', title: `${TERM} private other`, isPublic: false },
+      ])
+      .returning({ id: accountLists.id, isPublic: accountLists.isPublic });
+    createdIds.lists.push(...inserted.map((row) => row.id));
+
+    const first = await request(anonymousApp)
+      .get('/search/lists')
+      .query({ q: TERM, limit: 1, offset: 0 })
+      .expect(200);
+    const second = await request(anonymousApp)
+      .get('/search/lists')
+      .query({ q: TERM, limit: 1, offset: 1 })
+      .expect(200);
+    const third = await request(anonymousApp)
+      .get('/search/lists')
+      .query({ q: TERM, limit: 1, offset: 2 })
+      .expect(200);
+    expect(first.body.pagination).toEqual({ offset: 0, limit: 1, hasMore: true });
+    expect(second.body.pagination).toEqual({ offset: 1, limit: 1, hasMore: false });
+    expect(third.body.items).toEqual([]);
+    expect([first.body.items[0].id, second.body.items[0].id].sort()).toEqual(
+      inserted
+        .filter((row) => row.isPublic)
+        .map((row) => row.id)
+        .sort(),
+    );
+
+    const withViewer = await request(app).get('/search/lists').query({ q: TERM }).expect(200);
+    expect(withViewer.body.items.map((item: { id: string }) => item.id).sort()).toEqual(
+      inserted
+        .filter((row) => row.isPublic)
+        .map((row) => row.id)
+        .sort(),
+    );
+  });
+
+  it('returns no lists for an empty search and bounds pagination', async () => {
+    await seedLane();
+    const response = await request(anonymousApp)
+      .get('/search/lists')
+      .query({ q: '  ', limit: 1000, offset: -1 })
+      .expect(200);
+    expect(response.body).toEqual({
+      items: [],
+      pagination: { offset: 0, limit: 100, hasMore: false },
+    });
+  });
+});
