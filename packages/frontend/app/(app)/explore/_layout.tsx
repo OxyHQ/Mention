@@ -1,4 +1,5 @@
 import { Screen } from '@oxy.so/bloom/screen';
+import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { useTranslation } from 'react-i18next';
 import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
@@ -39,32 +40,41 @@ export default function ExploreLayout() {
   const activeTab = TABS.find((tab) => tab.href === pathname)?.id ?? 'all';
 
   return (
-    <Screen
-      scroll="auto"
-      header={
-        <PageHeader
-          title={t('Explore')}
-          presentation="floating"
-          actions={
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              icon={RiSearchLine}
-              onPress={() => router.push('/search')}
-              accessibilityLabel={t('Search')}
-            />
-          }
-        />
-      }
-    >
-      <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
-      <Tabs value={activeTab} onValueChange={pushTab} pressOpenTab="reselect" variant="underline">
-        {TABS.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
-        ))}
-      </Tabs>
-      <Slot />
-    </Screen>
+    <HeaderDockProvider>
+      <Screen
+        scroll="auto"
+        header={
+          <PageHeader
+            title={t('Explore')}
+            presentation="floating"
+            actions={
+              <Button
+                appearance="subtle"
+                tone="neutral"
+                iconOnly
+                icon={RiSearchLine}
+                onPress={() => router.push('/search')}
+                accessibilityLabel={t('Search')}
+              />
+            }
+          />
+        }
+      >
+        <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
+        <StickySection testID="explore-sticky-tabs" className="border-b border-border">
+          <Tabs
+            value={activeTab}
+            onValueChange={pushTab}
+            pressOpenTab="reselect"
+            variant="underline"
+          >
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
+            ))}
+          </Tabs>
+        </StickySection>
+        <Slot />
+      </Screen>
+    </HeaderDockProvider>
   );
 }
