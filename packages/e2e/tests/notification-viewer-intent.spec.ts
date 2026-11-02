@@ -230,10 +230,11 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
         : row.getByRole('button', { name: `${userA} liked your post`, exact: true });
     await expect(rowAction).toHaveCount(1);
     await expect(rowAction).toHaveAccessibleName(`${userA} liked your post`);
-    await preview.scrollIntoViewIfNeeded();
-    const box = await preview.boundingBox();
-    if (!box) throw new Error('The notification preview has no visible bounds');
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    // hover() waits until the preview has stopped moving and is the element
+    // that receives the pointer; a one-off boundingBox() read can go stale
+    // while the list is still laying out, and a press that lands beside the
+    // row never becomes a long press.
+    await preview.hover();
     await page.mouse.down();
     const mark = page.getByText('Mark as read', { exact: true });
     await expect(mark).toBeVisible();
