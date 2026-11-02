@@ -468,6 +468,16 @@ describe('createApp', () => {
     );
   });
 
+  it('serves the FediDB verification file as plain text without a redirect', async () => {
+    const { createApp } = await import('../app');
+    await request(createApp(createDependencies()))
+      .get('/.well-known/fedidb-verification')
+      .set('Host', 'mention.earth')
+      .expect(200)
+      .expect('Content-Type', /^text\/plain/)
+      .expect('fedidb-verify=h5jrgk3yh6a5fttrucjovdmb6nynkbqbkruir8nh\n');
+  });
+
   it('compresses ordinary large responses but honors both opt-out paths', async () => {
     const { createApp } = await import('../app');
     const deps = createDependencies();

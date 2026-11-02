@@ -331,6 +331,12 @@ export function createApp(deps: CreateAppDependencies): express.Express {
 
   // Federation endpoints must stay ahead of web shell and the apex proxy.
   app.use('/.well-known', routes.webfinger);
+  // FediDB domain-ownership proof: the exact line, as a plain text file served
+  // directly (a redirect does not count).
+  app.get('/.well-known/fedidb-verification', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.type('text/plain').send('fedidb-verify=h5jrgk3yh6a5fttrucjovdmb6nynkbqbkruir8nh\n');
+  });
   app.get('/.well-known/nodeinfo', (_req, res) => {
     res.json({
       links: [
