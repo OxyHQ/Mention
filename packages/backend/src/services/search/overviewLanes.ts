@@ -185,6 +185,7 @@ export async function listLane(
   term: string,
   limit: number,
   viewerId: string | undefined,
+  offset = 0,
 ): Promise<{ rows: (typeof accountLists.$inferSelect)[]; hasMore: boolean }> {
   const visible = viewerId
     ? or(eq(accountLists.isPublic, true), eq(accountLists.ownerOxyUserId, viewerId))
@@ -195,6 +196,7 @@ export async function listLane(
     .from(accountLists)
     .where(and(visible, accountListSearchPredicate(term)))
     .orderBy(desc(accountLists.updatedAt), desc(accountLists.id))
+    .offset(offset)
     .limit(limit + 1);
 
   const { items, hasMore } = page(fetched, limit);

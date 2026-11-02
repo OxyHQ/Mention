@@ -42,6 +42,7 @@ import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SignInRequired } from '@/components/common/SignInRequired';
 
 interface ListOwner {
   _id?: string;
@@ -530,7 +531,35 @@ function ListMembers({
 export default function AvailableListDetailScreen() {
   return (
     <SupervisedFeatureGate>
-      <ListDetailScreen />
+      <ListDetailAccess />
     </SupervisedFeatureGate>
   );
+}
+
+function ListDetailAccess() {
+  const { canUsePrivateApi } = useAuth();
+  const { t } = useTranslation();
+
+  if (!canUsePrivateApi) {
+    return (
+      <Screen
+        scroll="auto"
+        header={
+          <PageHeader
+            title={t('lists.detail.title')}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <SignInRequired
+          label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
+          description={t('lists.signInRequiredDesc', {
+            defaultValue: 'Sign in to view and manage lists.',
+          })}
+        />
+      </Screen>
+    );
+  }
+
+  return <ListDetailScreen />;
 }
