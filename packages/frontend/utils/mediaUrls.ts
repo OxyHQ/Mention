@@ -7,7 +7,7 @@
  */
 
 import type { OxyServices } from '@oxy.so/core';
-import { API_URL, OXY_BASE_URL } from '@/config';
+import { API_URL, CLARITY_API_URL, OXY_BASE_URL } from '@/config';
 
 // Backend media proxy: streams remote media with CORS + cache + HTTP Range, and
 // survives expiring upstream links. See backend `GET /media/proxy?url=<encoded>`.
@@ -30,7 +30,10 @@ const OXY_THUMB_VARIANT = 'thumb';
  */
 const ownOrigins = (() => {
   const origins = new Set<string>();
-  for (const base of [API_URL, OXY_BASE_URL]) {
+  // Clarity hands out its own copy of every link card image and favicon
+  // (`/images/...`, `/favicons/...`); proxying those would add a Mention hop to
+  // an image that already redirects to Oxy's CDN.
+  for (const base of [API_URL, OXY_BASE_URL, CLARITY_API_URL]) {
     if (!base) continue;
     try {
       origins.add(new URL(base).origin);
