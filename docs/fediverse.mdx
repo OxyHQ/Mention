@@ -767,10 +767,15 @@ present). Standard `usage` fields describe **local** content only.
   `combined = local + external`.
 - `externalActors` = known `federated_actors` records (`uri` unique; an alias under another
   URI is another record). It is the planner estimate, flagged with its own `exact`.
-- `usage.users.total` is **omitted, not zero**, until Oxy ships a deployment-scoped
-  registered-user aggregate (OxyHQ/oxy#2076).
+- `usage.users.total` is Oxy's registered-account total for this deployment (ADR 0052,
+  `applicationAccountTotal()`), read with stale-while-revalidate. Mention registers every
+  account with a `user_settings` row (created on first use, posting or not) through a
+  leader-gated job that walks the table by `oxy_user_id` in batches of 500 from a Redis
+  cursor; Oxy applies its own eligibility rules (local, personal, active, not closing).
+  Until Oxy has a snapshot the field is **omitted, not zero**; the extension's
+  `localUsers` carries `exact`, `computedAt` and `stale`.
 
-**Fields**: `usage.localPosts`, `usage.localComments`, and
+
 `metadata["so.oxy.mention.statistics"]` with `posts` and `comments` each split
 `{local, external, combined}`, `externalActors`, `measuredAt`, `exact` and `scope`
 (content known to this instance, not the fediverse).
