@@ -264,7 +264,7 @@ export default function LanesScreen() {
 
   if (!isAuthenticated) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <OxyAuthPrompt
           label={t('lanes.signInRequired', { defaultValue: 'Sign in to manage your lanes' })}
           description={t('lanes.signInRequiredDesc', {
@@ -287,7 +287,7 @@ export default function LanesScreen() {
             'Keep separate tracks of your posts and decide which ones reach your profile.',
         })}
       />
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <ScreenScrollView contentContainerClassName="py-2" keyboardShouldPersistTaps="handled">
           <SettingsListGroup>
             <View className="px-4 py-3.5 flex-row items-center gap-3">

@@ -89,6 +89,7 @@ function CreateListScreen() {
 
   return (
     <Screen
+      scroll="auto"
       header={
         <PageHeader
           title={t('lists.create.title')}

@@ -172,7 +172,7 @@ export default function JobDetailScreen() {
 
   if (jobQuery.isLoading) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <ScreenScrollView>
           <DetailSkeleton />
         </ScreenScrollView>
@@ -182,7 +182,7 @@ export default function JobDetailScreen() {
 
   if (jobQuery.isError || !job) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.detail.notFound', { defaultValue: 'This job could not be found' })}
@@ -205,7 +205,7 @@ export default function JobDetailScreen() {
   ].filter((value): value is string => Boolean(value));
 
   return (
-    <Screen header={header}>
+    <Screen scroll="auto" header={header}>
       <ScreenScrollView contentContainerClassName="px-4 pb-16 pt-2">
         {!isPublished ? (
           <View className="flex-row items-center">

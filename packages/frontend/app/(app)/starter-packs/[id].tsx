@@ -214,6 +214,7 @@ export default function StarterPackDetailScreen() {
         description={pack?.description || 'A curated collection of accounts to follow'}
       />
       <Screen
+        scroll="auto"
         header={
           <PageHeader
             title={pack?.name || 'Starter Pack'}

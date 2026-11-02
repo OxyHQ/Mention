@@ -100,6 +100,7 @@ export default function StarterPacksScreen() {
     <>
       <SEO title="Starter Packs" description="Curated collections of accounts to follow" />
       <Screen
+        scroll="auto"
         header={
           <PageHeader
             title={t('starterPacks.title')}

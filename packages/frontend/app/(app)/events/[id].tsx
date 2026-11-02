@@ -93,7 +93,7 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
     }
   };
   return (
-    <Screen header={<PageHeader title={text('title', 'Event')} />}>
+    <Screen scroll="auto" header={<PageHeader title={text('title', 'Event')} />}>
       <ScreenScrollView contentContainerClassName="p-4 gap-4 max-w-2xl w-full self-center">
         {query.isPending && (
           <Text className="text-muted-foreground">{text('loading', 'Loading event…')}</Text>

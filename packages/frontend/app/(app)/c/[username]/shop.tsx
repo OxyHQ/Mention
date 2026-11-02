@@ -11,7 +11,10 @@ export default function ChannelShopRoute() {
   const { t } = useTranslation();
   const { profileData, loading } = useProfileAccount(useRoutedProfileUsername());
   return (
-    <Screen header={<PageHeader title={t('commerce.shop')} backLabel={t('common.back')} />}>
+    <Screen
+      scroll="auto"
+      header={<PageHeader title={t('commerce.shop')} backLabel={t('common.back')} />}
+    >
       {loading ? (
         <ListSkeleton />
       ) : profileData?.kind === 'channel' ? (

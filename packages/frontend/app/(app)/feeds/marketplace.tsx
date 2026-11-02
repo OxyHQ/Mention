@@ -414,6 +414,7 @@ function FeedMarketplaceScreen() {
 
   return (
     <Screen
+      scroll="auto"
       header={
         <PageHeader
           title={t('marketplace.title', { defaultValue: 'Feed Marketplace' })}
