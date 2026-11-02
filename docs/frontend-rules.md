@@ -85,7 +85,9 @@ reusable screens. Modified clicks retain canonical URLs for new tabs.
 Virtualized lists use the Bloom scroll owner; only that owner restores a panel’s
 history offset. Column reselect, scroll and profile colors are scoped too.
 Each route declares its chrome through `Screen scroll="auto"`, `header` and
-`bottomBar`. The same screen uses document scroll normally and the column owner
+`bottomBar`. Routed layouts that own shared chrome also own the single Screen;
+child routes render their content inside it, without a nested Screen. Keep the
+profile navigator in the same tree position when switching its route header. The same screen uses document scroll normally and the column owner
 inside Deck. Header actions from the workspace compose into that header: one
 Back button only when history exists and a panel-settings modal for configurable
 columns, never a second toolbar. A screen rendered in a panel delegates Back to
