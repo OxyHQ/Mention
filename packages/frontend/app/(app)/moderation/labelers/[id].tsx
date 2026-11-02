@@ -248,7 +248,6 @@ const LabelerDetailScreen: React.FC = () => {
   if (loading) {
     return (
       <Screen
-        scroll="auto"
         header={
           <PageHeader
             title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
@@ -266,7 +265,6 @@ const LabelerDetailScreen: React.FC = () => {
   if (!labeler) {
     return (
       <Screen
-        scroll="auto"
         header={
           <PageHeader
             title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
@@ -424,7 +422,6 @@ const LabelerDetailScreen: React.FC = () => {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader title={labeler.name} backLabel={t('common.back', { defaultValue: 'Back' })} />
       }

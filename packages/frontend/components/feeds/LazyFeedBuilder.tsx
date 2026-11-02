@@ -15,7 +15,6 @@ function BuilderLoading({ editing }: { editing: boolean }) {
   const { t } = useTranslation();
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={editing ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}

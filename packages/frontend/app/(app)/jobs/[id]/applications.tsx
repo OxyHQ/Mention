@@ -166,7 +166,6 @@ export default function JobApplicationsScreen() {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('jobs.applications.title', { defaultValue: 'Applications' })}

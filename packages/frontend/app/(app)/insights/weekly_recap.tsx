@@ -40,7 +40,6 @@ export default function WeeklyRecapScreen() {
   const content = data ? <WeeklyRecapContent {...data} summary={summary?.summary ?? null} /> : null;
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('insights.weeklyRecap.title')}

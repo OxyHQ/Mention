@@ -147,7 +147,7 @@ export default function JobApplyScreen() {
 
   if (jobQuery.isLoading) {
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <ScreenScrollView>
           <FormSkeleton />
         </ScreenScrollView>
@@ -157,7 +157,7 @@ export default function JobApplyScreen() {
 
   if (!job || job.applicationMode !== 'mention') {
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.apply.unavailable', {
@@ -174,7 +174,7 @@ export default function JobApplyScreen() {
   // request that will 400.
   if (job.status !== 'published') {
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.apply.notAccepting', {
@@ -188,7 +188,7 @@ export default function JobApplyScreen() {
 
   if (step === 'review') {
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <ScreenScrollView contentContainerClassName="px-4 pb-16 pt-2">
           <Text className="text-foreground text-lg font-bold mb-1">
             {t('jobs.apply.reviewTitle', { defaultValue: 'Review what you are sharing' })}
@@ -284,7 +284,7 @@ export default function JobApplyScreen() {
   const canContinue = displayName.trim().length > 0 || contactMethod.trim().length > 0;
 
   return (
-    <Screen scroll="auto" header={header}>
+    <Screen header={header}>
       <ScreenScrollView
         contentContainerClassName="px-4 pb-16 pt-2"
         keyboardShouldPersistTaps="handled"

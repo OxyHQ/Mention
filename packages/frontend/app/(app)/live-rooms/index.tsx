@@ -181,7 +181,6 @@ const LiveRoomsScreen = () => {
     <>
       <SEO title="Live Rooms" description="Join live audio conversations" />
       <Screen
-        scroll="auto"
         reselect={{ refresh: onRefresh }}
         header={
           <PageHeader

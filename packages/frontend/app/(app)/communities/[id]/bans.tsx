@@ -85,7 +85,6 @@ function CommunityBansScreen() {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('communities.bansTitle', { defaultValue: 'Banned from this community' })}

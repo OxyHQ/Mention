@@ -223,7 +223,7 @@ function EditListMembersScreen() {
 
   if (loading) {
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <ScreenScrollView>
           <FormSkeleton />
         </ScreenScrollView>
@@ -233,7 +233,7 @@ function EditListMembersScreen() {
 
   if (error) {
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
           <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
@@ -248,7 +248,7 @@ function EditListMembersScreen() {
   }
 
   return (
-    <Screen scroll="auto" header={header}>
+    <Screen header={header}>
       <ScreenScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
         <Field
           label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
