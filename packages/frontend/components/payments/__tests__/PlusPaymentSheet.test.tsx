@@ -36,6 +36,8 @@ jest.mock('@/config', () => ({
   MENTION_PLUS_CAPABILITY_KEY: 'plus',
   MENTION_PLUS_OFFER_ID: 'approved',
   MENTION_PLUS_OFFER_VERSION: '2',
+  MENTION_PLUS_ANNUAL_OFFER_ID: 'approved-year',
+  MENTION_PLUS_ANNUAL_OFFER_VERSION: '3',
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
@@ -60,15 +62,6 @@ jest.mock('@tanstack/react-query', () => ({
 jest.mock('@/lib/payments/plusCheckoutStorage', () => ({
   getPlusCheckoutKey: (...args: unknown[]) => mockKey(...args),
   clearPlusCheckoutKey: (...args: unknown[]) => mockClearKey(...args),
-}));
-jest.mock('@/lib/payments/plusCheckout', () => ({
-  ...jest.requireActual('@/lib/payments/plusCheckout'),
-  plusOfferBinding: () => ({
-    productId: 'mention-product',
-    capabilityKey: 'plus',
-    offerId: 'approved',
-    offerVersion: 2,
-  }),
 }));
 jest.mock('expo-web-browser', () => ({
   openBrowserAsync: (...args: unknown[]) => mockNativeBrowser(...args),
@@ -300,4 +293,44 @@ it('recovers a pending operation after access becomes included without creating 
   expect(mockCheckout).toHaveBeenCalledTimes(2);
   expect(mockAccess).toHaveBeenCalledTimes(1);
   expect(mockClearKey).toHaveBeenCalled();
+});
+
+it('freezes the reviewed amount and offer while an operation is pending', async () => {
+  await mount();
+  await press('plus.payment.continue');
+  mockOffer = {
+    ...offer,
+    offerId: 'replacement',
+    offerVersion: 7,
+    price: { ...offer.price, amountMinorUnits: 900 },
+  };
+  await act(async () => {
+    renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
+  });
+  await press('plus.payment.checkStatus');
+  expect(mockCheckout.mock.calls[1][0]).toMatchObject({
+    offerId: 'approved',
+    offerVersion: 2,
+    idempotencyKey: 'durable-key',
+  });
+  expect(mockKey.mock.calls[1][1]).toMatchObject({ offerId: 'approved', offerVersion: 2 });
+});
+it('uses the selected annual offer for checkout and recovery', async () => {
+  mockOffer = {
+    ...offer,
+    offerId: 'approved-year',
+    offerVersion: 3,
+    price: { ...offer.price, amountMinorUnits: 4800, interval: 'year' },
+  };
+  await act(async () => {
+    renderer = TestRenderer.create(<PlusPaymentSheet cadence="year" onClose={jest.fn()} />);
+  });
+  await press('plus.payment.continue');
+  expect(mockCheckout.mock.calls[0][0]).toMatchObject({
+    offerId: 'approved-year',
+    offerVersion: 3,
+  });
+  expect(mockKey.mock.calls[0][1]).toMatchObject({ offerId: 'approved-year', offerVersion: 3 });
+  await press('plus.payment.checkStatus');
+  expect(mockCheckout.mock.calls[1][0]).toEqual(mockCheckout.mock.calls[0][0]);
 });

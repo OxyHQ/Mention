@@ -3,6 +3,12 @@ import { Linking } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SubscriptionPlans, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import { plusPriceMajorUnits, type PlusCadence } from '@/lib/payments/plusCheckout';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -16,7 +22,8 @@ import { useTranslation } from 'react-i18next';
 export default function PlusScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
-  const { offer, hasAccess } = usePlusOffer();
+  const [cadence, setCadence] = useState<PlusCadence>('month');
+  const { offer, hasAccess } = usePlusOffer(cadence);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [selected, setSelected] = useState('plus');
 
@@ -40,7 +47,7 @@ export default function PlusScreen() {
       subtitle: t('plus.plusSubtitle'),
       price: offer?.price
         ? {
-            amount: offer.price.amountMinorUnits / 100,
+            amount: plusPriceMajorUnits(offer.price),
             currency: offer.price.currency,
             locale: i18n.language,
             suffix: t(`plus.payment.priceSuffix.${offer.price.interval}`),
@@ -66,6 +73,21 @@ export default function PlusScreen() {
   return (
     <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
       <ScreenScrollView>
+        <SegmentedControl<PlusCadence>
+          label={t('plus.payment.cadenceLabel')}
+          type="radio"
+          value={cadence}
+          onValueChange={(value) => {
+            if (!paymentOpen) setCadence(value);
+          }}
+        >
+          <SegmentedControlItem value="month" disabled={paymentOpen}>
+            <SegmentedControlItemText>{t('plus.payment.cadenceMonth')}</SegmentedControlItemText>
+          </SegmentedControlItem>
+          <SegmentedControlItem value="year" disabled={paymentOpen}>
+            <SegmentedControlItemText>{t('plus.payment.cadenceYear')}</SegmentedControlItemText>
+          </SegmentedControlItem>
+        </SegmentedControl>
         <SubscriptionPlans
           productName="Mention"
           plans={plans}
@@ -90,7 +112,7 @@ export default function PlusScreen() {
         />
         <Text>{t('plus.payment.oneIncluded')}</Text>
       </ScreenScrollView>
-      {paymentOpen && <PlusPaymentSheet onClose={() => setPaymentOpen(false)} />}
+      {paymentOpen && <PlusPaymentSheet cadence={cadence} onClose={() => setPaymentOpen(false)} />}
     </Screen>
   );
 }

@@ -11,11 +11,18 @@ import {
 import { authenticatedApiCall } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { mentionPlusBinding, usePlusOffer } from '@/hooks/usePlusOffer';
+import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import * as WebBrowser from 'expo-web-browser';
-import { checkoutUrl, includesPlus } from '@/lib/payments/plusCheckout';
+import {
+  checkoutUrl,
+  includesPlus,
+  plusPriceMajorUnits,
+  type PlusCadence,
+  type PlusOffer,
+  type PlusOfferBinding,
+} from '@/lib/payments/plusCheckout';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
 
 type Message =
@@ -32,18 +39,46 @@ type Message =
   | null;
 
 /** A new account/session gets a fresh dialog and cannot consume an earlier reply. */
-export function PlusPaymentSheet({ onClose }: { onClose(): void }) {
+export function PlusPaymentSheet({
+  onClose,
+  cadence = 'month',
+}: {
+  onClose(): void;
+  cadence?: PlusCadence;
+}) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
-  return <PaymentContent key={`${user?.id}:${activeSessionId}`} onClose={onClose} />;
+  return (
+    <PaymentContent
+      key={`${user?.id}:${activeSessionId}:${cadence}`}
+      onClose={onClose}
+      cadence={cadence}
+    />
+  );
 }
 
-function PaymentContent({ onClose }: { onClose(): void }) {
+function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCadence }) {
   const { user, oxyServices, canUsePrivateApi, signIn } = useAuth();
   const { activeSessionId } = useOxy();
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
-  const { offer, loading, failed, hasAccess, checkingAccess, accessFailed } = usePlusOffer();
+  const {
+    offer: currentOffer,
+    binding: currentBinding,
+    loading,
+    failed,
+    hasAccess,
+    checkingAccess,
+    accessFailed,
+  } = usePlusOffer(cadence);
+  // Hold the reviewed commercial terms through pending/recovery; a refetch must
+  // not relabel an operation already sent with a different price or offer.
+  const [operation, setOperation] = useState<{
+    offer: PlusOffer;
+    binding: PlusOfferBinding;
+  } | null>(null);
+  const offer = operation?.offer ?? currentOffer;
+  const mentionPlusBinding = operation?.binding ?? currentBinding;
   const [message, setMessage] = useState<Message>('loading');
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false);
@@ -95,6 +130,7 @@ function PaymentContent({ onClose }: { onClose(): void }) {
     const isCurrent = () => attemptScope.active && scope.current === attemptScope;
     if (!isCurrent()) return;
     locked.current = true;
+    setOperation({ offer, binding: mentionPlusBinding });
     setStarted(true);
     setBusy(true);
     // Reserve the browser window in the click gesture, before network awaits.
@@ -224,7 +260,7 @@ function PaymentContent({ onClose }: { onClose(): void }) {
                   price: new Intl.NumberFormat(i18n.language, {
                     style: 'currency',
                     currency: offer.price.currency,
-                  }).format(offer.price.amountMinorUnits / 100),
+                  }).format(plusPriceMajorUnits(offer.price)),
                 },
               )}
             </Text>

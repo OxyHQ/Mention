@@ -1,4 +1,7 @@
 {
+  "plus.payment.cadenceLabel": "Billing period",
+  "plus.payment.cadenceMonth": "Monthly",
+  "plus.payment.cadenceYear": "Annual · save 20%",
   "compose.deleteDraftChanged": "This draft changed. Review it and try deleting again.",
   "compose.draftMissing": "This draft is no longer available.",
   "compose.draftConflict": "This draft changed elsewhere. Save your work as a copy.",

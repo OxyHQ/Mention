@@ -1,4 +1,7 @@
 {
+  "plus.payment.cadenceLabel": "فترة الفوترة",
+  "plus.payment.cadenceMonth": "شهري",
+  "plus.payment.cadenceYear": "سنوي · وفّر 20%",
   "compose.deleteDraftChanged": "تغيرت هذه المسودة. راجعها وحاول حذفها مرة أخرى.",
   "compose.draftMissing": "لم تعد هذه المسودة متاحة.",
   "compose.draftConflict": "تغيرت هذه المسودة في مكان آخر. احفظ عملك كنسخة.",

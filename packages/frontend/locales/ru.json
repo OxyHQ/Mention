@@ -1,4 +1,7 @@
 {
+  "plus.payment.cadenceLabel": "Расчётный период",
+  "plus.payment.cadenceMonth": "Ежемесячно",
+  "plus.payment.cadenceYear": "Ежегодно · экономия 20%",
   "compose.deleteDraftChanged": "Черновик изменился. Проверьте его и повторите удаление.",
   "compose.draftMissing": "Этот черновик больше недоступен.",
   "compose.draftConflict": "Этот черновик изменился в другом месте. Сохраните свою работу как копию.",

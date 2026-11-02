@@ -162,10 +162,14 @@ export const viewerQueryKeys = {
     productId: string | undefined,
     offerId: string | undefined,
     offerVersion: number | undefined,
+    monthlyOfferId?: string,
+    monthlyOfferVersion?: number,
   ) =>
     [
       ...viewerQueryKeys.all(viewerId),
       'mention-plus-offer',
+      monthlyOfferId,
+      monthlyOfferVersion,
       productId,
       sessionId ?? null,
       offerId,

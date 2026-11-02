@@ -6,7 +6,22 @@ let mockOffer: {
   displayName: string;
   price: { amountMinorUnits: number; currency: string; interval: string };
 } | null = null;
-jest.mock('@/hooks/usePlusOffer', () => ({ usePlusOffer: () => ({ offer: mockOffer }) }));
+let mockCadence: string | undefined;
+jest.mock('@/hooks/usePlusOffer', () => ({
+  usePlusOffer: (cadence: string) => {
+    mockCadence = cadence;
+    return { offer: mockOffer };
+  },
+}));
+let mockCadenceProps: { value: string; onValueChange(value: string): void };
+jest.mock('@oxy.so/bloom/segmented-control', () => ({
+  SegmentedControl: (props: typeof mockCadenceProps & { children: React.ReactNode }) => {
+    mockCadenceProps = props;
+    return <>{props.children}</>;
+  },
+  SegmentedControlItem: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SegmentedControlItemText: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 const mockPaymentDialog = jest.fn();
 let mockPlansProps: SubscriptionPlansProps | undefined;
 
@@ -55,4 +70,17 @@ it('displays the exact published offer price instead of a static bundle price', 
     amount: 29.99,
     description: 'Mention Plus',
   });
+});
+
+it('defaults monthly, passes the selected annual offer to the sheet and locks cadence while open', () => {
+  act(() => {
+    TestRenderer.create(<PlusScreen />);
+  });
+  expect(mockCadence).toBe('month');
+  act(() => mockCadenceProps.onValueChange('year'));
+  expect(mockCadence).toBe('year');
+  act(() => mockPlansProps?.primaryAction?.onPress());
+  expect(mockPaymentDialog.mock.calls.at(-1)?.[0].cadence).toBe('year');
+  act(() => mockCadenceProps.onValueChange('month'));
+  expect(mockCadence).toBe('year');
 });

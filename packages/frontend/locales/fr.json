@@ -1,4 +1,7 @@
 {
+  "plus.payment.cadenceLabel": "Période de facturation",
+  "plus.payment.cadenceMonth": "Mensuel",
+  "plus.payment.cadenceYear": "Annuel · économisez 20 %",
   "compose.deleteDraftChanged": "Ce brouillon a changé. Vérifiez-le et réessayez de le supprimer.",
   "compose.draftMissing": "Ce brouillon n’est plus disponible.",
   "compose.draftConflict": "Ce brouillon a été modifié ailleurs. Enregistrez votre travail sous forme de copie.",

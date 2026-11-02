@@ -71,3 +71,84 @@ it('accepts provider-owned HTTPS destinations without executable or credential U
     expect(() => checkoutUrl(value)).toThrow();
   }
 });
+
+import { annualPlusTotal, plusPriceMajorUnits, resolvePlusCadenceOffer } from '../plusCheckout';
+const monthBinding = {
+  productId: 'mention-product',
+  capabilityKey: 'plus',
+  offerId: 'month',
+  offerVersion: 1,
+};
+const yearBinding = { ...monthBinding, offerId: 'year' };
+function cadenceCatalogue(monthly = 999, annual = 9590, currency = 'EUR'): ProductPlanCatalogue {
+  const base = catalogue.plans[0];
+  if (!base?.price) throw new Error('Missing fixture');
+  return {
+    ...catalogue,
+    plans: [
+      {
+        ...base,
+        offerId: 'month',
+        offerVersion: 1,
+        price: { ...base.price, currency, amountMinorUnits: monthly, interval: 'month' },
+      },
+      {
+        ...base,
+        offerId: 'year',
+        offerVersion: 1,
+        price: { ...base.price, currency, amountMinorUnits: annual, interval: 'year' },
+      },
+    ],
+  };
+}
+it('uses the published annual total only when it gives 20% off twelve monthly payments', () => {
+  const bindings = { month: monthBinding, year: yearBinding };
+  expect(
+    resolvePlusCadenceOffer(cadenceCatalogue(), 'year', bindings)?.price?.amountMinorUnits,
+  ).toBe(9590);
+  expect(resolvePlusCadenceOffer(cadenceCatalogue(999, 9591), 'year', bindings)).toBeNull();
+  expect(
+    resolvePlusCadenceOffer(cadenceCatalogue(999, 9591), 'month', bindings)?.price
+      ?.amountMinorUnits,
+  ).toBe(999);
+  expect(
+    resolvePlusCadenceOffer(cadenceCatalogue(), 'year', { ...bindings, year: null }),
+  ).toBeNull();
+  expect(
+    resolvePlusCadenceOffer(cadenceCatalogue(), 'year', { ...bindings, month: null }),
+  ).toBeNull();
+  expect(
+    resolvePlusCadenceOffer(cadenceCatalogue(), 'year', {
+      ...bindings,
+      year: { ...yearBinding, capabilityKey: 'other' },
+    }),
+  ).toBeNull();
+});
+it('rejects annual currency or cadence mismatch and stale offer versions', () => {
+  const c = cadenceCatalogue();
+  const annual = c.plans[1];
+  if (!annual?.price) throw new Error('Missing fixture');
+  const bindings = { month: monthBinding, year: yearBinding };
+  for (const changed of [
+    { ...annual, price: { ...annual.price, currency: 'USD' } },
+    { ...annual, price: { ...annual.price, interval: 'month' as const } },
+    { ...annual, offerVersion: 2 },
+  ])
+    expect(
+      resolvePlusCadenceOffer({ ...c, plans: [...c.plans.slice(0, 1), changed] }, 'year', bindings),
+    ).toBeNull();
+});
+it('rounds the discount with integer minor units and refuses invalid or overflowing prices', () => {
+  expect(annualPlusTotal(1)).toBe(10);
+  expect(annualPlusTotal(2)).toBe(19);
+  expect(annualPlusTotal(500)).toBe(4800);
+  for (const invalid of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER])
+    expect(annualPlusTotal(invalid)).toBeNull();
+});
+it('formats supported currency precision without assuming all currencies have cents', () => {
+  const price = catalogue.plans[0]?.price;
+  if (!price) throw new Error('Missing fixture');
+  expect(plusPriceMajorUnits({ ...price, currency: 'EUR', amountMinorUnits: 999 })).toBe(9.99);
+  expect(plusPriceMajorUnits({ ...price, currency: 'JPY', amountMinorUnits: 999 })).toBe(999);
+  expect(plusPriceMajorUnits({ ...price, currency: 'KWD', amountMinorUnits: 999 })).toBe(0.999);
+});

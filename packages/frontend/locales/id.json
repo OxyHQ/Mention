@@ -1,4 +1,7 @@
 {
+  "plus.payment.cadenceLabel": "Periode penagihan",
+  "plus.payment.cadenceMonth": "Bulanan",
+  "plus.payment.cadenceYear": "Tahunan · hemat 20%",
   "compose.deleteDraftChanged": "Draf ini berubah. Tinjau dan coba hapus lagi.",
   "compose.draftMissing": "Draf ini tidak lagi tersedia.",
   "compose.draftConflict": "Draf ini berubah di tempat lain. Simpan pekerjaan Anda sebagai salinan.",

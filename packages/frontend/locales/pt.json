@@ -1,4 +1,7 @@
 {
+  "plus.payment.cadenceLabel": "Período de faturação",
+  "plus.payment.cadenceMonth": "Mensal",
+  "plus.payment.cadenceYear": "Anual · poupe 20%",
   "compose.deleteDraftChanged": "Este rascunho foi alterado. Revê-o e tenta eliminá-lo novamente.",
   "compose.draftMissing": "Este rascunho já não está disponível.",
   "compose.draftConflict": "Este rascunho foi alterado noutro local. Guarda o teu trabalho como cópia.",
