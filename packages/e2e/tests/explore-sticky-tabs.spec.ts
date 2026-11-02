@@ -42,31 +42,34 @@ async function expectDockedTabs(tabs: Locator, scroll: () => Promise<void>) {
 }
 
 for (const width of [390, 1440]) {
-  test(`Explore tabs remain opaque and docked while the document scrolls at ${width}px`, async ({
-    page,
-    candidate,
-  }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await page.goto('/explore/who-to-follow');
-    const tabs = page.getByRole('tablist');
-    await expect(
-      page.getByRole('button', { name: /Explore sticky person 0/ }).first(),
-    ).toBeVisible();
-    await expect
-      .poll(() => page.evaluate(() => document.documentElement.scrollHeight))
-      .toBeGreaterThan(1600);
-    await expectDockedTabs(tabs, async () => {
-      await page.evaluate(() => window.scrollTo(0, 700));
-      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test(`Explore tabs remain opaque and docked while the document scrolls at ${width}px in ${colorScheme}`, async ({
+      page,
+      candidate,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.emulateMedia({ colorScheme });
+      await page.goto('/explore/who-to-follow');
+      const tabs = page.getByRole('tablist');
+      await expect(
+        page.getByRole('button', { name: /Explore sticky person 0/ }).first(),
+      ).toBeVisible();
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollHeight))
+        .toBeGreaterThan(1600);
+      await expectDockedTabs(tabs, async () => {
+        await page.evaluate(() => window.scrollTo(0, 700));
+        await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+      });
+      await tabs.getByRole('tab', { name: 'Media', exact: true }).click();
+      await expect(page).toHaveURL(/\/explore\/media$/);
+      await expect(tabs.getByRole('tab', { name: 'Media', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+      expect(candidate.scriptErrors).toEqual([]);
     });
-    await tabs.getByRole('tab', { name: 'Media', exact: true }).click();
-    await expect(page).toHaveURL(/\/explore\/media$/);
-    await expect(tabs.getByRole('tab', { name: 'Media', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    expect(candidate.scriptErrors).toEqual([]);
-  });
+  }
 }
 
 test('Explore tabs remain docked inside the Deck column scroll owner', async ({
