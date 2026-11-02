@@ -83,7 +83,7 @@
     "build:publishing": "bun run --cwd packages/sdk build"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
+    "@biomejs/biome": "2.5.15",
     "@oxy.so/doctor": "1.5.0",
     "@types/node": "catalog:",
     "semver": "^7.8.5",
