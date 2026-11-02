@@ -154,7 +154,6 @@ function ListsScreen() {
     <>
       <SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />
       <Screen
-        scroll="auto"
         reselect={{ refresh: refreshLists }}
         header={
           <PageHeader

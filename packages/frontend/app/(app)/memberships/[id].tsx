@@ -124,7 +124,7 @@ export default function MembershipCommunityScreen() {
     />
   );
   return (
-    <Screen scroll="auto" header={header}>
+    <Screen header={header}>
       <ScreenScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
         {landing.isPending || landing.isFetching ? (
           <ListSkeleton />

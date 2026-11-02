@@ -73,7 +73,6 @@ export default function PostCorrectionsScreen() {
         })}
       />
       <Screen
-        scroll="auto"
         header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
       >
         <ScreenScrollView contentContainerClassName="pb-16">

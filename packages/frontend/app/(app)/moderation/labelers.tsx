@@ -235,7 +235,6 @@ const LabelersScreen: React.FC = () => {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('labelers.title', { defaultValue: 'Content Labels' })}

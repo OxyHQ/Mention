@@ -47,7 +47,7 @@ export default function CreateMembershipScreen() {
   );
   if (!canUsePrivateApi)
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <SignInRequired
           label={t('memberships.signIn', 'Sign in to join a community')}
           description={t(
@@ -58,7 +58,7 @@ export default function CreateMembershipScreen() {
       </Screen>
     );
   return (
-    <Screen scroll="auto" header={header}>
+    <Screen header={header}>
       <ScreenScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
         <Text className="text-muted-foreground">
           {t(

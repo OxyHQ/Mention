@@ -109,7 +109,6 @@ export function CommunityNotesScreen({
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('communityNotes.hub.title', { defaultValue: 'Community notes' })}

@@ -135,7 +135,6 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
 
   return (
     <Screen
-      scroll="auto"
       reselect={{ refresh: refetch }}
       header={
         <PageHeader title={copy.title} backLabel={t('common.back', { defaultValue: 'Back' })} />

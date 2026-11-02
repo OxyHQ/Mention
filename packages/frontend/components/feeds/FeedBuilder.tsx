@@ -953,7 +953,6 @@ export function FeedBuilder({
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}

@@ -310,7 +310,6 @@ export default function PokesScreen() {
         })}
       />
       <Screen
-        scroll="auto"
         header={
           <PageHeader
             title={t('pokes.title', { defaultValue: 'Pokes' })}

@@ -517,7 +517,6 @@ const FeedsScreen: React.FC = () => {
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
       <Screen
-        scroll="auto"
         reselect={{ refresh: onRefresh }}
         header={
           <PageHeader

@@ -39,7 +39,7 @@ export default function MembershipsScreen() {
   );
   if (!canUsePrivateApi)
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen header={header}>
         <SignInRequired
           label={t('memberships.signIn', 'Sign in to join a community')}
           description={t(
@@ -50,7 +50,7 @@ export default function MembershipsScreen() {
       </Screen>
     );
   return (
-    <Screen scroll="auto" header={header}>
+    <Screen header={header}>
       <ScreenScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
         {query.isPending || query.isFetching ? (
           <ListSkeleton />

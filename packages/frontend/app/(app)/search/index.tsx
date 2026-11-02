@@ -1461,7 +1461,6 @@ function SearchIndex() {
       <SEO title={t('seo.search.title')} description={t('seo.search.description')} />
       <HeaderDockProvider>
         <Screen
-          scroll="auto"
           header={
             <PageHeader
               title={t('search.title', 'Search')}

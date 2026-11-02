@@ -181,7 +181,6 @@ export default function CreateJobScreen() {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('jobs.create.title', { defaultValue: 'Create job' })}

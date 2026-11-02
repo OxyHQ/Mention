@@ -96,7 +96,6 @@ export default function CreateStarterPackScreen() {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('starterPacks.create')}

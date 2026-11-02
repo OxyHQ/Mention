@@ -20,7 +20,6 @@ export default function PostQuotesScreen() {
 
   return (
     <Screen
-      scroll="auto"
       header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
     >
       <SEO

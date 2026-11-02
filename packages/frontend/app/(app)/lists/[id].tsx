@@ -306,10 +306,7 @@ function ListDetailScreen() {
   // Loading state
   if (loading) {
     return (
-      <Screen
-        scroll="auto"
-        header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}
-      >
+      <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
         <ScreenScrollView>
           <DetailSkeleton />
         </ScreenScrollView>
@@ -321,7 +318,6 @@ function ListDetailScreen() {
   if (error || !list) {
     return (
       <Screen
-        scroll="auto"
         header={
           <PageHeader
             title={t('lists.detail.title')}
@@ -342,7 +338,6 @@ function ListDetailScreen() {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={list.title || t('lists.detail.title')}

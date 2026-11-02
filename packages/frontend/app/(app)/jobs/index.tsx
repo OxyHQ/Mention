@@ -466,7 +466,6 @@ export default function JobsDiscoveryScreen() {
 
   return (
     <Screen
-      scroll="auto"
       header={
         <PageHeader
           title={t('jobs.discovery.title', { defaultValue: 'Jobs' })}
