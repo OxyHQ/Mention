@@ -26,6 +26,8 @@ const READ_ONLY_SCRIPTS = new Set([
   'inspectFederatedIdentityCache.ts',
   // Bounded SELECT evidence in an explicit READ ONLY transaction; no mutation mode.
   'reportFederationImportReview.ts',
+  // Aggregate counts in one READ ONLY transaction; prints no id, handle or content.
+  'reportNodeinfoAuthors.ts',
   // Re-derives one field from a pure function over data already on the post.
   // Idempotent, and the ingest path rewrites the same field anyway.
   'rebaselineTrendTerms.ts',
