@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { useRouter, useIsFocused } from '@/lib/navigation/router';
 import { logger } from '@oxy.so/core/logger';
+import { useTranslation } from 'react-i18next';
+import { toast } from '@oxy.so/bloom/toast';
 
 import { CameraCapture } from '@/components/Camera/CameraCapture';
 import { CaptureReview } from '@/components/Camera/CaptureReview';
@@ -11,6 +13,7 @@ import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { usePostsStore } from '@/stores/postsStore';
 import { setPendingShareMedia } from '@/utils/pendingShareMedia';
 import { buildCapturePost } from '@/utils/postBuilder';
+import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
 
 /**
  * The camera, as a page of the tab pager — reached by swiping right off Home and
@@ -39,13 +42,10 @@ import { buildCapturePost } from '@/utils/postBuilder';
  * a ref as well as state: state lands on the next render and the second press
  * arrives before that.
  *
- * A POST THAT DID NOT HAPPEN KEEPS THE CAPTURE. `createPost` RETURNS `null` on
- * three paths that never throw — the response reported no success, it carried no
- * post, or the viewer changed mid-flight — and treating a resolved promise as a
- * published post threw the capture away with nothing to show for it. Nothing is
- * retried automatically either: on the viewer-epoch path the request may well
- * have reached the server, so re-sending it is how one capture becomes two
- * posts. The reader is left on their capture, told, and decides.
+ * An unconfirmed publication keeps the capture. The composer does not retry
+ * an uncertain result: the server may have created the post before the response
+ * was lost. Core's existing 401 refresh/replay policy is separate. A confirmed
+ * publication may still return no local model when caching fails.
  *
  * THE COMPOSER IS PUSHED, NEVER SWITCHED TO. The "add text" exit hands the
  * upload over through `pendingShareMedia`, a consume-once buffer that the
@@ -55,6 +55,7 @@ import { buildCapturePost } from '@/utils/postBuilder';
  * open the composer with something already in it.
  */
 export default function CameraPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const isFocused = useIsFocused();
   const [capture, setCapture] = useState<LocalCapture | null>(null);
@@ -71,6 +72,8 @@ export default function CameraPage() {
   const working = useRef(false);
   const { selectTab } = useTabPager();
   const createPost = usePostsStore((state) => state.createPost);
+  const { capture: capturePublication, isMounted: isPublicationMounted } =
+    usePublicationContinuation();
 
   const clearCapture = useCallback(() => {
     setCapture(null);
@@ -89,7 +92,12 @@ export default function CameraPage() {
   }, [clearCapture]);
 
   const publishNow = useCallback(async () => {
+    const isCurrentOwner = capturePublication();
     if (!capture || working.current) return;
+    if (!isCurrentOwner) {
+      toast(t('common.error', { defaultValue: 'Something went wrong' }), { type: 'error' });
+      return;
+    }
     working.current = true;
     setPublishing(true);
     setPublishFailed(false);
@@ -99,24 +107,22 @@ export default function CameraPage() {
       // screen is showing. Leaving the reader on their capture is the only
       // outcome that does not lose it.
       if (!uploaded) return;
+      if (!isCurrentOwner()) return;
 
-      const created = await createPost(buildCapturePost(uploaded.media));
-      if (!created) {
-        // Resolved, but nothing was published. Deliberately not retried: on the
-        // viewer-epoch path the request may have reached the server anyway.
-        logger.warn('publishing a capture produced no post');
-        setPublishFailed(true);
+      await createPost(buildCapturePost(uploaded.media));
+      if (!isCurrentOwner()) {
+        if (capturePublication()) setPublishFailed(true);
         return;
       }
       leaveToFeed();
     } catch (error) {
       logger.warn('publishing a capture failed', { error });
-      setPublishFailed(true);
+      if (isCurrentOwner() || capturePublication()) setPublishFailed(true);
     } finally {
       working.current = false;
-      setPublishing(false);
+      if (isPublicationMounted()) setPublishing(false);
     }
-  }, [capture, upload, createPost, leaveToFeed]);
+  }, [capture, upload, createPost, leaveToFeed, capturePublication, isPublicationMounted, t]);
 
   const addText = useCallback(async () => {
     if (!capture || working.current) return;

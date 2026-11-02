@@ -43,7 +43,7 @@ describe('handlePost', () => {
   it('stops autosave before the request, so a debounce cannot re-save the post', () => {
     const begin = body.indexOf('beginPublish();');
     expect(begin).toBeGreaterThan(-1);
-    expect(begin).toBeLessThan(body.indexOf('await createPost('));
+    expect(begin).toBeLessThan(body.indexOf('await publishPostWithRepost('));
     expect(begin).toBeLessThan(body.indexOf('await createReply('));
     expect(begin).toBeLessThan(body.indexOf('await createThread('));
     expect(begin).toBeLessThan(body.indexOf('feedService.editPost('));
@@ -69,7 +69,10 @@ describe('handlePost', () => {
 
   it('keeps and saves the draft when the publish fails', () => {
     const failure = failurePath(body);
-    expect(failure).toContain('publishFailed(latestDraftSnapshot.current)');
+    expect(failure).toContain('retainDraft();');
+    expect(body).toContain(
+      'publishFailed(latestDraftSnapshot.current, { uncertain: requestStarted })',
+    );
     expect(failure).not.toContain('resetComposerAfterPublish');
     expect(failure).not.toContain('leaveAfterPublish');
   });

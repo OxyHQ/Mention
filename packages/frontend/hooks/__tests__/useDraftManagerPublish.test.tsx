@@ -194,6 +194,56 @@ describe('useDraftManager across a publish', () => {
     expect(saveDraft.mock.calls[1][0]).toMatchObject({ id: 'draft-1' });
   });
 
+  it('stores a durable warning only when the outcome was unconfirmed, and reports a failed save', async () => {
+    let saved = true;
+    await act(async () => {
+      manager().beginPublish();
+      saved = await manager().publishFailed(refs('sent once'), { uncertain: true });
+    });
+    expect(saved).toBe(true);
+    expect(saveDraft.mock.calls[0][0]).toHaveProperty('publicationUncertainAt');
+
+    saveDraft.mockRejectedValueOnce(new Error('storage unavailable'));
+    await act(async () => {
+      manager().beginPublish();
+      saved = await manager().publishFailed(refs('sent twice'), { uncertain: true });
+    });
+    expect(saved).toBe(false);
+  });
+
+  it('does not mark a draft whose request was never sent', async () => {
+    await act(async () => {
+      manager().beginPublish();
+      await manager().publishFailed(refs('never sent'));
+    });
+    expect(saveDraft.mock.calls[0][0]).not.toHaveProperty('publicationUncertainAt');
+  });
+
+  it('warns when a stored draft carries the unconfirmed marker', () => {
+    const warn = jest.fn();
+    latest = null;
+    function Warn() {
+      latest = useDraftManager({
+        saveDraft,
+        queueDeleteDraft: async () => undefined,
+        onDraftLoad,
+        onPublicationUncertain: warn,
+      });
+      return null;
+    }
+    act(() => {
+      TestRenderer.create(<Warn />);
+    });
+    act(() => {
+      manager().loadDraft({ id: 'draft-9', postContent: 'x', publicationUncertainAt: 1 });
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    act(() => {
+      manager().loadDraft({ id: 'draft-8', postContent: 'y' });
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it('resumes autosave once the composer has been emptied', async () => {
     await act(async () => {
       manager().beginPublish();

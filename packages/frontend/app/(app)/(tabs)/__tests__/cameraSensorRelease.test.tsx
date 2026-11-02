@@ -33,6 +33,10 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: { assetUpload: jest.fn() } }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@/hooks/usePublicationContinuation', () => ({
+  usePublicationContinuation: () => ({ capture: () => () => true, isMounted: () => true }),
+}));
 
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: unknown) => unknown) => selector({ createPost: jest.fn() }),

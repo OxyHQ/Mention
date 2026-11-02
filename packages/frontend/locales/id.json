@@ -1633,6 +1633,7 @@
   "channels.signInRequired": "Masuk untuk mengelola kanalmu",
   "channels.signInRequiredDesc": "Kanal adalah akun yang diikuti orang tanpa harus mengikuti orang-orang yang menulis untuknya.",
   "channels.compose.repostFailed": "Diterbitkan ke kanal, tetapi gagal memposting ulang ke profilmu.",
+  "channels.compose.repostUnconfirmed": "Diterbitkan di kanal. Periksa profilmu untuk melihat apakah sudah diposting ulang.",
   "channels.compose.scheduledNoRepost": "Dijadwalkan. Posting ulang ke profilmu sendiri setelah terbit.",
   "channels.settings.title": "Pengaturan kanal",
   "channels.settings.operatorOnly": "Hanya operator yang bisa mengelola kanal ini",
@@ -2146,7 +2147,7 @@
     "addText": "Add text",
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
-    "publishFailed": "That didn't post. Your capture is still here — try again.",
+    "publishFailed": "Publikasi belum dapat dipastikan. Periksa postingan Anda sebelum mencoba lagi. Hasil tangkapan Anda masih ada.",
     "preparing": "Menyiapkan…",
     "recordingFailed": "Perekaman gagal. Silakan coba lagi.",
     "open": "Buka kamera"
@@ -2414,6 +2415,8 @@
     "open": "Buka"
   },
   "compose": {
+    "replyUnconfirmed": "Balasan Anda belum dapat dipastikan. Periksa percakapan sebelum mencoba lagi.",
+    "publishUnconfirmed": "Hasilnya tidak dapat dipastikan. Periksa apakah perubahan sudah diterapkan sebelum mencoba lagi.",
     "job": {
       "add": "Attach a job",
       "title": "Attach a job",
