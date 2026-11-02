@@ -3,28 +3,28 @@ import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/lib/navigation/router';
-import { useProfileData } from '@/hooks/useProfileData';
-import { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
+import type { ProfileData } from '@/hooks/useProfileData';
+import { connectionTabFromPathname } from './profileTabRoute';
 
-export function ConnectionsHeader() {
+export function ConnectionsHeader({
+  username,
+  profileData,
+}: {
+  username: string;
+  profileData: ProfileData | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
-  const username = useRoutedProfileUsername().replace(/^@/, '');
-  const { data } = useProfileData(username);
+  const cleanUsername = username.replace(/^@/, '');
+  const data = profileData;
   const { t } = useTranslation();
   const handle =
     getNormalizedUserHandle({
-      username: data?.username || username,
+      username: data?.username || cleanUsername,
       instance: data?.instance,
       isFederated: data?.isFederated,
-    }) || username;
-  const active = pathname?.endsWith('/following')
-    ? 'following'
-    : pathname?.endsWith('/who-may-know')
-      ? 'who-may-know'
-      : pathname?.endsWith('/in-common')
-        ? 'in-common'
-        : 'followers';
+    }) || cleanUsername;
+  const active = connectionTabFromPathname(pathname) ?? 'followers';
   const tabs = [
     { id: 'followers', label: t('Followers', { defaultValue: 'Followers' }) },
     { id: 'following', label: t('Following', { defaultValue: 'Following' }) },

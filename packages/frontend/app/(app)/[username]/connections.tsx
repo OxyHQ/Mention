@@ -1,6 +1,10 @@
 import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { ConnectionsHeader } from '@/components/Profile/ConnectionsHeader';
+import {
+  connectionTabFromPathname,
+  type ConnectionTab,
+} from '@/components/Profile/profileTabRoute';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
@@ -32,7 +36,7 @@ import { isAuthError } from '@/utils/authErrors';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
+type TabType = ConnectionTab;
 
 /** The catalogue sticker each tab shows when it has nobody to list. */
 const EMPTY_STICKER_BY_TAB: Record<TabType, EmptyStateStickerName> = {
@@ -147,6 +151,7 @@ function AuthorizedConnectionsScreen() {
     <BloomColorScope seed={color?.seed} asChild>
       <ConnectionsContent
         colorPreset={color?.colorPreset}
+        username={cleanUsername}
         profileData={profileData}
         profileLoading={profileLoading}
         profileError={profileError}
@@ -160,6 +165,7 @@ function AuthorizedConnectionsScreen() {
 interface ConnectionsContentProps {
   /** The profile's color preset: the Screen's claim (see ProfileShell). */
   colorPreset?: ScreenProps['colorPreset'];
+  username: string;
   profileData: ProfileData | null;
   profileLoading: boolean;
   /** The profile lookup ended with nothing to show. */
@@ -171,6 +177,7 @@ interface ConnectionsContentProps {
 
 function ConnectionsContent({
   colorPreset,
+  username,
   profileData,
   profileLoading,
   profileError,
@@ -185,13 +192,7 @@ function ConnectionsContent({
   // The route IS the active tab — `handleTabPress` navigates, so there is
   // nothing else that could select one. Derived rather than held in state, which
   // is what made the old copy need an effect to chase the pathname.
-  const activeTab: TabType = pathname?.endsWith('/following')
-    ? 'following'
-    : pathname?.endsWith('/who-may-know')
-      ? 'who-may-know'
-      : pathname?.endsWith('/in-common')
-        ? 'in-common'
-        : 'followers';
+  const activeTab = connectionTabFromPathname(pathname) ?? 'followers';
 
   const profileId = profileData?.id;
 
@@ -543,7 +544,10 @@ function ConnectionsContent({
   return Platform.OS === 'web' ? (
     list
   ) : (
-    <Screen colorPreset={colorPreset} header={<ConnectionsHeader />}>
+    <Screen
+      colorPreset={colorPreset}
+      header={<ConnectionsHeader username={username} profileData={profileData} />}
+    >
       {list}
     </Screen>
   );

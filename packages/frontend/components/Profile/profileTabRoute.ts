@@ -99,3 +99,24 @@ export function profileTabSelectionFromPathname(pathname: string): ProfileTabSel
   }
   return null;
 }
+
+/** A connection route names one shared list tab; other profile routes do not. */
+export type ConnectionTab = 'followers' | 'following' | 'who-may-know' | 'in-common';
+
+export function connectionTabFromPathname(
+  pathname: string | null | undefined,
+): ConnectionTab | null {
+  const segments = pathname?.split('/').filter(Boolean) ?? [];
+  if (segments.length !== 2) return null;
+  switch (segments[1]) {
+    case 'connections':
+    case 'followers':
+      return 'followers';
+    case 'following':
+    case 'who-may-know':
+    case 'in-common':
+      return segments[1];
+    default:
+      return null;
+  }
+}

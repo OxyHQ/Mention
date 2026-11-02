@@ -11,6 +11,12 @@ import TestRenderer, { act } from 'react-test-renderer';
  */
 
 let mockPathname = '/@nate';
+let mockSupervision = { ready: true, isError: false, supervised: false };
+let mockCommunitiesPreview = true;
+jest.mock('@/hooks/useSupervisionState', () => ({ useSupervisionState: () => mockSupervision }));
+jest.mock('@/hooks/useCommunitiesPreview', () => ({
+  useCommunitiesPreview: () => mockCommunitiesPreview,
+}));
 const mockPush = jest.fn();
 const mockShell = jest.fn();
 const mockTabs = jest.fn();
@@ -165,4 +171,28 @@ test('the stats row jumps to another tab by pushing its route', () => {
   act(() => onSelectTab({ key: 'media' }, '/@nate/media'));
   expect(mockPush).toHaveBeenCalledWith('/@nate/media');
   act(() => tree.unmount());
+});
+
+test.each([
+  { ready: true, isError: false, supervised: true },
+  { ready: false, isError: false, supervised: false },
+  { ready: true, isError: true, supervised: false },
+])('withholds the connections and about headers when supervision blocks the surface', (state) => {
+  mockSupervision = state;
+  for (const path of ['/followers', '/about']) {
+    mockPathname = `/@nate${path}`;
+    const tree = render();
+    expect(mockShell.mock.calls.at(-1)?.[0].routeHeader).toBeUndefined();
+    act(() => tree.unmount());
+  }
+  mockSupervision = { ready: true, isError: false, supervised: false };
+});
+
+test('withholds the community settings header outside the preview', () => {
+  mockCommunitiesPreview = false;
+  mockPathname = '/@nate/settings';
+  const tree = render();
+  expect(mockShell.mock.calls.at(-1)?.[0].routeHeader).toBeUndefined();
+  act(() => tree.unmount());
+  mockCommunitiesPreview = true;
 });

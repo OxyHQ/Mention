@@ -1,7 +1,11 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-import { profileTabHref, profileTabSelectionFromPathname } from '../profileTabRoute';
+import {
+  connectionTabFromPathname,
+  profileTabHref,
+  profileTabSelectionFromPathname,
+} from '../profileTabRoute';
 import {
   ORGANIZATION_ONLY_TAB_NAMES,
   PERSONAL_ONLY_TAB_NAMES,
@@ -163,4 +167,18 @@ describe('where the strip sends each tab', () => {
       key: laneTabKey('abc123'),
     });
   });
+});
+
+test.each([
+  ['/@nate/followers', 'followers'],
+  ['/@nate/connections', 'followers'],
+  ['/@nate/following', 'following'],
+  ['/@alice@mastodon.social/in-common', 'in-common'],
+  ['/%40alice%40mastodon.social/who-may-know', 'who-may-know'],
+  ['/@nate/followers/other', null],
+  ['/@nate/about', null],
+  ['/@nate', null],
+  ['', null],
+])('classifies connection path %s once for header and content', (path, expected) => {
+  expect(connectionTabFromPathname(path)).toBe(expected);
 });

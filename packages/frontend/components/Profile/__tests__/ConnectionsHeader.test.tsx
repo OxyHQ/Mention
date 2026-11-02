@@ -1,5 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { ConnectionsHeader } from '../ConnectionsHeader';
+import type { ProfileData } from '@/hooks/useProfileData';
 
 let mockPathname = '/@nate/followers';
 let mockProfile: {
@@ -12,7 +13,6 @@ let mockProfile: {
   design: { displayName: 'Nate' },
 };
 const mockPush = jest.fn();
-const mockGetProfile = jest.fn();
 
 jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: (props: object) => <header {...props} />,
@@ -30,15 +30,6 @@ jest.mock('@/lib/navigation/router', () => ({
   usePathname: () => mockPathname,
   useRouter: () => ({ push: mockPush }),
 }));
-jest.mock('@/hooks/useProfileData', () => ({
-  useProfileData: (username: string) => {
-    mockGetProfile(username);
-    return { data: mockProfile };
-  },
-}));
-jest.mock('../hooks/useRoutedProfileUsername', () => ({
-  useRoutedProfileUsername: () => '@nate',
-}));
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -49,7 +40,12 @@ beforeEach(() => {
 function render() {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    tree = TestRenderer.create(<ConnectionsHeader />);
+    tree = TestRenderer.create(
+      <ConnectionsHeader
+        username="@nate"
+        profileData={mockProfile as unknown as ProfileData | null}
+      />,
+    );
   });
   if (!tree) throw new Error('Connections header did not render');
   return tree;
@@ -68,7 +64,6 @@ test.each([
   const tabs = header.props.accessory;
   expect(header.props.title).toBe(title);
   expect(tabs.props.value).toBe(selected);
-  expect(mockGetProfile).toHaveBeenCalledWith('nate');
   expect(
     tabs.props.children.map((child: { props: { value: string } }) => child.props.value),
   ).toEqual(['followers', 'following', 'in-common', 'who-may-know']);
