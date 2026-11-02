@@ -32,7 +32,8 @@ export async function reportNodeinfoAuthors() {
         with per_author as (
           select oxy_user_id, count(*)::int as n
           from posts
-          where federation_actor_uri is null and visibility = 'public' and status = 'published'
+          where federation_actor_uri is null and federation_activity_id is null
+            and visibility = 'public' and status = 'published'
           group by oxy_user_id
         ), ranked as (
           select n, row_number() over (order by n desc) as rank from per_author

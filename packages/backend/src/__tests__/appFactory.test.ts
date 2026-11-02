@@ -440,9 +440,10 @@ describe('createApp', () => {
       .set('Host', 'api.mention.earth')
       .expect(200)
       .expect(({ body }) => {
-        // Standard fields carry LOCAL content only; unknown local users are omitted.
-        expect(body.usage).toEqual({ users: { total: 12 }, localPosts: 7, localComments: 2 });
-        expect(body.metadata['so.oxy.mention.statistics'].localUsers.stale).toBe(false);
+        // The standard fields carry COMBINED totals: 12 local + 4 external users, 10 posts, 3 comments.
+        expect(body.usage).toEqual({ users: { total: 16 }, localPosts: 10, localComments: 3 });
+        expect(body.metadata['so.oxy.mention.statistics'].standardFields).toBe('combined');
+        expect(body.metadata['so.oxy.mention.statistics'].users.local.stale).toBe(false);
         expect(body.services).toEqual({ inbound: [], outbound: [] });
         expect(body.metadata['so.oxy.mention.statistics']).toMatchObject({
           posts: { local: 7, external: 3, combined: 10 },
