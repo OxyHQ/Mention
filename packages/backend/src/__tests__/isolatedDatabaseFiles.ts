@@ -466,6 +466,20 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Its filter is `isNull(custom_feeds.definition_mode)` — every unmigrated feed in the ' +
       'table — and it stamps a definition onto each. The suite calls it with no arguments.',
   },
+  {
+    path: 'src/__tests__/nodeinfoPostCountBudget.test.ts',
+    jobEntryPoint: 'measureNodeinfoStatistics',
+    reason:
+      'Counts every public published post and every federated row in `posts`; a post another ' +
+      'file inserts between its before and after measurements moves the exact deltas it asserts.',
+  },
+  {
+    path: 'src/__tests__/db/reportNodeinfoAuthors.test.ts',
+    jobEntryPoint: 'reportNodeinfoAuthors',
+    reason:
+      'Counts distinct authors and posts across the whole `posts` table; its exact author and ' +
+      "post counts include any row another file's fixture inserted.",
+  },
 ];
 
 /**

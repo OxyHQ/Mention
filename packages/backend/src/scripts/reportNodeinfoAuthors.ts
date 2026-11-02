@@ -24,14 +24,7 @@ interface AuthorRow extends Record<string, unknown> {
   localAuthorsWithSettings: number;
 }
 
-/**
- * `authorPrefix` narrows the report to authors whose id starts with it. Production
- * runs without it; the suite uses it because `posts` is shared with concurrent suites.
- */
-export async function reportNodeinfoAuthors(options: { authorPrefix?: string } = {}) {
-  const scope = options.authorPrefix
-    ? sql`and oxy_user_id like ${`${options.authorPrefix.replace(/[\\%_]/g, '\\$&')}%`}`
-    : sql``;
+export async function reportNodeinfoAuthors() {
   const [row] = await getDb().transaction(
     async (tx) => {
       await tx.execute(sql`SET LOCAL statement_timeout = '60s'`);
@@ -40,7 +33,7 @@ export async function reportNodeinfoAuthors(options: { authorPrefix?: string } =
           select oxy_user_id, count(*)::int as n
           from posts
           where federation_actor_uri is null and federation_activity_id is null
-            and visibility = 'public' and status = 'published' ${scope}
+            and visibility = 'public' and status = 'published'
           group by oxy_user_id
         ), ranked as (
           select n, row_number() over (order by n desc) as rank from per_author
