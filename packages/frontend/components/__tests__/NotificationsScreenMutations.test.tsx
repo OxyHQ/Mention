@@ -12,13 +12,22 @@ const mockDelete = jest.fn();
 const mockGetNotifications = jest.fn();
 const mockRows: Record<
   string,
-  { onMarkAsRead: (ids: string[]) => void; onDelete: (ids: string[]) => void }
+  {
+    item: { hasUnread: boolean };
+    onMarkAsRead: (ids: string[]) => void;
+    onDelete: (ids: string[]) => void;
+  }
 > = {};
 const mockRenders: string[] = [];
+let mockVisibleKeys: string[] = [];
 const mockToast = jest.fn();
 const mockT = (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key;
 const mockAuth = {
-  oxyServices: { users: { getMany: jest.fn() } },
+  oxyServices: {
+    users: { getMany: jest.fn() },
+    http: { getSessionEpoch: () => 1 },
+    session: { isAuthenticated: true, onChange: () => () => undefined },
+  },
   isAuthResolved: true,
   canUsePrivateApi: true,
   isPrivateApiPending: false,
@@ -27,10 +36,12 @@ jest.mock('@oxy.so/core/logger', () => ({ createLogger: () => ({ error: jest.fn(
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ ...mockAuth, user: { id: mockUserId } }),
   OxyAuthPrompt: () => null,
+  useAuthStore: { getState: () => ({ user: { id: mockUserId } }) },
 }));
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
     getNotifications: (...args: unknown[]) => mockGetNotifications(...args),
+    getNotificationsForViewer: (...args: unknown[]) => mockGetNotifications(...args),
     markAsRead: (...args: unknown[]) => mockMarkAsRead(...args),
     deleteNotification: (...args: unknown[]) => mockDelete(...args),
     markAllAsRead: jest.fn(),
@@ -41,7 +52,7 @@ jest.mock('@/components/notifications/NotificationItem', () => {
   const React = require('react');
   return {
     NotificationItem: React.memo(function MockNotificationItem(props: {
-      item: { key: string };
+      item: { key: string; hasUnread: boolean };
       onMarkAsRead: (ids: string[]) => void;
       onDelete: (ids: string[]) => void;
     }) {
@@ -60,14 +71,16 @@ jest.mock('@/components/NotificationsList', () => {
     }: {
       items: NotificationListItem[];
       renderRow: (item: NotificationListItem) => React.ReactElement;
-    }) =>
-      React.createElement(
+    }) => {
+      mockVisibleKeys = items.map((item) => item.key);
+      return React.createElement(
         React.Fragment,
         null,
         items.map((item) =>
           React.createElement(React.Fragment, { key: item.key }, renderRow(item)),
         ),
-      ),
+      );
+    },
   };
 });
 jest.mock('@oxy.so/bloom/error-boundary', () => ({
@@ -185,6 +198,7 @@ function ui() {
 beforeEach(() => {
   mockUserId = 'A';
   mockRenders.length = 0;
+  mockVisibleKeys = [];
   for (const key of Object.keys(mockRows)) delete mockRows[key];
   mockMarkAsRead.mockReset();
   mockDelete.mockReset();
@@ -199,6 +213,23 @@ afterEach(() => {
   if (renderer) act(() => renderer?.unmount());
   client.clear();
 });
+it('renders each row at most once when a read becomes optimistic', async () => {
+  const op = deferred();
+  mockMarkAsRead.mockReturnValue(op.promise);
+  await act(async () => {
+    renderer = TestRenderer.create(ui());
+    await tick();
+  });
+  mockRenders.length = 0;
+  await act(async () => {
+    mockRows.one.onMarkAsRead(['one']);
+    await tick();
+  });
+  expect(mockRows.one.item.hasUnread).toBe(false);
+  expect(mockRenders.filter((key) => key === 'one')).toHaveLength(1);
+  expect(mockRenders.filter((key) => key === 'two')).toHaveLength(1);
+});
+
 it('does not rerender unchanged rows when read mutation settles', async () => {
   const op = deferred();
   mockMarkAsRead.mockReturnValue(op.promise);
@@ -217,7 +248,7 @@ it('does not rerender unchanged rows when read mutation settles', async () => {
     await settled;
   });
   expect(mockRenders).toEqual([]);
-  expect(mockMarkAsRead).toHaveBeenCalledWith('one');
+  expect(mockMarkAsRead).toHaveBeenCalledWith('one', 'A');
 });
 
 it('keeps callbacks current when the viewer changes A → B → A', async () => {
@@ -253,7 +284,10 @@ it('keeps callbacks current when the viewer changes A → B → A', async () => 
     await oldSettled;
   });
   expect(notificationsFor('B').pages[0].notifications[0].read).toBe(true);
-  expect(mockMarkAsRead.mock.calls).toEqual([['one'], ['b']]);
+  expect(mockMarkAsRead.mock.calls).toEqual([
+    ['one', 'A'],
+    ['b', 'B'],
+  ]);
 });
 it('resynchronizes the list and reports a failed read', async () => {
   const op = deferred();
@@ -272,7 +306,8 @@ it('resynchronizes the list and reports a failed read', async () => {
     mockRows.one.onMarkAsRead(['one']);
     await tick();
   });
-  expect(notificationsFor('A').pages[0].notifications[0].read).toBe(true);
+  expect(mockRows.one.item.hasUnread).toBe(false);
+  expect(notificationsFor('A').pages[0].notifications[0].read).toBe(false);
   const settled = whenCurrentMutationSettles();
   await act(async () => {
     op.reject(Error('network'));
@@ -298,7 +333,7 @@ it('still renders incoming realtime cache updates after a successful deletion', 
     op.resolve();
     await settled;
   });
-  expect(mockDelete).toHaveBeenCalledWith('one');
+  expect(mockDelete).toHaveBeenCalledWith('one', 'A');
   expect(mockToast).toHaveBeenCalled();
   await act(async () => {
     client.setQueryData<NotificationsInfiniteData>(viewerQueryKeys.notifications('A'), (data) =>
@@ -369,7 +404,8 @@ it('resynchronizes the list after a failed deletion', async () => {
     mockRows.one.onDelete(['one']);
     await tick();
   });
-  expect(notificationsFor('A').pages[0].notifications.map((n) => n._id)).toEqual(['two']);
+  expect(mockVisibleKeys).not.toContain('one');
+  expect(notificationsFor('A').pages[0].notifications.map((n) => n._id)).toEqual(['one', 'two']);
   const settled = whenCurrentMutationSettles();
   await act(async () => {
     op.reject(Error('network'));

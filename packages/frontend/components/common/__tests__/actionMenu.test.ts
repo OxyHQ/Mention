@@ -39,12 +39,32 @@ describe('buildMenuGroups', () => {
     expect(original.onPress).toBe(original.onPress);
     expect(groups[0][0].label).toBe('Mute');
   });
+
+  it('does not execute an action after its owner aborts', () => {
+    const owner = new AbortController();
+    const close = jest.fn();
+    const run = jest.fn();
+    const groups = buildMenuGroups([[action('Delete', run)]], close, owner.signal);
+    owner.abort();
+    groups[0][0].onPress();
+    expect(close).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('does not execute an action if closing crosses its session boundary', () => {
+    const owner = new AbortController();
+    const run = jest.fn();
+    const groups = buildMenuGroups([[action('Delete', run)]], () => owner.abort(), owner.signal);
+    groups[0][0].onPress();
+    expect(run).not.toHaveBeenCalled();
+  });
 });
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     if (
       entry === 'node_modules' ||
+      entry === '__tests__' ||
       entry === '.expo' ||
       entry === 'dist' ||
       entry.startsWith('.')
@@ -88,12 +108,18 @@ describe('action menu wiring', () => {
       // host rather than hand-rolling a third one.
       join('app', '(app)', 'lanes.tsx'),
       join('components', 'Feed', 'showRepostMenu.tsx'),
-      // A notification's long-press: mark as read, delete.
-      join('components', 'notifications', 'NotificationItem.tsx'),
       // Opening Allo (a profile's Message, a post's Send) when it is not
       // installed: get Allo, or open it on the web (#1140).
       join('hooks', 'useOpenInAllo.tsx'),
     ]);
+  });
+
+  it('uses an owned menu for notification long presses', () => {
+    const source = readFileSync(
+      join(FRONTEND, 'components', 'notifications', 'NotificationItem.tsx'),
+      'utf8',
+    );
+    expect(source).toMatch(/showCancelableActionMenu\(/);
   });
 
   // Dialog on a wide viewport, bottom sheet on a phone — the placement is the

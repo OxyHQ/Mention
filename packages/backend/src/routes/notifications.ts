@@ -26,6 +26,7 @@ import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
+import { requireExpectedViewer } from '../middleware/requireExpectedViewer';
 import {
   toPopulatedActor,
   type NotificationActorProfile as ActorProfile,
@@ -177,7 +178,7 @@ function pathId(value: string | string[] | undefined): string {
 }
 
 // Get notifications for current user
-router.get('/', async (req: AuthRequest, res: Response) => {
+const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -477,7 +478,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       hasMore: false,
     });
   }
-});
+};
+router.get('/', listNotificationsHandler);
+router.get('/_viewer/inbox', requireExpectedViewer, listNotificationsHandler);
 
 // Notifications are SERVER-AUTHORED ONLY. There is intentionally no
 // client-callable creation route: legitimate notifications are created as
@@ -509,13 +512,14 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
     io.to(`user:${userId}`).emit('notificationUpdated', enriched);
 
     res.json({ message: 'Notification marked as read', notification: enriched });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Error updating notification' });
   }
 };
 
 router.put('/:id/read', markAsReadHandler);
 router.patch('/:id/read', markAsReadHandler);
+router.patch('/_viewer/:id/read', requireExpectedViewer, markAsReadHandler);
 
 // Mark all notifications as read
 // Shared handler to mark all notifications as read
@@ -532,28 +536,31 @@ const markAllAsReadHandler = async (req: AuthRequest, res: Response) => {
     io.to(`user:${userId}`).emit('allNotificationsRead');
 
     res.json({ message: 'All notifications marked as read' });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Error updating notifications' });
   }
 };
 
 router.put('/read-all', markAllAsReadHandler);
 router.patch('/read-all', markAllAsReadHandler);
+router.patch('/_viewer/read-all', requireExpectedViewer, markAllAsReadHandler);
 
 // Unread count endpoint
-router.get('/unread-count', async (req: AuthRequest, res: Response) => {
+const unreadCountHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
     const [row] = await countUnread(recipientScope(await inboxRecipientIds(req, userId)));
     res.json({ count: row?.value ?? 0 });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Error fetching unread count' });
   }
-});
+};
+router.get('/unread-count', unreadCountHandler);
+router.get('/_viewer/unread-count', requireExpectedViewer, unreadCountHandler);
 
 // Archive a notification (soft action)
-router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
+const archiveNotificationHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
@@ -578,10 +585,12 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
     io.to(`user:${userId}`).emit('notificationArchived', notification.id);
 
     res.json({ message: 'Notification archived', notification: enriched });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Error archiving notification' });
   }
-});
+};
+router.patch('/:id/archive', archiveNotificationHandler);
+router.patch('/_viewer/:id/archive', requireExpectedViewer, archiveNotificationHandler);
 
 // Unregister a device push token.
 //
@@ -613,7 +622,7 @@ router.delete('/push-token', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete a notification
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+const deleteNotificationHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -638,10 +647,12 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     io.to(`user:${userId}`).emit('notificationDeleted', notification.id);
 
     res.json({ message: 'Notification deleted' });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Error deleting notification' });
   }
-});
+};
+router.delete('/:id', deleteNotificationHandler);
+router.delete('/_viewer/:id', requireExpectedViewer, deleteNotificationHandler);
 // --- Device Push Token Management ---
 // Register or update a device push token
 router.post('/push-token', async (req: AuthRequest, res: Response) => {

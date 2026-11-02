@@ -1,4 +1,4 @@
-import { confirm } from '@oxy.so/bloom/surfaces';
+import { confirm, type SurfaceConfirmOptions } from '@oxy.so/bloom/surfaces';
 
 export interface ConfirmOptions {
   title: string;
@@ -6,6 +6,8 @@ export interface ConfirmOptions {
   okText?: string;
   cancelText?: string;
   destructive?: boolean;
+  signal?: AbortSignal;
+  onClosed?: () => void;
 }
 
 export interface AlertOptions {
@@ -20,14 +22,17 @@ export interface AlertOptions {
  * cancels or dismisses it.
  */
 export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
-  const { title, message, okText, cancelText, destructive } = options;
-  return confirm({
+  const { title, message, okText, cancelText, destructive, signal, onClosed } = options;
+  const confirmation = {
     title,
     description: message || undefined,
     confirmLabel: okText,
     cancelLabel: cancelText,
     destructive,
-  });
+    signal,
+    onClosed,
+  } satisfies SurfaceConfirmOptions;
+  return confirm(confirmation);
 }
 
 /**

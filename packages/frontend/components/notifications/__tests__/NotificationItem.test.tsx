@@ -19,6 +19,7 @@ import {
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { TRawNotification } from '@/types/validation';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { NotificationItem } from '../NotificationItem';
 
 /**
@@ -42,6 +43,7 @@ const VIEWER_ID = 'viewer-1';
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: 'viewer-1' } }),
+  queryKeys: { users: { detail: (id: string) => ['users', id] } },
 }));
 
 // ── Module boundaries ───────────────────────────────────────────────────────
@@ -71,6 +73,8 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+const mockPush = jest.fn();
+jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 jest.mock('expo-image', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -90,12 +94,21 @@ jest.mock('@oxy.so/bloom/button', () => {
       children,
       onPress,
       disabled,
+      stopPropagation,
     }: {
       children?: React.ReactNode;
       onPress?: () => void;
       disabled?: boolean;
+      stopPropagation?: boolean;
     }) => (
-      <RNTouchable onPress={onPress} disabled={disabled} accessibilityRole="button">
+      <RNTouchable
+        onPress={(event) => {
+          if (stopPropagation) event?.stopPropagation();
+          onPress?.();
+        }}
+        disabled={disabled}
+        accessibilityRole="button"
+      >
         <RNText>{children}</RNText>
       </RNTouchable>
     ),
@@ -110,7 +123,10 @@ jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 // The row paints the surface it landed on. Bloom's `styles` subpath ships
 // untranspiled ESM, so it is stubbed here like every other Bloom subpath in
 // this file; the colour only has to be a colour.
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => '#ffffff' }));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  useSurfaceFill: () => '#ffffff',
+  tokens: { hitSlop: { md: 8 } },
+}));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
@@ -171,8 +187,16 @@ jest.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
-jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
+const mockPresentSheet = jest.fn();
+jest.mock('@/utils/sheet', () => ({
+  presentSheet: (...args: unknown[]) => mockPresentSheet(...args),
+  presentCancelableSheet: (...args: unknown[]) => mockPresentSheet(...args),
+}));
+const mockShowActionMenu = jest.fn();
+jest.mock('@/components/common/ActionMenu', () => ({
+  showActionMenu: (...args: unknown[]) => mockShowActionMenu(...args),
+  showCancelableActionMenu: (...args: unknown[]) => mockShowActionMenu(...args),
+}));
 
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
@@ -249,6 +273,8 @@ notifyManager.setScheduler((callback) => callback());
 
 const mountedRenderers: TestRenderer.ReactTestRenderer[] = [];
 const queryClients: QueryClient[] = [];
+const ownSurface: OwnNotificationSurface = async (_intent, present) =>
+  present(new AbortController().signal, () => {});
 
 afterEach(async () => {
   await act(async () => {
@@ -267,7 +293,17 @@ async function flush(): Promise<void> {
   });
 }
 
-async function renderRow(state: PostViewerState): Promise<{
+async function renderRow(
+  state: PostViewerState,
+  options?: {
+    onDelete?: jest.Mock;
+    onMarkAsRead?: jest.Mock;
+    item?: GroupedNotification;
+    ownNotificationSurface?: OwnNotificationSurface;
+    captureIntent?: () => { viewerId: string; epoch: number } | null;
+    isCurrentIntent?: (intent: { viewerId: string; epoch: number }) => boolean;
+  },
+): Promise<{
   renderer: TestRenderer.ReactTestRenderer;
   queryClient: QueryClient;
 }> {
@@ -282,7 +318,14 @@ async function renderRow(state: PostViewerState): Promise<{
   await act(async () => {
     renderer = TestRenderer.create(
       <QueryClientProvider client={queryClient}>
-        <NotificationItem item={collabInviteItem()} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+        <NotificationItem
+          item={options?.item ?? collabInviteItem()}
+          onMarkAsRead={options?.onMarkAsRead ?? jest.fn()}
+          onDelete={options?.onDelete ?? jest.fn()}
+          captureIntent={options?.captureIntent ?? (() => ({ viewerId: 'viewer-1', epoch: 1 }))}
+          isCurrentIntent={options?.isCurrentIntent ?? (() => true)}
+          ownNotificationSurface={options?.ownNotificationSurface ?? ownSurface}
+        />
       </QueryClientProvider>,
     );
   });
@@ -318,6 +361,274 @@ function buttonByLabel(root: ReactTestInstance, label: string): ReactTestInstanc
 describe('NotificationItem — collaboration invite', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('does not mark or navigate from a row owned by an earlier session', async () => {
+    let epoch = 1;
+    const original = { viewerId: VIEWER_ID, epoch };
+    const onMarkAsRead = jest.fn();
+    const { renderer } = await renderRow(PENDING, {
+      onMarkAsRead,
+      captureIntent: () => original,
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    epoch = 3;
+    act(() => target.props.onPress());
+    expect(onMarkAsRead).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the row session after marking and before navigation', async () => {
+    let epoch = 1;
+    const original = { viewerId: VIEWER_ID, epoch };
+    const onMarkAsRead = jest.fn(() => {
+      epoch = 2;
+    });
+    const { renderer } = await renderRow(PENDING, {
+      onMarkAsRead,
+      captureIntent: () => original,
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    act(() => target.props.onPress());
+    expect(onMarkAsRead).toHaveBeenCalledWith([NOTIF_ID], original);
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('marks and navigates when the row session remains current', async () => {
+    const onMarkAsRead = jest.fn();
+    const { renderer } = await renderRow(PENDING, { onMarkAsRead });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    act(() => target.props.onPress());
+    expect(onMarkAsRead).toHaveBeenCalledWith([NOTIF_ID], { viewerId: VIEWER_ID, epoch: 1 });
+    expect(mockPush).toHaveBeenCalledWith(`/p/${POST_ID}`);
+  });
+
+  it('blocks stale profile navigation from an expanded group', async () => {
+    let epoch = 1;
+    const original = { viewerId: VIEWER_ID, epoch };
+    const item = {
+      ...collabInviteItem(),
+      isGroup: true,
+      expandable: true,
+      totalActors: 2,
+      actors: [
+        { id: 'owner-1', name: 'Owner', username: 'owner' },
+        { id: 'other-1', name: 'Other', username: 'other' },
+      ],
+    };
+    const { renderer } = await renderRow(PENDING, {
+      item,
+      captureIntent: () => original,
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const expand = renderer.root
+      .findAll(
+        (node) =>
+          node.props.accessibilityRole === 'button' &&
+          typeof node.props.onPress === 'function' &&
+          node.findAllByType(Text).some((text) => text.props.children === 'Show all'),
+      )
+      .at(-1);
+    expect(expand).toBeDefined();
+    const stopPropagation = jest.fn();
+    act(() => expand?.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    const profile = renderer.root.findAll(
+      (node) =>
+        node.props.className === 'flex-row items-center gap-2' &&
+        typeof node.props.onPress === 'function',
+    )[0];
+    expect(profile).toBeDefined();
+    act(() => profile.props.onPress({ stopPropagation }));
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(stopPropagation).toHaveBeenCalledTimes(2);
+    mockPush.mockClear();
+    epoch = 3;
+    act(() => profile.props.onPress({ stopPropagation }));
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(stopPropagation).toHaveBeenCalledTimes(3);
+  });
+
+  it('captures the original intent when the action menu opens, not when a row is pressed', async () => {
+    let epoch = 1;
+    const onDelete = jest.fn();
+    const { renderer } = await renderRow(PENDING, {
+      onDelete,
+      captureIntent: () => ({ viewerId: 'viewer-1', epoch }),
+    });
+    const target = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    expect(target).toBeDefined();
+    act(() => target.props.onLongPress());
+    const menu = mockShowActionMenu.mock.calls[0][0] as {
+      groups: { onPress: () => void; label: string }[][];
+    };
+    epoch = 3;
+    const action = menu.groups.flat().find((item) => item.label === 'Delete');
+    expect(action).toBeDefined();
+    act(() => action?.onPress());
+    expect(onDelete).toHaveBeenCalledWith([NOTIF_ID], { viewerId: 'viewer-1', epoch: 1 });
+  });
+
+  it('does not submit a collaboration sheet opened in an earlier session', async () => {
+    let epoch = 1;
+    const { renderer } = await renderRow(PENDING, {
+      captureIntent: () => ({ viewerId: VIEWER_ID, epoch }),
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const accept = buttonByLabel(renderer.root, 'Accept');
+    await act(async () => {
+      accept?.props.onPress();
+    });
+    const createSheet = mockPresentSheet.mock.calls[0][0] as (surface: { dismiss: () => void }) => {
+      props: { children: { props: { onAccept: () => Promise<void> } } };
+    };
+    const dismiss = jest.fn();
+    const sheet = createSheet({ dismiss });
+    epoch = 3;
+    await act(async () => {
+      await sheet.props.children.props.onAccept();
+    });
+    expect(mockAccept).not.toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('stops row activation when the embedded collaboration buttons are pressed', async () => {
+    const { renderer } = await renderRow(PENDING);
+    const stopPropagation = jest.fn();
+    const accept = buttonByLabel(renderer.root, 'Accept');
+    act(() => accept?.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    const decline = buttonByLabel(renderer.root, 'Decline');
+    mockDecline.mockResolvedValue({ success: true });
+    await act(async () => decline?.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledTimes(2);
+  });
+
+  it('places the collaboration controls outside the row long-press responder', async () => {
+    const { renderer } = await renderRow(PENDING);
+    for (const label of ['Accept', 'Decline']) {
+      let ancestor = buttonByLabel(renderer.root, label)?.parent ?? null;
+      while (ancestor) {
+        expect(typeof ancestor.props.onLongPress).not.toBe('function');
+        ancestor = ancestor.parent;
+      }
+    }
+  });
+
+  it('keeps one row gesture target for ordinary notifications', async () => {
+    const source = collabInviteItem();
+    const item = {
+      ...source,
+      type: 'like',
+      leadNotification: { ...source.leadNotification, type: 'like' },
+    } as GroupedNotification;
+    const { renderer } = await renderRow(PENDING, { item });
+    const targets = renderer.root.findAll(
+      (node) =>
+        typeof node.props.onLongPress === 'function' && node.props.accessibilityRole === 'button',
+    );
+    expect(targets).toHaveLength(1);
+    expect(targets[0].props.accessibilityRole).toBe('button');
+  });
+
+  it.each([
+    ['pending', PENDING],
+    ['accepted', ACCEPTED],
+    ['declined', DECLINED],
+  ])('keeps the same separated gesture structure for a %s invite', async (_label, state) => {
+    const { renderer } = await renderRow(state as PostViewerState);
+    const targets = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function');
+    expect(targets).toHaveLength(3);
+    expect(targets.filter((node) => node.props.accessibilityRole === 'button')).toHaveLength(1);
+  });
+
+  it('retains the common gesture structure for expandable groups', async () => {
+    const source = collabInviteItem();
+    const item = {
+      ...source,
+      type: 'like',
+      isGroup: true,
+      expandable: true,
+      totalActors: 2,
+      actors: [
+        { id: 'owner-1', name: 'Owner', username: 'owner' },
+        { id: 'other-1', name: 'Other', username: 'other' },
+      ],
+      leadNotification: { ...source.leadNotification, type: 'like' },
+    } as GroupedNotification;
+    const { renderer } = await renderRow(PENDING, { item });
+    const targets = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function');
+    expect(targets).toHaveLength(1);
+    expect(targets.filter((node) => node.props.accessibilityRole === 'button')).toHaveLength(1);
+  });
+
+  it('does not submit a cancelled sheet when its old callback is invoked', async () => {
+    const controller = new AbortController();
+    const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>
+      present(controller.signal, () => {});
+    const { renderer } = await renderRow(PENDING, { ownNotificationSurface });
+    const accept = buttonByLabel(renderer.root, 'Accept');
+    await act(async () => accept?.props.onPress());
+    expect(mockPresentSheet.mock.calls[0][1]).toEqual({
+      signal: controller.signal,
+      onClosed: expect.any(Function),
+    });
+    const createSheet = mockPresentSheet.mock.calls[0][0] as (surface: { dismiss: () => void }) => {
+      props: { children: { props: { onAccept: () => Promise<void> } } };
+    };
+    const sheet = createSheet({ dismiss: jest.fn() });
+    controller.abort();
+    await act(async () => sheet.props.children.props.onAccept());
+    expect(mockAccept).not.toHaveBeenCalled();
+  });
+
+  it('passes the row owner signal to the long-press menu', async () => {
+    const controller = new AbortController();
+    const ownNotificationSurface: OwnNotificationSurface = async (_intent, present) =>
+      present(controller.signal, () => {});
+    const { renderer } = await renderRow(PENDING, { ownNotificationSurface });
+    const row = renderer.root.findAll((node) => typeof node.props.onLongPress === 'function')[0];
+    act(() => row.props.onLongPress());
+    expect(mockShowActionMenu.mock.calls[0][0].signal).toBe(controller.signal);
+  });
+
+  it('does not update the post cache when a decline resolves after a session change', async () => {
+    let epoch = 1;
+    let resolve!: (value: { success: boolean; post: HydratedPost }) => void;
+    mockDecline.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const { renderer } = await renderRow(PENDING, {
+      captureIntent: () => ({ viewerId: VIEWER_ID, epoch }),
+      isCurrentIntent: (intent) => intent.epoch === epoch,
+    });
+    const decline = buttonByLabel(renderer.root, 'Decline');
+    await act(async () => {
+      decline?.props.onPress();
+    });
+    expect(mockDecline).toHaveBeenCalledWith(POST_ID, VIEWER_ID);
+    epoch = 2;
+    await act(async () => {
+      resolve({ success: true, post: collabPost(DECLINED) });
+      await Promise.resolve();
+    });
+    expect(mockCachePosts).not.toHaveBeenCalled();
+  });
+
+  it('does not treat an unsuccessful collaboration reply as success', async () => {
+    mockDecline.mockResolvedValue({ success: false, post: collabPost(DECLINED) });
+    const { renderer } = await renderRow(PENDING);
+    const decline = buttonByLabel(renderer.root, 'Decline');
+    await act(async () => {
+      decline?.props.onPress();
+    });
+    await flush();
+    expect(mockCachePosts).not.toHaveBeenCalled();
+    expect(texts(renderer.root)).toContain('Decline');
   });
 
   it('shows Accept/Decline while the invite is pending, with no resolved label', async () => {
@@ -362,7 +673,7 @@ describe('NotificationItem — collaboration invite', () => {
 
     // The mutation ran, and its returned post was pushed into the shared cache
     // (the same mechanism post edits/deletes use to refresh feed + detail).
-    expect(mockDecline).toHaveBeenCalledWith(POST_ID);
+    expect(mockDecline).toHaveBeenCalledWith(POST_ID, VIEWER_ID);
     expect(mockCachePosts).toHaveBeenCalledWith([collabPost(DECLINED)]);
 
     // The row is now resolved — no longer actionable.
