@@ -525,20 +525,28 @@ class SearchService {
     };
   }
 
-  // Paginated lists search — `GET /lists` filters by `search` (name/description)
-  // and offset-paginates (`{ items, pagination: { offset, limit, hasMore } }`) on a
-  // stable `{ updatedAt desc, _id desc }` sort. Auth-gated: a signed-out viewer
-  // 401s → empty (this source has nothing), which is not a search failure. Drives
-  // the infinite Lists tab.
-  async searchListsPage(query: string, offset = 0, signal?: AbortSignal): Promise<SearchListsPage> {
+  // The authenticated route includes the viewer's private lists; the public
+  // route searches only public lists. Both share the same stable offset order.
+  async searchListsPage(
+    query: string,
+    offset = 0,
+    signal?: AbortSignal,
+    publicOnly = false,
+  ): Promise<SearchListsPage> {
     try {
-      const res = await authenticatedClient.get<{
+      type ListPage = {
         items?: SearchListResult[];
         pagination?: SearchOffsetPagination;
-      }>('/lists', {
-        params: { search: query, limit: SEARCH_PAGE_LIMIT, offset },
-        signal,
-      });
+      };
+      const res = publicOnly
+        ? await publicClient.get<ListPage>('/search/lists', {
+            params: { q: query, limit: SEARCH_PAGE_LIMIT, offset },
+            signal,
+          })
+        : await authenticatedClient.get<ListPage>('/lists', {
+            params: { search: query, limit: SEARCH_PAGE_LIMIT, offset },
+            signal,
+          });
       const pagination = res.data.pagination;
       return {
         lists: res.data.items ?? [],
@@ -546,6 +554,7 @@ class SearchService {
         nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
       };
     } catch (error) {
+      if (publicOnly) throw error;
       return {
         lists: emptyIfSignedOut<SearchListResult>(error, 'lists'),
         hasMore: false,

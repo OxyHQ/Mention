@@ -282,6 +282,43 @@ describe('search AbortSignal propagation', () => {
     expect(mockGetSavedPosts).toHaveBeenCalledWith(expect.objectContaining({ page: 2, signal }));
   });
 
+  it('searches public lists without a session and retains pagination and cancellation', async () => {
+    const signal = new AbortController().signal;
+    mockPublicGet.mockResolvedValueOnce({
+      data: {
+        items: [{ id: 'public-list', title: 'Mention' }],
+        pagination: { offset: 20, limit: 20, hasMore: true },
+      },
+    });
+
+    const page = await searchService.searchListsPage('mention', 20, signal, true);
+
+    expect(mockPublicGet).toHaveBeenCalledWith('/search/lists', {
+      params: { q: 'mention', limit: 20, offset: 20 },
+      signal,
+    });
+    expect(page).toEqual({
+      lists: [{ id: 'public-list', title: 'Mention' }],
+      hasMore: true,
+      nextOffset: 40,
+    });
+  });
+
+  it('defaults missing public pagination and does not hide a failed public lookup', async () => {
+    mockPublicGet.mockResolvedValueOnce({ data: {} });
+    await expect(searchService.searchListsPage('mention', 0, undefined, true)).resolves.toEqual({
+      lists: [],
+      hasMore: false,
+      nextOffset: 20,
+    });
+
+    const failure = new Error('public list search failed');
+    mockPublicGet.mockRejectedValueOnce(failure);
+    await expect(searchService.searchListsPage('mention', 0, undefined, true)).rejects.toBe(
+      failure,
+    );
+  });
+
   it('passes the signal through the paginated people tab', async () => {
     const signal = new AbortController().signal;
 

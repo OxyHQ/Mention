@@ -189,8 +189,8 @@ changing their payloads.
 
 One request for the search screen's whole overview, replacing four of the seven
 the client used to fire. Mounted on the PUBLIC api with `optionalAuth`, one
-mount before the authenticated `/search`: this router declares only
-`/overview`, so `GET /search` falls straight through to the authenticated one
+mount before the authenticated `/search`: this router declares
+`/overview` and `/lists`, so `GET /search` falls straight through to the authenticated one
 (the same two-mounts-one-prefix arrangement `/posts`, `/statistics` and
 `/channels` use). Being public is deliberate — a signed-out viewer gets real
 results instead of a 401.
@@ -222,6 +222,16 @@ The viewer-independent lanes (hashtags, public feeds, starter packs) share one
 stale-while-revalidate cache entry. `lists` is computed per request because it
 mixes public rows with the viewer's own, and a shared entry would show one
 viewer another's private list.
+
+### `GET /search/lists`
+
+Public paginated list search. `q` is trimmed and capped at 200 characters;
+an empty query returns no items. `limit` defaults to 20 and is capped at 100;
+`offset` defaults to zero. The response contains card previews in `items` and
+`pagination: { offset, limit, hasMore }`. It uses the overview's public-list
+predicate and total ordering; it never returns private lists, including to
+their owners. Authenticated search retains `/lists` for the owner's private
+lists.
 
 ### `GET /search`
 

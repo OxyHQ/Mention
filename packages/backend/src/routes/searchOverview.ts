@@ -28,6 +28,7 @@
 
 import express, { type Response } from 'express';
 import { SEARCH_OVERVIEW_LANE_LIMIT, type SearchLaneName } from '@mention/shared-types';
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
@@ -76,6 +77,34 @@ const LANE_BUDGET_MS = 1_500;
 
 /** The SQL half of the budget. Lower, because the query is the bounded part. */
 const LANE_STATEMENT_BUDGET_MS = 1_000;
+
+/** Search the public lists shown in the overview, with a full paginated tab. */
+router.get('/lists', async (req: AuthRequest, res: Response) => {
+  const raw = queryString(req.query.q) ?? '';
+  const query = raw.trim().slice(0, MAX_QUERY_LENGTH);
+  const limit = resolvePageLimit(req.query.limit, { fallback: 20, max: 100 });
+  const offset = resolvePageOffset(req.query.offset);
+  if (!query) return res.json({ items: [], pagination: { offset, limit, hasMore: false } });
+
+  try {
+    // This endpoint is public even when a bearer is present. Private lists are
+    // served only by the existing authenticated /lists endpoint.
+    const { rows, hasMore } = await withStatementTimeout(LANE_STATEMENT_BUDGET_MS, (tx) =>
+      listLane(tx, query, limit, undefined, offset),
+    );
+    const [owners, memberCounts] = await Promise.all([
+      resolveLaneOwners([rows]),
+      countListMembers(rows.map((row) => row.id)),
+    ]);
+    return res.json({
+      items: toListPreviews(rows, owners, memberCounts),
+      pagination: { offset, limit, hasMore },
+    });
+  } catch (error) {
+    logger.error('[Search] Failed to search public lists', { error });
+    return res.status(500).json({ error: 'Failed to search lists' });
+  }
+});
 
 router.get('/overview', async (req: AuthRequest, res: Response) => {
   const raw = queryString(req.query.q) ?? queryString(req.query.query) ?? '';
