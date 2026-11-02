@@ -230,10 +230,11 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
         : row.getByRole('button', { name: `${userA} liked your post`, exact: true });
     await expect(rowAction).toHaveCount(1);
     await expect(rowAction).toHaveAccessibleName(`${userA} liked your post`);
-    // hover() waits until the preview has stopped moving and is the element
-    // that receives the pointer; a one-off boundingBox() read can go stale
-    // while the list is still laying out, and a press that lands beside the
-    // row never becomes a long press.
+    // Scroll first, then let hover actionability wait for the newly measured
+    // virtual row to settle. hover() alone checks stability BEFORE its own
+    // scroll; late measurement can scroll again during mouseDown and cancel
+    // the native long-press responder.
+    await preview.scrollIntoViewIfNeeded();
     await preview.hover();
     await page.mouse.down();
     const mark = page.getByText('Mark as read', { exact: true });

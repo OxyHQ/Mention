@@ -39,7 +39,10 @@ for (const systemActor of ['populated', 'unpopulated'] as const) {
     await page.goBack();
     await expect(page.getByText(selectedText, { exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    // Real input hands scrolling back to the user and cancels any in-flight
+    // restoration. Programmatic scrollTo bypasses that takeover contract.
+    await page.keyboard.press('Control+Home');
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await expect(page.getByText('Welcome to Mention! 👋', { exact: true })).toBeVisible();
     expect(systemRequests).toEqual([]);
     expect(candidate.scriptErrors).toEqual([]);
