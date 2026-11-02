@@ -6,6 +6,8 @@ import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
 import { profileTabsOffset } from './ProfilePageHeader';
 import { ProfileShell } from './ProfileShell';
+import { ConnectionsHeader } from './ConnectionsHeader';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ProfileTabBarRow } from './ProfileTabBarRow';
 import { usePersonProfileView } from './hooks/usePersonProfileView';
 import { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
@@ -152,6 +154,18 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
         {view.seo}
         <ProfileShell
           active={active}
+          routeHeader={
+            /\/(followers|following|connections|in-common|who-may-know)$/.test(pathname ?? '') ? (
+              <ConnectionsHeader />
+            ) : pathname?.endsWith('/about') ? (
+              <PageHeader
+                title={t('About', { defaultValue: 'About' })}
+                backLabel={t('common.back', { defaultValue: 'Back' })}
+              />
+            ) : pathname?.endsWith('/settings') ? (
+              <PageHeader title={t('communities.settings.title')} backLabel={t('common.back')} />
+            ) : undefined
+          }
           chrome={view.chrome}
           loading={loading}
           profileData={view.profileData}

@@ -1,6 +1,7 @@
 import { StorefrontSettings } from '@/components/Commerce/StorefrontSettings';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { type ReactNode, useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -106,8 +107,13 @@ export function OperatedAccountSettingsScreen({
     body = <OperatedAccountSettings accountId={node.accountId} kind={kind} />;
   }
 
+  if (Platform.OS === 'web' && kind === 'community') {
+    return <ScreenScrollView showsVerticalScrollIndicator={false}>{body}</ScreenScrollView>;
+  }
+
   return (
     <Screen
+      scroll={Platform.OS === 'web' ? 'auto' : 'content'}
       header={
         <PageHeader title={copy.title} onBack={() => back?.()} backLabel={t('common.back')} />
       }

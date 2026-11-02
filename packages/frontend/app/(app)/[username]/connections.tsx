@@ -1,6 +1,6 @@
 import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
-import { PageHeader } from '@oxy.so/bloom/page-header';
+import { ConnectionsHeader } from '@/components/Profile/ConnectionsHeader';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
@@ -9,7 +9,7 @@ import {
   ProfileCardSkeletonList,
   type ProfileCardData,
 } from '@/components/ProfileCard';
-import { useRouter, useLocalSearchParams, usePathname } from '@/lib/navigation/router';
+import { useLocalSearchParams, usePathname } from '@/lib/navigation/router';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
@@ -18,7 +18,6 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
@@ -31,7 +30,6 @@ import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getErrorMessage } from '@/utils/apiError';
-import { getNormalizedUserHandle } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
@@ -149,8 +147,6 @@ function AuthorizedConnectionsScreen() {
     <BloomColorScope seed={color?.seed} asChild>
       <ConnectionsContent
         colorPreset={color?.colorPreset}
-        routeUsername={username}
-        cleanUsername={cleanUsername}
         profileData={profileData}
         profileLoading={profileLoading}
         profileError={profileError}
@@ -164,8 +160,6 @@ function AuthorizedConnectionsScreen() {
 interface ConnectionsContentProps {
   /** The profile's color preset: the Screen's claim (see ProfileShell). */
   colorPreset?: ScreenProps['colorPreset'];
-  routeUsername?: string;
-  cleanUsername: string;
   profileData: ProfileData | null;
   profileLoading: boolean;
   /** The profile lookup ended with nothing to show. */
@@ -177,26 +171,16 @@ interface ConnectionsContentProps {
 
 function ConnectionsContent({
   colorPreset,
-  routeUsername,
-  cleanUsername,
   profileData,
   profileLoading,
   profileError,
   profileNotFound,
   refreshProfile,
 }: ConnectionsContentProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
   const theme = useTheme();
-
-  const profileHandle =
-    getNormalizedUserHandle({
-      username: profileData?.username || cleanUsername,
-      instance: profileData?.instance,
-      isFederated: profileData?.isFederated,
-    }) || cleanUsername;
 
   // The route IS the active tab — `handleTabPress` navigates, so there is
   // nothing else that could select one. Derived rather than held in state, which
@@ -312,16 +296,6 @@ function ConnectionsContent({
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
   });
   const mutuals = useMemo<ConnectionUser[]>(() => inCommonQuery.data ?? [], [inCommonQuery.data]);
-
-  const handleTabPress = useCallback(
-    (tabId: string) => {
-      if (!routeUsername) return;
-      const tab = tabId as TabType;
-      const subroute = tab === 'who-may-know' ? 'who-may-know' : tab;
-      router.push(`/@${profileHandle}/${subroute}`);
-    },
-    [profileHandle, routeUsername, router],
-  );
 
   const getInviteMessage = useCallback(() => {
     const userHandle = user?.username || '';
@@ -471,35 +445,6 @@ function ConnectionsContent({
     }
   };
 
-  const getTitle = () => {
-    switch (activeTab) {
-      case 'followers':
-        return profileDisplayName
-          ? `${profileDisplayName} ${t('Followers', { defaultValue: 'Followers' })}`
-          : t('Followers', { defaultValue: 'Followers' });
-      case 'following':
-        return profileDisplayName
-          ? `${profileDisplayName} ${t('Following', { defaultValue: 'Following' })}`
-          : t('Following', { defaultValue: 'Following' });
-      case 'who-may-know':
-        return t('Who May Know', { defaultValue: 'Who May Know' });
-      case 'in-common':
-        return t('connections.tabs.inCommon', { defaultValue: 'In common' });
-      default:
-        return '';
-    }
-  };
-
-  const tabs = useMemo(
-    () => [
-      { id: 'followers', label: t('Followers', { defaultValue: 'Followers' }) },
-      { id: 'following', label: t('Following', { defaultValue: 'Following' }) },
-      { id: 'in-common', label: t('connections.tabs.inCommon', { defaultValue: 'In common' }) },
-      { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
-    ],
-    [t],
-  );
-
   // Every tab is one query, and the active tab's decides loading, error and
   // refresh. The shared recommendations hook exposes the same field names.
   const isRecommendationsTab = activeTab === 'who-may-know';
@@ -574,42 +519,32 @@ function ConnectionsContent({
     );
   };
 
-  return (
-    <Screen
-      colorPreset={colorPreset}
-      header={
-        <PageHeader
-          title={getTitle()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          accessory={
-            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-              {tabs.map((tab: { id: string; label: string; count?: number }) => (
-                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-              ))}
-            </Tabs>
-          }
-        />
+  const list = (
+    <VirtualList
+      screen={{}}
+      data={currentData}
+      renderItem={renderUser}
+      keyExtractor={(item: ConnectionUser) =>
+        String(item.id || item._id || item.userID || item.username)
       }
-    >
-      <VirtualList
-        screen={{}}
-        data={currentData}
-        renderItem={renderUser}
-        keyExtractor={(item: ConnectionUser) =>
-          String(item.id || item._id || item.userID || item.username)
-        }
-        ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
-        ListEmptyComponent={renderEmpty()}
-        removeClippedSubviews={false}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        initialNumToRender={10}
-        recycleItems={true}
-        maintainVisibleContentPosition={true}
-        contentContainerStyle={{ paddingBottom: 20 }}
-        refreshing={activeRefreshing}
-        onRefresh={refreshCurrent}
-      />
+      ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
+      ListEmptyComponent={renderEmpty()}
+      removeClippedSubviews={false}
+      maxToRenderPerBatch={10}
+      windowSize={10}
+      initialNumToRender={10}
+      recycleItems={true}
+      maintainVisibleContentPosition={true}
+      contentContainerStyle={{ paddingBottom: 20 }}
+      refreshing={activeRefreshing}
+      onRefresh={refreshCurrent}
+    />
+  );
+  return Platform.OS === 'web' ? (
+    list
+  ) : (
+    <Screen colorPreset={colorPreset} header={<ConnectionsHeader />}>
+      {list}
     </Screen>
   );
 }
