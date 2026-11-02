@@ -31,6 +31,8 @@ jest.mock('@oxy.so/bloom/tabs/expo-router', () => ({
     return null;
   },
 }));
+jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
+jest.mock('../ConnectionsHeader', () => ({ ConnectionsHeader: () => null }));
 jest.mock('../ProfileShell', () => ({
   ProfileShell: (props: { children?: React.ReactNode; tabBar?: React.ReactNode }) => {
     mockShell(props);
@@ -127,6 +129,17 @@ test('a sibling route (/followers) turns the chrome off but keeps the navigator'
   expect(tree.root.findByProps({ testID: 'navigator' })).toBeTruthy();
   act(() => tree.unmount());
 });
+
+test.each(['/followers', '/following', '/in-common', '/who-may-know', '/about', '/settings'])(
+  'a sibling route %s supplies its own header to the shared shell',
+  (suffix) => {
+    mockPathname = `/@nate${suffix}`;
+    const tree = render();
+    expect(mockShell.mock.calls.at(-1)?.[0].routeHeader).toBeTruthy();
+    expect(tree.root.findByProps({ testID: 'navigator' })).toBeTruthy();
+    act(() => tree.unmount());
+  },
+);
 
 test('a wrong-family URL holds the skeleton while the screen redirects', () => {
   mockView = makeView({ canonicalHref: '/c/nate' });
