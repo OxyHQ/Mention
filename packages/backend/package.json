@@ -60,7 +60,7 @@
     "ioredis": "6.0.0",
     "jsonwebtoken": "catalog:",
     "pino": "^10.4.0",
-    "postgres": "3.4.9",
+    "postgres": "4.0.0",
     "redis": "^6.3.0",
     "sanitize-html": "^2.18.1",
     "socket.io": "^4.8.4",
