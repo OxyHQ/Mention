@@ -46,6 +46,7 @@ export default function ExploreLayout() {
         header={
           <PageHeader
             title={t('Explore')}
+            titleReveal="always"
             presentation="floating"
             actions={
               <Button
