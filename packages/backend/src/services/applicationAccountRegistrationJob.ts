@@ -43,6 +43,8 @@ export async function registerLocalAccountsOnce(): Promise<{
   wrapped: boolean;
 }> {
   let registered = 0;
+  let scanned = 0;
+  let batches = 0;
   try {
     let cursor = (await cursorCache.get<string>(CURSOR_KEY)) ?? '';
     for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
@@ -54,8 +56,15 @@ export async function registerLocalAccountsOnce(): Promise<{
         .limit(BATCH_SIZE);
       if (rows.length === 0) {
         await cursorCache.set(CURSOR_KEY, '');
+        logger.info('[ApplicationAccountRegistration] pass wrapped', {
+          scanned,
+          registered,
+          batches,
+        });
         return { registered, wrapped: true };
       }
+      scanned += rows.length;
+      batches += 1;
       registered += await getRuntimeOxyClient().registerApplicationAccounts(
         rows.map((row) => row.id),
       );
@@ -65,7 +74,9 @@ export async function registerLocalAccountsOnce(): Promise<{
     }
   } catch (error) {
     logger.warn('[ApplicationAccountRegistration] pass failed; it resumes from the cursor', error);
+    return { registered, wrapped: false };
   }
+  logger.info('[ApplicationAccountRegistration] pass done', { scanned, registered, batches });
   return { registered, wrapped: false };
 }
 
