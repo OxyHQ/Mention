@@ -11,7 +11,11 @@ import { createOptionalAuth } from './middleware/optionalAuth';
 import { routeRateLimitByBearer } from './mcp/middleware/mcpRateLimiter';
 import { requestObservability } from './middleware/requestObservability';
 import { contentAccessScope } from './services/contentAccessBatcher';
-import { measureNodeinfoStatistics, type NodeinfoStatistics } from './services/nodeinfoStatistics';
+import {
+  measureNodeinfoStatistics,
+  type NodeinfoLocalUsers,
+  type NodeinfoStatistics,
+} from './services/nodeinfoStatistics';
 import { getRuntimeOxyClient } from './runtime/oxyClient';
 import { globalErrorHandler } from './utils/error';
 import { isAllowedOrigin } from './utils/allowedOrigins';
@@ -62,6 +66,30 @@ export function nodeinfoStatisticsCached(): Promise<NodeinfoStatistics> {
   return nodeinfoStatsCache.getOrCompute(NODEINFO_STATS_KEY, () => measureNodeinfoStatistics());
 }
 
+const NODEINFO_USERS_KEY = 'nodeinfo:v1:local-users';
+// Oxy's snapshot is already bounded (5-minute recount); this only collapses pollers.
+const nodeinfoUsersCache = createCache({
+  name: 'NodeinfoLocalUsersCache',
+  ttlSeconds: NODEINFO_STATS_TTL_SECONDS,
+  staleAfterMs: 10 * 60 * 1000,
+});
+
+/**
+ * Oxy's registered-account total, stale-while-revalidate. A failed refresh keeps
+ * the last good value; with none it rejects and the route omits the field.
+ */
+export function nodeinfoLocalUsersCached(): Promise<NodeinfoLocalUsers> {
+  return nodeinfoUsersCache.getOrCompute(NODEINFO_USERS_KEY, async () => {
+    const snapshot = await getRuntimeOxyClient().applicationAccountTotal();
+    return {
+      total: snapshot.total,
+      exact: snapshot.exact,
+      computedAt: snapshot.computedAt,
+      stale: snapshot.stale,
+    };
+  });
+}
+
 /** Compose production HTTP dependencies. Runtime bootstrap calls this once. */
 export function createRuntimeApp(activity?: RequestHandler) {
   initConnectors();
@@ -95,6 +123,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
     // An hourly planner estimate, never a scan per poller — see
     // `countLocalPostsCached`.
     getNodeinfoStatistics: nodeinfoStatisticsCached,
+    getNodeinfoLocalUsers: nodeinfoLocalUsersCached,
     logger,
     middleware: {
       activity,

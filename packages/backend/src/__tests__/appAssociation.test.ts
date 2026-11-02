@@ -97,6 +97,7 @@ function createTestApp() {
     isApexHost: (req) => req.headers.host === APEX,
     isApexWebPlaneRequest: (req) => req.headers.host === APEX,
     getNodeinfoStatistics: mock().mockRejectedValue(new Error('none')),
+    getNodeinfoLocalUsers: mock().mockRejectedValue(new Error('none')),
     logger: { debug: mock() },
     middleware: {
       requestObservability: passThrough,

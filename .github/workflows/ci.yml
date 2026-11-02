@@ -533,7 +533,7 @@ jobs:
         # `strategy.job-total` to vitest, and `CI complete` requires exactly
         # that many blobs named `blob-<i>-<total>.json` — so a count changed here
         # without the other side is a red merge, never a silently thinner suite.
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -1002,7 +1002,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Must equal the length of `backend-test`'s shard list.
-      BACKEND_SHARDS: 3
+      BACKEND_SHARDS: 6
     steps:
       # Everything up to the aggregate check is the backend merge, and it runs
       # only when the shards ran. A queue-verified push skipped them, so it

@@ -1,9 +1,11 @@
 import {
+  type NodeinfoLocalUsers,
   nodeinfoStatisticsExtension,
   type NodeinfoStatistics,
 } from './services/nodeinfoStatistics';
 import { withAliaSdkCsp } from '@alia.onl/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
+import { EXPECTED_VIEWER_HEADER } from '@mention/shared-types/common';
 import {
   createOxySecurityHeaders,
   oxyTrustProxy,
@@ -33,6 +35,8 @@ export interface CreateAppDependencies {
   isApexWebPlaneRequest(req: Request): boolean;
   /** Cached aggregates; rejects when none was ever measured. */
   getNodeinfoStatistics(): Promise<NodeinfoStatistics>;
+  /** Oxy's registered-account total for this deployment; rejects when unavailable. */
+  getNodeinfoLocalUsers(): Promise<NodeinfoLocalUsers>;
   logger: {
     debug(message: string, ...args: unknown[]): void;
   };
@@ -134,7 +138,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version, X-Oxy-Edge-Region, X-Oxy-Activity-Id',
+      `Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version, X-Oxy-Edge-Region, X-Oxy-Activity-Id, ${EXPECTED_VIEWER_HEADER}`,
     );
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (
@@ -328,6 +332,12 @@ export function createApp(deps: CreateAppDependencies): express.Express {
 
   // Federation endpoints must stay ahead of web shell and the apex proxy.
   app.use('/.well-known', routes.webfinger);
+  // FediDB domain-ownership proof: the exact line, as a plain text file served
+  // directly (a redirect does not count).
+  app.get('/.well-known/fedidb-verification', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.type('text/plain').send('fedidb-verify=h5jrgk3yh6a5fttrucjovdmb6nynkbqbkruir8nh\n');
+  });
   app.get('/.well-known/nodeinfo', (_req, res) => {
     res.json({
       links: [
@@ -347,6 +357,13 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       // out (all optional in the schema), never published as 0.
       deps.logger.debug('nodeinfo: statistics unavailable, omitting counts', error);
     }
+    let users: NodeinfoLocalUsers | undefined;
+    try {
+      users = await deps.getNodeinfoLocalUsers();
+    } catch (error) {
+      // Oxy has no snapshot yet, or is unreachable: omit, never publish 0.
+      deps.logger.debug('nodeinfo: local user total unavailable, omitting', error);
+    }
     // The figures are hourly aggregates; a document without them is only
     // briefly cacheable so the next poll can pick them up.
     res.setHeader('Cache-Control', stats ? 'public, max-age=1800' : 'public, max-age=60');
@@ -355,9 +372,10 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },
       protocols: ['activitypub'],
       services: { inbound: [], outbound: [] },
-      usage: stats
-        ? { users: {}, localPosts: stats.local.posts, localComments: stats.local.comments }
-        : { users: {} },
+      usage: {
+        users: users ? { total: users.total } : {},
+        ...(stats ? { localPosts: stats.local.posts, localComments: stats.local.comments } : {}),
+      },
       openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
       metadata: {
         ...(deps.deployment
@@ -368,7 +386,9 @@ export function createApp(deps: CreateAppDependencies): express.Express {
               revision: deps.deployment.software.revision,
             }
           : {}),
-        ...(stats ? { 'so.oxy.mention.statistics': nodeinfoStatisticsExtension(stats) } : {}),
+        ...(stats
+          ? { 'so.oxy.mention.statistics': nodeinfoStatisticsExtension(stats, users) }
+          : {}),
       },
     });
   });

@@ -40,6 +40,15 @@ export function supervisedActionForRequest(
   )
     return 'content';
   if (path === '/feed/mtn/interactions' && method === 'POST') return 'content';
+  // These guarded endpoints are the same audited mutations as their legacy
+  // counterparts. Match each method and shape; the prefix grants nothing else.
+  if (
+    (method === 'GET' && /^\/notifications\/_viewer\/(?:inbox|unread-count)$/.test(path)) ||
+    (method === 'PATCH' &&
+      /^\/notifications\/_viewer\/(?:read-all|[^/]+\/(?:read|archive))$/.test(path)) ||
+    (method === 'DELETE' && /^\/notifications\/_viewer\/[^/]+$/.test(path))
+  )
+    return 'content';
   if (
     /^\/notifications(?:\/[^/]+(?:\/read|\/archive)?)?$/.test(path) &&
     path !== '/notifications/push-test'

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Pressable, Text } from 'react-native';
+import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
@@ -33,10 +33,14 @@ import { useUserById } from '@/hooks/useCachedUser';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import { useKnownIdentitySet, type IdentityUpdate } from '@/stores/identityUpdates';
 import type { GroupedNotification } from '@/utils/groupNotifications';
+import type { NotificationIntent } from '@/types/notificationIntent';
+import { normalizeApiError } from '@/utils/apiError';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-import { presentSheet } from '@/utils/sheet';
-import { showActionMenu } from '@/components/common/ActionMenu';
+import { presentCancelableSheet } from '@/utils/sheet';
+import { showCancelableActionMenu } from '@/components/common/ActionMenu';
+import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
+import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
@@ -312,15 +316,21 @@ const ACTION_ICON_SIZE = 20;
 interface NotificationItemProps {
   item: GroupedNotification;
   /** Marks the given notification ids read (single -> `[id]`, group -> all ids). */
-  onMarkAsRead: (ids: string[]) => void;
+  onMarkAsRead: (ids: string[], intent?: NotificationIntent) => void;
   /** Deletes the given notification ids (single -> `[id]`, group -> all ids). */
-  onDelete: (ids: string[]) => void;
+  onDelete: (ids: string[], intent?: NotificationIntent) => void;
+  captureIntent: () => NotificationIntent | null;
+  isCurrentIntent: (intent: NotificationIntent) => boolean;
+  ownNotificationSurface: OwnNotificationSurface;
 }
 
 const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   item,
   onMarkAsRead,
   onDelete,
+  captureIntent,
+  isCurrentIntent,
+  ownNotificationSurface,
 }) => {
   const router = useRouter();
   const { t } = useTranslation();
@@ -492,57 +502,61 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     return postThumbnailUrl(source);
   }, [item.leadNotification.post, isCollabInvite, collabPost]);
 
-  const markRead = useCallback(() => {
-    if (hasUnread) onMarkAsRead(item.notificationIds);
-  }, [hasUnread, onMarkAsRead, item.notificationIds]);
-
   const handlePress = useCallback(() => {
-    markRead();
+    const intent = captureIntent();
+    if (!intent || !isCurrentIntent(intent)) return;
+    if (hasUnread) onMarkAsRead(item.notificationIds, intent);
     const { type, entityType, entityId } = item;
     const href =
       notificationSubjectHref({ type, entityType, entityId }) ??
       (entityType === 'profile' ? profileHrefForUser(resolvedPrimary) : null);
-    if (href) router.push(href);
-  }, [markRead, item, resolvedPrimary, router]);
+    if (href && isCurrentIntent(intent)) router.push(href);
+  }, [captureIntent, hasUnread, isCurrentIntent, item, onMarkAsRead, resolvedPrimary, router]);
 
   // Long-press opens a small action sheet offering "Mark as read" (only when the
   // row is unread) and a destructive "Delete". Dismissing the sheet is the
   // implicit cancel. Tapping a row acts, then closes the sheet.
   const handleLongPress = useCallback(() => {
-    showActionMenu({
-      label: t('common.options', { defaultValue: 'Options' }),
-      groups: [
-        hasUnread
-          ? [
-              {
-                icon: (
-                  <RiCheckDoubleLine
-                    width={ACTION_ICON_SIZE}
-                    height={ACTION_ICON_SIZE}
-                    fill={theme.colors.textSecondary}
-                  />
-                ),
-                label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
-                onPress: () => onMarkAsRead(item.notificationIds),
-              },
-            ]
-          : [],
-        [
-          {
-            icon: (
-              <RiDeleteBinLine
-                width={ACTION_ICON_SIZE}
-                height={ACTION_ICON_SIZE}
-                fill={theme.colors.error}
-              />
-            ),
-            label: t('notification.delete', { defaultValue: 'Delete' }),
-            color: theme.colors.error,
-            onPress: () => onDelete(item.notificationIds),
-          },
+    const intent = captureIntent();
+    if (!intent) return;
+    void ownNotificationSurface(intent, (signal, onClosed) =>
+      showCancelableActionMenu({
+        signal,
+        onClosed,
+        label: t('common.options', { defaultValue: 'Options' }),
+        groups: [
+          hasUnread
+            ? [
+                {
+                  icon: (
+                    <RiCheckDoubleLine
+                      width={ACTION_ICON_SIZE}
+                      height={ACTION_ICON_SIZE}
+                      fill={theme.colors.textSecondary}
+                    />
+                  ),
+                  label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
+                  onPress: () => onMarkAsRead(item.notificationIds, intent),
+                },
+              ]
+            : [],
+          [
+            {
+              icon: (
+                <RiDeleteBinLine
+                  width={ACTION_ICON_SIZE}
+                  height={ACTION_ICON_SIZE}
+                  fill={theme.colors.error}
+                />
+              ),
+              label: t('notification.delete', { defaultValue: 'Delete' }),
+              color: theme.colors.error,
+              onPress: () => onDelete(item.notificationIds, intent),
+            },
+          ],
         ],
-      ],
-    });
+      }),
+    );
   }, [
     hasUnread,
     theme.colors.textSecondary,
@@ -551,14 +565,18 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     onMarkAsRead,
     onDelete,
     item.notificationIds,
+    captureIntent,
+    ownNotificationSurface,
   ]);
 
   const openActorProfile = useCallback(
     (actor: ResolvedActor) => {
+      const intent = captureIntent();
+      if (!intent || !isCurrentIntent(intent)) return;
       const href = profileHrefForUser(actor);
-      if (href) router.push(href);
+      if (href && isCurrentIntent(intent)) router.push(href);
     },
-    [router],
+    [captureIntent, isCurrentIntent, router],
   );
 
   /**
@@ -581,80 +599,218 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   }, [resolvedPrimary, bylineName]);
 
   /** Resolves `true` once the invite is accepted. */
-  const runAccept = useCallback(async (): Promise<boolean> => {
-    if (!postId) return false;
-    setActionLoading(true);
-    try {
-      const result = await feedService.acceptCollabInvite(postId);
-      if (result.post) {
-        // Flip this row's own source of truth (drives the resolved state) AND
-        // propagate the newly-accepted co-authorship to every feed + the post
-        // detail via the shared posts store, so the collaboration shows
-        // everywhere without a manual refresh.
-        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
-        cachePosts([result.post]);
+  const runAccept = useCallback(
+    async (intent: NotificationIntent): Promise<boolean> => {
+      if (!postId || !isCurrentIntent(intent)) return false;
+      setActionLoading(true);
+      try {
+        const result = await feedService.acceptCollabInvite(postId, intent.viewerId);
+        if (!isCurrentIntent(intent)) return false;
+        if (!result.success) throw new Error('Collaboration was not accepted');
+        if (result.post) {
+          // Flip this row's own source of truth (drives the resolved state) AND
+          // propagate the newly-accepted co-authorship to every feed + the post
+          // detail via the shared posts store, so the collaboration shows
+          // everywhere without a manual refresh.
+          queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
+          cachePosts([result.post]);
+        }
+        onMarkAsRead(item.notificationIds, intent);
+        toast(
+          t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }),
+          {
+            type: 'success',
+          },
+        );
+        return true;
+      } catch (error) {
+        if (!isCurrentIntent(intent) || normalizeApiError(error).code === 'VIEWER_CHANGED')
+          return false;
+        logger.error('Failed to accept collab invite', error);
+        toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), {
+          type: 'error',
+        });
+        return false;
+      } finally {
+        setActionLoading(false);
       }
-      onMarkAsRead(item.notificationIds);
-      toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), {
-        type: 'success',
-      });
-      return true;
-    } catch (error) {
-      logger.error('Failed to accept collab invite', error);
-      toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), {
-        type: 'error',
-      });
-      return false;
-    } finally {
-      setActionLoading(false);
-    }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, t, user?.id]);
+    },
+    [
+      postId,
+      queryClient,
+      cachePosts,
+      onMarkAsRead,
+      item.notificationIds,
+      t,
+      user?.id,
+      isCurrentIntent,
+    ],
+  );
 
   /** Resolves `true` once the invite is declined. */
-  const runDecline = useCallback(async (): Promise<boolean> => {
-    if (!postId) return false;
-    setActionLoading(true);
-    try {
-      const result = await feedService.declineCollabInvite(postId);
-      if (result.post) {
-        // Flip this row to the resolved state and reflect the declined status on
-        // any cached copy of the post (private posts return no post here, in which
-        // case the actionable UI is simply dropped — the viewer lost view access).
-        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
-        cachePosts([result.post]);
+  const runDecline = useCallback(
+    async (intent: NotificationIntent): Promise<boolean> => {
+      if (!postId || !isCurrentIntent(intent)) return false;
+      setActionLoading(true);
+      try {
+        const result = await feedService.declineCollabInvite(postId, intent.viewerId);
+        if (!isCurrentIntent(intent)) return false;
+        if (!result.success) throw new Error('Collaboration was not declined');
+        if (result.post) {
+          // Flip this row to the resolved state and reflect the declined status on
+          // any cached copy of the post (private posts return no post here, in which
+          // case the actionable UI is simply dropped — the viewer lost view access).
+          queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
+          cachePosts([result.post]);
+        }
+        onMarkAsRead(item.notificationIds, intent);
+        return true;
+      } catch (error) {
+        if (!isCurrentIntent(intent) || normalizeApiError(error).code === 'VIEWER_CHANGED')
+          return false;
+        logger.error('Failed to decline collab invite', error);
+        toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), {
+          type: 'error',
+        });
+        return false;
+      } finally {
+        setActionLoading(false);
       }
-      onMarkAsRead(item.notificationIds);
-      return true;
-    } catch (error) {
-      logger.error('Failed to decline collab invite', error);
-      toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), {
-        type: 'error',
-      });
-      return false;
-    } finally {
-      setActionLoading(false);
-    }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, t, user?.id]);
+    },
+    [
+      postId,
+      queryClient,
+      cachePosts,
+      onMarkAsRead,
+      item.notificationIds,
+      t,
+      user?.id,
+      isCurrentIntent,
+    ],
+  );
 
   const openAcceptSheet = useCallback(() => {
     if (!inviter) return;
-    void presentSheet((surface) => (
-      <CollabAcceptSheet
-        inviter={inviter}
-        onAccept={async () => {
-          if (await runAccept()) surface.dismiss();
-        }}
-        onDecline={async () => {
-          if (await runDecline()) surface.dismiss();
-        }}
-        onClose={() => surface.dismiss()}
-      />
-    ));
-  }, [inviter, runAccept, runDecline]);
+    const intent = captureIntent();
+    if (!intent) return;
+    void ownNotificationSurface(intent, (signal, onClosed) =>
+      presentCancelableSheet(
+        (surface) => (
+          <OwnedSurfaceContent signal={signal}>
+            <CollabAcceptSheet
+              inviter={inviter}
+              onAccept={async () => {
+                if (signal.aborted) return;
+                if (!isCurrentIntent(intent)) return surface.dismiss();
+                if ((await runAccept(intent)) || !isCurrentIntent(intent)) surface.dismiss();
+              }}
+              onDecline={async () => {
+                if (signal.aborted) return;
+                if (!isCurrentIntent(intent)) return surface.dismiss();
+                if ((await runDecline(intent)) || !isCurrentIntent(intent)) surface.dismiss();
+              }}
+              onClose={() => surface.dismiss()}
+            />
+          </OwnedSurfaceContent>
+        ),
+        { signal, onClosed },
+      ),
+    );
+  }, [inviter, runAccept, runDecline, captureIntent, isCurrentIntent, ownNotificationSurface]);
 
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
 
   const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
+
+  // The invite's post state arrives asynchronously. Select the structure by the
+  // notification type so loading or resolving the invite does not replace the
+  // accessible row while it has focus.
+  const separateGestures = isCollabInvite;
+
+  const mainContent = (
+    <>
+      {showStrip ? <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} /> : null}
+
+      {/* Byline: bold name + muted @handle + federated badge + "· time". */}
+      <View className="flex-row items-end gap-2">
+        {/* Same hover target as a post byline. Only for a SINGLE actor: a
+                  grouped byline reads "Alice, Bob and 3 more", so previewing one
+                  of them from the whole phrase would be arbitrary. */}
+        <ProfileHoverCard
+          username={isSingleActor ? resolvedPrimary.handle : undefined}
+          style={{ minWidth: 0 }}
+        >
+          <View className="flex-row items-end flex-shrink min-w-0">
+            <UserName
+              name={bylineName}
+              verified={isSingleActor && resolvedPrimary.verified}
+              style={{ container: { flexShrink: 0 } }}
+            />
+            {showHandleLine ? (
+              <Text
+                className="text-muted-foreground text-[15px] leading-5"
+                style={{ flexShrink: 10, minWidth: 0 }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {` @${resolvedPrimary.handle}`}
+              </Text>
+            ) : null}
+            {isSingleActor ? (
+              <AccountBadge
+                isFederated={resolvedPrimary.isFederated}
+                kind={resolvedPrimary.kind}
+                size={13}
+                containerClassName="self-center ml-1"
+              />
+            ) : null}
+          </View>
+        </ProfileHoverCard>
+        {timeLabel ? (
+          <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
+            {'·'} {timeLabel}
+          </Text>
+        ) : null}
+      </View>
+
+      {channelText ? (
+        <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
+          {channelText}
+        </Text>
+      ) : null}
+
+      {actionText ? (
+        <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
+          {actionText}
+        </Text>
+      ) : null}
+
+      {previewText ? <NotificationPreview text={previewText} /> : null}
+    </>
+  );
+
+  const avatarContent = (
+    <>
+      <ProfileHoverCard username={resolvedPrimary.handle}>
+        <AccountAvatar
+          account={resolvedPrimary}
+          source={resolvedPrimary.avatar}
+          size={AVATAR_SIZE}
+          variant={MEDIA_VARIANT_AVATAR}
+        />
+      </ProfileHoverCard>
+      <View
+        className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
+        style={{ backgroundColor: badgeColor }}
+      >
+        <descriptor.icon
+          width={BADGE_ICON_SIZE}
+          height={BADGE_ICON_SIZE}
+          fill={BADGE_GLYPH_COLOR}
+        />
+      </View>
+    </>
+  );
 
   // Row anatomy copied (NOT imported) from PostItem + PostHeader: a full-width,
   // edge-to-edge Pressable (background + bottom border span the whole width, the
@@ -665,102 +821,49 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // A read row is opaque in the colour of the column it sits in; an unread one
   // replaces that with the tint (`tailwind-merge` dropped `bg-card` for exactly
   // the same reason when both were classes), so the two stay exclusive.
-  return (
-    <Pressable
-      className={cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5')}
-      style={hasUnread ? undefined : { backgroundColor: surfaceFill }}
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-    >
+  const rowContent = (
+    <>
       <SubtleHover />
-      <View className="px-3">
-        <View className="flex-row items-start justify-between">
+      <View className="px-3" pointerEvents={separateGestures ? 'box-none' : undefined}>
+        <View
+          className="flex-row items-start justify-between"
+          pointerEvents={separateGestures ? 'box-none' : undefined}
+        >
           {/* Avatar column: avatar + themed action-badge overlay. */}
-          <View className="relative mr-3">
-            <ProfileHoverCard username={resolvedPrimary.handle}>
-              <AccountAvatar
-                account={resolvedPrimary}
-                source={resolvedPrimary.avatar}
-                size={AVATAR_SIZE}
-                variant={MEDIA_VARIANT_AVATAR}
-              />
-            </ProfileHoverCard>
-            <View
-              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
-              style={{ backgroundColor: badgeColor }}
+          {separateGestures ? (
+            <Pressable
+              className="relative mr-3"
+              onPress={handlePress}
+              onLongPress={handleLongPress}
+              accessible={false}
+              tabIndex={-1}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
             >
-              <descriptor.icon
-                width={BADGE_ICON_SIZE}
-                height={BADGE_ICON_SIZE}
-                fill={BADGE_GLYPH_COLOR}
-              />
-            </View>
-          </View>
+              {avatarContent}
+            </Pressable>
+          ) : (
+            <View className="relative mr-3">{avatarContent}</View>
+          )}
 
           {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
               plus the muted action phrase and the text preview. */}
-          <View className="flex-1 gap-1">
-            {showStrip ? (
-              <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} />
-            ) : null}
-
-            {/* Byline: bold name + muted @handle + federated badge + "· time". */}
-            <View className="flex-row items-end gap-2">
-              {/* Same hover target as a post byline. Only for a SINGLE actor: a
-                  grouped byline reads "Alice, Bob and 3 more", so previewing one
-                  of them from the whole phrase would be arbitrary. */}
-              <ProfileHoverCard
-                username={isSingleActor ? resolvedPrimary.handle : undefined}
-                style={{ minWidth: 0 }}
+          <View className="flex-1 gap-1" pointerEvents={separateGestures ? 'box-none' : undefined}>
+            {separateGestures ? (
+              <Pressable
+                className="gap-1"
+                onPress={handlePress}
+                onLongPress={handleLongPress}
+                accessible={false}
+                tabIndex={-1}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
               >
-                <View className="flex-row items-end flex-shrink min-w-0">
-                  <UserName
-                    name={bylineName}
-                    verified={isSingleActor && resolvedPrimary.verified}
-                    style={{ container: { flexShrink: 0 } }}
-                  />
-                  {showHandleLine ? (
-                    <Text
-                      className="text-muted-foreground text-[15px] leading-5"
-                      style={{ flexShrink: 10, minWidth: 0 }}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {` @${resolvedPrimary.handle}`}
-                    </Text>
-                  ) : null}
-                  {isSingleActor ? (
-                    <AccountBadge
-                      isFederated={resolvedPrimary.isFederated}
-                      kind={resolvedPrimary.kind}
-                      size={13}
-                      containerClassName="self-center ml-1"
-                    />
-                  ) : null}
-                </View>
-              </ProfileHoverCard>
-              {timeLabel ? (
-                <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
-                  {'·'} {timeLabel}
-                </Text>
-              ) : null}
-            </View>
-
-            {channelText ? (
-              <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
-                {channelText}
-              </Text>
-            ) : null}
-
-            {actionText ? (
-              <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
-                {actionText}
-              </Text>
-            ) : null}
-
-            {previewText ? <NotificationPreview text={previewText} /> : null}
+                {mainContent}
+              </Pressable>
+            ) : (
+              mainContent
+            )}
 
             {isGroup && item.expandable ? (
               <View className="mt-1 gap-2">
@@ -769,7 +872,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                     {resolvedActors.map((actor, index) => (
                       <ProfileHoverCard key={actor.id ?? `slot-${index}`} username={actor.handle}>
                         <Pressable
-                          onPress={() => openActorProfile(actor)}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            openActorProfile(actor);
+                          }}
                           className="flex-row items-center gap-2"
                           accessibilityRole="button"
                         >
@@ -786,7 +892,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                   </View>
                 ) : null}
                 <Pressable
-                  onPress={toggleExpanded}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    toggleExpanded();
+                  }}
                   hitSlop={tokens.hitSlop.md}
                   accessibilityRole="button"
                 >
@@ -804,14 +913,23 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 instead — so a handled invite is never actionable again. */}
             {isCollabInvite && collabInvitePending ? (
               <View className="flex-row gap-2 mt-2">
-                <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
+                <Button
+                  className="flex-1"
+                  onPress={openAcceptSheet}
+                  disabled={actionLoading}
+                  stopPropagation
+                >
                   {t('collab.accept', { defaultValue: 'Accept' })}
                 </Button>
                 <Button
                   appearance="subtle"
                   tone="neutral"
                   className="flex-1"
-                  onPress={runDecline}
+                  stopPropagation
+                  onPress={() => {
+                    const intent = captureIntent();
+                    if (intent) void runDecline(intent);
+                  }}
                   disabled={actionLoading}
                 >
                   {t('collab.decline', { defaultValue: 'Decline' })}
@@ -820,7 +938,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             ) : null}
 
             {isCollabInvite && collabAccepted ? (
-              <View className="flex-row items-center gap-1.5 mt-1">
+              <View
+                className="flex-row items-center gap-1.5 mt-1"
+                pointerEvents={separateGestures ? 'none' : undefined}
+              >
                 <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
                 <Text className="text-muted-foreground text-[15px] leading-5">
                   {t('collab.youAccepted', { defaultValue: 'You accepted' })}
@@ -829,7 +950,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             ) : null}
 
             {isCollabInvite && collabDeclined ? (
-              <View className="flex-row items-center gap-1.5 mt-1">
+              <View
+                className="flex-row items-center gap-1.5 mt-1"
+                pointerEvents={separateGestures ? 'none' : undefined}
+              >
                 <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
                 <Text className="text-muted-foreground text-[15px] leading-5">
                   {t('collab.youDeclined', { defaultValue: 'You declined' })}
@@ -851,12 +975,45 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               cachePolicy="memory-disk"
               accessibilityElementsHidden
               importantForAccessibility="no"
+              pointerEvents={separateGestures ? 'none' : undefined}
             />
           ) : null}
-
-          {hasUnread ? <View className="w-2 h-2 rounded-full bg-primary self-center ml-2" /> : null}
+          {hasUnread ? (
+            <View
+              className="w-2 h-2 rounded-full bg-primary self-center ml-2"
+              pointerEvents={separateGestures ? 'none' : undefined}
+            />
+          ) : null}
         </View>
       </View>
+    </>
+  );
+  const rowClass = cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5');
+  const rowStyle = hasUnread ? undefined : { backgroundColor: surfaceFill };
+  if (separateGestures) {
+    return (
+      <View className={rowClass} style={rowStyle}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handlePress}
+          onLongPress={handleLongPress}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+        />
+        {rowContent}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      className={rowClass}
+      style={rowStyle}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
+      {rowContent}
     </Pressable>
   );
 };

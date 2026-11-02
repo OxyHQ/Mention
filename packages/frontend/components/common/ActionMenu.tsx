@@ -2,10 +2,11 @@ import { memo } from 'react';
 import { View } from 'react-native';
 
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
-import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
+import type { SurfaceControls, SurfaceRenderFn } from '@oxy.so/bloom/surfaces';
 
 import { buildMenuGroups, type ActionMenuAction } from '@/components/common/actionMenuGroups';
-import { presentSheet } from '@/utils/sheet';
+import { presentCancelableSheet, presentSheet } from '@/utils/sheet';
+import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
 
 interface ActionMenuGroupProps {
   actions: ActionMenuAction[];
@@ -54,29 +55,54 @@ let activeMenu: SurfaceControls | null = null;
  * surface for the post menu and the profile menu, so they cannot drift apart
  * again.
  *
- * A row's `onPress` runs AFTER the menu closes, so an action is free to open
- * another surface.
+ * A row requests the menu's dismissal before running its action; the exit
+ * animation may still be in progress when the action runs.
  */
-export function showActionMenu(request: ActionMenuRequest): void {
+function presentActionMenu(
+  request: ActionMenuRequest & { signal?: AbortSignal; onClosed?: () => void },
+): Promise<void> {
+  if (request.signal?.aborted) return Promise.resolve().then(() => request.onClosed?.());
   activeMenu?.dismiss();
+  if (request.signal?.aborted) return Promise.resolve().then(() => request.onClosed?.());
   let own: SurfaceControls | null = null;
-  void presentSheet(
-    (surface) => {
-      own = surface;
-      activeMenu = surface;
-      const groups = buildMenuGroups(request.groups, surface.dismiss);
-      return (
-        <View className="p-4 gap-2">
-          {groups.map((actions) => (
-            <ActionMenuGroup key={actions[0].label} actions={actions} />
-          ))}
-        </View>
-      );
-    },
-    { label: request.label },
-  ).then(() => {
+  const render: SurfaceRenderFn = (surface) => {
+    own = surface;
+    activeMenu = surface;
+    const groups = buildMenuGroups(request.groups, surface.dismiss, request.signal);
+    const content = (
+      <View className="p-4 gap-2">
+        {groups.map((actions) => (
+          <ActionMenuGroup key={actions[0].label} actions={actions} />
+        ))}
+      </View>
+    );
+    return request.signal ? (
+      <OwnedSurfaceContent signal={request.signal}>{content}</OwnedSurfaceContent>
+    ) : (
+      content
+    );
+  };
+  const presentation = request.signal
+    ? presentCancelableSheet(render, {
+        label: request.label,
+        signal: request.signal,
+        onClosed: request.onClosed,
+      })
+    : presentSheet(render, { label: request.label });
+  return presentation.then(() => {
     if (activeMenu === own) activeMenu = null;
   });
+}
+
+export function showActionMenu(request: ActionMenuRequest): void {
+  void presentActionMenu(request);
+}
+
+/** Present a menu bound to one owner without changing the historical API. */
+export function showCancelableActionMenu(
+  request: ActionMenuRequest & { signal: AbortSignal; onClosed?: () => void },
+): Promise<void> {
+  return presentActionMenu(request);
 }
 
 /** Close the action menu without running an action. */

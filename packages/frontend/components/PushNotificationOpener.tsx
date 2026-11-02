@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { notificationService } from '@/services/notificationService';
@@ -21,7 +21,7 @@ import { subscribeToPushOpens } from '@/utils/notifications';
 export function PushNotificationOpener() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, oxyServices } = useAuth();
   const userId = user?.id;
 
   useEffect(() => {
@@ -30,14 +30,22 @@ export function PushNotificationOpener() {
     let cancelled = false;
 
     void subscribeToPushOpens((data) => {
-      if (data.notificationId) {
+      const epoch = oxyServices.http.getSessionEpoch();
+      if (!cancelled && data.notificationId && useAuthStore.getState().user?.id === userId) {
         // The socket echo patches the inbox when it is connected; refetching
         // covers a cold start, where it is not yet.
         notificationService
-          .markAsRead(data.notificationId)
-          .then(() =>
-            queryClient.invalidateQueries({ queryKey: viewerQueryKeys.notificationsRoot(userId) }),
-          )
+          .markAsRead(data.notificationId, userId)
+          .then(() => {
+            if (
+              useAuthStore.getState().user?.id === userId &&
+              oxyServices.http.getSessionEpoch() === epoch
+            ) {
+              return queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.notificationsRoot(userId),
+              });
+            }
+          })
           .catch(() => undefined);
       }
       router.push(notificationSubjectHref(data) ?? '/notifications');
@@ -50,7 +58,7 @@ export function PushNotificationOpener() {
       cancelled = true;
       unsubscribe?.();
     };
-  }, [isAuthenticated, userId, queryClient, router]);
+  }, [isAuthenticated, userId, queryClient, router, oxyServices]);
 
   return null;
 }

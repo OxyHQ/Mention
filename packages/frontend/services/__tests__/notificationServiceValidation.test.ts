@@ -45,3 +45,30 @@ describe('notificationService.getNotifications', () => {
     expect((await notificationService.getNotifications()).notifications).toEqual([]);
   });
 });
+
+it('binds both reconciliation reads to the expected viewer and never falls back', async () => {
+  mockGet.mockReset();
+  mockGet.mockResolvedValueOnce({ data: { notifications: [valid], unreadCount: 1 } });
+  mockGet.mockResolvedValueOnce({ data: { count: 1 } });
+  expect((await notificationService.getNotificationsForViewer('A', 'cursor', 10)).unreadCount).toBe(
+    1,
+  );
+  expect(await notificationService.getUnreadCountForViewer('A')).toBe(1);
+  expect(mockGet.mock.calls).toEqual([
+    [
+      '/notifications/_viewer/inbox',
+      { params: { cursor: 'cursor', limit: 10 }, headers: { 'X-Mention-Expected-Viewer': 'A' } },
+    ],
+    ['/notifications/_viewer/unread-count', { headers: { 'X-Mention-Expected-Viewer': 'A' } }],
+  ]);
+  const unavailable = Object.assign(new Error('not found'), { status: 404 });
+  mockGet.mockReset();
+  mockGet.mockRejectedValue(unavailable);
+  await expect(notificationService.getNotificationsForViewer('A')).rejects.toBe(unavailable);
+  await expect(notificationService.getUnreadCountForViewer('A')).rejects.toBe(unavailable);
+  expect(mockGet).toHaveBeenCalledTimes(2);
+  expect(mockGet.mock.calls.map(([path]) => path)).toEqual([
+    '/notifications/_viewer/inbox',
+    '/notifications/_viewer/unread-count',
+  ]);
+});

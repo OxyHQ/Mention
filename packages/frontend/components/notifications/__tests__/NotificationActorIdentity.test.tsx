@@ -101,8 +101,11 @@ jest.mock('../notificationDescriptors', () => ({
   }),
 }));
 jest.mock('@/lib/utils', () => ({ cn: (...args: unknown[]) => args.filter(Boolean).join(' ') }));
-jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
-jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(), presentCancelableSheet: jest.fn() }));
+jest.mock('@/components/common/ActionMenu', () => ({
+  showActionMenu: jest.fn(),
+  showCancelableActionMenu: jest.fn(),
+}));
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
@@ -165,7 +168,16 @@ function renderRow(item: GroupedNotification = groupedLike()) {
   act(() => {
     mounted = TestRenderer.create(
       <QueryClientProvider client={queryClient as QueryClient}>
-        <NotificationItem item={item} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+        <NotificationItem
+          item={item}
+          onMarkAsRead={jest.fn()}
+          onDelete={jest.fn()}
+          captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+          isCurrentIntent={() => true}
+          ownNotificationSurface={async (_intent, present) =>
+            present(new AbortController().signal, () => {})
+          }
+        />
       </QueryClientProvider>,
     );
   });
@@ -265,7 +277,16 @@ describe('the actor whose profile the row resolves', () => {
     act(() => {
       renderer.update(
         <QueryClientProvider client={queryClient as QueryClient}>
-          <NotificationItem item={actual} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+          <NotificationItem
+            item={actual}
+            onMarkAsRead={jest.fn()}
+            onDelete={jest.fn()}
+            captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+            isCurrentIntent={() => true}
+            ownNotificationSurface={async (_intent, present) =>
+              present(new AbortController().signal, () => {})
+            }
+          />
         </QueryClientProvider>,
       );
     });
@@ -274,7 +295,16 @@ describe('the actor whose profile the row resolves', () => {
     act(() => {
       renderer.update(
         <QueryClientProvider client={queryClient as QueryClient}>
-          <NotificationItem item={system} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+          <NotificationItem
+            item={system}
+            onMarkAsRead={jest.fn()}
+            onDelete={jest.fn()}
+            captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+            isCurrentIntent={() => true}
+            ownNotificationSurface={async (_intent, present) =>
+              present(new AbortController().signal, () => {})
+            }
+          />
         </QueryClientProvider>,
       );
     });
