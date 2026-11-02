@@ -2930,5 +2930,21 @@
   "commerce.sortRelevance": "Relevancia",
   "commerce.inStockOnly": "Solo disponibles",
   "commerce.featuredCollections": "Colecciones destacadas",
-  "commerce.moreCollectionProducts": "Cargar más · {{title}}"
+  "commerce.moreCollectionProducts": "Cargar más · {{title}}",
+  "plus.subscribe": "Suscribirse",
+  "plus.payment.title": "Pagar con Peable",
+  "plus.payment.description": "Mention Plus está incluido en Oxy One. Revisa la suscripción aprobada antes de continuar al pago seguro.",
+  "plus.payment.monthlyPrice": "{{price}} / mes, impuestos incluidos",
+  "plus.payment.loading": "Cargando suscripción…",
+  "plus.payment.unavailable": "Esta suscripción todavía no está disponible para comprar.",
+  "plus.payment.failed": "No pudimos confirmar el estado del pago. Inténtalo de nuevo para recuperar el mismo pago.",
+  "plus.payment.pending": "El pago está pendiente. Cerrar esta ventana no cancela un pago ya autorizado.",
+  "plus.payment.fulfilled": "Oxy ha confirmado esta suscripción. Tu cuenta de Oxy gestiona el acceso.",
+  "plus.payment.closed": "Este pago se ha cerrado. Cierra esta ventana y vuelve a suscribirte para iniciar otro.",
+  "plus.payment.review": "Este pago necesita revisión. No inicies otro pago. Comprueba tu cuenta antes de intentarlo de nuevo.",
+  "plus.payment.blocked": "La ventana de pago se ha bloqueado o cerrado. Continúa de nuevo para abrir el mismo pago.",
+  "plus.payment.signIn": "Iniciar sesión para continuar",
+  "plus.payment.continue": "Continuar al pago",
+  "plus.payment.checkStatus": "Comprobar estado del pago",
+  "plus.payment.pricingUnavailable": "Precio no disponible"
 }
