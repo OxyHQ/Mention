@@ -3,6 +3,7 @@ import { proxyExternalUrl, videoPosterUrl } from '../mediaUrls';
 jest.mock('@/config', () => ({
   API_URL: 'https://api.mention.test',
   OXY_BASE_URL: 'https://api.oxy.test',
+  CLARITY_API_URL: 'https://api.clarity.test',
 }));
 
 const API = 'https://api.mention.test';
@@ -14,6 +15,9 @@ describe('proxyExternalUrl', () => {
     expect(proxyExternalUrl(remote)).toBe(proxied);
     expect(proxyExternalUrl(proxied)).toBe(proxied);
     expect(proxyExternalUrl('https://api.oxy.test/assets/1')).toBe('https://api.oxy.test/assets/1');
+    expect(proxyExternalUrl('https://api.clarity.test/images/documents/1/v')).toBe(
+      'https://api.clarity.test/images/documents/1/v',
+    );
     expect(proxyExternalUrl('https://elsewhere.example/media/proxy?url=x')).toBe(
       'https://elsewhere.example/media/proxy?url=x',
     );

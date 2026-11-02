@@ -1,0 +1,24 @@
+-- oxy:deploy-phase=pre
+-- NodeInfo statistics (#1748) count local and external posts and comments with
+-- index-only scans instead of a sequential scan of `posts` (#1160, #1165).
+--
+-- Both indexes are partial and small: the first holds only this instance's public
+-- published posts (key `is_reply` splits posts from comments in one GROUP BY), the
+-- second only federated replies.
+--
+-- CREATE INDEX takes SHARE on `posts`: reads continue, writes wait for the build,
+-- which scans the table once. On the production database build both
+-- CONCURRENTLY by hand before deploying, with the same names and definitions, and
+-- these statements pass over them:
+--
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS "posts_local_public_kind_idx" ON "posts"
+--     USING btree ("is_reply")
+--     WHERE "posts"."federation_actor_uri" is null and "posts"."visibility" = 'public' and "posts"."status" = 'published';
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS "posts_external_replies_idx" ON "posts"
+--     USING btree ("id")
+--     WHERE "posts"."federation_actor_uri" is not null and "posts"."is_reply";
+--
+-- A failed CONCURRENTLY build leaves an INVALID index that IF NOT EXISTS skips;
+-- check `pg_index.indisvalid` for both names and rebuild before deploying.
+CREATE INDEX IF NOT EXISTS "posts_local_public_kind_idx" ON "posts" USING btree ("is_reply") WHERE "posts"."federation_actor_uri" is null and "posts"."visibility" = 'public' and "posts"."status" = 'published';--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "posts_external_replies_idx" ON "posts" USING btree ("id") WHERE "posts"."federation_actor_uri" is not null and "posts"."is_reply";

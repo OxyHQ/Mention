@@ -57,6 +57,7 @@ function createDependencies(): CreateAppDependencies {
     isApexHost: (req) => req.headers.host === 'mention.earth',
     isApexWebPlaneRequest: (req) => req.headers.host === 'mention.earth',
     getNodeinfoStatistics: vi.fn().mockRejectedValue(new Error('none')),
+    getNodeinfoLocalUsers: vi.fn().mockRejectedValue(new Error('none')),
     logger: { debug: vi.fn() },
     middleware: {
       requestObservability: passThrough,
@@ -95,7 +96,9 @@ describe('createApp', () => {
       { path: '/.well-known/webfinger', status: 200 },
       { path: '/private-request', status: 401 },
     ]);
-  });
+    // The first test of the file pays the cold import of the whole app graph, which
+    // exceeds the 5 s default on a loaded CI shard.
+  }, 30_000);
 
   it('imports and creates the app without connections, timers, sockets, or listen', async () => {
     vi.resetModules();
@@ -420,27 +423,36 @@ describe('createApp', () => {
 
     const stats = {
       measuredAt: Date.UTC(2026, 10, 2),
-      posts: { local: 7, external: 3, combined: 10 },
-      externalActors: 4,
-      exact: false,
+      local: { posts: 7, comments: 2, total: 9 },
+      external: { posts: 3, comments: 1, total: 4 },
+      combined: { posts: 10, comments: 3, total: 13 },
+      externalActors: { count: 4, exact: false },
     };
     deps.getNodeinfoStatistics = vi.fn().mockResolvedValue(stats);
+    deps.getNodeinfoLocalUsers = vi.fn().mockResolvedValue({
+      total: 12,
+      exact: true,
+      computedAt: '2026-11-02T00:00:00.000Z',
+      stale: false,
+    });
     await request(createApp(deps))
       .get('/nodeinfo/2.0')
       .set('Host', 'api.mention.earth')
       .expect(200)
       .expect(({ body }) => {
         // Standard fields carry LOCAL content only; unknown local users are omitted.
-        expect(body.usage).toEqual({ users: {}, localPosts: 7 });
+        expect(body.usage).toEqual({ users: { total: 12 }, localPosts: 7, localComments: 2 });
+        expect(body.metadata['so.oxy.mention.statistics'].localUsers.stale).toBe(false);
         expect(body.services).toEqual({ inbound: [], outbound: [] });
         expect(body.metadata['so.oxy.mention.statistics']).toMatchObject({
           posts: { local: 7, external: 3, combined: 10 },
-          externalActors: 4,
-          exact: false,
+          comments: { local: 2, external: 1, combined: 3 },
+          externalActors: { count: 4, exact: false },
         });
       });
 
     deps.getNodeinfoStatistics = vi.fn().mockRejectedValue(new Error('database unavailable'));
+    deps.getNodeinfoLocalUsers = vi.fn().mockRejectedValue(new Error('oxy unavailable'));
     await request(createApp(deps))
       .get('/nodeinfo/2.0')
       .set('Host', 'api.mention.earth')
@@ -455,6 +467,16 @@ describe('createApp', () => {
       'nodeinfo: statistics unavailable, omitting counts',
       expect.any(Error),
     );
+  });
+
+  it('serves the FediDB verification file as plain text without a redirect', async () => {
+    const { createApp } = await import('../app');
+    await request(createApp(createDependencies()))
+      .get('/.well-known/fedidb-verification')
+      .set('Host', 'mention.earth')
+      .expect(200)
+      .expect('Content-Type', /^text\/plain/)
+      .expect('fedidb-verify=h5jrgk3yh6a5fttrucjovdmb6nynkbqbkruir8nh\n');
   });
 
   it('compresses ordinary large responses but honors both opt-out paths', async () => {

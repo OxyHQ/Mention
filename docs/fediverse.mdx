@@ -755,23 +755,41 @@ reach the backend without a zone-level redirect.
 ## NodeInfo statistics
 
 `GET /nodeinfo/2.0` follows the NodeInfo 2.0 schema (`services` and `metadata` always
-present). Standard `usage` fields describe **local** content only:
+present). Standard `usage` fields describe **local** content only.
 
-- `usage.localPosts` — posts authored here (no `federation_actor_uri`). An estimate: total
-  rows come from the planner (`pg_class.reltuples`) and the external subset from one
-  index-only count, so it is bounded and never a table scan (#1160, #1165).
-- `usage.users.total` and `usage.localComments` are **omitted**, not zero. Oxy owns
-  identity and has no deployment-scoped registered-user aggregate yet; that is the
-  explicit dependency before Mention can publish local users. Unknown is not zero.
+**Counting rules** (the unit is one stored `posts` row):
 
-The breakdown lives under `metadata["so.oxy.mention.statistics"]`: `posts.{local,external,combined}`
-(a disjoint partition: `combined = local + external`, one row per federation activity id, so
-repeated deliveries never double count), `externalActors` (known `federated_actors` records;
-aliases are separate records), `exact` (false whenever estimates are used), `measuredAt`
-and `scope` (content known to this instance, not the fediverse).
+- *Local*: no `federation_actor_uri`, counted only while `visibility = 'public'` and
+  `status = 'published'`. Drafts, scheduled, deleted and non-public rows are never published.
+- *External*: has a `federation_actor_uri` (ActivityPub or atproto, including bridged and
+  imported rows). `federation_activity_id` is unique, so repeated deliveries are one row.
+- *Comment* = `is_reply`; *post* = not. Local and external are a disjoint partition, so
+  `combined = local + external`.
+- `externalActors` = known `federated_actors` records (`uri` unique; an alias under another
+  URI is another record). It is the planner estimate, flagged with its own `exact`.
+- `usage.users.total` is Oxy's registered-account total for this deployment (ADR 0052,
+  `applicationAccountTotal()`), read with stale-while-revalidate. Mention registers every
+  account with a `user_settings` row (created on first use, posting or not) through a
+  leader-gated job that walks the table by `oxy_user_id` in batches of 500 from a Redis
+  cursor; Oxy applies its own eligibility rules (local, personal, active, not closing).
+  Until Oxy has a snapshot the field is **omitted, not zero**; the extension's
+  `localUsers` carries `exact`, `computedAt` and `stale`.
 
-Freshness: hourly stale-while-revalidate, single flight per process. A failed refresh keeps
-serving the last good figures; with none ever measured the counts are omitted and the
-document is cacheable for 60 s. FediDB-style consumers only render the standard local
-fields and refresh on their own crawl schedule, so verify the raw endpoint first and allow
-for their delay before expecting a changed external page.
+
+`metadata["so.oxy.mention.statistics"]` with `posts` and `comments` each split
+`{local, external, combined}`, `externalActors`, `measuredAt`, `exact` and `scope`
+(content known to this instance, not the fediverse).
+
+**Cost**: no statement scans `posts`. Migration 0104 adds two small partial indexes
+(`posts_local_public_kind_idx`, `posts_external_replies_idx`); the counts are index-only.
+On a large database build them `CONCURRENTLY` by hand first, as the migration comment says,
+and check `pg_index.indisvalid`.
+
+**Freshness**: hourly stale-while-revalidate, single flight per process. A failed refresh
+keeps serving the last good figures; with none ever measured the counts are omitted and the
+document is cacheable for 60 s.
+
+**Verifying production**: compare the raw endpoint with
+`select is_reply, count(*) from posts where federation_actor_uri is null and visibility='public' and status='published' group by 1`.
+FediDB renders only the standard local fields and refreshes on its own crawl schedule, so
+allow for that delay before expecting its page to change.

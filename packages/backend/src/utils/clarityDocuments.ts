@@ -161,6 +161,29 @@ function documentCacheKey(url: string): string {
  */
 export const CLARITY_RESOLVE_BATCH = 50;
 
+/** The longest URL Clarity stores (`MAX_URL_LENGTH` in Clarity's `query-primitives.ts`). */
+const CLARITY_MAX_URL_LENGTH = 2_048;
+
+/**
+ * Whether Clarity's `/v1/resolve` accepts this URL at all: public http(s), no
+ * embedded credentials, at most {@link CLARITY_MAX_URL_LENGTH} characters once the
+ * fragment is dropped (the rule of Clarity's `publicUrlSchema`). Clarity rejects
+ * the WHOLE call with a 400 for one URL that fails it, so a single tracking-heavy
+ * link used to take the cards of up to 49 other links down with it, and — being
+ * permanent — it could never produce a card itself. Such a URL is skipped here:
+ * not pending, because asking again cannot help.
+ */
+export function isResolvableByClarity(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;
+    url.hash = '';
+    return url.toString().length <= CLARITY_MAX_URL_LENGTH;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Resolve a deduped URL set against Clarity, in calls of at most
  * {@link CLARITY_RESOLVE_BATCH} URLs run side by side. Without the split, a page
@@ -187,7 +210,9 @@ export async function resolveClarityDocuments(
 ): Promise<ResolvedClarityDocuments> {
   const documents = new Map<string, ClarityDocument>();
   const pending = new Set<string>();
-  const unique = [...new Set(urls)].filter((url) => parseHomiioCaseUrl(url) === null);
+  const unique = [...new Set(urls)].filter(
+    (url) => parseHomiioCaseUrl(url) === null && isResolvableByClarity(url),
+  );
   if (unique.length === 0) return { documents, pending };
 
   const cached = await documentCache.getMany<ClarityDocument>(unique.map(documentCacheKey));

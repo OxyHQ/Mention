@@ -11,7 +11,11 @@ import { createOptionalAuth } from './middleware/optionalAuth';
 import { routeRateLimitByBearer } from './mcp/middleware/mcpRateLimiter';
 import { requestObservability } from './middleware/requestObservability';
 import { contentAccessScope } from './services/contentAccessBatcher';
-import { measureNodeinfoStatistics, type NodeinfoStatistics } from './services/nodeinfoStatistics';
+import {
+  measureNodeinfoStatistics,
+  type NodeinfoLocalUsers,
+  type NodeinfoStatistics,
+} from './services/nodeinfoStatistics';
 import { getRuntimeOxyClient } from './runtime/oxyClient';
 import { globalErrorHandler } from './utils/error';
 import { isAllowedOrigin } from './utils/allowedOrigins';
@@ -44,7 +48,9 @@ import { createCache } from './utils/cache';
  */
 const NODEINFO_STATS_FRESH_MS = 60 * 60 * 1000;
 const NODEINFO_STATS_TTL_SECONDS = 24 * 60 * 60;
-const NODEINFO_STATS_KEY = 'nodeinfo:v3:statistics';
+// Bump the version whenever `NodeinfoStatistics` changes shape: Redis keeps the old
+// envelope for a day, and an old entry read as the new shape 500s the endpoint.
+const NODEINFO_STATS_KEY = 'nodeinfo:v4:statistics';
 const nodeinfoStatsCache = createCache({
   name: 'NodeinfoStatisticsCache',
   ttlSeconds: NODEINFO_STATS_TTL_SECONDS,
@@ -58,6 +64,30 @@ const nodeinfoStatsCache = createCache({
  */
 export function nodeinfoStatisticsCached(): Promise<NodeinfoStatistics> {
   return nodeinfoStatsCache.getOrCompute(NODEINFO_STATS_KEY, () => measureNodeinfoStatistics());
+}
+
+const NODEINFO_USERS_KEY = 'nodeinfo:v1:local-users';
+// Oxy's snapshot is already bounded (5-minute recount); this only collapses pollers.
+const nodeinfoUsersCache = createCache({
+  name: 'NodeinfoLocalUsersCache',
+  ttlSeconds: NODEINFO_STATS_TTL_SECONDS,
+  staleAfterMs: 10 * 60 * 1000,
+});
+
+/**
+ * Oxy's registered-account total, stale-while-revalidate. A failed refresh keeps
+ * the last good value; with none it rejects and the route omits the field.
+ */
+export function nodeinfoLocalUsersCached(): Promise<NodeinfoLocalUsers> {
+  return nodeinfoUsersCache.getOrCompute(NODEINFO_USERS_KEY, async () => {
+    const snapshot = await getRuntimeOxyClient().applicationAccountTotal();
+    return {
+      total: snapshot.total,
+      exact: snapshot.exact,
+      computedAt: snapshot.computedAt,
+      stale: snapshot.stale,
+    };
+  });
 }
 
 /** Compose production HTTP dependencies. Runtime bootstrap calls this once. */
@@ -93,6 +123,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
     // An hourly planner estimate, never a scan per poller — see
     // `countLocalPostsCached`.
     getNodeinfoStatistics: nodeinfoStatisticsCached,
+    getNodeinfoLocalUsers: nodeinfoLocalUsersCached,
     logger,
     middleware: {
       activity,

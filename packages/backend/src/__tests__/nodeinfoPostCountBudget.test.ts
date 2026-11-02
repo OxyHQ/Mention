@@ -64,58 +64,89 @@ async function statementsAgainst(table: string): Promise<number> {
     .reduce((total, { count }) => total + count, 0);
 }
 
-describe('nodeinfo statistics — scan budget', () => {
-  it('never scans posts: planner estimates plus one index-backed count', async () => {
-    await getDb().execute(sql`analyze posts`);
-    await getDb().execute(sql`analyze federated_actors`);
+describe('nodeinfo statistics', () => {
+  it('never scans posts: every statement is an index-backed count', async () => {
+    const db = getDb();
+    await db.execute(sql`analyze posts`);
+    await db.execute(sql`analyze federated_actors`);
     metrics.reset();
 
     const stats = await measureNodeinfoStatistics();
 
-    for (const n of [
-      stats.posts.local,
-      stats.posts.external,
-      stats.posts.combined,
-      stats.externalActors,
-    ]) {
+    for (const n of [stats.local.total, stats.external.total, stats.combined.total]) {
       expect(Number.isInteger(n)).toBe(true);
       expect(n).toBeGreaterThanOrEqual(0);
     }
-    expect(stats.posts.local + stats.posts.external).toBe(stats.posts.combined);
-    // Exactly one statement on `posts` (the federated count); the estimates are `other`.
-    expect(await statementsAgainst('posts')).toBe(1);
-    expect(await statementsAgainst('other')).toBe(2);
+    expect(stats.local.total + stats.external.total).toBe(stats.combined.total);
+    // Three statements on `posts`: the local GROUP BY and the two external counts.
+    expect(await statementsAgainst('posts')).toBe(3);
+
+    // With sequential scans disabled the planner can only use the partial
+    // indexes, so a plan that still needs one proves no index serves the query.
+    // (A tiny test table would otherwise legitimately prefer the scan.)
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`set local enable_seqscan = off`);
+      for (const [query, index] of [
+        [
+          sql`select is_reply, count(*) from posts where federation_actor_uri is null and visibility = 'public' and status = 'published' group by is_reply`,
+          'posts_local_public_kind_idx',
+        ],
+        [
+          sql`select count(*) from posts where federation_actor_uri is not null and is_reply`,
+          'posts_external_replies_idx',
+        ],
+      ] as const) {
+        const plan = JSON.stringify(await tx.execute(sql`explain (format json) ${query}`));
+        expect(plan).not.toContain('Seq Scan');
+        expect(plan).toContain(index);
+      }
+    });
   });
 
   it('collapses a burst of concurrent pollers onto one computation', async () => {
+    metrics.reset();
     const answers = await Promise.all(Array.from({ length: 12 }, () => nodeinfoStatisticsCached()));
-    expect(answers).toHaveLength(12);
     for (const answer of answers) expect(answer).toEqual(answers[0]);
-    expect(await statementsAgainst('posts')).toBeLessThanOrEqual(2);
+    expect(await statementsAgainst('posts')).toBeLessThanOrEqual(3);
   });
 
-  it('splits local and external posts exactly and never counts a repeated delivery twice', async () => {
+  it('counts only public published local content and never counts a repeated delivery twice', async () => {
     // `posts` is shared with every suite on this database: assert on DELTAS.
     const db = getDb();
-    await db.execute(sql`analyze posts`);
     const before = await measureNodeinfoStatistics();
-    const external = {
-      oxyUserId: 'nodeinfo-ext',
+    const remote = {
       federationActorUri: 'https://remote.example/users/nodeinfo',
-      federationActivityId: 'https://remote.example/nodeinfo/1',
     };
     const inserted = await db
       .insert(posts)
       .values([
         { oxyUserId: 'nodeinfo-a' },
-        { oxyUserId: 'nodeinfo-b' },
-        { oxyUserId: 'nodeinfo-a' },
-        external,
+        { oxyUserId: 'nodeinfo-a', isReply: true },
+        { oxyUserId: 'nodeinfo-b', isReply: true },
+        { oxyUserId: 'nodeinfo-draft', status: 'draft' },
+        { oxyUserId: 'nodeinfo-private', visibility: 'private' },
+        {
+          oxyUserId: 'nodeinfo-ext',
+          ...remote,
+          federationActivityId: 'https://remote.example/nodeinfo/1',
+        },
+        {
+          oxyUserId: 'nodeinfo-ext',
+          ...remote,
+          isReply: true,
+          federationActivityId: 'https://remote.example/nodeinfo/2',
+        },
       ])
       .returning({ id: posts.id });
     // The same activity delivered again hits the unique index: still one row.
-    await db.insert(posts).values(external).onConflictDoNothing();
-    await db.execute(sql`analyze posts`);
+    await db
+      .insert(posts)
+      .values({
+        oxyUserId: 'nodeinfo-ext',
+        ...remote,
+        federationActivityId: 'https://remote.example/nodeinfo/1',
+      })
+      .onConflictDoNothing();
     const after = await measureNodeinfoStatistics();
     await db.delete(posts).where(
       inArray(
@@ -124,8 +155,10 @@ describe('nodeinfo statistics — scan budget', () => {
       ),
     );
 
-    expect(after.posts.external - before.posts.external).toBe(1);
-    expect(after.posts.local - before.posts.local).toBe(3);
-    expect(after.posts.combined - before.posts.combined).toBe(4);
+    expect(after.local.posts - before.local.posts).toBe(1);
+    expect(after.local.comments - before.local.comments).toBe(2);
+    expect(after.external.posts - before.external.posts).toBe(1);
+    expect(after.external.comments - before.external.comments).toBe(1);
+    expect(after.combined.total - before.combined.total).toBe(5);
   });
 });
