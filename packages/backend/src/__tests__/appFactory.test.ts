@@ -56,7 +56,7 @@ function createDependencies(): CreateAppDependencies {
     isAllowedOrigin: () => true,
     isApexHost: (req) => req.headers.host === 'mention.earth',
     isApexWebPlaneRequest: (req) => req.headers.host === 'mention.earth',
-    countLocalPosts: vi.fn().mockResolvedValue(0),
+    getNodeinfoStatistics: vi.fn().mockRejectedValue(new Error('none')),
     logger: { debug: vi.fn() },
     middleware: {
       requestObservability: passThrough,
@@ -120,7 +120,7 @@ describe('createApp', () => {
     expect(listenSpy).not.toHaveBeenCalled();
     expect(storeConnectSpy).not.toHaveBeenCalled();
     expect(redisClientSpy).not.toHaveBeenCalled();
-    expect(deps.countLocalPosts).not.toHaveBeenCalled();
+    expect(deps.getNodeinfoStatistics).not.toHaveBeenCalled();
   });
 
   it('serves health without runtime bootstrap', async () => {
@@ -418,25 +418,41 @@ describe('createApp', () => {
         expect(body.links[0].href).toBe('https://mention.earth/nodeinfo/2.0');
       });
 
-    await request(app)
+    const stats = {
+      measuredAt: Date.UTC(2026, 10, 2),
+      posts: { local: 7, external: 3, combined: 10 },
+      externalActors: 4,
+      exact: false,
+    };
+    deps.getNodeinfoStatistics = vi.fn().mockResolvedValue(stats);
+    await request(createApp(deps))
       .get('/nodeinfo/2.0')
       .set('Host', 'api.mention.earth')
       .expect(200)
       .expect(({ body }) => {
-        expect(body.usage.localPosts).toBe(0);
+        // Standard fields carry LOCAL content only; unknown local users are omitted.
+        expect(body.usage).toEqual({ users: {}, localPosts: 7 });
+        expect(body.services).toEqual({ inbound: [], outbound: [] });
+        expect(body.metadata['so.oxy.mention.statistics']).toMatchObject({
+          posts: { local: 7, external: 3, combined: 10 },
+          externalActors: 4,
+          exact: false,
+        });
       });
 
-    deps.countLocalPosts = vi.fn().mockRejectedValue(new Error('database unavailable'));
-    const failedNodeinfo = createApp(deps);
-    await request(failedNodeinfo)
+    deps.getNodeinfoStatistics = vi.fn().mockRejectedValue(new Error('database unavailable'));
+    await request(createApp(deps))
       .get('/nodeinfo/2.0')
       .set('Host', 'api.mention.earth')
       .expect(200)
+      .expect('Cache-Control', 'public, max-age=60')
       .expect(({ body }) => {
-        expect(body.usage.localPosts).toBe(0);
+        // Unknown is not zero.
+        expect(body.usage).toEqual({ users: {} });
+        expect(body.metadata['so.oxy.mention.statistics']).toBeUndefined();
       });
     expect(deps.logger.debug).toHaveBeenCalledWith(
-      'nodeinfo: failed to estimate post count, defaulting to 0',
+      'nodeinfo: statistics unavailable, omitting counts',
       expect.any(Error),
     );
   });
