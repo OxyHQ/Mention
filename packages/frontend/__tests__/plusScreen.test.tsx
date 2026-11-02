@@ -4,7 +4,7 @@ import PlusScreen from '@/app/(app)/plus';
 
 let mockOffer: {
   displayName: string;
-  price: { amountMinorUnits: number; currency: string };
+  price: { amountMinorUnits: number; currency: string; interval: string };
 } | null = null;
 jest.mock('@/hooks/usePlusOffer', () => ({ usePlusOffer: () => ({ offer: mockOffer }) }));
 const mockPaymentDialog = jest.fn();
@@ -13,8 +13,8 @@ let mockPlansProps: SubscriptionPlansProps | undefined;
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
 }));
-jest.mock('@/components/payments/PlusPaymentDialog', () => ({
-  PlusPaymentDialog: (props: unknown) => {
+jest.mock('@/components/payments/PlusPaymentSheet', () => ({
+  PlusPaymentSheet: (props: unknown) => {
     mockPaymentDialog(props);
     return null;
   },
@@ -45,14 +45,14 @@ it('offers Mention Plus without advertising an unapproved price and opens the Pe
 
 it('displays the exact published offer price instead of a static bundle price', () => {
   mockOffer = {
-    displayName: 'Approved Oxy One',
-    price: { amountMinorUnits: 2999, currency: 'USD' },
+    displayName: 'Mention Plus',
+    price: { amountMinorUnits: 2999, currency: 'USD', interval: 'month' },
   };
   act(() => {
     TestRenderer.create(<PlusScreen />);
   });
   expect(mockPlansProps?.plans[1].price).toMatchObject({
     amount: 29.99,
-    description: 'Approved Oxy One',
+    description: 'Mention Plus',
   });
 });

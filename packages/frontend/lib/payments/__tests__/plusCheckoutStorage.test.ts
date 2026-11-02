@@ -14,7 +14,17 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => mockId() }));
 jest.mock('react-native', () => ({ Platform: { OS: 'web' } }));
-const offer = { offerId: 'approved', offerVersion: 2 };
+const originalLocks = Object.getOwnPropertyDescriptor(navigator, 'locks');
+afterEach(() => {
+  if (originalLocks) Object.defineProperty(navigator, 'locks', originalLocks);
+  else Reflect.deleteProperty(navigator, 'locks');
+});
+const offer = {
+  productId: 'mention-product',
+  capabilityKey: 'plus',
+  offerId: 'approved',
+  offerVersion: 2,
+};
 function tab() {
   let storage: typeof import('../plusCheckoutStorage') | undefined;
   jest.isolateModules(() => {

@@ -156,6 +156,34 @@ export const viewerQueryKeys = {
    * Keyed by session and private-API availability too, so an account or session
    * change never reuses a cached permission.
    */
+  mentionPlusOffer: (
+    viewerId: ViewerId,
+    sessionId: string | null | undefined,
+    productId: string | undefined,
+    offerId: string | undefined,
+    offerVersion: number | undefined,
+  ) =>
+    [
+      ...viewerQueryKeys.all(viewerId),
+      'mention-plus-offer',
+      productId,
+      sessionId ?? null,
+      offerId,
+      offerVersion,
+    ] as const,
+  mentionPlusAccess: (
+    viewerId: ViewerId,
+    sessionId: string | null | undefined,
+    productId: string | undefined,
+    capabilityKey: string | undefined,
+  ) =>
+    [
+      ...viewerQueryKeys.all(viewerId),
+      'mention-plus-access',
+      sessionId ?? null,
+      productId,
+      capabilityKey,
+    ] as const,
   mentionPersonalization: (
     viewerId: ViewerId,
     sessionId: string | null | undefined,

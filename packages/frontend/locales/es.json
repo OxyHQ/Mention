@@ -1526,7 +1526,7 @@
   "plus.selectorLabel": "Elige un plan",
   "plus.freeSubtitle": "Todo lo que necesitas para unirte a la conversación.",
   "plus.freeBenefitSocial": "Publica, sigue y conversa en todo el fediverso",
-  "plus.plusSubtitle": "Incluido en todos los planes de Oxy One.",
+  "plus.plusSubtitle": "Suscríbete a Plus por separado o accede con Oxy One.",
   "plus.priceSuffix": "/mes",
   "plus.priceWith": "Con Oxy One {{plan}}",
   "plus.benefitConnect": "Funciones exclusivas para conectar",
@@ -2933,7 +2933,7 @@
   "commerce.moreCollectionProducts": "Cargar más · {{title}}",
   "plus.subscribe": "Suscribirse",
   "plus.payment.title": "Pagar con Peable",
-  "plus.payment.description": "Mention Plus está incluido en Oxy One. Revisa la suscripción aprobada antes de continuar al pago seguro.",
+  "plus.payment.description": "Suscríbete a Mention Plus. Revisa el precio antes de continuar al pago.",
   "plus.payment.monthlyPrice": "{{price}} / mes, impuestos incluidos",
   "plus.payment.loading": "Cargando suscripción…",
   "plus.payment.unavailable": "Esta suscripción todavía no está disponible para comprar.",
@@ -2946,5 +2946,11 @@
   "plus.payment.signIn": "Iniciar sesión para continuar",
   "plus.payment.continue": "Continuar al pago",
   "plus.payment.checkStatus": "Comprobar estado del pago",
-  "plus.payment.pricingUnavailable": "Precio no disponible"
+  "plus.payment.pricingUnavailable": "Precio no disponible",
+  "plus.payment.oneIncluded": "Mention Plus también está incluido en Oxy One.",
+  "plus.payment.included": "Ya tienes Mention Plus.",
+  "plus.payment.signInRequired": "Inicia sesión para suscribirte o comprobar si ya tienes Mention Plus.",
+  "plus.payment.yearlyPrice": "{{price}} / año, impuestos incluidos",
+  "plus.payment.priceSuffix.month": "/ mes",
+  "plus.payment.priceSuffix.year": "/ año"
 }

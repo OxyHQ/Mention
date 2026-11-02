@@ -1,9 +1,13 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Platform } from 'react-native';
-import { PlusPaymentDialog } from '../PlusPaymentDialog';
+import { PlusPaymentSheet } from '../PlusPaymentSheet';
 
 let mockOffer: typeof offer | null;
 const mockPlans = jest.fn();
+const mockAccess = jest.fn();
+let mockHasAccess = false;
+let mockSignedIn = true;
+const mockSheet = jest.fn();
 const mockCheckout = jest.fn();
 const mockKey = jest.fn();
 const mockClearKey = jest.fn();
@@ -13,7 +17,11 @@ const mockDismiss = jest.fn();
 let mockUser = { id: 'account-a' };
 let mockSession = 'session-a';
 const mockServices = {
-  billing: { personalPlans: mockPlans, startPersonalPlanCheckout: mockCheckout },
+  billing: {
+    productPlans: mockPlans,
+    startProductPlanCheckout: mockCheckout,
+    productAccess: mockAccess,
+  },
 };
 const mockLocation = { replace: jest.fn() };
 const mockClose = jest.fn();
@@ -27,7 +35,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: mockUser,
     oxyServices: mockServices,
-    canUsePrivateApi: true,
+    canUsePrivateApi: mockSignedIn,
     signIn: jest.fn(),
   }),
   useOxy: () => ({ activeSessionId: mockSession }),
@@ -37,7 +45,11 @@ jest.mock('@oxy.so/core', () => ({
 }));
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidate }),
-  useQuery: () => ({ data: mockOffer, isError: false, isPending: false }),
+  useQuery: (options: { queryKey: string[] }) => ({
+    data: options.queryKey.includes('mention-plus-access') ? mockHasAccess : mockOffer,
+    isError: false,
+    isPending: false,
+  }),
 }));
 jest.mock('@/lib/payments/plusCheckoutStorage', () => ({
   getPlusCheckoutKey: (...args: unknown[]) => mockKey(...args),
@@ -45,7 +57,12 @@ jest.mock('@/lib/payments/plusCheckoutStorage', () => ({
 }));
 jest.mock('@/lib/payments/plusCheckout', () => ({
   ...jest.requireActual('@/lib/payments/plusCheckout'),
-  plusOfferBinding: () => ({ offerId: 'approved', offerVersion: 2 }),
+  plusOfferBinding: () => ({
+    productId: 'mention-product',
+    capabilityKey: 'plus',
+    offerId: 'approved',
+    offerVersion: 2,
+  }),
 }));
 jest.mock('expo-web-browser', () => ({
   openBrowserAsync: (...args: unknown[]) => mockNativeBrowser(...args),
@@ -54,8 +71,11 @@ jest.mock('expo-web-browser', () => ({
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
 }));
-jest.mock('@oxy.so/bloom/dialog', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
+  BottomSheet: (props: { children: React.ReactNode }) => {
+    mockSheet(props);
+    return <>{props.children}</>;
+  },
 }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: (props: object) => <button {...props} /> }));
 jest.mock('@oxy.so/bloom/typography', () => ({
@@ -66,8 +86,7 @@ const offer = {
   offerId: 'approved',
   offerVersion: 2,
   displayName: 'Approved bundle',
-  audience: 'personal',
-  kind: 'oxy_one',
+  productId: 'mention-product',
   price: {
     currency: 'USD',
     amountMinorUnits: 500,
@@ -76,16 +95,17 @@ const offer = {
     taxTreatment: 'inclusive',
     merchantTotal: 'final',
   },
-  benefits: [],
 };
 const catalogue = { schemaVersion: 1, state: 'configured', purchase: 'available', plans: [offer] };
+const originalWindowOpen = window.open;
+const originalPlatformOS = Platform.OS;
 let renderer: TestRenderer.ReactTestRenderer;
 function button(label: string) {
   return renderer.root.findAllByType('button').find((node) => node.props.children === label);
 }
 async function mount() {
   await act(async () => {
-    renderer = TestRenderer.create(<PlusPaymentDialog onClose={jest.fn()} />);
+    renderer = TestRenderer.create(<PlusPaymentSheet onClose={jest.fn()} />);
   });
 }
 async function press(label: string) {
@@ -97,6 +117,17 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockUser = { id: 'account-a' };
   mockSession = 'session-a';
+  mockHasAccess = false;
+  mockSignedIn = true;
+  mockAccess.mockImplementation(async () => ({
+    schemaVersion: 1,
+    subjectAccountId: mockUser.id,
+    productId: 'mention-product',
+    evaluatedAt: new Date().toISOString(),
+    capabilities: [],
+    quotas: [],
+    conflicts: [],
+  }));
   Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
   mockPopup = { closed: false, close: mockClose, location: mockLocation, opener: 'parent' };
   window.open = jest.fn().mockImplementation(() => mockPopup);
@@ -112,6 +143,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   act(() => renderer?.unmount());
+  window.open = originalWindowOpen;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatformOS });
 });
 
 it('never creates a checkout for an unavailable or mismatched central catalogue', async () => {
@@ -125,6 +158,7 @@ it('opens a gesture-owned window with a durable key, and checks status without a
   await press('plus.payment.continue');
   expect(mockCheckout).toHaveBeenCalledWith({
     expectedSubjectAccountId: 'account-a',
+    productId: 'mention-product',
     offerId: 'approved',
     offerVersion: 2,
     idempotencyKey: 'durable-key',
@@ -188,7 +222,7 @@ it('closes the old popup and discards a response after switching accounts', asyn
   await act(async () => {
     mockUser = { id: 'account-b' };
     mockSession = 'session-b';
-    renderer.update(<PlusPaymentDialog onClose={jest.fn()} />);
+    renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
   });
   await act(async () => {
     resolve?.({
@@ -209,7 +243,41 @@ it('refreshes authoritative access only after fulfilled, never after native brow
   expect(mockInvalidate).not.toHaveBeenCalled();
   mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
   await press('plus.payment.checkStatus');
-  expect(mockClearKey).toHaveBeenCalledWith('account-a', offer, 'durable-key');
+  expect(mockClearKey).toHaveBeenCalledWith(
+    'account-a',
+    { productId: 'mention-product', capabilityKey: 'plus', offerId: 'approved', offerVersion: 2 },
+    'durable-key',
+  );
   expect(mockInvalidate).toHaveBeenCalled();
   expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.fulfilled');
+});
+
+it('uses the detached Bloom sheet, not an adaptive centered dialog', async () => {
+  await mount();
+  expect(mockSheet).toHaveBeenCalledWith(expect.objectContaining({ open: true, detached: true }));
+});
+it('shows sign-in independently of offer availability', async () => {
+  mockSignedIn = false;
+  await mount();
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.signInRequired');
+  expect(button('plus.payment.continue')).toBeUndefined();
+});
+it('does not sell Plus again when authoritative access already includes it', async () => {
+  mockHasAccess = true;
+  await mount();
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.included');
+  expect(button('plus.payment.continue')).toBeUndefined();
+  expect(mockCheckout).not.toHaveBeenCalled();
+});
+it('rechecks individual or bundle access immediately before creating checkout', async () => {
+  mockAccess.mockResolvedValue({
+    subjectAccountId: 'account-a',
+    productId: 'mention-product',
+    capabilities: [{ key: 'plus', grantIds: ['bundle-grant'] }],
+  });
+  await mount();
+  await press('plus.payment.continue');
+  expect(mockCheckout).not.toHaveBeenCalled();
+  expect(mockKey).not.toHaveBeenCalled();
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.included');
 });

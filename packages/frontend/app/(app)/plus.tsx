@@ -3,20 +3,20 @@ import { Linking } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SubscriptionPlans, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
+import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
-import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
-import { PlusPaymentDialog } from '@/components/payments/PlusPaymentDialog';
+import { PlusPaymentSheet } from '@/components/payments/PlusPaymentSheet';
 import { useTranslation } from 'react-i18next';
 
-/** Mention's plans on Bloom's subscription template. Mention Plus is sold only inside Oxy One. */
+/** Mention Plus is sold individually and is also included with Oxy One. */
 export default function PlusScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
-  const { offer } = usePlusOffer();
+  const { offer, hasAccess } = usePlusOffer();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [selected, setSelected] = useState('plus');
 
@@ -43,7 +43,7 @@ export default function PlusScreen() {
             amount: offer.price.amountMinorUnits / 100,
             currency: offer.price.currency,
             locale: i18n.language,
-            suffix: t('plus.priceSuffix'),
+            suffix: t(`plus.payment.priceSuffix.${offer.price.interval}`),
             description: offer.displayName,
           }
         : t('plus.payment.pricingUnavailable'),
@@ -58,12 +58,6 @@ export default function PlusScreen() {
           title: t('plus.benefitAi'),
           description: t('plus.benefitAiDescription'),
           icon: <RiQuillPenLine size="lg" fill={colors.primary} />,
-        },
-        {
-          id: 'oxy-one',
-          title: offer?.displayName ?? 'Oxy One',
-          description: t('plus.benefitOxyOneDescription'),
-          icon: <RiSparklingLine size="lg" fill={colors.primary} />,
         },
       ],
     },
@@ -80,7 +74,11 @@ export default function PlusScreen() {
           selectorLabel={t('plus.selectorLabel')}
           primaryAction={
             selected === 'plus'
-              ? { label: t('plus.subscribe'), onPress: () => setPaymentOpen(true) }
+              ? {
+                  label: t(hasAccess ? 'plus.payment.included' : 'plus.subscribe'),
+                  disabled: hasAccess,
+                  onPress: () => setPaymentOpen(true),
+                }
               : undefined
           }
           moreBenefits={{
@@ -90,8 +88,9 @@ export default function PlusScreen() {
             },
           }}
         />
+        <Text>{t('plus.payment.oneIncluded')}</Text>
       </ScreenScrollView>
-      {paymentOpen && <PlusPaymentDialog onClose={() => setPaymentOpen(false)} />}
+      {paymentOpen && <PlusPaymentSheet onClose={() => setPaymentOpen(false)} />}
     </Screen>
   );
 }

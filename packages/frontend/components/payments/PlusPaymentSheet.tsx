@@ -1,17 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
-import { Dialog } from '@oxy.so/bloom/dialog';
+import { BottomSheet } from '@oxy.so/bloom/bottom-sheet';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
-import { parseContract, personalPlanCheckoutRequestCheck } from '@oxy.so/contracts/client';
+import {
+  parseContract,
+  productPlanCheckoutRequestCheck,
+  subjectProductAccessQueryCheck,
+} from '@oxy.so/contracts/client';
 import { authenticatedApiCall } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { usePlusOffer } from '@/hooks/usePlusOffer';
+import { mentionPlusBinding, usePlusOffer } from '@/hooks/usePlusOffer';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import * as WebBrowser from 'expo-web-browser';
-import { checkoutUrl } from '@/lib/payments/plusCheckout';
+import { checkoutUrl, includesPlus } from '@/lib/payments/plusCheckout';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
 
 type Message =
@@ -23,10 +27,12 @@ type Message =
   | 'closed'
   | 'review'
   | 'blocked'
+  | 'included'
+  | 'signInRequired'
   | null;
 
 /** A new account/session gets a fresh dialog and cannot consume an earlier reply. */
-export function PlusPaymentDialog({ onClose }: { onClose(): void }) {
+export function PlusPaymentSheet({ onClose }: { onClose(): void }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
   return <PaymentContent key={`${user?.id}:${activeSessionId}`} onClose={onClose} />;
@@ -37,7 +43,7 @@ function PaymentContent({ onClose }: { onClose(): void }) {
   const { activeSessionId } = useOxy();
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
-  const { offer, loading, failed } = usePlusOffer();
+  const { offer, loading, failed, hasAccess, checkingAccess, accessFailed } = usePlusOffer();
   const [message, setMessage] = useState<Message>('loading');
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false);
@@ -58,11 +64,33 @@ function PaymentContent({ onClose }: { onClose(): void }) {
   }, [canUsePrivateApi]);
   useEffect(() => {
     if (!started)
-      setMessage(loading ? 'loading' : failed ? 'failed' : offer ? null : 'unavailable');
-  }, [offer, loading, failed, started]);
+      setMessage(
+        !canUsePrivateApi
+          ? 'signInRequired'
+          : hasAccess
+            ? 'included'
+            : loading || checkingAccess
+              ? 'loading'
+              : failed || accessFailed
+                ? 'failed'
+                : offer
+                  ? null
+                  : 'unavailable',
+      );
+  }, [offer, loading, failed, started, canUsePrivateApi, hasAccess, checkingAccess, accessFailed]);
 
   async function purchase(openWindow: boolean) {
-    if (!offer || !user?.id || !canUsePrivateApi || locked.current) return;
+    if (
+      !offer ||
+      !mentionPlusBinding ||
+      !user?.id ||
+      !canUsePrivateApi ||
+      hasAccess ||
+      checkingAccess ||
+      accessFailed ||
+      locked.current
+    )
+      return;
     const attemptScope = scope.current;
     const isCurrent = () => attemptScope.active && scope.current === attemptScope;
     if (!isCurrent()) return;
@@ -78,13 +106,30 @@ function PaymentContent({ onClose }: { onClose(): void }) {
     if (windowForAttempt) windowForAttempt.opener = null;
     if (openWindow) popup.current = windowForAttempt;
     try {
-      const key = await getPlusCheckoutKey(user.id, offer);
+      const access = await authenticatedApiCall(oxyServices, activeSessionId, () => {
+        if (!isCurrent()) throw new Error('Account changed');
+        return oxyServices.billing.productAccess(
+          parseContract(subjectProductAccessQueryCheck, {
+            schemaVersion: 1,
+            subjectAccountId: user.id,
+            productId: offer.productId,
+          }),
+        );
+      });
+      if (!isCurrent()) return;
+      if (includesPlus(access, user.id, mentionPlusBinding)) {
+        windowForAttempt?.close();
+        setMessage('included');
+        return;
+      }
+      const key = await getPlusCheckoutKey(user.id, mentionPlusBinding);
       if (!isCurrent()) return;
       const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
         if (!isCurrent()) throw new Error('Account changed');
-        return oxyServices.billing.startPersonalPlanCheckout(
-          parseContract(personalPlanCheckoutRequestCheck, {
+        return oxyServices.billing.startProductPlanCheckout(
+          parseContract(productPlanCheckoutRequestCheck, {
             expectedSubjectAccountId: user.id,
+            productId: offer.productId,
             offerId: offer.offerId,
             offerVersion: offer.offerVersion,
             idempotencyKey: key,
@@ -112,7 +157,7 @@ function PaymentContent({ onClose }: { onClose(): void }) {
         windowForAttempt?.close();
         setMessage(result.state === 'unconfigured' ? 'unavailable' : result.state);
         if (result.state === 'closed' || result.state === 'fulfilled') {
-          await clearPlusCheckoutKey(user.id, offer, key).catch(() => undefined);
+          await clearPlusCheckoutKey(user.id, mentionPlusBinding, key).catch(() => undefined);
           // Only authoritative Oxy user reads can update access elsewhere in Mention.
           if (isCurrent() && result.state === 'fulfilled') {
             popup.current?.close();
@@ -125,6 +170,17 @@ function PaymentContent({ onClose }: { onClose(): void }) {
                 ),
               })
               .catch(() => undefined);
+            if (isCurrent())
+              await queryClient
+                .invalidateQueries({
+                  queryKey: viewerQueryKeys.mentionPlusAccess(
+                    user.id,
+                    activeSessionId,
+                    mentionPlusBinding.productId,
+                    mentionPlusBinding.capabilityKey,
+                  ),
+                })
+                .catch(() => undefined);
           }
         }
       }
@@ -145,25 +201,30 @@ function PaymentContent({ onClose }: { onClose(): void }) {
       }
     }
   }
-  const done = message === 'fulfilled' || message === 'closed' || message === 'review';
+  const done =
+    message === 'fulfilled' ||
+    message === 'closed' ||
+    message === 'review' ||
+    message === 'included';
   return (
-    <Dialog open onClose={onClose} title={t('plus.payment.title')} label={t('plus.payment.title')}>
+    <BottomSheet open detached onDismiss={onClose} accessibilityLabel={t('plus.payment.title')}>
       <View className="gap-4 p-5">
+        <Text accessibilityRole="header">{t('plus.payment.title')}</Text>
         <Text>{t('plus.payment.description')}</Text>
         {offer?.price && (
           <>
             <Text>{offer.displayName}</Text>
             <Text>
-              {t('plus.payment.monthlyPrice', {
-                price: new Intl.NumberFormat(i18n.language, {
-                  style: 'currency',
-                  currency: offer.price.currency,
-                }).format(offer.price.amountMinorUnits / 100),
-              })}
+              {t(
+                `plus.payment.${offer.price.interval === 'year' ? 'yearlyPrice' : 'monthlyPrice'}`,
+                {
+                  price: new Intl.NumberFormat(i18n.language, {
+                    style: 'currency',
+                    currency: offer.price.currency,
+                  }).format(offer.price.amountMinorUnits / 100),
+                },
+              )}
             </Text>
-            {offer.benefits.map(({ displayName, benefit }) => (
-              <Text key={`${benefit.productId}:${benefit.kind}:${benefit.key}`}>{displayName}</Text>
-            ))}
           </>
         )}
         {(busy || message === 'loading') && (
@@ -179,7 +240,7 @@ function PaymentContent({ onClose }: { onClose(): void }) {
             {t('plus.payment.signIn')}
           </Button>
         )}
-        {offer && !done && (
+        {offer && canUsePrivateApi && !checkingAccess && !accessFailed && !done && (
           <Button
             disabled={busy}
             onPress={() => {
@@ -201,6 +262,6 @@ function PaymentContent({ onClose }: { onClose(): void }) {
         )}
         <Button onPress={onClose}>{t('common.close')}</Button>
       </View>
-    </Dialog>
+    </BottomSheet>
   );
 }

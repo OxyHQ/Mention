@@ -1464,7 +1464,7 @@
   "plus.selectorLabel": "प्लान चुनें",
   "plus.freeSubtitle": "बातचीत में शामिल होने के लिए आपको जो कुछ चाहिए।",
   "plus.freeBenefitSocial": "पूरे फ़ेडिवर्स में पोस्ट करें, फ़ॉलो करें और बात करें",
-  "plus.plusSubtitle": "हर Oxy One प्लान में शामिल।",
+  "plus.plusSubtitle": "Subscribe to Plus on its own, or access it with Oxy One.",
   "plus.priceSuffix": "/माह",
   "plus.priceWith": "Oxy One {{plan}} के साथ",
   "plus.benefitConnect": "जुड़ने के लिए खास सुविधाएँ",
@@ -2899,7 +2899,7 @@
   "commerce.moreCollectionProducts": "और लोड करें · {{title}}",
   "plus.subscribe": "Subscribe",
   "plus.payment.title": "Pay with Peable",
-  "plus.payment.description": "Mention Plus is included in Oxy One. Review the approved subscription before continuing to secure checkout.",
+  "plus.payment.description": "Subscribe to Mention Plus. Review the price before continuing to payment.",
   "plus.payment.monthlyPrice": "{{price}} / month, tax included",
   "plus.payment.loading": "Loading subscription…",
   "plus.payment.unavailable": "This subscription is not available for purchase yet.",
@@ -2912,5 +2912,11 @@
   "plus.payment.signIn": "Sign in to continue",
   "plus.payment.continue": "Continue to payment",
   "plus.payment.checkStatus": "Check payment status",
-  "plus.payment.pricingUnavailable": "Pricing unavailable"
+  "plus.payment.pricingUnavailable": "Pricing unavailable",
+  "plus.payment.oneIncluded": "Mention Plus is also included with Oxy One.",
+  "plus.payment.included": "You already have Mention Plus.",
+  "plus.payment.signInRequired": "Sign in to subscribe or check whether you already have Mention Plus.",
+  "plus.payment.yearlyPrice": "{{price}} / year, tax included",
+  "plus.payment.priceSuffix.month": "/ month",
+  "plus.payment.priceSuffix.year": "/ year"
 }
