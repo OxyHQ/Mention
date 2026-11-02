@@ -128,6 +128,24 @@ describe('resolveClarityDocuments', () => {
     expect([...again.pending]).toEqual([busy]);
   });
 
+  it('never sends Clarity a URL it rejects, so one bad link cannot cost the rest their cards', async () => {
+    answerEveryUrl();
+    const good = 'https://example.com/good';
+    const bad = [
+      `https://example.com/${'a'.repeat(2_100)}`,
+      'https://user:secret@example.com/private',
+      'ftp://example.com/file',
+      'not a url',
+    ];
+
+    const result = await resolveClarityDocuments([good, ...bad]);
+
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(resolve).toHaveBeenCalledWith({ urls: [good] });
+    expect([...result.documents.keys()]).toEqual([good]);
+    expect(result.pending.size).toBe(0);
+  });
+
   it('dedupes before asking', async () => {
     answerEveryUrl();
     await resolveClarityDocuments(['https://example.com/x', 'https://example.com/x']);
