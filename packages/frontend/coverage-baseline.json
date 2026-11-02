@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 54.93,
-      "covered": 15861,
-      "total": 28873
+      "pct": 55.44,
+      "covered": 16109,
+      "total": 29055
     },
     "branches": {
-      "pct": 50.39,
-      "covered": 11012,
-      "total": 21853
+      "pct": 51.18,
+      "covered": 11307,
+      "total": 22090
     },
     "functions": {
-      "pct": 49.68,
-      "covered": 3750,
-      "total": 7548
+      "pct": 50.11,
+      "covered": 3801,
+      "total": 7584
     },
     "lines": {
-      "pct": 55.79,
-      "covered": 14309,
-      "total": 25647
+      "pct": 56.34,
+      "covered": 14542,
+      "total": 25807
     }
   },
   "pins": {
@@ -491,6 +491,12 @@
       "functions": 90,
       "lines": 96
     },
+    "hooks/usePlusOffer.ts": {
+      "statements": 91,
+      "branches": 92,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/usePodcastManager.ts": {
       "statements": 0,
       "branches": 100,
@@ -947,6 +953,18 @@
       "functions": 100,
       "lines": 100
     },
+    "lib/payments/plusCheckout.ts": {
+      "statements": 100,
+      "branches": 94,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/payments/plusCheckoutStorage.ts": {
+      "statements": 92,
+      "branches": 80,
+      "functions": 100,
+      "lines": 100
+    },
     "lib/precacheActorsFromPosts.ts": {
       "statements": 100,
       "branches": 100,
@@ -1297,7 +1315,7 @@
     },
     "services/searchService.ts": {
       "statements": 74,
-      "branches": 56,
+      "branches": 58,
       "functions": 80,
       "lines": 78
     },

@@ -11,6 +11,10 @@ describe('viewer-scoped private cache', () => {
   function everyPrivateKey(viewerId: string) {
     return [
       viewerQueryKeys.all(viewerId),
+      viewerQueryKeys.mentionPlusOffer(viewerId, 'session-a', 'mention-product', 'offer', 2),
+      viewerQueryKeys.mentionPlusOffer(viewerId, undefined, undefined, undefined, undefined),
+      viewerQueryKeys.mentionPlusAccess(viewerId, 'session-a', 'mention-product', 'plus'),
+      viewerQueryKeys.mentionPlusAccess(viewerId, undefined, undefined, undefined),
       viewerQueryKeys.commerceStorefront(viewerId, 'account-a'),
       viewerQueryKeys.commerceStorefront(viewerId),
       viewerQueryKeys.commerceCatalog(viewerId, 'account-a', 'store-a', 'products'),

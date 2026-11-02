@@ -88,3 +88,10 @@ export const INSTANCE_REVISION = process.env.EXPO_PUBLIC_INSTANCE_REVISION || ''
 export const MCP_RESOURCE_URL = (
   process.env.EXPO_PUBLIC_MCP_URL || 'https://mcp.mention.earth'
 ).replace(/\/+$/, '');
+
+// Public identity of the reviewed standalone Mention Plus product and offer.
+// Empty configuration never invents an offer or enables a payment.
+export const MENTION_PLUS_OFFER_ID = process.env.EXPO_PUBLIC_MENTION_PLUS_OFFER_ID;
+export const MENTION_PLUS_OFFER_VERSION = process.env.EXPO_PUBLIC_MENTION_PLUS_OFFER_VERSION;
+export const MENTION_PLUS_PRODUCT_ID = process.env.EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID;
+export const MENTION_PLUS_CAPABILITY_KEY = process.env.EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY;
