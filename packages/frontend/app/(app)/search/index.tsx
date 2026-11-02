@@ -17,6 +17,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useDismissKeyboardOnBlur } from '@/hooks/useDismissKeyboardOnBlur';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { Screen } from '@oxy.so/bloom/screen';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
@@ -1476,76 +1477,78 @@ function SearchIndex() {
   return (
     <>
       <SEO title={t('seo.search.title')} description={t('seo.search.description')} />
-      <Screen
-        scroll="auto"
-        header={
-          <PageHeader
-            title={t('search.title', 'Search')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-            accessory={
-              <>
-                <View className="my-2">
-                  <Search
-                    ref={searchInputRef}
-                    label={t('search.placeholder', 'Search...')}
-                    value={query}
-                    onChangeText={handleQueryChange}
-                    onSelectionChange={handleSelectionChange}
-                    onSubmitEditing={handleSubmit}
-                    onClearText={clearSearch}
-                    autoFocus
-                  />
-                </View>
+      <HeaderDockProvider>
+        <Screen
+          scroll="auto"
+          header={
+            <PageHeader
+              title={t('search.title', 'Search')}
+              backLabel={t('common.back', { defaultValue: 'Back' })}
+              titleReveal="always"
+              testID="search-page-header"
+            />
+          }
+        >
+          <StickySection testID="search-sticky-tabs" className="border-b border-border">
+            <View className="mx-4 my-2">
+              <Search
+                ref={searchInputRef}
+                label={t('search.placeholder', 'Search...')}
+                value={query}
+                onChangeText={handleQueryChange}
+                onSelectionChange={handleSelectionChange}
+                onSubmitEditing={handleSubmit}
+                onClearText={clearSearch}
+                autoFocus
+              />
+            </View>
 
-                <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-                  {tabs.map((tab: { id: string; label: string; count?: number }) => (
-                    <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-                  ))}
-                </Tabs>
+            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+              {tabs.map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+            </Tabs>
 
-                {/* Refining a query keeps the previous rows on screen, so the
+            {/* Refining a query keeps the previous rows on screen, so the
                     only signal that newer ones are coming is this hairline.
                     It sits in the layout (a fixed-height track that is empty
                     when idle) rather than overlaying the list, so results
                     never shift by a pixel when it appears. */}
-                <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
-                  {refreshing ? (
-                    <View testID="search-refreshing" className="h-full w-full bg-primary/60" />
-                  ) : null}
-                </View>
-              </>
-            }
-          />
-        }
-      >
-        {/* ONE scroll container for every state — suggestions, results,
+            <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
+              {refreshing ? (
+                <View testID="search-refreshing" className="h-full w-full bg-primary/60" />
+              ) : null}
+            </View>
+          </StickySection>
+          {/* ONE scroll container for every state — suggestions, results,
                     loading, error and empty all render through this list as ROWS,
                     so the container never swaps (no scroll or keyboard reset on
                     the first keystroke) and the suggestions have no focus-bound
                     lifecycle to get wrong. */}
-        <View className="flex-1 min-h-0">
-          <VirtualList
-            screen={{}}
-            data={rows}
-            keyExtractor={keyExtractor}
-            getItemType={getItemType}
-            renderItem={renderRow}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            scrollbar="never"
-            onEndReached={handleEndReached}
-            onEndReachedThreshold={0.5}
-            ListHeaderComponent={renderListHeader()}
-            ListFooterComponent={
-              isFetchingNextPage ? (
-                <View className="items-center justify-center py-4">
-                  <ListSkeleton count={2} />
-                </View>
-              ) : null
-            }
-          />
-        </View>
-      </Screen>
+          <View className="flex-1 min-h-0">
+            <VirtualList
+              screen={{}}
+              data={rows}
+              keyExtractor={keyExtractor}
+              getItemType={getItemType}
+              renderItem={renderRow}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              scrollbar="never"
+              onEndReached={handleEndReached}
+              onEndReachedThreshold={0.5}
+              ListHeaderComponent={renderListHeader()}
+              ListFooterComponent={
+                isFetchingNextPage ? (
+                  <View className="items-center justify-center py-4">
+                    <ListSkeleton count={2} />
+                  </View>
+                ) : null
+              }
+            />
+          </View>
+        </Screen>
+      </HeaderDockProvider>
     </>
   );
 }

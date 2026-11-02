@@ -113,6 +113,10 @@ function mockStub(name: string) {
 jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: ({ accessory }: { accessory?: import('react').ReactNode }) => accessory ?? null,
 }));
+jest.mock('@oxy.so/bloom/layout', () => ({
+  HeaderDockProvider: ({ children }: { children: import('react').ReactNode }) => children,
+  StickySection: ({ children }: { children: import('react').ReactNode }) => children,
+}));
 jest.mock('@oxy.so/bloom/screen', () => ({
   ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({
