@@ -17,8 +17,8 @@ afterAll(async () => {
 
 describe('reportNodeinfoAuthors', () => {
   it('counts distinct public published local authors and ignores drafts and federated rows', async () => {
-    // `posts` is shared with every suite on this database: assert on DELTAS.
-    const before = await reportNodeinfoAuthors();
+    // `posts` is shared with concurrent suites: scope the report to this file's authors.
+    const scope = { authorPrefix: 'rna-' };
     const inserted = await getDb()
       .insert(posts)
       .values([
@@ -32,10 +32,10 @@ describe('reportNodeinfoAuthors', () => {
       .returning({ id: posts.id });
     ids.push(...inserted.map((row) => row.id));
 
-    const after = await reportNodeinfoAuthors();
+    const report = await reportNodeinfoAuthors(scope);
 
-    expect(after.localAuthors - before.localAuthors).toBe(2);
-    expect(after.localPosts - before.localPosts).toBe(3);
-    expect(after.authorsWithOnePost - before.authorsWithOnePost).toBe(1);
+    expect(report.localAuthors).toBe(2);
+    expect(report.localPosts).toBe(3);
+    expect(report.authorsWithOnePost).toBe(1);
   });
 });
