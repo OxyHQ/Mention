@@ -1,3 +1,7 @@
+import {
+  nodeinfoStatisticsExtension,
+  type NodeinfoStatistics,
+} from './services/nodeinfoStatistics';
 import { withAliaSdkCsp } from '@alia.onl/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
 import {
@@ -27,7 +31,8 @@ export interface CreateAppDependencies {
   isAllowedOrigin(origin: string): boolean;
   isApexHost(req: Request): boolean;
   isApexWebPlaneRequest(req: Request): boolean;
-  countLocalPosts(): Promise<number>;
+  /** Cached aggregates; rejects when none was ever measured. */
+  getNodeinfoStatistics(): Promise<NodeinfoStatistics>;
   logger: {
     debug(message: string, ...args: unknown[]): void;
   };
@@ -334,37 +339,35 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     });
   });
   app.get('/nodeinfo/2.0', async (_req, res) => {
-    let postCount = 0;
-    let counted = false;
+    let stats: NodeinfoStatistics | undefined;
     try {
-      postCount = await deps.countLocalPosts();
-      counted = true;
+      stats = await deps.getNodeinfoStatistics();
     } catch (error) {
-      deps.logger.debug('nodeinfo: failed to estimate post count, defaulting to 0', error);
+      // Unknown is not zero: with no measurement ever made the counts are left
+      // out (all optional in the schema), never published as 0.
+      deps.logger.debug('nodeinfo: statistics unavailable, omitting counts', error);
     }
-    // Pollers and any cache between them and us may keep the document for half
-    // an hour: the count is an hourly estimate anyway. A placeholder 0 is not
-    // worth keeping, so it is only briefly cacheable.
-    res.setHeader('Cache-Control', counted ? 'public, max-age=1800' : 'public, max-age=60');
+    // The figures are hourly aggregates; a document without them is only
+    // briefly cacheable so the next poll can pick them up.
+    res.setHeader('Cache-Control', stats ? 'public, max-age=1800' : 'public, max-age=60');
     res.json({
       version: '2.0',
       software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },
       protocols: ['activitypub'],
-      usage: {
-        users: { total: 0 },
-        localPosts: postCount,
-      },
+      services: { inbound: [], outbound: [] },
+      usage: stats ? { users: {}, localPosts: stats.posts.local } : { users: {} },
       openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
-      ...(deps.deployment
-        ? {
-            metadata: {
+      metadata: {
+        ...(deps.deployment
+          ? {
               nodeName: deps.deployment.branding.name,
               nodeDescription: deps.deployment.branding.about,
               sourceUrl: deps.deployment.software.sourceUrl,
               revision: deps.deployment.software.revision,
-            },
-          }
-        : {}),
+            }
+          : {}),
+        ...(stats ? { 'so.oxy.mention.statistics': nodeinfoStatisticsExtension(stats) } : {}),
+      },
     });
   });
   app.use('/ap', routes.apRateLimiter);

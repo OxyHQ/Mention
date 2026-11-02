@@ -96,7 +96,7 @@ function createTestApp() {
     isAllowedOrigin: () => true,
     isApexHost: (req) => req.headers.host === APEX,
     isApexWebPlaneRequest: (req) => req.headers.host === APEX,
-    countLocalPosts: mock().mockResolvedValue(0),
+    getNodeinfoStatistics: mock().mockRejectedValue(new Error('none')),
     logger: { debug: mock() },
     middleware: {
       requestObservability: passThrough,

@@ -11,9 +11,7 @@ import { createOptionalAuth } from './middleware/optionalAuth';
 import { routeRateLimitByBearer } from './mcp/middleware/mcpRateLimiter';
 import { requestObservability } from './middleware/requestObservability';
 import { contentAccessScope } from './services/contentAccessBatcher';
-import { count, sql } from 'drizzle-orm';
-import { getDb } from './db/postgres';
-import { posts } from './db/schema/posts';
+import { measureNodeinfoStatistics, type NodeinfoStatistics } from './services/nodeinfoStatistics';
 import { getRuntimeOxyClient } from './runtime/oxyClient';
 import { globalErrorHandler } from './utils/error';
 import { isAllowedOrigin } from './utils/allowedOrigins';
@@ -21,7 +19,7 @@ import { logger } from './utils/logger';
 import { createCache } from './utils/cache';
 
 /**
- * Nodeinfo's `localPosts`: the planner's row estimate, refreshed hourly.
+ * Nodeinfo statistics (`services/nodeinfoStatistics.ts`), refreshed hourly from planner estimates and one index-only count.
  *
  * A federation-discovery statistic that other instances poll — approximate to
  * its consumers by nature. It used to be an exact `count(*)` cached for five
@@ -44,35 +42,22 @@ import { createCache } from './utils/cache';
  * would silently lose its single-flight the moment anything constructed a
  * second app (a test harness, most likely).
  */
-const NODEINFO_POST_COUNT_FRESH_MS = 60 * 60 * 1000;
-const NODEINFO_POST_COUNT_TTL_SECONDS = 24 * 60 * 60;
-const NODEINFO_POST_COUNT_KEY = 'nodeinfo:v2:localposts';
-const nodeinfoPostCountCache = createCache({
-  name: 'NodeinfoPostCountCache',
-  ttlSeconds: NODEINFO_POST_COUNT_TTL_SECONDS,
-  staleAfterMs: NODEINFO_POST_COUNT_FRESH_MS,
+const NODEINFO_STATS_FRESH_MS = 60 * 60 * 1000;
+const NODEINFO_STATS_TTL_SECONDS = 24 * 60 * 60;
+const NODEINFO_STATS_KEY = 'nodeinfo:v3:statistics';
+const nodeinfoStatsCache = createCache({
+  name: 'NodeinfoStatisticsCache',
+  ttlSeconds: NODEINFO_STATS_TTL_SECONDS,
+  staleAfterMs: NODEINFO_STATS_FRESH_MS,
 });
 
-/** The planner's row estimate for `posts`, or an exact count if it has none. */
-export async function estimatePostCount(): Promise<number> {
-  const [estimate] = await getDb().execute<{ estimate: number }>(
-    sql`select reltuples::float8 as estimate from pg_class where oid = to_regclass('posts')`,
-  );
-  const reltuples = Number(estimate?.estimate);
-  if (Number.isFinite(reltuples) && reltuples >= 0) return Math.round(reltuples);
-  const [row] = await getDb().select({ count: count() }).from(posts);
-  return row?.count ?? 0;
-}
-
 /**
- * `localPosts` for `GET /nodeinfo/2.0`, served from {@link nodeinfoPostCountCache}.
- *
- * Exported so the cache's behaviour is testable without standing up the whole
- * runtime app — `createRuntimeApp` constructs Oxy, Redis stores, connectors and
- * every route, none of which this needs.
+ * Cached statistics for `GET /nodeinfo/2.0`: stale-while-revalidate with a
+ * per-process single-flight. A failed refresh keeps serving the last good entry;
+ * with none, it rejects and the route omits the counts.
  */
-export function countLocalPostsCached(): Promise<number> {
-  return nodeinfoPostCountCache.getOrCompute(NODEINFO_POST_COUNT_KEY, estimatePostCount);
+export function nodeinfoStatisticsCached(): Promise<NodeinfoStatistics> {
+  return nodeinfoStatsCache.getOrCompute(NODEINFO_STATS_KEY, () => measureNodeinfoStatistics());
 }
 
 /** Compose production HTTP dependencies. Runtime bootstrap calls this once. */
@@ -107,7 +92,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
     ...appRoutePredicates,
     // An hourly planner estimate, never a scan per poller — see
     // `countLocalPostsCached`.
-    countLocalPosts: countLocalPostsCached,
+    getNodeinfoStatistics: nodeinfoStatisticsCached,
     logger,
     middleware: {
       activity,
