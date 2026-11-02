@@ -152,3 +152,21 @@ it('formats supported currency precision without assuming all currencies have ce
   expect(plusPriceMajorUnits({ ...price, currency: 'JPY', amountMinorUnits: 999 })).toBe(999);
   expect(plusPriceMajorUnits({ ...price, currency: 'KWD', amountMinorUnits: 999 })).toBe(0.999);
 });
+
+it('refuses to display an amount when currency precision is unavailable', () => {
+  const price = catalogue.plans[0]?.price;
+  if (!price) throw new Error('Missing fixture');
+  const resolved = new Intl.NumberFormat('en', {
+    style: 'currency',
+    currency: 'USD',
+  }).resolvedOptions();
+  const spy = jest.spyOn(Intl.NumberFormat.prototype, 'resolvedOptions').mockReturnValue({
+    ...resolved,
+    maximumFractionDigits: undefined,
+  });
+  try {
+    expect(() => plusPriceMajorUnits(price)).toThrow('Currency precision unavailable');
+  } finally {
+    spy.mockRestore();
+  }
+});
