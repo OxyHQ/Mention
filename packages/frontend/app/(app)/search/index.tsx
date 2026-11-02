@@ -49,7 +49,6 @@ import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
 import { VirtualList } from '@oxy.so/bloom/list';
 import {
@@ -167,7 +166,6 @@ type SearchRow =
   | { kind: 'trendsError'; key: string }
   | { kind: 'operators'; key: string }
   | { kind: 'operatorValues'; key: string; token: ActiveOperatorToken; values: string[] }
-  | { kind: 'searchFor'; key: string; term: string }
   | { kind: 'goToProfile'; key: string; handle: string }
   | { kind: 'status'; key: string; state: 'loading' | 'error' | 'empty' }
   | { kind: 'user'; key: string; profile: ProfileCardData }
@@ -933,7 +931,7 @@ function SearchIndex() {
    * the fix.
    *
    * Idle (empty box): recents, then trending, then the operator cheat-sheet.
-   * Typing: commit-this-query, an optional go-to-profile, an optional operator
+   * Typing: an optional go-to-profile, an optional operator
    * completion, then recents FILTERED by what has been typed — the history
    * stays reachable instead of vanishing on the first keystroke.
    */
@@ -973,8 +971,6 @@ function SearchIndex() {
       rows.push({ kind: 'operators', key: 'operators' });
       return rows;
     }
-
-    rows.push({ kind: 'searchFor', key: 'suggestion-search-for', term: trimmedQuery });
 
     const handle = toProfileHandleSuggestion(trimmedQuery);
     if (handle) {
@@ -1274,20 +1270,6 @@ function SearchIndex() {
             </View>
           );
 
-        case 'searchFor':
-          return (
-            <TouchableOpacity
-              className="w-full flex-row items-center gap-3 px-3 py-3 border-b border-border"
-              onPress={handleSubmit}
-              accessibilityRole="button"
-            >
-              <RiSearchLine width={18} height={18} fill={theme.colors.textSecondary} />
-              <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
-                {t('search.suggestions.searchFor', 'Search for "{{query}}"', { query: item.term })}
-              </Text>
-            </TouchableOpacity>
-          );
-
         case 'goToProfile':
           return (
             <TouchableOpacity
@@ -1445,7 +1427,6 @@ function SearchIndex() {
       fetchTrends,
       handleOperatorPress,
       handleOperatorValuePress,
-      handleSubmit,
       handleGoToProfile,
       retrySearch,
       handleOpenProfile,

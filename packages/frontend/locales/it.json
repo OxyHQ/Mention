@@ -1089,7 +1089,6 @@
   "search.retry": "Riprova",
   "search.clearInput": "Cancella ricerca",
   "search.removeRecent": "Rimuovi dalle ricerche recenti",
-  "search.suggestions.searchFor": "Cerca \"{{query}}\"",
   "search.suggestions.goToProfile": "Vai a @{{handle}}",
   "search.suggestions.completeOperator": "Completa {{prefix}}:",
   "feeds.title": "Feed",

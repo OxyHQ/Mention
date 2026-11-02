@@ -1075,7 +1075,6 @@
   "search.retry": "फिर कोशिश करें",
   "search.clearInput": "खोज साफ़ करें",
   "search.removeRecent": "हाल की खोजों से हटाएँ",
-  "search.suggestions.searchFor": "\"{{query}}\" खोजें",
   "search.suggestions.goToProfile": "@{{handle}} पर जाएँ",
   "search.suggestions.completeOperator": "{{prefix}}: पूरा करें",
   "feeds.title": "फ़ीड",

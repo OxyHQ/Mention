@@ -1089,7 +1089,6 @@
   "search.retry": "Torna-ho a provar",
   "search.clearInput": "Esborra la cerca",
   "search.removeRecent": "Treu de les cerques recents",
-  "search.suggestions.searchFor": "Cerca «{{query}}»",
   "search.suggestions.goToProfile": "Ves a @{{handle}}",
   "search.suggestions.completeOperator": "Completa {{prefix}}:",
   "feeds.title": "Fluxos",

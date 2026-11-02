@@ -1103,7 +1103,6 @@
   "search.retry": "Повторить",
   "search.clearInput": "Очистить поиск",
   "search.removeRecent": "Убрать из недавних запросов",
-  "search.suggestions.searchFor": "Искать «{{query}}»",
   "search.suggestions.goToProfile": "Перейти к @{{handle}}",
   "search.suggestions.completeOperator": "Дополнить {{prefix}}:",
   "feeds.title": "Ленты",

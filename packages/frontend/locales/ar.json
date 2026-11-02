@@ -1131,7 +1131,6 @@
   "search.retry": "إعادة المحاولة",
   "search.clearInput": "مسح البحث",
   "search.removeRecent": "إزالة من عمليات البحث الأخيرة",
-  "search.suggestions.searchFor": "البحث عن \"{{query}}\"",
   "search.suggestions.goToProfile": "الانتقال إلى @{{handle}}",
   "search.suggestions.completeOperator": "إكمال {{prefix}}:",
   "feeds.title": "الخلاصات",

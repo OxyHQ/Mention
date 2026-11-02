@@ -1075,7 +1075,6 @@
   "search.retry": "Coba lagi",
   "search.clearInput": "Hapus pencarian",
   "search.removeRecent": "Hapus dari pencarian terakhir",
-  "search.suggestions.searchFor": "Cari \"{{query}}\"",
   "search.suggestions.goToProfile": "Buka @{{handle}}",
   "search.suggestions.completeOperator": "Lengkapi {{prefix}}:",
   "feeds.title": "Feed",

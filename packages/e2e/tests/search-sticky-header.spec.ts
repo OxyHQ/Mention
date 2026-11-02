@@ -73,6 +73,7 @@ for (const width of [390, 1440]) {
       const search = page.getByPlaceholder('Search...', { exact: true });
       const tabs = page.getByRole('tablist');
       await expect(search).toHaveValue('sticky');
+      await expect(page.getByText('Search for "sticky"', { exact: true })).toHaveCount(0);
       await expect(
         page.getByRole('button', { name: /Search sticky person 0/ }).first(),
       ).toBeVisible();

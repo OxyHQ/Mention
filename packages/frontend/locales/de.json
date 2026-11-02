@@ -1075,7 +1075,6 @@
   "search.retry": "Erneut versuchen",
   "search.clearInput": "Suche löschen",
   "search.removeRecent": "Aus den letzten Suchen entfernen",
-  "search.suggestions.searchFor": "Nach „{{query}}“ suchen",
   "search.suggestions.goToProfile": "Zu @{{handle}} gehen",
   "search.suggestions.completeOperator": "{{prefix}}: vervollständigen",
   "feeds.title": "Feeds",
