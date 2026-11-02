@@ -16,6 +16,10 @@ export const mentionPlusBinding = plusOfferBinding(
   MENTION_PLUS_PRODUCT_ID,
   MENTION_PLUS_CAPABILITY_KEY,
 );
+const accessBinding =
+  MENTION_PLUS_PRODUCT_ID && MENTION_PLUS_CAPABILITY_KEY
+    ? { productId: MENTION_PLUS_PRODUCT_ID, capabilityKey: MENTION_PLUS_CAPABILITY_KEY }
+    : null;
 /** Public pricing is independent of sign-in; both individual and bundle access are authoritative. */
 export function usePlusOffer() {
   const { user, oxyServices, canUsePrivateApi } = useAuth();
@@ -38,26 +42,26 @@ export function usePlusOffer() {
     gcTime: 0,
     retry: false,
   });
-  const accessEnabled = !!binding && canUsePrivateApi && !!user?.id && !!activeSessionId;
+  const accessEnabled = !!accessBinding && canUsePrivateApi && !!user?.id && !!activeSessionId;
   const access = useQuery({
     queryKey: viewerQueryKeys.mentionPlusAccess(
       user?.id,
       activeSessionId,
-      binding?.productId,
-      binding?.capabilityKey,
+      accessBinding?.productId,
+      accessBinding?.capabilityKey,
     ),
     queryFn: async () => {
-      if (!binding || !user?.id) throw new Error('Sign in required');
+      if (!accessBinding || !user?.id) throw new Error('Sign in required');
       return includesPlus(
         await oxyServices.billing.productAccess(
           parseContract(subjectProductAccessQueryCheck, {
             schemaVersion: 1,
             subjectAccountId: user.id,
-            productId: binding.productId,
+            productId: accessBinding.productId,
           }),
         ),
         user.id,
-        binding,
+        accessBinding,
       );
     },
     enabled: accessEnabled,

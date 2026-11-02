@@ -31,8 +31,8 @@ a reviewed central offer and updated build configuration.
 
 Public pricing loads independently of sign-in. Signed-out users see a sign-in
 step; signed-in users without an available offer see the unavailable state.
-Subscribe still opens the sheet in either case. No checkout is created. The catalogue observed during implementation was empty; no production purchase or
-entitlement activation has been demonstrated by this change.
+Subscribe still opens the sheet in either case. No checkout is created. No approved standalone product/offer binding was supplied or enabled during this
+change; no production purchase or entitlement activation has been demonstrated.
 
 ## Payment outcomes and recovery
 
@@ -43,7 +43,9 @@ a recovery key. Native calls share an in-process creation promise. Interrupted
 responses, duplicate clicks, popup blocking and dismissal retain the key. Check
 payment status uses the same operation and never trusts a browser return URL.
 
-An authoritative product-access query recognizes existing Plus rights from either
+Entitlement discovery requires only the product ID and capability key, independently
+of standalone-offer availability. An authoritative product-access query recognizes
+existing Plus rights from either
 an individual purchase or an Oxy One bundle and prevents another purchase. The
 capability is checked again immediately before checkout creation. Only an
 authoritative `fulfilled` response refreshes account-scoped product-access and

@@ -56,7 +56,7 @@ export function checkoutUrl(value: string): string {
 export function includesPlus(
   access: import('@oxy.so/contracts').SubjectProductAccess,
   accountId: string,
-  binding: PlusOfferBinding,
+  binding: Pick<PlusOfferBinding, 'productId' | 'capabilityKey'>,
 ): boolean {
   if (access.subjectAccountId !== accountId || access.productId !== binding.productId)
     throw new Error('Account changed');

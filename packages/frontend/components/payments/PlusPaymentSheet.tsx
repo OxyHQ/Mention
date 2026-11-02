@@ -47,6 +47,7 @@ function PaymentContent({ onClose }: { onClose(): void }) {
   const [message, setMessage] = useState<Message>('loading');
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false);
+  const [hasOperation, setHasOperation] = useState(false);
   const scope = useRef({ active: false });
   const locked = useRef(false);
   const popup = useRef<Window | null>(null);
@@ -85,9 +86,8 @@ function PaymentContent({ onClose }: { onClose(): void }) {
       !mentionPlusBinding ||
       !user?.id ||
       !canUsePrivateApi ||
-      hasAccess ||
-      checkingAccess ||
-      accessFailed ||
+      (openWindow && (hasAccess || checkingAccess || accessFailed)) ||
+      (!openWindow && !hasOperation) ||
       locked.current
     )
       return;
@@ -106,24 +106,27 @@ function PaymentContent({ onClose }: { onClose(): void }) {
     if (windowForAttempt) windowForAttempt.opener = null;
     if (openWindow) popup.current = windowForAttempt;
     try {
-      const access = await authenticatedApiCall(oxyServices, activeSessionId, () => {
-        if (!isCurrent()) throw new Error('Account changed');
-        return oxyServices.billing.productAccess(
-          parseContract(subjectProductAccessQueryCheck, {
-            schemaVersion: 1,
-            subjectAccountId: user.id,
-            productId: offer.productId,
-          }),
-        );
-      });
-      if (!isCurrent()) return;
-      if (includesPlus(access, user.id, mentionPlusBinding)) {
-        windowForAttempt?.close();
-        setMessage('included');
-        return;
+      if (openWindow) {
+        const access = await authenticatedApiCall(oxyServices, activeSessionId, () => {
+          if (!isCurrent()) throw new Error('Account changed');
+          return oxyServices.billing.productAccess(
+            parseContract(subjectProductAccessQueryCheck, {
+              schemaVersion: 1,
+              subjectAccountId: user.id,
+              productId: offer.productId,
+            }),
+          );
+        });
+        if (!isCurrent()) return;
+        if (includesPlus(access, user.id, mentionPlusBinding)) {
+          windowForAttempt?.close();
+          setMessage('included');
+          return;
+        }
       }
       const key = await getPlusCheckoutKey(user.id, mentionPlusBinding);
       if (!isCurrent()) return;
+      setHasOperation(true);
       const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
         if (!isCurrent()) throw new Error('Account changed');
         return oxyServices.billing.startProductPlanCheckout(
@@ -250,7 +253,7 @@ function PaymentContent({ onClose }: { onClose(): void }) {
             {t('plus.payment.continue')}
           </Button>
         )}
-        {offer && started && !done && (
+        {offer && hasOperation && !done && (
           <Button
             disabled={busy}
             onPress={() => {

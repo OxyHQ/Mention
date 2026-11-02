@@ -31,6 +31,12 @@ let mockPopup: {
   location: typeof mockLocation;
   opener: unknown;
 };
+jest.mock('@/config', () => ({
+  MENTION_PLUS_PRODUCT_ID: 'mention-product',
+  MENTION_PLUS_CAPABILITY_KEY: 'plus',
+  MENTION_PLUS_OFFER_ID: 'approved',
+  MENTION_PLUS_OFFER_VERSION: '2',
+}));
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: mockUser,
@@ -280,4 +286,18 @@ it('rechecks individual or bundle access immediately before creating checkout', 
   expect(mockCheckout).not.toHaveBeenCalled();
   expect(mockKey).not.toHaveBeenCalled();
   expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.included');
+});
+
+it('recovers a pending operation after access becomes included without creating another payment', async () => {
+  await mount();
+  await press('plus.payment.continue');
+  mockHasAccess = true;
+  await act(async () => {
+    renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
+  });
+  mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
+  await press('plus.payment.checkStatus');
+  expect(mockCheckout).toHaveBeenCalledTimes(2);
+  expect(mockAccess).toHaveBeenCalledTimes(1);
+  expect(mockClearKey).toHaveBeenCalled();
 });
