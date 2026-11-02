@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · USD olarak tahsil edilir.",
   "plus.payment.cadenceLabel": "Fatura dönemi",
   "plus.payment.cadenceMonth": "Aylık",
   "plus.payment.cadenceYear": "Yıllık · %20 tasarruf",

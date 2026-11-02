@@ -7,6 +7,11 @@ let mockOffer: {
   price: { amountMinorUnits: number; currency: string; interval: string };
 } | null = null;
 let mockCadence: string | undefined;
+let mockDisplayCurrency = 'USD';
+const mockFormatUsd = jest.fn(() => 'Approx. 12 FAIR');
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useDisplayPrice: () => ({ currency: mockDisplayCurrency, formatUsd: mockFormatUsd }),
+}));
 jest.mock('@/hooks/usePlusOffer', () => ({
   usePlusOffer: (cadence: string) => {
     mockCadence = cadence;
@@ -26,7 +31,11 @@ const mockPaymentDialog = jest.fn();
 let mockPlansProps: SubscriptionPlansProps | undefined;
 
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+  useTranslation: () => ({
+    t: (key: string, options?: { estimate?: string }) =>
+      options?.estimate ? `${key}:${options.estimate}` : key,
+    i18n: { language: 'en' },
+  }),
 }));
 jest.mock('@/components/payments/PlusPaymentSheet', () => ({
   PlusPaymentSheet: (props: unknown) => {
@@ -83,4 +92,19 @@ it('defaults monthly, passes the selected annual offer to the sheet and locks ca
   expect(mockPaymentDialog.mock.calls.at(-1)?.[0].cadence).toBe('year');
   act(() => mockCadenceProps.onValueChange('month'));
   expect(mockCadence).toBe('year');
+});
+
+it('shows the shared currency estimate without replacing the approved USD price', () => {
+  mockDisplayCurrency = 'FAIR';
+  mockOffer = {
+    displayName: 'Mention Plus',
+    price: { amountMinorUnits: 599, currency: 'USD', interval: 'month' },
+  };
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(<PlusScreen />);
+  });
+  expect(mockFormatUsd).toHaveBeenCalledWith(599);
+  expect(mockPlansProps?.plans[1].price).toMatchObject({ amount: 5.99, currency: 'USD' });
+  expect(JSON.stringify(renderer?.toJSON())).toContain('Approx. 12 FAIR');
 });

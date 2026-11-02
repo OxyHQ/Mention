@@ -23,6 +23,7 @@ import {
   type PlusOffer,
   type PlusOfferBinding,
 } from '@/lib/payments/plusCheckout';
+import { PlusDisplayEstimate } from './PlusDisplayEstimate';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
 
 type Message =
@@ -264,6 +265,7 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
                 },
               )}
             </Text>
+            <PlusDisplayEstimate price={offer.price} />
           </>
         )}
         {(busy || message === 'loading') && (

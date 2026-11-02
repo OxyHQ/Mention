@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · تُحصَّل الرسوم بالدولار الأمريكي.",
   "plus.payment.cadenceLabel": "فترة الفوترة",
   "plus.payment.cadenceMonth": "شهري",
   "plus.payment.cadenceYear": "سنوي · وفّر 20%",

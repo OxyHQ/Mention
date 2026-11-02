@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · 米ドルで請求されます。",
   "plus.payment.cadenceLabel": "請求期間",
   "plus.payment.cadenceMonth": "月払い",
   "plus.payment.cadenceYear": "年払い · 20%お得",

@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Es cobra en USD.",
   "plus.payment.cadenceLabel": "Període de facturació",
   "plus.payment.cadenceMonth": "Mensual",
   "plus.payment.cadenceYear": "Anual · estalvia un 20 %",

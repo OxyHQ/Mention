@@ -16,6 +16,7 @@ import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { PlusPaymentSheet } from '@/components/payments/PlusPaymentSheet';
+import { PlusDisplayEstimate } from '@/components/payments/PlusDisplayEstimate';
 import { useTranslation } from 'react-i18next';
 
 /** Mention Plus is sold individually and is also included with Oxy One. */
@@ -110,6 +111,7 @@ export default function PlusScreen() {
             },
           }}
         />
+        {selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />}
         <Text>{t('plus.payment.oneIncluded')}</Text>
       </ScreenScrollView>
       {paymentOpen && <PlusPaymentSheet cadence={cadence} onClose={() => setPaymentOpen(false)} />}

@@ -65,6 +65,18 @@ starts, its reviewed offer and amount remain frozen through status checks even i
 the catalogue refetches. Closing the sheet and switching cadence preserves each
 offer's pending operation key; switching back resumes its existing operation.
 
+## Display currency preference
+
+The approved billing price remains USD. The page and payment sheet use Oxy
+Services' shared `useDisplayPrice` hook for a secondary estimate in the account's
+preferred display currency, following the same preferences authority as other
+Oxy applications. The shared hook owns rates, freshness and the approximate or
+unavailable message. Mention does not fetch or invent an exchange rate.
+
+A non-USD estimate states that the charge is in USD. If conversion is unavailable,
+the actual USD offer remains visible and purchasable. Selecting a display currency
+never changes the approved offer, checkout request, payment total or recovery key.
+
 ## Payment outcomes and recovery
 
 The operation key is saved before checkout creation, scoped by account, offer and

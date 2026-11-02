@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Abrechnung in USD.",
   "plus.payment.cadenceLabel": "Abrechnungszeitraum",
   "plus.payment.cadenceMonth": "Monatlich",
   "plus.payment.cadenceYear": "Jährlich · 20 % sparen",

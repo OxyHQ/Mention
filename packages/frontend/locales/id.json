@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Ditagih dalam USD.",
   "plus.payment.cadenceLabel": "Periode penagihan",
   "plus.payment.cadenceMonth": "Bulanan",
   "plus.payment.cadenceYear": "Tahunan · hemat 20%",

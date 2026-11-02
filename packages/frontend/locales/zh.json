@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · 以美元收费。",
   "plus.payment.cadenceLabel": "计费周期",
   "plus.payment.cadenceMonth": "每月",
   "plus.payment.cadenceYear": "每年 · 省 20%",

@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Оплата в USD.",
   "plus.payment.cadenceLabel": "Расчётный период",
   "plus.payment.cadenceMonth": "Ежемесячно",
   "plus.payment.cadenceYear": "Ежегодно · экономия 20%",

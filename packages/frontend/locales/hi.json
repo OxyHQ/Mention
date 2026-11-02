@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · शुल्क USD में लिया जाएगा।",
   "plus.payment.cadenceLabel": "बिलिंग अवधि",
   "plus.payment.cadenceMonth": "मासिक",
   "plus.payment.cadenceYear": "वार्षिक · 20% बचाएं",

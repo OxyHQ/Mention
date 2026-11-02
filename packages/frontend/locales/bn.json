@@ -1,4 +1,5 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · USD-তে চার্জ করা হবে।",
   "plus.payment.cadenceLabel": "বিলিং সময়কাল",
   "plus.payment.cadenceMonth": "মাসিক",
   "plus.payment.cadenceYear": "বার্ষিক · ২০% সাশ্রয়",
