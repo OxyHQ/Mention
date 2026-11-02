@@ -46,3 +46,63 @@ for (const width of [390, 1440]) {
     expect(candidate.scriptErrors).toEqual([]);
   });
 }
+
+test('search starter-pack skeleton cards retain their inset while results load', async ({
+  page,
+  context,
+  candidate,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await installNotificationFixture(context);
+  let release: () => void = () => {
+    throw new Error('Search response gate was not initialized');
+  };
+  let markRequested: () => void = () => {
+    throw new Error('Search request signal was not initialized');
+  };
+  const waitForRelease = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise<void>((resolve) => {
+    markRequested = resolve;
+  });
+  await page.route('https://api.mention.earth/starter-packs?**', async (route) => {
+    markRequested();
+    await waitForRelease;
+    await route.fulfill({
+      headers: {
+        'access-control-allow-origin': APP_ORIGIN,
+        'access-control-allow-credentials': 'true',
+      },
+      json: { items: packs, hasMore: false },
+    });
+  });
+  try {
+    await page.goto('/search?q=uniquegeometrytest');
+    await page.getByRole('tab', { name: 'Starter Packs', exact: true }).click();
+    await requested;
+    const skeleton = page.locator('[data-bloom-skeleton-motion]').first();
+    await expect(skeleton).toBeAttached();
+    const card = await skeleton.evaluate((node) => {
+      let element: HTMLElement | null = node as HTMLElement;
+      while (element) {
+        const style = getComputedStyle(element);
+        if (parseFloat(style.borderTopWidth) > 0 && parseFloat(style.borderTopLeftRadius) > 0) {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: window.innerWidth - box.right };
+        }
+        element = element.parentElement;
+      }
+      return null;
+    });
+    expect(card).not.toBeNull();
+    expect(card?.left).toBeGreaterThanOrEqual(11);
+    expect(card?.right).toBeGreaterThanOrEqual(11);
+    expect(card?.left).toBeLessThanOrEqual(13);
+    expect(card?.right).toBeLessThanOrEqual(13);
+  } finally {
+    release();
+  }
+  await expect(page.getByTestId(`starterpack-${packs[0].id}`)).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
