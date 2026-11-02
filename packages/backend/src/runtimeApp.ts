@@ -48,9 +48,10 @@ import { createCache } from './utils/cache';
  */
 const NODEINFO_STATS_FRESH_MS = 60 * 60 * 1000;
 const NODEINFO_STATS_TTL_SECONDS = 24 * 60 * 60;
-// Bump the version whenever `NodeinfoStatistics` changes shape: Redis keeps the old
+// Bump the version whenever `NodeinfoStatistics` changes shape OR MEANING (v5: the
+// local/external boundary moved to the row's own provenance): Redis keeps the old
 // envelope for a day, and an old entry read as the new shape 500s the endpoint.
-const NODEINFO_STATS_KEY = 'nodeinfo:v4:statistics';
+const NODEINFO_STATS_KEY = 'nodeinfo:v5:statistics';
 const nodeinfoStatsCache = createCache({
   name: 'NodeinfoStatisticsCache',
   ttlSeconds: NODEINFO_STATS_TTL_SECONDS,
