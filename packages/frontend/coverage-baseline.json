@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 54.66,
-      "covered": 15697,
-      "total": 28715
+      "pct": 54.93,
+      "covered": 15861,
+      "total": 28873
     },
     "branches": {
-      "pct": 50,
-      "covered": 10858,
-      "total": 21713
+      "pct": 50.39,
+      "covered": 11012,
+      "total": 21853
     },
     "functions": {
-      "pct": 49.52,
-      "covered": 3729,
-      "total": 7529
+      "pct": 49.68,
+      "covered": 3750,
+      "total": 7548
     },
     "lines": {
-      "pct": 55.52,
-      "covered": 14164,
-      "total": 25507
+      "pct": 55.79,
+      "covered": 14309,
+      "total": 25647
     }
   },
   "pins": {
@@ -277,7 +277,7 @@
     },
     "hooks/useDraftManager.ts": {
       "statements": 100,
-      "branches": 82,
+      "branches": 83,
       "functions": 100,
       "lines": 100
     },
@@ -586,6 +586,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/usePublicationContinuation.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useQuoteManager.ts": {
       "statements": 0,
@@ -1170,10 +1176,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 54,
-      "branches": 46,
-      "functions": 48,
-      "lines": 55
+      "statements": 58,
+      "branches": 61,
+      "functions": 54,
+      "lines": 60
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1428,10 +1434,10 @@
       "lines": 98
     },
     "stores/postsStore.ts": {
-      "statements": 77,
-      "branches": 58,
+      "statements": 79,
+      "branches": 62,
       "functions": 72,
-      "lines": 83
+      "lines": 85
     },
     "stores/profileCountsInvalidation.ts": {
       "statements": 100,

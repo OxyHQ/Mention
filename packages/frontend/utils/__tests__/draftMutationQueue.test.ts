@@ -35,6 +35,22 @@ it('releases and cleans up after a synchronous exception', async () => {
   expect(queue.size).toBe(0);
 });
 
+it('runs without a cross-tab lock where the platform has none', async () => {
+  const target = globalThis.navigator;
+  Object.defineProperty(target, 'locks', { configurable: true, value: undefined });
+  try {
+    const queue = new DraftMutationQueue();
+    expect(await queue.run('a', async () => 'done')).toBe('done');
+    await expect(
+      new DraftMutationQueue().run('a', () => {
+        throw new Error('synchronous failure');
+      }),
+    ).rejects.toThrow('synchronous failure');
+  } finally {
+    delete (target as { locks?: unknown }).locks;
+  }
+});
+
 it('holds a cross-tab lock for the viewer while a mutation runs', async () => {
   const held: string[] = [];
   const target = globalThis.navigator;
