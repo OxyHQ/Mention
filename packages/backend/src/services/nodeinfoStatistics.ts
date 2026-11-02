@@ -1,44 +1,49 @@
 /**
  * Aggregate statistics behind `GET /nodeinfo/2.0` (#1748).
  *
- * ## Definitions (the counting unit is one stored row)
+ * ## Definitions (the counting unit is one stored `posts` row)
  *
- * - **Local post**: a `posts` row with no `federation_actor_uri` — authored here.
- * - **External post**: a `posts` row WITH `federation_actor_uri` — an ActivityPub
- *   or atproto post this instance stores. `federation_activity_id` is unique, so a
- *   repeated delivery is one row, never two. An external post is never a local one:
- *   the two are a disjoint partition of `posts`, so `combined = local + external`.
- * - **External actors**: `federated_actors` rows. `uri` is unique, so one actor is
- *   one row; an account reachable under two URIs (an alias) is two rows, which is
- *   why this is reported as "known actor records" and not as distinct people.
- * - **Local users**: NOT reported. Oxy owns identity and exposes no aggregate of
- *   registered users scoped to a deployment; `user_settings` rows are created on
- *   first use, `actor_key_pairs` only for accounts that federate. Either would be
- *   an invented figure, so the field is omitted (unknown is not zero) until Oxy
- *   ships an authoritative aggregate.
- *
- * Posts and replies are not split: the standard `localComments` is omitted for the
- * same reason (no index answers it, and a scan is forbidden by #1160/#1165).
+ * - **Local**: no `federation_actor_uri` — authored here — counted only while
+ *   `visibility = 'public'` and `status = 'published'`. Drafts, scheduled,
+ *   deleted and non-public rows are never published, even as aggregates.
+ * - **External**: WITH `federation_actor_uri` (ActivityPub or atproto). A stored
+ *   federated row is already a delivered, public object; `federation_activity_id`
+ *   is unique, so a repeated delivery is one row. Bridged or imported rows that
+ *   carry an actor URI are external; a local author's own post never has one.
+ * - **Comment** = a row with `is_reply`; **post** = a row without it.
+ * - Local and external are a disjoint partition, so `combined = local + external`.
+ * - **External actors**: `federated_actors` rows (`uri` unique). An alias under a
+ *   second URI is a second record, hence "known actor records", not distinct people.
+ * - **Local users**: not reported until Oxy ships an authoritative per-deployment
+ *   aggregate (OxyHQ/oxy#2076): `user_settings` is created on first use and
+ *   `actor_key_pairs` only for federating accounts, so either would be invented.
  *
  * ## Cost
  *
- * Three statements per refresh, none a scan of `posts`: the planner estimate for
- * `posts` and `federated_actors` (`pg_class.reltuples`), and one index-only count
- * over the partial index `posts_federation_actor_author_idx`. Local posts are the
- * remainder, so they are an ESTIMATE; `exact` says so.
+ * No statement scans `posts`: the local counts are one GROUP BY over the tiny
+ * partial index `posts_local_public_kind_idx`; the external counts are index-only
+ * over `posts_federation_actor_author_idx` and `posts_external_replies_idx`
+ * (migration 0104). The actor figure is the planner estimate (exact on a table
+ * never analyzed) and is flagged separately.
  */
 import { count, isNotNull, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 
+interface Split {
+  posts: number;
+  comments: number;
+  total: number;
+}
+
 export interface NodeinfoStatistics {
   /** Epoch ms the figures were measured. */
   measuredAt: number;
-  posts: { local: number; external: number; combined: number };
+  local: Split;
+  external: Split;
+  combined: Split;
   /** Known remote actor records; see the module comment. */
-  externalActors: number;
-  /** False: `local` and `combined` derive from the planner's row estimate. */
-  exact: boolean;
+  externalActors: { count: number; exact: boolean };
 }
 
 async function estimateRows(table: string): Promise<number | null> {
@@ -50,48 +55,73 @@ async function estimateRows(table: string): Promise<number | null> {
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
-/** An exact count, only ever on a table the planner has no estimate for. */
-async function exactRows(table: 'posts' | 'federated_actors'): Promise<number> {
+async function countExternalActors(): Promise<{ count: number; exact: boolean }> {
+  const estimate = await estimateRows('federated_actors');
+  if (estimate !== null) return { count: estimate, exact: false };
   const [row] = await getDb().execute<{ n: string }>(
-    sql`select count(*)::text as n from ${sql.identifier(table)}`,
+    sql`select count(*)::text as n from federated_actors`,
   );
-  return Number(row?.n ?? 0);
+  return { count: Number(row?.n ?? 0), exact: true };
 }
 
-export async function measureNodeinfoStatistics(now = Date.now()): Promise<NodeinfoStatistics> {
-  const [postsEstimate, actorsEstimate] = await Promise.all([
-    estimateRows('posts'),
-    estimateRows('federated_actors'),
-  ]);
-  const [externalRow] = await getDb()
-    .select({ n: count() })
-    .from(posts)
-    .where(isNotNull(posts.federationActorUri));
-  const external = externalRow?.n ?? 0;
+const split = (postCount: number, commentCount: number): Split => ({
+  posts: postCount,
+  comments: commentCount,
+  total: postCount + commentCount,
+});
 
-  const exact = postsEstimate === null;
-  const combined = Math.max(postsEstimate ?? (await exactRows('posts')), external);
-  const externalActors = actorsEstimate ?? (await exactRows('federated_actors'));
+export async function measureNodeinfoStatistics(now = Date.now()): Promise<NodeinfoStatistics> {
+  const db = getDb();
+  const [localRows, [externalAll], [externalReplies], externalActors] = await Promise.all([
+    db
+      .select({ isReply: posts.isReply, n: count() })
+      .from(posts)
+      .where(
+        sql`${posts.federationActorUri} is null and ${posts.visibility} = 'public' and ${posts.status} = 'published'`,
+      )
+      .groupBy(posts.isReply),
+    db.select({ n: count() }).from(posts).where(isNotNull(posts.federationActorUri)),
+    db
+      .select({ n: count() })
+      .from(posts)
+      .where(sql`${posts.federationActorUri} is not null and ${posts.isReply}`),
+    countExternalActors(),
+  ]);
+
+  const localComments = localRows.find((row) => row.isReply)?.n ?? 0;
+  const localPosts = localRows.find((row) => !row.isReply)?.n ?? 0;
+  const externalComments = Math.min(externalReplies?.n ?? 0, externalAll?.n ?? 0);
+  const externalPosts = (externalAll?.n ?? 0) - externalComments;
 
   return {
     measuredAt: now,
-    posts: { local: combined - external, external, combined },
+    local: split(localPosts, localComments),
+    external: split(externalPosts, externalComments),
+    combined: split(localPosts + externalPosts, localComments + externalComments),
     externalActors,
-    exact,
   };
 }
 
 /**
  * The namespaced `metadata` extension: local, external and combined figures in
  * one place so a consumer never has to guess which standard field is which.
- * Local users and comments are absent by design (see the module comment).
+ * Local users are absent by design (see the module comment).
  */
 export function nodeinfoStatisticsExtension(stats: NodeinfoStatistics) {
   return {
-    version: 1,
+    version: 2,
     measuredAt: new Date(stats.measuredAt).toISOString(),
-    exact: stats.exact,
-    posts: stats.posts,
+    exact: true,
+    posts: {
+      local: stats.local.posts,
+      external: stats.external.posts,
+      combined: stats.combined.posts,
+    },
+    comments: {
+      local: stats.local.comments,
+      external: stats.external.comments,
+      combined: stats.combined.comments,
+    },
     externalActors: stats.externalActors,
     scope: 'content and actors known to this instance; not the wider fediverse',
   };

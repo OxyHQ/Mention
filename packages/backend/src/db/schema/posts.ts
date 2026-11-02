@@ -757,6 +757,20 @@ export const posts = pgTable(
       .on(t.federationUrl)
       .where(sql`${t.federationUrl} is not null`),
 
+    // NodeInfo statistics (#1748), answered by index-only counts instead of a scan
+    // of `posts`. Partial and tiny: the first holds only this instance's public
+    // published posts (key = `is_reply`, so one `GROUP BY` splits posts from
+    // comments); the second only federated replies. Their complements are the
+    // rest of the table, which no count here reads.
+    index('posts_local_public_kind_idx')
+      .on(t.isReply)
+      .where(
+        sql`${t.federationActorUri} is null and ${t.visibility} = 'public' and ${t.status} = 'published'`,
+      ),
+    index('posts_external_replies_idx')
+      .on(t.id)
+      .where(sql`${t.federationActorUri} is not null and ${t.isReply}`),
+
     // ── Hot paths ──
     // The names are kept stable so a DBA reading `pg_indexes` and a
     // developer reading the migration see the same ones. These declarations

@@ -132,6 +132,27 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'USING btree (federation_url) WHERE (federation_url IS NOT NULL)',
   },
   {
+    name: 'posts_local_public_kind_idx',
+    table: 'posts',
+    serves:
+      "NodeInfo local statistics (#1748) — this instance's public published posts only, keyed by " +
+      '`is_reply`, so one GROUP BY splits local posts from comments with an index-only count ' +
+      'instead of a scan of `posts` (0104)',
+    definition:
+      'CREATE INDEX posts_local_public_kind_idx ON public.posts USING btree (is_reply) ' +
+      "WHERE ((federation_actor_uri IS NULL) AND (visibility = 'public'::text) AND (status = 'published'::text))",
+  },
+  {
+    name: 'posts_external_replies_idx',
+    table: 'posts',
+    serves:
+      'NodeInfo external comment count (#1748) — federated replies only, so the external ' +
+      'post/comment split is an index-only count (0104)',
+    definition:
+      'CREATE INDEX posts_external_replies_idx ON public.posts USING btree (id) ' +
+      'WHERE ((federation_actor_uri IS NOT NULL) AND is_reply)',
+  },
+  {
     name: 'post_public_chrono_v1',
     table: 'posts',
     serves:

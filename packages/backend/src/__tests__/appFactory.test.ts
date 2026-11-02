@@ -419,9 +419,10 @@ describe('createApp', () => {
 
     const stats = {
       measuredAt: Date.UTC(2026, 10, 2),
-      posts: { local: 7, external: 3, combined: 10 },
-      externalActors: 4,
-      exact: false,
+      local: { posts: 7, comments: 2, total: 9 },
+      external: { posts: 3, comments: 1, total: 4 },
+      combined: { posts: 10, comments: 3, total: 13 },
+      externalActors: { count: 4, exact: false },
     };
     deps.getNodeinfoStatistics = vi.fn().mockResolvedValue(stats);
     await request(createApp(deps))
@@ -430,12 +431,12 @@ describe('createApp', () => {
       .expect(200)
       .expect(({ body }) => {
         // Standard fields carry LOCAL content only; unknown local users are omitted.
-        expect(body.usage).toEqual({ users: {}, localPosts: 7 });
+        expect(body.usage).toEqual({ users: {}, localPosts: 7, localComments: 2 });
         expect(body.services).toEqual({ inbound: [], outbound: [] });
         expect(body.metadata['so.oxy.mention.statistics']).toMatchObject({
           posts: { local: 7, external: 3, combined: 10 },
-          externalActors: 4,
-          exact: false,
+          comments: { local: 2, external: 1, combined: 3 },
+          externalActors: { count: 4, exact: false },
         });
       });
 

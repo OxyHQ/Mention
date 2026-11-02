@@ -355,7 +355,9 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },
       protocols: ['activitypub'],
       services: { inbound: [], outbound: [] },
-      usage: stats ? { users: {}, localPosts: stats.posts.local } : { users: {} },
+      usage: stats
+        ? { users: {}, localPosts: stats.local.posts, localComments: stats.local.comments }
+        : { users: {} },
       openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
       metadata: {
         ...(deps.deployment
