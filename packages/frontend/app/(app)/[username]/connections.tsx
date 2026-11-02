@@ -545,6 +545,7 @@ function ConnectionsContent({
     list
   ) : (
     <Screen
+      scroll="content"
       colorPreset={colorPreset}
       header={<ConnectionsHeader username={username} profileData={profileData} />}
     >
