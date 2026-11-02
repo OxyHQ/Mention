@@ -1,4 +1,5 @@
 import {
+  type NodeinfoLocalUsers,
   nodeinfoStatisticsExtension,
   type NodeinfoStatistics,
 } from './services/nodeinfoStatistics';
@@ -33,6 +34,8 @@ export interface CreateAppDependencies {
   isApexWebPlaneRequest(req: Request): boolean;
   /** Cached aggregates; rejects when none was ever measured. */
   getNodeinfoStatistics(): Promise<NodeinfoStatistics>;
+  /** Oxy's registered-account total for this deployment; rejects when unavailable. */
+  getNodeinfoLocalUsers(): Promise<NodeinfoLocalUsers>;
   logger: {
     debug(message: string, ...args: unknown[]): void;
   };
@@ -347,6 +350,13 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       // out (all optional in the schema), never published as 0.
       deps.logger.debug('nodeinfo: statistics unavailable, omitting counts', error);
     }
+    let users: NodeinfoLocalUsers | undefined;
+    try {
+      users = await deps.getNodeinfoLocalUsers();
+    } catch (error) {
+      // Oxy has no snapshot yet, or is unreachable: omit, never publish 0.
+      deps.logger.debug('nodeinfo: local user total unavailable, omitting', error);
+    }
     // The figures are hourly aggregates; a document without them is only
     // briefly cacheable so the next poll can pick them up.
     res.setHeader('Cache-Control', stats ? 'public, max-age=1800' : 'public, max-age=60');
@@ -355,9 +365,10 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },
       protocols: ['activitypub'],
       services: { inbound: [], outbound: [] },
-      usage: stats
-        ? { users: {}, localPosts: stats.local.posts, localComments: stats.local.comments }
-        : { users: {} },
+      usage: {
+        users: users ? { total: users.total } : {},
+        ...(stats ? { localPosts: stats.local.posts, localComments: stats.local.comments } : {}),
+      },
       openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
       metadata: {
         ...(deps.deployment
@@ -368,7 +379,9 @@ export function createApp(deps: CreateAppDependencies): express.Express {
               revision: deps.deployment.software.revision,
             }
           : {}),
-        ...(stats ? { 'so.oxy.mention.statistics': nodeinfoStatisticsExtension(stats) } : {}),
+        ...(stats
+          ? { 'so.oxy.mention.statistics': nodeinfoStatisticsExtension(stats, users) }
+          : {}),
       },
     });
   });

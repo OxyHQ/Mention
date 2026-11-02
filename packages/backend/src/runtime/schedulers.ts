@@ -74,6 +74,17 @@ export function startSchedulers(): void {
     logger.warn('Failed to start follower snapshot job', error);
   }
 
+  // Registers this deployment's local accounts with Oxy for NodeInfo's user total
+  // (#1748). Bounded batches from a Redis cursor; see the job's header.
+  try {
+    const {
+      applicationAccountRegistrationJob,
+    } = require('../services/applicationAccountRegistrationJob');
+    applicationAccountRegistrationJob.start();
+  } catch (error) {
+    logger.warn('Failed to start application account registration job', error);
+  }
+
   // Expiry sweep (leader-gated): Postgres has no TTL index, so this deletes
   // rows past each `db/expiry.ts` registry entry's retention, in bounded
   // batches, every ten minutes (OxyHQ/Mention#1187).
@@ -208,6 +219,15 @@ export function stopSchedulers(): void {
     followerSnapshotJob.stop();
   } catch (error) {
     logger.warn('Failed to stop follower snapshot job', error);
+  }
+
+  try {
+    const {
+      applicationAccountRegistrationJob,
+    } = require('../services/applicationAccountRegistrationJob');
+    applicationAccountRegistrationJob.stop();
+  } catch (error) {
+    logger.warn('Failed to stop application account registration job', error);
   }
 
   try {

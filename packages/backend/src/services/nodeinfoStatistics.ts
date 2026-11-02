@@ -14,9 +14,9 @@
  * - Local and external are a disjoint partition, so `combined = local + external`.
  * - **External actors**: `federated_actors` rows (`uri` unique). An alias under a
  *   second URI is a second record, hence "known actor records", not distinct people.
- * - **Local users**: not reported until Oxy ships an authoritative per-deployment
- *   aggregate (OxyHQ/oxy#2076): `user_settings` is created on first use and
- *   `actor_key_pairs` only for federating accounts, so either would be invented.
+ * - **Local users**: Oxy's per-deployment registered-account total (ADR 0052),
+ *   read through `applicationAccountTotal()`; Mention registers its accounts with
+ *   `applicationAccountRegistrationJob`. Omitted, never 0, while Oxy has no snapshot.
  *
  * ## Cost
  *
@@ -107,7 +107,16 @@ export async function measureNodeinfoStatistics(now = Date.now()): Promise<Nodei
  * one place so a consumer never has to guess which standard field is which.
  * Local users are absent by design (see the module comment).
  */
-export function nodeinfoStatisticsExtension(stats: NodeinfoStatistics) {
+export interface NodeinfoLocalUsers {
+  total: number;
+  exact: boolean;
+  /** ISO time Oxy computed the total. */
+  computedAt: string;
+  /** True when Oxy serves its last good value while a refresh is pending or failed. */
+  stale: boolean;
+}
+
+export function nodeinfoStatisticsExtension(stats: NodeinfoStatistics, users?: NodeinfoLocalUsers) {
   return {
     version: 2,
     measuredAt: new Date(stats.measuredAt).toISOString(),
@@ -123,6 +132,7 @@ export function nodeinfoStatisticsExtension(stats: NodeinfoStatistics) {
       combined: stats.combined.comments,
     },
     externalActors: stats.externalActors,
+    ...(users ? { localUsers: users } : {}),
     scope: 'content and actors known to this instance; not the wider fediverse',
   };
 }
