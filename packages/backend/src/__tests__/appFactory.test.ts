@@ -95,7 +95,9 @@ describe('createApp', () => {
       { path: '/.well-known/webfinger', status: 200 },
       { path: '/private-request', status: 401 },
     ]);
-  });
+    // The first test of the file pays the cold import of the whole app graph, which
+    // exceeds the 5 s default on a loaded CI shard.
+  }, 30_000);
 
   it('imports and creates the app without connections, timers, sockets, or listen', async () => {
     vi.resetModules();
