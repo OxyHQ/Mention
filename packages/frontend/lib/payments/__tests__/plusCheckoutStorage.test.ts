@@ -80,3 +80,14 @@ it('does not invent a checkout when durable storage cannot be written', async ()
   mockSet.mockRejectedValueOnce(new Error('Storage unavailable'));
   await expect(tab().getPlusCheckoutKey('account', offer)).rejects.toThrow('Storage unavailable');
 });
+
+it('switching monthly to annual and back retains each pending recovery key', async () => {
+  const storage = tab();
+  const annual = { ...offer, offerId: 'annual-approved' };
+  const monthlyKey = await storage.getPlusCheckoutKey('account', offer);
+  const annualKey = await storage.getPlusCheckoutKey('account', annual);
+  expect(annualKey).not.toBe(monthlyKey);
+  expect(await storage.getPlusCheckoutKey('account', offer)).toBe(monthlyKey);
+  expect(await storage.getPlusCheckoutKey('account', annual)).toBe(annualKey);
+  expect(mockRemove).not.toHaveBeenCalled();
+});

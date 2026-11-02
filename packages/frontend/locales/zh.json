@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · 以美元收费。",
+  "plus.payment.cadenceLabel": "计费周期",
+  "plus.payment.cadenceMonth": "每月",
+  "plus.payment.cadenceYear": "每年 · 省 20%",
   "compose.deleteDraftChanged": "此草稿已更改。请检查后重试删除。",
   "compose.draftMissing": "此草稿已不可用。",
   "compose.draftConflict": "此草稿已在其他位置更改。请将您的工作保存为副本。",

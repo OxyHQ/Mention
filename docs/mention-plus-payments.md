@@ -5,7 +5,7 @@ Oxy remains authoritative for both subscription sources; Mention does not create
 a second price catalogue or paid-access flag.
 
 Subscribe opens a Bloom detached **Pay with Peable** bottom sheet. The page and sheet both read
-the selected standalone offer from Oxy's published product-plan catalogue; they show no
+the selected monthly or annual standalone offer from Oxy's published product-plan catalogue; they show no
 static replacement price when it is unavailable. Continue opens the authoritative
 hosted payment URL in a browser popup on web or an in-app browser on native. The
 hosted surface depends on the selected provider/rail; the sheet does not embed a
@@ -18,11 +18,22 @@ the exact standalone Mention Plus product, capability and offer:
 
 - `EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID`: the registered Mention Plus product ID.
 - `EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY`: the central capability granting Plus.
-- `EXPO_PUBLIC_MENTION_PLUS_OFFER_ID`: the published individual product offer ID.
+- `EXPO_PUBLIC_MENTION_PLUS_OFFER_ID`: the published monthly individual offer ID.
 - `EXPO_PUBLIC_MENTION_PLUS_OFFER_VERSION`: its exact positive integer version.
+- `EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_ID`: the published annual individual offer ID.
+- `EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_VERSION`: its exact positive integer version.
+
+For the hosted web app, store these six public identities in the repository or
+`production` environment GitHub Actions variables. `deploy-frontends.yml` passes
+them explicitly to the Expo build; they are not secrets. Changing a value requires
+a new verified frontend build/deploy. Setting Worker runtime variables does not
+change the already-inlined bundle. Missing values continue to disable purchasing.
+For native builds, supply the same reviewed identities in the selected EAS build
+environment before building; the hosted-web workflow does not configure native apps.
+The frontend never receives provider credentials or a client-supplied price.
 
 The central catalogue must be configured, allow purchases, and expose exactly one
-matching individual product offer with an approved monthly or annual USD price. The backend
+matching individual product offer for each selected cadence with an approved price. The backend
 must also accept that offer under its commercial eligibility rules and have the
 Peable payment/tax/provider binding configured. These frontend values identify an
 offer; they cannot activate it or bypass those gates. Never infer a binding from a
@@ -33,6 +44,38 @@ Public pricing loads independently of sign-in. Signed-out users see a sign-in
 step; signed-in users without an available offer see the unavailable state.
 Subscribe still opens the sheet in either case. No checkout is created. No approved standalone product/offer binding was supplied or enabled during this
 change; no production purchase or entitlement activation has been demonstrated.
+
+## Monthly and annual pricing
+
+The Bloom segmented selector defaults to monthly. Annual costs 20% less than twelve
+monthly payments, billed as the published annual total. The client verifies that
+both reviewed offers have the same product, capability and currency, and that the
+annual minor-unit amount equals `round(monthlyMinorUnits * 12 * 80 / 100)`.
+Rounding is to the nearest currency minor unit, half up, using integer arithmetic
+(`(monthlyMinorUnits * 48 + 2) / 5`, integer division). Display uses the currency's
+fraction digits, including zero- and three-decimal currencies.
+
+This calculation validates the catalogue; it never creates a price or overwrites
+the backend total. A missing, stale, wrong-cadence, different-currency or mismatched
+annual offer is unavailable while a valid monthly offer remains usable. No
+commercial amount or currency is configured by this source change.
+
+The selected cadence is locked while the payment sheet is open. Once an operation
+starts, its reviewed offer and amount remain frozen through status checks even if
+the catalogue refetches. Closing the sheet and switching cadence preserves each
+offer's pending operation key; switching back resumes its existing operation.
+
+## Display currency preference
+
+The approved billing price remains USD. The page and payment sheet use Oxy
+Services' shared `useDisplayPrice` hook for a secondary estimate in the account's
+preferred display currency, following the same preferences authority as other
+Oxy applications. The shared hook owns rates, freshness and the approximate or
+unavailable message. Mention does not fetch or invent an exchange rate.
+
+A non-USD estimate states that the charge is in USD. If conversion is unavailable,
+the actual USD offer remains visible and purchasable. Selecting a display currency
+never changes the approved offer, checkout request, payment total or recovery key.
 
 ## Payment outcomes and recovery
 

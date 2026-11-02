@@ -30,6 +30,8 @@ let mockQueryError = false;
 jest.mock('@/config', () => ({
   MENTION_PLUS_OFFER_ID: 'offer',
   MENTION_PLUS_OFFER_VERSION: '1',
+  MENTION_PLUS_ANNUAL_OFFER_ID: 'annual',
+  MENTION_PLUS_ANNUAL_OFFER_VERSION: '2',
   MENTION_PLUS_PRODUCT_ID: 'product',
   MENTION_PLUS_CAPABILITY_KEY: 'plus',
 }));
@@ -169,4 +171,35 @@ it('does not guess entitlement identity when product registration is missing', a
     }
   });
   await expect(read?.()).rejects.toThrow('Sign in required');
+});
+
+it('checks the exact annual binding against the approved monthly amount and keeps price query keys distinct', async () => {
+  function AnnualProbe() {
+    mockResult = usePlusOffer('year');
+    return null;
+  }
+  const annual = {
+    ...mockOffer,
+    offerId: 'annual',
+    offerVersion: 2,
+    price: { ...mockOffer.price, amountMinorUnits: 4800, interval: 'year' },
+  };
+  mockPlans.mockResolvedValue({
+    productId: 'product',
+    purchase: 'available',
+    plans: [mockOffer, annual],
+  });
+  act(() => {
+    renderer = TestRenderer.create(<AnnualProbe />);
+  });
+  expect(await mockQueryOptions[0].queryFn()).toEqual(annual);
+  expect(mockResult.binding).toMatchObject({ offerId: 'annual', offerVersion: 2 });
+  expect(mockQueryOptions[0].queryKey).toContain('offer');
+  expect(mockQueryOptions[0].queryKey).toContain('annual');
+  mockPlans.mockResolvedValue({
+    productId: 'product',
+    purchase: 'available',
+    plans: [mockOffer, { ...annual, price: { ...annual.price, amountMinorUnits: 4900 } }],
+  });
+  expect(await mockQueryOptions[0].queryFn()).toBeNull();
 });

@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Se cobra en USD.",
+  "plus.payment.cadenceLabel": "Periodo de facturación",
+  "plus.payment.cadenceMonth": "Mensual",
+  "plus.payment.cadenceYear": "Anual · ahorra un 20 %",
   "compose.deleteDraftChanged": "Este borrador ha cambiado. Revísalo y vuelve a intentar eliminarlo.",
   "compose.draftMissing": "Este borrador ya no está disponible.",
   "compose.draftConflict": "Este borrador ha cambiado en otra sesión. Guarda tu trabajo como una copia.",

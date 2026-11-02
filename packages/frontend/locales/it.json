@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Addebito in USD.",
+  "plus.payment.cadenceLabel": "Periodo di fatturazione",
+  "plus.payment.cadenceMonth": "Mensile",
+  "plus.payment.cadenceYear": "Annuale · risparmia il 20%",
   "compose.deleteDraftChanged": "Questa bozza è cambiata. Controllala e riprova a eliminarla.",
   "compose.draftMissing": "Questa bozza non è più disponibile.",
   "compose.draftConflict": "Questa bozza è stata modificata altrove. Salva il tuo lavoro come copia.",

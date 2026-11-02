@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Es cobra en USD.",
+  "plus.payment.cadenceLabel": "Període de facturació",
+  "plus.payment.cadenceMonth": "Mensual",
+  "plus.payment.cadenceYear": "Anual · estalvia un 20 %",
   "compose.deleteDraftChanged": "Aquest esborrany ha canviat. Revisa'l i torna a provar d'eliminar-lo.",
   "compose.draftMissing": "Aquest esborrany ja no està disponible.",
   "compose.draftConflict": "Aquest esborrany ha canviat en un altre lloc. Desa la teva feina com a còpia.",

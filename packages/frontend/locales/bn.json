@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · USD-তে চার্জ করা হবে।",
+  "plus.payment.cadenceLabel": "বিলিং সময়কাল",
+  "plus.payment.cadenceMonth": "মাসিক",
+  "plus.payment.cadenceYear": "বার্ষিক · ২০% সাশ্রয়",
   "compose.deleteDraftChanged": "এই খসড়াটি পরিবর্তিত হয়েছে। পর্যালোচনা করে আবার মুছে ফেলার চেষ্টা করুন।",
   "compose.draftMissing": "এই খসড়াটি আর উপলব্ধ নেই।",
   "compose.draftConflict": "এই খসড়াটি অন্য কোথাও পরিবর্তিত হয়েছে। আপনার কাজ একটি অনুলিপি হিসেবে সংরক্ষণ করুন।",

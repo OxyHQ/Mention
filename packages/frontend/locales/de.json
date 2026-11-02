@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · Abrechnung in USD.",
+  "plus.payment.cadenceLabel": "Abrechnungszeitraum",
+  "plus.payment.cadenceMonth": "Monatlich",
+  "plus.payment.cadenceYear": "Jährlich · 20 % sparen",
   "compose.deleteDraftChanged": "Dieser Entwurf wurde geändert. Prüfe ihn und versuche erneut, ihn zu löschen.",
   "compose.draftMissing": "Dieser Entwurf ist nicht mehr verfügbar.",
   "compose.draftConflict": "Dieser Entwurf wurde an anderer Stelle geändert. Speichere deine Arbeit als Kopie.",

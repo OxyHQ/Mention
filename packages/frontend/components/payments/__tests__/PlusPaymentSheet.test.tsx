@@ -7,6 +7,8 @@ const mockPlans = jest.fn();
 const mockAccess = jest.fn();
 let mockHasAccess = false;
 let mockSignedIn = true;
+let mockDisplayCurrency = 'USD';
+const mockFormatUsd = jest.fn(() => 'EUR conversion unavailable');
 const mockSheet = jest.fn();
 const mockCheckout = jest.fn();
 const mockKey = jest.fn();
@@ -36,8 +38,11 @@ jest.mock('@/config', () => ({
   MENTION_PLUS_CAPABILITY_KEY: 'plus',
   MENTION_PLUS_OFFER_ID: 'approved',
   MENTION_PLUS_OFFER_VERSION: '2',
+  MENTION_PLUS_ANNUAL_OFFER_ID: 'approved-year',
+  MENTION_PLUS_ANNUAL_OFFER_VERSION: '3',
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
+  useDisplayPrice: () => ({ currency: mockDisplayCurrency, formatUsd: mockFormatUsd }),
   useAuth: () => ({
     user: mockUser,
     oxyServices: mockServices,
@@ -61,21 +66,16 @@ jest.mock('@/lib/payments/plusCheckoutStorage', () => ({
   getPlusCheckoutKey: (...args: unknown[]) => mockKey(...args),
   clearPlusCheckoutKey: (...args: unknown[]) => mockClearKey(...args),
 }));
-jest.mock('@/lib/payments/plusCheckout', () => ({
-  ...jest.requireActual('@/lib/payments/plusCheckout'),
-  plusOfferBinding: () => ({
-    productId: 'mention-product',
-    capabilityKey: 'plus',
-    offerId: 'approved',
-    offerVersion: 2,
-  }),
-}));
 jest.mock('expo-web-browser', () => ({
   openBrowserAsync: (...args: unknown[]) => mockNativeBrowser(...args),
   dismissBrowser: () => mockDismiss(),
 }));
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+  useTranslation: () => ({
+    t: (key: string, options?: { estimate?: string }) =>
+      options?.estimate ? `${key}:${options.estimate}` : key,
+    i18n: { language: 'en' },
+  }),
 }));
 jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
   BottomSheet: (props: { children: React.ReactNode }) => {
@@ -125,6 +125,7 @@ beforeEach(() => {
   mockSession = 'session-a';
   mockHasAccess = false;
   mockSignedIn = true;
+  mockDisplayCurrency = 'USD';
   mockAccess.mockImplementation(async () => ({
     schemaVersion: 1,
     subjectAccountId: mockUser.id,
@@ -300,4 +301,65 @@ it('recovers a pending operation after access becomes included without creating 
   expect(mockCheckout).toHaveBeenCalledTimes(2);
   expect(mockAccess).toHaveBeenCalledTimes(1);
   expect(mockClearKey).toHaveBeenCalled();
+});
+
+it('freezes the reviewed amount and offer while an operation is pending', async () => {
+  await mount();
+  await press('plus.payment.continue');
+  mockOffer = {
+    ...offer,
+    offerId: 'replacement',
+    offerVersion: 7,
+    price: { ...offer.price, amountMinorUnits: 900 },
+  };
+  await act(async () => {
+    renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
+  });
+  await press('plus.payment.checkStatus');
+  expect(mockCheckout.mock.calls[1][0]).toMatchObject({
+    offerId: 'approved',
+    offerVersion: 2,
+    idempotencyKey: 'durable-key',
+  });
+  expect(mockKey.mock.calls[1][1]).toMatchObject({ offerId: 'approved', offerVersion: 2 });
+});
+it('uses the selected annual offer for checkout and recovery', async () => {
+  mockOffer = {
+    ...offer,
+    offerId: 'approved-year',
+    offerVersion: 3,
+    price: { ...offer.price, amountMinorUnits: 4800, interval: 'year' },
+  };
+  await act(async () => {
+    renderer = TestRenderer.create(<PlusPaymentSheet cadence="year" onClose={jest.fn()} />);
+  });
+  await press('plus.payment.continue');
+  expect(mockCheckout.mock.calls[0][0]).toMatchObject({
+    offerId: 'approved-year',
+    offerVersion: 3,
+  });
+  expect(mockKey.mock.calls[0][1]).toMatchObject({ offerId: 'approved-year', offerVersion: 3 });
+  await press('plus.payment.checkStatus');
+  expect(mockCheckout.mock.calls[1][0]).toEqual(mockCheckout.mock.calls[0][0]);
+});
+
+it('unavailable EUR display conversion does not block or alter the USD checkout', async () => {
+  mockDisplayCurrency = 'EUR';
+  await mount();
+  expect(JSON.stringify(renderer.toJSON())).toContain('EUR conversion unavailable');
+  expect(mockFormatUsd).toHaveBeenCalledWith(500);
+  await press('plus.payment.continue');
+  expect(mockCheckout.mock.calls[0][0]).toEqual({
+    expectedSubjectAccountId: 'account-a',
+    productId: 'mention-product',
+    offerId: 'approved',
+    offerVersion: 2,
+    idempotencyKey: 'durable-key',
+  });
+});
+it('USD display preference adds no estimate or rate dependency to checkout', async () => {
+  await mount();
+  expect(mockFormatUsd).not.toHaveBeenCalled();
+  await press('plus.payment.continue');
+  expect(mockCheckout).toHaveBeenCalledTimes(1);
 });

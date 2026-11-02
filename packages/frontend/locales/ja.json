@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · 米ドルで請求されます。",
+  "plus.payment.cadenceLabel": "請求期間",
+  "plus.payment.cadenceMonth": "月払い",
+  "plus.payment.cadenceYear": "年払い · 20%お得",
   "compose.deleteDraftChanged": "この下書きは変更されました。内容を確認してから再度削除してください。",
   "compose.draftMissing": "この下書きは利用できなくなりました。",
   "compose.draftConflict": "この下書きは別の場所で変更されました。作業内容をコピーとして保存してください。",

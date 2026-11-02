@@ -1,4 +1,8 @@
 {
+  "plus.payment.displayEstimate": "{{estimate}} · USD olarak tahsil edilir.",
+  "plus.payment.cadenceLabel": "Fatura dönemi",
+  "plus.payment.cadenceMonth": "Aylık",
+  "plus.payment.cadenceYear": "Yıllık · %20 tasarruf",
   "compose.deleteDraftChanged": "Bu taslak değişti. Kontrol edip silmeyi yeniden deneyin.",
   "compose.draftMissing": "Bu taslak artık kullanılamıyor.",
   "compose.draftConflict": "Bu taslak başka bir yerde değişti. Çalışmanızı kopya olarak kaydedin.",
