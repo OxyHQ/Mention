@@ -27,7 +27,7 @@
  *     bun packages/backend/dist/src/scripts/backfillClarityLinks.js
  */
 
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, or } from 'drizzle-orm';
 import { findPostRecords } from '../db/posts/postRepository';
 import { connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -67,7 +67,7 @@ export async function backfillClarityLinks(
   while (scanned < maxPosts) {
     const where = and(
       eq(posts.hasLinks, true),
-      sql`${posts.createdAt} >= ${since}`,
+      gte(posts.createdAt, since),
       resumeBefore && !cursor ? lt(posts.createdAt, resumeBefore) : undefined,
       cursor
         ? or(
