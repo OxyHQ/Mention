@@ -337,7 +337,6 @@ function ListDetailScreen() {
 
   return (
     <Screen
-      scroll={Platform.OS === 'web' ? 'auto' : 'content'}
       header={
         <PageHeader
           title={list.title || t('lists.detail.title')}

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Platform } from 'react-native';
 import Feed from '@/components/Feed/Feed';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -21,7 +20,6 @@ export default function PostQuotesScreen() {
 
   return (
     <Screen
-      scroll={Platform.OS === 'web' ? 'auto' : 'content'}
       header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
     >
       <SEO
