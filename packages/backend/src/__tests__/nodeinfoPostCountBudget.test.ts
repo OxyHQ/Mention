@@ -78,8 +78,8 @@ describe('nodeinfo statistics', () => {
       expect(n).toBeGreaterThanOrEqual(0);
     }
     expect(stats.local.total + stats.external.total).toBe(stats.combined.total);
-    // Three statements on `posts`: the local GROUP BY and the two external counts.
-    expect(await statementsAgainst('posts')).toBe(3);
+    // Two statements on `posts`: one GROUP BY per side.
+    expect(await statementsAgainst('posts')).toBe(2);
 
     // With sequential scans disabled the planner can only use indexes, so a plan
     // that still needs a scan proves no index serves the query. Which index it
@@ -90,8 +90,8 @@ describe('nodeinfo statistics', () => {
     await db.transaction(async (tx) => {
       await tx.execute(sql`set local enable_seqscan = off`);
       for (const query of [
-        sql`select is_reply, count(*) from posts where federation_actor_uri is null and visibility = 'public' and status = 'published' group by is_reply`,
-        sql`select count(*) from posts where federation_actor_uri is not null and is_reply`,
+        sql`select is_reply, count(*) from posts where federation_actor_uri is null and federation_activity_id is null and visibility = 'public' and status = 'published' group by is_reply`,
+        sql`select is_reply, count(*) from posts where federation_actor_uri is not null or federation_activity_id is not null group by is_reply`,
       ]) {
         const plan = JSON.stringify(await tx.execute(sql`explain (format json) ${query}`));
         expect(plan).not.toContain('Seq Scan');
@@ -104,7 +104,7 @@ describe('nodeinfo statistics', () => {
     metrics.reset();
     const answers = await Promise.all(Array.from({ length: 12 }, () => nodeinfoStatisticsCached()));
     for (const answer of answers) expect(answer).toEqual(answers[0]);
-    expect(await statementsAgainst('posts')).toBeLessThanOrEqual(3);
+    expect(await statementsAgainst('posts')).toBeLessThanOrEqual(2);
   });
 
   it('counts only public published local content and never counts a repeated delivery twice', async () => {
@@ -133,6 +133,18 @@ describe('nodeinfo statistics', () => {
           isReply: true,
           federationActivityId: 'https://remote.example/nodeinfo/2',
         },
+        // The shape 99% of production's "no actor URI" rows have: federated (activity id
+        // and URL) but stored without the actor URI. They are external, never local.
+        {
+          oxyUserId: 'nodeinfo-legacy',
+          federationActivityId: 'https://remote.example/nodeinfo/3',
+          federationUrl: 'https://remote.example/nodeinfo/3',
+        },
+        {
+          oxyUserId: 'nodeinfo-legacy',
+          isReply: true,
+          federationActivityId: 'https://remote.example/nodeinfo/4',
+        },
       ])
       .returning({ id: posts.id });
     // The same activity delivered again hits the unique index: still one row.
@@ -154,8 +166,8 @@ describe('nodeinfo statistics', () => {
 
     expect(after.local.posts - before.local.posts).toBe(1);
     expect(after.local.comments - before.local.comments).toBe(2);
-    expect(after.external.posts - before.external.posts).toBe(1);
-    expect(after.external.comments - before.external.comments).toBe(1);
-    expect(after.combined.total - before.combined.total).toBe(5);
+    expect(after.external.posts - before.external.posts).toBe(2);
+    expect(after.external.comments - before.external.comments).toBe(2);
+    expect(after.combined.total - before.combined.total).toBe(7);
   });
 });

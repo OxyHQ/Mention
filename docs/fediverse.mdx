@@ -755,33 +755,39 @@ reach the backend without a zone-level redirect.
 ## NodeInfo statistics
 
 `GET /nodeinfo/2.0` follows the NodeInfo 2.0 schema (`services` and `metadata` always
-present). Standard `usage` fields describe **local** content only.
+present). The standard `usage` fields carry the **combined** (local + external) totals, by the owner's
+decision, so that aggregators such as FediDB show everything Mention holds as native. This
+deliberately departs from the NodeInfo reading where `usage` is local-only; the honest split
+stays in the namespaced extension below, which says so itself (`standardFields: "combined"`).
 
 **Counting rules** (the unit is one stored `posts` row):
 
-- *Local*: no `federation_actor_uri`, counted only while `visibility = 'public'` and
-  `status = 'published'`. Drafts, scheduled, deleted and non-public rows are never published.
-- *External*: has a `federation_actor_uri` (ActivityPub or atproto, including bridged and
-  imported rows). `federation_activity_id` is unique, so repeated deliveries are one row.
+- *Local*: neither a `federation_actor_uri` nor a `federation_activity_id`, counted only while
+  `visibility = 'public'` and `status = 'published'`. (The actor URI alone is not the boundary:
+  on 2026-11-02, 304,841 of 306,973 public published rows without one carried an activity id
+  and a URL, i.e. federated posts stored before the actor URI.) Drafts, scheduled, deleted and non-public rows are never published.
+- *External*: has a `federation_actor_uri` or a `federation_activity_id` (ActivityPub or
+  atproto, including bridged and imported rows). `federation_activity_id` is unique, so repeated deliveries are one row.
 - *Comment* = `is_reply`; *post* = not. Local and external are a disjoint partition, so
   `combined = local + external`.
 - `externalActors` = known `federated_actors` records (`uri` unique; an alias under another
   URI is another record). It is the planner estimate, flagged with its own `exact`.
-- `usage.users.total` is Oxy's registered-account total for this deployment (ADR 0052,
+- `usage.users.total` is Oxy's registered-account total (local) **plus** `externalActors`; it is
+  omitted unless both are known. The local half is Oxy's registered-account total for this deployment (ADR 0052,
   `applicationAccountTotal()`), read with stale-while-revalidate. Mention registers every
   account with a `user_settings` row (created on first use, posting or not) through a
   leader-gated job that walks the table by `oxy_user_id` in batches of 500 from a Redis
   cursor; Oxy applies its own eligibility rules (local, personal, active, not closing).
   Until Oxy has a snapshot the field is **omitted, not zero**; the extension's
-  `localUsers` carries `exact`, `computedAt` and `stale`.
+  `users.local` carries `exact`, `computedAt` and `stale`, and `users.external` the actor count.
 
 
 `metadata["so.oxy.mention.statistics"]` with `posts` and `comments` each split
 `{local, external, combined}`, `externalActors`, `measuredAt`, `exact` and `scope`
 (content known to this instance, not the fediverse).
 
-**Cost**: no statement scans `posts`. Migration 0104 adds two small partial indexes
-(`posts_local_public_kind_idx`, `posts_external_replies_idx`); the counts are index-only.
+**Cost**: no statement scans `posts`. Migration 0105 adds two small partial indexes
+(`posts_local_kind_idx`, `posts_external_kind_idx`); the counts are index-only.
 On a large database build them `CONCURRENTLY` by hand first, as the migration comment says,
 and check `pg_index.indisvalid`.
 

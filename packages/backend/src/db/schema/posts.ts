@@ -758,18 +758,20 @@ export const posts = pgTable(
       .where(sql`${t.federationUrl} is not null`),
 
     // NodeInfo statistics (#1748), answered by index-only counts instead of a scan
-    // of `posts`. Partial and tiny: the first holds only this instance's public
-    // published posts (key = `is_reply`, so one `GROUP BY` splits posts from
-    // comments); the second only federated replies. Their complements are the
-    // rest of the table, which no count here reads.
-    index('posts_local_public_kind_idx')
+    // of `posts`. Both are partial and keyed by `is_reply`, so one GROUP BY splits
+    // posts from comments. The boundary is the row's own federation provenance:
+    // a row is EXTERNAL when it carries a `federation_actor_uri` OR a
+    // `federation_activity_id`, LOCAL when it carries neither. The actor URI alone
+    // is not enough: 99% of the rows without one were measured (2026-11-02) to carry
+    // an activity id and a URL, i.e. federated posts stored before the actor URI.
+    index('posts_local_kind_idx')
       .on(t.isReply)
       .where(
-        sql`${t.federationActorUri} is null and ${t.visibility} = 'public' and ${t.status} = 'published'`,
+        sql`${t.federationActorUri} is null and ${t.federationActivityId} is null and ${t.visibility} = 'public' and ${t.status} = 'published'`,
       ),
-    index('posts_external_replies_idx')
-      .on(t.id)
-      .where(sql`${t.federationActorUri} is not null and ${t.isReply}`),
+    index('posts_external_kind_idx')
+      .on(t.isReply)
+      .where(sql`${t.federationActorUri} is not null or ${t.federationActivityId} is not null`),
 
     // ── Hot paths ──
     // The names are kept stable so a DBA reading `pg_indexes` and a

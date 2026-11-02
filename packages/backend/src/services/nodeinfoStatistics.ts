@@ -3,13 +3,15 @@
  *
  * ## Definitions (the counting unit is one stored `posts` row)
  *
- * - **Local**: no `federation_actor_uri` — authored here — counted only while
+ * - **Local**: carries NEITHER a `federation_actor_uri` NOR a
+ *   `federation_activity_id` — authored here — counted only while
  *   `visibility = 'public'` and `status = 'published'`. Drafts, scheduled,
  *   deleted and non-public rows are never published, even as aggregates.
- * - **External**: WITH `federation_actor_uri` (ActivityPub or atproto). A stored
- *   federated row is already a delivered, public object; `federation_activity_id`
- *   is unique, so a repeated delivery is one row. Bridged or imported rows that
- *   carry an actor URI are external; a local author's own post never has one.
+ * - **External**: carries either one (ActivityPub or atproto, bridged or imported
+ *   rows included). The actor URI alone is NOT the boundary: measured on
+ *   production, 99% of the rows without one had an activity id and URL, i.e.
+ *   federated posts stored before the actor URI. `federation_activity_id` is
+ *   unique, so a repeated delivery is one row.
  * - **Comment** = a row with `is_reply`; **post** = a row without it.
  * - Local and external are a disjoint partition, so `combined = local + external`.
  * - **External actors**: `federated_actors` rows (`uri` unique). An alias under a
@@ -20,13 +22,12 @@
  *
  * ## Cost
  *
- * No statement scans `posts`: the local counts are one GROUP BY over the tiny
- * partial index `posts_local_public_kind_idx`; the external counts are index-only
- * over `posts_federation_actor_author_idx` and `posts_external_replies_idx`
- * (migration 0104). The actor figure is the planner estimate (exact on a table
+ * No statement scans `posts`: each side is one GROUP BY over a partial index
+ * keyed by `is_reply` (`posts_local_kind_idx`, `posts_external_kind_idx`,
+ * migration 0105), whose predicates are exactly the definitions above. The actor figure is the planner estimate (exact on a table
  * never analyzed) and is flagged separately.
  */
-import { count, isNotNull, sql } from 'drizzle-orm';
+import { count, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 
@@ -72,32 +73,34 @@ const split = (postCount: number, commentCount: number): Split => ({
 
 export async function measureNodeinfoStatistics(now = Date.now()): Promise<NodeinfoStatistics> {
   const db = getDb();
-  const [localRows, [externalAll], [externalReplies], externalActors] = await Promise.all([
+  const [localRows, externalRows, externalActors] = await Promise.all([
     db
       .select({ isReply: posts.isReply, n: count() })
       .from(posts)
       .where(
-        sql`${posts.federationActorUri} is null and ${posts.visibility} = 'public' and ${posts.status} = 'published'`,
+        sql`${posts.federationActorUri} is null and ${posts.federationActivityId} is null and ${posts.visibility} = 'public' and ${posts.status} = 'published'`,
       )
       .groupBy(posts.isReply),
-    db.select({ n: count() }).from(posts).where(isNotNull(posts.federationActorUri)),
     db
-      .select({ n: count() })
+      .select({ isReply: posts.isReply, n: count() })
       .from(posts)
-      .where(sql`${posts.federationActorUri} is not null and ${posts.isReply}`),
+      .where(
+        sql`${posts.federationActorUri} is not null or ${posts.federationActivityId} is not null`,
+      )
+      .groupBy(posts.isReply),
     countExternalActors(),
   ]);
 
-  const localComments = localRows.find((row) => row.isReply)?.n ?? 0;
-  const localPosts = localRows.find((row) => !row.isReply)?.n ?? 0;
-  const externalComments = Math.min(externalReplies?.n ?? 0, externalAll?.n ?? 0);
-  const externalPosts = (externalAll?.n ?? 0) - externalComments;
+  const pick = (rows: { isReply: boolean; n: number }[], reply: boolean) =>
+    rows.find((row) => row.isReply === reply)?.n ?? 0;
+  const local = split(pick(localRows, false), pick(localRows, true));
+  const external = split(pick(externalRows, false), pick(externalRows, true));
 
   return {
     measuredAt: now,
-    local: split(localPosts, localComments),
-    external: split(externalPosts, externalComments),
-    combined: split(localPosts + externalPosts, localComments + externalComments),
+    local,
+    external,
+    combined: split(local.posts + external.posts, local.comments + external.comments),
     externalActors,
   };
 }
@@ -116,9 +119,26 @@ export interface NodeinfoLocalUsers {
   stale: boolean;
 }
 
+/**
+ * `usage.users` for the standard document: local registered accounts (Oxy) plus
+ * the external actor records Mention knows, as one total. Local and external are
+ * disjoint (a federated actor is never a local account), so they add. Omitted
+ * unless BOTH are known: with Oxy's total missing, the sum would silently drop
+ * the local half.
+ */
+export function nodeinfoCombinedUsers(
+  stats: NodeinfoStatistics | undefined,
+  users: NodeinfoLocalUsers | undefined,
+): { total?: number } {
+  if (!stats || !users) return {};
+  return { total: users.total + stats.externalActors.count };
+}
+
 export function nodeinfoStatisticsExtension(stats: NodeinfoStatistics, users?: NodeinfoLocalUsers) {
   return {
-    version: 2,
+    version: 3,
+    /** The standard `usage` fields carry the combined totals; this object holds the split. */
+    standardFields: 'combined',
     measuredAt: new Date(stats.measuredAt).toISOString(),
     exact: true,
     posts: {
@@ -132,7 +152,10 @@ export function nodeinfoStatisticsExtension(stats: NodeinfoStatistics, users?: N
       combined: stats.combined.comments,
     },
     externalActors: stats.externalActors,
-    ...(users ? { localUsers: users } : {}),
+    users: {
+      local: users ?? null,
+      external: stats.externalActors,
+    },
     scope: 'content and actors known to this instance; not the wider fediverse',
   };
 }

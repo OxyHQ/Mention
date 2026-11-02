@@ -27,6 +27,7 @@ describe('reportNodeinfoAuthors', () => {
         { oxyUserId: 'rna-b' },
         { oxyUserId: 'rna-draft', status: 'draft' },
         { oxyUserId: 'rna-ext', federationActorUri: 'https://remote.example/users/rna' },
+        { oxyUserId: 'rna-legacy', federationActivityId: 'https://remote.example/rna/1' },
       ])
       .returning({ id: posts.id });
     ids.push(...inserted.map((row) => row.id));

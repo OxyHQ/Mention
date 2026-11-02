@@ -1,5 +1,6 @@
 import {
   type NodeinfoLocalUsers,
+  nodeinfoCombinedUsers,
   nodeinfoStatisticsExtension,
   type NodeinfoStatistics,
 } from './services/nodeinfoStatistics';
@@ -372,9 +373,14 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },
       protocols: ['activitypub'],
       services: { inbound: [], outbound: [] },
+      // The standard fields carry the COMBINED (local + external) figures: this
+      // instance's NodeInfo is meant to show everything Mention holds as native.
+      // The honest local/external split stays in `metadata` below.
       usage: {
-        users: users ? { total: users.total } : {},
-        ...(stats ? { localPosts: stats.local.posts, localComments: stats.local.comments } : {}),
+        users: nodeinfoCombinedUsers(stats, users),
+        ...(stats
+          ? { localPosts: stats.combined.posts, localComments: stats.combined.comments }
+          : {}),
       },
       openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
       metadata: {
