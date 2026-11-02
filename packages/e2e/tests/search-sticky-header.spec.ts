@@ -153,3 +153,27 @@ test('search header stays painted within the Deck column', async ({ page, candid
   );
   expect(candidate.scriptErrors).toEqual([]);
 });
+
+test('starter pack results keep the same horizontal gutter as their panel', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.route('https://api.mention.earth/starter-packs?**', (route) =>
+    route.fulfill({
+      json: {
+        items: [{ id: 'gutter-pack', name: 'Gutter pack', memberCount: 3, useCount: 0 }],
+        page: 1,
+        totalPages: 1,
+      },
+    }),
+  );
+  await page.goto('/search?q=gutter');
+  await page.getByRole('tab', { name: 'Starter Packs', exact: true }).click();
+  const card = page.getByTestId('starterpack-gutter-pack');
+  await expect(card).toBeVisible();
+  const panel = page.getByTestId('mention-shell-panels-main');
+  const [cardBox, panelBox] = await Promise.all([card.boundingBox(), panel.boundingBox()]);
+  expect(cardBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  if (!cardBox || !panelBox) throw new Error('The pack or its panel has no bounds');
+  expect(cardBox.x - panelBox.x).toBeGreaterThanOrEqual(10);
+  expect(panelBox.x + panelBox.width - cardBox.x - cardBox.width).toBeGreaterThanOrEqual(10);
+});
