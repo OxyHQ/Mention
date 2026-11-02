@@ -43,6 +43,10 @@ jest.mock('@oxy.so/bloom/tabs', () => ({
   TabsTrigger: () => null,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
+jest.mock('@oxy.so/bloom/layout', () => ({
+  HeaderDockProvider: ({ children }: { children: React.ReactNode }) => children,
+  StickySection: ({ children }: { children: React.ReactNode }) => children,
+}));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
