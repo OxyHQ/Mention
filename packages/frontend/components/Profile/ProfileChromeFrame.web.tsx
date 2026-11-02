@@ -6,10 +6,18 @@ import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
 import { profileTabsOffset } from './ProfilePageHeader';
 import { ProfileShell } from './ProfileShell';
+import { ConnectionsHeader } from './ConnectionsHeader';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ProfileTabBarRow } from './ProfileTabBarRow';
 import { usePersonProfileView } from './hooks/usePersonProfileView';
 import { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
-import { profileTabHref, profileTabSelectionFromPathname } from './profileTabRoute';
+import {
+  connectionTabFromPathname,
+  profileTabHref,
+  profileTabSelectionFromPathname,
+} from './profileTabRoute';
+import { useSupervisionState } from '@/hooks/useSupervisionState';
+import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import type { ProfileChromeFrameProps, ProfileTabDescriptor } from './types';
 
 /**
@@ -63,8 +71,8 @@ import type { ProfileChromeFrameProps, ProfileTabDescriptor } from './types';
  *    POSITION, so a conditional that moved it between two parents would destroy
  *    and rebuild it on every crossing into `/followers` and back; the chrome
  *    around it comes and goes instead, and the navigator never moves.
- *  - **The six non-tab siblings get NO chrome.** Each is a full screen with its
- *    own header and back arrow (`connections.tsx`, `AccountInfoScreen`), and a
+ *  - **The non-tab siblings get NO profile chrome.** The layout renders their
+ *    header and back arrow, and a
  *    banner and identity summary stacked above one would be a second,
  *    contradictory chrome. `profileTabSelectionFromPathname` answers `null`
  *    there — and for any child added later that it has never heard of, which is
@@ -81,6 +89,11 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   const pathname = usePathname();
   const selection = useMemo(() => profileTabSelectionFromPathname(pathname), [pathname]);
   const active = selection !== null;
+  const connectionTab = connectionTabFromPathname(pathname);
+  const supervision = useSupervisionState();
+  const canShowSupervisedHeader =
+    supervision.ready && !supervision.isError && !supervision.supervised;
+  const canShowCommunityHeader = useCommunitiesPreview();
 
   // The strip navigates on its own (it is a `RouterTabs`), so this is reached
   // only from the summary's stats row — "12 posts" jumping to the posts tab.
@@ -152,6 +165,18 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
         {view.seo}
         <ProfileShell
           active={active}
+          routeHeader={
+            connectionTab && canShowSupervisedHeader ? (
+              <ConnectionsHeader username={routedUsername} profileData={view.accountProfile} />
+            ) : pathname?.endsWith('/about') && canShowSupervisedHeader ? (
+              <PageHeader
+                title={t('About', { defaultValue: 'About' })}
+                backLabel={t('common.back', { defaultValue: 'Back' })}
+              />
+            ) : pathname?.endsWith('/settings') && canShowCommunityHeader ? (
+              <PageHeader title={t('communities.settings.title')} backLabel={t('common.back')} />
+            ) : undefined
+          }
           chrome={view.chrome}
           loading={loading}
           profileData={view.profileData}

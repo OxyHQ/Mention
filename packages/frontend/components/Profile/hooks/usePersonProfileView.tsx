@@ -128,6 +128,8 @@ export interface PersonProfileView extends ProfileAccount {
    * that frames them themes by it even when it draws nothing itself.
    */
   accountColor: string | undefined;
+  /** Account data for sibling-route chrome, even while profile tabs are inactive. */
+  accountProfile: ProfileAccount['profileData'];
   /** The banner band's image, if the account has set one. */
   bannerUri?: string;
   /** The strip's contents, lanes spliced in after `posts`. */
@@ -734,6 +736,7 @@ export function usePersonProfileView({
   return {
     ...account,
     accountColor: account.profileData?.design.color,
+    accountProfile: account.profileData,
     profileData,
     loading,
     notFound,

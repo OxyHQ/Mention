@@ -5,7 +5,7 @@ import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { Redirect } from '@/lib/navigation/router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
@@ -83,9 +83,21 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   //
   // Same back-nav header the sibling profile sub-screens (followers / following /
   // connections) render, shared by the loading / not-found / loaded states.
+  const content = (
+    <ScreenScrollView>
+      <AccountInfoContent
+        profileData={profileData}
+        profileLoading={profileLoading}
+        notFound={notFound}
+        onRetry={refresh}
+      />
+    </ScreenScrollView>
+  );
+  if (Platform.OS === 'web' && routedFamily === 'person') return content;
   return (
     <BloomColorScope seed={color?.seed} asChild>
       <Screen
+        scroll={Platform.OS === 'web' ? 'auto' : 'content'}
         colorPreset={color?.colorPreset}
         header={
           <PageHeader
@@ -94,14 +106,7 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
           />
         }
       >
-        <ScreenScrollView>
-          <AccountInfoContent
-            profileData={profileData}
-            profileLoading={profileLoading}
-            notFound={notFound}
-            onRetry={refresh}
-          />
-        </ScreenScrollView>
+        {content}
       </Screen>
     </BloomColorScope>
   );

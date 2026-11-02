@@ -258,7 +258,7 @@ export default function EditStarterPackScreen() {
 
   if (loading) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <ScreenScrollView>
           <FormSkeleton />
         </ScreenScrollView>
@@ -268,7 +268,7 @@ export default function EditStarterPackScreen() {
 
   if (error) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
           <RiCloseCircleLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
@@ -281,7 +281,7 @@ export default function EditStarterPackScreen() {
   }
 
   return (
-    <Screen header={header}>
+    <Screen scroll="auto" header={header}>
       <ScreenScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
         <View className="gap-3 mb-3">
           <Field label="Name">

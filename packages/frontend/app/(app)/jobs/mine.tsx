@@ -164,7 +164,7 @@ export default function MyJobsScreen() {
   // sign-in prompt instead.
   if (!canUsePrivateApi) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <SignInRequired
           label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
           description={t('jobs.signInRequiredDesc', {
@@ -177,7 +177,7 @@ export default function MyJobsScreen() {
 
   if (jobsQuery.isLoading) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <ScreenScrollView>
           <ListSkeleton />
         </ScreenScrollView>
@@ -187,7 +187,7 @@ export default function MyJobsScreen() {
 
   if (jobsQuery.isError) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.mine.loadFailed', { defaultValue: 'Could not load your jobs' })}
@@ -203,7 +203,7 @@ export default function MyJobsScreen() {
   const jobs = jobsQuery.data?.jobs ?? [];
 
   return (
-    <Screen header={header}>
+    <Screen scroll="auto" header={header}>
       <ScreenScrollView contentContainerClassName="pb-10">
         {jobs.length === 0 ? (
           <EmptyState

@@ -278,6 +278,7 @@ const RoomDetailScreen = () => {
         description={room?.description || 'Join this room'}
       />
       <Screen
+        scroll="auto"
         header={
           <PageHeader
             title={room ? undefined : t('agora.room')}

@@ -117,7 +117,7 @@ export default function EditJobScreen() {
 
   if (jobQuery.isLoading || !hydrated) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <ScreenScrollView>
           <FormSkeleton />
         </ScreenScrollView>
@@ -127,7 +127,7 @@ export default function EditJobScreen() {
 
   if (jobQuery.isError || !jobQuery.data) {
     return (
-      <Screen header={header}>
+      <Screen scroll="auto" header={header}>
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.edit.loadFailed', { defaultValue: 'Could not load this job' })}
@@ -141,7 +141,7 @@ export default function EditJobScreen() {
   }
 
   return (
-    <Screen header={header}>
+    <Screen scroll="auto" header={header}>
       <ScreenScrollView
         contentContainerClassName="px-4 pb-16 pt-2"
         keyboardShouldPersistTaps="handled"

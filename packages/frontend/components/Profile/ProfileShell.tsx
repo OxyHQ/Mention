@@ -68,6 +68,7 @@ export interface ProfileShellProps {
    * header. Default `true`.
    */
   active?: boolean;
+  routeHeader?: React.ReactNode;
   /**
    * The account's colour, when the shell frames pages of an account it draws no
    * chrome for (`active` false): the followers list and About theme by it too.
@@ -117,6 +118,7 @@ function ProfileShellBody({
   tabs,
   children,
   active = true,
+  routeHeader,
   skeletonVariant = 'person',
   isRootTab = false,
   colorPreset,
@@ -190,9 +192,9 @@ function ProfileShellBody({
   // the page to the content panel, like every other screen.
   return (
     <Screen
-      scroll={active ? 'auto' : 'content'}
+      scroll={IS_WEB || active ? 'auto' : 'content'}
       colorPreset={colorPreset}
-      headerPlacement={banner ? 'overlay' : 'inset'}
+      headerPlacement={active && banner ? 'overlay' : 'inset'}
       header={
         drawing ? (
           <ProfilePageHeader
@@ -201,7 +203,9 @@ function ProfileShellBody({
             overMedia={Boolean(banner)}
             showBack={!isRootTab}
           />
-        ) : undefined
+        ) : (
+          routeHeader
+        )
       }
       style={IS_WEB ? style : [style, { backgroundColor: surfaceFill }]}
     >

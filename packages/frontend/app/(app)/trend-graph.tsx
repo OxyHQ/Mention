@@ -63,6 +63,7 @@ export default function TrendGraphScreen() {
     <>
       <SEO title={t('seo.trendGraph.title')} description={t('seo.trendGraph.description')} />
       <Screen
+        scroll="auto"
         header={
           <PageHeader
             title={t('trendGraph.title')}

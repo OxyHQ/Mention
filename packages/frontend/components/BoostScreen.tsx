@@ -125,6 +125,7 @@ const BoostScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Screen
+        scroll="auto"
         header={
           <View className="bg-background">
             <View

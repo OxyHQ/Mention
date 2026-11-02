@@ -74,7 +74,10 @@ export default function PlusScreen() {
   ];
 
   return (
-    <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
+    <Screen
+      scroll="auto"
+      header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}
+    >
       <ScreenScrollView>
         <SubscriptionPlans
           productName="Mention"
