@@ -70,7 +70,9 @@ test('a source URL card becomes a real article card when pending metadata arrive
     });
   });
   await page.goto(`/p/${id}`);
-  const sourceCard = page.getByRole('link', { name: 'kpbs.org', exact: true });
+  // A card with no metadata is named by its readable URL (Bloom 16.0.1), so a
+  // reader can tell which article it opens.
+  const sourceCard = page.getByRole('link', { name: 'kpbs.org/news/story', exact: true });
   await expect(sourceCard).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'The fetched article title', exact: true }),
