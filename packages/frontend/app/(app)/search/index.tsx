@@ -17,6 +17,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useDismissKeyboardOnBlur } from '@/hooks/useDismissKeyboardOnBlur';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { Screen } from '@oxy.so/bloom/screen';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
@@ -48,7 +49,6 @@ import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
 import { VirtualList } from '@oxy.so/bloom/list';
 import {
@@ -166,7 +166,6 @@ type SearchRow =
   | { kind: 'trendsError'; key: string }
   | { kind: 'operators'; key: string }
   | { kind: 'operatorValues'; key: string; token: ActiveOperatorToken; values: string[] }
-  | { kind: 'searchFor'; key: string; term: string }
   | { kind: 'goToProfile'; key: string; handle: string }
   | { kind: 'status'; key: string; state: 'loading' | 'error' | 'empty' }
   | { kind: 'user'; key: string; profile: ProfileCardData }
@@ -932,7 +931,7 @@ function SearchIndex() {
    * the fix.
    *
    * Idle (empty box): recents, then trending, then the operator cheat-sheet.
-   * Typing: commit-this-query, an optional go-to-profile, an optional operator
+   * Typing: an optional go-to-profile, an optional operator
    * completion, then recents FILTERED by what has been typed — the history
    * stays reachable instead of vanishing on the first keystroke.
    */
@@ -972,8 +971,6 @@ function SearchIndex() {
       rows.push({ kind: 'operators', key: 'operators' });
       return rows;
     }
-
-    rows.push({ kind: 'searchFor', key: 'suggestion-search-for', term: trimmedQuery });
 
     const handle = toProfileHandleSuggestion(trimmedQuery);
     if (handle) {
@@ -1273,20 +1270,6 @@ function SearchIndex() {
             </View>
           );
 
-        case 'searchFor':
-          return (
-            <TouchableOpacity
-              className="w-full flex-row items-center gap-3 px-3 py-3 border-b border-border"
-              onPress={handleSubmit}
-              accessibilityRole="button"
-            >
-              <RiSearchLine width={18} height={18} fill={theme.colors.textSecondary} />
-              <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
-                {t('search.suggestions.searchFor', 'Search for "{{query}}"', { query: item.term })}
-              </Text>
-            </TouchableOpacity>
-          );
-
         case 'goToProfile':
           return (
             <TouchableOpacity
@@ -1323,7 +1306,9 @@ function SearchIndex() {
               return (
                 <View>
                   {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-                    <StarterPackCardSkeleton key={`pack-skeleton-${index}`} />
+                    <View key={`pack-skeleton-${index}`} className="w-full px-3 py-2">
+                      <StarterPackCardSkeleton />
+                    </View>
                   ))}
                 </View>
               );
@@ -1444,7 +1429,6 @@ function SearchIndex() {
       fetchTrends,
       handleOperatorPress,
       handleOperatorValuePress,
-      handleSubmit,
       handleGoToProfile,
       retrySearch,
       handleOpenProfile,
@@ -1476,76 +1460,78 @@ function SearchIndex() {
   return (
     <>
       <SEO title={t('seo.search.title')} description={t('seo.search.description')} />
-      <Screen
-        scroll="auto"
-        header={
-          <PageHeader
-            title={t('search.title', 'Search')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-            accessory={
-              <>
-                <View className="my-2">
-                  <Search
-                    ref={searchInputRef}
-                    label={t('search.placeholder', 'Search...')}
-                    value={query}
-                    onChangeText={handleQueryChange}
-                    onSelectionChange={handleSelectionChange}
-                    onSubmitEditing={handleSubmit}
-                    onClearText={clearSearch}
-                    autoFocus
-                  />
-                </View>
+      <HeaderDockProvider>
+        <Screen
+          scroll="auto"
+          header={
+            <PageHeader
+              title={t('search.title', 'Search')}
+              backLabel={t('common.back', { defaultValue: 'Back' })}
+              titleReveal="always"
+              testID="search-page-header"
+            />
+          }
+        >
+          <StickySection testID="search-sticky-tabs" className="border-b border-border">
+            <View className="mx-4 my-2">
+              <Search
+                ref={searchInputRef}
+                label={t('search.placeholder', 'Search...')}
+                value={query}
+                onChangeText={handleQueryChange}
+                onSelectionChange={handleSelectionChange}
+                onSubmitEditing={handleSubmit}
+                onClearText={clearSearch}
+                autoFocus
+              />
+            </View>
 
-                <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-                  {tabs.map((tab: { id: string; label: string; count?: number }) => (
-                    <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-                  ))}
-                </Tabs>
+            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+              {tabs.map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+            </Tabs>
 
-                {/* Refining a query keeps the previous rows on screen, so the
+            {/* Refining a query keeps the previous rows on screen, so the
                     only signal that newer ones are coming is this hairline.
                     It sits in the layout (a fixed-height track that is empty
                     when idle) rather than overlaying the list, so results
                     never shift by a pixel when it appears. */}
-                <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
-                  {refreshing ? (
-                    <View testID="search-refreshing" className="h-full w-full bg-primary/60" />
-                  ) : null}
-                </View>
-              </>
-            }
-          />
-        }
-      >
-        {/* ONE scroll container for every state — suggestions, results,
+            <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
+              {refreshing ? (
+                <View testID="search-refreshing" className="h-full w-full bg-primary/60" />
+              ) : null}
+            </View>
+          </StickySection>
+          {/* ONE scroll container for every state — suggestions, results,
                     loading, error and empty all render through this list as ROWS,
                     so the container never swaps (no scroll or keyboard reset on
                     the first keystroke) and the suggestions have no focus-bound
                     lifecycle to get wrong. */}
-        <View className="flex-1 min-h-0">
-          <VirtualList
-            screen={{}}
-            data={rows}
-            keyExtractor={keyExtractor}
-            getItemType={getItemType}
-            renderItem={renderRow}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            scrollbar="never"
-            onEndReached={handleEndReached}
-            onEndReachedThreshold={0.5}
-            ListHeaderComponent={renderListHeader()}
-            ListFooterComponent={
-              isFetchingNextPage ? (
-                <View className="items-center justify-center py-4">
-                  <ListSkeleton count={2} />
-                </View>
-              ) : null
-            }
-          />
-        </View>
-      </Screen>
+          <View className="flex-1 min-h-0">
+            <VirtualList
+              screen={{}}
+              data={rows}
+              keyExtractor={keyExtractor}
+              getItemType={getItemType}
+              renderItem={renderRow}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              scrollbar="never"
+              onEndReached={handleEndReached}
+              onEndReachedThreshold={0.5}
+              ListHeaderComponent={renderListHeader()}
+              ListFooterComponent={
+                isFetchingNextPage ? (
+                  <View className="items-center justify-center py-4">
+                    <ListSkeleton count={2} />
+                  </View>
+                ) : null
+              }
+            />
+          </View>
+        </Screen>
+      </HeaderDockProvider>
     </>
   );
 }

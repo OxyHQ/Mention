@@ -32,25 +32,16 @@ const QUERY = 'starter';
  */
 const SCREEN_SEARCH_BOX = 'Search...';
 
-/**
- * The commit-this-query row — the first row the typing branch pushes, before any
- * conditional, so it is present whenever the box is non-empty. It is the right
- * landmark precisely because the screen swaps row sets on the first keystroke:
- * the idle set (recents, trending, the operator cheat-sheet) is REPLACED, so
- * asserting on the cheat-sheet would be asserting that the feature had not run.
- */
-const COMMIT_QUERY_ROW = /search for/i;
-
 test('suggestions survive typing and blur', async ({ page, candidate }) => {
   await page.goto('/search');
 
   const input = page.getByPlaceholder(SCREEN_SEARCH_BOX, { exact: true });
   await expect(input).toBeVisible();
   await input.click();
-  await page.keyboard.type(QUERY, { delay: 0 });
+  await page.keyboard.type('@nate', { delay: 0 });
 
-  // Before the fix the whole suggestion surface vanished on the first keystroke.
-  const suggestionRow = page.getByText(COMMIT_QUERY_ROW).first();
+  // A valid explicit handle offers a profile suggestion while typing.
+  const suggestionRow = page.getByRole('button', { name: /go to @nate/i });
   await expect(suggestionRow).toBeVisible();
 
   // Deliberately NOT overlay behaviour: the rows are list content, so "does not

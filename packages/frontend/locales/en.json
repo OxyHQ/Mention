@@ -1223,7 +1223,6 @@
     "clearInput": "Clear search",
     "removeRecent": "Remove from recent searches",
     "suggestions": {
-      "searchFor": "Search for \"{{query}}\"",
       "goToProfile": "Go to @{{handle}}",
       "completeOperator": "Complete {{prefix}}:"
     }

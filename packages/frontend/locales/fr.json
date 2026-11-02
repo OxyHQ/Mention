@@ -1089,7 +1089,6 @@
   "search.retry": "Réessayer",
   "search.clearInput": "Effacer la recherche",
   "search.removeRecent": "Retirer des recherches récentes",
-  "search.suggestions.searchFor": "Rechercher « {{query}} »",
   "search.suggestions.goToProfile": "Aller sur @{{handle}}",
   "search.suggestions.completeOperator": "Compléter {{prefix}} :",
   "feeds.title": "Fils",

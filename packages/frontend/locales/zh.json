@@ -1075,7 +1075,6 @@
   "search.retry": "重试",
   "search.clearInput": "清除搜索",
   "search.removeRecent": "从最近搜索中移除",
-  "search.suggestions.searchFor": "搜索“{{query}}”",
   "search.suggestions.goToProfile": "前往 @{{handle}}",
   "search.suggestions.completeOperator": "补全 {{prefix}}：",
   "feeds.title": "信息流",

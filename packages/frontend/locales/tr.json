@@ -1075,7 +1075,6 @@
   "search.retry": "Tekrar dene",
   "search.clearInput": "Aramayı temizle",
   "search.removeRecent": "Son aramalardan kaldır",
-  "search.suggestions.searchFor": "\"{{query}}\" ara",
   "search.suggestions.goToProfile": "@{{handle}} profiline git",
   "search.suggestions.completeOperator": "{{prefix}}: işlecini tamamla",
   "feeds.title": "Akışlar",

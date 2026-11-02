@@ -1075,7 +1075,6 @@
   "search.retry": "আবার চেষ্টা করুন",
   "search.clearInput": "সার্চ মুছুন",
   "search.removeRecent": "সাম্প্রতিক সার্চ থেকে সরান",
-  "search.suggestions.searchFor": "\"{{query}}\" খুঁজুন",
   "search.suggestions.goToProfile": "@{{handle}}-এ যান",
   "search.suggestions.completeOperator": "{{prefix}}: সম্পূর্ণ করুন",
   "feeds.title": "ফিড",

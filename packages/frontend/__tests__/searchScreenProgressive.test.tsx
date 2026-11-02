@@ -113,6 +113,10 @@ function mockStub(name: string) {
 jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: ({ accessory }: { accessory?: import('react').ReactNode }) => accessory ?? null,
 }));
+jest.mock('@oxy.so/bloom/layout', () => ({
+  HeaderDockProvider: ({ children }: { children: import('react').ReactNode }) => children,
+  StickySection: ({ children }: { children: import('react').ReactNode }) => children,
+}));
 jest.mock('@oxy.so/bloom/screen', () => ({
   ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({
@@ -326,6 +330,26 @@ describe('the All search tab', () => {
     });
     client.clear();
   });
+});
+
+it('omits the redundant search row while preserving results, history suggestions and Enter', async () => {
+  (searchService.getSearchHistory as jest.Mock).mockResolvedValue(['rust guide']);
+  const add = jest
+    .spyOn(searchService, 'addToSearchHistory')
+    .mockResolvedValue(['rust', 'rust guide']);
+  const { renderer, client } = await renderScreen();
+  await settle();
+
+  expect(text(renderer)).not.toContain('Search for');
+  expect(text(renderer)).toContain('rust guide');
+  expect(has(renderer, 'profile-rustacean')).toBe(true);
+  await act(async () => {
+    renderer.root.findByProps({ testID: 'search-box' }).props.onSubmitEditing();
+    await Promise.resolve();
+  });
+  expect(add).toHaveBeenCalledWith('rust', 'viewer-1');
+  act(() => renderer.unmount());
+  client.clear();
 });
 
 it.each(['onClearText', 'onChangeText'])(

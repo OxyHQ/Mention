@@ -1075,7 +1075,6 @@
   "search.retry": "再試行",
   "search.clearInput": "検索をクリア",
   "search.removeRecent": "最近の検索から削除",
-  "search.suggestions.searchFor": "「{{query}}」を検索",
   "search.suggestions.goToProfile": "@{{handle}}へ移動",
   "search.suggestions.completeOperator": "{{prefix}}: を補完",
   "feeds.title": "フィード",
