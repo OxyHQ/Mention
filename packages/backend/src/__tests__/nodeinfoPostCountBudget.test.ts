@@ -31,9 +31,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { config } from '../config';
 import { closePostgres, connectPostgres } from '../db/postgres';
 import { metrics } from '../utils/metrics';
-import { sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { countLocalPostsCached, estimatePostCount } from '../runtimeApp';
+import { nodeinfoStatisticsCached } from '../runtimeApp';
+import { posts } from '../db/schema/posts';
+import { measureNodeinfoStatistics } from '../services/nodeinfoStatistics';
 
 /** Restored on teardown: the flag is process-global and workers are reused. */
 let previousInstrumentationSetting = false;
@@ -62,40 +64,68 @@ async function statementsAgainst(table: string): Promise<number> {
     .reduce((total, { count }) => total + count, 0);
 }
 
-describe('nodeinfo localPosts — scan budget', () => {
-  it('reads the planner estimate and never scans an analyzed posts table', async () => {
+describe('nodeinfo statistics — scan budget', () => {
+  it('never scans posts: planner estimates plus one index-backed count', async () => {
     await getDb().execute(sql`analyze posts`);
+    await getDb().execute(sql`analyze federated_actors`);
     metrics.reset();
 
-    const total = await estimatePostCount();
+    const stats = await measureNodeinfoStatistics();
 
-    // Vacuity guard: the estimate is a real non-negative integer, not a
-    // placeholder. `posts` is shared with every suite running against this
-    // database, so the assertion is on the SHAPE rather than on an exact figure.
-    expect(Number.isInteger(total)).toBe(true);
-    expect(total).toBeGreaterThanOrEqual(0);
-    expect(await statementsAgainst('posts')).toBe(0);
-    // The catalog read is not a schema table, so it is labelled `other`.
-    expect(await statementsAgainst('other')).toBe(1);
+    for (const n of [
+      stats.posts.local,
+      stats.posts.external,
+      stats.posts.combined,
+      stats.externalActors,
+    ]) {
+      expect(Number.isInteger(n)).toBe(true);
+      expect(n).toBeGreaterThanOrEqual(0);
+    }
+    expect(stats.posts.local + stats.posts.external).toBe(stats.posts.combined);
+    // Exactly one statement on `posts` (the federated count); the estimates are `other`.
+    expect(await statementsAgainst('posts')).toBe(1);
+    expect(await statementsAgainst('other')).toBe(2);
   });
 
   it('collapses a burst of concurrent pollers onto one computation', async () => {
-    // Twelve simultaneous crawlers, which before any cache meant twelve
-    // concurrent sequential scans of `posts`.
-    const answers = await Promise.all(Array.from({ length: 12 }, () => countLocalPostsCached()));
-
-    // Every caller must have been served, and served the SAME answer — a
-    // single-flight that handed different callers different values would meet
-    // the budget while being broken.
+    const answers = await Promise.all(Array.from({ length: 12 }, () => nodeinfoStatisticsCached()));
     expect(answers).toHaveLength(12);
-    for (const answer of answers) {
-      expect(typeof answer).toBe('number');
-      expect(answer).toBe(answers[0]);
-    }
+    for (const answer of answers) expect(answer).toEqual(answers[0]);
+    expect(await statementsAgainst('posts')).toBeLessThanOrEqual(2);
+  });
 
-    // One computation: one catalog read, plus at most one exact count if this
-    // database's `posts` has never been analyzed.
-    expect(await statementsAgainst('other')).toBe(1);
-    expect(await statementsAgainst('posts')).toBeLessThanOrEqual(1);
+  it('splits local and external posts exactly and never counts a repeated delivery twice', async () => {
+    // `posts` is shared with every suite on this database: assert on DELTAS.
+    const db = getDb();
+    await db.execute(sql`analyze posts`);
+    const before = await measureNodeinfoStatistics();
+    const external = {
+      oxyUserId: 'nodeinfo-ext',
+      federationActorUri: 'https://remote.example/users/nodeinfo',
+      federationActivityId: 'https://remote.example/nodeinfo/1',
+    };
+    const inserted = await db
+      .insert(posts)
+      .values([
+        { oxyUserId: 'nodeinfo-a' },
+        { oxyUserId: 'nodeinfo-b' },
+        { oxyUserId: 'nodeinfo-a' },
+        external,
+      ])
+      .returning({ id: posts.id });
+    // The same activity delivered again hits the unique index: still one row.
+    await db.insert(posts).values(external).onConflictDoNothing();
+    await db.execute(sql`analyze posts`);
+    const after = await measureNodeinfoStatistics();
+    await db.delete(posts).where(
+      inArray(
+        posts.id,
+        inserted.map((row) => row.id),
+      ),
+    );
+
+    expect(after.posts.external - before.posts.external).toBe(1);
+    expect(after.posts.local - before.posts.local).toBe(3);
+    expect(after.posts.combined - before.posts.combined).toBe(4);
   });
 });

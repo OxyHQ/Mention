@@ -751,3 +751,27 @@ entirely by the Mention backend.
 
 No application worker sits in front of the apex. Signed inbox requests must
 reach the backend without a zone-level redirect.
+
+## NodeInfo statistics
+
+`GET /nodeinfo/2.0` follows the NodeInfo 2.0 schema (`services` and `metadata` always
+present). Standard `usage` fields describe **local** content only:
+
+- `usage.localPosts` — posts authored here (no `federation_actor_uri`). An estimate: total
+  rows come from the planner (`pg_class.reltuples`) and the external subset from one
+  index-only count, so it is bounded and never a table scan (#1160, #1165).
+- `usage.users.total` and `usage.localComments` are **omitted**, not zero. Oxy owns
+  identity and has no deployment-scoped registered-user aggregate yet; that is the
+  explicit dependency before Mention can publish local users. Unknown is not zero.
+
+The breakdown lives under `metadata["so.oxy.mention.statistics"]`: `posts.{local,external,combined}`
+(a disjoint partition: `combined = local + external`, one row per federation activity id, so
+repeated deliveries never double count), `externalActors` (known `federated_actors` records;
+aliases are separate records), `exact` (false whenever estimates are used), `measuredAt`
+and `scope` (content known to this instance, not the fediverse).
+
+Freshness: hourly stale-while-revalidate, single flight per process. A failed refresh keeps
+serving the last good figures; with none ever measured the counts are omitted and the
+document is cacheable for 60 s. FediDB-style consumers only render the standard local
+fields and refresh on their own crawl schedule, so verify the raw endpoint first and allow
+for their delay before expecting a changed external page.
