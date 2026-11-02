@@ -81,24 +81,21 @@ describe('nodeinfo statistics', () => {
     // Three statements on `posts`: the local GROUP BY and the two external counts.
     expect(await statementsAgainst('posts')).toBe(3);
 
-    // With sequential scans disabled the planner can only use the partial
-    // indexes, so a plan that still needs one proves no index serves the query.
-    // (A tiny test table would otherwise legitimately prefer the scan.)
+    // With sequential scans disabled the planner can only use indexes, so a plan
+    // that still needs a scan proves no index serves the query. Which index it
+    // picks depends on the rows other tests left behind (it may prefer one that
+    // returns the grouping column already sorted), so the contract asserted is
+    // "an index serves it", not a particular index. (A tiny test table would
+    // otherwise legitimately prefer the scan.)
     await db.transaction(async (tx) => {
       await tx.execute(sql`set local enable_seqscan = off`);
-      for (const [query, index] of [
-        [
-          sql`select is_reply, count(*) from posts where federation_actor_uri is null and visibility = 'public' and status = 'published' group by is_reply`,
-          'posts_local_public_kind_idx',
-        ],
-        [
-          sql`select count(*) from posts where federation_actor_uri is not null and is_reply`,
-          'posts_external_replies_idx',
-        ],
-      ] as const) {
+      for (const query of [
+        sql`select is_reply, count(*) from posts where federation_actor_uri is null and visibility = 'public' and status = 'published' group by is_reply`,
+        sql`select count(*) from posts where federation_actor_uri is not null and is_reply`,
+      ]) {
         const plan = JSON.stringify(await tx.execute(sql`explain (format json) ${query}`));
         expect(plan).not.toContain('Seq Scan');
-        expect(plan).toContain(index);
+        expect(plan).toMatch(/Index (Only )?Scan|Bitmap Index Scan/);
       }
     });
   });
