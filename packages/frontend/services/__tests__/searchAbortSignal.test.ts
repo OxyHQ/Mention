@@ -304,6 +304,21 @@ describe('search AbortSignal propagation', () => {
     });
   });
 
+  it('defaults missing public pagination and does not hide a failed public lookup', async () => {
+    mockPublicGet.mockResolvedValueOnce({ data: {} });
+    await expect(searchService.searchListsPage('mention', 0, undefined, true)).resolves.toEqual({
+      lists: [],
+      hasMore: false,
+      nextOffset: 20,
+    });
+
+    const failure = new Error('public list search failed');
+    mockPublicGet.mockRejectedValueOnce(failure);
+    await expect(searchService.searchListsPage('mention', 0, undefined, true)).rejects.toBe(
+      failure,
+    );
+  });
+
   it('passes the signal through the paginated people tab', async () => {
     const signal = new AbortController().signal;
 
