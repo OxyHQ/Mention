@@ -18,8 +18,9 @@ import type { MembershipBillingOffer } from '../../services/memberships/billing/
 const host = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: host }));
 const now = new Date('2026-10-28T00:00:00Z');
-const start = '2026-10-01T00:00:00Z';
-const end = '2026-11-01T00:00:00Z';
+const unix = (iso: string) => Date.parse(iso) / 1000;
+const start = unix('2026-10-01T00:00:00Z');
+const end = unix('2026-11-01T00:00:00Z');
 function fixture() {
   const offer: MembershipBillingOffer = {
     communityId: randomUUID(),
@@ -39,72 +40,72 @@ function fixture() {
     invoiceId: randomUUID(),
   };
   const paid: Parameters<typeof normalizeMembershipInvoice>[2] = {
-    invoiceId: request.invoiceId,
-    lineId: 'line',
-    paymentIntentId: 'payment',
-    providerSubscriptionId: request.subscriptionId,
-    providerCustomerId: 'customer',
-    providerPriceId: offer.providerPriceId,
-    storeId: request.payerAccountId,
-    planId: offer.planId,
+    invoice_id: request.invoiceId,
+    line_id: 'line',
+    payment_intent_id: 'payment',
+    provider_subscription_id: request.subscriptionId,
+    provider_customer_id: 'customer',
+    provider_price_id: offer.providerPriceId,
+    store_id: request.payerAccountId,
+    plan_id: offer.planId,
     livemode: false,
     currency: 'EUR',
-    amountPaid: '100',
-    netAmount: '80',
-    taxAmount: '20',
-    periodStart: start,
-    periodEnd: end,
-    paidAt: start,
-    observedAt: now.toISOString(),
-    chargeId: 'charge',
-    amountRefunded: '0',
+    amount_paid: '100',
+    net_amount: '80',
+    tax_amount: '20',
+    period_start: start,
+    period_end: end,
+    paid_at: start,
+    observed_at: now.getTime() / 1000,
+    charge_id: 'charge',
+    amount_refunded: '0',
     state: 'paid',
   };
   const authority: Parameters<typeof normalizeMembershipInvoice>[3] = {
-    schemaVersion: 1,
+    schema_version: 2,
     source: {
-      invoiceId: request.invoiceId,
-      paymentIntentId: paid.paymentIntentId,
-      customerId: paid.providerCustomerId,
-      subscriptionId: request.subscriptionId,
-      priceId: offer.providerPriceId,
-      planId: offer.planId,
-      merchantId: offer.merchantId,
-      appId: offer.appId,
+      invoice_id: request.invoiceId,
+      payment_intent_id: paid.payment_intent_id,
+      customer_id: paid.provider_customer_id,
+      subscription_id: request.subscriptionId,
+      price_id: offer.providerPriceId,
+      plan_id: offer.planId,
+      merchant_id: offer.merchantId,
+      app_id: offer.appId,
       mode: offer.mode,
       environment: offer.environment,
     },
     invoice: {
       platform: 'peable',
       currency: 'EUR',
-      grossMinorUnits: 100,
-      netMinorUnits: 80,
-      taxMinorUnits: 20,
-      merchantFeeMinorUnits: 0,
-      taxTreatment: 'inclusive',
-      sellerId: 'seller',
-      invoiceIssuerId: 'issuer',
-      taxQuoteId: 'taxquote',
-      customerLocationEvidenceId: 'location',
-      taxRateEvidenceId: 'rate',
+      gross_minor_units: 100,
+      net_minor_units: 80,
+      tax_minor_units: 20,
+      merchant_fee_minor_units: 0,
+      tax_treatment: 'inclusive',
+      seller_id: 'seller',
+      invoice_issuer_id: 'issuer',
+      tax_quote_id: 'taxquote',
+      customer_location_evidence_id: 'location',
+      tax_rate_evidence_id: 'rate',
       context: {
-        payerAccountId: request.payerAccountId,
-        beneficiaryAccountId: request.payerAccountId,
-        providerSubscriptionId: request.subscriptionId,
-        offerId: offer.offerId,
-        offerVersion: offer.offerVersion,
-        periodStart: start,
-        periodEnd: end,
+        payer_account_id: request.payerAccountId,
+        beneficiary_account_id: request.payerAccountId,
+        provider_subscription_id: request.subscriptionId,
+        offer_id: offer.offerId,
+        offer_version: offer.offerVersion,
+        period_start: start,
+        period_end: end,
         mode: offer.mode,
         environment: offer.environment,
       },
-      issuedAt: start,
-      expiresAt: end,
+      issued_at: start,
+      expires_at: end,
     },
     method: 'card',
     signature: {
       algorithm: 'Ed25519',
-      keyId: 'synthetic',
+      key_id: 'synthetic',
       value: 'not-a-signature-fixture-normalization-only',
     },
   };
@@ -127,16 +128,16 @@ describe('membership invoice normalization (after SDK signature verification)', 
       tierId: f.offer.tierId,
     });
     for (const key of [
-      'merchantId',
-      'appId',
+      'merchant_id',
+      'app_id',
       'mode',
       'environment',
-      'priceId',
-      'planId',
-      'customerId',
-      'paymentIntentId',
-      'subscriptionId',
-      'invoiceId',
+      'price_id',
+      'plan_id',
+      'customer_id',
+      'payment_intent_id',
+      'subscription_id',
+      'invoice_id',
     ] as const) {
       const altered = structuredClone(f.authority);
       Object.assign(altered.source, { [key]: 'wrong' });
@@ -148,11 +149,11 @@ describe('membership invoice normalization (after SDK signature verification)', 
   it('rejects wrong payer, beneficiary, offer, version, period and amount', () => {
     const f = fixture();
     for (const change of [
-      { payerAccountId: 'other' },
-      { beneficiaryAccountId: 'other' },
-      { offerId: 'other' },
-      { offerVersion: 2 },
-      { periodEnd: start },
+      { payer_account_id: 'other' },
+      { beneficiary_account_id: 'other' },
+      { offer_id: 'other' },
+      { offer_version: 2 },
+      { period_end: start },
     ]) {
       const altered = structuredClone(f.authority);
       Object.assign(altered.invoice.context, change);
@@ -162,7 +163,7 @@ describe('membership invoice normalization (after SDK signature verification)', 
       normalizeMembershipInvoice(
         f.offer,
         f.request,
-        { ...f.paid, amountPaid: '99' },
+        { ...f.paid, amount_paid: '99' },
         f.authority,
         now,
       ),
@@ -183,16 +184,21 @@ describe('membership invoice normalization (after SDK signature verification)', 
       normalizeMembershipInvoice(
         f.offer,
         f.request,
-        { ...f.paid, observedAt: end },
+        { ...f.paid, observed_at: end },
         f.authority,
         now,
       ),
     ).toThrow();
+    // Instants are integer Unix seconds; milliseconds or fractions are not a Peable instant.
+    for (const paid_at of [start * 1000, start + 0.5])
+      expect(() =>
+        normalizeMembershipInvoice(f.offer, f.request, { ...f.paid, paid_at }, f.authority, now),
+      ).toThrow('does not match');
     expect(
       normalizeMembershipInvoice(
         f.offer,
         f.request,
-        { ...f.paid, state: 'partially_refunded', amountRefunded: '10' },
+        { ...f.paid, state: 'partially_refunded', amount_refunded: '10' },
         f.authority,
         now,
       ).state,

@@ -28,13 +28,15 @@ it('requires an explicit local preview and payer capability', () => {
   expect(localProviderTestBinding('http://localhost:8110/plus', true)).toBeNull();
 });
 it('refuses live provider actions in local test mode', () => {
-  expect(isTestProviderAction({ kind: 'client_secret', publishableKey: 'pk_test_example' })).toBe(
+  expect(isTestProviderAction({ kind: 'client_secret', publishable_key: 'pk_test_example' })).toBe(
     true,
   );
-  expect(isTestProviderAction({ kind: 'client_secret', publishableKey: 'pk_live_example' })).toBe(
+  expect(isTestProviderAction({ kind: 'client_secret', publishable_key: 'pk_live_example' })).toBe(
     false,
   );
-  expect(isTestProviderAction({ kind: 'redirect', publishableKey: 'pk_test_example' })).toBe(false);
+  expect(isTestProviderAction({ kind: 'redirect', publishable_key: 'pk_test_example' })).toBe(
+    false,
+  );
 });
 it('only announces success from settled gateway status and permits declined retries', () => {
   expect(localProviderPhase('confirming')).toBe('pending');

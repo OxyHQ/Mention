@@ -31,12 +31,12 @@ export interface EmbeddedCheckoutBinding {
   };
 }
 export function providerActionMatchesEnvironment(
-  action: { kind: string; publishableKey?: string },
+  action: { kind: string; publishable_key?: string },
   environment: EmbeddedCheckoutBinding['environment'],
 ): boolean {
   return (
     action.kind === 'client_secret' &&
-    !!action.publishableKey?.startsWith(environment === 'test' ? 'pk_test_' : 'pk_live_')
+    !!action.publishable_key?.startsWith(environment === 'test' ? 'pk_test_' : 'pk_live_')
   );
 }
 export function embeddedCheckoutPhase(status: string): 'entry' | 'pending' | 'success' | 'failure' {

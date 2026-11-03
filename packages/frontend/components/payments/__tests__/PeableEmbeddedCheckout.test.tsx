@@ -111,7 +111,7 @@ beforeEach(() => {
   mockRead.mockReset().mockResolvedValue(intent);
   mockAction.mockResolvedValue({
     kind: 'client_secret',
-    publishableKey: 'pk_test_fixture',
+    publishable_key: 'pk_test_fixture',
     value: 'provider-confirmation-capability',
   });
 });
@@ -175,7 +175,7 @@ it('Continue prepares without charging, then explicit Pay runs once and waits fo
 it('refuses a provider key from the wrong environment', async () => {
   mockAction.mockResolvedValue({
     kind: 'client_secret',
-    publishableKey: 'pk_live_forbidden',
+    publishable_key: 'pk_live_forbidden',
     value: 'unused',
   });
   await mount();
@@ -425,7 +425,7 @@ it('allows secure entry with public configuration and retains its fields when pa
     );
   });
   expect(mockSheet.step).toBe('card');
-  expect(mockFields.action?.publishableKey).toBe('pk_test_fixture');
+  expect(mockFields.action?.publishable_key).toBe('pk_test_fixture');
   expect(mockFieldMounts).toBe(1);
   expect(mockFieldUnmounts).toBe(0);
   expect(renderer.root.findAllByType('button').some((button) => !button.props.disabled)).toBe(true);

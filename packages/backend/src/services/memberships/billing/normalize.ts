@@ -11,6 +11,11 @@ export interface MembershipInvoiceRequest {
   invoiceId: string;
 }
 
+/** Peable instants are integer Unix seconds (ADR 0014). */
+function isUnixSeconds(value: number): boolean {
+  return Number.isSafeInteger(value) && value > 0;
+}
+
 /** Called only after the official SDK verifies the final authority signature. */
 export function normalizeMembershipInvoice(
   offer: MembershipBillingOffer,
@@ -23,65 +28,66 @@ export function normalizeMembershipInvoice(
   const invoice = authority.invoice;
   const context = invoice.context;
   const exact = [
-    [paid.invoiceId, request.invoiceId],
-    [source.invoiceId, request.invoiceId],
-    [paid.providerSubscriptionId, request.subscriptionId],
-    [source.subscriptionId, request.subscriptionId],
-    [context.providerSubscriptionId, request.subscriptionId],
-    [paid.storeId, request.payerAccountId],
-    [context.payerAccountId, request.payerAccountId],
+    [paid.invoice_id, request.invoiceId],
+    [source.invoice_id, request.invoiceId],
+    [paid.provider_subscription_id, request.subscriptionId],
+    [source.subscription_id, request.subscriptionId],
+    [context.provider_subscription_id, request.subscriptionId],
+    [paid.store_id, request.payerAccountId],
+    [context.payer_account_id, request.payerAccountId],
     // Membership access belongs to its payer. Gift/delegated billing requires a new contract.
-    [context.beneficiaryAccountId, request.payerAccountId],
-    [paid.paymentIntentId, source.paymentIntentId],
-    [paid.providerCustomerId, source.customerId],
-    [paid.providerPriceId, offer.providerPriceId],
-    [source.priceId, offer.providerPriceId],
-    [paid.planId, offer.planId],
-    [source.planId, offer.planId],
-    [source.merchantId, offer.merchantId],
-    [source.appId, offer.appId],
+    [context.beneficiary_account_id, request.payerAccountId],
+    [paid.payment_intent_id, source.payment_intent_id],
+    [paid.provider_customer_id, source.customer_id],
+    [paid.provider_price_id, offer.providerPriceId],
+    [source.price_id, offer.providerPriceId],
+    [paid.plan_id, offer.planId],
+    [source.plan_id, offer.planId],
+    [source.merchant_id, offer.merchantId],
+    [source.app_id, offer.appId],
     [source.mode, offer.mode],
     [context.mode, offer.mode],
     [source.environment, offer.environment],
     [context.environment, offer.environment],
-    [context.offerId, offer.offerId],
+    [context.offer_id, offer.offerId],
     [paid.currency, invoice.currency],
-    [paid.periodStart, context.periodStart],
-    [paid.periodEnd, context.periodEnd],
-    [paid.amountPaid, String(invoice.grossMinorUnits)],
-    [paid.netAmount, String(invoice.netMinorUnits)],
-    [paid.taxAmount, String(invoice.taxMinorUnits)],
+    [paid.amount_paid, String(invoice.gross_minor_units)],
+    [paid.net_amount, String(invoice.net_minor_units)],
+    [paid.tax_amount, String(invoice.tax_minor_units)],
   ];
-  const dates = [paid.periodStart, paid.periodEnd, paid.paidAt, paid.observedAt].map(Date.parse);
-  const [start, end, paidAt, observedAt] = dates;
+  const instants = [paid.period_start, paid.period_end, paid.paid_at, paid.observed_at];
+  const [start, end, paidAt, observedAt] = instants;
+  const nowSeconds = now.getTime() / 1000;
   if (
     exact.some(([left, right]) => !left || left !== right) ||
-    context.offerVersion !== offer.offerVersion ||
+    context.offer_version !== offer.offerVersion ||
     !Number.isSafeInteger(offer.offerVersion) ||
     offer.offerVersion < 1 ||
     paid.livemode !== (offer.mode === 'live') ||
-    !Number.isSafeInteger(invoice.grossMinorUnits) ||
-    invoice.grossMinorUnits <= 0 ||
-    !Number.isSafeInteger(invoice.netMinorUnits) ||
-    invoice.netMinorUnits < 0 ||
-    !Number.isSafeInteger(invoice.taxMinorUnits) ||
-    invoice.taxMinorUnits < 0 ||
-    invoice.netMinorUnits + invoice.taxMinorUnits !== invoice.grossMinorUnits ||
-    dates.some((date) => !Number.isFinite(date)) ||
+    !Number.isSafeInteger(invoice.gross_minor_units) ||
+    invoice.gross_minor_units <= 0 ||
+    !Number.isSafeInteger(invoice.net_minor_units) ||
+    invoice.net_minor_units < 0 ||
+    !Number.isSafeInteger(invoice.tax_minor_units) ||
+    invoice.tax_minor_units < 0 ||
+    invoice.net_minor_units + invoice.tax_minor_units !== invoice.gross_minor_units ||
+    !instants.every(isUnixSeconds) ||
     start === undefined ||
     end === undefined ||
     paidAt === undefined ||
     observedAt === undefined ||
+    start !== context.period_start ||
+    end !== context.period_end ||
     end <= start ||
-    paidAt > now.getTime() ||
-    observedAt > now.getTime() ||
+    paidAt > nowSeconds ||
+    observedAt > nowSeconds ||
     observedAt < paidAt ||
     !['paid', 'partially_refunded', 'fully_refunded'].includes(paid.state) ||
-    !/^(0|[1-9][0-9]*)$/.test(paid.amountRefunded)
+    !/^(0|[1-9][0-9]*)$/.test(paid.amount_refunded)
   )
     throw new MembershipError(409, 'Invoice does not match the membership offer');
-  const refunded = BigInt(paid.amountRefunded);
-  const gross = BigInt(invoice.grossMinorUnits);
+  const refunded = BigInt(paid.amount_refunded);
+  const gross = BigInt(invoice.gross_minor_units);
   if (
     refunded > gross ||
     (paid.state === 'paid' && refunded !== 0n) ||
@@ -103,12 +109,12 @@ export function normalizeMembershipInvoice(
     offerVersion: offer.offerVersion,
     providerPriceId: offer.providerPriceId,
     planId: offer.planId,
-    paymentIntentId: paid.paymentIntentId,
-    providerCustomerId: paid.providerCustomerId,
-    periodStart: new Date(start),
-    periodEnd: new Date(end),
-    paidAt: new Date(paidAt),
-    observedAt: new Date(observedAt),
+    paymentIntentId: paid.payment_intent_id,
+    providerCustomerId: paid.provider_customer_id,
+    periodStart: new Date(start * 1000),
+    periodEnd: new Date(end * 1000),
+    paidAt: new Date(paidAt * 1000),
+    observedAt: new Date(observedAt * 1000),
     state: paid.state,
   };
 }

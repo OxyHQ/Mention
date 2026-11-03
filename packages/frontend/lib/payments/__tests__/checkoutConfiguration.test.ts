@@ -49,8 +49,8 @@ it('copies only validated public fields and never treats configuration as paymen
   const binding = {
     environment: 'test',
     initial: {
-      intent: { merchantId: 'merch_fixture' },
-      action: { publishableKey: 'pk_test_fixture' },
+      intent: { merchant_id: 'merch_fixture' },
+      action: { publishable_key: 'pk_test_fixture' },
     },
   } as EmbeddedCheckoutBinding;
   expect(configurationMatchesBinding(configuration, binding)).toBe(true);

@@ -140,10 +140,13 @@ observations and refund-state reversals cannot rewind stored refunds. These
 records are entitlement evidence, not fiscal records: community/payer erasure
 removes them while Peable remains the accounting system of record.
 
-`reconcileMembershipInvoice` uses the official Peable SDK 0.5.0 and its pinned
+`reconcileMembershipInvoice` uses the official Peable SDK 0.7.0 and its pinned
 invoice authority keys. It reads authoritative invoice state and the verified
-signed final authority, checks their payer, product, period and fiscal totals,
-and disposes the requester-bound client. The reviewed versioned catalogue is
+signed final authority (`schema_version: 2`, snake_case, instants in integer
+Unix seconds), checks their payer, product, period and fiscal totals, and
+disposes the requester-bound client. Peable instants are converted to
+`timestamptz` only after validation; the receipt table stores Mention's own
+normalized columns, never a Peable payload. The reviewed versioned catalogue is
 empty, so runtime calls stop before any provider request. `POST /membership-communities/:communityId/tiers/:tierId/billing/reconcile`
 is a foreground-only recovery entry point accepting exactly invoice and
 subscription references. It binds the payer to the authenticated actor and
