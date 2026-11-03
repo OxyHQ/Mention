@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SubscriptionPlans, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
@@ -129,7 +129,11 @@ export default function PlusScreen() {
         />
         {selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />}
         {selected === 'plus' && !hasAccess && !purchaseAvailable && !failed && !loading && (
-          <Text>{t('plus.payment.notReady')}</Text>
+          <View style={{ paddingHorizontal: 24, marginTop: 16, alignItems: 'center' }}>
+            <Text style={{ maxWidth: 480, textAlign: 'center', color: colors.textSecondary }}>
+              {t('plus.payment.notReady')}
+            </Text>
+          </View>
         )}
         <Text>{t('plus.payment.oneIncluded')}</Text>
       </ScreenScrollView>
