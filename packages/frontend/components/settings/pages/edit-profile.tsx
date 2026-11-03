@@ -2,14 +2,15 @@ import { useOxyIdentityRows } from '@/components/settings/useOxyIdentityRows';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
 import { PinnedMediaSection } from '@/components/Profile/EditProfile/PinnedMediaSection';
-import { useAppColorSave } from '@/hooks/useAppColorSave';
+import { markPresetSelection } from '@/hooks/useAccountTheme';
 import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
-import { entitledColorNames } from '@/lib/colorEntitlement';
+import { isColorEntitled } from '@/lib/colorEntitlement';
+import { logger } from '@oxy.so/core/logger';
 import { Button } from '@oxy.so/bloom/button';
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
-import { COLOR_PRESET_REGISTRY, useBloomTheme } from '@oxy.so/bloom/theme';
-import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { useMemo } from 'react';
+import { COLOR_PRESET_REGISTRY, type AppColorName } from '@oxy.so/bloom/theme';
+import { OxyAuthPrompt, useAccountColorSave, useAuth } from '@oxy.so/services/ui/client';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
@@ -21,16 +22,26 @@ import { View } from 'react-native';
 export default function EditProfileSettingsPage() {
   const { t } = useTranslation();
   const { isAuthenticated, showBottomSheet, user } = useAuth();
-  const { colorPreset } = useBloomTheme();
-  const { saveColor } = useAppColorSave();
   const identityRows = useOxyIdentityRows({ full: true });
   const viewer = useMentionColorViewer();
+  // The colour is the Oxy account colour: it is saved through the SDK, which
+  // keeps the Bloom theme and the account in step. Mention adds only its
+  // paywall, the same rule `useAccountThemeSync` applies.
+  const canUse = useCallback((name: AppColorName) => isColorEntitled(name, viewer), [viewer]);
+  const { colors, value, saveColor } = useAccountColorSave({ canUse });
   const colorItems = useMemo(() => {
-    const allowed = new Set<string>(entitledColorNames(viewer));
+    const allowed = new Set<string>(colors);
     return COLOR_PRESET_REGISTRY.filter(({ name }) => allowed.has(name)).map(
       ({ name, displayName }) => ({ value: name, label: displayName }),
     );
-  }, [viewer]);
+  }, [colors]);
+  const chooseColor = useCallback(
+    (name: AppColorName) => {
+      markPresetSelection();
+      saveColor(name).catch((error: unknown) => logger.error('Error updating color', error));
+    },
+    [saveColor],
+  );
 
   if (!isAuthenticated)
     return (
@@ -79,8 +90,8 @@ export default function EditProfileSettingsPage() {
                 control: (
                   <SettingsSelect
                     label={t('settings.accentColor', 'Accent color')}
-                    value={colorPreset}
-                    onChange={(name) => void saveColor(name)}
+                    value={value}
+                    onChange={chooseColor}
                     items={colorItems}
                   />
                 ),

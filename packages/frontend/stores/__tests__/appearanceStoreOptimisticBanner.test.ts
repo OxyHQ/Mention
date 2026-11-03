@@ -19,8 +19,22 @@ jest.mock('@/utils/api', () => ({
   isUnauthorizedError: () => false,
 }));
 
+// The viewer's own profile design, as `useProfileData` caches it.
+const mockDesignCache = new Map<string, unknown>();
 jest.mock('@/lib/queryClient', () => ({
   queryClient: {
+    getQueriesData: ({
+      predicate,
+    }: {
+      predicate: (query: { queryKey: readonly unknown[] }) => boolean;
+    }) =>
+      [...mockDesignCache].flatMap(([key, data]) => {
+        const queryKey = JSON.parse(key) as unknown[];
+        return predicate({ queryKey }) ? [[queryKey, data]] : [];
+      }),
+    setQueryData: (queryKey: readonly unknown[], data: unknown) => {
+      mockDesignCache.set(JSON.stringify(queryKey), data);
+    },
     invalidateQueries: (options: {
       predicate?: (query: { queryKey: readonly unknown[] }) => boolean;
     }) => {
@@ -63,7 +77,25 @@ describe('appearanceStore optimistic banner echo', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCapturedPredicate = null;
+    mockDesignCache.clear();
     useAppearanceStore.getState().resetViewerState();
+  });
+
+  it('paints the pick on the profile too, and takes it back if the save fails', async () => {
+    seedStoredSettings();
+    const key = JSON.stringify(viewerQueryKeys.appearanceForUser('viewer-a', 'viewer-a'));
+    mockDesignCache.set(key, { oxyUserId: 'viewer-a', profileHeaderImage: 'https://cdn/old' });
+    const pending = deferred<{ data: UserAppearance }>();
+    mockPut.mockReturnValueOnce(pending.promise);
+
+    const request = useAppearanceStore
+      .getState()
+      .updateMySettings({ profileHeaderImage: 'new-banner-file' });
+    expect(mockDesignCache.get(key)).toMatchObject({ profileHeaderImage: 'new-banner-file' });
+
+    pending.reject(new Error('network down'));
+    await request;
+    expect(mockDesignCache.get(key)).toMatchObject({ profileHeaderImage: 'https://cdn/old' });
   });
 
   it('shows the picked banner before the save resolves', async () => {

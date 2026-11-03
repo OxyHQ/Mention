@@ -41,6 +41,7 @@ import { useUnreadCount } from '@/hooks/useUnreadCount';
  * (a neighbour would hold the sensor open behind the feed) — and the composer
  * last, past Profile on the side of the bar's FAB, mounted only when opened.
  * On web the profile is the viewer's own `/@handle`; on native it is `/you`.
+ * The sidebar lists Profile second, right after Home (`sidebarAfter`).
  */
 export function useMentionDestinations(): AppDestination[] {
   const { t } = useTranslation();
@@ -150,6 +151,8 @@ export function useMentionDestinations(): AppDestination[] {
         preload: true,
         // A signed-out reader has no profile to go to.
         sidebar: Boolean(user),
+        // Second in the sidebar, right after Home; last in the bar, by the FAB.
+        sidebarAfter: 'index',
         label: t('sidebar.profile'),
         icon: ProfileAvatar,
         onLongPress: openAccounts,

@@ -10,7 +10,7 @@ import { APP_DEFAULT_COLOR_PRESET, isColorEntitled } from '@/lib/colorEntitlemen
  */
 let presetSelectionEpoch = 0;
 
-/** Call on every explicit colour choice (see `useAppColorSave`). */
+/** Call on every explicit colour choice (the settings colour picker). */
 export function markPresetSelection(): void {
   presetSelectionEpoch += 1;
 }
