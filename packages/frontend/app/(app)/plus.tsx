@@ -10,14 +10,17 @@ import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { SubscriptionPlans, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
+import { SubscriptionPrice, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
 import {
   SegmentedControl,
   SegmentedControlItem,
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
 import { plusPriceMajorUnits, type PlusCadence } from '@/lib/payments/plusCheckout';
-import { Text } from '@oxy.so/bloom/typography';
+import { Text, Title, Subtitle } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
@@ -137,6 +140,17 @@ export default function PlusScreen() {
           ),
       benefits: [
         {
+          id: 'social',
+          title: t('plus.freeBenefitSocial'),
+          icon: <RiChat3Line size="lg" fill={colors.primary} />,
+        },
+        {
+          id: 'mono',
+          title: t('plus.benefitMono'),
+          description: t('plus.benefitMonoDescription'),
+          icon: <RiPaletteLine size="lg" fill={colors.primary} />,
+        },
+        {
           id: 'connect',
           title: t('plus.benefitConnect'),
           icon: <RiGroupLine size="lg" fill={colors.primary} />,
@@ -151,57 +165,116 @@ export default function PlusScreen() {
     },
   ];
 
+  const selectedPlan = plans.find((plan) => plan.id === selected);
   return (
     <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
       <ScreenScrollView>
-        <SegmentedControl<PlusCadence>
-          label={t('plus.payment.cadenceLabel')}
-          type="radio"
-          value={cadence}
-          onValueChange={(value) => {
-            if (!paymentOpen) setCadence(value);
+        <View
+          style={{
+            width: '100%',
+            maxWidth: 640,
+            alignSelf: 'center',
+            gap: 16,
+            paddingHorizontal: 16,
+            paddingTop: 24,
           }}
         >
-          <SegmentedControlItem value="month" disabled={paymentOpen}>
-            <SegmentedControlItemText>{t('plus.payment.cadenceMonth')}</SegmentedControlItemText>
-          </SegmentedControlItem>
-          <SegmentedControlItem value="year" disabled={paymentOpen}>
-            <SegmentedControlItemText>{t('plus.payment.cadenceYear')}</SegmentedControlItemText>
-          </SegmentedControlItem>
-        </SegmentedControl>
-        <SubscriptionPlans
-          productName="Mention"
-          plans={plans}
-          value={selected}
-          onValueChange={setSelected}
-          selectorLabel={t('plus.selectorLabel')}
-          primaryAction={
-            selected === 'plus'
-              ? {
-                  label: t(
-                    hasAccess
-                      ? 'plus.payment.included'
-                      : developmentCheckout || purchaseAvailable
-                        ? 'plus.subscribe'
-                        : failed
-                          ? 'plus.payment.pricingUnavailable'
-                          : 'plus.payment.comingSoon',
-                  ),
-                  disabled: hasAccess || loading || (!developmentCheckout && !purchaseAvailable),
-                  onPress: () => {
-                    if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
-                      void openPayment();
-                  },
-                }
-              : undefined
-          }
-          moreBenefits={{
-            label: t('plus.exploreOxyOne'),
-            onPress: () => {
+          <Title variant="display-4-semibold" style={{ textAlign: 'center' }}>
+            Mention {selectedPlan?.label}
+          </Title>
+          <Subtitle style={{ textAlign: 'center' }}>{selectedPlan?.subtitle}</Subtitle>
+          {selectedPlan?.price &&
+            (typeof selectedPlan.price === 'object' && 'amount' in selectedPlan.price ? (
+              <SubscriptionPrice {...selectedPlan.price} />
+            ) : (
+              <Text style={{ textAlign: 'center' }}>{selectedPlan.price}</Text>
+            ))}
+          <View
+            testID="plus-plan-selectors"
+            style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}
+          >
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <SegmentedControl
+                label={t('plus.selectorLabel')}
+                type="radio"
+                size="sm"
+                value={selected}
+                onValueChange={(value) => {
+                  if (!paymentOpen) setSelected(value);
+                }}
+              >
+                {plans.map((plan) => (
+                  <SegmentedControlItem key={plan.id} value={plan.id} disabled={paymentOpen}>
+                    <SegmentedControlItemText>{plan.label}</SegmentedControlItemText>
+                  </SegmentedControlItem>
+                ))}
+              </SegmentedControl>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <SegmentedControl<PlusCadence>
+                label={t('plus.payment.cadenceLabel')}
+                type="radio"
+                size="sm"
+                value={cadence}
+                onValueChange={(value) => {
+                  if (!paymentOpen) setCadence(value);
+                }}
+              >
+                <SegmentedControlItem value="month" disabled={paymentOpen}>
+                  <SegmentedControlItemText>
+                    {t('plus.payment.cadenceMonth')}
+                  </SegmentedControlItemText>
+                </SegmentedControlItem>
+                <SegmentedControlItem value="year" disabled={paymentOpen}>
+                  <SegmentedControlItemText>
+                    {t('plus.payment.cadenceYear')}
+                  </SegmentedControlItemText>
+                </SegmentedControlItem>
+              </SegmentedControl>
+            </View>
+          </View>
+          <GroupedSection>
+            {selectedPlan?.benefits.map((benefit) => (
+              <GroupedSectionItem
+                key={benefit.id}
+                title={benefit.title}
+                description={benefit.description}
+                icon={benefit.icon}
+                titleNumberOfLines={0}
+                descriptionLines={0}
+              />
+            ))}
+          </GroupedSection>
+          {selected === 'plus' && (
+            <Button
+              size="lg"
+              disabled={hasAccess || loading || (!developmentCheckout && !purchaseAvailable)}
+              onPress={() => {
+                if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
+                  openPayment();
+              }}
+            >
+              {t(
+                hasAccess
+                  ? 'plus.payment.included'
+                  : developmentCheckout || purchaseAvailable
+                    ? 'plus.subscribe'
+                    : failed
+                      ? 'plus.payment.pricingUnavailable'
+                      : 'plus.payment.comingSoon',
+              )}
+            </Button>
+          )}
+          <Button
+            appearance="plain"
+            tone="neutral"
+            onPress={() => {
               void Linking.openURL('https://oxy.so/one');
-            },
-          }}
-        />
+            }}
+          >
+            {t('plus.exploreOxyOne')}
+          </Button>
+        </View>
         {selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />}
         {selected === 'plus' && !hasAccess && !purchaseAvailable && !failed && !loading && (
           <View style={{ paddingHorizontal: 24, marginTop: 16, alignItems: 'center' }}>

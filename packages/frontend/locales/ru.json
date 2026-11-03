@@ -3180,5 +3180,7 @@
   "plus.checkout.providerTest.bankUnavailable": "Bank payments are not available for this subscription yet.",
   "plus.checkout.providerTest.installmentsUnavailable": "This subscription does not offer installment payments.",
   "plus.checkout.providerTest.faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
-  "plus.checkout.providerTest.methodUnavailable": "Not available for this payment."
+  "plus.checkout.providerTest.methodUnavailable": "Not available for this payment.",
+  "plus.benefitMono": "Monochrome theme",
+  "plus.benefitMonoDescription": "Personalize Mention with the Mono theme."
 }
