@@ -42,9 +42,9 @@ move it when the reason goes away.
   peers `typescript <6.1.0`, and TypeScript 7.0's package exports no compiler
   API for it to load.
 - `postgres` stays on 3.4: `@oxy.so/db` peers `postgres ^3.4.9`.
-- `@react-native-async-storage/async-storage` stays on 2.x: `@oxy.so/core`
-  peers `<3.0.0` and `@alia.onl/sdk` `^2.2.0` (`@oxy.so/protocol` 1.6 already
-  accepts 3).
+- `@react-native-async-storage/async-storage` stays on 2.x: `@alia.onl/sdk`
+  peers `^2.2.0` (`@oxy.so/core` 7.14, `@oxy.so/services` 14.3 and
+  `@oxy.so/protocol` 1.6 already accept 3).
 - `react-native-audio-api` stays on 0.13: `@alia.onl/sdk` peers `^0.13.6`.
 - `@peable.to/sdk` stays on 0.8.0: `@oxy.so/services` depends on exactly that
   version, and the app must load one Peable copy.
