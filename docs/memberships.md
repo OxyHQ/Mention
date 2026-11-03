@@ -140,7 +140,7 @@ observations and refund-state reversals cannot rewind stored refunds. These
 records are entitlement evidence, not fiscal records: community/payer erasure
 removes them while Peable remains the accounting system of record.
 
-`reconcileMembershipInvoice` uses the official Peable SDK 0.7.0 and its pinned
+`reconcileMembershipInvoice` uses the official Peable SDK 0.8.0 and its pinned
 invoice authority keys. It reads authoritative invoice state and the verified
 signed final authority (`schema_version: 2`, snake_case, instants in integer
 Unix seconds), checks their payer, product, period and fiscal totals, and
