@@ -1,3 +1,4 @@
+jest.mock('../LocalProviderTestSheet', () => ({LocalProviderTestSheet: () => null}));
 import TestRenderer, { act } from 'react-test-renderer';
 import { Platform } from 'react-native';
 import { PlusPaymentSheet } from '../PlusPaymentSheet';

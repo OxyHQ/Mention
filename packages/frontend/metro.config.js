@@ -68,6 +68,9 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
   const sourceRoots = [bloomRoot + path.sep, sdkRoot + path.sep];
   config.resolver.resolveRequest = (context, moduleName, platform) => {
     const resolve = parentResolve || context.resolveRequest;
+    if (moduleName === '@peable.to/sdk/checkout') {
+      return resolve(context, path.join(sdkRoot, 'src/checkout.ts'), platform);
+    }
     if (moduleName === '@peable.to/sdk/checkout/ui') {
       return resolve(context, sdkEntry, platform);
     }

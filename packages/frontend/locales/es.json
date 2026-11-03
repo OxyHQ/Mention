@@ -3131,5 +3131,20 @@
   "plus.checkout.taxPending": "Se calculará al pagar",
   "plus.checkout.transfer.detected": "Transferencia detectada",
   "plus.checkout.transfer.confirming": "Confirmando el pago",
-  "plus.checkout.rail.addFunds": "Añadir fondos"
+  "plus.checkout.rail.addFunds": "Añadir fondos",
+  "plus.checkout.providerTest.badge": "Stripe TEST · sin cargos reales",
+  "plus.checkout.providerTest.title": "Pago de prueba de Peable",
+  "plus.checkout.providerTest.oneTime": "Pago único de prueba",
+  "plus.checkout.providerTest.noAccess": "No activa una suscripción",
+  "plus.checkout.providerTest.loading": "Preparando el pago de prueba seguro…",
+  "plus.checkout.providerTest.invalid": "Este pago no está disponible en modo de prueba.",
+  "plus.checkout.providerTest.connection": "No se puede conectar con la pasarela de prueba local.",
+  "plus.checkout.providerTest.declined": "Pago rechazado. Prueba otro método de prueba.",
+  "plus.checkout.providerTest.confirming": "Confirmando…",
+  "plus.checkout.providerTest.pay": "Pagar {{amount}} · prueba",
+  "plus.checkout.providerTest.paymentDetails": "Datos de pago",
+  "plus.checkout.providerTest.mode": "Modo de prueba",
+  "plus.checkout.providerTest.visualPreview": "Vista previa de la interfaz",
+  "plus.checkout.providerTest.entryDescription": "Pago único de prueba de 5,99 USD con Stripe TEST. No activa Mention Plus ni una suscripción.",
+  "plus.checkout.providerTest.bootstrapFailed": "No se pudo iniciar el pago de prueba. Comprueba que el servidor local esté activo y vuelve a tocar Subscribe."
 }

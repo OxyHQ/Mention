@@ -1,3 +1,7 @@
+jest.mock('@/lib/navigation/router', () => ({
+  useLocalSearchParams: () => ({}),
+  useRouter: () => ({ setParams: jest.fn() }),
+}));
 jest.mock('@/components/payments/MerchantInstallmentSettings', () => ({
   MerchantInstallmentSettings: () => null,
 }));

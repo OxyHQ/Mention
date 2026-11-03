@@ -295,7 +295,7 @@ it('keeps bank/provider and nonpayable external wallet choices controlled, with 
   const bank = mockContent.methodDetails;
   if (bank?.kind !== 'provider') throw new Error('Expected provider detail');
   act(() => bank.onContinue());
-  expect(mockContent.draft.paymentSelection).toMatchObject({ method: 'bank', detail: '···· 6789' });
+  expect(mockContent.draft.paymentSelection).toMatchObject({ method: 'bank', detail: undefined });
   act(() => mockContent.onMethod?.('faircoin'));
   const external = mockContent.methodDetails;
   if (external?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');

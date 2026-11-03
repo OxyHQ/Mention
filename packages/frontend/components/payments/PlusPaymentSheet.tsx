@@ -1,3 +1,5 @@
+import type { LocalProviderTestBinding } from '@/lib/payments/localProviderTest';
+import { LocalProviderTestSheet } from './LocalProviderTestSheet';
 import type {
   MerchantInstallmentPreferences,
   InstallmentPreviewDecision,
@@ -62,7 +64,9 @@ export function PlusPaymentSheet({
   previewIncomingFunds = false,
   merchantInstallmentPreferences,
   previewInstallmentDecision = 'available',
+  providerTestBinding,
 }: {
+  providerTestBinding?: LocalProviderTestBinding;
   onClose(): void;
   cadence?: PlusCadence;
   previewScenario?: CheckoutScenario;
@@ -75,6 +79,14 @@ export function PlusPaymentSheet({
 }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
+  if (isLocalCheckoutPreview() && providerTestBinding)
+    return (
+      <LocalProviderTestSheet
+        key={providerTestBinding.intentId}
+        binding={providerTestBinding}
+        onClose={onClose}
+      />
+    );
   if (isLocalCheckoutPreview())
     return (
       <LocalCheckoutPreview

@@ -546,7 +546,7 @@ export function LocalCheckoutPreview({
         ? {
             kind: 'faircoin',
             amountLabel: externalTransfer?.amountLabel ?? `${faircoinAmount} FAIR`,
-            quoteDescription: t('plus.checkout.rail.demoQuote'),
+            quoteDescription: '',
             view: faircoinView,
             wallet: customer.simulated
               ? {
@@ -649,6 +649,8 @@ export function LocalCheckoutPreview({
           ? 'loading'
           : brandState
       }
+      methodTitleAlign={activeMethod === 'faircoin' ? 'center' : 'left'}
+      methodTitleVariant={activeMethod === 'faircoin' ? 'title-2-semibold' : undefined}
       methodTitle={
         activeMethod === 'faircoin'
           ? t(
