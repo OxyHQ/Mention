@@ -8,6 +8,8 @@ let mockOffer: {
 } | null = null;
 let mockCadence: string | undefined;
 let mockDisplayCurrency = 'USD';
+let mockPurchaseAvailable = true;
+let mockFailed = false;
 const mockFormatUsd = jest.fn(() => 'Approx. 12 FAIR');
 jest.mock('@oxy.so/services/ui/client', () => ({
   useDisplayPrice: () => ({ currency: mockDisplayCurrency, formatUsd: mockFormatUsd }),
@@ -15,7 +17,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 jest.mock('@/hooks/usePlusOffer', () => ({
   usePlusOffer: (cadence: string) => {
     mockCadence = cadence;
-    return { offer: mockOffer };
+    return { offer: mockOffer, purchaseAvailable: mockPurchaseAvailable, failed: mockFailed };
   },
 }));
 let mockCadenceProps: { value: string; onValueChange(value: string): void };
@@ -53,18 +55,22 @@ jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { primary: '#000' } }) }));
 
 /** /plus opens checkout without inventing or substituting a commercial price. */
-it('offers Mention Plus without advertising an unapproved price and opens the Peable payment dialog', () => {
+it('shows a coming-soon state without opening an unavailable payment', () => {
+  mockPurchaseAvailable = false;
+  mockPaymentDialog.mockClear();
   act(() => {
     TestRenderer.create(<PlusScreen />);
   });
   const props = mockPlansProps as SubscriptionPlansProps;
   expect(props.plans.map((plan) => plan.id)).toEqual(['free', 'plus']);
   expect(props.value).toBe('plus');
-  expect(props.plans[1].price).toBe('plus.payment.pricingUnavailable');
+  expect(props.plans[1].price).toBe('plus.payment.comingSoon');
 
   act(() => props.primaryAction?.onPress());
-  expect(props.primaryAction?.label).toBe('plus.subscribe');
-  expect(mockPaymentDialog).toHaveBeenCalled();
+  expect(props.primaryAction?.label).toBe('plus.payment.comingSoon');
+  expect(props.primaryAction?.disabled).toBe(true);
+  expect(mockPaymentDialog).not.toHaveBeenCalled();
+  mockPurchaseAvailable = true;
 });
 
 it('displays the exact published offer price instead of a static bundle price', () => {
@@ -107,4 +113,17 @@ it('shows the shared currency estimate without replacing the approved USD price'
   expect(mockFormatUsd).toHaveBeenCalledWith(599);
   expect(mockPlansProps?.plans[1].price).toMatchObject({ amount: 5.99, currency: 'USD' });
   expect(JSON.stringify(renderer?.toJSON())).toContain('Approx. 12 FAIR');
+});
+
+it('keeps an actual catalogue request failure distinct from a planned launch', () => {
+  mockFailed = true;
+  mockPurchaseAvailable = false;
+  mockOffer = null;
+  act(() => {
+    TestRenderer.create(<PlusScreen />);
+  });
+  expect(mockPlansProps?.primaryAction?.label).toBe('plus.payment.pricingUnavailable');
+  expect(mockPlansProps?.plans[1].price).toBe('plus.payment.pricingUnavailable');
+  mockFailed = false;
+  mockPurchaseAvailable = true;
 });
