@@ -22,6 +22,11 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
   resolveOxyIdentity: vi.fn(),
+  recordFederatedBannerInBackground: vi.fn(),
+}));
+
+vi.mock('../../../db/federation/bannerMirrorRepository', () => ({
+  recordFederatedBannerInBackground: mocks.recordFederatedBannerInBackground,
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
@@ -291,6 +296,12 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     // Oxy user resolved + stamped ON THE ROW (the upsert carried no prior one).
     expect((await readActor(DID))?.oxyUserId).toBe('oxy-alice');
     expect(actor?.oxyUserId).toBe('oxy-alice');
+    // The banner is queued for the sweep that mirrors it into the profile.
+    expect(mocks.recordFederatedBannerInBackground).toHaveBeenCalledWith({
+      oxyUserId: 'oxy-alice',
+      actorUri: DID,
+      bannerUrl: PROFILE.banner,
+    });
   });
 
   it('fails soft (no oxyUserId, no throw, no stamp) when Oxy cannot resolve the did:', async () => {
