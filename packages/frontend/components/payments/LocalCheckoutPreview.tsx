@@ -72,7 +72,7 @@ export function LocalCheckoutPreview({
   const [step, setStep] = useState<CheckoutStep>('review');
   const [demoBalance, setDemoBalance] = useState(25);
   const [externalTransfer, setExternalTransfer] = useState<{
-    phase: 'awaiting' | 'detected' | 'confirming' | 'settled' | 'failure';
+    phase: 'awaiting' | 'detected' | 'processing' | 'succeeded' | 'failure';
     amountLabel: string;
     payload: string;
   } | null>(null);
@@ -201,7 +201,7 @@ export function LocalCheckoutPreview({
   useEffect(() => {
     if (
       !externalTransfer ||
-      externalTransfer.phase === 'settled' ||
+      externalTransfer.phase === 'succeeded' ||
       externalTransfer.phase === 'failure'
     )
       return;
@@ -216,12 +216,12 @@ export function LocalCheckoutPreview({
           setExternalTransfer((current) => current && { ...current, phase: 'detected' });
           setStep('processing');
         } else if (phase === 'detected') {
-          setExternalTransfer((current) => current && { ...current, phase: 'confirming' });
+          setExternalTransfer((current) => current && { ...current, phase: 'processing' });
         } else {
           const result = outcome === 'failure' ? 'failure' : 'success';
           setExternalTransfer(
             (current) =>
-              current && { ...current, phase: result === 'success' ? 'settled' : 'failure' },
+              current && { ...current, phase: result === 'success' ? 'succeeded' : 'failure' },
           );
           authorizing.current = false;
           setStep(result);
@@ -789,7 +789,7 @@ export function LocalCheckoutPreview({
         ].map((key) => [
           key,
           key === 'result.processing' &&
-          (externalTransfer?.phase === 'detected' || externalTransfer?.phase === 'confirming')
+          (externalTransfer?.phase === 'detected' || externalTransfer?.phase === 'processing')
             ? t(`plus.checkout.transfer.${externalTransfer.phase}`)
             : t(`plus.checkout.${key}`),
         ]),

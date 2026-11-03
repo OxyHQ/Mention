@@ -134,7 +134,12 @@ export function PeableEmbeddedCheckout({
         terminal.current = 'failure';
         setStep('failure');
       } else if (phase === 'pending' && !inFlight.current) setStep('processing');
-      else if (value.status === 'failed' && !failedSeen.current && !inFlight.current) {
+      else if (
+        value.status === 'requires_payment_method' &&
+        value.last_payment_error &&
+        !failedSeen.current &&
+        !inFlight.current
+      ) {
         failedSeen.current = true;
         setAccepted(false);
         authorizationRef.current?.dispose();
