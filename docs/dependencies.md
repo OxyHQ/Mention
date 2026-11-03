@@ -15,12 +15,13 @@ Native modules the Expo SDK pins (its bundled native-module list) move with
 the SDK: bump `expo`, then let `npx expo install --check` in `packages/frontend`
 name the versions. A few are deliberately AHEAD of what the SDK names and are
 listed in `expo.install.exclude` in `packages/frontend/package.json`, so the
-check stays a clean gate instead of a list everyone learns to ignore: today
-only Jest 30 with its `@types/jest`. Taking one of those back to the SDK's
-version is a downgrade — remove it from the list only when the SDK catches up.
-SDK 58 caught up with the others (`@shopify/flash-list`,
-`react-native-pager-view`, `react-native-safe-area-context`,
-`react-native-svg`), so they left the list with it.
+check stays a clean gate instead of a list everyone learns to ignore. Today
+that is Jest 30 with its `@types/jest`, and the patch releases SDK 58.0.23
+still names one behind: React and React DOM 19.3.1 (the SDK names 19.3.0),
+`@shopify/flash-list` 2.3.3, `react-native-gesture-handler` 3.4,
+`react-native-keyboard-controller` 1.22.9, `react-native-pager-view` 9.0.11 and
+`react-native-worklets` 0.13.1. Taking one of those back to the SDK's version
+is a downgrade — remove it from the list only when the SDK catches up.
 
 `jest-environment-jsdom` is pinned to 29.7.0 in `packages/frontend`: it is the
 environment the `@jest-environment jsdom` test files run in, and jest-expo 58
@@ -28,3 +29,34 @@ would otherwise hoist 30. Every test file, jsdom ones included, runs React
 Native's jest setup, which redefines `window` on the global, and 30's jsdom
 `window` is unforgeable, so those files fail with "Cannot redefine property:
 window" before a test runs. 29.7.0 is the version jest-expo 57 resolved.
+
+## Held back
+
+Each of these is behind its latest release for a reason outside this repo;
+move it when the reason goes away.
+
+- `typescript` stays on 6.0: typescript-eslint (the frontend's `expo lint`)
+  peers `typescript <6.1.0`, and TypeScript 7.0's package exports no compiler
+  API for it to load.
+- `postgres` stays on 3.4: `@oxy.so/db` peers `postgres ^3.4.9`.
+- `@react-native-async-storage/async-storage` stays on 2.x: `@oxy.so/core`,
+  `@oxy.so/protocol` and `@alia.onl/sdk` peer `<3.0.0` / `^2.2.0`.
+- `react-native-audio-api` stays on 0.13: `@alia.onl/sdk` peers `^0.13.6`.
+- `@peable.to/sdk` stays on 0.8.0: `@oxy.so/services` depends on exactly that
+  version, and the app must load one Peable copy.
+- `nativewind` 5.0.0-rc.0 and `react-native-css` 3.1.0-rc.0: `@oxy.so/bloom`
+  depends on `react-native-css` 3.1.0-rc.0 exactly and peers `nativewind`
+  `>=5.0.0 || 5.0.0-rc.0`.
+- `metro` and its packages stay on 0.87.1: `@expo/metro` 58.0.0 pins Metro
+  0.87.1 exactly, and Metro 0.87.2 calls `addRoot()` on the file map, which
+  Expo's `@expo/metro-file-map` does not have (`expo export` fails with
+  `this._haste.addRoot is not a function`).
+- `lightningcss` stays on 1.30.1: `react-native-css` 3.1.0-rc.0 still fails
+  native bundling on 1.33.0 with "failed to deserialize; expected an
+  object-like struct named Specifier".
+- `jest-environment-jsdom` stays on 29.7.0 (above).
+
+ESLint is on 10 although `eslint-plugin-react` (7.37.5, its latest) still
+declares `^9.7`: the only ESLint 10 break is its React version detection, so
+`eslint.config.js` states the installed React version instead of `'detect'`,
+and every `react/*` rule the config enables reports on ESLint 10.

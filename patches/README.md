@@ -1,4 +1,4 @@
-# Expo Router 58.0.24
+# Expo Router 58.0.30
 
 The experimental stack currently ignores `contentStyle` and hardcodes a white
 scene. Mention's Bloom AppShell owns the central surface, including its scoped
@@ -9,7 +9,7 @@ paints every screen with the panel's own fill, so no screen shows the one under
 it through itself.
 The npm package ships the compiled implementation, not its TypeScript source.
 Remove this hunk when upstream supports transparent scene styling. Both hunks
-are still needed in 58.0.24 (it keeps `backgroundColor: 'white'` and renders
+are still needed in 58.0.30 (it keeps `backgroundColor: 'white'` and renders
 `StackV5.HeaderConfig` unconditionally); the patch was re-made against it. The
 two 57.0.23 hunks for pending deep-link state (`useOnGetState`,
 `findMatchingState` in `fork/useLinking`) are gone: SDK 58 replaced that
@@ -18,7 +18,20 @@ browser gate (`packages/e2e/tests/deep-link-boot.spec.ts`) still covers the
 behaviour. This does not claim physical-device validation: verify Android rendering
 after installation.
 
-# expo-video 58.0.12
+The same patch carries the predictive Back ownership backport, the seeded-params
+forwarding and navigator-state retention (`docs/audits/2026-10-31-predictive-back`).
+Forwarded from 58.0.24 to 58.0.30 unchanged except one merge: 58.0.30 wraps the
+container's provider tree in its new `CanGoBackContext`/`CanDismissContext`, and
+`BaseNavigationContainer.js` now nests that tree inside the backport's
+`NativeBackRegistryContext`/`NavigationActionResultRegistryContext`. The two
+compiled source maps upstream regenerated for 58.0.30
+(`BaseNavigationContainer.js.map`, `createSeededNavigationState.js.map`) are
+left as published: npm ships no TypeScript source to rebuild them from, so in
+those two files the patched lines map to the nearest upstream line. The native
+predictive Back gates (source-built opted and default APKs, device acceptance)
+were not repeated for this forward.
+
+# expo-video 58.0.13
 
 The web player calls `video.play()` and drops the returned promise, so two
 rejections that are not failures of the call surface as unhandled rejections:
@@ -28,7 +41,7 @@ second one is already reported: the element's `error` event sets the player's
 status to `error`, which `VideoPlayer` renders as "video unavailable", the same
 state as any broken or missing media. The patch routes every call through
 `playVideo()`, which consumes exactly those two and rethrows anything else.
-Still present in 58.0.12 (all five calls); re-made against it. Remove when
+Still present in 58.0.13 (all five calls); re-made against it. Remove when
 upstream handles the `play()` promise.
 
 On Android, `VideoView` lays out its `PlayerView` only after a `requestLayout`.
@@ -41,7 +54,7 @@ precompiled AARs, so `packages/frontend/package.json` builds expo-video from
 source (`expo.autolinking.android.buildFromSource`), or the patch would never
 reach the APK. Remove both when upstream re-lays out the player on a frame change.
 
-# react-native-screens 4.30.0
+# react-native-screens 4.30.1
 
 The experimental ("gamma") stack host lays its native `StackContainer` out with
 the host's own bounds in its PARENT (`container.layout(l, t, r, b)`), where a
@@ -52,7 +65,7 @@ header, inside the gutter), so on Android every screen started 110 dp lower and
 8 dp further right than the panel — a blank band under the header and a double
 frame. The patch lays the container out at `(0, 0, width, height)`. Measured on
 a Pixel 8a release build: the container moves from (42, 578) to the panel's own
-(21, 289). Still present in 4.30.0 (Expo Router 58's `ExperimentalStack` still
+(21, 289). Still present in 4.30.1 (Expo Router 58's `ExperimentalStack` still
 renders this host); remove when upstream
 fixes `StackHost.onLayout` / `layoutContainerNow`.
 
@@ -80,7 +93,7 @@ is wanted open, a close cancels the pending enter frame, and a modal closed
 before it was ever shown unmounts at once. Remove it when Mention moves to a
 Bloom release that includes #250.
 
-# @shopify/flash-list 2.3.2
+# @shopify/flash-list 2.3.3
 
 `stickyHeaderConfig.offset` does two things. It sets where a stuck header sits,
 and it also puts a zero-height measuring view with `marginTop: offset` in front
@@ -106,10 +119,10 @@ Measured on a Pixel 8a release build:
 
 In Mention only the profile passes a non-zero offset: `useHeaderDockInset()` is
 0 outside its `HeaderDockProvider`. Present since `offset` was introduced in
-2.2.0, and still in 2.3.2. Remove the patch when FlashList separates the sticky
+2.2.0, and still in 2.3.3. Remove the patch when FlashList separates the sticky
 offset from a content inset.
 
-# react-native-gesture-handler 3.3.0
+# react-native-gesture-handler 3.4.0
 
 Gesture Handler reaches Reanimated through `reanimatedWrapper.js`, which loads it
 with `require('react-native-reanimated')` inside a `try` (Reanimated is an
@@ -120,7 +133,7 @@ Flip, Bounce, Rotate, Lightspeed, Roll, Stretch, Pinwheel, …), the screen
 transitions and the rest, none of which Mention or Bloom uses, in the startup
 `__common` chunk of every page load.
 
-The patch imports by name the members Gesture Handler reads (3.3.0's v3 API
+The patch imports by name the members Gesture Handler reads (the v3 API
 reads more of them than 2.32 did: `isSharedValue`, `NativeEventsManager`,
 `setGestureState`, `useComposedEventHandler`, `useEvent`, `useHandler`,
 `useSharedValue` and the default export's `createAnimatedComponent`).
@@ -132,7 +145,15 @@ shaken. Measured on one `expo export --platform web` of the same commit:
 `react-native-reanimated` in `__common` 722 → 500 KiB (layout animations
 241 → 101 KiB; what stays is Reanimated's own web layout-animation runtime,
 which every animated component imports, and the Fade and Slide presets Bloom
-and the app use). Still `require()` in 3.3.0; remove the patch when upstream
+and the app use). Still `require()` in 3.4.0, which reads the same members.
+3.4.0 also probes Reanimated's `AnimatedComponent` with
+`require('react-native-reanimated/src/…')`. Metro resolves the package itself
+to `lib/module` on web, so that `src` path brought a second copy of
+Reanimated's source tree into `__common` (+501 KB raw, +88 KB gzip of initial
+JavaScript). The patch points the probe at
+`lib/module/createAnimatedComponent/AnimatedComponent`, the same build the
+import above loads; the probe's answer is unchanged (Reanimated 4.7.1 has no
+`_refreshComponentRef` in either build). Remove the patch when upstream
 imports Reanimated statically.
 
 # react-native-css 3.1.0-rc.0

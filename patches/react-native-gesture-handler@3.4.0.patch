@@ -1,5 +1,5 @@
 diff --git a/lib/module/handlers/gestures/reanimatedWrapper.js b/lib/module/handlers/gestures/reanimatedWrapper.js
-index 96c5e37bf2da7643589850922dd71ae5ecd39458..dbcd771109214c204905158d5260878786c5acdf 100644
+index dca5aa532401743172dafc000d3ccc836fcdc2fe..1623f18c6089e28aba3f1502dc303f6de66a575f 100644
 --- a/lib/module/handlers/gestures/reanimatedWrapper.js
 +++ b/lib/module/handlers/gestures/reanimatedWrapper.js
 @@ -1,8 +1,12 @@
@@ -17,7 +17,7 @@ index 96c5e37bf2da7643589850922dd71ae5ecd39458..dbcd771109214c204905158d52608787
  let Worklets;
  try {
    // eslint-disable-next-line @typescript-eslint/no-var-requires
-@@ -11,24 +15,18 @@ try {
+@@ -11,25 +15,19 @@ try {
    // When 'react-native-worklets' is not available we want to quietly continue
    Worklets = undefined;
  }
@@ -50,5 +50,18 @@ index 96c5e37bf2da7643589850922dd71ae5ecd39458..dbcd771109214c204905158d52608787
 -    console.warn(tagMessage('Please use newer version of react-native-reanimated in order to control state of the gestures.'));
 -  };
 -}
- export { Reanimated, Worklets };
- //# sourceMappingURL=reanimatedWrapper.js.map
+ 
+ // Reanimated resolves `getAnimatableRef()` once, when its ref to the wrapped
+ // component attaches. Only versions that re-resolve it on update (their
+@@ -42,7 +40,10 @@ try {
+   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+   const AnimatedComponent =
+   // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-member-access
+-  require('react-native-reanimated/src/createAnimatedComponent/AnimatedComponent').default;
++  // Mention patch: probe the compiled build this file's bundle resolves
++  // (`module` → lib/module), not `src`: on web a `src` require pulls a second
++  // copy of Reanimated's source tree into the startup chunk.
++  require('react-native-reanimated/lib/module/createAnimatedComponent/AnimatedComponent').default;
+   refreshesAnimatableRef =
+   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+   typeof AnimatedComponent?.prototype?._refreshComponentRef === 'function';

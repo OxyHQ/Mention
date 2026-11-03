@@ -40,7 +40,10 @@ module.exports = defineConfig([
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
-    settings: { react: { version: 'detect' } },
+    // The installed React, stated rather than 'detect': eslint-plugin-react's
+    // detection calls context.getFilename(), which ESLint 10 removed. Every rule
+    // used below runs on ESLint 10 once the version is given.
+    settings: { react: { version: require('react/package.json').version } },
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.d.ts'],

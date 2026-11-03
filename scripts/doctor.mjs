@@ -23,8 +23,8 @@ const expectedBloomVersion = String(catalog['@oxy.so/bloom'] ?? '').replace(/^\^
 // and installed-copy assertions below follow. They were spelled out inline until
 // SDK 57, which meant an upgrade passed local review and failed here instead.
 const expectedExpoMajor = '58';
-const expectedReactNativeVersion = '0.88.0';
-const expectedReactVersion = '19.3.0';
+const expectedReactNativeVersion = '0.88.1';
+const expectedReactVersion = '19.3.1';
 
 if (!expectedBunVersion) {
   failures.push('package.json must declare packageManager as bun@<version>.');

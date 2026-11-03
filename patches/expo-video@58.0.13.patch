@@ -1,6 +1,3 @@
-diff --git a/node_modules/expo-video/.bun-tag-3cfab97afc1c038c b/.bun-tag-3cfab97afc1c038c
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/android/src/main/java/expo/modules/video/VideoView.kt b/android/src/main/java/expo/modules/video/VideoView.kt
 index bc008063c5d8a0f703907c2bb6e69a9299070f80..52974564a047a10373061d1e8eb65e940b648ae8 100644
 --- a/android/src/main/java/expo/modules/video/VideoView.kt

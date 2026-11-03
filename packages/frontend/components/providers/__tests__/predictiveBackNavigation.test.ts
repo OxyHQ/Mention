@@ -64,9 +64,9 @@ describe('Android predictive-back navigation wiring', () => {
     const rootPackage = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8')) as {
       patchedDependencies?: Record<string, string>;
     };
-    const patchPath = rootPackage.patchedDependencies?.['expo-router@58.0.24'];
+    const patchPath = rootPackage.patchedDependencies?.['expo-router@58.0.30'];
 
-    expect(patchPath).toBe('patches/expo-router@58.0.24.patch');
+    expect(patchPath).toBe('patches/expo-router@58.0.30.patch');
     expect(readFileSync(join(repositoryRoot, patchPath!), 'utf8')).toContain(
       'options.headerShown === false ? null',
     );
