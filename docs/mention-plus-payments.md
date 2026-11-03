@@ -103,3 +103,18 @@ published SDK sheet. Production acceptance still requires the approved binding,
 backend deployment, web/native payment tests, and authoritative renewal,
 cancellation and entitlement verification. No cryptocurrency sale or purchase
 service is introduced.
+
+## Published prices and payment readiness
+
+An exact public catalogue offer may be shown while the catalogue reports
+`purchase: unavailable`. The page and sheet display those published terms, but
+the sheet does not open a payment window or create a checkout operation until
+the catalogue reports `purchase: available`. An existing pending operation can
+still be checked. Missing offers never receive a client-supplied price.
+
+The initial inactive Mention catalogue uses product `mention`, capability
+`plus`, monthly offer `mention_plus_monthly` version `1`, and annual offer
+`mention_plus_annual` version `1`. Configure the six public bindings above to
+these identifiers after that catalogue is published. The approved USD totals
+are 599 minor units monthly and 5750 annually, inclusive of tax. These display
+terms alone do not activate a payment provider or establish tax readiness.

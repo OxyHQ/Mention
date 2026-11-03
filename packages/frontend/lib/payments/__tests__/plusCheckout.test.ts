@@ -27,7 +27,7 @@ const catalogue: ProductPlanCatalogue = {
     },
   ],
 };
-it('requires explicit valid binding, matching version, price and enabled catalogue', () => {
+it('requires explicit valid binding, matching version, published price independently from purchase readiness', () => {
   expect(plusOfferBinding(undefined, '2')).toBeNull();
   expect(plusOfferBinding('approved-bundle', '2x')).toBeNull();
   expect(plusOfferBinding('approved-bundle', '9007199254740992')).toBeNull();
@@ -41,7 +41,9 @@ it('requires explicit valid binding, matching version, price and enabled catalog
       offerVersion: 1,
     }),
   ).toBeNull();
-  expect(resolvePlusOffer({ ...catalogue, purchase: 'unavailable' }, binding)).toBeNull();
+  expect(resolvePlusOffer({ ...catalogue, purchase: 'unavailable' }, binding)).toEqual(
+    catalogue.plans[0],
+  );
   expect(
     resolvePlusOffer({ ...catalogue, plans: [...catalogue.plans, ...catalogue.plans] }, binding),
   ).toBeNull();

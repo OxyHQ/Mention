@@ -24,7 +24,7 @@ export default function PlusScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const [cadence, setCadence] = useState<PlusCadence>('month');
-  const { offer, hasAccess } = usePlusOffer(cadence);
+  const { offer, hasAccess, purchaseAvailable, failed, loading } = usePlusOffer(cadence);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [selected, setSelected] = useState('plus');
 
@@ -54,7 +54,13 @@ export default function PlusScreen() {
             suffix: t(`plus.payment.priceSuffix.${offer.price.interval}`),
             description: offer.displayName,
           }
-        : t('plus.payment.pricingUnavailable'),
+        : t(
+            failed
+              ? 'plus.payment.pricingUnavailable'
+              : loading
+                ? 'common.loading'
+                : 'plus.payment.comingSoon',
+          ),
       benefits: [
         {
           id: 'connect',
@@ -98,9 +104,19 @@ export default function PlusScreen() {
           primaryAction={
             selected === 'plus'
               ? {
-                  label: t(hasAccess ? 'plus.payment.included' : 'plus.subscribe'),
-                  disabled: hasAccess,
-                  onPress: () => setPaymentOpen(true),
+                  label: t(
+                    hasAccess
+                      ? 'plus.payment.included'
+                      : purchaseAvailable
+                        ? 'plus.subscribe'
+                        : failed
+                          ? 'plus.payment.pricingUnavailable'
+                          : 'plus.payment.comingSoon',
+                  ),
+                  disabled: hasAccess || !purchaseAvailable,
+                  onPress: () => {
+                    if (purchaseAvailable && !hasAccess) setPaymentOpen(true);
+                  },
                 }
               : undefined
           }
@@ -112,6 +128,9 @@ export default function PlusScreen() {
           }}
         />
         {selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />}
+        {selected === 'plus' && !hasAccess && !purchaseAvailable && !failed && !loading && (
+          <Text>{t('plus.payment.notReady')}</Text>
+        )}
         <Text>{t('plus.payment.oneIncluded')}</Text>
       </ScreenScrollView>
       {paymentOpen && <PlusPaymentSheet cadence={cadence} onClose={() => setPaymentOpen(false)} />}

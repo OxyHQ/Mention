@@ -51,14 +51,12 @@ export function usePlusOffer(cadence: PlusCadence = 'month') {
       mentionPlusBindings.month?.offerId,
       mentionPlusBindings.month?.offerVersion,
     ),
-    queryFn: async () =>
-      binding
-        ? resolvePlusCadenceOffer(
-            await oxyServices.billing.productPlans(binding.productId),
-            cadence,
-            mentionPlusBindings,
-          )
-        : null,
+    queryFn: async () => {
+      if (!binding) return null;
+      const catalogue = await oxyServices.billing.productPlans(binding.productId);
+      const offer = resolvePlusCadenceOffer(catalogue, cadence, mentionPlusBindings);
+      return { offer, purchaseAvailable: !!offer && catalogue.purchase === 'available' };
+    },
     enabled: !!binding,
     staleTime: 0,
     gcTime: 0,
@@ -93,7 +91,8 @@ export function usePlusOffer(cadence: PlusCadence = 'month') {
   });
   return {
     binding,
-    offer: binding && !query.isError ? (query.data ?? null) : null,
+    offer: binding && !query.isError ? (query.data?.offer ?? null) : null,
+    purchaseAvailable: !!binding && !query.isError && query.data?.purchaseAvailable === true,
     loading: !!binding && query.isPending,
     failed: !!binding && query.isError,
     hasAccess: accessEnabled && !access.isError && access.data === true,

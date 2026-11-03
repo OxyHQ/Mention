@@ -2940,7 +2940,7 @@
   "plus.payment.description": "Suscríbete a Mention Plus. Revisa el precio antes de continuar al pago.",
   "plus.payment.monthlyPrice": "{{price}} / mes, impuestos incluidos",
   "plus.payment.loading": "Cargando suscripción…",
-  "plus.payment.unavailable": "Esta suscripción todavía no está disponible para comprar.",
+  "plus.payment.unavailable": "Estamos preparando las suscripciones de Mention Plus. Podrás pagar con Peable desde aquí.",
   "plus.payment.failed": "No pudimos confirmar el estado del pago. Inténtalo de nuevo para recuperar el mismo pago.",
   "plus.payment.pending": "El pago está pendiente. Cerrar esta ventana no cancela un pago ya autorizado.",
   "plus.payment.fulfilled": "Oxy ha confirmado esta suscripción. Tu cuenta de Oxy gestiona el acceso.",
@@ -2956,5 +2956,7 @@
   "plus.payment.signInRequired": "Inicia sesión para suscribirte o comprobar si ya tienes Mention Plus.",
   "plus.payment.yearlyPrice": "{{price}} / año, impuestos incluidos",
   "plus.payment.priceSuffix.month": "/ mes",
-  "plus.payment.priceSuffix.year": "/ año"
+  "plus.payment.priceSuffix.year": "/ año",
+  "plus.payment.notReady": "Estamos preparando las suscripciones de Mention Plus. Podrás pagar con Peable desde aquí.",
+  "plus.payment.comingSoon": "Próximamente"
 }

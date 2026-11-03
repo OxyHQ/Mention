@@ -27,8 +27,7 @@ export function resolvePlusOffer(
   catalogue: ProductPlanCatalogue,
   binding: PlusOfferBinding | null,
 ): PlusOffer | null {
-  if (!binding || catalogue.productId !== binding.productId || catalogue.purchase !== 'available')
-    return null;
+  if (!binding || catalogue.productId !== binding.productId) return null;
   const matches = catalogue.plans.filter(
     (plan) =>
       plan.productId === binding.productId &&
