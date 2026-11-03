@@ -202,7 +202,8 @@
     "web-vitals": "^6.2.3",
     "zod": "catalog:",
     "zustand": "^5.0.16",
-    "@mercaria.co/sdk": "0.8.0"
+    "@mercaria.co/sdk": "0.8.0",
+    "@peable.to/sdk": "0.6.0"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

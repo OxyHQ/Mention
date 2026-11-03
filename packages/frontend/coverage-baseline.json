@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 55.44,
-      "covered": 16109,
-      "total": 29055
+      "pct": 55.89,
+      "covered": 16669,
+      "total": 29821
     },
     "branches": {
-      "pct": 51.18,
-      "covered": 11307,
-      "total": 22090
+      "pct": 51.96,
+      "covered": 11946,
+      "total": 22989
     },
     "functions": {
-      "pct": 50.11,
-      "covered": 3801,
-      "total": 7584
+      "pct": 50.48,
+      "covered": 3916,
+      "total": 7757
     },
     "lines": {
-      "pct": 56.34,
-      "covered": 14542,
-      "total": 25807
+      "pct": 56.79,
+      "covered": 15043,
+      "total": 26486
     }
   },
   "pins": {
@@ -226,6 +226,12 @@
       "branches": 16,
       "functions": 50,
       "lines": 50
+    },
+    "hooks/useCheckoutFeedback.ts": {
+      "statements": 0,
+      "branches": 0,
+      "functions": 0,
+      "lines": 0
     },
     "hooks/useCommerceStorefront.ts": {
       "statements": 100,
@@ -492,8 +498,8 @@
       "lines": 96
     },
     "hooks/usePlusOffer.ts": {
-      "statements": 91,
-      "branches": 92,
+      "statements": 94,
+      "branches": 97,
       "functions": 100,
       "lines": 100
     },
@@ -750,10 +756,10 @@
       "lines": 88
     },
     "hooks/useUnreadCount.ts": {
-      "statements": 70,
-      "branches": 42,
-      "functions": 66,
-      "lines": 77
+      "statements": 82,
+      "branches": 62,
+      "functions": 83,
+      "lines": 85
     },
     "hooks/useVideoFeed.ts": {
       "statements": 99,
@@ -953,9 +959,39 @@
       "functions": 100,
       "lines": 100
     },
+    "lib/payments/checkoutFeedback.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/payments/checkoutPreview.ts": {
+      "statements": 100,
+      "branches": 20,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/payments/embeddedCheckout.ts": {
+      "statements": 57,
+      "branches": 42,
+      "functions": 75,
+      "lines": 55
+    },
+    "lib/payments/localProviderTest.ts": {
+      "statements": 66,
+      "branches": 56,
+      "functions": 75,
+      "lines": 63
+    },
+    "lib/payments/merchantInstallmentPreview.ts": {
+      "statements": 94,
+      "branches": 97,
+      "functions": 100,
+      "lines": 93
+    },
     "lib/payments/plusCheckout.ts": {
       "statements": 100,
-      "branches": 94,
+      "branches": 98,
       "functions": 100,
       "lines": 100
     },

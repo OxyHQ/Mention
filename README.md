@@ -199,3 +199,13 @@ approved, because charging for commercial use is discrimination against a
 field of endeavour under clause 6 of the Open Source Definition. Oxy's SDKs
 and client libraries (`@oxy.so/core`, `@oxy.so/services`, Bloom) are
 Apache-2.0, so building against Oxy carries none of this.
+
+### Local payment preview
+
+Mention Plus is the first integration of Peable's reusable payment window. The
+local preview includes buyer payment methods and installment plans, alongside
+separate merchant preferences for eligible plans, order limits and markets.
+Merchant preferences narrow provider capabilities; they cannot set financing
+rates or approve a buyer. All preview settings and outcomes remain local, with
+no charges or access grants. See [payment implementation and remaining production
+work](docs/mention-plus-payments.md).

@@ -45,6 +45,11 @@ const FISH_SATISFIED = '01a0eada-a932-73cf-9cfe-503437a42a51';
 const INTROVERT_NOPE = '01a0eadb-6875-730c-988d-e04211c6a430';
 
 export const EMPTY_STATE_STICKERS = {
+  // Checkout outcomes reuse the established catalogue artwork.
+  checkoutSuccess: BIRD_PARTYTIME,
+  /** introvert-life (turtle overwhelmed), verified in the public catalogue. */
+  checkoutFailure: '01a0eadb-7002-7ada-ae9b-12454c282e57',
+
   // Feeds
   feedFollowing: SAD_BEAR,
   feedForYou: BIRD_WATCHING,

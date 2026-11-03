@@ -32,4 +32,80 @@ const config = createOxyMetroConfig(__dirname, {
 // `ascii_only: true`).
 config.transformer.minifierConfig.output.ascii_only = false;
 
+// Explicit local-only UI development: watch the owning library worktrees too.
+// Production and ordinary development keep the published package resolver.
+if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const origin = new URL(process.env.OXY_LOCAL_CHECKOUT_ORIGIN || '');
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.CI ||
+    !process.argv.includes('start') ||
+    !['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname)
+  ) {
+    throw new Error('Local checkout sources require interactive Expo start on loopback');
+  }
+  const bloomRoot = path.resolve(process.env.OXY_LOCAL_BLOOM_SOURCE || '');
+  const sdkRoot = path.resolve(process.env.OXY_LOCAL_PEABLE_SDK_SOURCE || '');
+  const bloomPackage = JSON.parse(fs.readFileSync(path.join(bloomRoot, 'package.json'), 'utf8'));
+  const sdkEntry = path.join(sdkRoot, 'src/ui/index.ts');
+  if (bloomPackage.name !== '@oxy.so/bloom' || !fs.existsSync(sdkEntry)) {
+    throw new Error('Local checkout source roots do not contain the expected packages');
+  }
+  config.watchFolders = [...new Set([...config.watchFolders, bloomRoot, sdkRoot])];
+  const escaped = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  config.resolver.blockList = [
+    ...[].concat(config.resolver.blockList || []),
+    ...[bloomRoot, sdkRoot].flatMap((root) =>
+      ['node_modules', '.git', '.local', '.worktrees', 'lib', 'dist', '__tests__'].map(
+        (folder) => new RegExp(`^${escaped(path.join(root, folder))}(?:[/\\\\]|$)`),
+      ),
+    ),
+  ];
+  const parentResolve = config.resolver.resolveRequest;
+  const appOrigin = path.join(__dirname, 'package.json');
+  const sourceRoots = [bloomRoot + path.sep, sdkRoot + path.sep];
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    const resolve = parentResolve || context.resolveRequest;
+    if (moduleName === '@peable.to/sdk/checkout') {
+      return resolve(context, path.join(sdkRoot, 'src/checkout.ts'), platform);
+    }
+    if (moduleName === '@peable.to/sdk/checkout/ui') {
+      return resolve(context, sdkEntry, platform);
+    }
+    if (moduleName === '@oxy.so/bloom' || moduleName.startsWith('@oxy.so/bloom/')) {
+      const key =
+        moduleName === '@oxy.so/bloom' ? '.' : `.${moduleName.slice('@oxy.so/bloom'.length)}`;
+      const exports = JSON.parse(
+        fs.readFileSync(path.join(bloomRoot, 'package.json'), 'utf8'),
+      ).exports;
+      const wildcard = Object.keys(exports).find((candidate) => {
+        if (!candidate.includes('*')) return false;
+        const [prefix, suffix] = candidate.split('*');
+        return key.startsWith(prefix) && key.endsWith(suffix);
+      });
+      const exportKey = exports[key] ? key : wildcard;
+      const entry = exports[exportKey]?.['react-native'];
+      let target = typeof entry === 'string' ? entry : entry?.default;
+      if (target && wildcard && exportKey === wildcard) {
+        const [prefix, suffix] = wildcard.split('*');
+        target = target.replace('*', key.slice(prefix.length, suffix ? -suffix.length : undefined));
+      }
+      if (!target?.startsWith('./src/')) throw new Error(`No local Bloom source for ${moduleName}`);
+      const source = path.resolve(bloomRoot, target).replace(/\.(tsx?|jsx?)$/, '');
+      return resolve(context, source, platform);
+    }
+    // Library worktrees have their own installs. Share the app's React, RN,
+    // NativeWind/worklets and every other bare peer through the existing preset.
+    const externalSource = sourceRoots.some((root) => context.originModulePath.startsWith(root));
+    const bare = !moduleName.startsWith('.') && !path.isAbsolute(moduleName);
+    return resolve(
+      externalSource && bare ? { ...context, originModulePath: appOrigin } : context,
+      moduleName,
+      platform,
+    );
+  };
+}
+
 module.exports = config;

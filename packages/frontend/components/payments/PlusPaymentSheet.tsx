@@ -1,3 +1,5 @@
+import type { EmbeddedCheckoutBinding } from '@/lib/payments/embeddedCheckout';
+import { PeableEmbeddedCheckout } from './PeableEmbeddedCheckout';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { BottomSheet } from '@oxy.so/bloom/bottom-sheet';
@@ -44,12 +46,22 @@ type Message =
 export function PlusPaymentSheet({
   onClose,
   cadence = 'month',
+  embeddedBinding,
 }: {
   onClose(): void;
   cadence?: PlusCadence;
+  embeddedBinding?: EmbeddedCheckoutBinding;
 }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
+  if (embeddedBinding)
+    return (
+      <PeableEmbeddedCheckout
+        key={embeddedBinding.intentId}
+        binding={embeddedBinding}
+        onClose={onClose}
+      />
+    );
   return (
     <PaymentContent
       key={`${user?.id}:${activeSessionId}:${cadence}`}
@@ -104,19 +116,19 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
   useEffect(() => {
     if (!started)
       setMessage(
-        !canUsePrivateApi
-          ? 'signInRequired'
-          : hasAccess
-            ? 'included'
-            : loading || checkingAccess
-              ? 'loading'
-              : failed || accessFailed
-                ? 'failed'
-                : offer
-                  ? purchaseAvailable
-                    ? null
-                    : 'notReady'
-                  : 'unavailable',
+        hasAccess
+          ? 'included'
+          : loading || checkingAccess
+            ? 'loading'
+            : failed || accessFailed
+              ? 'failed'
+              : !offer
+                ? 'unavailable'
+                : !purchaseAvailable
+                  ? 'notReady'
+                  : !canUsePrivateApi
+                    ? 'signInRequired'
+                    : null,
       );
   }, [
     offer,
@@ -286,7 +298,7 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
           <ActivityIndicator accessibilityLabel={t('common.loading')} />
         )}
         {message && <Text accessibilityLiveRegion="polite">{t(`plus.payment.${message}`)}</Text>}
-        {!canUsePrivateApi && (
+        {purchaseAvailable && !canUsePrivateApi && (
           <Button
             onPress={() => {
               void signIn();

@@ -1,3 +1,22 @@
+// These tests exercise page/binding policy, not the SDK transport. Fail on any
+// unexpected transport construction rather than loading its browser-only ESM.
+jest.mock('@peable.to/sdk/checkout', () => ({
+  createPeableCheckout: () => {
+    throw new Error('Unexpected payer transport in policy test');
+  },
+}));
+
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@/lib/navigation/router', () => ({
+  useLocalSearchParams: () => ({}),
+  useRouter: () => ({ setParams: jest.fn() }),
+}));
+jest.mock('@/components/payments/MerchantInstallmentSettings', () => ({
+  MerchantInstallmentSettings: () => null,
+}));
+jest.mock('@/components/payments/CheckoutPreviewBadge', () => ({
+  CheckoutPreviewBadge: () => null,
+}));
 import TestRenderer, { act } from 'react-test-renderer';
 import type { SubscriptionPlansProps } from '@oxy.so/bloom/subscription-plans';
 import PlusScreen from '@/app/(app)/plus';
@@ -55,7 +74,7 @@ jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { primary: '#000' } }) }));
 
 /** /plus opens checkout without inventing or substituting a commercial price. */
-it('shows a coming-soon state without opening an unavailable payment', () => {
+it('preserves production coming-soon gating before payment activation', () => {
   mockPurchaseAvailable = false;
   mockPaymentDialog.mockClear();
   act(() => {

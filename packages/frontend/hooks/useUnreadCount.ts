@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { matchQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { notificationService } from '@/services/notificationService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -10,6 +10,8 @@ import { usePendingNotificationOperations } from './usePendingNotificationOperat
 /** The authoritative unread count, projected through this viewer's pending intents. */
 export function useUnreadCount(): number {
   const { user, canUsePrivateApi, oxyServices } = useAuth();
+  const client = useQueryClient();
+  const listKey = useMemo(() => viewerQueryKeys.notifications(user?.id), [user?.id]);
   const { operations, epoch } = usePendingNotificationOperations(user?.id, oxyServices);
   const { data } = useQuery({
     queryKey: viewerQueryKeys.unreadNotifications(user?.id),
@@ -20,17 +22,24 @@ export function useUnreadCount(): number {
     enabled: canUsePrivateApi && !!user?.id,
     staleTime: 60_000,
   });
-  const selectAffected = useCallback(
-    (list: NotificationsInfiniteData) =>
-      countNotificationOptimism(list, operations, { viewerId: user?.id, epoch }),
-    [operations, user?.id, epoch],
+  // Observe cache data only. A disabled useQuery still creates an observer and
+  // can replace the infinite list's fetch options; this badge owns no list fetch.
+  const subscribe = useCallback(
+    (listener: () => void) =>
+      client.getQueryCache().subscribe((event) => {
+        if (matchQuery({ queryKey: listKey, exact: true }, event.query)) listener();
+      }),
+    [client, listKey],
   );
-  // A disabled observer reads the existing list without issuing another request.
-  // Selecting a number keeps unrelated row updates from rerendering the badge.
-  const { data: affected = 0 } = useQuery({
-    queryKey: viewerQueryKeys.notifications(user?.id),
-    enabled: false,
-    select: selectAffected,
-  });
+  const readAffected = useCallback(
+    () =>
+      countNotificationOptimism(
+        client.getQueryData<NotificationsInfiniteData>(listKey),
+        operations,
+        { viewerId: user?.id, epoch },
+      ),
+    [client, listKey, operations, user?.id, epoch],
+  );
+  const affected = useSyncExternalStore(subscribe, readAffected, readAffected);
   return Math.max(0, (data ?? 0) - affected);
 }
