@@ -176,7 +176,9 @@ export default function PlusScreen() {
               }}
             >
               <SegmentedControlItem value="provider" disabled={paymentOpen || bootstrapBusy}>
-                <SegmentedControlItemText>Stripe TEST</SegmentedControlItemText>
+                <SegmentedControlItemText>
+                  {t('plus.checkout.providerTest.mode')}
+                </SegmentedControlItemText>
               </SegmentedControlItem>
               <SegmentedControlItem value="preview" disabled={paymentOpen || bootstrapBusy}>
                 <SegmentedControlItemText>

@@ -3224,7 +3224,7 @@
   "plus.checkout.transfer.detected": "Transfer detected",
   "plus.checkout.transfer.confirming": "Confirming payment",
   "plus.checkout.rail.addFunds": "Add funds",
-  "plus.checkout.providerTest.badge": "Stripe TEST · no real charges",
+  "plus.checkout.providerTest.badge": "Peable · test mode",
   "plus.checkout.providerTest.title": "Peable test payment",
   "plus.checkout.providerTest.oneTime": "One-time test payment",
   "plus.checkout.providerTest.noAccess": "Does not activate a subscription",
@@ -3237,6 +3237,6 @@
   "plus.checkout.providerTest.paymentDetails": "Payment details",
   "plus.checkout.providerTest.mode": "Test mode",
   "plus.checkout.providerTest.visualPreview": "UI preview",
-  "plus.checkout.providerTest.entryDescription": "One-time $5.99 USD payment with Stripe TEST. This does not activate Mention Plus or a subscription.",
+  "plus.checkout.providerTest.entryDescription": "One-time $5.99 USD test payment with Peable. This does not activate Mention Plus or a subscription.",
   "plus.checkout.providerTest.bootstrapFailed": "Could not start the test payment. Check that the local server is running, then try Subscribe again."
 }
