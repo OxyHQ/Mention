@@ -12,6 +12,7 @@ import {
   SelectItemText,
 } from '@oxy.so/bloom/select';
 import { COUNTRY_CODES } from '@mention/shared-types/job';
+import { countryName } from '@/utils/jobVocabulary';
 
 export interface CheckoutBillingAddressValue {
   country: string;
@@ -60,10 +61,9 @@ export function CheckoutBillingAddress({
 }) {
   const { t, i18n } = useTranslation();
   const countries = useMemo(() => {
-    const names = new Intl.DisplayNames([i18n.language], { type: 'region' });
     return COUNTRY_CODES.map((country) => ({
       value: country,
-      label: names.of(country) ?? country,
+      label: countryName(country, i18n.language),
     })).sort((a, b) => a.label.localeCompare(b.label, i18n.language));
   }, [i18n.language]);
   const fields = [
