@@ -1,3 +1,16 @@
+let mockPreparedProps: { review: unknown; operationKey: string; onClose(): void } | null = null;
+let mockDevelopment = false;
+let mockUserId: string | undefined;
+let mockSessionId: string | undefined;
+jest.mock('@/lib/payments/checkoutPreview', () => ({
+  isLocalCheckoutPreview: () => mockDevelopment,
+}));
+jest.mock('@/components/payments/PreparedPlusCheckout', () => ({
+  PreparedPlusCheckout: (props: typeof mockPreparedProps) => {
+    mockPreparedProps = props;
+    return null;
+  },
+}));
 // These tests exercise page/binding policy, not the SDK transport. Fail on any
 // unexpected transport construction rather than loading its browser-only ESM.
 jest.mock('@peable.to/sdk/checkout', () => ({
@@ -22,6 +35,9 @@ import type { SubscriptionPlansProps } from '@oxy.so/bloom/subscription-plans';
 import PlusScreen from '@/app/(app)/plus';
 
 let mockOffer: {
+  productId?: string;
+  offerId?: string;
+  offerVersion?: number;
   displayName: string;
   price: { amountMinorUnits: number; currency: string; interval: string };
 } | null = null;
@@ -31,6 +47,8 @@ let mockPurchaseAvailable = true;
 let mockFailed = false;
 const mockFormatUsd = jest.fn(() => 'Approx. 12 FAIR');
 jest.mock('@oxy.so/services/ui/client', () => ({
+  useAuth: () => ({ user: mockUserId ? { id: mockUserId } : undefined }),
+  useOxy: () => ({ activeSessionId: mockSessionId }),
   useDisplayPrice: () => ({ currency: mockDisplayCurrency, formatUsd: mockFormatUsd }),
 }));
 jest.mock('@/hooks/usePlusOffer', () => ({
@@ -145,4 +163,35 @@ it('keeps an actual catalogue request failure distinct from a planned launch', (
   expect(mockPlansProps?.plans[1].price).toBe('plus.payment.pricingUnavailable');
   mockFailed = false;
   mockPurchaseAvailable = true;
+});
+
+it('opens captured review synchronously and removes it when account/session changes', () => {
+  mockDevelopment = true;
+  mockUserId = 'account-a';
+  mockSessionId = 'session-a';
+  mockOffer = {
+    productId: 'mention',
+    offerId: 'monthly',
+    offerVersion: 1,
+    displayName: 'Mention Plus',
+    price: { amountMinorUnits: 599, currency: 'USD', interval: 'month' },
+  };
+  let tree: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    tree = TestRenderer.create(<PlusScreen />);
+  });
+  act(() => mockPlansProps?.primaryAction?.onPress());
+  expect(mockPreparedProps?.review).toMatchObject({ amountMinorUnits: 599, interval: 'month' });
+  const earlierKey = mockPreparedProps?.operationKey;
+  mockUserId = 'account-b';
+  mockSessionId = 'session-b';
+  mockPreparedProps = null;
+  act(() => tree?.update(<PlusScreen />));
+  expect(mockPreparedProps).toBeNull();
+  act(() => mockPlansProps?.primaryAction?.onPress());
+  expect((mockPreparedProps as { operationKey: string } | null)?.operationKey).not.toBe(earlierKey);
+  act(() => tree?.unmount());
+  mockDevelopment = false;
+  mockUserId = undefined;
+  mockSessionId = undefined;
 });

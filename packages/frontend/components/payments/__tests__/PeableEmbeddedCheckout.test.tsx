@@ -235,6 +235,7 @@ it('subscription success requires paid invoice and active subscription, not only
   });
   expect(mockSheet.request.recurring?.interval).toBe('month');
   expect(mockSheet.request.tax).toBeUndefined();
+  expect(mockSheet.request.recurring).toEqual({ amountMinorUnits: 599, interval: 'month' });
   act(() => mockUpdate({ ...intent, status: 'settled' }));
   expect(mockSheet.step).toBe('processing');
   expect(mockPlay).not.toHaveBeenCalled();
@@ -315,4 +316,36 @@ it('rejects aborted or mismatched preparation without opening checkout', async (
   await expect(prepareEmbeddedCheckout(binding)).rejects.toThrow();
   expect(mockPrepare).not.toHaveBeenCalled();
   expect(mockConfirm).not.toHaveBeenCalled();
+});
+
+it('renders captured review immediately with no transport or forward action until bound', async () => {
+  mockRead.mockClear();
+  const review = {
+    productId: 'mention',
+    offerId: 'monthly',
+    offerVersion: 1,
+    currency: 'USD',
+    interval: 'month' as const,
+    amountMinorUnits: 599,
+  };
+  let tree: TestRenderer.ReactTestRenderer | undefined;
+  await act(async () => {
+    tree = TestRenderer.create(<PeableEmbeddedCheckout review={review} onClose={mockClose} />);
+  });
+  expect(mockSheet.request.dueTodayMinorUnits).toBe(599);
+  expect(mockSheet.request.paymentMethods).toEqual([]);
+  expect(mockSheet.request.tax).toBeUndefined();
+  expect(mockSheet.request.recurring).toEqual({ amountMinorUnits: 599, interval: 'month' });
+  expect(mockSheet.continueDisabled).toBe(true);
+  expect(mockSheet.interactionBlocked).toBe(false);
+  expect(mockRead).not.toHaveBeenCalled();
+  act(() => {
+    mockSheet.onStep('card');
+    mockSheet.onAuthorize();
+  });
+  expect(mockSheet.step).toBe('review');
+  expect(mockConfirm).not.toHaveBeenCalled();
+  act(() => mockSheet.onClose());
+  expect(mockClose).toHaveBeenCalledTimes(1);
+  act(() => tree?.unmount());
 });

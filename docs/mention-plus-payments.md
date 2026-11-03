@@ -378,8 +378,14 @@ confirmation. Completion waited for the signed Peable settlement plus a paid
 invoice and active subscription, including after authentication. The retry used
 one bootstrap operation and did not create another subscription.
 
-Subscribe now preloads and validates the payer intent and client action before
-opening the single Bloom checkout; there is no intermediate loading dialog.
+Subscribe captures the already validated catalogue offer and opens that review in
+the single Bloom checkout immediately. The explicit click starts preparation in
+parallel; visiting the page creates no subscription. Continue remains disabled
+until the payer intent and action match the captured currency, amount and cadence.
+The same sheet stays mounted when ready; no intermediate loading dialog is shown.
+Dismissal aborts preparation and ignores late replies. Account/session/offer changes
+remove the old review, and retry retains its scoped operation key. Bootstrap errors
+use a toast rather than a simulated fallback or changed price.
 Bank, installment and FairCoin options remain visible with their actual missing
 configuration explained. The card adapter's provider restriction does not remove
 Peable's other payment methods. Their live capabilities, the account-wallet bridge,

@@ -1,3 +1,4 @@
+import type { CheckoutReview } from '@/lib/payments/checkoutReview';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
@@ -24,18 +25,22 @@ type Intent = Awaited<ReturnType<ReturnType<typeof createPeableCheckout>['getPay
 /** One payer checkout view; environment-specific credentials and billing authority come from its host. */
 export function PeableEmbeddedCheckout({
   binding,
+  review,
+  onRetry,
   onClose,
 }: {
-  binding: EmbeddedCheckoutBinding;
+  binding?: EmbeddedCheckoutBinding;
+  review?: CheckoutReview;
+  onRetry?: () => void;
   onClose(): void;
 }) {
   const { t, i18n } = useTranslation();
   const client = useMemo(
-    () => createPeableCheckout({ gatewayUrl: binding.apiUrl }),
-    [binding.apiUrl],
+    () => (binding ? createPeableCheckout({ gatewayUrl: binding.apiUrl }) : null),
+    [binding],
   );
-  const [intent, setIntent] = useState<Intent | null>(binding.initial?.intent ?? null);
-  const [action, setAction] = useState<PeableClientAction | null>(binding.initial?.action ?? null);
+  const [intent, setIntent] = useState<Intent | null>(binding?.initial?.intent ?? null);
+  const [action, setAction] = useState<PeableClientAction | null>(binding?.initial?.action ?? null);
   const [step, setStep] = useState<CheckoutStep>('review');
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -44,7 +49,7 @@ export function PeableEmbeddedCheckout({
   const active = useRef(true);
   const inFlight = useRef(false);
   const terminal = useRef<'success' | 'failure' | null>(null);
-  const subscriptionReady = useRef(!binding.subscription);
+  const subscriptionReady = useRef(!binding?.subscription);
   const prepareRef = useRef<(() => Promise<ProviderCardPreparation>) | null>(null);
   const authorizationRef = useRef<PreparedCardAuthorization | null>(null);
   const [preparedCard, setPreparedCard] = useState<CheckoutCard | null>(null);
@@ -79,6 +84,15 @@ export function PeableEmbeddedCheckout({
   const prefix = 'plus.checkout.providerTest.';
   useEffect(() => {
     active.current = true;
+    if (!binding || !client)
+      return () => {
+        active.current = false;
+      };
+    subscriptionReady.current = !binding.subscription;
+    if (binding.initial) {
+      setIntent(binding.initial.intent);
+      setAction(binding.initial.action);
+    }
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
     const update = (value: Intent) => {
@@ -224,6 +238,7 @@ export function PeableEmbeddedCheckout({
 
   async function confirm() {
     if (
+      !binding ||
       inFlight.current ||
       !authorizationRef.current ||
       !action ||
@@ -256,13 +271,14 @@ export function PeableEmbeddedCheckout({
     feedback.stop();
     onClose();
   }
-  if (!intent) return null;
-  const amount = Number(intent.amount);
+  if (!intent && !review) return null;
+  const amount = intent ? Number(intent.amount) : (review?.amountMinorUnits ?? 0);
+  const canAdvance = !!binding && !!intent && !!action;
   const cardAvailable =
-    binding.paymentMethods?.find((method) => method.id === 'card')?.available ??
-    !binding.paymentMethods;
+    binding?.paymentMethods?.find((method) => method.id === 'card')?.available ??
+    (!!binding && !binding.paymentMethods);
   const methodReason = (id: 'bank' | 'installments' | 'faircoin') => {
-    const reason = binding.paymentMethods?.find((method) => method.id === id)?.reason;
+    const reason = binding?.paymentMethods?.find((method) => method.id === id)?.reason;
     const key =
       reason === 'subscription_method_not_configured'
         ? 'bankUnavailable'
@@ -278,32 +294,36 @@ export function PeableEmbeddedCheckout({
       open
       locale={i18n.language}
       interactionBlocked={busy}
+      continueDisabled={!canAdvance}
       brandState={restoredBrand ? 'idle' : busy ? 'loading' : undefined}
       request={{
-        merchant: binding.subscription ? 'Mention' : t(`${prefix}title`),
-        currency: intent.currency,
+        merchant: binding?.subscription || review ? 'Mention' : t(`${prefix}title`),
+        currency: intent?.currency ?? review?.currency ?? 'USD',
         dueTodayMinorUnits: amount,
         requiresContact: false,
         requiresShipping: false,
         // Only bound, implemented authorizations are selectable; unavailable Peable methods remain visible below.
-        paymentMethods: cardAvailable ? ['card'] : [],
-        tax: binding.subscription?.tax,
-        recurring: binding.subscription
+        paymentMethods: canAdvance && cardAvailable ? ['card'] : [],
+        tax: binding?.subscription?.tax,
+        recurring: binding?.subscription
           ? {
               amountMinorUnits: binding.subscription.amountMinorUnits,
               interval: binding.subscription.interval,
               startsOn: binding.subscription.startsOn,
             }
-          : undefined,
+          : review
+            ? { amountMinorUnits: review.amountMinorUnits, interval: review.interval }
+            : undefined,
         items: [
           {
-            id: intent.id,
-            name: binding.subscription ? 'Mention Plus' : t(`${prefix}oneTime`),
-            detail: binding.subscription
-              ? t(
-                  `plus.payment.cadence${binding.subscription.interval === 'month' ? 'Month' : 'Year'}`,
-                )
-              : t(`${prefix}noAccess`),
+            id: review?.offerId ?? intent?.id ?? 'review',
+            name: binding?.subscription || review ? 'Mention Plus' : t(`${prefix}oneTime`),
+            detail:
+              binding?.subscription || review
+                ? t(
+                    `plus.payment.cadence${(binding?.subscription?.interval ?? review?.interval) === 'month' ? 'Month' : 'Year'}`,
+                  )
+                : t(`${prefix}noAccess`),
             quantity: 1,
             amountMinorUnits: amount,
           },
@@ -315,7 +335,7 @@ export function PeableEmbeddedCheckout({
       nextStep={preparedCard ? 'confirmation' : 'payment'}
       onDraft={() => {}}
       onStep={(next) => {
-        if (!inFlight.current && !accepted) {
+        if (canAdvance && !inFlight.current && !accepted) {
           if (next === 'card' || next === 'payment') {
             authorizationRef.current?.dispose();
             authorizationRef.current = null;
@@ -325,7 +345,7 @@ export function PeableEmbeddedCheckout({
         }
       }}
       onBack={() => {
-        if (!inFlight.current && !accepted) {
+        if (canAdvance && !inFlight.current && !accepted) {
           if (step === 'confirmation') {
             authorizationRef.current?.dispose();
             authorizationRef.current = null;
@@ -340,30 +360,40 @@ export function PeableEmbeddedCheckout({
       }}
       onCard={() => {}}
       savedCards={[]}
-      paymentMethods={[
-        {
-          id: 'bank',
-          label: t('plus.checkout.rail.bank'),
-          kind: 'account',
-          detail: methodReason('bank'),
-          disabled: true,
-        },
-        {
-          id: 'installments',
-          label: t('plus.checkout.installments.title'),
-          kind: 'card',
-          detail: methodReason('installments'),
-          disabled: true,
-        },
-        {
-          id: 'faircoin',
-          label: 'FairCoin',
-          kind: 'wallet',
-          detail: methodReason('faircoin'),
-          disabled: true,
-        },
-      ]}
-      notice={error ? <Text accessibilityRole="alert">{error}</Text> : undefined}
+      paymentMethods={
+        binding
+          ? [
+              {
+                id: 'bank',
+                label: t('plus.checkout.rail.bank'),
+                kind: 'account',
+                detail: methodReason('bank'),
+                disabled: true,
+              },
+              {
+                id: 'installments',
+                label: t('plus.checkout.installments.title'),
+                kind: 'card',
+                detail: methodReason('installments'),
+                disabled: true,
+              },
+              {
+                id: 'faircoin',
+                label: 'FairCoin',
+                kind: 'wallet',
+                detail: methodReason('faircoin'),
+                disabled: true,
+              },
+            ]
+          : []
+      }
+      notice={
+        onRetry ? (
+          <Button onPress={onRetry}>{t('common.retry')}</Button>
+        ) : error ? (
+          <Text accessibilityRole="alert">{error}</Text>
+        ) : undefined
+      }
       cardEntry={
         action ? (
           <>
