@@ -3150,5 +3150,9 @@
   "plus.checkout.providerTest.bankUnavailable": "Los pagos bancarios aún no están disponibles para esta suscripción.",
   "plus.checkout.providerTest.installmentsUnavailable": "Esta suscripción no ofrece pagos a plazos.",
   "plus.checkout.providerTest.faircoinUnavailable": "El comercio aún no ha habilitado FairCoin para este pago.",
-  "plus.checkout.providerTest.methodUnavailable": "No disponible para este pago."
+  "plus.checkout.providerTest.methodUnavailable": "No disponible para este pago.",
+  "plus.benefitMono": "Tema monocromático",
+  "plus.benefitMonoDescription": "Personaliza Mention con el tema Mono.",
+  "plus.payment.cadenceYearShort": "Anual",
+  "plus.payment.annualDiscount": "Ahorra un 20 % con el pago anual."
 }
