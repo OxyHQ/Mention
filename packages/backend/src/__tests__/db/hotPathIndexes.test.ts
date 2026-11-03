@@ -345,6 +345,16 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'CREATE INDEX posts_classification_languages_gin ON public.posts USING gin (classification_languages)',
   },
   {
+    name: 'posts_translated_languages_gin',
+    table: 'posts',
+    serves:
+      "the feed's reader-language gate for posts translated into the reader's language " +
+      '(`viewerLanguageSql`, 0107); partial, so it holds translated posts only',
+    definition:
+      'CREATE INDEX posts_translated_languages_gin ON public.posts USING gin (translated_languages) ' +
+      'WHERE (translated_languages IS NOT NULL)',
+  },
+  {
     name: 'posts_classification_trend_terms_gin',
     table: 'posts',
     serves: '`trendTermMatchSql` — trend detection, trend feeds and excerpt lookup',

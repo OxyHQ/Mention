@@ -141,6 +141,8 @@ export interface RankablePost {
   threadId?: string | null;
   parentPostId?: string | null;
   language?: string;
+  /** Base languages of the post's machine translations (`PostRecord`). */
+  translatedLanguages?: readonly string[] | null;
   // Lean feed projections carry `content` for media-aware signals; only the
   // `media` array is read here (presence check), so it is intentionally opaque.
   content?: { media?: unknown[] | null };

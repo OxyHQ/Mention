@@ -4,7 +4,7 @@
  * post types, and preferred languages. Neutral (1.0) with no behavior data.
  */
 
-import { getBaseLanguage } from '@oxy.so/core';
+import { readableInViewerLanguages } from '../../../mtn/feed/feedLanguage';
 import { MtnConfig } from '@mention/shared-types';
 import type {
   BehaviorSets,
@@ -92,11 +92,7 @@ export function personalizationScore(
   // put more of them in front of the reader to scroll past. Declared languages
   // cannot drift that way.
   if (viewerBaseLanguages.length > 0) {
-    const postLanguages = post.postClassification?.languages;
-    if (
-      Array.isArray(postLanguages) &&
-      postLanguages.some((lang) => viewerBaseLanguages.includes(getBaseLanguage(lang)))
-    ) {
+    if (readableInViewerLanguages(post, viewerBaseLanguages)) {
       score *= R.personalization.languageMatch;
     }
   }

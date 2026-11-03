@@ -182,6 +182,12 @@ export interface PostRecord {
   isEdited: boolean;
   /** The PRIMARY language (ISO 639-1) — the AP protocol field. */
   language?: string;
+  /**
+   * The base languages the post has a machine translation in
+   * (`posts.translated_languages`), sorted; empty when it has none. Never part
+   * of what the author declared — see `translatedBaseLanguages`.
+   */
+  translatedLanguages: string[];
   curated?: boolean;
   hashtags: string[];
   editHistory: string[];

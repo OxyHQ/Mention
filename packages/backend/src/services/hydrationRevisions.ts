@@ -44,6 +44,7 @@ const RENDERED_FIELDS: Record<keyof PostRecord, boolean> = {
   hasLinks: true,
   isEdited: true,
   language: true,
+  translatedLanguages: true,
   curated: true,
   hashtags: true,
   editHistory: true,

@@ -103,13 +103,31 @@ export function getPrimaryVariant(content: StoredPostContent): PostContentVarian
  * stamps onto `postClassification.languages` (and, through it, the top-level AP
  * `post.language`). Only AUTHOR variants declare a language: a machine
  * translation is derived content and must never widen the post's audience. An
- * untagged variant (no resolvable language) declares nothing.
+ * untagged variant (no resolvable language) declares nothing. The languages it
+ * has been TRANSLATED into are {@link translatedBaseLanguages}, a separate
+ * column the feed's language gate reads beside this one.
  */
 export function declaredBaseLanguages(content: StoredPostContent): string[] {
   return toBaseLanguages(authorVariants(content).map((variant) => variant.tag)).slice(
     0,
     MAX_AUTHOR_VARIANTS,
   );
+}
+
+/**
+ * The base subtags a post has a MACHINE translation in — what
+ * `posts.translated_languages` stores. Kept apart from
+ * {@link declaredBaseLanguages}: a translation never changes what the author
+ * wrote, but it does make the post readable to a reader of that language, which
+ * is all the feed's language gate asks. `null` when there is none.
+ */
+export function translatedBaseLanguages(
+  variants: readonly Pick<PostContentVariant, 'source' | 'tag'>[] | undefined,
+): string[] | null {
+  const languages = toBaseLanguages(
+    (variants ?? []).filter((variant) => variant.source === 'machine').map((v) => v.tag),
+  ).sort();
+  return languages.length > 0 ? languages : null;
 }
 
 /**
