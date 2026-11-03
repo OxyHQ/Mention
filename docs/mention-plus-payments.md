@@ -384,3 +384,22 @@ Bank, installment and FairCoin options remain visible with their actual missing
 configuration explained. The card adapter's provider restriction does not remove
 Peable's other payment methods. Their live capabilities, the account-wallet bridge,
 and real Mention Plus entitlement activation are not provided by this local test.
+
+## Production release boundary
+
+The reusable Bloom/Peable checkout is published independently of activating a
+commercial offer. Production keeps the existing catalogue launch gate: an
+unavailable offer displays Coming soon and cannot initiate payment. A configured
+offer continues through the authenticated Oxy `startProductPlanCheckout` flow and
+its validated hosted checkout URL until central billing supplies an embedded
+payer binding. Development alone uses the guarded loopback test harness.
+
+At Oxy main `d2a80c156`, `PersonalPlanCheckoutResult` exposes pending intent ID and
+an optional HTTPS checkout URL, not a payer capability or embedded readiness
+endpoint. Its Peable adapter creates or renews hosted billing sessions. Replacing
+that production transport requires an authenticated, account/offer-bound contract
+extension across Oxy contracts/core/API and Peable billing, plus authoritative
+paid-invoice/subscription observation and the existing entitlement reconciliation.
+Neither client-side confirmation nor the local test endpoint can substitute for
+those authorities. Provider, merchant and fiscal activation remain separate from
+shipping the UI; this release does not enable a live sale or grant access.
