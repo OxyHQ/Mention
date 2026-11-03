@@ -135,7 +135,6 @@ export default function PlusScreen() {
             </Text>
           </View>
         )}
-        <Text>{t('plus.payment.oneIncluded')}</Text>
       </ScreenScrollView>
       {paymentOpen && <PlusPaymentSheet cadence={cadence} onClose={() => setPaymentOpen(false)} />}
     </Screen>
