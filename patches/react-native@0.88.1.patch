@@ -1,5 +1,5 @@
 diff --git a/Libraries/Utilities/BackHandler.android.js b/Libraries/Utilities/BackHandler.android.js
-index 597f2eacc..e8396cae1 100644
+index 597f2eacc59a155dd2415fa2af323fd805188f81..e8396cae13c17142f264569e2473e098959b176f 100644
 --- a/Libraries/Utilities/BackHandler.android.js
 +++ b/Libraries/Utilities/BackHandler.android.js
 @@ -19,6 +19,17 @@ type BackPressEventName = 'backPress' | 'hardwareBackPress';
@@ -95,7 +95,7 @@ index 597f2eacc..e8396cae1 100644
        },
      };
 diff --git a/Libraries/Utilities/BackHandler.ios.js b/Libraries/Utilities/BackHandler.ios.js
-index e9bb65f19..17508df36 100644
+index e9bb65f193bbc52b3b11231507c2d36f134df91b..17508df364cbe3743aa266ee710ad1723508319e 100644
 --- a/Libraries/Utilities/BackHandler.ios.js
 +++ b/Libraries/Utilities/BackHandler.ios.js
 @@ -17,17 +17,25 @@ function emptyFunction(): void {}
@@ -126,7 +126,7 @@ index e9bb65f19..17508df36 100644
    },
  };
 diff --git a/Libraries/Utilities/BackHandler.js.flow b/Libraries/Utilities/BackHandler.js.flow
-index 4c1debea8..eb4be79d0 100644
+index 4c1debea88b08f01fa64024ee8105e2a7338c1aa..eb4be79d03a41a181ad11ec3af6c319bc7539883 100644
 --- a/Libraries/Utilities/BackHandler.js.flow
 +++ b/Libraries/Utilities/BackHandler.js.flow
 @@ -24,10 +24,16 @@ export interface HardwareBackPressEvent {
@@ -147,9 +147,29 @@ index 4c1debea8..eb4be79d0 100644
  };
  
  /**
+diff --git a/ReactAndroid/hermes-engine/build.gradle.kts b/ReactAndroid/hermes-engine/build.gradle.kts
+index 0a1ea2abc558505f734b584066feef723bb93c00..6e3936c39c49c9bae591e062b7757daa345816c5 100644
+--- a/ReactAndroid/hermes-engine/build.gradle.kts
++++ b/ReactAndroid/hermes-engine/build.gradle.kts
+@@ -118,13 +118,8 @@ val unzipHermes by
+     tasks.registering(Copy::class) {
+       dependsOn(downloadHermes)
+       from(tarTree(downloadHermesDest)) {
+-        eachFile {
+-          // We flatten the unzip as the tarball contains a `facebook-hermes-<SHA>`
+-          // folder at the top level.
+-          if (this.path.startsWith("facebook-hermes-")) {
+-            this.path = this.path.substringAfter("/")
+-          }
+-        }
++        eachFile { path = path.substringAfter("/") }
++        includeEmptyDirs = false
+       }
+       into(hermesDir)
+     }
 diff --git a/ReactAndroid/src/main/java/com/facebook/react/BackNavigationCoordinator.java b/ReactAndroid/src/main/java/com/facebook/react/BackNavigationCoordinator.java
 new file mode 100644
-index 000000000..945dc99a3
+index 0000000000000000000000000000000000000000..945dc99a34d9feaadff969e5877ec9616a88ece8
 --- /dev/null
 +++ b/ReactAndroid/src/main/java/com/facebook/react/BackNavigationCoordinator.java
 @@ -0,0 +1,73 @@
@@ -227,7 +247,7 @@ index 000000000..945dc99a3
 +  }
 +}
 diff --git a/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java b/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java
-index 356bc32c0..1d1e4d3f2 100644
+index 356bc32c0c18cb6fdb00703b5a9aa18cb1d18a6e..1d1e4d3f20ff3fc1952f4fef25bc345928ea59dd 100644
 --- a/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java
 +++ b/ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java
 @@ -9,6 +9,7 @@ package com.facebook.react;
@@ -303,7 +323,7 @@ index 356bc32c0..1d1e4d3f2 100644
  
    @Override
 diff --git a/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt b/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt
-index 9ee720cf8..a30bd70e5 100644
+index 9ee720cf8bbc7d33b3c3a6aedd7f1051df4a9882..a30bd70e576418eeecbbe0f674f68bcb161c6e9b 100644
 --- a/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt
 +++ b/ReactAndroid/src/main/java/com/facebook/react/modules/core/DeviceEventManagerModule.kt
 @@ -10,7 +10,9 @@ package com.facebook.react.modules.core
@@ -397,7 +417,7 @@ index 9ee720cf8..a30bd70e5 100644
      reactApplicationContext?.emitDeviceEvent("url", map)
    }
 diff --git a/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js b/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js
-index 4efff76e6..f5d65795e 100644
+index 4efff76e66a00865dfba1d91e862aba40f71b9e8..f5d65795e931e314feff20bcf59e2456edfab94a 100644
 --- a/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js
 +++ b/src/private/specs_DEPRECATED/modules/NativeDeviceEventManager.js
 @@ -14,6 +14,10 @@ import * as TurboModuleRegistry from '../../../../Libraries/TurboModule/TurboMod
@@ -412,7 +432,7 @@ index 4efff76e6..f5d65795e 100644
  
  export default TurboModuleRegistry.get<Spec>('DeviceEventManager') as ?Spec;
 diff --git a/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts b/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts
-index ac2a530a9..7df391210 100644
+index ac2a530a9c05e57953913ad5446a5786f18b21e3..7df391210d38b943ed3a88e11d4a1c30001c45ed 100644
 --- a/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts
 +++ b/types_DEPRECATED/Libraries/Utilities/BackHandler.d.ts
 @@ -34,10 +34,14 @@ export interface HardwareBackPressEvent {
@@ -432,7 +452,7 @@ index ac2a530a9..7df391210 100644
  
  export const BackHandler: BackHandlerStatic;
 diff --git a/types_generated/Libraries/Utilities/BackHandler.d.ts b/types_generated/Libraries/Utilities/BackHandler.d.ts
-index d1d62e048..909fb123a 100644
+index d1d62e04837effd78608dc9a107398eddd7cb02e..909fb123a56aa5f291cbd12434a9ea4f4e2d0fcf 100644
 --- a/types_generated/Libraries/Utilities/BackHandler.d.ts
 +++ b/types_generated/Libraries/Utilities/BackHandler.d.ts
 @@ -4,7 +4,7 @@
@@ -458,23 +478,3 @@ index d1d62e048..909fb123a 100644
    };
  };
  declare const BackHandler: TBackHandler;
-diff --git a/ReactAndroid/hermes-engine/build.gradle.kts b/ReactAndroid/hermes-engine/build.gradle.kts
-index 0a1ea2abc..6e3936c39 100644
---- a/ReactAndroid/hermes-engine/build.gradle.kts
-+++ b/ReactAndroid/hermes-engine/build.gradle.kts
-@@ -118,13 +118,8 @@ val unzipHermes by
-     tasks.registering(Copy::class) {
-       dependsOn(downloadHermes)
-       from(tarTree(downloadHermesDest)) {
--        eachFile {
--          // We flatten the unzip as the tarball contains a `facebook-hermes-<SHA>`
--          // folder at the top level.
--          if (this.path.startsWith("facebook-hermes-")) {
--            this.path = this.path.substringAfter("/")
--          }
--        }
-+        eachFile { path = path.substringAfter("/") }
-+        includeEmptyDirs = false
-       }
-       into(hermesDir)
-     }

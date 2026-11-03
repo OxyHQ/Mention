@@ -307,7 +307,7 @@ before trusting it to catch a bad route anywhere else in the app.
 
 ## Deep-link boot navigation
 
-The [Expo Router 58.0.24 patch](../patches/expo-router@58.0.24.patch) preserves
+The [Expo Router 58.0.30 patch](../patches/expo-router@58.0.30.patch) preserves
 layout params when the router seeds a default child route, including when it
 reconstructs a missing child navigator state. Unregistering a mounted navigator
 preserves its retained route state: resetting it to its default child would make

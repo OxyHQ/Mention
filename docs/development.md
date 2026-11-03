@@ -80,7 +80,7 @@ Switching to Media, Replies or a lane must not replace the root `(tabs)` route
 with `/@handle/...`; doing so discards the root pager and its retained state.
 A pushed or cold-linked canonical profile still updates its own child route.
 
-The version-pinned `react-native-screens@4.30.0` Bun patch additionally backports
+The version-pinned `react-native-screens@4.30.1` Bun patch additionally backports
 [upstream root replacement fix #5103](https://github.com/software-mansion/react-native-screens/pull/5103).
 The experimental Android stack previously processed the removal half of a valid
 root replacement as a pure pop and threw “Attempt to pop last screen from the
