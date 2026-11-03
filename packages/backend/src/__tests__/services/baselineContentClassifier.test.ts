@@ -91,6 +91,31 @@ describe('BaselineContentClassifier', () => {
       expect(result.languages).toEqual(['en']);
     });
 
+    it('verifies each declared language against the rendition written in it', async () => {
+      const english = 'We are rolling out the new account settings to everyone this week.';
+      const spanish = 'Esta semana activamos la nueva configuración de la cuenta para todos.';
+      const bilingual = await baselineContentClassifier.classify({
+        text: english,
+        languages: ['en', 'es'],
+        renditions: [
+          { tag: 'en', text: english },
+          { tag: 'es', text: spanish },
+        ],
+      });
+      expect(bilingual.languages).toEqual(['en', 'es']);
+
+      // A rendition tagged `es` whose body is English proves nothing about Spanish.
+      const mislabelled = await baselineContentClassifier.classify({
+        text: english,
+        languages: ['en', 'es'],
+        renditions: [
+          { tag: 'en', text: english },
+          { tag: 'es', text: 'This is still English, only the tag says otherwise.' },
+        ],
+      });
+      expect(mislabelled.languages).toEqual(['en']);
+    });
+
     it('merges the singular `language` (leading) with the declared `languages` list, deduped + normalized', async () => {
       const result = await baselineContentClassifier.classify({
         text: 'irrelevant — declared set is authoritative',

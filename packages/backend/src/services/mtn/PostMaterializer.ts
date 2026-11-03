@@ -402,6 +402,7 @@ async function buildBaselineClassification(
       // declared/authoritative set (same precedence the native path uses).
       language: record.langs?.[0],
       languages: record.langs,
+      renditions: record.variants,
       // A federated post never emits a record, so a materialized post is always
       // native: no `sensitive`/`instanceDomain` source flag to thread through.
     });

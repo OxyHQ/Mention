@@ -46,7 +46,10 @@ import { derivePostType } from '../../services/PostCreationService';
 import { storeRemoteLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { applyDetectedPrimaryTag } from '../../services/postVariants';
-import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
+import {
+  baselineContentClassifier,
+  type ClassifyInput,
+} from '../../services/BaselineContentClassifier';
 import {
   SPAM_QUALITY_CONFIG,
   toClassificationScores,
@@ -333,6 +336,7 @@ export class OutboxSyncService {
     hashtags: string[];
     language?: string;
     languages?: string[];
+    renditions?: ClassifyInput['renditions'];
     sensitive: boolean;
     instanceDomain?: string;
     actorType?: string;
@@ -343,6 +347,7 @@ export class OutboxSyncService {
         hashtags: input.hashtags,
         language: input.language,
         languages: input.languages,
+        renditions: input.renditions,
         sensitive: input.sensitive,
         isFederated: true,
         instanceDomain: input.instanceDomain,
@@ -1011,6 +1016,7 @@ export class OutboxSyncService {
           hashtags,
           language: apLanguage,
           languages: apLanguages,
+          renditions: quoteVariants,
           sensitive,
           instanceDomain: actorUri ? getRemoteHost(actorUri) : undefined,
           // The outbox owner authored every Note in its own outbox, so the

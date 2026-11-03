@@ -141,6 +141,7 @@ import {
 import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
 import {
   applyDetectedPrimaryTag,
+  authorVariants,
   declaredBaseLanguages,
   resolveVariant,
 } from '../services/postVariants';
@@ -436,6 +437,21 @@ const primaryTagDisagrees = sql`exists (
     and split_part(lower(v.tag), '-', 1) is distinct from "posts"."classification_languages"[1]
 )`;
 
+/**
+ * A post whose author wrote a rendition in a language its classification does
+ * not carry: a bilingual post classified from its primary text alone, before the
+ * classifier verified every rendition against its own text. Spelled like
+ * {@link primaryTagDisagrees}, for the same reason.
+ */
+const renditionLanguageMissing = sql`exists (
+  select 1 from post_content_variants v
+  where v.post_id = "posts"."id"
+    and v.position > 0
+    and v.source = 'author'
+    and v.tag is not null
+    and not (split_part(lower(v.tag), '-', 1) = any(coalesce("posts"."classification_languages", '{}')))
+)`;
+
 const sameList = (a: readonly string[] | undefined, b: readonly string[]): boolean =>
   (a ?? []).length === b.length && b.every((value, index) => a?.[index] === value);
 
@@ -468,6 +484,7 @@ async function planPost(post: ScanPost): Promise<PostLanguagePlan | null> {
     text,
     hashtags: post.hashtags,
     languages: declaredBaseLanguages({ variants: post.variants }),
+    renditions: authorVariants({ variants: post.variants }),
     // A row already classified under the CURRENT ruleset carries its languages
     // like a declaration: a different detector replaces them only on strong
     // evidence. An older stamp is not trusted that far (see the docblock).
@@ -748,6 +765,7 @@ export async function backfillPostLanguages(
         isNull(posts.classificationVersion),
         lt(posts.classificationVersion, BASELINE_CLASSIFIER_VERSION),
         primaryTagDisagrees,
+        renditionLanguageMissing,
       ) as SQL);
 
   // Where to start: an explicit id wins, then (live only) the stored cursor.

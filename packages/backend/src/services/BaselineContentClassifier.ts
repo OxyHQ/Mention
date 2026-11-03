@@ -339,6 +339,13 @@ export interface ClassifyInput {
    * detector cannot flip a correct label on a sentence too short to judge.
    */
   previousLanguages?: string[];
+  /**
+   * The author's own renditions (primary first), when the post has several. A
+   * multilingual declaration is verified against EVERY rendition's text, not
+   * only the primary's: a post written in English and Spanish proves its
+   * Spanish in its Spanish rendition. Machine translations never belong here.
+   */
+  renditions?: readonly { tag?: string; text: string }[];
 }
 
 /** Deterministic Stage-A signals produced by {@link BaselineContentClassifier.classify}. */
@@ -541,7 +548,7 @@ export class BaselineContentClassifier {
    *    result is backed by script evidence or overrules them on strong evidence.
    */
   private async resolveLanguages(
-    input: Pick<ClassifyInput, 'language' | 'languages' | 'previousLanguages'>,
+    input: Pick<ClassifyInput, 'language' | 'languages' | 'previousLanguages' | 'renditions'>,
     text: string,
   ): Promise<ResolvedLanguages> {
     const resolved = await this.resolveFresh(input, text);
@@ -561,7 +568,7 @@ export class BaselineContentClassifier {
 
   /** {@link resolveLanguages} without the previous classification. */
   private async resolveFresh(
-    input: Pick<ClassifyInput, 'language' | 'languages'>,
+    input: Pick<ClassifyInput, 'language' | 'languages' | 'renditions'>,
     text: string,
   ): Promise<ResolvedLanguages> {
     const declared = this.normalizeLanguages([input.language, ...(input.languages ?? [])]);
@@ -573,12 +580,20 @@ export class BaselineContentClassifier {
     const none: ResolvedLanguages = { primary: undefined, all: [], source: 'none' };
 
     if (declared.length > 1) {
-      if (scripted) return { primary: scripted, all: [scripted], source: 'script' };
-      const detected = fillable ? this.selectDetectedLanguages(await languageDetector(), text) : [];
-      const verified = detected.filter((code) => declared.includes(code));
-      return verified.length > 0
-        ? { primary: verified[0], all: verified, source: 'declared' }
-        : none;
+      // A declared language stands when some rendition's own text shows it: the
+      // primary's, or the rendition written in it. Declaring is never enough on
+      // its own, so a tag on a body in another language reaches no new readers.
+      const detector = await languageDetector();
+      const evidence = new Set<string>();
+      for (const body of [
+        text,
+        ...(input.renditions ?? []).map((r) => languageEvidenceText(r.text)),
+      ]) {
+        for (const code of this.languagesShownBy(detector, body)) evidence.add(code);
+      }
+      const verified = declared.filter((code) => evidence.has(code));
+      if (verified.length > 0) return { primary: verified[0], all: verified, source: 'declared' };
+      return scripted ? { primary: scripted, all: [scripted], source: 'script' } : none;
     }
 
     if (declared.length === 1) {
@@ -618,6 +633,21 @@ export class BaselineContentClassifier {
    * when two languages each hold that share sentence by sentence; otherwise it
    * is unknown (`[]`).
    */
+  /**
+   * What one body proves about its language: the writing system when it IS the
+   * text (kana, hangul), otherwise the detector's confident languages once the
+   * body carries enough prose to judge.
+   */
+  private languagesShownBy(detector: Detector, body: string): string[] {
+    const scripted = this.strongScriptLanguage(body);
+    if (scripted) return [scripted];
+    const prose = measureProse(body);
+    return prose.letters >= LANGUAGE_DETECTION.fillMinLetters &&
+      prose.words >= LANGUAGE_DETECTION.fillMinWords
+      ? this.selectDetectedLanguages(detector, body)
+      : [];
+  }
+
   private selectDetectedLanguages(detector: Detector, trimmedText: string): string[] {
     const whole = detectConfident(detector, trimmedText);
 
