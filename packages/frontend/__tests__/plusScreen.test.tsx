@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('@/lib/navigation/router', () => ({
   useLocalSearchParams: () => ({}),
   useRouter: () => ({ setParams: jest.fn() }),

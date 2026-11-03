@@ -1,4 +1,4 @@
-jest.mock('../LocalProviderTestSheet', () => ({LocalProviderTestSheet: () => null}));
+jest.mock('../PeableEmbeddedCheckout', () => ({ PeableEmbeddedCheckout: () => null }));
 import TestRenderer, { act } from 'react-test-renderer';
 import { Platform } from 'react-native';
 import { PlusPaymentSheet } from '../PlusPaymentSheet';
@@ -395,7 +395,7 @@ it('displays published terms without starting payment when the catalogue is not 
   expect(window.open).not.toHaveBeenCalled();
 });
 
-it('routes opt-in loopback UI exploration to the isolated adapter without payment side effects', async () => {
+it('never falls back to simulation in product checkout, even on an opted-in developer host', async () => {
   mockPreview = true;
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -404,9 +404,7 @@ it('routes opt-in loopback UI exploration to the isolated adapter without paymen
   mockPurchaseAvailable = false;
   mockSignedIn = false;
   await mount();
-  expect(mockPreviewContent).toHaveBeenCalledWith(
-    expect.objectContaining({ scenario: 'subscription', outcome: 'success', cadence: 'month' }),
-  );
+  expect(mockPreviewContent).not.toHaveBeenCalled();
   expect(mockCheckout).not.toHaveBeenCalled();
   expect(mockKey).not.toHaveBeenCalled();
   expect(mockClearKey).not.toHaveBeenCalled();

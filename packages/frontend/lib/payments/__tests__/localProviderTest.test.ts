@@ -8,6 +8,7 @@ const link =
   'http://localhost:8110/plus#peable_test_intent=pi_test&peable_test_secret=opaque-test-capability';
 it('requires an explicit local preview and payer capability', () => {
   expect(localProviderTestBinding(link, true)).toEqual({
+    environment: 'test',
     apiUrl: 'http://127.0.0.1:4310',
     intentId: 'pi_test',
     clientSecret: 'opaque-test-capability',
@@ -37,12 +38,18 @@ it('only announces success from settled gateway status and permits declined retr
 
 it('creates only a loopback test attempt and keeps the payer capability out of URLs', async () => {
   const previous = global.fetch;
-  const fetcher = jest
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      json: async () => ({ intentId: 'pi_test', clientSecret: 'payer-capability' }),
-    });
+  const fetcher = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      kind: 'subscription',
+      subscriptionId: 'sub_fixture',
+      interval: 'month',
+      amountMinorUnits: 599,
+      currency: 'USD',
+      intentId: 'pi_test',
+      clientSecret: 'payer-capability',
+    }),
+  });
   global.fetch = fetcher;
   try {
     await expect(
@@ -59,7 +66,7 @@ it('creates only a loopback test attempt and keeps the payer capability out of U
       'http://127.0.0.1:4310/__local/checkout-test',
       expect.objectContaining({
         method: 'POST',
-        body: '{}',
+        body: JSON.stringify({ interval: 'month' }),
         headers: expect.objectContaining({
           'Idempotency-Key': 'mention_same_operation',
           'X-Peable-Local-Test': '1',

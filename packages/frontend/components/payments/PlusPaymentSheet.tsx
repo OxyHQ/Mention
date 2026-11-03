@@ -1,9 +1,5 @@
-import type { LocalProviderTestBinding } from '@/lib/payments/localProviderTest';
-import { LocalProviderTestSheet } from './LocalProviderTestSheet';
-import type {
-  MerchantInstallmentPreferences,
-  InstallmentPreviewDecision,
-} from '@/lib/payments/merchantInstallmentPreview';
+import type { EmbeddedCheckoutBinding } from '@/lib/payments/embeddedCheckout';
+import { PeableEmbeddedCheckout } from './PeableEmbeddedCheckout';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { BottomSheet } from '@oxy.so/bloom/bottom-sheet';
@@ -17,13 +13,6 @@ import {
 import { authenticatedApiCall } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
-import type {
-  CheckoutScenario,
-  PreviewOutcome,
-  CheckoutCustomerMode,
-} from '@/lib/payments/checkoutPreview';
-import { LocalCheckoutPreview } from './LocalCheckoutPreview';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -57,63 +46,19 @@ type Message =
 export function PlusPaymentSheet({
   onClose,
   cadence = 'month',
-  previewScenario = 'subscription',
-  previewOutcome = 'success',
-  previewCustomerMode = 'automatic',
-  previewSoundEnabled = true,
-  previewIncomingFunds = false,
-  merchantInstallmentPreferences,
-  previewInstallmentDecision = 'available',
-  providerTestBinding,
+  embeddedBinding,
 }: {
-  providerTestBinding?: LocalProviderTestBinding;
   onClose(): void;
   cadence?: PlusCadence;
-  previewScenario?: CheckoutScenario;
-  previewOutcome?: PreviewOutcome;
-  previewCustomerMode?: CheckoutCustomerMode;
-  previewSoundEnabled?: boolean;
-  previewIncomingFunds?: boolean;
-  merchantInstallmentPreferences?: MerchantInstallmentPreferences;
-  previewInstallmentDecision?: InstallmentPreviewDecision;
+  embeddedBinding?: EmbeddedCheckoutBinding;
 }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
-  if (isLocalCheckoutPreview() && providerTestBinding)
+  if (embeddedBinding)
     return (
-      <LocalProviderTestSheet
-        key={providerTestBinding.intentId}
-        binding={providerTestBinding}
-        onClose={onClose}
-      />
-    );
-  if (isLocalCheckoutPreview())
-    return (
-      <LocalCheckoutPreview
-        key={`${user?.id}:${activeSessionId}:${cadence}:${previewScenario}:${previewCustomerMode}`}
-        customer={
-          previewCustomerMode === 'account-preview'
-            ? {
-                kind: 'account',
-                simulated: true,
-                displayName: 'Alex Rivera',
-                email: 'alex@example.test',
-              }
-            : previewCustomerMode === 'guest' || !user
-              ? { kind: 'guest' }
-              : {
-                  kind: 'account',
-                  displayName: user.name?.displayName || user.username,
-                  avatar: user.avatar,
-                }
-        }
-        cadence={cadence}
-        scenario={previewScenario}
-        outcome={previewOutcome}
-        soundEnabled={previewSoundEnabled}
-        incomingFunds={previewIncomingFunds}
-        merchantInstallmentPreferences={merchantInstallmentPreferences}
-        previewInstallmentDecision={previewInstallmentDecision}
+      <PeableEmbeddedCheckout
+        key={embeddedBinding.intentId}
+        binding={embeddedBinding}
         onClose={onClose}
       />
     );

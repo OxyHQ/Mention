@@ -308,24 +308,43 @@ Method selection advances to remaining prerequisites and then an explicit paymen
 
 Validation of this iteration uses the local web preview and shared component tests. Native-device Surface appearance, clipboard, audio and gesture behavior still require a device run; web screenshots are not native verification.
 
-### Local provider TEST mode
+### One embedded checkout, environment-specific processing
 
-Normal local `/plus` now defaults to **Stripe TEST**. Subscribe calls the guarded loopback `POST /__local/checkout-test` harness with a stable per-attempt idempotency key; that harness creates a real one-time test intent through the production payment service. The response contains a Peable payer capability held only in React memory. No capability is placed in a URL, browser storage or analytics. An unavailable harness shows a visible failure and never falls back to a simulated success. Closing and starting another purchase creates a new attempt; retrying bootstrap preserves its key.
+Normal `/plus` has one Peable checkout and no test-versus-preview selector.
+Development creates a real monthly or annual test subscription through the
+existing billing service. Its guarded loopback bootstrap returns a payer-scoped
+binding in React memory; no credential is placed in a URL or storage. Retry uses
+the same operation key, duplicate presses are blocked, and a failed bootstrap
+shows a canonical Bloom error toast without falling back to simulation. The
+small development badge is outside the checkout flow.
 
-The explicit **UI preview** mode retains visual scenarios without provider transactions. Legacy private bootstrap links are still accepted, and the shared panel router clears their fragment without restoring it during sheet navigation. Neither path exposes merchant credentials or places a provider secret in a URL.
+`PeableEmbeddedCheckout` is transport-neutral: its binding declares the gateway,
+payer capability, environment and authoritative subscription terms. The same view
+checks that the provider key matches that environment. Its numeric tax breakdown,
+when supplied, comes from the actual invoice; preview tax fixtures are never
+reused. It serializes readiness polling and only completes when the first payment
+is settled, the invoice is paid and the subscription is active. No development
+payment grants the real user's Mention Plus access.
 
-This mode displays a persistent **Stripe TEST** badge and hides the simulated-outcome controls. The first scenario is a one-time USD 5.99 provider test, explicitly not Mention Plus activation or a recurring subscription. It reads the actual gateway amount and never reuses the preview's numeric tax fixtures. Recurring provider test setup is a separate backend flow.
+The product view uses Bloom's CardForm in both cases. In actual payment handling,
+only its number, expiry and security-code slots contain secure provider-origin
+fields; country/postcode, labels and chrome remain Bloom. Continue tokenizes
+without charging. A separate Bloom confirmation displays masked metadata and
+requires explicit Pay. The prepared token stays inside a disposable memory-only
+authorization, survives field unmount, and never becomes a saved-card claim. The
+processor handles authentication while the checkout blocks dismissal. Payment
+success is never inferred from tokenization or client confirmation alone.
 
-The optional SDK `PeableProviderFields` mounts the provider's own Payment Element iframe. Bloom controls the surrounding sheet; card data stays in the iframe. It retains that iframe while confirmation or authentication is in progress, blocks dismissal, and treats client acceptance as pending. Only a verified gateway `settled` observation displays success; declined attempts can retry the same intent. Realtime reconnects re-read state and polling covers missed events. The public provider key must be in test mode. The local test gateway retains its own server-side account, environment and key-mode guards.
-
-The provider fields use Bloom appearance tokens through the provider Appearance API, including live theme updates without replacing card fields. Loading failures and bounded readiness timeouts show a retry instead of an indefinite spinner. The hosted checkout and optional SDK UI share one provider-script loader.
-
-
-Local end-to-end evidence: a fresh ordinary `/plus` visit created a new Stripe TEST intent, completed a test card payment, and displayed completion only after Peable observed settlement through the signed provider webhook. Separate actual tests exercised a declined card and a 3DS challenge; the challenge completed by keyboard, with the original Payment Element retained. Automated pointer activation inside the nested challenge iframe was inconclusive, so that specific browser interaction is not claimed verified.
+The developer fixtures now live only at `/checkout-playground`, guarded by the
+existing development/loopback opt-in. Product checkout does not import or select
+the simulated controller. Production still needs an equivalent authoritative
+embedded payer binding from the deployed central billing integration; the local
+harness is not a production credential service or a replacement entitlement
+system. No provider mode is a buyer preference.
 
 ### Physical-order details and reward UI preview
 
-Only the explicit physical-order UI scenario now keeps the completed flow open
+Only the explicit physical-order development scenario at `/checkout-playground` now keeps the completed flow open
 and shows an order view. Mention Plus and actual provider tests retain their
 existing completion behavior. The view uses Bloom's `OrderStatusBar` and
 `OrderStatusTimeline` with the selected fixture quote: an immediate card payment
