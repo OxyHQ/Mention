@@ -43,11 +43,12 @@ move it when the reason goes away.
   API for it to load.
 - `postgres` stays on 3.4: `@oxy.so/db` peers `postgres ^3.4.9`.
 - `@react-native-async-storage/async-storage` stays on 2.x: `@alia.onl/sdk`
-  peers `^2.2.0` (`@oxy.so/core` 7.14, `@oxy.so/services` 14.3 and
-  `@oxy.so/protocol` 1.6 already accept 3).
+  peers `^2.2.0` (`@oxy.so/core`, `@oxy.so/services` and `@oxy.so/protocol`
+  already accept 3).
 - `react-native-audio-api` stays on 0.13: `@alia.onl/sdk` peers `^0.13.6`.
-- `@peable.to/sdk` stays on 0.8.0: `@oxy.so/services` depends on exactly that
-  version, and the app must load one Peable copy.
+- `@peable.to/sdk` follows `@oxy.so/services`, which depends on one exact
+  version (0.20.0 for services 14.3.3): the app must load one Peable copy, so
+  it moves when services does.
 - `nativewind` 5.0.0-rc.0 and `react-native-css` 3.1.0-rc.0: `@oxy.so/bloom`
   depends on `react-native-css` 3.1.0-rc.0 exactly and peers `nativewind`
   `>=5.0.0 || 5.0.0-rc.0`.

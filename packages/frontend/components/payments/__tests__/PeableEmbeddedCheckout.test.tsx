@@ -9,7 +9,9 @@ let mockSheet: PeableCheckoutSheetProps;
 let mockFields: PeableProviderFieldsProps;
 let mockFieldMounts = 0;
 let mockFieldUnmounts = 0;
-let mockUpdate: (value: typeof intent) => void;
+let mockUpdate: (
+  value: typeof intent & { last_payment_error?: { type: string; code: string } | null },
+) => void;
 const mockUnsubscribe = jest.fn();
 const mockConfirm = jest.fn();
 const mockPrepare = jest.fn();
@@ -26,7 +28,7 @@ const intent = {
   rail: 'card',
   currency: 'USD',
   amount: '599',
-  status: 'created',
+  status: 'requires_payment_method',
 };
 const mockRead = jest.fn();
 const mockAction = jest.fn();
@@ -163,9 +165,9 @@ it('Continue prepares without charging, then explicit Pay runs once and waits fo
   });
   expect(mockSheet.step).toBe('processing');
   expect(mockPlay).not.toHaveBeenCalled();
-  act(() => mockUpdate({ ...intent, status: 'settled' }));
+  act(() => mockUpdate({ ...intent, status: 'succeeded' }));
   expect(mockSheet.step).toBe('success');
-  act(() => mockUpdate({ ...intent, status: 'settled' }));
+  act(() => mockUpdate({ ...intent, status: 'succeeded' }));
   expect(mockPlay).toHaveBeenCalledTimes(1);
   act(() => jest.advanceTimersByTime(1500));
   expect(mockSheet.brandState).toBe('idle');
@@ -209,19 +211,37 @@ it('pending authentication cannot close or regress a final observed settlement',
   await prepare();
   act(() => mockSheet.onAuthorize());
   act(() => {
-    mockUpdate({ ...intent, status: 'confirming' });
+    mockUpdate({ ...intent, status: 'processing' });
     mockSheet.onClose();
   });
   expect(mockSheet.step).toBe('confirmation');
   expect(mockClose).not.toHaveBeenCalled();
-  act(() => mockUpdate({ ...intent, status: 'settled' }));
+  act(() => mockUpdate({ ...intent, status: 'succeeded' }));
   await act(async () => {
     finish?.({ accepted: false, error: 'Late client error' });
   });
   expect(mockSheet.step).toBe('success');
   expect(mockSheet.notice).toBeUndefined();
-  act(() => mockUpdate({ ...intent, status: 'created' }));
+  act(() => mockUpdate({ ...intent, status: 'requires_payment_method' }));
   expect(mockSheet.step).toBe('success');
+});
+it('a declined card returns to card entry once, from the Stripe-model status', async () => {
+  mockConfirm.mockResolvedValue({ accepted: true });
+  await mount();
+  await prepare();
+  await act(async () => {
+    mockSheet.onAuthorize();
+  });
+  expect(mockSheet.step).toBe('processing');
+  act(() =>
+    mockUpdate({
+      ...intent,
+      status: 'requires_payment_method',
+      last_payment_error: { type: 'card_error', code: 'card_declined' },
+    }),
+  );
+  expect(mockSheet.step).toBe('card');
+  expect(mockDispose).toHaveBeenCalled();
 });
 it('unexpected preparation rejection unlocks the form without charging', async () => {
   mockPrepare.mockRejectedValue(new Error('Offline'));
@@ -246,10 +266,10 @@ it('subscription success requires paid invoice and active subscription, not only
   expect(mockSheet.request.recurring?.interval).toBe('month');
   expect(mockSheet.request.tax).toBeUndefined();
   expect(mockSheet.request.recurring).toEqual({ amountMinorUnits: 599, interval: 'month' });
-  act(() => mockUpdate({ ...intent, status: 'settled' }));
+  act(() => mockUpdate({ ...intent, status: 'succeeded' }));
   expect(mockSheet.step).toBe('processing');
   expect(mockPlay).not.toHaveBeenCalled();
-  mockRead.mockResolvedValue({ ...intent, status: 'settled' });
+  mockRead.mockResolvedValue({ ...intent, status: 'succeeded' });
   mockObserve.mockResolvedValue(true);
   await act(async () => {
     jest.advanceTimersByTime(3000);

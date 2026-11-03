@@ -38,11 +38,12 @@ it('refuses live provider actions in local test mode', () => {
     false,
   );
 });
-it('only announces success from settled gateway status and permits declined retries', () => {
-  expect(localProviderPhase('confirming')).toBe('pending');
-  expect(localProviderPhase('failed')).toBe('entry');
-  expect(localProviderPhase('settled')).toBe('success');
-  expect(localProviderPhase('expired')).toBe('failure');
+it('only announces success from a succeeded intent and permits declined retries', () => {
+  expect(localProviderPhase('processing')).toBe('pending');
+  expect(localProviderPhase('requires_capture')).toBe('pending');
+  expect(localProviderPhase('requires_payment_method')).toBe('entry');
+  expect(localProviderPhase('succeeded')).toBe('success');
+  expect(localProviderPhase('canceled')).toBe('failure');
   expect(localProviderPhase('requires_action')).toBe('entry');
 });
 

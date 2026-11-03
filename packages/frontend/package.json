@@ -117,7 +117,7 @@
     "@lottiefiles/dotlottie-web": "0.82.1",
     "@mention/shared-types": "workspace:*",
     "@oxy.so/allo-sdk": "^0.4.0",
-    "@oxy.so/app-preset": "5.2.1",
+    "@oxy.so/app-preset": "5.3.0",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/bloom-avatar-native": "0.1.0",
     "@oxy.so/contracts": "catalog:",
@@ -203,7 +203,7 @@
     "zod": "catalog:",
     "zustand": "^5.0.16",
     "@mercaria.co/sdk": "0.8.0",
-    "@peable.to/sdk": "0.8.0"
+    "@peable.to/sdk": "0.20.0"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

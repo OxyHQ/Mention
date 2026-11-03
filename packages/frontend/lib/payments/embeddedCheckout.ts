@@ -39,10 +39,16 @@ export function providerActionMatchesEnvironment(
     !!action.publishable_key?.startsWith(environment === 'test' ? 'pk_test_' : 'pk_live_')
   );
 }
+/**
+ * Peable's PaymentIntent statuses are Stripe's seven (Peable ADR 0019): an
+ * expired, rejected or underpaid intent is `canceled`; a declined card returns
+ * to `requires_payment_method` with `last_payment_error` set.
+ */
 export function embeddedCheckoutPhase(status: string): 'entry' | 'pending' | 'success' | 'failure' {
-  if (status === 'settled') return 'success';
-  if (['expired', 'rejected', 'underpaid'].includes(status)) return 'failure';
-  if (['created', 'requires_action', 'failed'].includes(status)) return 'entry';
+  if (status === 'succeeded') return 'success';
+  if (status === 'canceled') return 'failure';
+  if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(status))
+    return 'entry';
   return 'pending';
 }
 
