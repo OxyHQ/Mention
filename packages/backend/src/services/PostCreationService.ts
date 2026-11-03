@@ -325,6 +325,7 @@ class PostCreationService {
         hashtags: params.hashtags,
         language: params.language,
         languages: declaredLanguages,
+        renditions: authorVariants(params.content),
         sensitive: params.federation?.sensitive ?? metadataSensitive,
         isFederated,
         instanceDomain: params.instanceDomain,

@@ -362,6 +362,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         text: text ?? currentText,
         hashtags: nextHashtags,
         languages: toBaseLanguages(declaredVariants.map((variant) => variant.tag)),
+        renditions: declaredVariants,
         sensitive: post.federation?.sensitive ?? post.metadata.isSensitive,
         isFederated: post.federation != null,
       });

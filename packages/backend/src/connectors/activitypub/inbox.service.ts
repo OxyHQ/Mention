@@ -1172,6 +1172,7 @@ export class InboxProcessingService {
         hashtags: built.hashtags,
         language: extractApLanguage(object),
         languages: extractApLanguages(object),
+        renditions: built.variants,
         sensitive: built.sensitive,
         isFederated: true,
         instanceDomain: getRemoteHost(actorUri),
