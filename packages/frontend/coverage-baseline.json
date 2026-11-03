@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 56.01,
-      "covered": 16727,
-      "total": 29861
+      "pct": 56.07,
+      "covered": 16765,
+      "total": 29899
     },
     "branches": {
-      "pct": 52.17,
-      "covered": 12035,
-      "total": 23067
+      "pct": 52.33,
+      "covered": 12119,
+      "total": 23157
     },
     "functions": {
-      "pct": 50.55,
-      "covered": 3926,
-      "total": 7766
+      "pct": 50.62,
+      "covered": 3938,
+      "total": 7778
     },
     "lines": {
-      "pct": 56.92,
-      "covered": 15098,
-      "total": 26524
+      "pct": 56.98,
+      "covered": 15136,
+      "total": 26562
     }
   },
   "pins": {
@@ -226,6 +226,12 @@
       "branches": 16,
       "functions": 50,
       "lines": 50
+    },
+    "hooks/useCheckoutConfiguration.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useCheckoutFeedback.ts": {
       "statements": 0,
@@ -956,6 +962,12 @@
     "lib/oxyServices.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/payments/checkoutConfiguration.ts": {
+      "statements": 100,
+      "branches": 98,
       "functions": 100,
       "lines": 100
     },
