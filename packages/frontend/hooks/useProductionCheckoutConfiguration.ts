@@ -37,7 +37,7 @@ export function useProductionCheckoutConfiguration(
     staleTime: 0,
     gcTime: 0,
     retry: false,
-    refetchInterval: 45_000,
+    refetchInterval: (current) => (current.state.data && !current.state.error ? 45_000 : 5000),
   });
   return enabled && !query.isError && query.data && query.data.fetchedAt + 60_000 > Date.now()
     ? query.data

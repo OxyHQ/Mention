@@ -66,6 +66,11 @@ it('warms only validated public configuration and isolates account/session and u
       tree = TestRenderer.create(<Probe />);
     });
     expect(mockRead).not.toHaveBeenCalled();
+    expect(mockOptions.refetchInterval({ state: {} })).toBe(5000);
+    expect(mockOptions.refetchInterval({ state: { data: config } })).toBe(45_000);
+    expect(
+      mockOptions.refetchInterval({ state: { data: config, error: new Error('offline') } }),
+    ).toBe(5000);
     const key = mockOptions.queryKey;
     const result = await mockOptions.queryFn();
     expect(result).toMatchObject({ configuration: config });
