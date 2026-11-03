@@ -3,6 +3,12 @@ import { LocalCheckoutPreview } from '../LocalCheckoutPreview';
 import type { PeableCheckoutSheetProps } from '@peable.to/sdk/checkout/ui';
 let mockContent: PeableCheckoutSheetProps;
 const mockClose = jest.fn();
+const mockFeedbackPlay = jest.fn();
+const mockFeedbackStop = jest.fn();
+jest.mock('@/hooks/useCheckoutFeedback', () => ({
+  useCheckoutFeedback: () => ({ play: mockFeedbackPlay, stop: mockFeedbackStop }),
+}));
+jest.mock('@/components/ui/AccountAvatar', () => ({ AccountAvatar: () => null }));
 jest.mock('@oxy.so/stickers/react', () => ({ useSticker: jest.fn() }));
 jest.mock('@/components/common/EmptyStateSticker', () => ({ EmptyStateSticker: () => null }));
 jest.mock('../LocalCheckoutCardEntry', () => ({ LocalCheckoutCardEntry: () => null }));
@@ -33,6 +39,8 @@ let renderer: TestRenderer.ReactTestRenderer;
 beforeEach(() => {
   jest.useFakeTimers();
   mockClose.mockClear();
+  mockFeedbackPlay.mockClear();
+  mockFeedbackStop.mockClear();
 });
 afterEach(() => {
   act(() => renderer?.unmount());
@@ -47,6 +55,7 @@ function mount(
     renderer = TestRenderer.create(
       <LocalCheckoutPreview
         cadence="month"
+        customer={{ kind: 'account', email: 'fixture@example.test' }}
         scenario={scenario}
         outcome={outcome}
         onClose={mockClose}
@@ -184,7 +193,7 @@ it('keeps failures open for retry and cancels completion when navigating away', 
   act(() => jest.advanceTimersByTime(1800));
   expect(mockClose).not.toHaveBeenCalled();
 });
-it('ignores an authorization result after close even if the host has not unmounted yet', async () => {
+it('ignores dismissal while processing and allows it after a terminal result', async () => {
   let finish: ((value: 'authorized') => void) | undefined;
   mount(
     'subscription',
@@ -196,8 +205,231 @@ it('ignores an authorization result after close even if the host has not unmount
   act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
   act(() => mockContent.onAuthorize());
   act(() => mockContent.onClose());
-  await act(async () => finish?.('authorized'));
-  act(() => jest.advanceTimersByTime(10000));
+  act(() => mockContent.onBack());
+  expect(mockClose).not.toHaveBeenCalled();
   expect(mockContent.step).toBe('processing');
+  await act(async () => finish?.('authorized'));
+  act(() => jest.advanceTimersByTime(1000));
+  expect(mockContent.step).toBe('success');
+  act(() => mockContent.onClose());
   expect(mockClose).toHaveBeenCalledTimes(1);
+});
+
+it('requires guest contact and never fabricates account methods, while explicit account preview has only masked fixtures', () => {
+  mount();
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        onClose={mockClose}
+        key="guest"
+        customer={{ kind: 'guest' }}
+      />,
+    ),
+  );
+  expect(mockContent.draft.email).toBe('');
+  expect(mockContent.savedCards).toEqual([]);
+  act(() => mockContent.onAuthorize());
+  expect(mockContent.step).toBe('review');
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        onClose={mockClose}
+        key="account"
+        customer={{ kind: 'account', email: 'real@example.test' }}
+      />,
+    ),
+  );
+  expect(mockContent.draft.email).toBe('real@example.test');
+  expect(mockContent.savedCards).toEqual([]);
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        onClose={mockClose}
+        key="preview"
+        customer={{ kind: 'account', simulated: true }}
+      />,
+    ),
+  );
+  expect(mockContent.draft.email).toBe('');
+  expect(mockContent.savedCards.map((card) => card.last4)).toEqual(['4242', '4444']);
+});
+
+it('requires contact only for guests and passes a controlled account summary without asserting email ownership', () => {
+  mount();
+  expect(mockContent.request.requiresContact).toBe(false);
+  expect(mockContent.accountSummary).toBeDefined();
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        key="guest"
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        onClose={mockClose}
+        customer={{ kind: 'guest' }}
+      />,
+    ),
+  );
+  expect(mockContent.request.requiresContact).toBe(true);
+  expect(mockContent.accountSummary).toBeUndefined();
+  expect(mockContent.draft.email).toBe('');
+});
+it('keeps bank/provider and nonpayable external wallet choices controlled, with balance available only in explicit account preview', () => {
+  mount();
+  act(() => mockContent.onMethod?.('bank'));
+  expect(mockContent.step).toBe('method');
+  const bank = mockContent.methodDetails;
+  if (bank?.kind !== 'provider') throw new Error('Expected provider detail');
+  act(() => bank.onContinue());
+  expect(mockContent.draft.paymentSelection).toMatchObject({ method: 'bank', detail: '···· 6789' });
+  act(() => mockContent.onMethod?.('faircoin'));
+  const external = mockContent.methodDetails;
+  if (external?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
+  expect(external.wallet).toBeUndefined();
+  expect(external.external?.payload).toBe('PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT');
+  act(() => external.external?.onOpen());
+  expect(mockContent.methodDetails).toMatchObject({ view: 'external' });
+  act(() => external.external?.onSelect());
+  expect(mockContent.draft.paymentSelection).toMatchObject({
+    method: 'faircoin',
+    id: 'faircoin-external',
+  });
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        key="demo"
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        onClose={mockClose}
+        customer={{ kind: 'account', simulated: true }}
+      />,
+    ),
+  );
+  act(() => mockContent.onMethod?.('faircoin'));
+  const wallet = mockContent.methodDetails;
+  if (wallet?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
+  expect(wallet.wallet).toBeDefined();
+  act(() => wallet.wallet?.onSelect());
+  expect(mockContent.draft.paymentSelection).toMatchObject({
+    method: 'faircoin',
+    id: 'faircoin-wallet',
+  });
+});
+
+it('emits result feedback once per actual completion and stops it when closed', async () => {
+  mount();
+  act(() =>
+    mockContent.onCard({ id: 'audio-card', brand: 'Visa', last4: '4242', saveForLater: false }),
+  );
+  await act(async () => {
+    mockContent.onAuthorize();
+    mockContent.onAuthorize();
+  });
+  expect(mockFeedbackPlay).not.toHaveBeenCalled();
+  act(() => jest.advanceTimersByTime(1000));
+  expect(mockFeedbackPlay.mock.calls).toEqual([['success', 1]]);
+  act(() => mockContent.onStep('review'));
+  expect(mockFeedbackPlay).toHaveBeenCalledTimes(1);
+  act(() => mockContent.onClose());
+  expect(mockFeedbackStop).toHaveBeenCalledTimes(1);
+});
+it('keeps external and wallet top-up navigation local, with a distinct nonpayable receive payload and explicit fixture-only balance updates', () => {
+  mount();
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        key="topup"
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        onClose={mockClose}
+        customer={{ kind: 'account', simulated: true }}
+      />,
+    ),
+  );
+  act(() => mockContent.onMethod?.('faircoin'));
+  const choice = mockContent.methodDetails;
+  if (choice?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
+  act(() => choice.external?.onOpen());
+  expect(mockContent.methodDetails).toMatchObject({ view: 'external' });
+  act(() => mockContent.onBack());
+  expect(mockContent.methodDetails).toMatchObject({ view: 'choices' });
+  act(() => choice.wallet?.onOpen());
+  expect(mockContent.methodDetails).toMatchObject({ view: 'wallet' });
+  act(() => choice.wallet?.topUp?.onOpen());
+  const topup = mockContent.methodDetails;
+  if (topup?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
+  expect(topup.view).toBe('topup');
+  expect(topup.wallet?.topUp?.payload).toBe('PEABLE_LOCAL_WALLET_TOPUP_PREVIEW_NOT_PAYABLE');
+  expect(topup.wallet?.topUp?.payload).not.toBe(topup.external?.payload);
+  expect(topup.wallet?.balanceLabel).toBe('25 FAIR');
+  const control = topup.wallet?.topUp?.notice as React.ReactElement<{ onPress(): void }>;
+  act(() => control.props.onPress());
+  expect(mockContent.methodDetails).toMatchObject({
+    wallet: { balanceLabel: '30 FAIR', remainingLabel: '18 FAIR' },
+  });
+  act(() => control.props.onPress());
+  expect(mockContent.methodDetails).toMatchObject({ wallet: { balanceLabel: '30 FAIR' } });
+  act(() => mockContent.onBack());
+  expect(mockContent.methodDetails).toMatchObject({ view: 'wallet' });
+  act(() => mockContent.onBack());
+  expect(mockContent.methodDetails).toMatchObject({ view: 'choices' });
+  expect(mockContent.draft.paymentSelection).toBeNull();
+});
+
+it('keeps installments eligible only for the physical fixture and separates due today from the full order total', () => {
+  mount();
+  expect(mockContent.request.paymentMethods).not.toContain('installments');
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        key="physical-plan"
+        cadence="month"
+        scenario="physical"
+        outcome="success"
+        onClose={mockClose}
+        customer={{ kind: 'account', simulated: true }}
+      />,
+    ),
+  );
+  expect(mockContent.request.paymentMethods).toContain('installments');
+  act(() => mockContent.onMethod?.('installments'));
+  const plan = mockContent.methodDetails;
+  if (plan?.kind !== 'installments') throw new Error('Expected installment detail');
+  expect(plan.schedule.map((payment) => payment.amountLabel)).toEqual([
+    '$7.00',
+    '$7.00',
+    '$7.00',
+    '$7.00',
+  ]);
+  act(() => plan.onSelect());
+  expect(mockContent.request.dueTodayMinorUnits).toBe(700);
+  expect(mockContent.request.totalMinorUnits).toBe(2800);
+  expect(mockContent.request.items[0].amountMinorUnits).toBe(2800);
+  expect(mockContent.request.recurring).toBeUndefined();
+  act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
+  expect(mockContent.request.dueTodayMinorUnits).toBe(2800);
+});
+it('makes slow confirmation finite without allowing UI dismissal or navigation during processing', async () => {
+  mount('subscription', undefined, 'loading');
+  act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
+  await act(async () => mockContent.onAuthorize());
+  act(() => mockContent.onClose());
+  act(() => mockContent.onBack());
+  act(() => mockContent.onStep('review'));
+  act(() => jest.advanceTimersByTime(7999));
+  expect(mockContent.step).toBe('processing');
+  expect(mockClose).not.toHaveBeenCalled();
+  act(() => jest.advanceTimersByTime(1));
+  expect(mockContent.step).toBe('success');
 });

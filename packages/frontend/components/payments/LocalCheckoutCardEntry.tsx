@@ -69,7 +69,7 @@ export function LocalCheckoutCardEntry({
           onDone();
         }}
       >
-        {label('useCard')}
+        {label('continue')}
       </Button>
     </>
   );

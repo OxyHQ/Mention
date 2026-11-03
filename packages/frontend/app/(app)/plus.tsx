@@ -17,7 +17,11 @@ import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { CheckoutPreviewControls } from '@/components/payments/CheckoutPreviewControls';
 import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
-import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutPreview';
+import type {
+  CheckoutScenario,
+  PreviewOutcome,
+  CheckoutCustomerMode,
+} from '@/lib/payments/checkoutPreview';
 import { PlusPaymentSheet } from '@/components/payments/PlusPaymentSheet';
 import { PlusDisplayEstimate } from '@/components/payments/PlusDisplayEstimate';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +35,8 @@ export default function PlusScreen() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [selected, setSelected] = useState('plus');
   const [previewScenario, setPreviewScenario] = useState<CheckoutScenario>('subscription');
+  const [previewCustomerMode, setPreviewCustomerMode] = useState<CheckoutCustomerMode>('automatic');
+  const [previewSoundEnabled, setPreviewSoundEnabled] = useState(true);
   const [previewOutcome, setPreviewOutcome] = useState<PreviewOutcome>('success');
 
   const plans: SubscriptionPlan[] = [
@@ -134,6 +140,10 @@ export default function PlusScreen() {
         )}
         {isLocalCheckoutPreview() && (
           <CheckoutPreviewControls
+            soundEnabled={previewSoundEnabled}
+            onSoundEnabled={setPreviewSoundEnabled}
+            customerMode={previewCustomerMode}
+            onCustomerMode={setPreviewCustomerMode}
             scenario={previewScenario}
             outcome={previewOutcome}
             onScenario={setPreviewScenario}
@@ -143,8 +153,10 @@ export default function PlusScreen() {
       </ScreenScrollView>
       {paymentOpen && (
         <PlusPaymentSheet
+          previewCustomerMode={previewCustomerMode}
           previewScenario={previewScenario}
           previewOutcome={previewOutcome}
+          previewSoundEnabled={previewSoundEnabled}
           cadence={cadence}
           onClose={() => setPaymentOpen(false)}
         />

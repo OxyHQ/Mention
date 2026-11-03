@@ -3,7 +3,11 @@ import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutPreview';
+import type {
+  CheckoutScenario,
+  PreviewOutcome,
+  CheckoutCustomerMode,
+} from '@/lib/payments/checkoutPreview';
 
 /** Explicit development controls live on the host page, never inside consumer checkout. */
 export function CheckoutPreviewControls({
@@ -11,7 +15,15 @@ export function CheckoutPreviewControls({
   outcome,
   onScenario,
   onOutcome,
+  customerMode,
+  onCustomerMode,
+  soundEnabled,
+  onSoundEnabled,
 }: {
+  soundEnabled: boolean;
+  onSoundEnabled(value: boolean): void;
+  customerMode: CheckoutCustomerMode;
+  onCustomerMode(value: CheckoutCustomerMode): void;
   scenario: CheckoutScenario;
   outcome: PreviewOutcome;
   onScenario(value: CheckoutScenario): void;
@@ -33,6 +45,21 @@ export function CheckoutPreviewControls({
       <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
         {t('plus.payment.previewLabel')}
       </Text>
+      <Button size="sm" appearance="outline" onPress={() => onSoundEnabled(!soundEnabled)}>
+        {t(soundEnabled ? 'plus.checkout.soundOn' : 'plus.checkout.soundOff')}
+      </Button>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {(['automatic', 'guest', 'account-preview'] as const).map((value) => (
+          <Button
+            key={value}
+            size="sm"
+            appearance={customerMode === value ? 'subtle' : 'outline'}
+            onPress={() => onCustomerMode(value)}
+          >
+            {t(`plus.checkout.customerMode.${value}`)}
+          </Button>
+        ))}
+      </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {(['subscription', 'physical', 'trial'] as const).map((value) => (
           <Button

@@ -184,6 +184,55 @@ Peable `packages/sdk` directory. The opt-in Metro resolver watches those source
 roots, resolves Bloom's declared source exports and the SDK UI entry directly,
 and shares Mention's React/native peers. Changes in all three working trees
 then use Fast Refresh; do not replace this with repeated package-copy cycles.
+Keep installed dependencies stable while Metro is serving: directory/symlink
+replacement invalidates its file map. Verify new declarations with a temporary
+TypeScript path configuration or a separate checkout, rather than changing the
+serving worktree’s dependency layout.
 The resolver refuses production, CI and non-loopback settings and is inactive
 without the explicit flag. A published SDK version containing the optional UI
 entry is still required before any production consumer can adopt this work.
+
+### Local customer, payment methods and feedback
+
+Guest preview starts with a required blank email and no saved methods. Account
+preview shows the account summary and never requests contact details, including
+when an account has no email. Only the explicitly labelled account simulation
+contains example masked cards and a FairCoin balance; real account identity does
+not manufacture saved methods or wallet capability.
+
+The method picker demonstrates cards, a bank/provider handoff, and FairCoin via
+Peable balance or an external wallet. The balance and receive views use memory-only
+fixtures. Their QR payloads are deliberately non-payable and contain no deposit
+address. Simulating incoming funds changes only that fixture. There is no provider
+tokenization, wallet key access, chain request, real quote, purchase attribution
+by guest email, receipt delivery or entitlement grant in these previews.
+
+A future guest-purchase claim must be explicit and authorized by a single-use,
+receipt-linked token bound to the payment and merchant, plus an authenticated
+account with verified email control. Present-day email ownership alone must not
+automatically reveal or attach historical purchases. Claiming and any entitlement
+grant must be idempotent backend operations; no such endpoint or email delivery
+is implemented by this UI work.
+
+Peable owns the supplied success/failure sound assets in its optional SDK UI
+entry, retaining the original OGG files and AAC derivatives for native support.
+Mention plays feedback once per completed simulated attempt, with a local sound
+control enabled by default. Muting or closing cancels playback; device silent mode
+is respected, and audio errors never block the result. Renders and navigating
+back do not replay a completed sound. Bloom has no audio or payment side effects.
+
+During the local processing state, backdrop, drag, Escape, native Back and the
+host's close/back callbacks cannot dismiss checkout. Session teardown and
+unmount still cancel the local work. The development “Slow confirmation” option
+finishes with a simulated success after eight seconds, so it cannot trap the
+preview indefinitely; this timer is not a real-payment confirmation mechanism.
+
+The physical-order fixture alone offers an installment example: USD 28 total,
+four USD 7 payments, zero example fees, and USD 7 due today. Selecting it changes
+the review amount and final action to the amount due today while preserving the
+USD 28 order total and item amount. Choosing a card restores USD 28 due today.
+This finite schedule is separate from subscription renewal terms. No real
+credit application, underwriting, provider eligibility or installment agreement
+is created, and Mention Plus subscriptions do not advertise this option.
+Product image sources use Bloom's squircle image primitive; the physical sample
+has no supplied product photo and keeps the generic illustration fallback.

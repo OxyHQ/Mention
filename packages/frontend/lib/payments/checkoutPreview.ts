@@ -14,3 +14,13 @@ export type PreviewOutcome = 'success' | 'failure' | 'loading';
 export interface CheckoutAuthorization {
   authorize?: () => Promise<'authorized' | 'cancelled'>;
 }
+
+export type CheckoutCustomerMode = 'automatic' | 'guest' | 'account-preview';
+/** Contact hints are not identity proofs and never authorize historical purchase claims. */
+export interface CheckoutPreviewCustomer {
+  kind: 'guest' | 'account';
+  email?: string;
+  displayName?: string;
+  avatar?: string | null;
+  simulated?: boolean;
+}

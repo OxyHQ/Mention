@@ -1,8 +1,12 @@
+import { Button } from '@oxy.so/bloom/button';
+import { useCheckoutFeedback } from '@/hooks/useCheckoutFeedback';
+import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { useSticker } from '@oxy.so/stickers/react';
 import { EmptyStateSticker } from '@/components/common/EmptyStateSticker';
 import { EMPTY_STATE_STICKERS } from '@/lib/stickers';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, View } from 'react-native';
+import { View } from 'react-native';
+import { Image as ShapeImage } from '@oxy.so/bloom/shapes';
 import { Text } from '@oxy.so/bloom/typography';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
@@ -12,12 +16,15 @@ import { emptyCheckoutDraft, nextCheckoutStep } from '@oxy.so/bloom/checkout-she
 import {
   PeableCheckoutSheet,
   type CheckoutCard,
+  type CheckoutPaymentSelection,
+  type PeableMethodDetails,
   type CheckoutDraft,
   type CheckoutRequest,
   type CheckoutStep,
 } from '@peable.to/sdk/checkout/ui';
 import type {
   CheckoutAuthorization,
+  CheckoutPreviewCustomer,
   CheckoutScenario,
   PreviewOutcome,
 } from '@/lib/payments/checkoutPreview';
@@ -30,11 +37,15 @@ export function LocalCheckoutPreview({
   outcome,
   onClose,
   authorize,
+  customer = { kind: 'guest' },
+  soundEnabled = true,
 }: {
   cadence: PlusCadence;
   scenario: CheckoutScenario;
   outcome: PreviewOutcome;
   onClose(): void;
+  customer?: CheckoutPreviewCustomer;
+  soundEnabled?: boolean;
 } & CheckoutAuthorization) {
   // Warm the shared catalogue cache while reviewing; completion never waits for artwork.
   useSticker(EMPTY_STATE_STICKERS.checkoutSuccess);
@@ -46,12 +57,27 @@ export function LocalCheckoutPreview({
   }, [offer, reviewedOffer]);
   const { t, i18n } = useTranslation();
   const [step, setStep] = useState<CheckoutStep>('review');
+  const [demoBalance, setDemoBalance] = useState(25);
+  const [activeMethod, setActiveMethod] = useState<string>('bank');
+  const [faircoinView, setFaircoinView] = useState<'choices' | 'wallet' | 'external' | 'topup'>(
+    'choices',
+  );
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
   const [draft, setDraft] = useState<CheckoutDraft>(() => ({
     ...emptyCheckoutDraft(),
-    email: 'alex@example.test',
+    email: customer.email ?? '',
+    paymentSelection: null,
   }));
-  const [savedCards, setSavedCards] = useState<CheckoutCard[]>([]);
+  const [savedCards, setSavedCards] = useState<CheckoutCard[]>(() =>
+    customer.simulated
+      ? [
+          { id: 'demo-linked-visa', brand: 'Visa', last4: '4242', saveForLater: true },
+          { id: 'demo-linked-mastercard', brand: 'Mastercard', last4: '4444', saveForLater: true },
+        ]
+      : [],
+  );
+  const feedback = useCheckoutFeedback(soundEnabled);
+  const attempt = useRef(0);
   const history = useRef<CheckoutStep[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const active = useRef(true);
@@ -59,14 +85,15 @@ export function LocalCheckoutPreview({
   const completionTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const [brandState, setBrandState] = useState<'idle' | undefined>();
   const close = useCallback(() => {
-    if (closed.current) return;
+    if (closed.current || step === 'processing') return;
     closed.current = true;
+    feedback.stop();
     completionTimers.current.forEach(clearTimeout);
     completionTimers.current = [];
     active.current = false;
     clearTimeout(timer.current);
     onClose();
-  }, [onClose]);
+  }, [onClose, feedback.stop, step]);
   useEffect(() => {
     if (step !== 'success') {
       setBrandState(undefined);
@@ -119,7 +146,8 @@ export function LocalCheckoutPreview({
       ? {
           merchant: t('plus.checkout.demoMerchant'),
           currency: 'USD',
-          dueTodayMinorUnits: 2800,
+          dueTodayMinorUnits: draft.paymentSelection?.method === 'installments' ? 700 : 2800,
+          totalMinorUnits: draft.paymentSelection?.method === 'installments' ? 2800 : undefined,
           items: [
             {
               id: 'demo-item',
@@ -129,8 +157,9 @@ export function LocalCheckoutPreview({
               amountMinorUnits: 2800,
             },
           ],
+          requiresContact: customer.kind === 'guest',
           requiresShipping: true,
-          paymentMethods: ['card'],
+          paymentMethods: ['card', 'bank', 'faircoin', 'other', 'installments'],
           taxDescription: t('plus.checkout.included'),
         }
       : {
@@ -150,17 +179,20 @@ export function LocalCheckoutPreview({
                   : t(`plus.payment.cadence${cadence === 'year' ? 'Year' : 'Month'}`),
               artwork:
                 scenario === 'subscription' ? (
-                  <Image
+                  <ShapeImage
+                    shape="squircle"
+                    size={40}
+                    alt={displayOffer?.displayName ?? 'Mention'}
                     source={require('../../assets/images/mention-icon.png')}
-                    style={{ width: 40, height: 40 }}
                   />
                 ) : undefined,
               quantity: 1,
               amountMinorUnits: scenario === 'trial' ? 0 : (price?.amountMinorUnits ?? 0),
             },
           ],
+          requiresContact: customer.kind === 'guest',
           requiresShipping: false,
-          paymentMethods: ['card'],
+          paymentMethods: ['card', 'bank', 'faircoin', 'other'],
           taxDescription: t('plus.checkout.included'),
           recurring: {
             amountMinorUnits: price?.amountMinorUnits ?? 0,
@@ -175,7 +207,7 @@ export function LocalCheckoutPreview({
           },
         };
   function navigate(next: CheckoutStep) {
-    if (next === step) return;
+    if (next === step || step === 'processing') return;
     clearTimeout(timer.current);
     setDirection(next === 'review' ? 'backward' : 'forward');
     if (next === 'review') history.current = [];
@@ -183,6 +215,12 @@ export function LocalCheckoutPreview({
     setStep(next);
   }
   function back() {
+    if (step === 'processing') return;
+    if (step === 'method' && activeMethod === 'faircoin' && faircoinView !== 'choices') {
+      setDirection('backward');
+      setFaircoinView(faircoinView === 'topup' ? 'wallet' : 'choices');
+      return;
+    }
     clearTimeout(timer.current);
     setDirection('backward');
     setStep(history.current.pop() ?? 'review');
@@ -190,6 +228,7 @@ export function LocalCheckoutPreview({
   async function simulateAuthorization() {
     if (authorizing.current || nextCheckoutStep(request, draft) !== 'review') return;
     authorizing.current = true;
+    attempt.current += 1;
     setDirection('forward');
     setStep('processing');
     try {
@@ -199,29 +238,158 @@ export function LocalCheckoutPreview({
         return;
       }
       if (!active.current) return;
-      if (outcome !== 'loading')
-        timer.current = setTimeout(() => {
-          if (active.current) setStep(outcome);
+      const result = outcome === 'failure' ? 'failure' : 'success';
+      timer.current = setTimeout(
+        () => {
+          if (active.current) {
+            setStep(result);
+            feedback.play(result, attempt.current);
+          }
           authorizing.current = false;
-        }, 1000);
+        },
+        outcome === 'loading' ? 8000 : 1000,
+      );
     } catch {
-      if (active.current) setStep('failure');
+      if (active.current) {
+        setStep('failure');
+        feedback.play('failure', attempt.current);
+      }
       authorizing.current = false;
     }
   }
   function chooseCard(card: CheckoutCard) {
-    setDraft((current) => ({ ...current, card }));
+    setDraft((current) => ({
+      ...current,
+      card,
+      paymentSelection: { id: card.id, method: 'card', label: `${card.brand} ···· ${card.last4}` },
+    }));
     setSavedCards((current) =>
       card.saveForLater
         ? [...current.filter((item) => item.id !== card.id), card]
         : current.filter((item) => item.id !== card.id),
     );
   }
+  function chooseMethod(selection: CheckoutPaymentSelection) {
+    setDraft((current) => ({ ...current, paymentSelection: selection }));
+    navigate('review');
+  }
+  const methodDetails: PeableMethodDetails =
+    activeMethod === 'installments'
+      ? {
+          kind: 'installments',
+          dueTodayLabel: '$7.00',
+          totalLabel: '$28.00',
+          feesLabel: '$0.00',
+          schedule: [
+            { id: 'today', label: t('plus.checkout.installments.today'), amountLabel: '$7.00' },
+            { id: 'two', label: t('plus.checkout.installments.two'), amountLabel: '$7.00' },
+            { id: 'four', label: t('plus.checkout.installments.four'), amountLabel: '$7.00' },
+            { id: 'six', label: t('plus.checkout.installments.six'), amountLabel: '$7.00' },
+          ],
+          disclosure: t('plus.checkout.installments.preview'),
+          onSelect: () =>
+            chooseMethod({
+              id: 'installments',
+              method: 'installments',
+              label: t('plus.checkout.installments.title'),
+              detail: t('plus.checkout.installments.summary'),
+            }),
+        }
+      : activeMethod === 'faircoin'
+        ? {
+            kind: 'faircoin',
+            amountLabel: '12 FAIR',
+            quoteDescription: t('plus.checkout.rail.demoQuote'),
+            view: faircoinView,
+            wallet: customer.simulated
+              ? {
+                  balanceLabel: `${demoBalance} FAIR`,
+                  remainingLabel: `${demoBalance === 25 ? 13 : 18} FAIR`,
+                  canPay: true,
+                  onOpen: () => setFaircoinView('wallet'),
+                  topUp: {
+                    payload: 'PEABLE_LOCAL_WALLET_TOPUP_PREVIEW_NOT_PAYABLE',
+                    addressLabel: t('plus.checkout.rail.topupPreview'),
+                    onOpen: () => setFaircoinView('topup'),
+                    notice: (
+                      <Button
+                        appearance="outline"
+                        disabled={demoBalance === 30}
+                        onPress={() => setDemoBalance(30)}
+                      >
+                        {t(
+                          demoBalance === 30
+                            ? 'plus.checkout.rail.arrivalSimulated'
+                            : 'plus.checkout.rail.simulateArrival',
+                        )}
+                      </Button>
+                    ),
+                  },
+                  onSelect: () =>
+                    chooseMethod({
+                      id: 'faircoin-wallet',
+                      method: 'faircoin',
+                      label: t('plus.checkout.rail.wallet'),
+                      detail: t('plus.checkout.rail.demoQuote'),
+                    }),
+                }
+              : undefined,
+            external: {
+              payload: 'PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT',
+              addressLabel: t('plus.checkout.rail.nonpayable'),
+              onOpen: () => setFaircoinView('external'),
+              onSelect: () =>
+                chooseMethod({
+                  id: 'faircoin-external',
+                  method: 'faircoin',
+                  label: t('plus.checkout.rail.external'),
+                  detail: t('plus.checkout.rail.nonpayable'),
+                }),
+            },
+          }
+        : {
+            kind: 'provider',
+            title: t(
+              activeMethod === 'bank' ? 'plus.checkout.rail.bank' : 'plus.checkout.rail.other',
+            ),
+            description: t('plus.checkout.rail.providerPreview'),
+            actionLabel: t('plus.checkout.continue'),
+            onContinue: () =>
+              chooseMethod({
+                id: activeMethod,
+                method: activeMethod,
+                label: t(
+                  activeMethod === 'bank' ? 'plus.checkout.rail.bank' : 'plus.checkout.rail.other',
+                ),
+                detail:
+                  activeMethod === 'bank' ? '···· 6789' : t('plus.checkout.rail.providerPreview'),
+              }),
+          };
   return (
     <PeableCheckoutSheet
       open
       locale={i18n.language}
       brandState={brandState}
+      accountSummary={
+        customer.kind === 'account'
+          ? {
+              name: customer.simulated
+                ? t('plus.checkout.customer.demoName')
+                : customer.displayName || t('plus.checkout.customer.accountLabel'),
+              detail: t(
+                customer.simulated
+                  ? 'plus.checkout.customer.demo'
+                  : 'plus.checkout.customer.accountLabel',
+              ),
+              avatar: (
+                <AccountAvatar
+                  account={{ name: customer.displayName, avatar: customer.avatar }}
+                  size="lg"
+                />
+              ),
+            }
+          : undefined
+      }
       resultIllustration={
         step === 'success' ? (
           <EmptyStateSticker name="checkoutSuccess" />
@@ -230,8 +398,31 @@ export function LocalCheckoutPreview({
         ) : undefined
       }
       request={request}
+      paymentMethods={[
+        {
+          id: 'bank',
+          label: t('plus.checkout.rail.bank'),
+          detail: customer.simulated ? t('plus.checkout.rail.demoBank') : undefined,
+          kind: 'account',
+        },
+        {
+          id: 'faircoin',
+          label: 'FairCoin',
+          detail: t('plus.checkout.rail.faircoin'),
+          kind: 'wallet',
+        },
+        { id: 'other', label: t('plus.checkout.rail.other'), kind: 'wallet' },
+        { id: 'installments', label: t('plus.checkout.installments.title'), kind: 'account' },
+      ]}
+      onMethod={(method) => {
+        setActiveMethod(method);
+        setFaircoinView('choices');
+        navigate('method');
+      }}
+      methodDetails={methodDetails}
       draft={draft}
       step={step}
+      frameKey={step === 'method' ? `${activeMethod}:${faircoinView}` : step}
       direction={direction}
       onDraft={setDraft}
       onStep={navigate}
@@ -251,11 +442,25 @@ export function LocalCheckoutPreview({
           'result.successHint',
           'result.failureHint',
           'savedCard',
+          'contactHint',
           'delivery.standardHint',
           'delivery.expressHint',
         ].map((key) => [key, t(`plus.checkout.${key}`)]),
       )}
-      notice={<Text style={{ textAlign: 'center' }}>{t('plus.checkout.previewNotice')}</Text>}
+      notice={
+        <View style={{ gap: 6 }}>
+          <Text style={{ textAlign: 'center' }}>
+            {t(
+              customer.simulated
+                ? 'plus.checkout.customer.demo'
+                : customer.kind === 'account'
+                  ? 'plus.checkout.customer.account'
+                  : 'plus.checkout.customer.guest',
+            )}
+          </Text>
+          <Text style={{ textAlign: 'center' }}>{t('plus.checkout.previewNotice')}</Text>
+        </View>
+      }
       cardEntry={
         step === 'card' ? (
           <LocalCheckoutCardEntry

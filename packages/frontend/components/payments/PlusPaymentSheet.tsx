@@ -12,7 +12,11 @@ import { authenticatedApiCall } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
-import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutPreview';
+import type {
+  CheckoutScenario,
+  PreviewOutcome,
+  CheckoutCustomerMode,
+} from '@/lib/payments/checkoutPreview';
 import { LocalCheckoutPreview } from './LocalCheckoutPreview';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { useQueryClient } from '@tanstack/react-query';
@@ -49,21 +53,37 @@ export function PlusPaymentSheet({
   cadence = 'month',
   previewScenario = 'subscription',
   previewOutcome = 'success',
+  previewCustomerMode = 'automatic',
+  previewSoundEnabled = true,
 }: {
   onClose(): void;
   cadence?: PlusCadence;
   previewScenario?: CheckoutScenario;
   previewOutcome?: PreviewOutcome;
+  previewCustomerMode?: CheckoutCustomerMode;
+  previewSoundEnabled?: boolean;
 }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
   if (isLocalCheckoutPreview())
     return (
       <LocalCheckoutPreview
-        key={`${user?.id}:${activeSessionId}:${cadence}:${previewScenario}`}
+        key={`${user?.id}:${activeSessionId}:${cadence}:${previewScenario}:${previewCustomerMode}`}
+        customer={
+          previewCustomerMode === 'account-preview'
+            ? { kind: 'account', simulated: true }
+            : previewCustomerMode === 'guest' || !user
+              ? { kind: 'guest' }
+              : {
+                  kind: 'account',
+                  displayName: user.name?.displayName || user.username,
+                  avatar: user.avatar,
+                }
+        }
         cadence={cadence}
         scenario={previewScenario}
         outcome={previewOutcome}
+        soundEnabled={previewSoundEnabled}
         onClose={onClose}
       />
     );
