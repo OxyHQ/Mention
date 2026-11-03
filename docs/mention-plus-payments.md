@@ -367,3 +367,20 @@ fulfillment remain future services supplied by Peable's merchant workspace. The
 controlled SDK component receives that data; Mention does not become a reward
 provider. Actual provider card tests still use secure provider-hosted fields,
 with Peable/Bloom owning the surrounding method navigation and checkout.
+
+### Local recurring-payment verification
+
+The unified local checkout was verified against actual provider TEST subscriptions:
+USD 5.99 monthly, USD 57.50 annually, issuer authentication, and a declined card
+followed by a successful retry on the same payment intent and subscription.
+Continue created only an opaque payment-method token; explicit Pay performed the
+confirmation. Completion waited for the signed Peable settlement plus a paid
+invoice and active subscription, including after authentication. The retry used
+one bootstrap operation and did not create another subscription.
+
+Subscribe now preloads and validates the payer intent and client action before
+opening the single Bloom checkout; there is no intermediate loading dialog.
+Bank, installment and FairCoin options remain visible with their actual missing
+configuration explained. The card adapter's provider restriction does not remove
+Peable's other payment methods. Their live capabilities, the account-wallet bridge,
+and real Mention Plus entitlement activation are not provided by this local test.
