@@ -1,3 +1,4 @@
+import type { CheckoutConfiguration } from '@/lib/payments/checkoutConfiguration';
 import type { CheckoutReview } from '@/lib/payments/checkoutReview';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@oxy.so/bloom/button';
@@ -26,11 +27,13 @@ type Intent = Awaited<ReturnType<ReturnType<typeof createPeableCheckout>['getPay
 export function PeableEmbeddedCheckout({
   binding,
   review,
+  configuration,
   onRetry,
   onClose,
 }: {
   binding?: EmbeddedCheckoutBinding;
   review?: CheckoutReview;
+  configuration?: CheckoutConfiguration;
   onRetry?: () => void;
   onClose(): void;
 }) {
@@ -206,7 +209,7 @@ export function PeableEmbeddedCheckout({
     };
   }, [binding, client, t, feedback.play]);
   async function prepareCard() {
-    if (inFlight.current || !prepareRef.current || !ready) return;
+    if (!binding || !intent || !action || inFlight.current || !prepareRef.current || !ready) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -273,12 +276,13 @@ export function PeableEmbeddedCheckout({
   }
   if (!intent && !review) return null;
   const amount = intent ? Number(intent.amount) : (review?.amountMinorUnits ?? 0);
-  const canAdvance = !!binding && !!intent && !!action;
+  const canAdvance = (!!binding && !!intent && !!action) || !!configuration;
+  const methods = binding?.paymentMethods ?? configuration?.paymentMethods;
   const cardAvailable =
-    binding?.paymentMethods?.find((method) => method.id === 'card')?.available ??
+    methods?.find((method) => method.id === 'card')?.available ??
     (!!binding && !binding.paymentMethods);
   const methodReason = (id: 'bank' | 'installments' | 'faircoin') => {
-    const reason = binding?.paymentMethods?.find((method) => method.id === id)?.reason;
+    const reason = methods?.find((method) => method.id === id)?.reason;
     const key =
       reason === 'subscription_method_not_configured'
         ? 'bankUnavailable'
@@ -361,7 +365,7 @@ export function PeableEmbeddedCheckout({
       onCard={() => {}}
       savedCards={[]}
       paymentMethods={
-        binding
+        binding || configuration
           ? [
               {
                 id: 'bank',
@@ -395,10 +399,13 @@ export function PeableEmbeddedCheckout({
         ) : undefined
       }
       cardEntry={
-        action ? (
+        action || configuration ? (
           <>
             <PeableProviderFields
-              action={action}
+              action={action ?? undefined}
+              cardConfiguration={
+                configuration ? { publishableKey: configuration.publishableKey } : undefined
+              }
               disabled={busy}
               locale={i18n.language}
               returnUrl={typeof window === 'undefined' ? '' : (window.location?.href ?? '')}
@@ -412,7 +419,7 @@ export function PeableEmbeddedCheckout({
             />
             <Button
               size="lg"
-              disabled={!ready || busy}
+              disabled={!binding || !action || !ready || busy}
               onPress={() => {
                 void prepareCard();
               }}

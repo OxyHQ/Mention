@@ -1,3 +1,8 @@
+import {
+  configurationMatchesReview,
+  configurationMatchesBinding,
+  type CheckoutConfiguration,
+} from '@/lib/payments/checkoutConfiguration';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -12,12 +17,14 @@ import { PeableEmbeddedCheckout } from './PeableEmbeddedCheckout';
 /** One mounted sheet for review, preparation and authorization. No operation starts on page view. */
 export function PreparedPlusCheckout({
   review,
+  configuration,
   href,
   operationKey,
   initialBinding,
   onClose,
 }: {
   review: CheckoutReview;
+  configuration?: CheckoutConfiguration;
   href: string;
   operationKey: string;
   initialBinding?: EmbeddedCheckoutBinding;
@@ -32,6 +39,8 @@ export function PreparedPlusCheckout({
   // Keep the created binding through a transient validation-read failure: retry
   // reads the same operation rather than creating another subscription.
   const created = useRef(initialBinding);
+  const configurationRef = useRef(configuration);
+  configurationRef.current = configuration;
   // Retry deliberately reruns preparation with the same scoped operation key.
   // biome-ignore lint/correctness/useExhaustiveDependencies: attempt is an explicit retry trigger.
   useEffect(() => {
@@ -52,7 +61,12 @@ export function PreparedPlusCheckout({
         created.current = pending;
         const ready = await prepareEmbeddedCheckout(pending, controller.signal);
         if (controller.signal.aborted) return;
-        if (!checkoutMatchesReview(ready, review)) throw new Error('Checkout terms changed');
+        if (
+          !checkoutMatchesReview(ready, review) ||
+          (configurationRef.current &&
+            !configurationMatchesBinding(configurationRef.current, ready))
+        )
+          throw new Error('Checkout terms changed');
         setBinding(ready);
       } catch {
         if (!controller.signal.aborted) {
@@ -67,6 +81,13 @@ export function PreparedPlusCheckout({
     <PeableEmbeddedCheckout
       binding={binding}
       review={review}
+      configuration={
+        configuration &&
+        configurationMatchesReview(configuration, review) &&
+        (!binding || configurationMatchesBinding(configuration, binding))
+          ? configuration
+          : undefined
+      }
       onClose={onClose}
       onRetry={failed ? () => setAttempt((value) => value + 1) : undefined}
     />

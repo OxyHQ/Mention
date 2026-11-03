@@ -1,3 +1,6 @@
+jest.mock('@/hooks/useCheckoutConfiguration', () => ({
+  useCheckoutConfiguration: () => undefined,
+}));
 let mockPreparedProps: { review: unknown; operationKey: string; onClose(): void } | null = null;
 let mockDevelopment = false;
 let mockUserId: string | undefined;

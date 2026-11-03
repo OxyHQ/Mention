@@ -6,6 +6,9 @@ import type {
 } from '@peable.to/sdk/checkout/ui';
 import { PeableEmbeddedCheckout } from '../PeableEmbeddedCheckout';
 let mockSheet: PeableCheckoutSheetProps;
+let mockFields: PeableProviderFieldsProps;
+let mockFieldMounts = 0;
+let mockFieldUnmounts = 0;
 let mockUpdate: (value: typeof intent) => void;
 const mockUnsubscribe = jest.fn();
 const mockConfirm = jest.fn();
@@ -43,9 +46,14 @@ jest.mock('@peable.to/sdk/checkout/ui', () => ({
     return <>{props.step === 'card' ? props.cardEntry : null}</>;
   },
   PeableProviderFields: (props: PeableProviderFieldsProps) => {
+    mockFields = props;
     mockUseEffect(() => {
+      mockFieldMounts += 1;
       props.onReady(mockPrepare);
-      return () => props.onReady(null);
+      return () => {
+        mockFieldUnmounts += 1;
+        props.onReady(null);
+      };
     }, []);
     return null;
   },
@@ -84,6 +92,8 @@ const binding = {
 let renderer: TestRenderer.ReactTestRenderer;
 beforeEach(() => {
   jest.useFakeTimers();
+  mockFieldMounts = 0;
+  mockFieldUnmounts = 0;
   mockConfirm.mockReset();
   mockDispose.mockClear();
   mockObserve.mockReset().mockResolvedValue(true);
@@ -348,4 +358,56 @@ it('renders captured review immediately with no transport or forward action unti
   act(() => mockSheet.onClose());
   expect(mockClose).toHaveBeenCalledTimes(1);
   act(() => tree?.unmount());
+});
+
+it('allows secure entry with public configuration and retains its fields when payer authority arrives', async () => {
+  const review = {
+    productId: 'mention',
+    offerId: 'monthly',
+    offerVersion: 1,
+    currency: 'USD',
+    interval: 'month' as const,
+    amountMinorUnits: 599,
+  };
+  const configuration: import('@/lib/payments/checkoutConfiguration').CheckoutConfiguration = {
+    environment: 'test',
+    publishableKey: 'pk_test_fixture',
+    currency: 'USD',
+    expiresAt: new Date(Date.now() + 60000).toISOString(),
+    scope: { merchantId: 'merch_fixture', productId: 'peable_local_mention_plus' },
+    prices: {
+      month: { interval: 'month', amountMinorUnits: 599 },
+      year: { interval: 'year', amountMinorUnits: 5750 },
+    },
+    paymentMethods: [{ id: 'card', available: true }],
+  };
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <PeableEmbeddedCheckout review={review} configuration={configuration} onClose={mockClose} />,
+    );
+  });
+  expect(mockSheet.continueDisabled).toBe(false);
+  act(() => mockSheet.onStep('card'));
+  expect(mockFields.action).toBeUndefined();
+  expect(mockFields.cardConfiguration).toEqual({ publishableKey: 'pk_test_fixture' });
+  expect(mockFieldMounts).toBe(1);
+  const before = renderer.root.findAllByType('button');
+  expect(before.every((button) => button.props.disabled)).toBe(true);
+  act(() => mockSheet.onAuthorize());
+  expect(mockConfirm).not.toHaveBeenCalled();
+  await act(async () => {
+    renderer.update(
+      <PeableEmbeddedCheckout
+        review={review}
+        configuration={configuration}
+        binding={binding}
+        onClose={mockClose}
+      />,
+    );
+  });
+  expect(mockSheet.step).toBe('card');
+  expect(mockFields.action?.publishableKey).toBe('pk_test_fixture');
+  expect(mockFieldMounts).toBe(1);
+  expect(mockFieldUnmounts).toBe(0);
+  expect(renderer.root.findAllByType('button').some((button) => !button.props.disabled)).toBe(true);
 });

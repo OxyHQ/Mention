@@ -1,3 +1,4 @@
+import { useCheckoutConfiguration } from '@/hooks/useCheckoutConfiguration';
 import { captureCheckoutReview, type CheckoutReview } from '@/lib/payments/checkoutReview';
 import { PreparedPlusCheckout } from '@/components/payments/PreparedPlusCheckout';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
@@ -65,6 +66,12 @@ export default function PlusScreen() {
     offer?.price?.currency,
     hasAccess,
   ]);
+  const configuration = useCheckoutConfiguration(
+    developmentCheckout,
+    user?.id,
+    activeSessionId,
+    scope,
+  );
   const [preparation, setPreparation] = useState<{
     review: CheckoutReview;
     operationKey: string;
@@ -211,6 +218,7 @@ export default function PlusScreen() {
             <PreparedPlusCheckout
               key={preparation.operationKey}
               review={preparation.review}
+              configuration={configuration}
               href={typeof window === 'undefined' ? '' : (window.location?.href ?? '')}
               operationKey={preparation.operationKey}
               initialBinding={checkoutBinding ?? undefined}

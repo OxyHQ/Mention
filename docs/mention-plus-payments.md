@@ -380,8 +380,16 @@ one bootstrap operation and did not create another subscription.
 
 Subscribe captures the already validated catalogue offer and opens that review in
 the single Bloom checkout immediately. The explicit click starts preparation in
-parallel; visiting the page creates no subscription. Continue remains disabled
-until the payer intent and action match the captured currency, amount and cadence.
+parallel; visiting the page creates no subscription. A separately scoped read-only
+warmup fetches the gateway's actual public key, method capabilities and expiring
+price configuration, and warms the cached provider script. It creates no intent,
+customer or subscription and contains no payer secret. With valid configuration,
+the buyer can select a method and type into secure card fields immediately while
+preparation continues. Card Continue waits for both complete fields and matching
+payer authority; no Pay action is permitted before the currency, amount, cadence,
+merchant and provider key match. The same secure fields retain their contents when
+the real payer action arrives. Expired or mismatched configuration never supplies
+authority or an invented payment method.
 The same sheet stays mounted when ready; no intermediate loading dialog is shown.
 Dismissal aborts preparation and ignores late replies. Account/session/offer changes
 remove the old review, and retry retains its scoped operation key. Bootstrap errors
