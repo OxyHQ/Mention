@@ -41,7 +41,7 @@ jest.mock('@/lib/oxyServices', () => ({
   oxyServices: { assets: { renderUrl: (id: string) => `https://cdn/${id}` } },
 }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('@oxy.so/bloom/zoomable-image-gallery', () => ({ ZoomableMediaGallery: () => null }));
+jest.mock('@oxy.so/bloom/zoomable-media-gallery', () => ({ ZoomableMediaGallery: () => null }));
 jest.mock('@oxy.so/bloom/media-flight', () => ({
   useMediaFlight: () => ({ registerAnchor: jest.fn(), measureAnchor: jest.fn(), flyTo: jest.fn() }),
 }));
