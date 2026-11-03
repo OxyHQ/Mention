@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
 import {
   clearFederationScope,
   federationScope,
@@ -398,6 +400,41 @@ describe('importAuthorFeed', () => {
       'oxy-alice',
       expect.objectContaining({ activityId: atUri('a'), actorUri: DID }),
     );
+  });
+
+  it("mirrors the author's pinned post (reasonPin), and clears it once unpinned", async () => {
+    const pinnedAt = (id: string) =>
+      getDb()
+        .select({ pinned: posts.metadataIsPinned })
+        .from(posts)
+        .where(eq(posts.id, id))
+        .then(([row]) => row?.pinned);
+    const old = await seedPost(scope, {
+      oxyUserId: 'oxy-alice',
+      metadata: { isPinned: true },
+      federation: { activityId: atUri('old'), actorUri: DID },
+    });
+    const pin = await seedPost(scope, {
+      oxyUserId: 'oxy-alice',
+      federation: { activityId: atUri('pin'), actorUri: DID },
+    });
+    mocks.xrpcGet.mockResolvedValue({
+      feed: [
+        { post: postView('pin', 'pinned'), reason: { $type: 'app.bsky.feed.defs#reasonPin' } },
+      ],
+    });
+
+    await importAuthorFeed(ACTOR);
+    expect(mocks.xrpcGet).toHaveBeenCalledWith(
+      'public.api.bsky.app',
+      'app.bsky.feed.getAuthorFeed',
+      expect.objectContaining({ includePins: true }),
+    );
+    expect([await pinnedAt(pin.id), await pinnedAt(old.id)]).toEqual([true, false]);
+
+    mocks.xrpcGet.mockResolvedValue({ feed: [{ post: postView('pin', 'pinned') }] });
+    await importAuthorFeed(ACTOR);
+    expect(await pinnedAt(pin.id)).toBe(false);
   });
 
   it('returns empty without creating when the actor has no resolved Oxy user', async () => {

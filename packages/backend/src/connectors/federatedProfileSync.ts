@@ -350,6 +350,8 @@ class FederatedProfileSync {
         logger.info('[FedSync] completed outbox sync', {
           count: syncedCount,
         });
+        // The pinned post may be older than the recent outbox page: mirror it on its own.
+        await activityPubConnector.syncFeaturedPost(actor);
         if (isPermanentlyUnavailableOutboxReason(syncResult.reason)) {
           await activityPubConnector.markOutboxBackfillUnavailable(actor, syncResult.reason);
         } else if (syncResult.shouldStampCooldown) {
