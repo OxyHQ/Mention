@@ -155,6 +155,23 @@ function withOptimisticSettings(
   return next;
 }
 
+type DesignSnapshot = [readonly unknown[], UserAppearance | null | undefined];
+
+/** Paint an own edit onto every cached copy of the owner's profile design. */
+function paintOwnDesign(ownerId: string, partial: UserAppearanceUpdate): DesignSnapshot[] {
+  const snapshots = queryClient.getQueriesData<UserAppearance | null>({
+    predicate: (query) => viewerQueryKeys.isAppearanceForUser(query.queryKey, ownerId),
+  });
+  for (const [key, design] of snapshots) {
+    if (design) queryClient.setQueryData(key, withOptimisticSettings(design, partial));
+  }
+  return snapshots;
+}
+
+function restoreOwnDesign(snapshots: readonly DesignSnapshot[]): void {
+  for (const [key, design] of snapshots) queryClient.setQueryData(key, design);
+}
+
 interface AppearanceStore {
   mySettings: UserAppearance | null;
   loading: boolean;
@@ -224,6 +241,13 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
     // the optimistic paint below so a failure lands back on what is actually
     // stored rather than on the value the picker painted.
     const previousSettings = get().mySettings;
+    // The viewer's own profile reads the SAME fields through React Query
+    // (`useProfileData`), so the edit is painted there too: the banner changes
+    // on the profile behind the settings sheet at the tap, not after the PUT
+    // and a refetch.
+    const ownDesign = previousSettings?.oxyUserId
+      ? paintOwnDesign(previousSettings.oxyUserId, partial)
+      : [];
     try {
       set({
         loading: true,
@@ -258,12 +282,9 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
         set({ mySettings: doc, loading: false });
 
         // `useProfileData` reads this same appearance payload through React Query
-        // (`['appearance', 'user', <userId>, 'viewer', <viewerId>]`) to render the
-        // profile banner, accent color, and customization. The store update above
-        // does NOT touch that cache, so without this invalidation the viewer's own
-        // profile would keep rendering the pre-edit banner/color until the 5-minute
-        // staleTime elapses or a full reload. Invalidate every viewer variant for
-        // this owner so the profile screen refetches the fresh appearance.
+        // (`['viewer', <viewerId>, 'appearance', 'user', <userId>]`). The paint
+        // above covers the fields echoed verbatim; refetch every viewer variant
+        // for this owner so server-resolved fields (pinned media) land too.
         if (doc.oxyUserId) {
           queryClient.invalidateQueries({
             predicate: (query) =>
@@ -276,6 +297,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
 
       // Saved, but the server returned no document: the optimistic paint has
       // nothing authoritative behind it, so drop back to the stored value.
+      restoreOwnDesign(ownDesign);
       set({ mySettings: previousSettings, loading: false });
       return null;
     } catch (e: unknown) {
@@ -284,6 +306,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       // the new session.
       if (operationEpoch !== viewerEpoch) return null;
       const message = e instanceof Error ? e.message : 'Failed to update settings';
+      restoreOwnDesign(ownDesign);
       set({ mySettings: previousSettings, loading: false, error: message });
       return null;
     }

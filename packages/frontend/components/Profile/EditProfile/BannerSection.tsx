@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
@@ -22,12 +23,25 @@ import { useAppearanceStore } from '@/stores/appearanceStore';
  * up showing the banner that is actually stored if the write never lands — no
  * second copy of the value here to drift out of sync.
  */
+const BANNER_PREVIEW_STYLE = { width: '100%', aspectRatio: 3 } as const;
+
 export const BannerSection: React.FC = () => {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const { showBottomSheet, oxyServices } = useAuth();
   const headerImageRef = useAppearanceStore((state) => state.mySettings?.profileHeaderImage ?? '');
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
+
+  // The store paints the pick at once and rolls it back if the save fails;
+  // say so then, rather than quietly showing the old banner again.
+  const saveHeaderImage = useCallback(
+    async (profileHeaderImage: string) => {
+      if (!(await updateMySettings({ profileHeaderImage }))) {
+        toast.error(t('settings.saveFailed'));
+      }
+    },
+    [updateMySettings, t],
+  );
 
   const openHeaderPicker = useCallback(() => {
     showBottomSheet?.({
@@ -45,15 +59,13 @@ export const BannerSection: React.FC = () => {
         afterSelect: 'back',
         onSelect: async (file: { id: string; contentType?: string }) => {
           if (!file?.contentType?.startsWith?.('image/')) return;
-          await updateMySettings({ profileHeaderImage: file.id });
+          await saveHeaderImage(file.id);
         },
       },
     });
-  }, [showBottomSheet, updateMySettings]);
+  }, [showBottomSheet, saveHeaderImage]);
 
-  const removeHeaderImage = useCallback(async () => {
-    await updateMySettings({ profileHeaderImage: '' });
-  }, [updateMySettings]);
+  const removeHeaderImage = useCallback(() => saveHeaderImage(''), [saveHeaderImage]);
 
   return (
     <View className="px-5 py-4 gap-3">
@@ -83,7 +95,9 @@ export const BannerSection: React.FC = () => {
               // differently-sized copies of the picked image.
               uri: oxyServices.assets.renderUrl(headerImageRef, MEDIA_VARIANT_BANNER),
             }}
-            className="w-full aspect-[3/1] bg-muted"
+            // expo-image is not a react-native core view, so a className does
+            // not size it on native; the frame is the image's own style.
+            style={BANNER_PREVIEW_STYLE}
             contentFit="cover"
           />
           <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/60 px-3 py-2">
