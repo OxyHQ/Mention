@@ -98,3 +98,7 @@ export const MENTION_PLUS_ANNUAL_OFFER_VERSION =
   process.env.EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_VERSION;
 export const MENTION_PLUS_PRODUCT_ID = process.env.EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID;
 export const MENTION_PLUS_CAPABILITY_KEY = process.env.EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY;
+
+/** Explicit development-only UI simulation; the sheet also requires a loopback host. */
+export const MENTION_PLUS_UI_PREVIEW =
+  __DEV__ && process.env.EXPO_PUBLIC_MENTION_PLUS_UI_PREVIEW === 'true';

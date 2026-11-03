@@ -6,6 +6,7 @@ let mockOffer: typeof offer | null;
 const mockPlans = jest.fn();
 const mockAccess = jest.fn();
 let mockHasAccess = false;
+let mockPreview = false;
 let mockPurchaseAvailable = true;
 let mockSignedIn = true;
 let mockDisplayCurrency = 'USD';
@@ -35,6 +36,9 @@ let mockPopup: {
   opener: unknown;
 };
 jest.mock('@/config', () => ({
+  get MENTION_PLUS_UI_PREVIEW() {
+    return mockPreview;
+  },
   MENTION_PLUS_PRODUCT_ID: 'mention-product',
   MENTION_PLUS_CAPABILITY_KEY: 'plus',
   MENTION_PLUS_OFFER_ID: 'approved',
@@ -107,6 +111,7 @@ const offer = {
 };
 const catalogue = { schemaVersion: 1, state: 'configured', purchase: 'available', plans: [offer] };
 const originalWindowOpen = window.open;
+const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
 const originalPlatformOS = Platform.OS;
 let renderer: TestRenderer.ReactTestRenderer;
 function button(label: string) {
@@ -127,6 +132,7 @@ beforeEach(() => {
   mockUser = { id: 'account-a' };
   mockSession = 'session-a';
   mockHasAccess = false;
+  mockPreview = false;
   mockPurchaseAvailable = true;
   mockSignedIn = true;
   mockDisplayCurrency = 'USD';
@@ -153,6 +159,8 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  if (originalLocation) Object.defineProperty(window, 'location', originalLocation);
+  else Reflect.deleteProperty(window, 'location');
   act(() => renderer?.unmount());
   window.open = originalWindowOpen;
   Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatformOS });
@@ -377,4 +385,53 @@ it('displays published terms without starting payment when the catalogue is not 
   expect(mockCheckout).not.toHaveBeenCalled();
   expect(mockKey).not.toHaveBeenCalled();
   expect(window.open).not.toHaveBeenCalled();
+});
+
+it('simulates local review, loading, success and failure without money or access side effects', async () => {
+  mockPreview = true;
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { hostname: 'localhost' },
+  });
+  mockPurchaseAvailable = false;
+  mockSignedIn = false;
+  await mount();
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewLabel');
+  await press('plus.payment.previewPay');
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.pending');
+  await press('plus.payment.preview.success');
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.fulfilled');
+  await press('plus.payment.preview.failure');
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.failed');
+  await press('plus.payment.preview.review');
+  expect(button('plus.payment.previewPay')).toBeDefined();
+  await press('plus.payment.preview.loading');
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.pending');
+  expect(mockCheckout).not.toHaveBeenCalled();
+  expect(mockKey).not.toHaveBeenCalled();
+  expect(mockClearKey).not.toHaveBeenCalled();
+  expect(mockInvalidate).not.toHaveBeenCalled();
+  expect(window.open).not.toHaveBeenCalled();
+});
+
+it('refuses UI simulation on a non-loopback host even when the preview flag is set', async () => {
+  mockPreview = true;
+  mockPurchaseAvailable = false;
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { hostname: 'mention.earth' },
+  });
+  await mount();
+  expect(JSON.stringify(renderer.toJSON())).not.toContain('plus.payment.previewLabel');
+  expect(button('plus.payment.previewPay')).toBeUndefined();
+  expect(mockCheckout).not.toHaveBeenCalled();
+});
+
+it('allows signed-out users to inspect a prelaunch plan without an authentication step', async () => {
+  mockSignedIn = false;
+  mockPurchaseAvailable = false;
+  await mount();
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.notReady');
+  expect(button('plus.payment.signIn')).toBeUndefined();
+  expect(mockCheckout).not.toHaveBeenCalled();
 });

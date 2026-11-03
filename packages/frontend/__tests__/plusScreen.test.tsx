@@ -55,7 +55,7 @@ jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { primary: '#000' } }) }));
 
 /** /plus opens checkout without inventing or substituting a commercial price. */
-it('shows a coming-soon state without opening an unavailable payment', () => {
+it('opens the explanatory sheet before payment activation', () => {
   mockPurchaseAvailable = false;
   mockPaymentDialog.mockClear();
   act(() => {
@@ -67,9 +67,9 @@ it('shows a coming-soon state without opening an unavailable payment', () => {
   expect(props.plans[1].price).toBe('plus.payment.comingSoon');
 
   act(() => props.primaryAction?.onPress());
-  expect(props.primaryAction?.label).toBe('plus.payment.comingSoon');
-  expect(props.primaryAction?.disabled).toBe(true);
-  expect(mockPaymentDialog).not.toHaveBeenCalled();
+  expect(props.primaryAction?.label).toBe('plus.subscribe');
+  expect(props.primaryAction?.disabled).toBeFalsy();
+  expect(mockPaymentDialog).toHaveBeenCalled();
   mockPurchaseAvailable = true;
 });
 
@@ -122,7 +122,7 @@ it('keeps an actual catalogue request failure distinct from a planned launch', (
   act(() => {
     TestRenderer.create(<PlusScreen />);
   });
-  expect(mockPlansProps?.primaryAction?.label).toBe('plus.payment.pricingUnavailable');
+  expect(mockPlansProps?.primaryAction?.label).toBe('plus.subscribe');
   expect(mockPlansProps?.plans[1].price).toBe('plus.payment.pricingUnavailable');
   mockFailed = false;
   mockPurchaseAvailable = true;

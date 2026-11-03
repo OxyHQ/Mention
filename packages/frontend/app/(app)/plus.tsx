@@ -104,18 +104,10 @@ export default function PlusScreen() {
           primaryAction={
             selected === 'plus'
               ? {
-                  label: t(
-                    hasAccess
-                      ? 'plus.payment.included'
-                      : purchaseAvailable
-                        ? 'plus.subscribe'
-                        : failed
-                          ? 'plus.payment.pricingUnavailable'
-                          : 'plus.payment.comingSoon',
-                  ),
-                  disabled: hasAccess || !purchaseAvailable,
+                  label: t(hasAccess ? 'plus.payment.included' : 'plus.subscribe'),
+                  disabled: hasAccess || loading,
                   onPress: () => {
-                    if (purchaseAvailable && !hasAccess) setPaymentOpen(true);
+                    if (!hasAccess && !loading) setPaymentOpen(true);
                   },
                 }
               : undefined

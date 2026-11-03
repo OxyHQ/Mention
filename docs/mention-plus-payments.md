@@ -118,3 +118,19 @@ The initial inactive Mention catalogue uses product `mention`, capability
 these identifiers after that catalogue is published. The approved USD totals
 are 599 minor units monthly and 5750 annually, inclusive of tax. These display
 terms alone do not activate a payment provider or establish tax readiness.
+
+## Local UI preview
+
+`Subscribe` opens the detached Peable sheet before purchase activation so the
+plan can be inspected without signing in. Real payment confirmation remains
+gated by the public catalogue and authoritative account access.
+
+For local UI work only, start Expo development mode with
+`EXPO_PUBLIC_MENTION_PLUS_UI_PREVIEW=true` and open the web app on `localhost`,
+`127.0.0.1` or `[::1]`. All three conditions are required: explicit opt-in,
+`__DEV__`, and a loopback web host. The same sheet then labels itself
+**UI preview · no real charges** and offers Review, Loading, Success and Failure
+controls. Simulate payment enters the loading state. These controls never call
+checkout, open a payment window, write an operation key, refresh entitlements
+or grant access. They use the actual published catalogue prices. Production
+builds and non-loopback hosts cannot enable this simulation.

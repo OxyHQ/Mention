@@ -2958,5 +2958,14 @@
   "plus.payment.priceSuffix.month": "/ mes",
   "plus.payment.priceSuffix.year": "/ año",
   "plus.payment.notReady": "Estamos preparando las suscripciones de Mention Plus. Podrás pagar con Peable desde aquí.",
-  "plus.payment.comingSoon": "Próximamente"
+  "plus.payment.comingSoon": "Próximamente",
+  "plus.payment.previewLabel": "Vista previa · sin cobros reales",
+  "plus.payment.previewPay": "Simular pago",
+  "plus.payment.preview.review": "Revisión",
+  "plus.payment.preview.loading": "Cargando",
+  "plus.payment.preview.success": "Éxito",
+  "plus.payment.preview.failure": "Error",
+  "plus.payment.previewState.pending": "Vista previa: procesando el pago…",
+  "plus.payment.previewState.fulfilled": "Vista previa: pago completado. No se ha cobrado ni cambiado tu acceso.",
+  "plus.payment.previewState.failed": "Vista previa: el pago ha fallado. Prueba otro estado."
 }

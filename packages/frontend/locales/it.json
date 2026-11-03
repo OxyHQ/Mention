@@ -2956,5 +2956,14 @@
   "plus.payment.priceSuffix.month": "/ month",
   "plus.payment.priceSuffix.year": "/ year",
   "plus.payment.notReady": "We’re getting Mention Plus subscriptions ready. You’ll be able to pay with Peable here.",
-  "plus.payment.comingSoon": "Coming soon"
+  "plus.payment.comingSoon": "Coming soon",
+  "plus.payment.previewLabel": "UI preview · no real charges",
+  "plus.payment.previewPay": "Simulate payment",
+  "plus.payment.preview.review": "Review",
+  "plus.payment.preview.loading": "Loading",
+  "plus.payment.preview.success": "Success",
+  "plus.payment.preview.failure": "Failure",
+  "plus.payment.previewState.pending": "Preview: processing payment…",
+  "plus.payment.previewState.fulfilled": "Preview: payment complete. No charge or access change was made.",
+  "plus.payment.previewState.failed": "Preview: payment failed. Try another preview state."
 }

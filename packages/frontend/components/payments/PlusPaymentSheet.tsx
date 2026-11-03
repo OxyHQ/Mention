@@ -11,6 +11,7 @@ import {
 import { authenticatedApiCall } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
+import { MENTION_PLUS_UI_PREVIEW } from '@/config';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -61,6 +62,11 @@ export function PlusPaymentSheet({
 
 function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCadence }) {
   const { user, oxyServices, canUsePrivateApi, signIn } = useAuth();
+  const preview =
+    MENTION_PLUS_UI_PREVIEW &&
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(window.location?.hostname ?? '');
   const { activeSessionId } = useOxy();
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -104,19 +110,21 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
   useEffect(() => {
     if (!started)
       setMessage(
-        !canUsePrivateApi
-          ? 'signInRequired'
+        preview
+          ? null
           : hasAccess
             ? 'included'
             : loading || checkingAccess
               ? 'loading'
               : failed || accessFailed
                 ? 'failed'
-                : offer
-                  ? purchaseAvailable
-                    ? null
-                    : 'notReady'
-                  : 'unavailable',
+                : !offer
+                  ? 'unavailable'
+                  : !purchaseAvailable
+                    ? 'notReady'
+                    : !canUsePrivateApi
+                      ? 'signInRequired'
+                      : null,
       );
   }, [
     offer,
@@ -128,9 +136,17 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
     checkingAccess,
     accessFailed,
     purchaseAvailable,
+    preview,
   ]);
 
   async function purchase(openWindow: boolean) {
+    // The local preview stops before any account, storage, provider or entitlement operation.
+    if (preview) {
+      setStarted(true);
+      setMessage('pending');
+      setBusy(true);
+      return;
+    }
     if (
       !offer ||
       !mentionPlusBinding ||
@@ -265,6 +281,33 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
       <View className="gap-4 p-5">
         <Text accessibilityRole="header">{t('plus.payment.title')}</Text>
         <Text>{t('plus.payment.description')}</Text>
+        {preview && (
+          <View className="gap-2">
+            <Text accessibilityRole="header">{t('plus.payment.previewLabel')}</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {(['review', 'loading', 'success', 'failure'] as const).map((state) => (
+                <Button
+                  key={state}
+                  onPress={() => {
+                    setStarted(true);
+                    setBusy(state === 'loading');
+                    setMessage(
+                      state === 'review'
+                        ? null
+                        : state === 'loading'
+                          ? 'pending'
+                          : state === 'success'
+                            ? 'fulfilled'
+                            : 'failed',
+                    );
+                  }}
+                >
+                  {t(`plus.payment.preview.${state}`)}
+                </Button>
+              ))}
+            </View>
+          </View>
+        )}
         {offer?.price && (
           <>
             <Text>{offer.displayName}</Text>
@@ -285,8 +328,12 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         {(busy || message === 'loading') && (
           <ActivityIndicator accessibilityLabel={t('common.loading')} />
         )}
-        {message && <Text accessibilityLiveRegion="polite">{t(`plus.payment.${message}`)}</Text>}
-        {!canUsePrivateApi && (
+        {message && (
+          <Text accessibilityLiveRegion="polite">
+            {t(preview ? `plus.payment.previewState.${message}` : `plus.payment.${message}`)}
+          </Text>
+        )}
+        {!preview && purchaseAvailable && !canUsePrivateApi && (
           <Button
             onPress={() => {
               void signIn();
@@ -296,8 +343,8 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
           </Button>
         )}
         {offer &&
-          purchaseAvailable &&
-          canUsePrivateApi &&
+          (preview || purchaseAvailable) &&
+          (preview || canUsePrivateApi) &&
           !checkingAccess &&
           !accessFailed &&
           !done && (
@@ -307,7 +354,7 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
                 void purchase(true);
               }}
             >
-              {t('plus.payment.continue')}
+              {t(preview ? 'plus.payment.previewPay' : 'plus.payment.continue')}
             </Button>
           )}
         {offer && hasOperation && !done && (
