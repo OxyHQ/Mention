@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 56.07,
-      "covered": 16765,
-      "total": 29899
+      "pct": 56.23,
+      "covered": 16937,
+      "total": 30119
     },
     "branches": {
-      "pct": 52.33,
-      "covered": 12119,
-      "total": 23157
+      "pct": 52.64,
+      "covered": 12329,
+      "total": 23418
     },
     "functions": {
-      "pct": 50.62,
-      "covered": 3938,
-      "total": 7778
+      "pct": 50.77,
+      "covered": 3974,
+      "total": 7826
     },
     "lines": {
-      "pct": 56.98,
-      "covered": 15136,
-      "total": 26562
+      "pct": 57.18,
+      "covered": 15296,
+      "total": 26749
     }
   },
   "pins": {
@@ -581,6 +581,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useProductionCheckoutConfiguration.ts": {
+      "statements": 91,
+      "branches": 83,
+      "functions": 75,
+      "lines": 100
+    },
     "hooks/useProfileData.ts": {
       "statements": 92,
       "branches": 85,
@@ -984,10 +990,10 @@
       "lines": 100
     },
     "lib/payments/checkoutReview.ts": {
-      "statements": 85,
-      "branches": 90,
+      "statements": 100,
+      "branches": 95,
       "functions": 100,
-      "lines": 85
+      "lines": 100
     },
     "lib/payments/embeddedCheckout.ts": {
       "statements": 57,
@@ -1015,7 +1021,19 @@
     },
     "lib/payments/plusCheckoutStorage.ts": {
       "statements": 92,
-      "branches": 80,
+      "branches": 87,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/payments/productionCheckout.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/payments/sessionCheckout.ts": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
