@@ -59,6 +59,7 @@ import { mtnFeedController } from '../../mtn/controllers/feed.controller';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
+import { storeMachineVariant } from '../../db/posts/postRepository';
 import { eq } from 'drizzle-orm';
 
 const scope = serviceScope('for-you-language-e2e');
@@ -145,6 +146,22 @@ describe('anonymous For You — the reader language reaches the query', () => {
     const mine = [spanish, german];
 
     expect(await feedIds(anonRequest(['es-ES', 'es', 'en']), mine)).toEqual([spanish]);
+  });
+
+  it('admits an off-language post someone already translated into the reader language', async () => {
+    const spanish = await seedInLanguage(['es'], 10);
+    const translated = await seedInLanguage(['de'], 5_000);
+    const untranslated = await seedInLanguage(['de'], 4_000);
+    const stored = await storeMachineVariant(
+      translated,
+      { tag: 'es', source: 'machine', text: 'Hola' },
+      { force: false, sourceMatches: () => true },
+    );
+    expect(stored.kind).toBe('stored');
+
+    expect(
+      await feedIds(anonRequest(['es-ES', 'es']), [spanish, translated, untranslated]),
+    ).toEqual([translated, spanish]);
   });
 
   /**

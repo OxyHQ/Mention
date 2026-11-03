@@ -743,6 +743,20 @@
       "when": 1793643799255,
       "tag": "0105_nodeinfo_local_provenance_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1793732630188,
+      "tag": "0106_post_translated_languages",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1793732633725,
+      "tag": "0107_post_translated_languages_backfill",
+      "breakpoints": true
     }
   ]
 }

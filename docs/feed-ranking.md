@@ -266,6 +266,15 @@ merely because its language differs: there the reader chose the destination.
 They still receive corrected language and rendition metadata so translation and
 presentation behave correctly.
 
+A post is readable when it was written in one of the reader's languages
+(`postClassification.languages`) or has a machine translation into one
+(`posts.translated_languages`, kept from the post's `machine` renditions). A
+reader whose only language is Spanish therefore gets an English post that
+someone already translated into Spanish, served in Spanish. The ranking's
+language penalty and boost apply the same rule (`readableInViewerLanguages`).
+Translations are made only when a reader asks for one; the feed never
+translates on its own, and an edit drops them.
+
 The language filter describes the post text, not speech or text embedded inside
 video frames. Mention does not transcribe audio or OCR video as part of feed
 selection.

@@ -34,13 +34,18 @@
  *
  * UNITS. The reader's languages arrive as ISO 639-1 BASE subtags (`es`, not
  * `es-ES`) — `loadViewerFeedContext` normalizes once, at the boundary, so no
- * call site re-derives them. `posts.classification_languages` stores the same
- * base form, so the comparison is a direct `&&` array overlap served by the
- * existing `posts_classification_languages_gin` index.
+ * call site re-derives them. `posts.classification_languages` and
+ * `posts.translated_languages` store the same base form, so each comparison is
+ * a direct `&&` array overlap served by its GIN index
+ * (`posts_classification_languages_gin`, `posts_translated_languages_gin`).
+ *
+ * TRANSLATIONS. A post translated into the reader's language is readable, so it
+ * passes. Translations exist only once some reader asked for one
+ * (`POST /posts/:id/translate`); this never translates anything itself.
  */
 
-import { MtnConfig } from '@mention/shared-types';
-import { arrayOverlaps, type SQL } from 'drizzle-orm';
+import { MtnConfig, toBaseLanguages } from '@mention/shared-types';
+import { arrayOverlaps, or, type SQL } from 'drizzle-orm';
 import { posts } from '../../db/schema';
 import { isDiscoveryLanguageFilterEnabled } from '../../config';
 
@@ -79,5 +84,34 @@ export function viewerLanguageSql(viewerLanguages: readonly string[] | undefined
     return undefined;
   }
 
-  return arrayOverlaps(posts.classificationLanguages, [...viewerLanguages]);
+  // Readable = written in one of the reader's languages, OR translated into one
+  // (`posts.translated_languages`, kept from the post's machine renditions). A
+  // Spanish-only reader sees an English post someone already translated into
+  // Spanish, served in Spanish (`resolveViewerTag`). Both arms are GIN-indexed;
+  // ranking applies the same rule (`readableInViewerLanguages`).
+  const languages = [...viewerLanguages];
+  return or(
+    arrayOverlaps(posts.classificationLanguages, languages),
+    arrayOverlaps(posts.translatedLanguages, languages),
+  );
+}
+
+/**
+ * Whether a reader of `viewerBaseLanguages` can read the post: a language the
+ * author wrote or detected, or one it has been translated into. The one rule
+ * behind {@link viewerLanguageSql} and the ranking signals
+ * (`languageMismatchPenalty`, the personalization language boost), in memory.
+ */
+export function readableInViewerLanguages(
+  post: {
+    postClassification?: { languages?: readonly string[] | null } | null;
+    translatedLanguages?: readonly string[] | null;
+  },
+  viewerBaseLanguages: readonly string[],
+): boolean {
+  const languages = [
+    ...(post.postClassification?.languages ?? []),
+    ...(post.translatedLanguages ?? []),
+  ];
+  return toBaseLanguages(languages).some((language) => viewerBaseLanguages.includes(language));
 }

@@ -75,6 +75,7 @@ import type {
 } from '@mention/shared-types';
 import { followedAuthorsSql } from '../../utils/postAuthorship';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
+import { translatedBaseLanguages } from '../../services/postVariants';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { uuidv7 } from '@oxy.so/db';
@@ -600,6 +601,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     hasLinks: row.hasLinks,
     isEdited: row.isEdited,
     language: optional(row.language),
+    translatedLanguages: row.translatedLanguages ?? [],
     curated: optional(row.curated),
     hashtags: row.hashtags ?? [],
     editHistory: row.editHistory ?? [],
@@ -1045,6 +1047,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     // every post written by any other path stored `has_links = false` however
     // many URLs it contained, and `filter:links` matched none of them.
     hasLinks: postTextHasHttpLink(content.variants),
+    translatedLanguages: translatedBaseLanguages(content.variants),
     isEdited: false,
     language: input.language ?? null,
     hashtags: input.hashtags ?? [],
@@ -1987,6 +1990,10 @@ export async function replacePostContent(
         // `[mention:<id>]` placeholder, removing a link). `backfillPostHasLinks`
         // is the repair for any row they leave stale.
         hasLinks: postTextHasHttpLink(content.variants),
+        // Same seam, same reason: the renditions land here, so the languages
+        // their machine translations cover follow them (an edit that drops the
+        // translations clears it).
+        translatedLanguages: translatedBaseLanguages(content.variants),
         contentPollId: content.pollId ?? null,
         contentTitle: content.title ?? null,
         contentLinkUrl: content.linkUrl ?? null,
@@ -2181,7 +2188,20 @@ export async function storeMachineVariant(
     });
     await tx
       .update(posts)
-      .set({ classificationStatus: 'pending', classificationAttempts: 0 })
+      .set({
+        classificationStatus: 'pending',
+        classificationAttempts: 0,
+        // The post now reads in this language too: the feed's language gate
+        // admits it for that reader (`viewerLanguageSql`).
+        translatedLanguages: translatedBaseLanguages([
+          ...survivors.flatMap((row) =>
+            row.source === 'machine' && row.tag
+              ? [{ source: 'machine' as const, tag: row.tag }]
+              : [],
+          ),
+          { source: 'machine', tag: variant.tag },
+        ]),
+      })
       .where(eq(posts.id, postId));
     return { kind: 'stored', variant: stored };
   });

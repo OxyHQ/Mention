@@ -576,6 +576,15 @@ export const posts = pgTable(
      * `text[]` + GIN answers directly.
      */
     classificationLanguages: text().array(),
+    /**
+     * The ISO 639-1 base languages this post has a MACHINE translation in, kept
+     * in step with its `machine` rows in `post_content_variants`. Separate from
+     * `classificationLanguages` on purpose: that column is what the AUTHOR wrote
+     * (federation, safety and ranking evidence read it); this one only answers
+     * "can this reader read it", so a post translated into the reader's language
+     * passes the feed's language gate. `null` when it has no translation.
+     */
+    translatedLanguages: text().array(),
     /** Coarse region/country code. Best-effort, frequently absent. */
     classificationRegion: text(),
     /** Canonical hashtags in the classification's own normalization. */
@@ -959,6 +968,11 @@ export const posts = pgTable(
     index('posts_hashtags_gin').using('gin', t.hashtags),
     index('posts_classification_topics_gin').using('gin', t.classificationTopics),
     index('posts_classification_languages_gin').using('gin', t.classificationLanguages),
+    // Partial: only translated posts carry the column, and `&&` is strict, so a
+    // predicate on it proves `is not null` and can use this index.
+    index('posts_translated_languages_gin')
+      .using('gin', t.translatedLanguages)
+      .where(sql`${t.translatedLanguages} is not null`),
     index('posts_classification_trend_terms_gin').using('gin', t.classificationTrendTerms),
     /**
      * TRIGRAM, not membership — `GET /hashtags/search` (`routes/hashtags.ts`)

@@ -16,7 +16,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import { getBaseLanguage } from '@oxy.so/core';
+import { readableInViewerLanguages } from '../../../mtn/feed/feedLanguage';
 import type { RankablePost, RankingUserBehavior, SignalContext } from '../signalContext';
 import { getCanonicalTopics, getClassifiedConstructiveness } from './classification';
 import type { RankingSignal } from './types';
@@ -340,7 +340,7 @@ export function starterPackBoost(
  * `ctx.viewerBaseLanguages` arrives as ISO 639-1 BASE subtags — `loadViewerFeedContext`
  * normalizes the account's BCP-47 locales (`es-ES`) once, at the boundary — so
  * this is a same-unit comparison against `postClassification.languages` and only
- * the POST side needs `getBaseLanguage` (a federated declaration can still carry a
+ * the POST side needs normalizing to its base (a federated declaration can still carry a
  * region). Region is deliberately ignored: a Mexican Spanish reader reads Spain's
  * Spanish. Both lists are tiny (≤ 3 entries), so the overlap check is a cheap
  * nested scan.
@@ -367,10 +367,11 @@ export function languageMismatchPenalty(
   if (!Array.isArray(postLanguages) || postLanguages.length === 0) {
     return 1.0;
   }
-  const overlaps = postLanguages.some((lang) =>
-    viewerBaseLanguages.includes(getBaseLanguage(lang)),
-  );
-  return overlaps ? 1.0 : R.optInSignals.languageMismatchPenalty.penalty;
+  // The same rule as the SQL gate: a translation into the reader's language
+  // makes the post readable.
+  return readableInViewerLanguages(post, viewerBaseLanguages)
+    ? 1.0
+    : R.optInSignals.languageMismatchPenalty.penalty;
 }
 
 /**

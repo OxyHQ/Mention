@@ -43,7 +43,12 @@ describe('the source-key match is index-driven', () => {
     const plan = await planOf(postMatchesFederatedObjectSql(NOTE));
     expect(plan).not.toMatch(/Seq Scan on posts/);
     expect(plan).toMatch(/post_source_keys_source_key_key/);
-    expect(plan).toMatch(/posts_federation_activity_id_key/);
+    // Both arms of the `or` are index scans combined in a BitmapOr. Which index
+    // serves the activity-id arm is not pinned: on this near-empty shared table
+    // the unique key and the partial `posts_external_kind_idx` cost the same, and
+    // the planner's pick between equal paths moves with every index added to
+    // `posts`. Production's row counts make the unique key the only cheap one.
+    expect(plan).toMatch(/BitmapOr/);
   });
 
   it('nor does the published-object resolution (Like / Announce / reply parent)', async () => {
