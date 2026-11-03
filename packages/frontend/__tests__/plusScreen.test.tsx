@@ -1,3 +1,13 @@
+jest.mock('@/hooks/useProductionCheckoutConfiguration', () => ({
+  useProductionCheckoutConfiguration: () => undefined,
+}));
+let mockProductionProps: { review: unknown; onClose(): void } | null = null;
+jest.mock('@/components/payments/ProductionPlusCheckout', () => ({
+  ProductionPlusCheckout: (props: typeof mockProductionProps) => {
+    mockProductionProps = props;
+    return null;
+  },
+}));
 jest.mock('@oxy.so/bloom/typography', () => {
   const text = ({ children }: { children: React.ReactNode }) => <span>{children}</span>;
   return { Text: text, Title: text, Subtitle: text };
@@ -38,6 +48,7 @@ jest.mock('@/components/payments/CheckoutPreviewBadge', () => ({
   CheckoutPreviewBadge: () => null,
 }));
 import TestRenderer, { act } from 'react-test-renderer';
+import { Platform } from 'react-native';
 import type { SubscriptionPriceValue } from '@oxy.so/bloom/subscription-plans';
 import PlusScreen from '@/app/(app)/plus';
 
@@ -54,14 +65,23 @@ let mockPurchaseAvailable = true;
 let mockFailed = false;
 const mockFormatUsd = jest.fn(() => 'Approx. 12 FAIR');
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ user: mockUserId ? { id: mockUserId } : undefined }),
+  useAuth: () => ({
+    user: mockUserId ? { id: mockUserId } : undefined,
+    canUsePrivateApi: !!mockUserId,
+    signIn: jest.fn(),
+  }),
   useOxy: () => ({ activeSessionId: mockSessionId }),
   useDisplayPrice: () => ({ currency: mockDisplayCurrency, formatUsd: mockFormatUsd }),
 }));
 jest.mock('@/hooks/usePlusOffer', () => ({
   usePlusOffer: (cadence: string) => {
     mockCadence = cadence;
-    return { offer: mockOffer, purchaseAvailable: mockPurchaseAvailable, failed: mockFailed };
+    return {
+      offer: mockOffer,
+      binding: { productId: 'mention', capabilityKey: 'plus', offerId: 'month', offerVersion: 1 },
+      purchaseAvailable: mockPurchaseAvailable,
+      failed: mockFailed,
+    };
   },
 }));
 let mockCadenceProps: { value: string; onValueChange(value: string): void };
@@ -243,4 +263,42 @@ it('groups all Plus benefits and renders both selectors under the same row', () 
   );
   expect(mockGroupTitles).toEqual(['plus.freeBenefitSocial', 'plus.benefitMono']);
   act(() => tree?.unmount());
+});
+
+it('opens the authenticated production review without a local-preview gate and removes it on account loss', () => {
+  const previousPlatform = Platform.OS;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  mockDevelopment = false;
+  mockProductionProps = null;
+  mockUserId = 'buyer';
+  mockSessionId = 'session';
+  mockOffer = {
+    productId: 'mention',
+    offerId: 'month',
+    offerVersion: 1,
+    displayName: 'Mention Plus',
+    price: { amountMinorUnits: 599, currency: 'USD', interval: 'month' },
+  };
+  let tree: TestRenderer.ReactTestRenderer | undefined;
+  try {
+    act(() => {
+      tree = TestRenderer.create(<PlusScreen />);
+    });
+    act(() => mockPrimary.onPress());
+    expect(mockProductionProps).toMatchObject({
+      review: { amountMinorUnits: 599, offerId: 'month' },
+    });
+    mockUserId = undefined;
+    act(() => tree?.update(<PlusScreen />));
+    expect(
+      tree?.root.findAllByType(
+        require('@/components/payments/ProductionPlusCheckout').ProductionPlusCheckout,
+      ),
+    ).toHaveLength(0);
+  } finally {
+    act(() => tree?.unmount());
+    mockUserId = undefined;
+    mockSessionId = undefined;
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: previousPlatform });
+  }
 });

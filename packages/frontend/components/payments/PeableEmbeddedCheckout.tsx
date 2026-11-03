@@ -1,3 +1,8 @@
+import type { ReactNode } from 'react';
+import type {
+  SessionCheckoutBinding,
+  SessionCheckoutPreparation,
+} from '@/lib/payments/sessionCheckout';
 import type { CheckoutConfiguration } from '@/lib/payments/checkoutConfiguration';
 import type { CheckoutReview } from '@/lib/payments/checkoutReview';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -30,6 +35,11 @@ export function PeableEmbeddedCheckout({
   configuration,
   onRetry,
   observeSubscription,
+  prepareSession,
+  observeSession,
+  billingContent,
+  billingDetails,
+  billingComplete = true,
   onClose,
 }: {
   binding?: EmbeddedCheckoutBinding;
@@ -37,6 +47,11 @@ export function PeableEmbeddedCheckout({
   configuration?: CheckoutConfiguration;
   onRetry?: () => void;
   observeSubscription?: (binding: EmbeddedCheckoutBinding) => Promise<boolean>;
+  prepareSession?: () => Promise<SessionCheckoutPreparation>;
+  observeSession?: () => Promise<boolean>;
+  billingContent?: ReactNode;
+  billingDetails?: { country: string; postcode: string; email?: string };
+  billingComplete?: boolean;
   onClose(): void;
 }) {
   const { t, i18n } = useTranslation();
@@ -46,6 +61,9 @@ export function PeableEmbeddedCheckout({
   );
   const [intent, setIntent] = useState<Intent | null>(binding?.initial?.intent ?? null);
   const [action, setAction] = useState<PeableClientAction | null>(binding?.initial?.action ?? null);
+  const [session, setSession] = useState<SessionCheckoutBinding>();
+  const [awaitingFulfillment, setAwaitingFulfillment] = useState(false);
+  const [prepareRequested, setPrepareRequested] = useState(false);
   const [step, setStep] = useState<CheckoutStep>('review');
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -212,8 +230,75 @@ export function PeableEmbeddedCheckout({
       unsubscribe?.();
     };
   }, [binding, client, t, feedback.play]);
+  // Session completion remains an authenticated Oxy observation, never a browser confirmation.
+  const observeSessionRef = useRef(observeSession);
+  observeSessionRef.current = observeSession;
+  useEffect(() => {
+    if (!session && !awaitingFulfillment) return;
+    let disposed = false;
+    let reading = false;
+    const read = async () => {
+      if (disposed || reading || terminal.current) return;
+      reading = true;
+      try {
+        const fulfilled = await observeSessionRef.current?.();
+        if (disposed || !fulfilled) return;
+        terminal.current = 'success';
+        setStep('success');
+        setError(null);
+        if (!sounded.current) {
+          sounded.current = true;
+          feedback.play('success', 1);
+        }
+      } catch {
+        if (!disposed) setError(t(`${prefix}connection`));
+      } finally {
+        reading = false;
+      }
+    };
+    void read();
+    const timer = setInterval(() => {
+      void read();
+    }, 3000);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+    };
+  }, [session, awaitingFulfillment, t, feedback.play]);
+  const prepareCardRef = useRef(prepareCard);
+  prepareCardRef.current = prepareCard;
+  useEffect(() => {
+    if (prepareRequested && session && ready && !busy) {
+      setPrepareRequested(false);
+      void prepareCardRef.current();
+    }
+  }, [prepareRequested, session, ready, busy]);
   async function prepareCard() {
-    if (!binding || !intent || !action || inFlight.current || !prepareRef.current || !ready) return;
+    if (inFlight.current || !billingComplete) return;
+    if (!session && prepareSession) {
+      inFlight.current = true;
+      setBusy(true);
+      setError(null);
+      try {
+        const bound = await prepareSession();
+        if (!active.current) return;
+        if ('state' in bound) {
+          setAwaitingFulfillment(true);
+          setAccepted(true);
+          setStep('processing');
+        } else {
+          setSession(bound);
+          setPrepareRequested(true);
+        }
+      } catch {
+        if (active.current) setError(t(`${prefix}connection`));
+      } finally {
+        inFlight.current = false;
+        if (active.current) setBusy(false);
+      }
+      return;
+    }
+    if ((!session && (!binding || !intent || !action)) || !prepareRef.current || !ready) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -245,11 +330,10 @@ export function PeableEmbeddedCheckout({
 
   async function confirm() {
     if (
-      !binding ||
       inFlight.current ||
       !authorizationRef.current ||
-      !action ||
-      !providerActionMatchesEnvironment(action, binding.environment)
+      (!session &&
+        (!binding || !action || !providerActionMatchesEnvironment(action, binding.environment)))
     )
       return;
     inFlight.current = true;
@@ -279,9 +363,15 @@ export function PeableEmbeddedCheckout({
     onClose();
   }
   if (!intent && !review) return null;
-  const amount = intent ? Number(intent.amount) : (review?.amountMinorUnits ?? 0);
-  const canAdvance = (!!binding && !!intent && !!action) || !!configuration;
-  const methods = binding?.paymentMethods ?? configuration?.paymentMethods;
+  const subscription = session?.subscription ?? binding?.subscription;
+  const amount = session
+    ? session.action.amount_minor_units
+    : intent
+      ? Number(intent.amount)
+      : (review?.amountMinorUnits ?? 0);
+  const canAdvance = !!session || (!!binding && !!intent && !!action) || !!configuration;
+  const methods =
+    session?.paymentMethods ?? binding?.paymentMethods ?? configuration?.paymentMethods;
   const cardAvailable =
     methods?.find((method) => method.id === 'card')?.available ??
     (!!binding && !binding.paymentMethods);
@@ -305,19 +395,19 @@ export function PeableEmbeddedCheckout({
       continueDisabled={!canAdvance}
       brandState={restoredBrand ? 'idle' : busy ? 'loading' : undefined}
       request={{
-        merchant: binding?.subscription || review ? 'Mention' : t(`${prefix}title`),
+        merchant: subscription || review ? 'Mention' : t(`${prefix}title`),
         currency: intent?.currency ?? review?.currency ?? 'USD',
         dueTodayMinorUnits: amount,
         requiresContact: false,
         requiresShipping: false,
         // Only bound, implemented authorizations are selectable; unavailable Peable methods remain visible below.
         paymentMethods: canAdvance && cardAvailable ? ['card'] : [],
-        tax: binding?.subscription?.tax,
-        recurring: binding?.subscription
+        tax: subscription?.tax,
+        recurring: subscription
           ? {
-              amountMinorUnits: binding.subscription.amountMinorUnits,
-              interval: binding.subscription.interval,
-              startsOn: binding.subscription.startsOn,
+              amountMinorUnits: subscription.amountMinorUnits,
+              interval: subscription.interval,
+              startsOn: subscription.startsOn,
             }
           : review
             ? { amountMinorUnits: review.amountMinorUnits, interval: review.interval }
@@ -325,11 +415,11 @@ export function PeableEmbeddedCheckout({
         items: [
           {
             id: review?.offerId ?? intent?.id ?? 'review',
-            name: binding?.subscription || review ? 'Mention Plus' : t(`${prefix}oneTime`),
+            name: subscription || review ? 'Mention Plus' : t(`${prefix}oneTime`),
             detail:
-              binding?.subscription || review
+              subscription || review
                 ? t(
-                    `plus.payment.cadence${(binding?.subscription?.interval ?? review?.interval) === 'month' ? 'Month' : 'Year'}`,
+                    `plus.payment.cadence${(subscription?.interval ?? review?.interval) === 'month' ? 'Month' : 'Year'}`,
                   )
                 : t(`${prefix}noAccess`),
             quantity: 1,
@@ -369,7 +459,7 @@ export function PeableEmbeddedCheckout({
       onCard={() => {}}
       savedCards={[]}
       paymentMethods={
-        binding || configuration
+        session || binding || configuration
           ? [
               {
                 id: 'bank',
@@ -403,10 +493,12 @@ export function PeableEmbeddedCheckout({
         ) : undefined
       }
       cardEntry={
-        action || configuration ? (
+        session || action || configuration ? (
           <>
             <PeableProviderFields
-              action={action ?? undefined}
+              action={session ? undefined : (action ?? undefined)}
+              checkoutSession={session?.action}
+              billingDetails={billingDetails}
               cardConfiguration={
                 configuration ? { publishableKey: configuration.publishableKey } : undefined
               }
@@ -421,9 +513,17 @@ export function PeableEmbeddedCheckout({
               loadingLabel={t(`${prefix}loading`)}
               unavailableLabel={t(`${prefix}connection`)}
             />
+            {billingContent}
             <Button
               size="lg"
-              disabled={!onRetry && (!binding || !action || !ready || busy)}
+              disabled={
+                !onRetry &&
+                (busy ||
+                  !billingComplete ||
+                  (prepareSession && !session
+                    ? false
+                    : !ready || (!session && (!binding || !action))))
+              }
               onPress={() => {
                 if (onRetry) onRetry();
                 else void prepareCard();

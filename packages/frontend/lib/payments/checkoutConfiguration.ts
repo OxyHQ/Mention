@@ -3,12 +3,14 @@ import type { CheckoutReview } from './checkoutReview';
 
 /** Public collection configuration, never payer or merchant authorization. */
 export interface CheckoutConfiguration {
-  environment: 'test';
+  environment: 'test' | 'live';
   publishableKey: string;
   currency: 'USD';
   expiresAt: string;
-  scope: { merchantId: string; productId: 'peable_local_mention_plus' };
-  prices: Record<'month' | 'year', { amountMinorUnits: number; interval: 'month' | 'year' }>;
+  scope: { merchantId: string; productId: string };
+  prices: Partial<
+    Record<'month' | 'year', { amountMinorUnits: number; interval: 'month' | 'year' }>
+  >;
   paymentMethods: NonNullable<EmbeddedCheckoutBinding['paymentMethods']>;
 }
 function record(value: unknown): value is Record<string, unknown> {
@@ -92,7 +94,7 @@ export function configurationMatchesReview(
   return (
     Date.parse(configuration.expiresAt) > now &&
     configuration.currency === review.currency &&
-    price.interval === review.interval &&
+    price?.interval === review.interval &&
     price.amountMinorUnits === review.amountMinorUnits
   );
 }

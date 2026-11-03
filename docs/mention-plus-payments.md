@@ -399,21 +399,38 @@ configuration explained. The card adapter's provider restriction does not remove
 Peable's other payment methods. Their live capabilities, the account-wallet bridge,
 and real Mention Plus entitlement activation are not provided by this local test.
 
-## Production release boundary
+## Production checkout and activation boundary
 
-The reusable Bloom/Peable checkout is published independently of activating a
-commercial offer. Production keeps the existing catalogue launch gate: an
-unavailable offer displays Coming soon and cannot initiate payment. A configured
-offer continues through the authenticated Oxy `startProductPlanCheckout` flow and
-its validated hosted checkout URL until central billing supplies an embedded
-payer binding. Development alone uses the guarded loopback test harness.
+The web checkout uses authenticated Oxy billing configuration and the same persistent
+Peable/Bloom sheet as the local integration. Subscribe opens the captured published
+offer immediately. A read-only, account/session-scoped configuration warms secure
+card fields without creating a customer or subscription. Native clients retain the
+validated hosted checkout handoff until a native secure-field adapter exists.
 
-At Oxy main `d2a80c156`, `PersonalPlanCheckoutResult` exposes pending intent ID and
-an optional HTTPS checkout URL, not a payer capability or embedded readiness
-endpoint. Its Peable adapter creates or renews hosted billing sessions. Replacing
-that production transport requires an authenticated, account/offer-bound contract
-extension across Oxy contracts/core/API and Peable billing, plus authoritative
-paid-invoice/subscription observation and the existing entitlement reconciliation.
-Neither client-side confirmation nor the local test endpoint can substitute for
-those authorities. Provider, merchant and fiscal activation remain separate from
-shipping the UI; this release does not enable a live sale or grant access.
+The buyer supplies billing address details before Continue creates the subscription
+session. Address, receipt email, and the ephemeral session capability stay in component
+memory; they are never written to query caches, URLs, logs or persisted drafts.
+Continue freezes those details and uses an account/offer-scoped embedded operation
+key. Oxy validates the payer, merchant, offer and tax evidence; insufficient evidence
+fails closed. The browser rejects any changed subject, merchant, provider key,
+currency, cadence, amount or inclusive tax total. Public configuration alone never
+authorizes payment.
+
+Secure fields return an opaque payment method on Continue. Only the separate Pay
+action confirms the session. A lost confirmation response, or an already-complete
+session without a new capability, is recovered through the same Oxy operation.
+Only Oxy's fulfilled result refreshes authoritative Plus access; browser completion
+does not grant access. Changed accounts/sessions discard outstanding responses and
+unmount the old checkout. Existing pending purchases never become a second purchase
+by silently replacing their idempotency key or presentation.
+
+Publishing this source does not activate a merchant or override the catalogue's
+purchase gate. Live activation still requires the reviewed provider, merchant,
+commercial and fiscal configuration. Unsupported bank, installment and FairCoin
+methods remain visibly unavailable according to the server's capabilities. The
+loopback TEST gateway is development-only and cannot serve production checkout.
+
+The session adapter was additionally verified against a real provider TEST session
+using the production API version: USD 5.99, a paid invoice and active monthly
+subscription. That transport test does not establish a Peable settlement or an Oxy
+entitlement grant, and it is not evidence of live commercial activation.

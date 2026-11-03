@@ -1,3 +1,5 @@
+import { ProductionPlusCheckout } from '@/components/payments/ProductionPlusCheckout';
+import { useProductionCheckoutConfiguration } from '@/hooks/useProductionCheckoutConfiguration';
 import { useCheckoutConfiguration } from '@/hooks/useCheckoutConfiguration';
 import { captureCheckoutReview, type CheckoutReview } from '@/lib/payments/checkoutReview';
 import { PreparedPlusCheckout } from '@/components/payments/PreparedPlusCheckout';
@@ -7,7 +9,7 @@ import { useLocalSearchParams, useRouter } from '@/lib/navigation/router';
 import { localProviderTestBinding } from '@/lib/payments/localProviderTest';
 import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge';
 import { useEffect, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SubscriptionPrice, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
@@ -51,14 +53,22 @@ export default function PlusScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const [cadence, setCadence] = useState<PlusCadence>('month');
-  const { offer, hasAccess, purchaseAvailable, failed, loading } = usePlusOffer(cadence);
+  const {
+    offer,
+    binding: offerBinding,
+    hasAccess,
+    purchaseAvailable,
+    failed,
+    loading,
+  } = usePlusOffer(cadence);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const developmentCheckout = isLocalCheckoutPreview();
-  const { user } = useAuth();
+  const { user, canUsePrivateApi, signIn } = useAuth();
   const { activeSessionId } = useOxy();
   const scope = JSON.stringify([
     user?.id,
     activeSessionId,
+    canUsePrivateApi,
     cadence,
     offer?.productId,
     offer?.offerId,
@@ -67,6 +77,12 @@ export default function PlusScreen() {
     offer?.price?.currency,
     hasAccess,
   ]);
+  const productionCheckout = !developmentCheckout && Platform.OS === 'web';
+  const productionConfiguration = useProductionCheckoutConfiguration(
+    productionCheckout && purchaseAvailable,
+    captureCheckoutReview(offer),
+    scope,
+  );
   const configuration = useCheckoutConfiguration(
     developmentCheckout,
     user?.id,
@@ -92,7 +108,11 @@ export default function PlusScreen() {
   }, [scope, preparation]);
   const openPayment = () => {
     if (paymentOpen) return;
-    if (developmentCheckout) {
+    if (productionCheckout && !canUsePrivateApi) {
+      void signIn();
+      return;
+    }
+    if (developmentCheckout || productionCheckout) {
       const review = captureCheckoutReview(offer);
       if (!review || review.interval !== cadence) {
         toast(t('plus.checkout.providerTest.bootstrapFailed'), { type: 'error' });
@@ -287,6 +307,16 @@ export default function PlusScreen() {
               href={typeof window === 'undefined' ? '' : (window.location?.href ?? '')}
               operationKey={preparation.operationKey}
               initialBinding={checkoutBinding ?? undefined}
+              onClose={closePayment}
+            />
+          ) : null
+        ) : productionCheckout ? (
+          preparation && preparation.scope === scope && offerBinding ? (
+            <ProductionPlusCheckout
+              key={preparation.operationKey}
+              review={preparation.review}
+              offerBinding={offerBinding}
+              configuration={productionConfiguration}
               onClose={closePayment}
             />
           ) : null

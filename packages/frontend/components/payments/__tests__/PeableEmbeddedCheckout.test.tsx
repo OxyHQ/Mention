@@ -462,3 +462,67 @@ it('defers success to the supplied account authority rather than the local subsc
   expect(mockSheet.step).toBe('success');
   expect(mockObserve).not.toHaveBeenCalled();
 });
+
+it('uses a production session without a payer intent and waits for authoritative fulfillment', async () => {
+  mockConfirm.mockResolvedValue({ accepted: true });
+  const prepareSession = jest.fn().mockResolvedValue({
+    action: {
+      kind: 'checkout_session',
+      provider: 'stripe',
+      session_id: 'cs_live_owned',
+      client_secret: 'opaque-fixture',
+      publishable_key: 'pk_live_owned',
+      amount_minor_units: 599,
+      currency: 'USD',
+    },
+    subscription: { interval: 'month', amountMinorUnits: 599, currency: 'USD' },
+    paymentMethods: [{ id: 'card', available: true }],
+  });
+  const observeSession = jest.fn().mockResolvedValue(false);
+  const review = {
+    productId: 'mention',
+    offerId: 'month',
+    offerVersion: 1,
+    interval: 'month' as const,
+    currency: 'USD',
+    amountMinorUnits: 599,
+  };
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <PeableEmbeddedCheckout
+        review={review}
+        configuration={{
+          environment: 'live',
+          publishableKey: 'pk_live_owned',
+          currency: 'USD',
+          expiresAt: '2100-01-01T00:00:00Z',
+          scope: { merchantId: 'merch_owned', productId: 'mention' },
+          prices: { month: { amountMinorUnits: 599, interval: 'month' } },
+          paymentMethods: [{ id: 'card', available: true }],
+        }}
+        prepareSession={prepareSession}
+        observeSession={observeSession}
+        billingComplete
+        onClose={mockClose}
+      />,
+    );
+  });
+  expect(prepareSession).not.toHaveBeenCalled();
+  act(() => mockSheet.onStep('card'));
+  const button = renderer.root.findAllByType('button').find((item) => !item.props.disabled);
+  if (!button) throw new Error('Expected billing Continue');
+  await act(async () => button.props.onClick());
+  expect(prepareSession).toHaveBeenCalledTimes(1);
+  expect(mockFields.checkoutSession?.session_id).toBe('cs_live_owned');
+  expect(mockFields.action).toBeUndefined();
+  expect(mockRead).not.toHaveBeenCalled();
+  expect(mockObserve).not.toHaveBeenCalled();
+  expect(mockConfirm).not.toHaveBeenCalled();
+  expect(mockSheet.step).toBe('confirmation');
+  await act(async () => mockSheet.onAuthorize());
+  expect(mockSheet.step).toBe('processing');
+  expect(mockPlay).not.toHaveBeenCalled();
+  observeSession.mockResolvedValue(true);
+  await act(async () => jest.advanceTimersByTime(3000));
+  expect(mockSheet.step).toBe('success');
+});

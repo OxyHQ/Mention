@@ -3154,5 +3154,9 @@
   "plus.benefitMono": "Tema monocromático",
   "plus.benefitMonoDescription": "Personaliza Mention con el tema Mono.",
   "plus.payment.cadenceYearShort": "Anual",
-  "plus.payment.annualDiscount": "Ahorra un 20 % con el pago anual."
+  "plus.payment.annualDiscount": "Ahorra un 20 % con el pago anual.",
+  "plus.checkout.billing.title": "Dirección de facturación",
+  "plus.checkout.billing.line2": "Apartamento, piso o unidad (opcional)",
+  "plus.checkout.billing.state": "Estado, provincia o región",
+  "plus.checkout.billing.locked": "Esta dirección está vinculada al pago actual."
 }
