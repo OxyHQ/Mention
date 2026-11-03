@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { upsertActor } from '../../db/federation/actorRepository';
 import { resolveOxyIdentity } from '../oxyIdentity';
+import { recordFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import {
   BSKY_NETWORK_DOMAIN,
@@ -289,6 +290,13 @@ export async function upsertAtprotoActor(
     check: 'refresh',
   });
   if (projection.refusal) return { ...actor, oxyUserId: undefined };
+  // The banner is Mention's own (`user_settings.profile_header_image`): queue the
+  // source's URL for the banner sweep, as every other network's resolve does.
+  recordFederatedBannerInBackground({
+    oxyUserId: resolved.user.id,
+    actorUri: did,
+    bannerUrl: actor.bannerUrl,
+  });
   return {
     ...actor,
     oxyUserId: resolved.user.id,
