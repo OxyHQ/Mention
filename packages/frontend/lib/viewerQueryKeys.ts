@@ -175,6 +175,12 @@ export const viewerQueryKeys = {
       offerId,
       offerVersion,
     ] as const,
+  checkoutConfiguration: (
+    viewerId: ViewerId,
+    sessionId: string | null | undefined,
+    scope: string,
+  ) =>
+    [...viewerQueryKeys.all(viewerId), 'checkout-configuration', sessionId ?? null, scope] as const,
   mentionPlusAccess: (
     viewerId: ViewerId,
     sessionId: string | null | undefined,

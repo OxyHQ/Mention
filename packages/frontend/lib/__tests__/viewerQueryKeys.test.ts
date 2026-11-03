@@ -479,3 +479,18 @@ describe('Mention personalization key', () => {
     );
   });
 });
+
+it('isolates public checkout configuration by viewer, session and reviewed offer scope', () => {
+  expect(viewerQueryKeys.checkoutConfiguration(undefined, undefined, 'month')).toEqual([
+    ...viewerQueryKeys.all(undefined),
+    'checkout-configuration',
+    null,
+    'month',
+  ]);
+  expect(viewerQueryKeys.checkoutConfiguration('a', 'session-a', 'month')).not.toEqual(
+    viewerQueryKeys.checkoutConfiguration('a', 'session-b', 'month'),
+  );
+  expect(viewerQueryKeys.checkoutConfiguration('a', 'session-a', 'month')).not.toEqual(
+    viewerQueryKeys.checkoutConfiguration('b', 'session-a', 'year'),
+  );
+});

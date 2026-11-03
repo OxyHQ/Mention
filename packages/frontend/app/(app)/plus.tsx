@@ -1,12 +1,12 @@
-import { prepareEmbeddedCheckout } from '@/lib/payments/embeddedCheckout';
+import { useCheckoutConfiguration } from '@/hooks/useCheckoutConfiguration';
+import { captureCheckoutReview, type CheckoutReview } from '@/lib/payments/checkoutReview';
+import { PreparedPlusCheckout } from '@/components/payments/PreparedPlusCheckout';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useLocalSearchParams, useRouter } from '@/lib/navigation/router';
-import {
-  createLocalProviderTestBinding,
-  localProviderTestBinding,
-} from '@/lib/payments/localProviderTest';
+import { localProviderTestBinding } from '@/lib/payments/localProviderTest';
 import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
@@ -53,42 +53,53 @@ export default function PlusScreen() {
   const { offer, hasAccess, purchaseAvailable, failed, loading } = usePlusOffer(cadence);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const developmentCheckout = isLocalCheckoutPreview();
-  const [bootstrapBusy, setBootstrapBusy] = useState(false);
-  const bootstrapOperation = useRef<string | null>(null);
-  const bootstrapAbort = useRef<AbortController | null>(null);
-  useEffect(() => () => bootstrapAbort.current?.abort(), []);
-  const openPayment = async () => {
-    if (bootstrapAbort.current || paymentOpen) return;
-    if (!developmentCheckout) {
-      setPaymentOpen(true);
-      return;
+  const { user } = useAuth();
+  const { activeSessionId } = useOxy();
+  const scope = JSON.stringify([
+    user?.id,
+    activeSessionId,
+    cadence,
+    offer?.productId,
+    offer?.offerId,
+    offer?.offerVersion,
+    offer?.price?.amountMinorUnits,
+    offer?.price?.currency,
+    hasAccess,
+  ]);
+  const configuration = useCheckoutConfiguration(
+    developmentCheckout,
+    user?.id,
+    activeSessionId,
+    scope,
+  );
+  const [preparation, setPreparation] = useState<{
+    review: CheckoutReview;
+    operationKey: string;
+    scope: string;
+  } | null>(null);
+  const closePayment = () => {
+    setPaymentOpen(false);
+    setPreparation(null);
+    setCheckoutBinding(null);
+  };
+  useEffect(() => {
+    if (preparation && preparation.scope !== scope) {
+      setPaymentOpen(false);
+      setPreparation(null);
+      setCheckoutBinding(null);
     }
-    const controller = new AbortController();
-    bootstrapAbort.current = controller;
-    bootstrapOperation.current ??= `mention_${crypto.randomUUID()}`;
-    setBootstrapBusy(true);
-    try {
-      const binding =
-        checkoutBinding ??
-        (await createLocalProviderTestBinding(
-          bootstrapOperation.current,
-          window.location.href,
-          isLocalCheckoutPreview(),
-          controller.signal,
-          cadence,
-        ));
-      const prepared = await prepareEmbeddedCheckout(binding, controller.signal);
-      if (!controller.signal.aborted) {
-        setCheckoutBinding(prepared);
-        setPaymentOpen(true);
-      }
-    } catch {
-      if (!controller.signal.aborted)
+  }, [scope, preparation]);
+  const openPayment = () => {
+    if (paymentOpen) return;
+    if (developmentCheckout) {
+      const review = captureCheckoutReview(offer);
+      if (!review || review.interval !== cadence) {
         toast(t('plus.checkout.providerTest.bootstrapFailed'), { type: 'error' });
-    } finally {
-      if (!controller.signal.aborted) setBootstrapBusy(false);
-      bootstrapAbort.current = null;
+        return;
+      }
+      setPreparation({ review, operationKey: `mention_${crypto.randomUUID()}`, scope });
     }
+    setPaymentOpen(true);
   };
   const [selected, setSelected] = useState('plus');
   const plans: SubscriptionPlan[] = [
@@ -151,10 +162,10 @@ export default function PlusScreen() {
             if (!paymentOpen) setCadence(value);
           }}
         >
-          <SegmentedControlItem value="month" disabled={paymentOpen || bootstrapBusy}>
+          <SegmentedControlItem value="month" disabled={paymentOpen}>
             <SegmentedControlItemText>{t('plus.payment.cadenceMonth')}</SegmentedControlItemText>
           </SegmentedControlItem>
-          <SegmentedControlItem value="year" disabled={paymentOpen || bootstrapBusy}>
+          <SegmentedControlItem value="year" disabled={paymentOpen}>
             <SegmentedControlItemText>{t('plus.payment.cadenceYear')}</SegmentedControlItemText>
           </SegmentedControlItem>
         </SegmentedControl>
@@ -168,21 +179,15 @@ export default function PlusScreen() {
             selected === 'plus'
               ? {
                   label: t(
-                    bootstrapBusy
-                      ? 'common.loading'
-                      : hasAccess
-                        ? 'plus.payment.included'
-                        : developmentCheckout || purchaseAvailable
-                          ? 'plus.subscribe'
-                          : failed
-                            ? 'plus.payment.pricingUnavailable'
-                            : 'plus.payment.comingSoon',
+                    hasAccess
+                      ? 'plus.payment.included'
+                      : developmentCheckout || purchaseAvailable
+                        ? 'plus.subscribe'
+                        : failed
+                          ? 'plus.payment.pricingUnavailable'
+                          : 'plus.payment.comingSoon',
                   ),
-                  disabled:
-                    hasAccess ||
-                    loading ||
-                    bootstrapBusy ||
-                    (!developmentCheckout && !purchaseAvailable),
+                  disabled: hasAccess || loading || (!developmentCheckout && !purchaseAvailable),
                   onPress: () => {
                     if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
                       void openPayment();
@@ -207,17 +212,22 @@ export default function PlusScreen() {
         )}
       </ScreenScrollView>
       {isLocalCheckoutPreview() && <CheckoutPreviewBadge providerTest={developmentCheckout} />}
-      {paymentOpen && (
-        <PlusPaymentSheet
-          embeddedBinding={developmentCheckout ? (checkoutBinding ?? undefined) : undefined}
-          cadence={cadence}
-          onClose={() => {
-            setPaymentOpen(false);
-            setCheckoutBinding(null);
-            bootstrapOperation.current = null;
-          }}
-        />
-      )}
+      {paymentOpen &&
+        (developmentCheckout ? (
+          preparation && preparation.scope === scope ? (
+            <PreparedPlusCheckout
+              key={preparation.operationKey}
+              review={preparation.review}
+              configuration={configuration}
+              href={typeof window === 'undefined' ? '' : (window.location?.href ?? '')}
+              operationKey={preparation.operationKey}
+              initialBinding={checkoutBinding ?? undefined}
+              onClose={closePayment}
+            />
+          ) : null
+        ) : (
+          <PlusPaymentSheet cadence={cadence} onClose={closePayment} />
+        ))}
     </Screen>
   );
 }
