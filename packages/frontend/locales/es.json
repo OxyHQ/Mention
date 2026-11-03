@@ -3158,5 +3158,6 @@
   "plus.checkout.billing.title": "Dirección de facturación",
   "plus.checkout.billing.line2": "Apartamento, piso o unidad (opcional)",
   "plus.checkout.billing.state": "Estado, provincia o región",
-  "plus.checkout.billing.locked": "Esta dirección está vinculada al pago actual."
+  "plus.checkout.billing.locked": "Esta dirección está vinculada al pago actual.",
+  "plus.checkout.billing.required": "Completa o corrige la dirección de facturación para continuar."
 }

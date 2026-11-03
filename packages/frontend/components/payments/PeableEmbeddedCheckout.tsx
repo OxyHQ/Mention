@@ -282,7 +282,9 @@ export function PeableEmbeddedCheckout({
       try {
         const bound = await prepareSession();
         if (!active.current) return;
-        if ('state' in bound) {
+        if ('state' in bound && bound.state === 'billing_details_required') {
+          setError(t('plus.checkout.billing.required'));
+        } else if ('state' in bound) {
           setAwaitingFulfillment(true);
           setAccepted(true);
           setStep('processing');

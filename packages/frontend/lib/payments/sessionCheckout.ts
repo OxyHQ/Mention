@@ -11,4 +11,7 @@ export interface SessionCheckoutBinding {
   paymentMethods: NonNullable<EmbeddedCheckoutBinding['paymentMethods']>;
 }
 
-export type SessionCheckoutPreparation = SessionCheckoutBinding | { state: 'awaiting_fulfillment' };
+export type SessionCheckoutPreparation =
+  | SessionCheckoutBinding
+  | { state: 'awaiting_fulfillment' }
+  | { state: 'billing_details_required' };

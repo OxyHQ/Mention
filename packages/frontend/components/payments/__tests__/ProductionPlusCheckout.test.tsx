@@ -243,3 +243,47 @@ it('recovers the same frozen operation after the public configuration expires', 
     clock.mockRestore();
   }
 });
+
+it('unlocks address only after authoritative pre-creation closure, with no automatic new purchase', async () => {
+  mockStart.mockResolvedValue({
+    state: 'closed',
+    intentId: 'operation',
+    reason: 'billing_location_required',
+  });
+  await mount();
+  await fill();
+  await act(async () => {
+    expect(await mockProps.prepareSession?.()).toEqual({ state: 'billing_details_required' });
+  });
+  expect(mockClear).toHaveBeenCalledWith(subject, offerBinding, 'operation-key', 'embedded');
+  expect(mockStart).toHaveBeenCalledTimes(1);
+  const field = mockProps.billingContent as React.ReactElement<{
+    locked: boolean;
+    onChange(value: unknown): void;
+  }>;
+  expect(field.props.locked).toBe(false);
+  act(() =>
+    field.props.onChange({
+      country: 'ES',
+      state: '',
+      postalCode: '28001',
+      city: 'Madrid',
+      line1: 'Corrected street',
+      line2: '',
+    }),
+  );
+  expect(mockProps.billingDetails?.country).toBe('ES');
+  expect(mockStart).toHaveBeenCalledTimes(1);
+});
+it('retains frozen billing details and operation on ambiguous preparation failure', async () => {
+  mockStart.mockRejectedValue(new Error('connection lost'));
+  await mount();
+  await fill();
+  await act(async () => {
+    await expect(mockProps.prepareSession?.()).rejects.toThrow('connection lost');
+  });
+  expect(mockClear).not.toHaveBeenCalled();
+  expect((mockProps.billingContent as React.ReactElement<{ locked: boolean }>).props.locked).toBe(
+    true,
+  );
+});

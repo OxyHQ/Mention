@@ -3188,5 +3188,6 @@
   "plus.checkout.billing.title": "Billing address",
   "plus.checkout.billing.line2": "Apartment, suite or unit (optional)",
   "plus.checkout.billing.state": "State, province or region",
-  "plus.checkout.billing.locked": "This address is linked to the current payment."
+  "plus.checkout.billing.locked": "This address is linked to the current payment.",
+  "plus.checkout.billing.required": "Complete or correct your billing address to continue."
 }

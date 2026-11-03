@@ -422,7 +422,12 @@ session without a new capability, is recovered through the same Oxy operation.
 Only Oxy's fulfilled result refreshes authoritative Plus access; browser completion
 does not grant access. Changed accounts/sessions discard outstanding responses and
 unmount the old checkout. Existing pending purchases never become a second purchase
-by silently replacing their idempotency key or presentation.
+by silently replacing their idempotency key or presentation. Only an explicit
+`closed` / `billing_location_required` result proves that the server closed the
+reservation before any session or quote existed. That result releases the address
+and old key so the buyer can correct details and press Continue again; it never
+automatically starts another purchase. Network and ambiguous failures retain the
+frozen operation.
 
 Publishing this source does not activate a merchant or override the catalogue's
 purchase gate. Live activation still requires the reviewed provider, merchant,

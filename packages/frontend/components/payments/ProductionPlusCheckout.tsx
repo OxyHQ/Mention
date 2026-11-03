@@ -153,6 +153,15 @@ export function ProductionPlusCheckout({
       });
     }
     const result = await call(request.current);
+    if (result.state === 'closed' && result.reason === 'billing_location_required') {
+      // Only server-proven closure before any session exists permits address correction.
+      await clearPlusCheckoutKey(user.id, offerBinding, request.current.idempotencyKey, 'embedded');
+      if (!current()) throw new Error('Account changed');
+      request.current = undefined;
+      addressLocked.current = false;
+      setLocked(false);
+      return { state: 'billing_details_required' };
+    }
     if (result.state === 'fulfilled') {
       await fulfilled();
       if (current()) onClose();
