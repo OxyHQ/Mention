@@ -172,11 +172,13 @@ export default function PlusScreen() {
                       ? 'common.loading'
                       : hasAccess
                         ? 'plus.payment.included'
-                        : 'plus.subscribe',
+                        : developmentCheckout || purchaseAvailable
+                          ? 'plus.subscribe'
+                          : failed ? 'plus.payment.pricingUnavailable' : 'plus.payment.comingSoon',
                   ),
-                  disabled: hasAccess || loading || bootstrapBusy,
+                  disabled: hasAccess || loading || bootstrapBusy || (!developmentCheckout && !purchaseAvailable),
                   onPress: () => {
-                    if (!hasAccess && !loading) void openPayment();
+                    if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable)) void openPayment();
                   },
                 }
               : undefined

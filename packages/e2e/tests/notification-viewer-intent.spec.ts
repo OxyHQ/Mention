@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { APP_ORIGIN } from '../environment';
 import { expect, test } from '../fixtures';
+import { hoverSettled } from '../scrollSettled';
 import {
   fixtureViewerMatchesRequest,
   installNotificationFixture,
@@ -230,12 +231,14 @@ for (const scenario of ['switch', 'aba', 'logout', 'relogin'] as const) {
         : row.getByRole('button', { name: `${userA} liked your post`, exact: true });
     await expect(rowAction).toHaveCount(1);
     await expect(rowAction).toHaveAccessibleName(`${userA} liked your post`);
-    // Scroll first, then let hover actionability wait for the newly measured
-    // virtual row to settle. hover() alone checks stability BEFORE its own
-    // scroll; late measurement can scroll again during mouseDown and cancel
-    // the native long-press responder.
-    await preview.scrollIntoViewIfNeeded();
-    await preview.hover();
+    // hover() waits until the preview has stopped moving and is the element
+    // that receives the pointer; a one-off boundingBox() read can go stale
+    // while the list is still laying out, and a press that lands beside the
+    // row never becomes a long press. It also scrolls the row into view and the
+    // browser delivers that scroll event after hover() returns; a press started
+    // first is terminated by react-native-web's responder system as a scroll, so
+    // wait for the scroll to finish.
+    await hoverSettled(page, preview);
     await page.mouse.down();
     const mark = page.getByText('Mark as read', { exact: true });
     await expect(mark).toBeVisible();
