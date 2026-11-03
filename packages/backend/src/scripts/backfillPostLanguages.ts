@@ -360,8 +360,8 @@ interface ScanPost {
 
 /**
  * One page of the scan: the narrow `posts` rows by the id cursor, then the
- * page's renditions in ONE query (tag and source for all, the body for the
- * primary only).
+ * page's renditions in ONE query (tag and source for all, the body for every
+ * author rendition, never a machine one).
  */
 async function scanPage(
   filter: SQL | undefined,
@@ -381,7 +381,10 @@ async function scanPage(
       postId: postContentVariants.postId,
       tag: postContentVariants.tag,
       source: postContentVariants.source,
-      body: sql<string>`case when ${postContentVariants.position} = 0 then ${postContentVariants.body} else '' end`,
+      // Every AUTHOR rendition's words: a bilingual post proves each declared
+      // language in the rendition written in it. A machine body is never
+      // evidence, so it is not read.
+      body: sql<string>`case when ${postContentVariants.source} = 'author' then ${postContentVariants.body} else '' end`,
     })
     .from(postContentVariants)
     .where(
