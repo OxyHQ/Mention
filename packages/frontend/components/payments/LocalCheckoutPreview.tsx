@@ -1,3 +1,4 @@
+import { LocalOrderPreview } from './LocalOrderPreview';
 import * as Clipboard from 'expo-clipboard';
 import {
   DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES,
@@ -141,6 +142,7 @@ export function LocalCheckoutPreview({
   const closed = useRef(false);
   const completionTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const [brandState, setBrandState] = useState<'idle' | undefined>();
+  const [showOrder, setShowOrder] = useState(false);
   const close = useCallback(() => {
     if (closed.current || step === 'processing') return;
     closed.current = true;
@@ -161,7 +163,10 @@ export function LocalCheckoutPreview({
       if (active.current) setBrandState('idle');
     }, 1500);
     const dismiss = setTimeout(() => {
-      if (active.current) close();
+      if (active.current) {
+        if (scenario === 'physical') setShowOrder(true);
+        else close();
+      }
     }, 1800);
     completionTimers.current = [restore, dismiss];
     return () => {
@@ -169,7 +174,7 @@ export function LocalCheckoutPreview({
       clearTimeout(restore);
       clearTimeout(dismiss);
     };
-  }, [step, close]);
+  }, [step, close, scenario]);
   const authorizing = useRef(false);
   useEffect(() => {
     active.current = true;
@@ -640,6 +645,34 @@ export function LocalCheckoutPreview({
                 detail: activeMethod === 'bank' && customer.simulated ? '···· 6789' : undefined,
               }),
           };
+  if (showOrder && scenario === 'physical') {
+    const payments =
+      draft.paymentSelection?.method === 'installments' && installmentQuote
+        ? installmentQuote.payments.map((payment, index) => ({
+            id: `installment-${index}`,
+            date: new Date(Date.UTC(2026, 10, 3 + payment.dueInDays)).toISOString().slice(0, 10),
+            amountMinorUnits: payment.amountMinorUnits,
+            status: (index === 0 && installmentQuote.dueTodayMinorUnits > 0
+              ? 'paid'
+              : 'scheduled') as 'paid' | 'scheduled',
+            method: draft.paymentSelection?.label,
+          }))
+        : [
+            {
+              id: 'paid',
+              date: 'November 3, 2026',
+              amountMinorUnits: 2800,
+              status: 'paid' as const,
+            },
+          ];
+    return (
+      <LocalOrderPreview
+        paidMinorUnits={request.dueTodayMinorUnits}
+        payments={payments}
+        onClose={close}
+      />
+    );
+  }
   return (
     <PeableCheckoutSheet
       open

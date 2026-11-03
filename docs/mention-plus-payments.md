@@ -322,3 +322,29 @@ The provider fields use Bloom appearance tokens through the provider Appearance 
 
 
 Local end-to-end evidence: a fresh ordinary `/plus` visit created a new Stripe TEST intent, completed a test card payment, and displayed completion only after Peable observed settlement through the signed provider webhook. Separate actual tests exercised a declined card and a 3DS challenge; the challenge completed by keyboard, with the original Payment Element retained. Automated pointer activation inside the nested challenge iframe was inconclusive, so that specific browser interaction is not claimed verified.
+
+### Physical-order details and reward UI preview
+
+Only the explicit physical-order UI scenario now keeps the completed flow open
+and shows an order view. Mention Plus and actual provider tests retain their
+existing completion behavior. The view uses Bloom's `OrderStatusBar` and
+`OrderStatusTimeline` with the selected fixture quote: an immediate card payment
+shows USD 28 paid and zero remaining; four installments show USD 7 paid and USD
+21 remaining with three scheduled payments. The optional early-payment and order
+action callbacks are absent until a host can genuinely perform them.
+
+A fictional, order-bound gift fixture follows the supplied reference flow:
+optional introduction, at least two interests, two own-brand offer choices,
+full conditions, explicit confirmation, then the selected gift. It uses the
+existing Mention artwork through Bloom's squircle image primitive, not imagery
+copied from another brand. One local in-memory claim is allowed per order;
+expired/ineligible offers fail closed and never change payment totals. Dismissing
+this flow does not reverse the payment. No fulfillment, external reward claim,
+email, persisted gift or entitlement is created. The single persistent Local
+preview badge identifies this scenario.
+
+Real reward catalogues, merchant configuration, eligibility decisions and
+fulfillment remain future services supplied by Peable's merchant workspace. The
+controlled SDK component receives that data; Mention does not become a reward
+provider. Actual provider card tests still use secure provider-hosted fields,
+with Peable/Bloom owning the surrounding method navigation and checkout.
