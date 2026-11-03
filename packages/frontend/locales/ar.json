@@ -3244,5 +3244,7 @@
   "plus.checkout.providerTest.faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
   "plus.checkout.providerTest.methodUnavailable": "Not available for this payment.",
   "plus.benefitMono": "Monochrome theme",
-  "plus.benefitMonoDescription": "Personalize Mention with the Mono theme."
+  "plus.benefitMonoDescription": "Personalize Mention with the Mono theme.",
+  "plus.payment.cadenceYearShort": "Annual",
+  "plus.payment.annualDiscount": "Save 20% with annual billing."
 }

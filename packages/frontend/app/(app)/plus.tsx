@@ -227,12 +227,17 @@ export default function PlusScreen() {
                 </SegmentedControlItem>
                 <SegmentedControlItem value="year" disabled={paymentOpen}>
                   <SegmentedControlItemText>
-                    {t('plus.payment.cadenceYear')}
+                    {t('plus.payment.cadenceYearShort')}
                   </SegmentedControlItemText>
                 </SegmentedControlItem>
               </SegmentedControl>
             </View>
           </View>
+          {cadence === 'year' && (
+            <Text variant="caption-1-regular" style={{ textAlign: 'center' }}>
+              {t('plus.payment.annualDiscount')}
+            </Text>
+          )}
           <GroupedSection>
             {selectedPlan?.benefits.map((benefit) => (
               <GroupedSectionItem
