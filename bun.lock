@@ -286,7 +286,7 @@
     "@modelcontextprotocol/sdk": "1.32.2",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
-    "@oxy.so/core": "7.14.0",
+    "@oxy.so/core": "7.14.1",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/services": "14.3.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -345,8 +345,8 @@
   "catalog": {
     "@oxy.so/bloom": "16.16.0",
     "@oxy.so/contracts": "6.5.0",
-    "@oxy.so/core": "7.14.0",
-    "@oxy.so/mcp": "1.4.0",
+    "@oxy.so/core": "7.14.1",
+    "@oxy.so/mcp": "1.4.1",
     "@oxy.so/protocol": "1.6.0",
     "@oxy.so/services": "14.3.0",
     "@oxy.so/utils": "^1.5.2",
@@ -1065,7 +1065,7 @@
 
     "@oxy.so/contracts": ["@oxy.so/contracts@6.5.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-8qH2DeFz9l9RsQdTx70WIHhgKJGIWVeY7OCFxcdSO7DzpilhnI5v+xCDw1nVI2ZWfllbffNFNzSjTOmFndmzpg=="],
 
-    "@oxy.so/core": ["@oxy.so/core@7.14.0", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "6.5.0", "@oxy.so/protocol": "^1.6.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-zhzUxD5W10G4p5t2rKFKBvDehXsk666xGlVyvBT2YORe5pBzsPZvGlOdCnx3/VnzEV6ysRIHArGhsADc7oLr7Q=="],
+    "@oxy.so/core": ["@oxy.so/core@7.14.1", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "6.5.0", "@oxy.so/protocol": "^1.6.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-JiPZT3AN6nvXIEIgWylGE677RkCyoUP7/Z9ud20+RdnrzvtvQHlATU7zTFPp6xu0neLb4BxJV871gf4VblfZKQ=="],
 
     "@oxy.so/db": ["@oxy.so/db@1.4.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" }, "bin": { "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js" } }, "sha512-qumZQoZ4khGXOl+LYC5uZquw5N3DdjBZoV3+WbwJ/zlLXCJ180Qhg72nRSalvIUQHoFIosuIr5DFHT0ia3Garg=="],
 
@@ -1079,7 +1079,7 @@
 
     "@oxy.so/homiio-sdk": ["@oxy.so/homiio-sdk@0.2.0", "", { "dependencies": { "@oxy.so/homiio-contracts": "0.2.1" } }, "sha512-qelR6GogxKdkVcV+C861bvb/IFi2ucQYl8Szd3eWHT+8GnY38BPSDWSQzkf9eXEwNEjnGebG4Bpkq48hvvLscw=="],
 
-    "@oxy.so/mcp": ["@oxy.so/mcp@1.4.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.32.1", "@oxy.so/contracts": "^6.0.0", "zod": "^4.6.7" } }, "sha512-BuWBDKulDrxVfANJI8Oqd7tC9dNcNDyHR5apJS2mQx4BFbOxoMYfN6PQqFHFUsCYKApb9D6DSvf2fsJfZpmGuA=="],
+    "@oxy.so/mcp": ["@oxy.so/mcp@1.4.1", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.32.2", "@oxy.so/contracts": "^6.5.0", "zod": "^4.6.7" } }, "sha512-xE7qEMOClukImw5DKqjyZRsFZvC5SDmpu+EBdhepasVyIHccaSgFsumWJJ6GwrMTph6YdNy7cUgJ23POXXowFQ=="],
 
     "@oxy.so/mention-contracts": ["@oxy.so/mention-contracts@workspace:packages/contracts"],
 
@@ -3207,9 +3207,9 @@
 
     "tinyrainbow": ["tinyrainbow@3.2.0", "", {}, "sha512-LgO3D9yZJjApUiuUfl9iFAwrtaX4+lok3wJIqttGoKCHlWUqHqbQpnxCf82L8FjgKsh4iGo78hqJwgL8F6To2A=="],
 
-    "tldts": ["tldts@7.4.10", "", { "dependencies": { "tldts-core": "^7.4.10" }, "bin": { "tldts": "bin/cli.js" } }, "sha512-GgouD1B+sWwvkaEq8vXC15DjQitxbvs12oIXELpconwm+Tg3zfcEv4jgzq3vtKverDXsg3VI8aRgNL2Nra0Iog=="],
+    "tldts": ["tldts@7.4.19", "", { "dependencies": { "tldts-core": "^7.4.19" }, "bin": { "tldts": "bin/cli.js" } }, "sha512-48dH6aSpQnpbzDUc4vIQZ1VjB8tkK+e8c1yx05/SZK+rkssgjEOlxDd/yU8/a4vGYQ9vRgJr9dwMq9TJ0b3X2Q=="],
 
-    "tldts-core": ["tldts-core@7.4.10", "", {}, "sha512-KnQjp53ZekKgm/r3l+u8kJGGzYgrWdP8+Mql7a4vijh2WE0IrZWspQj/TpTxDho/YxO+AnOZnIjQcCD+q6iJsw=="],
+    "tldts-core": ["tldts-core@7.4.20", "", {}, "sha512-C630TWXZCZmLq0F2bW4QqwnaaxCQ/svpAqvJwnC4JvgEM5ohhBnGsEzTLSOXcN+xjz+kEaHS5uoWIw2klnqd0A=="],
 
     "tmpl": ["tmpl@1.0.5", "", {}, "sha512-3f0uOEAQwIqGuWW2MVzYg8fV/QNnc/IpuJNG837rLuczAaLVHslWHZQj4IGiEl5Hs3kkbhwL9Ab7Hrsmuj+Smw=="],
 
