@@ -1,20 +1,22 @@
 import { createPeableCheckout, type PeableClientAction } from '@peable.to/sdk/checkout';
+import { type CheckoutPaymentMethod, parseBaseUnits } from './peableWire';
 
-/** Payer-scoped transport binding. Environment changes credentials, never the checkout view. */
+type PeableIntent = Awaited<
+  ReturnType<ReturnType<typeof createPeableCheckout>['getPaymentIntent']>
+>;
+
+/** Payer-scoped transport binding. The mode changes credentials, never the checkout view. */
 export interface EmbeddedCheckoutBinding {
   apiUrl: string;
   intentId: string;
   clientSecret: string;
-  environment: 'test' | 'live';
+  /** Peable's mode (`livemode`): `false` binds test credentials, `true` live ones. */
+  livemode: boolean;
   initial?: {
-    intent: Awaited<ReturnType<ReturnType<typeof createPeableCheckout>['getPaymentIntent']>>;
+    intent: PeableIntent;
     action: PeableClientAction;
   };
-  paymentMethods?: readonly {
-    id: 'card' | 'bank' | 'installments' | 'faircoin';
-    available: boolean;
-    reason?: string;
-  }[];
+  paymentMethods?: readonly CheckoutPaymentMethod[];
   subscription?: {
     id: string;
     interval: 'month' | 'year';
@@ -30,15 +32,33 @@ export interface EmbeddedCheckoutBinding {
     observationPath: string;
   };
 }
-export function providerActionMatchesEnvironment(
+
+export function providerActionMatchesMode(
   action: { kind: string; publishable_key?: string },
-  environment: EmbeddedCheckoutBinding['environment'],
+  livemode: boolean,
 ): boolean {
   return (
     action.kind === 'client_secret' &&
-    !!action.publishable_key?.startsWith(environment === 'test' ? 'pk_test_' : 'pk_live_')
+    !!action.publishable_key?.startsWith(livemode ? 'pk_live_' : 'pk_test_')
   );
 }
+
+/** The intent is the one this binding pays: same id and mode, a positive USD card amount, the subscription's terms. */
+export function intentMatchesBinding(intent: PeableIntent, binding: EmbeddedCheckoutBinding) {
+  const amount = parseBaseUnits(intent.amount);
+  return (
+    intent.id === binding.intentId &&
+    intent.livemode === binding.livemode &&
+    intent.rail === 'card' &&
+    intent.currency === 'USD' &&
+    amount !== null &&
+    amount > 0 &&
+    (!binding.subscription ||
+      (amount === binding.subscription.amountMinorUnits &&
+        intent.currency === binding.subscription.currency))
+  );
+}
+
 /**
  * Peable's PaymentIntent statuses are Stripe's seven (Peable ADR 0019): an
  * expired, rejected or underpaid intent is `canceled`; a declined card returns
@@ -68,7 +88,7 @@ export async function observeEmbeddedSubscription(
     (url.protocol !== 'https:' &&
       !(
         url.protocol === 'http:' &&
-        binding.environment === 'test' &&
+        !binding.livemode &&
         ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
       ))
   )
@@ -83,14 +103,20 @@ export async function observeEmbeddedSubscription(
   return (
     !!value &&
     typeof value === 'object' &&
+    'livemode' in value &&
+    value.livemode === binding.livemode &&
+    'payment_intent' in value &&
+    value.payment_intent === binding.intentId &&
+    'subscription' in value &&
+    value.subscription === binding.subscription.id &&
     'ready' in value &&
     value.ready === true &&
-    'subscriptionStatus' in value &&
-    value.subscriptionStatus === 'active' &&
-    'invoiceStatus' in value &&
-    value.invoiceStatus === 'paid' &&
-    'paymentStatus' in value &&
-    value.paymentStatus === 'settled'
+    'subscription_status' in value &&
+    value.subscription_status === 'active' &&
+    'invoice_status' in value &&
+    value.invoice_status === 'paid' &&
+    'payment_status' in value &&
+    value.payment_status === 'succeeded'
   );
 }
 
@@ -106,16 +132,8 @@ export async function prepareEmbeddedCheckout(
   ]);
   if (signal?.aborted) throw new Error('Checkout preparation canceled.');
   if (
-    intent.id !== binding.intentId ||
-    intent.rail !== 'card' ||
-    intent.currency !== 'USD' ||
-    !/^\d+$/.test(intent.amount) ||
-    !Number.isSafeInteger(Number(intent.amount)) ||
-    Number(intent.amount) <= 0 ||
-    (binding.subscription &&
-      (Number(intent.amount) !== binding.subscription.amountMinorUnits ||
-        intent.currency !== binding.subscription.currency)) ||
-    !providerActionMatchesEnvironment(action, binding.environment)
+    !intentMatchesBinding(intent, binding) ||
+    !providerActionMatchesMode(action, binding.livemode)
   )
     throw new Error('Checkout is unavailable.');
   return { ...binding, initial: { intent, action } };

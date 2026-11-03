@@ -25,6 +25,7 @@ const mockPlay = jest.fn();
 const mockClose = jest.fn();
 const intent = {
   id: 'pi_localtest',
+  livemode: false,
   rail: 'card',
   currency: 'USD',
   amount: '599',
@@ -86,7 +87,7 @@ jest.mock('@/hooks/useCheckoutFeedback', () => ({
   useCheckoutFeedback: () => ({ play: mockPlay, stop: jest.fn() }),
 }));
 const binding = {
-  environment: 'test' as const,
+  livemode: false,
   apiUrl: 'http://127.0.0.1:4310',
   intentId: 'pi_localtest',
   clientSecret: 'opaque-payer-capability',
@@ -174,7 +175,7 @@ it('Continue prepares without charging, then explicit Pay runs once and waits fo
   act(() => jest.advanceTimersByTime(300));
   expect(mockClose).toHaveBeenCalledTimes(1);
 });
-it('refuses a provider key from the wrong environment', async () => {
+it('refuses a provider key from the other mode', async () => {
   mockAction.mockResolvedValue({
     kind: 'client_secret',
     publishable_key: 'pk_live_forbidden',
@@ -183,6 +184,12 @@ it('refuses a provider key from the wrong environment', async () => {
   await mount();
   expect(mockPrepare).not.toHaveBeenCalled();
   expect(mockConfirm).not.toHaveBeenCalled();
+});
+it('refuses a live intent on a test binding', async () => {
+  await mount();
+  act(() => mockUpdate({ ...intent, livemode: true, status: 'succeeded' }));
+  expect(mockSheet.step).not.toBe('success');
+  expect(mockPlay).not.toHaveBeenCalled();
 });
 it('failed authorization stays recoverable and Back invalidates the prepared card', async () => {
   mockConfirm.mockResolvedValue({ accepted: false, error: 'Declined' });
@@ -251,7 +258,7 @@ it('unexpected preparation rejection unlocks the form without charging', async (
   expect(mockSheet.interactionBlocked).toBe(false);
   expect(mockConfirm).not.toHaveBeenCalled();
 });
-it('subscription success requires paid invoice and active subscription, not only settled payment', async () => {
+it('subscription success requires paid invoice and active subscription, not only a succeeded payment', async () => {
   mockObserve.mockResolvedValue(false);
   await mount({
     ...binding,
@@ -390,11 +397,12 @@ it('allows secure entry with public configuration and retains its fields when pa
     amountMinorUnits: 599,
   };
   const configuration: import('@/lib/payments/checkoutConfiguration').CheckoutConfiguration = {
-    environment: 'test',
+    livemode: false,
     publishableKey: 'pk_test_fixture',
     currency: 'USD',
-    expiresAt: new Date(Date.now() + 60000).toISOString(),
-    scope: { merchantId: 'merch_fixture', productId: 'peable_local_mention_plus' },
+    expiresAt: Date.now() + 60000,
+    merchant: 'merch_fixture',
+    product: 'peable_local_mention_plus',
     prices: {
       month: { interval: 'month', amountMinorUnits: 599 },
       year: { interval: 'year', amountMinorUnits: 5750 },

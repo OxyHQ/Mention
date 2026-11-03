@@ -6,30 +6,45 @@ import {
 } from '../checkoutConfiguration';
 import type { EmbeddedCheckoutBinding } from '../embeddedCheckout';
 const now = Date.now();
+/** `GET /__local/checkout-test/config` as the Peable harness answers it (ADR 0014 wire). */
 function fixture() {
   return {
-    environment: 'test',
-    publishableKey: 'pk_test_fixture',
+    object: 'local_checkout_configuration',
+    livemode: false,
+    publishable_key: 'pk_test_fixture',
+    merchant: 'merch_fixture',
+    product: 'peable_local_mention_plus',
     currency: 'USD',
-    expiresAt: new Date(now + 60_000).toISOString(),
-    scope: { merchantId: 'merch_fixture', productId: 'peable_local_mention_plus' },
     prices: {
-      month: { interval: 'month', amountMinorUnits: 599 },
-      year: { interval: 'year', amountMinorUnits: 5750 },
+      month: { unit_amount: '599', interval: 'month' },
+      year: { unit_amount: '5750', interval: 'year' },
     },
-    paymentMethods: ['card', 'bank', 'installments', 'faircoin'].map((id) => ({
-      id,
-      available: id === 'card',
-      reason: id === 'card' ? undefined : 'not_configured',
+    payment_methods: ['card', 'bank', 'installments', 'faircoin'].map((type) => ({
+      type,
+      available: type === 'card',
+      unavailable_reason: type === 'card' ? null : 'not_configured',
     })),
+    expires_at: Math.floor((now + 60_000) / 1000),
   };
 }
 it('copies only validated public fields and never treats configuration as payment authority', () => {
   const configuration = parseCheckoutConfiguration(
-    { ...fixture(), clientSecret: 'not-retained' },
+    { ...fixture(), client_secret: 'not-retained' },
     now,
   );
-  expect(configuration).not.toHaveProperty('clientSecret');
+  expect(configuration).not.toHaveProperty('client_secret');
+  expect(configuration).toMatchObject({
+    livemode: false,
+    publishableKey: 'pk_test_fixture',
+    merchant: 'merch_fixture',
+    expiresAt: fixture().expires_at * 1000,
+    prices: { month: { interval: 'month', amountMinorUnits: 599 } },
+  });
+  expect(configuration.paymentMethods[1]).toEqual({
+    id: 'bank',
+    available: false,
+    reason: 'not_configured',
+  });
   expect(
     configuration.paymentMethods.filter((method) => method.available).map((method) => method.id),
   ).toEqual(['card']);
@@ -42,43 +57,63 @@ it('copies only validated public fields and never treats configuration as paymen
     currency: 'USD',
   };
   expect(configurationMatchesReview(configuration, review, now)).toBe(true);
+  expect(configurationMatchesReview(configuration, review)).toBe(true);
   expect(configurationMatchesReview(configuration, { ...review, amountMinorUnits: 600 }, now)).toBe(
     false,
   );
-  expect(configurationMatchesReview(configuration, review, now + 60_001)).toBe(false);
+  expect(configurationMatchesReview(configuration, review, configuration.expiresAt)).toBe(false);
   const binding = {
-    environment: 'test',
+    livemode: false,
     initial: {
       intent: { merchant_id: 'merch_fixture' },
       action: { publishable_key: 'pk_test_fixture' },
     },
-  } as EmbeddedCheckoutBinding;
+  } as unknown as EmbeddedCheckoutBinding;
   expect(configurationMatchesBinding(configuration, binding)).toBe(true);
-  expect(
-    configurationMatchesBinding(
-      { ...configuration, scope: { ...configuration.scope, merchantId: 'merch_other' } },
-      binding,
-    ),
-  ).toBe(false);
+  expect(configurationMatchesBinding({ ...configuration, merchant: 'merch_other' }, binding)).toBe(
+    false,
+  );
   expect(
     configurationMatchesBinding({ ...configuration, publishableKey: 'pk_test_other' }, binding),
   ).toBe(false);
 });
 it.each([
-  { environment: 'live' },
-  { publishableKey: 'pk_live_fixture' },
+  { object: 'checkout_configuration' },
+  { livemode: true },
+  { publishable_key: 'pk_live_fixture' },
   { currency: 'EUR' },
-  { expiresAt: new Date(now - 1).toISOString() },
-  { expiresAt: new Date(now + 120_001).toISOString() },
-  { scope: { merchantId: 'not-a-merchant', productId: 'peable_local_mention_plus' } },
+  { expires_at: Math.floor(now / 1000) - 1 },
+  { expires_at: Math.floor((now + 121_000) / 1000) },
+  { expires_at: new Date(now + 60_000).toISOString() },
+  { merchant: 'not-a-merchant' },
+  { product: 'another_product' },
   {
     prices: {
-      month: { interval: 'year', amountMinorUnits: 599 },
-      year: { interval: 'year', amountMinorUnits: 5750 },
+      month: { interval: 'year', unit_amount: '599' },
+      year: { interval: 'year', unit_amount: '5750' },
     },
   },
-  { paymentMethods: [] },
-  { paymentMethods: Array(4).fill({ id: 'card', available: true }) },
+  {
+    prices: {
+      month: { interval: 'month', unit_amount: 599 },
+      year: { interval: 'year', unit_amount: '5750' },
+    },
+  },
+  { prices: { month: '599', year: { interval: 'year', unit_amount: '5750' } } },
+  {
+    prices: {
+      month: { interval: 'month', unit_amount: '0' },
+      year: { interval: 'year', unit_amount: '5750' },
+    },
+  },
+  { payment_methods: [] },
+  { payment_methods: Array(4).fill({ type: 'card', available: true, unavailable_reason: null }) },
+  {
+    payment_methods: ['card', 'bank', 'installments', 'faircoin'].map((type) => ({
+      type,
+      available: true,
+    })),
+  },
 ])('rejects invalid or stale configuration %j', (change) => {
   expect(() => parseCheckoutConfiguration({ ...fixture(), ...change }, now)).toThrow();
 });

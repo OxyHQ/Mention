@@ -16,14 +16,15 @@ import { emptyCheckoutDraft } from '@oxy.so/bloom/checkout-sheet/model';
 import { useTranslation } from 'react-i18next';
 import { useCheckoutFeedback } from '@/hooks/useCheckoutFeedback';
 import {
-  providerActionMatchesEnvironment,
+  providerActionMatchesMode,
+  intentMatchesBinding,
   observeEmbeddedSubscription,
   embeddedCheckoutPhase,
   type EmbeddedCheckoutBinding,
 } from '@/lib/payments/embeddedCheckout';
 
 type Intent = Awaited<ReturnType<ReturnType<typeof createPeableCheckout>['getPaymentIntent']>>;
-/** One payer checkout view; environment-specific credentials and billing authority come from its host. */
+/** One payer checkout view; mode-specific credentials and billing authority come from its host. */
 export function PeableEmbeddedCheckout({
   binding,
   review,
@@ -100,16 +101,7 @@ export function PeableEmbeddedCheckout({
     let unsubscribe: (() => void) | undefined;
     const update = (value: Intent) => {
       if (disposed || value.id !== binding.intentId) return;
-      if (
-        value.rail !== 'card' ||
-        value.currency !== 'USD' ||
-        !/^\d+$/.test(value.amount) ||
-        !Number.isSafeInteger(Number(value.amount)) ||
-        Number(value.amount) <= 0 ||
-        (binding.subscription &&
-          (Number(value.amount) !== binding.subscription.amountMinorUnits ||
-            value.currency !== binding.subscription.currency))
-      ) {
+      if (!intentMatchesBinding(value, binding)) {
         setError(t(`${prefix}invalid`));
         setAction(null);
         setReady(false);
@@ -184,7 +176,7 @@ export function PeableEmbeddedCheckout({
       try {
         const nextAction = await client.getClientAction(binding.intentId, binding.clientSecret);
         if (disposed) return;
-        if (!providerActionMatchesEnvironment(nextAction, binding.environment)) {
+        if (!providerActionMatchesMode(nextAction, binding.livemode)) {
           setError(t(`${prefix}invalid`));
           return;
         }
@@ -250,7 +242,7 @@ export function PeableEmbeddedCheckout({
       inFlight.current ||
       !authorizationRef.current ||
       !action ||
-      !providerActionMatchesEnvironment(action, binding.environment)
+      !providerActionMatchesMode(action, binding.livemode)
     )
       return;
     inFlight.current = true;

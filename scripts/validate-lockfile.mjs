@@ -130,6 +130,8 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   'vite -> lightningcss@^1.33.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
   '@alia.onl/sdk -> react-native-css@^3.0.7':
     'The override installs 3.1.0-rc.0, the release candidate of the next 3.x minor, which semver ranges exclude only because it is a prerelease. It is the single copy nativewind 5.0.0-rc.0 needs and the exact version @oxy.so/bloom 10.17 depends on, so the SDK draws through the same react-native-css as the rest of the app.',
+  '@oxy.so/services -> @peable.to/sdk@0.20.0':
+    'services imports only `@peable.to/sdk/display` (useDisplayPrice), whose module graph (display.js, core/timeoutSignal.js) and types are byte-identical in 0.20.0 and 1.0.0. One copy keeps the web bundle from shipping two Peable SDKs; the same override Peable keeps for services in its own repository. Delete this entry once services depends on 1.x.',
 };
 
 /**

@@ -33,7 +33,7 @@ it('scopes public warmup, honors expiry, and warms only the script after a valid
     configurable: true,
     value: { href: 'http://localhost:8110/plus' },
   });
-  mockData = { expiresAt: new Date(Date.now() + 60_000).toISOString() } as CheckoutConfiguration;
+  mockData = { expiresAt: Date.now() + 60_000 } as CheckoutConfiguration;
   mockRead.mockResolvedValue(mockData);
   mockWarm.mockRejectedValue(new Error('offline script'));
   let tree: TestRenderer.ReactTestRenderer | undefined;
@@ -52,7 +52,7 @@ it('scopes public warmup, honors expiry, and warms only the script after a valid
     expect(mockOptions.refetchInterval({ state: {} })).toBe(5000);
     act(() => tree?.update(<Probe user="b" session="session-b" scope="annual" />));
     expect(mockOptions.queryKey).not.toEqual(key);
-    mockData = { ...mockData, expiresAt: new Date(Date.now() - 1).toISOString() };
+    mockData = { ...mockData, expiresAt: Date.now() - 1 };
     act(() => tree?.update(<Probe />));
     expect(mockResult).toBeUndefined();
     expect(mockOptions.refetchInterval({ state: { data: mockData } })).toBe(1000);

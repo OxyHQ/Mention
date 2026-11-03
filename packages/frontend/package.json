@@ -203,7 +203,7 @@
     "zod": "catalog:",
     "zustand": "^5.0.16",
     "@mercaria.co/sdk": "0.8.0",
-    "@peable.to/sdk": "0.20.0"
+    "@peable.to/sdk": "catalog:"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

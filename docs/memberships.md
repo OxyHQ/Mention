@@ -127,7 +127,7 @@ behavior, not a production operator grant or live protected jury integration.
 ## Billing work and activation prerequisites
 
 Peable is the canonical payment execution boundary. Its official SDK supports
-`new Peable({ oxy, requester })`: Oxy owns workload credentials and the original
+`peableForOxyService({ oxy, requester })`: Oxy owns workload credentials and the original
 requester proof. Do not use Mercaria's legacy credential-backed adapter as a new
 integration, embed Stripe directly, or invent an app merchant/customer mapping.
 
@@ -140,9 +140,10 @@ observations and refund-state reversals cannot rewind stored refunds. These
 records are entitlement evidence, not fiscal records: community/payer erasure
 removes them while Peable remains the accounting system of record.
 
-`reconcileMembershipInvoice` uses the official Peable SDK 0.8.0 and its pinned
+`reconcileMembershipInvoice` uses the official Peable SDK and its pinned
 invoice authority keys. It reads authoritative invoice state and the verified
-signed final authority (`schema_version: 2`, snake_case, instants in integer
+signed final authority (`billing.retrieveInvoiceState` and
+`billing.retrieveFinalInvoiceAuthority`; `schema_version: 2`, snake_case, instants in integer
 Unix seconds), checks their payer, product, period and fiscal totals, and
 disposes the requester-bound client. Peable instants are converted to
 `timestamptz` only after validation; the receipt table stores Mention's own
