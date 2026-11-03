@@ -3,6 +3,8 @@ import { LocalCheckoutPreview } from '../LocalCheckoutPreview';
 import type { PeableCheckoutSheetProps } from '@peable.to/sdk/checkout/ui';
 let mockContent: PeableCheckoutSheetProps;
 const mockClose = jest.fn();
+jest.mock('@oxy.so/stickers/react', () => ({ useSticker: jest.fn() }));
+jest.mock('@/components/common/EmptyStateSticker', () => ({ EmptyStateSticker: () => null }));
 jest.mock('../LocalCheckoutCardEntry', () => ({ LocalCheckoutCardEntry: () => null }));
 jest.mock('@peable.to/sdk/checkout/ui', () => ({
   PeableCheckoutSheet: (props: PeableCheckoutSheetProps) => {
@@ -115,8 +117,10 @@ it('simulates completion only after required details and honors optional authori
   });
   expect(authorize).toHaveBeenCalledTimes(2);
   expect(mockContent.step).toBe('processing');
+  expect(mockContent.resultIllustration).toBeUndefined();
   act(() => jest.advanceTimersByTime(1000));
   expect(mockContent.step).toBe('success');
+  expect(mockContent.resultIllustration).toMatchObject({ props: { name: 'checkoutSuccess' } });
 });
 it('does not update after a pending authorization resolves following dismissal', async () => {
   let finish: ((value: 'authorized') => void) | undefined;
@@ -168,6 +172,7 @@ it('keeps failures open for retry and cancels completion when navigating away', 
   await act(async () => mockContent.onAuthorize());
   act(() => jest.advanceTimersByTime(1000));
   expect(mockContent.step).toBe('failure');
+  expect(mockContent.resultIllustration).toMatchObject({ props: { name: 'checkoutFailure' } });
   act(() => jest.advanceTimersByTime(10000));
   expect(mockClose).not.toHaveBeenCalled();
   act(() => renderer.unmount());

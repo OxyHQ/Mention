@@ -45,6 +45,10 @@ const FISH_SATISFIED = '01a0eada-a932-73cf-9cfe-503437a42a51';
 const INTROVERT_NOPE = '01a0eadb-6875-730c-988d-e04211c6a430';
 
 export const EMPTY_STATE_STICKERS = {
+  // Checkout outcomes reuse the established catalogue artwork.
+  checkoutSuccess: BIRD_PARTYTIME,
+  checkoutFailure: BLOB_OOPS,
+
   // Feeds
   feedFollowing: SAD_BEAR,
   feedForYou: BIRD_WATCHING,

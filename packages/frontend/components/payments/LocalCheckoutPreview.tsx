@@ -1,3 +1,6 @@
+import { useSticker } from '@oxy.so/stickers/react';
+import { EmptyStateSticker } from '@/components/common/EmptyStateSticker';
+import { EMPTY_STATE_STICKERS } from '@/lib/stickers';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
@@ -33,6 +36,9 @@ export function LocalCheckoutPreview({
   outcome: PreviewOutcome;
   onClose(): void;
 } & CheckoutAuthorization) {
+  // Warm the shared catalogue cache while reviewing; completion never waits for artwork.
+  useSticker(EMPTY_STATE_STICKERS.checkoutSuccess);
+  useSticker(EMPTY_STATE_STICKERS.checkoutFailure);
   const { offer, loading, failed } = usePlusOffer(cadence);
   const [reviewedOffer, setReviewedOffer] = useState(offer);
   useEffect(() => {
@@ -216,6 +222,13 @@ export function LocalCheckoutPreview({
       open
       locale={i18n.language}
       brandState={brandState}
+      resultIllustration={
+        step === 'success' ? (
+          <EmptyStateSticker name="checkoutSuccess" />
+        ) : step === 'failure' ? (
+          <EmptyStateSticker name="checkoutFailure" />
+        ) : undefined
+      }
       request={request}
       draft={draft}
       step={step}

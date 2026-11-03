@@ -153,7 +153,10 @@ The authoritative Oxy checkout wrapper remains separate from the local simulator
 The local host keeps success visible for 1.5 seconds, restores the bare logo for
 300 ms, then closes once. Dismissal, navigation and unmount cancel completion
 timers; failures remain open for retry. This presentation never establishes a
-payment outcome or entitlement.
+payment outcome or entitlement. Success and failure illustrations reuse Mention’s
+existing catalogue stickers through Bloom’s generic illustration slot; the footer
+remains the only status glyph. Catalogue entries warm in the shared cache during
+review, and unavailable artwork never delays completion.
 
 ### Live iteration
 
