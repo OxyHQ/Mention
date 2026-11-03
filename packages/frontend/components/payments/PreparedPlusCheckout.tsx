@@ -36,6 +36,8 @@ export function PreparedPlusCheckout({
   const [attempt, setAttempt] = useState(0);
   const failureMessage = useRef(t('plus.checkout.providerTest.bootstrapFailed'));
   failureMessage.current = t('plus.checkout.providerTest.bootstrapFailed');
+  const retryLabel = useRef(t('common.retry'));
+  retryLabel.current = t('common.retry');
   // Keep the created binding through a transient validation-read failure: retry
   // reads the same operation rather than creating another subscription.
   const created = useRef(initialBinding);
@@ -45,6 +47,7 @@ export function PreparedPlusCheckout({
   // biome-ignore lint/correctness/useExhaustiveDependencies: attempt is an explicit retry trigger.
   useEffect(() => {
     const controller = new AbortController();
+    let failureToast: string | number | undefined;
     setFailed(false);
     void (async () => {
       try {
@@ -71,11 +74,22 @@ export function PreparedPlusCheckout({
       } catch {
         if (!controller.signal.aborted) {
           setFailed(true);
-          toast(failureMessage.current, { type: 'error' });
+          failureToast = toast(failureMessage.current, {
+            type: 'error',
+            action: {
+              label: retryLabel.current,
+              onClick: () => {
+                if (!controller.signal.aborted) setAttempt((value) => value + 1);
+              },
+            },
+          });
         }
       }
     })();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (failureToast !== undefined) toast.dismiss(failureToast);
+    };
   }, [operationKey, review, attempt, href]);
   return (
     <PeableEmbeddedCheckout

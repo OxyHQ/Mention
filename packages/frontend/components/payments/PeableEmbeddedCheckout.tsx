@@ -419,12 +419,17 @@ export function PeableEmbeddedCheckout({
             />
             <Button
               size="lg"
-              disabled={!binding || !action || !ready || busy}
+              disabled={!onRetry && (!binding || !action || !ready || busy)}
               onPress={() => {
-                void prepareCard();
+                if (onRetry) onRetry();
+                else void prepareCard();
               }}
             >
-              {busy ? t(`${prefix}loading`) : t('plus.checkout.continue')}
+              {onRetry
+                ? t('common.retry')
+                : busy
+                  ? t(`${prefix}loading`)
+                  : t('plus.checkout.continue')}
             </Button>
           </>
         ) : undefined

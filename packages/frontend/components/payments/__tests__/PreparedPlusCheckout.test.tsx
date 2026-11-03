@@ -118,3 +118,25 @@ it('aborts on dismissal and discards a response from the previous sheet', async 
   expect(mockPrepare).not.toHaveBeenCalled();
   expect(mockToast).not.toHaveBeenCalled();
 });
+
+it('offers the same scoped retry from the toast on any step and ignores it after close', async () => {
+  mockCreate.mockRejectedValue(new Error('offline'));
+  let tree: TestRenderer.ReactTestRenderer | undefined;
+  await act(async () => {
+    tree = TestRenderer.create(
+      <PreparedPlusCheckout
+        review={review}
+        href="http://localhost:8110/plus"
+        operationKey="same-key"
+        onClose={jest.fn()}
+      />,
+    );
+  });
+  const retry = mockToast.mock.calls[0][1].action.onClick;
+  await act(async () => retry());
+  expect(mockCreate.mock.calls.map((args) => args[0])).toEqual(['same-key', 'same-key']);
+  const lateRetry = mockToast.mock.calls[1][1].action.onClick;
+  act(() => tree?.unmount());
+  await act(async () => lateRetry());
+  expect(mockCreate).toHaveBeenCalledTimes(2);
+});

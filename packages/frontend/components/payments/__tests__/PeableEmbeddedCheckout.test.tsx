@@ -395,6 +395,25 @@ it('allows secure entry with public configuration and retains its fields when pa
   expect(before.every((button) => button.props.disabled)).toBe(true);
   act(() => mockSheet.onAuthorize());
   expect(mockConfirm).not.toHaveBeenCalled();
+  const retry = jest.fn();
+  await act(async () => {
+    renderer.update(
+      <PeableEmbeddedCheckout
+        review={review}
+        configuration={configuration}
+        onClose={mockClose}
+        onRetry={retry}
+      />,
+    );
+  });
+  const retryButton = renderer.root
+    .findAllByType('button')
+    .find((button) => !button.props.disabled);
+  if (!retryButton) throw new Error('Expected retry without discarding card entry');
+  act(() => retryButton.props.onClick());
+  expect(retry).toHaveBeenCalledTimes(1);
+  expect(mockFieldMounts).toBe(1);
+  expect(mockFieldUnmounts).toBe(0);
   await act(async () => {
     renderer.update(
       <PeableEmbeddedCheckout
