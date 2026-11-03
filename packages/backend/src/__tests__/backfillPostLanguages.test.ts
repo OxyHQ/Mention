@@ -101,6 +101,28 @@ describe('backfillPostLanguages', () => {
     expect(after?.language).toBe(after?.languages?.[0]);
   });
 
+  it("adds a bilingual post's second language, proved by the rendition written in it", async () => {
+    // Classified under the current version from its English primary alone.
+    const id = await seedUnclassified({
+      content: {
+        variants: [
+          { source: 'author', text: ENGLISH, tag: 'en' },
+          { source: 'author', text: SPANISH, tag: 'es' },
+        ],
+      },
+      postClassification: {
+        status: 'baseline',
+        topics: [],
+        languages: ['en'],
+        version: BASELINE_CLASSIFIER_VERSION,
+      },
+    });
+
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
+
+    expect((await classificationOf(id))?.languages).toEqual(['en', 'es']);
+  });
+
   it('re-derives a post that has languages but NO stamped version', async () => {
     // The `classification_version IS NULL` arm on its own. Removing it survives
     // a fixture whose languages are also absent — the first arm covers that —
