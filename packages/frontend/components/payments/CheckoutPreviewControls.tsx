@@ -1,3 +1,5 @@
+import type { InstallmentPreviewDecision } from '@/lib/payments/merchantInstallmentPreview';
+import { Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -20,7 +22,11 @@ export function CheckoutPreviewControls({
   onSoundEnabled,
   incomingFunds,
   onIncomingFunds,
+  installmentDecision,
+  onInstallmentDecision,
 }: {
+  installmentDecision: InstallmentPreviewDecision;
+  onInstallmentDecision(value: InstallmentPreviewDecision): void;
   incomingFunds: boolean;
   onIncomingFunds(value: boolean): void;
   soundEnabled: boolean;
@@ -45,6 +51,19 @@ export function CheckoutPreviewControls({
         borderRadius: 16,
       }}
     >
+      <Text>{t('plus.merchantInstallments.decision')}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {(['available', 'pending', 'rejected', 'unavailable'] as const).map((value) => (
+          <Button
+            key={value}
+            size="sm"
+            appearance={installmentDecision === value ? 'subtle' : 'outline'}
+            onPress={() => onInstallmentDecision(value)}
+          >
+            {t(`plus.merchantInstallments.decision.${value}`)}
+          </Button>
+        ))}
+      </View>
       <Button size="sm" appearance="outline" onPress={() => onIncomingFunds(!incomingFunds)}>
         {t(incomingFunds ? 'plus.checkout.incomingOn' : 'plus.checkout.incomingOff')}
       </Button>

@@ -138,8 +138,12 @@ and trial examples are explicitly labelled local fixtures.
 
 The checkout uses Bloom's grouped sections, fields and buttons inside its
 morphing detached bottom dialog. Contact, shipping and card-selection drafts
-survive Back navigation. Fixed test cards contain only brand/last-four metadata;
-no PAN or security-code input exists. Opt-in saved-card metadata stays in memory
+survive Back navigation. The local Add card view uses Bloom CardForm with controlled
+number, expiry, security code and billing fields. These values remain in that
+mounted component only and are cleared before completion; Back, close and unmount
+discard them. Only brand/last-four metadata leaves the component. It does not
+log, store or transmit card input, and does not replace production provider-hosted
+collection. Opt-in saved-card metadata stays in memory
 only until the sheet closes. The optional host authorization callback models a
 future device capability; no biometric implementation is claimed or enabled.
 
@@ -258,3 +262,48 @@ pending event. No action labelled “I sent” establishes credit, and the QR pa
 remain intentionally non-payable despite the normal-looking masked UI. Choosing
 FairCoin replaces an installment selection and restores the full physical order
 amount; it does not invent a FairCoin-funded financing agreement.
+
+### Buyer and merchant installment configuration
+
+The local buyer flow can show merchant-enabled plans from an explicit provider
+capability fixture. Merchant settings are a separate dialog below the host's
+preview controls: enabled plan families, order amount limits, country/currency
+filters, purchase types, and additional merchant messaging. These settings live
+only in page memory and do not update a merchant account or provider dashboard.
+The default keeps the physical order's four-payment plan.
+
+Eligibility is the intersection of merchant preferences and each provider plan's
+capability. Merchant settings cannot enable unavailable financing or currencies,
+change an interest rate, guarantee customer approval, or override provider terms.
+Subscription support is checked per plan; it is not a global assumption about
+all deferred-payment products. Invalid limits and zero-due orders expose no plan.
+Merchant text supplements provider disclosures rather than replacing them.
+
+The local schedules preserve exact minor-unit totals. A $28.00 three-payment
+fixture uses $9.34, $9.33 and $9.33; four payments use $7.00 each; the deferred
+fixture has $0.00 due today and $28.00 due in 30 days. These are authored UI
+fixtures, not live financing quotes or underwriting decisions. Production still
+needs merchant settings APIs/storage, provider-account capability discovery,
+customer/country eligibility, authoritative quote and disclosure retrieval,
+provider approval and reconciliation. No financing configuration is activated by
+this preview.
+
+Implementation references: the [provider payment-method reference](https://docs.stripe.com/payments/klarna)
+describes market-dependent plan families and constraints; the [provider checkout
+presentation guide](https://docs.klarna.com/klarna-network-distribution/payment-presentation/present-klarna-in-the-checkout/)
+requires transaction-specific presentation. The local policy deliberately keeps
+merchant preference separate from that provider authority.
+
+### Local wallet observations and installment options
+
+The account review group and the wallet method use the same supplied observation. A public balance is independent of signing permission. The fixture account shows its explicit local balance; an actual Oxy account without a Peable public wallet descriptor shows **Balance unavailable**, not zero. Mention has no existing account-xpub bridge: Oxy's billing ledger and partial social receive-address totals are not a whole FairCoin wallet balance. The SDK accepts ready/loading/error/unavailable observations and optional host retry/connect capabilities; it never fetches or accepts a signing key here.
+
+Merchant preview settings only narrow explicit provider capability fixtures. The buyer compares four payments, three payments with a correctly allocated first-payment remainder, or a deferred payment. Dates use the fixture business date 2026-11-03, not a locale-derived country. Quotes distinguish order value, due today, fees, interest and total repayable. Changing the order, merchant policy or decision clears the old selection. Pending, rejected and unavailable decisions cannot become payable selections. No APR, autopay agreement or provider approval is invented when the supplied capabilities omit it; merchant terms open a separate screen and do not imply consent.
+
+External FAIRWallet payments now open the waiting QR/address step directly. The local Incoming funds switch drives a separate simulated transfer observation through detected, confirming and completion; there is no second Pay click and no “I sent it” credit. Waiting can be cancelled, confirmation uses the existing dismissal lock, and closing cancels pending work. The frozen request has a full nonpayable preview string shared by the displayed address, copy action and QR. The wallet's own receive/top-up payload is different and never completes a merchant payment. Real integration still requires authoritative intent observations and an actual payable address from the provider; this local fixture does not monitor the chain.
+
+Numeric tax in this local preview is explicitly quoted fixture data: monthly 557 + 42 = 599 cents, annual 5350 + 400 = 5750 cents, and the physical order 2600 + 200 = 2800 cents. The amounts are inclusive and do not increase the stated total. They are not a tax rate, registration determination or live Peable Tax result. Unsupported prices show calculation pending; production must supply a fresh authoritative breakdown when taxable location changes. The SDK/Bloom request only presents supplied amounts.
+
+Method selection advances to remaining prerequisites and then an explicit payment confirmation; it never automatically charges a saved card or returns the buyer to the initial order summary. External transfers collect those prerequisites before starting their waiting request. While waiting, the footer ring spins but cancellation remains available; after detection, confirmation blocks dismissal. The method name is FAIRWallet and its page is Pay with FairCoin.
+
+Validation of this iteration uses the local web preview and shared component tests. Native-device Surface appearance, clipboard, audio and gesture behavior still require a device run; web screenshots are not native verification.

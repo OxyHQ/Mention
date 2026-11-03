@@ -1,3 +1,5 @@
+import * as Clipboard from 'expo-clipboard';
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn().mockResolvedValue(true) }));
 import TestRenderer, { act } from 'react-test-renderer';
 import { LocalCheckoutPreview } from '../LocalCheckoutPreview';
 import type { PeableCheckoutSheetProps } from '@peable.to/sdk/checkout/ui';
@@ -297,7 +299,11 @@ it('keeps bank/provider and nonpayable external wallet choices controlled, with 
   act(() => mockContent.onMethod?.('faircoin'));
   const external = mockContent.methodDetails;
   if (external?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
-  expect(external.wallet).toBeUndefined();
+  expect(external.wallet).toMatchObject({ state: 'unavailable', canPay: false });
+  expect(external.wallet?.balanceLabel).toBeUndefined();
+  expect(mockContent.accountSummary?.supportingRows?.[0]?.value).toBe(
+    'plus.checkout.rail.balanceUnavailable',
+  );
   expect(external.external?.payload).toBe('PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT');
   act(() => external.external?.onOpen());
   expect(mockContent.methodDetails).toMatchObject({ view: 'external' });
@@ -322,7 +328,7 @@ it('keeps bank/provider and nonpayable external wallet choices controlled, with 
   const wallet = mockContent.methodDetails;
   if (wallet?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
   expect(wallet.wallet).toBeDefined();
-  act(() => wallet.wallet?.onSelect());
+  act(() => wallet.wallet?.onSelect?.());
   expect(mockContent.draft.paymentSelection).toMatchObject({
     method: 'faircoin',
     id: 'faircoin-wallet',
@@ -479,7 +485,7 @@ it('uses coherent tender fixtures, keeps a free trial free, and blocks insuffici
     amountLabel: '115 FAIR',
     wallet: { canPay: false, amountNeededLabel: '90 FAIR' },
   });
-  act(() => details.wallet?.onSelect());
+  act(() => details.wallet?.onSelect?.());
   expect(mockContent.draft.paymentSelection).toBeNull();
   act(() => details.wallet?.topUp?.onOpen());
   act(() => jest.advanceTimersByTime(2000));
@@ -516,4 +522,224 @@ it('cancels configured incoming funds when the receive view is no longer shown',
   act(() => mockContent.onStep('review'));
   act(() => jest.advanceTimersByTime(3000));
   expect(mockContent.methodDetails).toMatchObject({ wallet: { balanceLabel: '25 FAIR' } });
+});
+
+it('uses the chosen provider plan and invalidates it when merchant eligibility changes', () => {
+  const preferences = {
+    enabled: true,
+    families: ['pay_in_3', 'pay_later'] as const,
+    minMinorUnits: 1000,
+    maxMinorUnits: 100000,
+    countries: ['US'],
+    currencies: ['USD'],
+    purchaseKinds: ['one_time'] as const,
+    message: '',
+    terms: '',
+  };
+  const props = {
+    cadence: 'month' as const,
+    scenario: 'physical' as const,
+    outcome: 'success' as const,
+    onClose: mockClose,
+    merchantInstallmentPreferences: preferences,
+  };
+  act(() => {
+    renderer = TestRenderer.create(<LocalCheckoutPreview {...props} />);
+  });
+  act(() => mockContent.onMethod?.('installments'));
+  let details = mockContent.methodDetails;
+  if (details?.kind !== 'installments') throw new Error('Expected plans');
+  expect(details.quote?.payments.map((payment) => payment.amountMinorUnits)).toEqual([
+    934, 933, 933,
+  ]);
+  expect(details.quote?.payments[0]?.dueOn).toBe('2026-11-03');
+  const choosePlan = details.onPlan;
+  act(() => choosePlan?.('pay_later'));
+  details = mockContent.methodDetails;
+  if (details?.kind !== 'installments') throw new Error('Expected deferred plan');
+  expect(details.quote?.dueTodayMinorUnits).toBe(0);
+  act(() => details.onSelect());
+  expect(mockContent.request.dueTodayMinorUnits).toBe(0);
+  expect(mockContent.request.totalMinorUnits).toBe(2800);
+  act(() => {
+    renderer.update(
+      <LocalCheckoutPreview
+        {...props}
+        merchantInstallmentPreferences={{ ...preferences, enabled: false }}
+      />,
+    );
+  });
+  expect(mockContent.request.paymentMethods).not.toContain('installments');
+  expect(mockContent.draft.paymentSelection).toBeNull();
+  expect(mockContent.request.dueTodayMinorUnits).toBe(2800);
+});
+it('does not let a pending provider decision become an approved payment selection', () => {
+  act(() => {
+    renderer = TestRenderer.create(
+      <LocalCheckoutPreview
+        cadence="month"
+        scenario="physical"
+        outcome="success"
+        onClose={mockClose}
+        previewInstallmentDecision="pending"
+      />,
+    );
+  });
+  act(() => mockContent.onMethod?.('installments'));
+  const details = mockContent.methodDetails;
+  if (details?.kind !== 'installments') throw new Error('Expected plans');
+  expect(details.state).toBe('pending');
+  act(() => details.onSelect());
+  expect(mockContent.draft.paymentSelection).toBeNull();
+});
+
+it('waits for an external transfer observation and confirms without a second pay click', () => {
+  act(() => {
+    renderer = TestRenderer.create(
+      <LocalCheckoutPreview
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        customer={{ kind: 'account' }}
+        incomingFunds
+        onClose={mockClose}
+      />,
+    );
+  });
+  act(() => mockContent.onMethod?.('faircoin'));
+  const details = mockContent.methodDetails;
+  if (details?.kind !== 'faircoin') throw new Error('Expected FAIR methods');
+  act(() => details.external?.onOpen());
+  expect(mockContent.brandState).toBe('loading');
+  expect(mockContent.methodDetails).toMatchObject({
+    view: 'external',
+    external: {
+      state: 'awaiting',
+      payload: 'PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT',
+      addressLabel: 'PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT',
+    },
+  });
+  act(() => jest.advanceTimersByTime(2000));
+  expect(mockContent.step).toBe('processing');
+  act(() => mockContent.onClose());
+  expect(mockClose).not.toHaveBeenCalled();
+  act(() => jest.advanceTimersByTime(1000));
+  expect(mockContent.step).toBe('processing');
+  act(() => jest.advanceTimersByTime(1000));
+  expect(mockContent.step).toBe('success');
+  expect(mockFeedbackPlay).toHaveBeenCalledTimes(1);
+});
+it('cancels a waiting transfer when returning to methods and never treats topup as a payment', () => {
+  act(() => {
+    renderer = TestRenderer.create(
+      <LocalCheckoutPreview
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        customer={{ kind: 'account' }}
+        incomingFunds
+        onClose={mockClose}
+      />,
+    );
+  });
+  act(() => mockContent.onMethod?.('faircoin'));
+  const details = mockContent.methodDetails;
+  if (details?.kind !== 'faircoin') throw new Error('Expected FAIR methods');
+  act(() => details.external?.onOpen());
+  act(() => mockContent.onBack());
+  act(() => jest.advanceTimersByTime(6000));
+  expect(mockContent.step).toBe('method');
+  expect(mockContent.methodDetails).toMatchObject({ view: 'choices' });
+  expect(mockFeedbackPlay).not.toHaveBeenCalled();
+});
+it('advances from a chosen method through missing details to explicit confirmation without paying', () => {
+  mount('physical');
+  act(() => mockContent.onMethod?.('bank'));
+  const bank = mockContent.methodDetails;
+  if (bank?.kind !== 'provider') throw new Error('Expected bank');
+  act(() => bank.onContinue());
+  expect(mockContent.step).toBe('shipping');
+  act(() =>
+    mockContent.onContinue?.({
+      ...mockContent.draft,
+      shipping: {
+        name: 'Alex Rivera',
+        address: '1 Test Lane',
+        city: 'Test City',
+        postalCode: '10001',
+        country: 'US',
+      },
+      delivery: 'standard',
+    }),
+  );
+  expect(mockContent.step).toBe('confirmation');
+  expect(mockFeedbackPlay).not.toHaveBeenCalled();
+  expect(mockClose).not.toHaveBeenCalled();
+});
+it('collects guest and physical details before starting an external transfer observation', () => {
+  act(() => {
+    renderer = TestRenderer.create(
+      <LocalCheckoutPreview
+        cadence="month"
+        scenario="physical"
+        outcome="success"
+        customer={{ kind: 'guest' }}
+        incomingFunds
+        onClose={mockClose}
+      />,
+    );
+  });
+  act(() => mockContent.onMethod?.('faircoin'));
+  const details = mockContent.methodDetails;
+  if (details?.kind !== 'faircoin') throw new Error('Expected FAIR methods');
+  act(() => details.external?.onOpen());
+  expect(mockContent.step).toBe('contact');
+  act(() => jest.advanceTimersByTime(6000));
+  expect(mockContent.step).toBe('contact');
+  expect(mockFeedbackPlay).not.toHaveBeenCalled();
+  act(() => mockContent.onContinue?.({ ...mockContent.draft, email: 'guest@example.test' }));
+  expect(mockContent.step).toBe('shipping');
+  act(() =>
+    mockContent.onContinue?.({
+      ...mockContent.draft,
+      shipping: {
+        name: 'Guest',
+        address: '1 Test Lane',
+        city: 'Test City',
+        postalCode: '10001',
+        country: 'US',
+      },
+      delivery: 'standard',
+    }),
+  );
+  expect(mockContent.step).toBe('method');
+  expect(mockContent.brandState).toBe('loading');
+  expect(mockContent.methodDetails).toMatchObject({
+    view: 'external',
+    external: { state: 'awaiting' },
+  });
+  act(() => jest.advanceTimersByTime(2000));
+  expect(mockContent.step).toBe('processing');
+});
+
+it('uses explicit inclusive tax fixture totals without adding tax to the quoted amount', () => {
+  mount('subscription');
+  expect(mockContent.request.tax).toEqual({
+    subtotalMinorUnits: 557,
+    taxMinorUnits: 42,
+    totalMinorUnits: 599,
+    inclusive: true,
+  });
+  expect(mockContent.request.dueTodayMinorUnits).toBe(599);
+});
+
+it('copies the complete external address represented by the QR without masking it', async () => {
+  mount();
+  act(() => mockContent.onMethod?.('faircoin'));
+  const details = mockContent.methodDetails;
+  if (details?.kind !== 'faircoin' || !details.external)
+    throw new Error('Expected external method');
+  expect(details.external.addressLabel).toBe(details.external.payload);
+  await details.external.onCopy?.(details.external.addressLabel);
+  expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT');
 });

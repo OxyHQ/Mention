@@ -1,3 +1,6 @@
+jest.mock('@/components/payments/MerchantInstallmentSettings', () => ({
+  MerchantInstallmentSettings: () => null,
+}));
 jest.mock('@/components/payments/CheckoutPreviewBadge', () => ({
   CheckoutPreviewBadge: () => null,
 }));

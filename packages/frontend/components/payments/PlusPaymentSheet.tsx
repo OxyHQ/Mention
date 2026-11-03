@@ -1,3 +1,7 @@
+import type {
+  MerchantInstallmentPreferences,
+  InstallmentPreviewDecision,
+} from '@/lib/payments/merchantInstallmentPreview';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { BottomSheet } from '@oxy.so/bloom/bottom-sheet';
@@ -56,6 +60,8 @@ export function PlusPaymentSheet({
   previewCustomerMode = 'automatic',
   previewSoundEnabled = true,
   previewIncomingFunds = false,
+  merchantInstallmentPreferences,
+  previewInstallmentDecision = 'available',
 }: {
   onClose(): void;
   cadence?: PlusCadence;
@@ -64,6 +70,8 @@ export function PlusPaymentSheet({
   previewCustomerMode?: CheckoutCustomerMode;
   previewSoundEnabled?: boolean;
   previewIncomingFunds?: boolean;
+  merchantInstallmentPreferences?: MerchantInstallmentPreferences;
+  previewInstallmentDecision?: InstallmentPreviewDecision;
 }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
@@ -92,6 +100,8 @@ export function PlusPaymentSheet({
         outcome={previewOutcome}
         soundEnabled={previewSoundEnabled}
         incomingFunds={previewIncomingFunds}
+        merchantInstallmentPreferences={merchantInstallmentPreferences}
+        previewInstallmentDecision={previewInstallmentDecision}
         onClose={onClose}
       />
     );

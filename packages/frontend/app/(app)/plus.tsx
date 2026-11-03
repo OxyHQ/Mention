@@ -1,3 +1,8 @@
+import { MerchantInstallmentSettings } from '@/components/payments/MerchantInstallmentSettings';
+import {
+  DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES,
+  type InstallmentPreviewDecision,
+} from '@/lib/payments/merchantInstallmentPreview';
 import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge';
 import { useState } from 'react';
 import { Linking, View } from 'react-native';
@@ -37,9 +42,14 @@ export default function PlusScreen() {
   const [selected, setSelected] = useState('plus');
   const [previewScenario, setPreviewScenario] = useState<CheckoutScenario>('subscription');
   const [previewCustomerMode, setPreviewCustomerMode] = useState<CheckoutCustomerMode>('automatic');
+  const [previewInstallmentDecision, setPreviewInstallmentDecision] =
+    useState<InstallmentPreviewDecision>('available');
   const [previewIncomingFunds, setPreviewIncomingFunds] = useState(false);
   const [previewSoundEnabled, setPreviewSoundEnabled] = useState(true);
   const [previewOutcome, setPreviewOutcome] = useState<PreviewOutcome>('success');
+  const [merchantInstallmentPreferences, setMerchantInstallmentPreferences] = useState(
+    DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES,
+  );
 
   const plans: SubscriptionPlan[] = [
     {
@@ -142,6 +152,8 @@ export default function PlusScreen() {
         )}
         {isLocalCheckoutPreview() && (
           <CheckoutPreviewControls
+            installmentDecision={previewInstallmentDecision}
+            onInstallmentDecision={setPreviewInstallmentDecision}
             incomingFunds={previewIncomingFunds}
             onIncomingFunds={setPreviewIncomingFunds}
             soundEnabled={previewSoundEnabled}
@@ -154,10 +166,20 @@ export default function PlusScreen() {
             onOutcome={setPreviewOutcome}
           />
         )}
+        {isLocalCheckoutPreview() && (
+          <View style={{ marginHorizontal: 24, marginBottom: 24 }}>
+            <MerchantInstallmentSettings
+              value={merchantInstallmentPreferences}
+              onChange={setMerchantInstallmentPreferences}
+            />
+          </View>
+        )}
       </ScreenScrollView>
       {isLocalCheckoutPreview() && <CheckoutPreviewBadge />}
       {paymentOpen && (
         <PlusPaymentSheet
+          previewInstallmentDecision={previewInstallmentDecision}
+          merchantInstallmentPreferences={merchantInstallmentPreferences}
           previewCustomerMode={previewCustomerMode}
           previewScenario={previewScenario}
           previewOutcome={previewOutcome}

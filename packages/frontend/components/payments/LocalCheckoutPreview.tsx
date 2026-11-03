@@ -1,3 +1,10 @@
+import * as Clipboard from 'expo-clipboard';
+import {
+  DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES,
+  eligibleInstallmentPlans,
+  previewInstallmentSchedule,
+  type MerchantInstallmentPreferences,
+} from '@/lib/payments/merchantInstallmentPreview';
 import { useCheckoutFeedback } from '@/hooks/useCheckoutFeedback';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { useSticker } from '@oxy.so/stickers/react';
@@ -39,6 +46,8 @@ export function LocalCheckoutPreview({
   customer = { kind: 'guest' },
   soundEnabled = true,
   incomingFunds = false,
+  merchantInstallmentPreferences = DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES,
+  previewInstallmentDecision = 'available',
 }: {
   cadence: PlusCadence;
   scenario: CheckoutScenario;
@@ -47,6 +56,8 @@ export function LocalCheckoutPreview({
   customer?: CheckoutPreviewCustomer;
   soundEnabled?: boolean;
   incomingFunds?: boolean;
+  merchantInstallmentPreferences?: MerchantInstallmentPreferences;
+  previewInstallmentDecision?: 'available' | 'pending' | 'rejected' | 'unavailable';
 } & CheckoutAuthorization) {
   // Warm the shared catalogue cache while reviewing; completion never waits for artwork.
   useSticker(EMPTY_STATE_STICKERS.checkoutSuccess);
@@ -59,6 +70,37 @@ export function LocalCheckoutPreview({
   const { t, i18n } = useTranslation();
   const [step, setStep] = useState<CheckoutStep>('review');
   const [demoBalance, setDemoBalance] = useState(25);
+  const [externalTransfer, setExternalTransfer] = useState<{
+    phase: 'awaiting' | 'detected' | 'confirming' | 'settled' | 'failure';
+    amountLabel: string;
+    payload: string;
+  } | null>(null);
+  const [installmentTermsOpen, setInstallmentTermsOpen] = useState(false);
+  const [selectedInstallmentId, setSelectedInstallmentId] = useState('pay_in_4');
+  const eligiblePlans = eligibleInstallmentPlans(merchantInstallmentPreferences, {
+    currency: scenario === 'physical' ? 'USD' : (reviewedOffer?.price.currency ?? 'USD'),
+    country: 'US',
+    amountMinorUnits:
+      scenario === 'physical'
+        ? 2800
+        : scenario === 'trial'
+          ? 0
+          : (reviewedOffer?.price.amountMinorUnits ?? 0),
+    purchaseKind: scenario === 'physical' ? 'one_time' : 'subscription',
+  });
+  const selectedInstallment =
+    eligiblePlans.find((plan) => plan.id === selectedInstallmentId) ?? eligiblePlans[0];
+  const installmentQuote = selectedInstallment
+    ? previewInstallmentSchedule(2800, selectedInstallment)
+    : null;
+  const installmentBinding = JSON.stringify({
+    scenario,
+    merchantInstallmentPreferences,
+    amountMinorUnits: scenario === 'physical' ? 2800 : reviewedOffer?.price.amountMinorUnits,
+    currency: reviewedOffer?.price.currency,
+    previewInstallmentDecision,
+  });
+
   const [activeMethod, setActiveMethod] = useState<string>('bank');
   const [faircoinView, setFaircoinView] = useState<'choices' | 'wallet' | 'external' | 'topup'>(
     'choices',
@@ -69,6 +111,9 @@ export function LocalCheckoutPreview({
     email: customer.email ?? '',
     paymentSelection: null,
   }));
+  const externalPending = useRef(false);
+  const pendingDraft = useRef(draft);
+  pendingDraft.current = draft;
   const [savedCards, setSavedCards] = useState<CheckoutCard[]>(() =>
     customer.simulated
       ? [
@@ -78,6 +123,16 @@ export function LocalCheckoutPreview({
       : [],
   );
   const feedback = useCheckoutFeedback(soundEnabled);
+  const previousInstallmentBinding = useRef(installmentBinding);
+  useEffect(() => {
+    if (previousInstallmentBinding.current === installmentBinding) return;
+    previousInstallmentBinding.current = installmentBinding;
+    setDraft((current) =>
+      current.paymentSelection?.method === 'installments'
+        ? { ...current, paymentSelection: null }
+        : current,
+    );
+  }, [installmentBinding]);
   const attempt = useRef(0);
   const history = useRef<CheckoutStep[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -138,6 +193,40 @@ export function LocalCheckoutPreview({
     fundingTimer.current = arrival;
     return () => clearTimeout(arrival);
   }, [incomingFunds, customer.simulated, step, faircoinView, demoBalance]);
+  useEffect(() => {
+    if (
+      !externalTransfer ||
+      externalTransfer.phase === 'settled' ||
+      externalTransfer.phase === 'failure'
+    )
+      return;
+    if (externalTransfer.phase === 'awaiting' && !incomingFunds) return;
+    const phase = externalTransfer.phase;
+    const pending = setTimeout(
+      () => {
+        if (!active.current) return;
+        if (phase === 'awaiting') {
+          authorizing.current = true;
+          attempt.current += 1;
+          setExternalTransfer((current) => current && { ...current, phase: 'detected' });
+          setStep('processing');
+        } else if (phase === 'detected') {
+          setExternalTransfer((current) => current && { ...current, phase: 'confirming' });
+        } else {
+          const result = outcome === 'failure' ? 'failure' : 'success';
+          setExternalTransfer(
+            (current) =>
+              current && { ...current, phase: result === 'success' ? 'settled' : 'failure' },
+          );
+          authorizing.current = false;
+          setStep(result);
+          feedback.play(result, attempt.current);
+        }
+      },
+      phase === 'awaiting' ? 2000 : 1000,
+    );
+    return () => clearTimeout(pending);
+  }, [externalTransfer, incomingFunds, outcome, feedback.play]);
   const displayOffer =
     scenario === 'trial'
       ? {
@@ -164,7 +253,10 @@ export function LocalCheckoutPreview({
       ? {
           merchant: t('plus.checkout.demoMerchant'),
           currency: 'USD',
-          dueTodayMinorUnits: draft.paymentSelection?.method === 'installments' ? 700 : 2800,
+          dueTodayMinorUnits:
+            draft.paymentSelection?.method === 'installments' && installmentQuote
+              ? installmentQuote.dueTodayMinorUnits
+              : 2800,
           totalMinorUnits: draft.paymentSelection?.method === 'installments' ? 2800 : undefined,
           items: [
             {
@@ -185,8 +277,18 @@ export function LocalCheckoutPreview({
           ],
           requiresContact: customer.kind === 'guest',
           requiresShipping: true,
-          paymentMethods: ['card', 'bank', 'faircoin', 'installments'],
-          taxDescription: t('plus.checkout.included'),
+          paymentMethods: [
+            'card',
+            'bank',
+            'faircoin',
+            ...(eligiblePlans.length ? ['installments'] : []),
+          ],
+          tax: {
+            subtotalMinorUnits: 2600,
+            taxMinorUnits: 200,
+            totalMinorUnits: 2800,
+            inclusive: true,
+          },
         }
       : {
           merchant: scenario === 'trial' ? t('plus.checkout.demoTrialMerchant') : 'Mention',
@@ -219,7 +321,25 @@ export function LocalCheckoutPreview({
           requiresContact: customer.kind === 'guest',
           requiresShipping: false,
           paymentMethods: ['card', 'bank', 'faircoin'],
-          taxDescription: t('plus.checkout.included'),
+          tax:
+            scenario === 'trial'
+              ? { subtotalMinorUnits: 0, taxMinorUnits: 0, totalMinorUnits: 0, inclusive: true }
+              : price?.currency === 'USD' && price.amountMinorUnits === 599
+                ? {
+                    subtotalMinorUnits: 557,
+                    taxMinorUnits: 42,
+                    totalMinorUnits: 599,
+                    inclusive: true,
+                  }
+                : price?.currency === 'USD' && price.amountMinorUnits === 5750
+                  ? {
+                      subtotalMinorUnits: 5350,
+                      taxMinorUnits: 400,
+                      totalMinorUnits: 5750,
+                      inclusive: true,
+                    }
+                  : undefined,
+          taxDescription: t('plus.checkout.taxPending'),
           recurring: {
             amountMinorUnits: price?.amountMinorUnits ?? 0,
             interval: scenario === 'trial' ? 'month' : cadence,
@@ -242,8 +362,22 @@ export function LocalCheckoutPreview({
   }
   function back() {
     if (step === 'processing') return;
+    if (step === 'method' && activeMethod === 'installments' && installmentTermsOpen) {
+      setInstallmentTermsOpen(false);
+      setDirection('backward');
+      return;
+    }
     if (step === 'method' && activeMethod === 'faircoin' && faircoinView !== 'choices') {
       setDirection('backward');
+      if (faircoinView === 'external') {
+        setExternalTransfer(null);
+        externalPending.current = false;
+        setDraft((current) =>
+          current.paymentSelection?.id === 'faircoin-external'
+            ? { ...current, paymentSelection: null }
+            : current,
+        );
+      }
       setFaircoinView(faircoinView === 'topup' ? 'wallet' : 'choices');
       return;
     }
@@ -283,12 +417,31 @@ export function LocalCheckoutPreview({
       authorizing.current = false;
     }
   }
+  function continueWithDraft(nextDraft: CheckoutDraft) {
+    setDraft(nextDraft);
+    pendingDraft.current = nextDraft;
+    const next = nextCheckoutStep(request, nextDraft);
+    if (next === 'review' && externalPending.current) {
+      externalPending.current = false;
+      setExternalTransfer({
+        phase: 'awaiting',
+        amountLabel: `${faircoinAmount} FAIR`,
+        payload: 'PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT',
+      });
+      setActiveMethod('faircoin');
+      setFaircoinView('external');
+      navigate('method');
+    } else navigate(next === 'review' ? 'confirmation' : next);
+  }
   function chooseCard(card: CheckoutCard) {
-    setDraft((current) => ({
-      ...current,
+    externalPending.current = false;
+    const nextDraft = {
+      ...draft,
       card,
       paymentSelection: { id: card.id, method: 'card', label: `${card.brand} ···· ${card.last4}` },
-    }));
+    };
+    setDraft(nextDraft);
+    pendingDraft.current = nextDraft;
     setSavedCards((current) =>
       card.saveForLater
         ? [...current.filter((item) => item.id !== card.id), card]
@@ -296,42 +449,108 @@ export function LocalCheckoutPreview({
     );
   }
   function chooseMethod(selection: CheckoutPaymentSelection) {
-    setDraft((current) => ({ ...current, paymentSelection: selection }));
-    navigate('review');
+    externalPending.current = false;
+    continueWithDraft({ ...draft, paymentSelection: selection });
   }
   // Explicit tender fixtures for these scenarios, never a display-currency FX conversion.
   const faircoinAmount =
     scenario === 'trial' ? 0 : scenario === 'physical' ? 56 : cadence === 'year' ? 115 : 12;
+  const formatUsd = (minor: number) =>
+    new Intl.NumberFormat(i18n.language, { style: 'currency', currency: 'USD' }).format(
+      minor / 100,
+    );
   const methodDetails: PeableMethodDetails =
     activeMethod === 'installments'
       ? {
           kind: 'installments',
-          dueTodayLabel: '$7.00',
-          totalLabel: '$28.00',
-          feesLabel: '$0.00',
-          schedule: [
-            { id: 'today', label: t('plus.checkout.installments.today'), amountLabel: '$7.00' },
-            { id: 'two', label: t('plus.checkout.installments.two'), amountLabel: '$7.00' },
-            { id: 'four', label: t('plus.checkout.installments.four'), amountLabel: '$7.00' },
-            { id: 'six', label: t('plus.checkout.installments.six'), amountLabel: '$7.00' },
-          ],
-          disclosure: t('plus.checkout.installments.preview'),
-          onSelect: () =>
+          orderLabel: formatUsd(2800),
+          termsVisible: installmentTermsOpen,
+          onTerms: () => {
+            setInstallmentTermsOpen(true);
+            setDirection('forward');
+          },
+          onTermsBack: () => {
+            setInstallmentTermsOpen(false);
+            setDirection('backward');
+          },
+          quote:
+            installmentQuote && selectedInstallment
+              ? {
+                  id: `${selectedInstallment.id}:${installmentBinding}`,
+                  currency: 'USD',
+                  orderMinorUnits: 2800,
+                  dueTodayMinorUnits: installmentQuote.dueTodayMinorUnits,
+                  totalMinorUnits: installmentQuote.totalMinorUnits,
+                  interestMinorUnits: 0,
+                  feesMinorUnits: installmentQuote.feesMinorUnits,
+                  payments: installmentQuote.payments.map((payment, index) => ({
+                    id: `${index}`,
+                    dueOn: new Date(Date.UTC(2026, 10, 3 + payment.dueInDays))
+                      .toISOString()
+                      .slice(0, 10),
+                    amountMinorUnits: payment.amountMinorUnits,
+                  })),
+                }
+              : undefined,
+          state: installmentQuote ? previewInstallmentDecision : 'ineligible',
+          plans: eligiblePlans.map((plan) => ({
+            id: plan.id,
+            title: t(`plus.merchantInstallments.${plan.family}`),
+            detail: t('plus.checkout.installmentPlan.noInterest'),
+          })),
+          selectedPlanId: selectedInstallment?.id,
+          onPlan: (id) => {
+            setSelectedInstallmentId(id);
+            setDraft((current) =>
+              current.paymentSelection?.method === 'installments'
+                ? { ...current, paymentSelection: null }
+                : current,
+            );
+          },
+          dueTodayLabel: formatUsd(installmentQuote?.dueTodayMinorUnits ?? 0),
+          totalLabel: formatUsd(installmentQuote?.totalMinorUnits ?? 2800),
+          feesLabel: formatUsd(installmentQuote?.feesMinorUnits ?? 0),
+          interestLabel: formatUsd(0),
+          schedule: (installmentQuote?.payments ?? []).map((payment, index) => ({
+            id: `${selectedInstallment?.id}:${index}`,
+            label: new Date(Date.UTC(2026, 10, 3 + payment.dueInDays)).toLocaleDateString(
+              i18n.language,
+              { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' },
+            ),
+            amountLabel: formatUsd(payment.amountMinorUnits),
+          })),
+          disclosure: [
+            t('plus.checkout.installments.preview'),
+            merchantInstallmentPreferences.message,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          terms: merchantInstallmentPreferences.terms || undefined,
+          repayment: customer.simulated ? { label: 'Visa ···· 4242' } : undefined,
+          onSelect: () => {
+            if (
+              !installmentQuote ||
+              !selectedInstallment ||
+              previewInstallmentDecision !== 'available'
+            )
+              return;
             chooseMethod({
-              id: 'installments',
+              id: `installments:${selectedInstallment.id}:${installmentBinding}`,
               method: 'installments',
-              label: t('plus.checkout.installments.title'),
-              detail: t('plus.checkout.installments.summary'),
-            }),
+              label: t(`plus.merchantInstallments.${selectedInstallment.family}`),
+              detail: formatUsd(installmentQuote.totalMinorUnits),
+            });
+          },
         }
       : activeMethod === 'faircoin'
         ? {
             kind: 'faircoin',
-            amountLabel: `${faircoinAmount} FAIR`,
+            amountLabel: externalTransfer?.amountLabel ?? `${faircoinAmount} FAIR`,
             quoteDescription: t('plus.checkout.rail.demoQuote'),
             view: faircoinView,
             wallet: customer.simulated
               ? {
+                  state: 'ready',
                   balanceLabel: `${demoBalance} FAIR`,
                   remainingLabel:
                     demoBalance >= faircoinAmount ? `${demoBalance - faircoinAmount} FAIR` : '—',
@@ -343,7 +562,11 @@ export function LocalCheckoutPreview({
                   onOpen: () => setFaircoinView('wallet'),
                   topUp: {
                     payload: 'PEABLE_LOCAL_WALLET_TOPUP_PREVIEW_NOT_PAYABLE',
-                    addressLabel: t('plus.checkout.rail.topupPreview'),
+                    addressLabel: 'PEABLE_LOCAL_WALLET_TOPUP_PREVIEW_NOT_PAYABLE',
+                    onCopy: async (value) => {
+                      if (!(await Clipboard.setStringAsync(value)))
+                        throw new Error('Clipboard unavailable');
+                    },
                     onOpen: () => setFaircoinView('topup'),
                   },
                   onSelect: () => {
@@ -356,11 +579,41 @@ export function LocalCheckoutPreview({
                     });
                   },
                 }
-              : undefined,
+              : customer.kind === 'account'
+                ? {
+                    state: 'unavailable',
+                    canPay: false,
+                    onOpen: () => setFaircoinView('wallet'),
+                  }
+                : undefined,
             external: {
-              payload: 'PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT',
-              addressLabel: t('plus.checkout.rail.nonpayable'),
-              onOpen: () => setFaircoinView('external'),
+              state: externalTransfer?.phase,
+              payload: externalTransfer?.payload ?? 'PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT',
+              addressLabel: 'PEABLE_LOCAL_PREVIEW_NOT_A_PAYMENT',
+              onCopy: async (value) => {
+                if (!(await Clipboard.setStringAsync(value)))
+                  throw new Error('Clipboard unavailable');
+              },
+              onOpen: () => {
+                if (authorizing.current) return;
+                if (faircoinAmount === 0) {
+                  chooseMethod({
+                    id: 'faircoin-external',
+                    method: 'faircoin',
+                    label: t('plus.checkout.rail.external'),
+                  });
+                  return;
+                }
+                externalPending.current = true;
+                continueWithDraft({
+                  ...draft,
+                  paymentSelection: {
+                    id: 'faircoin-external',
+                    method: 'faircoin',
+                    label: t('plus.checkout.rail.external'),
+                  },
+                });
+              },
               onSelect: () =>
                 chooseMethod({
                   id: 'faircoin-external',
@@ -384,15 +637,31 @@ export function LocalCheckoutPreview({
                 label: t(
                   activeMethod === 'bank' ? 'plus.checkout.rail.bank' : 'plus.checkout.rail.other',
                 ),
-                detail:
-                  activeMethod === 'bank' ? '···· 6789' : t('plus.checkout.rail.providerPreview'),
+                detail: activeMethod === 'bank' && customer.simulated ? '···· 6789' : undefined,
               }),
           };
   return (
     <PeableCheckoutSheet
       open
       locale={i18n.language}
-      brandState={brandState}
+      brandState={
+        externalTransfer?.phase === 'awaiting' && step === 'method' && faircoinView === 'external'
+          ? 'loading'
+          : brandState
+      }
+      methodTitle={
+        activeMethod === 'faircoin'
+          ? t(
+              faircoinView === 'wallet'
+                ? 'plus.checkout.rail.wallet'
+                : faircoinView === 'topup'
+                  ? 'plus.checkout.rail.addFunds'
+                  : 'plus.checkout.rail.payFaircoin',
+            )
+          : activeMethod === 'installments'
+            ? t('plus.checkout.installments.title')
+            : t('plus.checkout.rail.bank')
+      }
       accountSummary={
         customer.kind === 'account'
           ? {
@@ -400,6 +669,20 @@ export function LocalCheckoutPreview({
               detail: customer.simulated
                 ? customer.email
                 : t('plus.checkout.customer.accountLabel'),
+              supportingRows: [
+                {
+                  id: 'wallet-balance',
+                  title: t('plus.checkout.rail.wallet'),
+                  value: customer.simulated
+                    ? `${demoBalance} FAIR`
+                    : t('plus.checkout.rail.balanceUnavailable'),
+                  onPress: () => {
+                    setActiveMethod('faircoin');
+                    setFaircoinView('wallet');
+                    navigate('method');
+                  },
+                },
+              ],
               avatar: (
                 <AccountAvatar
                   account={{ name: customer.displayName, avatar: customer.avatar }}
@@ -440,8 +723,13 @@ export function LocalCheckoutPreview({
       methodDetails={methodDetails}
       draft={draft}
       step={step}
-      frameKey={step === 'method' ? `${activeMethod}:${faircoinView}` : step}
+      frameKey={
+        step === 'method'
+          ? `${activeMethod}:${faircoinView}:${selectedInstallment?.id}:${previewInstallmentDecision}:${installmentTermsOpen}`
+          : step
+      }
       direction={direction}
+      onContinue={continueWithDraft}
       onDraft={setDraft}
       onStep={navigate}
       onBack={back}
@@ -463,14 +751,20 @@ export function LocalCheckoutPreview({
           'contactHint',
           'delivery.standardHint',
           'delivery.expressHint',
-        ].map((key) => [key, t(`plus.checkout.${key}`)]),
+        ].map((key) => [
+          key,
+          key === 'result.processing' &&
+          (externalTransfer?.phase === 'detected' || externalTransfer?.phase === 'confirming')
+            ? t(`plus.checkout.transfer.${externalTransfer.phase}`)
+            : t(`plus.checkout.${key}`),
+        ]),
       )}
       cardEntry={
         step === 'card' ? (
           <LocalCheckoutCardEntry
             card={draft.card}
             onCard={chooseCard}
-            onDone={() => navigate('review')}
+            onDone={() => continueWithDraft(pendingDraft.current)}
           />
         ) : undefined
       }
