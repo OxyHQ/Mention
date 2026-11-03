@@ -1029,7 +1029,7 @@ const PostItem: React.FC<PostItemProps> = ({
           linkPreviewUrls={linkPreviewUrls}
           trailingContent={
             threadPosition && !isNested ? (
-              <>
+              <Text>
                 {'\u00A0'}
                 <Text
                   className="bg-surface text-muted-foreground rounded-full text-[11px]"
@@ -1041,7 +1041,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 >
                   {` ${threadPosition.index}/${threadPosition.total} `}
                 </Text>
-              </>
+              </Text>
             ) : undefined
           }
         />

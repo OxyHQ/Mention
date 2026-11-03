@@ -30,16 +30,19 @@ needs a thin new endpoint that reuses that logic, surfaced through the SDK.
 ## Architecture (upstream → down)
 
 ### 1. `@oxy.so/api` (Oxy API) — new endpoint
+
 `GET /users/:userId/mutuals?limit=&offset=` (authed/optional-auth).
 - **Viewer derived from the auth token server-side** (`getRequiredOxyUserId`/optional auth) — NOT a client-supplied `viewerId` (avoids IDOR/spoofing). No session → empty result.
-- Reuse the mutual aggregation from `profiles.ts:~870` (intersection of *viewer's following* ∩ *:userId's followers*, `Follow` collection, `followType: USER`), bounded window.
+- Reuse the mutual aggregation from `profiles.ts:~870` (intersection of _viewer's following_ ∩ _:userId's followers_, `Follow` collection, `followType: USER`), bounded window.
 - Returns `{ data: PublicUserProfile[], total }` paginated — each item with `id`, `username`, `name.displayName`, `avatar` (file id), `color` (the same `select` the followers endpoint uses). Ordered by relevance/mutualCount then recency.
 - Edge: `:userId === viewer` or anon → `{ data: [], total: 0 }`.
 
 ### 2. `@oxy.so/core` (SDK) — new method
+
 `getUserMutuals(targetUserId: string, pagination?: { limit?; offset? }): Promise<{ mutuals: User[]; total: number; hasMore: boolean }>` — a `user` mixin method mirroring `getUserFollowers` (same caching posture). Calls the endpoint through the SDK client (auth handled by the SDK). Bump + publish core.
 
 ### 3. Mention — consume
+
 - **Hook** `useMutualFollowers(profileId)` (React Query): keyed on `profileId` + viewer identity (`user?.id`); gated on signed-in + `canUsePrivateApi` + `profileId !== user.id`. Fetches a small sample (`limit: 3`) + `total`. Disabled (returns empty) when gating fails.
 - **Component** `components/Profile/FollowedByRow.tsx`:
   - `null` when not signed in, own profile, or `total === 0`.
@@ -54,9 +57,11 @@ needs a thin new endpoint that reuses that logic, surfaced through the SDK.
 - **i18n** keys: `profile.followedBy.*` (one/two/many with names + count) and the `in-common` tab label.
 
 ## Data flow
+
 `Follow` graph → Oxy API `/users/:id/mutuals` (viewer from auth) → `@oxy.so/core getUserMutuals` → Mention `useMutualFollowers` → `FollowedByRow` (sample) AND connections `in-common` tab (full list). One SDK method feeds both.
 
 ## Edge cases
+
 - Signed-out viewer → no row, `in-common` tab shows sign-in/empty state.
 - Own profile → no row (no "you follow" relative to yourself); hide or empty the tab.
 - 0 mutuals → no row; tab shows empty state.
@@ -64,15 +69,18 @@ needs a thin new endpoint that reuses that logic, surfaced through the SDK.
 - Mutual without avatar → AvatarGroup neutral placeholder.
 
 ## Publish / deploy order (upstream-first)
+
 1. **Oxy API**: add endpoint + test → land on OxyHQServices main → **deploy oxy-api to ECS** (the endpoint must be live on `api.oxy.so` before the SDK/Mention can call it, incl. local dev which points at prod Oxy).
 2. **`@oxy.so/core`**: add `getUserMutuals` → build/tsc/test → bump (minor) → **publish via `bun publish`** (so workspace deps resolve) → verify tarball.
 3. **Mention**: bump `@oxy.so/core` (caret) → reinstall → add hook + `FollowedByRow` + connections `in-common` tab + i18n → verify (tsc + build:frontend + frozen-lockfile) → push main.
 
 ## Verification
+
 - **Oxy API**: unit/integration test of the aggregation (viewer with mutuals → list+total; anon → empty; own profile → empty); deploy + curl the live endpoint with a service/user token.
 - **core**: build/tsc/test; clean external `bun add` + `import` of `getUserMutuals`.
 - **Mention**: frontend tsc (3 livekit allow-listed) + `bun run build:frontend`; real browser/device — on another user's profile while signed in: the "Followed by" row appears after stats (when mutuals exist), tapping opens connections on the **In common** tab with the full list; own profile + signed-out show nothing.
 
 ## Out of scope / follow-up
+
 - "People you may know" stays its own `who-may-know` tab (unchanged).
 - "Connections in common" (you both follow the same people) — different intersection; not now.

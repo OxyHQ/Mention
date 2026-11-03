@@ -19,26 +19,26 @@ work. Each workstream below gets its own branch and its own PR.
 Taken against `origin/main`, not the shared checkout (which was 145 commits
 behind and would have reported the retired database as still present):
 
-| Signal | Measurement |
-|---|---|
-| Source size | 160 files / 44 408 lines in `src/services`, 60/17 560 in `src/db`, 56/17 012 in `src/connectors` |
-| Largest files | `posts.controller.ts` 4110, `PostHydrationService.ts` 3228, `TrendingService.ts` 1994, `ChannelDeletionService.ts` 1765 |
-| Bootstrap | `server.ts` 896 lines: sockets, presence, boot, queue workers, shutdown |
-| Layer bleed | 28 of 46 files in `routes/` + `controllers/` import `db/` directly |
-| Raw SQL | 515 `sql\`` sites |
-| Caching | no shared helper; 26 files call Redis directly with hand-rolled TTLs |
-| HTTP observability | present — `middleware/requestObservability.ts` records `http_request_duration_ms` |
-| DB observability | **absent** — no query timing, no roundtrip count, no slow-query log |
-| Queue workers | BullMQ (5 federation queues) started in-process from `server.ts:753` via `require()` |
-| Input validation | zod in 5 of 46 route/controller files |
-| Tests | 495 files / 6106 tests, green in 43 s |
-| Typecheck | clean |
+| Signal             | Measurement                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Source size        | 160 files / 44 408 lines in `src/services`, 60/17 560 in `src/db`, 56/17 012 in `src/connectors`                        |
+| Largest files      | `posts.controller.ts` 4110, `PostHydrationService.ts` 3228, `TrendingService.ts` 1994, `ChannelDeletionService.ts` 1765 |
+| Bootstrap          | `server.ts` 896 lines: sockets, presence, boot, queue workers, shutdown                                                 |
+| Layer bleed        | 28 of 46 files in `routes/` + `controllers/` import `db/` directly                                                      |
+| Raw SQL            | 515 `sql\`` sites                                                                                                       |
+| Caching            | no shared helper; 26 files call Redis directly with hand-rolled TTLs                                                    |
+| HTTP observability | present — `middleware/requestObservability.ts` records `http_request_duration_ms`                                       |
+| DB observability   | **absent** — no query timing, no roundtrip count, no slow-query log                                                     |
+| Queue workers      | BullMQ (5 federation queues) started in-process from `server.ts:753` via `require()`                                    |
+| Input validation   | zod in 5 of 46 route/controller files                                                                                   |
+| Tests              | 495 files / 6106 tests, green in 43 s                                                                                   |
+| Typecheck          | clean                                                                                                                   |
 
 Two initial hypotheses were **disproved** and are not part of this programme:
 
-- *"Error handling is ad-hoc."* It is not. `app.ts` mounts a central
+- _"Error handling is ad-hoc."_ It is not. `app.ts` mounts a central
   `globalErrorHandler`; the 247 `try {` blocks sit above it, not instead of it.
-- *"Config is scattered."* The 43 `process.env` reads outside `src/config` are
+- _"Config is scattered."_ The 43 `process.env` reads outside `src/config` are
   almost entirely in `src/scripts/`, not in request-path code.
 
 ## The finding that reordered the work
@@ -64,6 +64,7 @@ rather than becoming a phase of its own.
 Each owns a disjoint set of files so the branches can run concurrently.
 
 ### W1 — Query instrumentation
+
 **Owns:** `src/db/postgres.ts`, `src/db/queryMetrics.ts` (new), `src/utils/metrics.ts` (additive), `src/routes/internalMetrics.routes.ts` (additive)
 
 Wrap the postgres.js client so every statement records duration and a
@@ -77,6 +78,7 @@ their query count and per-query timings, and the numbers are written into this
 document.
 
 ### W2 — Split `posts.controller.ts`
+
 **Owns:** `src/controllers/posts.controller.ts`, `src/controllers/posts/**` (new), `src/routes/posts.ts`
 
 36 exported handlers in one 4110-line file, with natural seams: create/thread,
@@ -88,6 +90,7 @@ imported before.
 export surface is unchanged, and the suite is green.
 
 ### W3 — Slim `server.ts`
+
 **Owns:** `server.ts`, `src/runtime/**` (new)
 
 896 lines mixing socket wiring, presence bookkeeping, boot sequence, queue worker
@@ -149,12 +152,12 @@ What it did surface was specific, and became W5 and W9.
 
 ## Query counts, before and after
 
-| Path | Table | Before | After | Workstream |
-|---|---|---|---|---|
-| `hydratePosts` (any page size) | `user_settings` | 2 | **1** | W5 |
-| `hydratePosts` total | — | 8 | **7** | W5 |
-| For You viewer context | `federated_follows` | 3 | **2** | W9 |
-| Feed hydration, cold cache | `starter_pack_members` | 3 | **2** | W9 |
+| Path                           | Table                  | Before | After | Workstream |
+| ------------------------------ | ---------------------- | ------ | ----- | ---------- |
+| `hydratePosts` (any page size) | `user_settings`        | 2      | **1** | W5         |
+| `hydratePosts` total           | —                      | 8      | **7** | W5         |
+| For You viewer context         | `federated_follows`    | 3      | **2** | W9         |
+| Feed hydration, cold cache     | `starter_pack_members` | 3      | **2** | W9         |
 
 Each is pinned by a statement-budget test with a positive control: re-introducing the
 redundancy reds the gate.
@@ -166,13 +169,13 @@ three occurrences in the whole tree (declaration, initialiser, assignment) and z
 reads across backend, frontend, shared-types and mcp. It could not have been correct
 if it were read: `services/engagementCountPrivacy.ts` states those four flags belong to
 a post's **author** and hide a counter from everyone, so a viewer-side copy described
-what the *reader* discloses on their own posts. A query per hydration for a dead and
+what the _reader_ discloses on their own posts. A query per hydration for a dead and
 semantically inverted field.
 
 ## Redundancies deliberately left
 
 - **`starter_pack_members` twice in `hydratePosts`** — not one query run twice but two
-  disjoint cache-fill cohorts. Merging them means resolving the viewer *after* the post
+  disjoint cache-fill cohorts. Merging them means resolving the viewer _after_ the post
   graph, which serialises link-preview resolution behind the Oxy author batch and its
   1500 ms deadline: one statement traded for latency on the hot path.
 - **`federated_actors` twice on the For You path** — a different redundancy with
@@ -191,7 +194,7 @@ work narrowed them:
   Migrating a distributed lock into a cache abstraction would have been a bug. W4
   migrated the four modules that genuinely are caches.
 - **Validation.** "zod in 5 of 46 files" ignored the typed query-param helpers already
-  used in 19 files. The real gap was request *bodies*: W8 audited every raw `req.query`
+  used in 19 files. The real gap was request _bodies_: W8 audited every raw `req.query`
   site and found none unsafe. It also found that
   `middleware/validate.ts`'s zod schemas are referenced by nothing except their own
   test — a set of schemas gating zero traffic.

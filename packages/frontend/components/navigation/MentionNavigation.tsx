@@ -1,7 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { BloomIconComponent } from '@oxy.so/bloom';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
@@ -31,6 +30,21 @@ import { requestSettings } from '@/components/settings/settingsRoutes';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 
+/** The reader's own avatar, at whatever box the bar or the sidebar asks for. */
+function ProfileAvatar({ width }: { width?: number }) {
+  const { user } = useAuth();
+  return (
+    <AccountAvatar
+      account={user ?? undefined}
+      size={width ?? 26}
+      source={user?.avatar}
+      // Photo-less accounts get their initial, as in the Oxy account menu.
+      name={user?.name?.displayName || user?.username || undefined}
+      variant={MEDIA_VARIANT_AVATAR}
+    />
+  );
+}
+
 /**
  * Every place Mention's navigation leads, declared once. Bloom draws the rest
  * from it: the pager's pages, the bottom bar, and the app shell's sidebar with
@@ -50,24 +64,6 @@ export function useMentionDestinations(): AppDestination[] {
   const unreadCount = useUnreadCount();
   const communitiesPreview = useCommunitiesPreview();
   const username = user?.username;
-  const avatar = user?.avatar;
-  // Photo-less accounts get their initial, as in the Oxy account menu.
-  const avatarName = user?.name?.displayName || username || undefined;
-  // The reader's own avatar, at whatever box the bar or the sidebar asks for.
-  const ProfileAvatar = useMemo<BloomIconComponent>(() => {
-    function ProfileAvatar({ width }: { width?: number }) {
-      return (
-        <AccountAvatar
-          account={user ?? undefined}
-          size={width ?? 26}
-          source={avatar}
-          name={avatarName}
-          variant={MEDIA_VARIANT_AVATAR}
-        />
-      );
-    }
-    return ProfileAvatar;
-  }, [avatar, avatarName, user]);
   const openAccounts = useCallback(() => {
     haptic('heavy');
     showBottomSheet?.('ManageAccount');
@@ -170,7 +166,7 @@ export function useMentionDestinations(): AppDestination[] {
       },
       { name: 'write', href: '/write', page: true },
     ],
-    [t, unreadCount, communitiesPreview, username, user, ProfileAvatar, openAccounts],
+    [t, unreadCount, communitiesPreview, username, user, openAccounts],
   );
 }
 

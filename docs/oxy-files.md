@@ -1,7 +1,7 @@
 # Oxy Files: who owns a file, who uses it, when it goes away
 
-Mention's side of Oxy's ADR 0043, *Who owns a file, who uses it, and when it
-goes away* (in the Oxy repository's `docs/adr/`).
+Mention's side of Oxy's ADR 0043, _Who owns a file, who uses it, and when it
+goes away_ (in the Oxy repository's `docs/adr/`).
 Oxy owns every file; Mention says which ones it USES, owns the files no person
 owns (the GIF library, report evidence), and reacts when Oxy takes a file away.
 
@@ -12,13 +12,13 @@ The code is `packages/backend/src/db/oxyFiles/` and
 
 ## Who owns what
 
-| Files | Owner in Oxy | Lifecycle |
-| --- | --- | --- |
-| A person's post media, banner, resume (uploaded or imported for them) | the person's account | never deleted behind their back; *not in use* when no app references it |
-| Media re-hosted from a federated post | the federated actor's Oxy account | Mention deletes it explicitly when the post is deleted at its source (`federated_media_deletions`) |
-| The GIF library (`gifs.storage = 'application'`) | the Mention application | collected by Oxy 24 h after its last reference, purged after 30 days in trash |
-| Report evidence copies (`moderation_report_evidence_files`) | the Mention application (`unlisted`) | same; CrowdSource references them as its `case` too |
-| The federated media cache (`federated_media_cache`) | Oxy's platform cache namespace | evicted by Mention's eviction job; never referenced |
+| Files                                                                 | Owner in Oxy                         | Lifecycle                                                                                          |
+| --------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| A person's post media, banner, resume (uploaded or imported for them) | the person's account                 | never deleted behind their back; _not in use_ when no app references it                            |
+| Media re-hosted from a federated post                                 | the federated actor's Oxy account    | Mention deletes it explicitly when the post is deleted at its source (`federated_media_deletions`) |
+| The GIF library (`gifs.storage = 'application'`)                      | the Mention application              | collected by Oxy 24 h after its last reference, purged after 30 days in trash                      |
+| Report evidence copies (`moderation_report_evidence_files`)           | the Mention application (`unlisted`) | same; CrowdSource references them as its `case` too                                                |
+| The federated media cache (`federated_media_cache`)                   | Oxy's platform cache namespace       | evicted by Mention's eviction job; never referenced                                                |
 
 ## Entity types
 
@@ -26,15 +26,15 @@ Every use Mention registers is an Oxy file reference `(fileId, entityType,
 entityId)`. The registry is `db/oxyFiles/fileReferenceEntities.ts`; each entry
 is marked by a trigger on its table and answers "is this pair in use".
 
-| Oxy entity type | entityId | The file | In use while |
-| --- | --- | --- | --- |
-| `post.00` … `post.31` | `posts.id` | `post_media.media_id`, `post_variant_media.media_id` | the post (or a language variant's override) shows it; withheld items count |
-| `gif` | `gifs.id` | `gifs.mp4_file_id`, `gifs.preview_file_id` | the library row exists |
-| `profile_banner` | Oxy account id (`user_settings.oxy_user_id`) | `user_settings.profile_header_image` | it is the account's banner |
-| `video_poster` | the video's Oxy file id | `federated_media_posters.poster_file_id` | a post shows the video |
-| `job_application` | `mention_job_applications.id` | `mention_job_applications.resume_file_id` | it is the application's resume |
-| `moderation_report` | `reports.id` | `moderation_report_evidence_files.evidence_file_id` | the report exists |
-| `membership_media` | `membership_media.id` | `membership_media.file_id` | the private upload record exists, including before attachment |
+| Oxy entity type       | entityId                                     | The file                                             | In use while                                                               |
+| --------------------- | -------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| `post.00` … `post.31` | `posts.id`                                   | `post_media.media_id`, `post_variant_media.media_id` | the post (or a language variant's override) shows it; withheld items count |
+| `gif`                 | `gifs.id`                                    | `gifs.mp4_file_id`, `gifs.preview_file_id`           | the library row exists                                                     |
+| `profile_banner`      | Oxy account id (`user_settings.oxy_user_id`) | `user_settings.profile_header_image`                 | it is the account's banner                                                 |
+| `video_poster`        | the video's Oxy file id                      | `federated_media_posters.poster_file_id`             | a post shows the video                                                     |
+| `job_application`     | `mention_job_applications.id`                | `mention_job_applications.resume_file_id`            | it is the application's resume                                             |
+| `moderation_report`   | `reports.id`                                 | `moderation_report_evidence_files.evidence_file_id`  | the report exists                                                          |
+| `membership_media`    | `membership_media.id`                        | `membership_media.file_id`                           | the private upload record exists, including before attachment              |
 
 `post` is sent as 32 entity types because Oxy reconciles at most 500,000 pairs
 per entity type and session; the shard is the first byte of the MD5 of the post
@@ -98,13 +98,13 @@ retries). `services/oxyFiles/fileEvents.ts` applies each event in one
 transaction, deduped on its id, ordered by `occurredAt`, audited in
 `oxy_file_events`:
 
-| File state after the change | Mention |
-| --- | --- |
-| `deleted` | withholds it (`deleted`, terminal); removes GIF rows using it; clears banners and resumes naming it |
-| `blocked` (a takedown) | withholds it (`blocked`); removes GIF rows; clears banners and resumes |
-| `trash` | withholds it (`trashed`); for Mention's OWN file, re-sends its GIF references, which restores it |
-| `active` + `private` | withholds it (`private`) |
-| `active` + `public`/`unlisted` | serves it again |
+| File state after the change    | Mention                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `deleted`                      | withholds it (`deleted`, terminal); removes GIF rows using it; clears banners and resumes naming it |
+| `blocked` (a takedown)         | withholds it (`blocked`); removes GIF rows; clears banners and resumes                              |
+| `trash`                        | withholds it (`trashed`); for Mention's OWN file, re-sends its GIF references, which restores it    |
+| `active` + `private`           | withholds it (`private`)                                                                            |
+| `active` + `public`/`unlisted` | serves it again                                                                                     |
 
 Withholding (`oxy_file_states.withheld`, copied onto `post_media.withheld` and
 `post_variant_media.withheld`, and onto every new row by trigger) keeps the row
@@ -228,9 +228,9 @@ Run and verify a final complete pass after the upstream repair inventory settles
 
 ## Configuration
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `OXY_FILES_WEBHOOK_SECRET` / `_PREVIOUS` | unset | the file-events signing secret Oxy returned when the endpoint was set |
+| Variable                                 | Default | Meaning                                                               |
+| ---------------------------------------- | ------- | --------------------------------------------------------------------- |
+| `OXY_FILES_WEBHOOK_SECRET` / `_PREVIOUS` | unset   | the file-events signing secret Oxy returned when the endpoint was set |
 
 There is no switch for references or their reconciliation: the drain always
 runs and the nightly reconciliation always applies (an application file nobody

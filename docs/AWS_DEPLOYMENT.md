@@ -9,10 +9,10 @@ releases per service.
 Each deploy workflow has two triggers, and `.github/scripts/release-provenance.sh`
 gives every commit to exactly one of them:
 
-| Commit | Released by | Proof it passed CI |
-| --- | --- | --- |
-| Merged through the merge queue | `push` to main, immediately | A `merge_group` run of `ci.yml` for this exact SHA, whose `CI complete` job succeeded — the queue fast-forwards main to the tree it tested |
-| Anything else (admin bypass, direct push, queue disabled) | `workflow_run` of CI on push, after it succeeds | That CI run itself, as before |
+| Commit                                                    | Released by                                     | Proof it passed CI                                                                                                                         |
+| --------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Merged through the merge queue                            | `push` to main, immediately                     | A `merge_group` run of `ci.yml` for this exact SHA, whose `CI complete` job succeeded — the queue fast-forwards main to the tree it tested |
+| Anything else (admin bypass, direct push, queue disabled) | `workflow_run` of CI on push, after it succeeds | That CI run itself, as before                                                                                                              |
 
 The check is fail-closed: a push that is not merge-queue verified releases
 nothing, and an API error is a red run rather than a skip.
@@ -38,11 +38,11 @@ CI's `merge_group` trigger is inert until the merge-queue ruleset is enabled on
 
 ## Surfaces
 
-| Surface | Runtime | ECR | Workflow |
-| --- | --- | --- | --- |
-| `api.mention.earth` and the `mention.earth` apex | AWS ECS service `mention`, port `3000` | `oxy/mention` | `.github/workflows/deploy-aws.yml` |
-| `mcp.mention.earth` | AWS ECS service `mention-mcp`, port `3100` | `oxy/mention-mcp` | `.github/workflows/deploy-mcp-aws.yml` |
-| `shell.mention.earth` (static Expo web export) | Cloudflare Worker `mention-frontend` | — | `.github/workflows/deploy-frontends.yml` |
+| Surface                                          | Runtime                                    | ECR               | Workflow                                 |
+| ------------------------------------------------ | ------------------------------------------ | ----------------- | ---------------------------------------- |
+| `api.mention.earth` and the `mention.earth` apex | AWS ECS service `mention`, port `3000`     | `oxy/mention`     | `.github/workflows/deploy-aws.yml`       |
+| `mcp.mention.earth`                              | AWS ECS service `mention-mcp`, port `3100` | `oxy/mention-mcp` | `.github/workflows/deploy-mcp-aws.yml`   |
+| `shell.mention.earth` (static Expo web export)   | Cloudflare Worker `mention-frontend`       | —                 | `.github/workflows/deploy-frontends.yml` |
 
 GitHub Actions assumes the OIDC role `oxy-github-deploy` to push images and
 deploy. Runtime secrets live only in SSM `/oxy/mention/*` and

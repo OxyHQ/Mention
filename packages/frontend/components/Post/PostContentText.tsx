@@ -125,7 +125,7 @@ const PostContentText: React.FC<Props> = ({
 
 function ShowLessLabel() {
   const { t } = useTranslation();
-  return <>{` ${t('common.showLess', 'Show less')}`}</>;
+  return ` ${t('common.showLess', 'Show less')}`;
 }
 
 export default PostContentText;

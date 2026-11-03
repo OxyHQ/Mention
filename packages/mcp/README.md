@@ -19,19 +19,19 @@ that: each one gets its own authorization, on the same connector.
 
 One connector, several accounts. Ask the assistant, in words:
 
-| Step | Action |
-|------|--------|
-| 1 | Authorize Mention for the first Oxy account |
-| 2 | Ask for **`link-account`** — you get a single-use `auth.oxy.so` link, valid for 15 minutes |
-| 3 | Open it signed in as the account you want to add, and approve it there |
-| 4 | Ask to **`switch-account`** to that account, and **`whoami`** before a public action |
+| Step | Action                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------ |
+| 1    | Authorize Mention for the first Oxy account                                                |
+| 2    | Ask for **`link-account`** — you get a single-use `auth.oxy.so` link, valid for 15 minutes |
+| 3    | Open it signed in as the account you want to add, and approve it there                     |
+| 4    | Ask to **`switch-account`** to that account, and **`whoami`** before a public action       |
 
-| Tool | Purpose |
-|------|---------|
-| `whoami` | The account this connection is acting as right now |
-| `list-accounts` | Every account the connection can act as, active one marked |
-| `link-account` | A single-use Oxy link that adds another account to this connection |
-| `switch-account` | Act as another account already on the connection |
+| Tool             | Purpose                                                            |
+| ---------------- | ------------------------------------------------------------------ |
+| `whoami`         | The account this connection is acting as right now                 |
+| `list-accounts`  | Every account the connection can act as, active one marked         |
+| `link-account`   | A single-use Oxy link that adds another account to this connection |
+| `switch-account` | Act as another account already on the connection                   |
 
 Oxy owns the account set (ADR 0020): each account approves its own membership on
 `auth.oxy.so` and can revoke it from its own Oxy Settings without affecting the
@@ -66,11 +66,11 @@ receiver: the catalogue declares `internalTransport: 'mcp'`, and the per-tool
 serves. The internal path never uses an external OAuth connection token. See the
 [retirement register](../../docs/COMPATIBILITY_RETIREMENT.md).
 
-| Component | Role |
-|-----------|------|
-| `@mention/mcp` | MCP protocol (streamable HTTP), tool handlers |
-| `api.oxy.so` | Central OAuth authorization server, DCR, refresh, revocation and live introspection |
-| `auth.oxy.so` | Account selection and consent UI |
+| Component           | Role                                                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `@mention/mcp`      | MCP protocol (streamable HTTP), tool handlers                                                                                       |
+| `api.oxy.so`        | Central OAuth authorization server, DCR, refresh, revocation and live introspection                                                 |
+| `auth.oxy.so`       | Account selection and consent UI                                                                                                    |
 | `api.mention.earth` | Domain API; reauthorizes external tokens or native capability tickets and fixes the exact effective account before domain execution |
 
 **Identity model:** the token carries the approving user as `sub` and the account
@@ -99,31 +99,31 @@ OAuth bundle administration through a Mention content grant.
 
 ### Accounts (auth required)
 
-| Tool | Backend |
-|------|---------|
-| `whoami` | `GET /mcp/bundles/me` |
-| `list-accounts` | `GET /mcp/bundles/accounts` |
-| `link-account` | `POST /mcp/bundles/link-token` |
-| `switch-account` | `POST /mcp/bundles/active` |
+| Tool             | Backend                        |
+| ---------------- | ------------------------------ |
+| `whoami`         | `GET /mcp/bundles/me`          |
+| `list-accounts`  | `GET /mcp/bundles/accounts`    |
+| `link-account`   | `POST /mcp/bundles/link-token` |
+| `switch-account` | `POST /mcp/bundles/active`     |
 
 ### Posts (auth required)
 
-| Tool | Backend |
-|------|---------|
-| `create-post` | `POST /posts` |
-| `create-thread` | `POST /posts/thread` (no collaborators) |
-| `update-post` | `PUT /posts/:id` |
-| `move-post-to-lane` | `PATCH /posts/:id/lane` |
-| `delete-post` | `DELETE /posts/:id` (also cancels a draft or scheduled post) |
-| `publish-post-now` | `POST /posts/:id/publish` |
-| `pin-post` / `unpin-post` | `PATCH /posts/:id/settings` (`isPinned`) |
-| `update-post-settings` | `PATCH /posts/:id/settings` (reply permission, reply review, quotes, hidden counts) |
-| `accept-collab-invite` | `POST /posts/:id/collaborators/accept` |
-| `decline-collab-invite` | `POST /posts/:id/collaborators/decline` |
-| `stop-collab-sharing` | `POST /posts/:id/collaborators/stop-sharing` |
-| `get-drafts` | `GET /posts/drafts` |
-| `get-scheduled-posts` | `GET /posts/scheduled` |
-| `get-saved-posts` | `GET /posts/saved` |
+| Tool                      | Backend                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `create-post`             | `POST /posts`                                                                       |
+| `create-thread`           | `POST /posts/thread` (no collaborators)                                             |
+| `update-post`             | `PUT /posts/:id`                                                                    |
+| `move-post-to-lane`       | `PATCH /posts/:id/lane`                                                             |
+| `delete-post`             | `DELETE /posts/:id` (also cancels a draft or scheduled post)                        |
+| `publish-post-now`        | `POST /posts/:id/publish`                                                           |
+| `pin-post` / `unpin-post` | `PATCH /posts/:id/settings` (`isPinned`)                                            |
+| `update-post-settings`    | `PATCH /posts/:id/settings` (reply permission, reply review, quotes, hidden counts) |
+| `accept-collab-invite`    | `POST /posts/:id/collaborators/accept`                                              |
+| `decline-collab-invite`   | `POST /posts/:id/collaborators/decline`                                             |
+| `stop-collab-sharing`     | `POST /posts/:id/collaborators/stop-sharing`                                        |
+| `get-drafts`              | `GET /posts/drafts`                                                                 |
+| `get-scheduled-posts`     | `GET /posts/scheduled`                                                              |
+| `get-saved-posts`         | `GET /posts/saved`                                                                  |
 
 Media for a post goes through `POST /posts/intent-media` (SSRF-safe URL fetch
 or inline base64), never Oxy `assetUpload` directly — MCP JWT callers have no
@@ -135,14 +135,14 @@ user bearer, so intent-media uploads through the service-token
 - `create-post` and each `create-thread` post take `variants: [{ tag, text, article? }]`, the same post written in up to 3 languages. The first variant is the primary body; readers get the one in their language. Send `variants` or `text`, never both.
 - `laneId` on `create-post` / `create-thread` files the post into one of the author's lanes; `move-post-to-lane` moves an existing post (or takes it out with `null`). Replies and boosts cannot sit in a lane.
 
-| Tool | Backend | Capability |
-|------|---------|------------|
-| `list-lanes` | `GET /lanes/mine` | `social.lanes.read` |
-| `create-lane` | `POST /lanes` | `social.lanes.manage` |
-| `update-lane` | `PATCH /lanes/:id` | `social.lanes.manage` |
-| `delete-lane` | `DELETE /lanes/:id` | `social.lanes.manage` |
+| Tool                        | Backend                           | Capability            |
+| --------------------------- | --------------------------------- | --------------------- |
+| `list-lanes`                | `GET /lanes/mine`                 | `social.lanes.read`   |
+| `create-lane`               | `POST /lanes`                     | `social.lanes.manage` |
+| `update-lane`               | `PATCH /lanes/:id`                | `social.lanes.manage` |
+| `delete-lane`               | `DELETE /lanes/:id`               | `social.lanes.manage` |
 | `mute-lane` / `unmute-lane` | `POST` / `DELETE /lanes/:id/mute` | `social.mutes.manage` |
-| `get-muted-lanes` | `GET /lanes/muted` | `social.mutes.read` |
+| `get-muted-lanes`           | `GET /lanes/muted`                | `social.mutes.read`   |
 
 Lanes are managed for the active account only (the backend always owns a new lane by the caller). Deleting a lane un-files its posts; they stay on the profile. Muting is the reader's side: it silences another publisher's lane, whose id every post in it shows as `Lane: … (id: …)`.
 
@@ -157,17 +157,17 @@ Lanes are managed for the active account only (the backend always owns a new lan
 
 ### Feed (public unless noted)
 
-| Tool | Auth | Backend |
-|------|------|---------|
-| `get-feed` | depends on descriptor | `GET /feed/mtn?descriptor=<descriptor>` |
-| `get-explore-feed` | no | `GET /feed/mtn?descriptor=explore` |
-| `get-for-you-feed` | yes | `GET /feed/mtn?descriptor=for_you` |
-| `get-following-feed` | yes | `GET /feed/mtn?descriptor=following` |
-| `get-videos-feed` | yes | `GET /feed/mtn?descriptor=videos` |
-| `get-user-feed` | no | `GET /feed/mtn?descriptor=author\|<id>` |
-| `get-replies` | no | `GET /feed/replies/:id` |
-| `get-feed-item` | no | `GET /feed/item/:id` |
-| `get-post` | no | `GET /feed/item/:id` |
+| Tool                 | Auth                  | Backend                                 |
+| -------------------- | --------------------- | --------------------------------------- |
+| `get-feed`           | depends on descriptor | `GET /feed/mtn?descriptor=<descriptor>` |
+| `get-explore-feed`   | no                    | `GET /feed/mtn?descriptor=explore`      |
+| `get-for-you-feed`   | yes                   | `GET /feed/mtn?descriptor=for_you`      |
+| `get-following-feed` | yes                   | `GET /feed/mtn?descriptor=following`    |
+| `get-videos-feed`    | yes                   | `GET /feed/mtn?descriptor=videos`       |
+| `get-user-feed`      | no                    | `GET /feed/mtn?descriptor=author\|<id>` |
+| `get-replies`        | no                    | `GET /feed/replies/:id`                 |
+| `get-feed-item`      | no                    | `GET /feed/item/:id`                    |
+| `get-post`           | no                    | `GET /feed/item/:id`                    |
 
 Feed tools return human-readable `content` and the complete authorized API response in
 `structuredContent`. Descriptor feeds expose the unwrapped `data` object from
@@ -210,47 +210,47 @@ an isolated ranking experiment. Do not log credentials or private feed bodies.
 
 ### Interactions (auth required)
 
-| Tool | Backend | Inverse |
-|------|---------|---------|
-| `like-post` | `POST /posts/:id/like` | `unlike-post` (`DELETE`) |
-| `save-post` | `POST /posts/:id/save` | `unsave-post` (`DELETE`) |
-| `boost` | `POST /feed/boost` | `unboost` (`DELETE /feed/:postId/boost`, the original post's id) |
-| `quote-post` | `POST /posts` | `delete-post` |
-| `move-saved-post-to-folder` | `PATCH /posts/bookmarks/by-post/:postId/folder` | the same tool with `folder: null` |
-| `get-bookmark-folders` | `GET /posts/bookmarks/folders` | — |
+| Tool                        | Backend                                         | Inverse                                                          |
+| --------------------------- | ----------------------------------------------- | ---------------------------------------------------------------- |
+| `like-post`                 | `POST /posts/:id/like`                          | `unlike-post` (`DELETE`)                                         |
+| `save-post`                 | `POST /posts/:id/save`                          | `unsave-post` (`DELETE`)                                         |
+| `boost`                     | `POST /feed/boost`                              | `unboost` (`DELETE /feed/:postId/boost`, the original post's id) |
+| `quote-post`                | `POST /posts`                                   | `delete-post`                                                    |
+| `move-saved-post-to-folder` | `PATCH /posts/bookmarks/by-post/:postId/folder` | the same tool with `folder: null`                                |
+| `get-bookmark-folders`      | `GET /posts/bookmarks/folders`                  | —                                                                |
 
 ### Social (public unless noted)
 
-| Tool | Auth | Backend |
-|------|------|---------|
-| `follow-user` | yes | `POST /federation/follow` |
-| `unfollow-user` | yes | `POST /federation/unfollow` |
-| `follow-entity` / `unfollow-entity` | yes | `POST` / `DELETE /entity-follows` (a hashtag or a list) |
-| `subscribe-to-user` / `unsubscribe-from-user` | yes | `POST` / `DELETE /subscriptions/:authorId` (new-post notifications) |
-| `poke-user` / `unpoke-user` | yes | `POST` / `DELETE /pokes/:userId` |
-| `get-recommendations` | no | `GET /recommendations` |
+| Tool                                          | Auth | Backend                                                             |
+| --------------------------------------------- | ---- | ------------------------------------------------------------------- |
+| `follow-user`                                 | yes  | `POST /federation/follow`                                           |
+| `unfollow-user`                               | yes  | `POST /federation/unfollow`                                         |
+| `follow-entity` / `unfollow-entity`           | yes  | `POST` / `DELETE /entity-follows` (a hashtag or a list)             |
+| `subscribe-to-user` / `unsubscribe-from-user` | yes  | `POST` / `DELETE /subscriptions/:authorId` (new-post notifications) |
+| `poke-user` / `unpoke-user`                   | yes  | `POST` / `DELETE /pokes/:userId`                                    |
+| `get-recommendations`                         | no   | `GET /recommendations`                                              |
 
 ### Starter packs (public reads; writes auth required)
 
-| Tool | Auth | Backend |
-|------|------|---------|
-| `get-starter-packs` | no | `GET /starter-packs` |
-| `get-starter-pack` | no | `GET /starter-packs/:id` |
-| `create-starter-pack` | yes | `POST /starter-packs` |
-| `update-starter-pack` | yes | `PUT /starter-packs/:id` |
-| `delete-starter-pack` | yes | `DELETE /starter-packs/:id` |
-| `add-starter-pack-members` | yes | `POST /starter-packs/:id/members` |
-| `remove-starter-pack-members` | yes | `DELETE /starter-packs/:id/members` |
-| `use-starter-pack` | yes | `POST /starter-packs/:id/use` |
+| Tool                          | Auth | Backend                             |
+| ----------------------------- | ---- | ----------------------------------- |
+| `get-starter-packs`           | no   | `GET /starter-packs`                |
+| `get-starter-pack`            | no   | `GET /starter-packs/:id`            |
+| `create-starter-pack`         | yes  | `POST /starter-packs`               |
+| `update-starter-pack`         | yes  | `PUT /starter-packs/:id`            |
+| `delete-starter-pack`         | yes  | `DELETE /starter-packs/:id`         |
+| `add-starter-pack-members`    | yes  | `POST /starter-packs/:id/members`   |
+| `remove-starter-pack-members` | yes  | `DELETE /starter-packs/:id/members` |
+| `use-starter-pack`            | yes  | `POST /starter-packs/:id/use`       |
 
 ### Mutes (auth required)
 
-| Tool | Backend | Capability |
-|------|---------|------------|
-| `mute-user` / `unmute-user` | `POST /mute` / `DELETE /mute/:mutedId` | `social.mutes.manage` |
-| `get-muted-users` | `GET /mute` | `social.mutes.read` |
+| Tool                        | Backend                                       | Capability            |
+| --------------------------- | --------------------------------------------- | --------------------- |
+| `mute-user` / `unmute-user` | `POST /mute` / `DELETE /mute/:mutedId`        | `social.mutes.manage` |
+| `get-muted-users`           | `GET /mute`                                   | `social.mutes.read`   |
 | `mute-word` / `unmute-word` | `POST /mute-words` / `DELETE /mute-words/:id` | `social.mutes.manage` |
-| `get-muted-words` | `GET /mute-words` | `social.mutes.read` |
+| `get-muted-words`           | `GET /mute-words`                             | `social.mutes.read`   |
 
 Tools that act on a person take the Oxy user id, which every post prints on its
 author line (`· user id: …`). Blocking, follow requests and people search are
@@ -278,12 +278,12 @@ or more tasks behind the ALB with no cookie stickiness, and MCP clients do not
 keep cookies anyway; a session held in one task's memory was answered
 `404 Session not found` by the other, for every client, for the whole rollover.
 
-| What a session used to hold | Where it comes from now |
-|------|------|
-| Identity, account, capabilities | The bearer token, introspected live on every request (unchanged) |
-| Active account of a multi-account connection | Oxy's introspection and `/mcp/bundles/*`, never MCP memory |
-| Effect idempotency namespace | The `Mcp-Session-Id` the client echoes (below) |
-| Server-initiated messages | None exist: the tool list is static and no tool notifies or calls the client |
+| What a session used to hold                  | Where it comes from now                                                      |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| Identity, account, capabilities              | The bearer token, introspected live on every request (unchanged)             |
+| Active account of a multi-account connection | Oxy's introspection and `/mcp/bundles/*`, never MCP memory                   |
+| Effect idempotency namespace                 | The `Mcp-Session-Id` the client echoes (below)                               |
+| Server-initiated messages                    | None exist: the tool list is static and no tool notifies or calls the client |
 
 `initialize` still returns an `Mcp-Session-Id`: an opaque random value that no
 task stores or looks up, so every task accepts every well-formed id, including
@@ -293,14 +293,14 @@ connection's request 2 from repeating an earlier connection's idempotency key.
 It grants nothing — every request is authorized by its own token, and the key
 also binds the account and OAuth client.
 
-| Request | Answer |
-|------|------|
-| `POST` `initialize` | 200, new `Mcp-Session-Id` |
-| `POST` anything else with any well-formed `Mcp-Session-Id` | Served, on any task |
-| `POST` anything else without `Mcp-Session-Id` | 400 (as before) |
-| `GET` (standalone SSE stream) / `DELETE` (end session) | 405 after authentication; clients treat it as "not offered" |
-| No or invalid token | 401 with the `WWW-Authenticate` challenge |
-| Token cannot be checked (Oxy unreachable) | 503 with `Retry-After: 30` |
+| Request                                                    | Answer                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------- |
+| `POST` `initialize`                                        | 200, new `Mcp-Session-Id`                                   |
+| `POST` anything else with any well-formed `Mcp-Session-Id` | Served, on any task                                         |
+| `POST` anything else without `Mcp-Session-Id`              | 400 (as before)                                             |
+| `GET` (standalone SSE stream) / `DELETE` (end session)     | 405 after authentication; clients treat it as "not offered" |
+| No or invalid token                                        | 401 with the `WWW-Authenticate` challenge                   |
+| Token cannot be checked (Oxy unreachable)                  | 503 with `Retry-After: 30`                                  |
 
 The deprecated `/sse` + `/messages` transport is stateful by construction —
 the SSE stream lives in the task that opened it — and still works only while a
@@ -317,22 +317,22 @@ tells its client to reconnect.
 
 ### Central OAuth
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET https://api.oxy.so/.well-known/oauth-authorization-server` | AS discovery |
-| `POST https://api.oxy.so/auth/mcp/oauth/register` | Dynamic client registration |
-| `POST https://api.oxy.so/auth/mcp/oauth/token` | Code exchange and refresh |
-| `POST https://api.oxy.so/auth/mcp/oauth/revoke` | Token revocation |
-| `POST https://api.oxy.so/auth/mcp/oauth/introspect` | Service-authenticated live validation |
+| Endpoint                                                        | Purpose                               |
+| --------------------------------------------------------------- | ------------------------------------- |
+| `GET https://api.oxy.so/.well-known/oauth-authorization-server` | AS discovery                          |
+| `POST https://api.oxy.so/auth/mcp/oauth/register`               | Dynamic client registration           |
+| `POST https://api.oxy.so/auth/mcp/oauth/token`                  | Code exchange and refresh             |
+| `POST https://api.oxy.so/auth/mcp/oauth/revoke`                 | Token revocation                      |
+| `POST https://api.oxy.so/auth/mcp/oauth/introspect`             | Service-authenticated live validation |
 
 ### Mention resource API
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /mcp/bundles/accounts` | Every account on the connection, from Oxy's introspection |
-| `GET /mcp/bundles/me` | The account being acted as |
-| `POST /mcp/bundles/link-token` | Single-use `auth.oxy.so` link that adds another account |
-| `POST /mcp/bundles/active` | Asks Oxy to act as a member account |
+| Endpoint                       | Purpose                                                   |
+| ------------------------------ | --------------------------------------------------------- |
+| `GET /mcp/bundles/accounts`    | Every account on the connection, from Oxy's introspection |
+| `GET /mcp/bundles/me`          | The account being acted as                                |
+| `POST /mcp/bundles/link-token` | Single-use `auth.oxy.so` link that adds another account   |
+| `POST /mcp/bundles/active`     | Asks Oxy to act as a member account                       |
 
 ### Key backend files
 
@@ -351,22 +351,22 @@ tells its client to reconnect.
 
 ### MCP server (`mention-mcp` ECS)
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `MENTION_API_URL` | `https://api.mention.earth` | Mention REST API |
-| `MENTION_API_TIMEOUT_MS` | `10000` | Per-attempt Mention API timeout; GET retries once |
-| `MENTION_MCP_PUBLIC_URL` | `https://mcp.mention.earth` | Exact protected resource |
-| `OXY_API_URL` | `https://api.oxy.so` | Central OAuth issuer and introspection API |
-| `MCP_PORT` | `3100` | HTTP listen port |
-| `MCP_ALLOWED_ORIGINS` | Claude defaults | Extra CORS origins |
-| `MCP_MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum JSON request body retained in memory |
-| `MCP_MAX_SESSIONS` | `1000` | Per-task cap for open legacy `/sse` sessions (Streamable HTTP keeps none) |
+| Variable                     | Default                     | Purpose                                                                   |
+| ---------------------------- | --------------------------- | ------------------------------------------------------------------------- |
+| `MENTION_API_URL`            | `https://api.mention.earth` | Mention REST API                                                          |
+| `MENTION_API_TIMEOUT_MS`     | `10000`                     | Per-attempt Mention API timeout; GET retries once                         |
+| `MENTION_MCP_PUBLIC_URL`     | `https://mcp.mention.earth` | Exact protected resource                                                  |
+| `OXY_API_URL`                | `https://api.oxy.so`        | Central OAuth issuer and introspection API                                |
+| `MCP_PORT`                   | `3100`                      | HTTP listen port                                                          |
+| `MCP_ALLOWED_ORIGINS`        | Claude defaults             | Extra CORS origins                                                        |
+| `MCP_MAX_REQUEST_BODY_BYTES` | `1048576`                   | Maximum JSON request body retained in memory                              |
+| `MCP_MAX_SESSIONS`           | `1000`                      | Per-task cap for open legacy `/sse` sessions (Streamable HTTP keeps none) |
 
 ### Backend (`mention` ECS)
 
-| Variable | Purpose |
-|----------|---------|
-| `OXY_API_URL` | Central introspection API |
+| Variable                 | Purpose                                                                  |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `OXY_API_URL`            | Central introspection API                                                |
 | `MENTION_MCP_JWT_SECRET` | No longer signs anything; only the last fallback salt for `IP_HASH_SALT` |
 
 Secrets live only in SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`, set by their owner; no workflow writes them ([docs/AWS_DEPLOYMENT.md](../../docs/AWS_DEPLOYMENT.md#runtime-secrets)).
@@ -379,10 +379,10 @@ remain independent of the server's own workload authentication.
 
 ## Deployment (AWS)
 
-| Service | ECR | Domain | Workflow |
-|---------|-----|--------|----------|
-| `mention` | `oxy/mention` | `api.mention.earth`, `mention.earth` | `.github/workflows/deploy-aws.yml` |
-| `mention-mcp` | `oxy/mention-mcp` | `mcp.mention.earth` | `.github/workflows/deploy-mcp-aws.yml` |
+| Service       | ECR               | Domain                               | Workflow                               |
+| ------------- | ----------------- | ------------------------------------ | -------------------------------------- |
+| `mention`     | `oxy/mention`     | `api.mention.earth`, `mention.earth` | `.github/workflows/deploy-aws.yml`     |
+| `mention-mcp` | `oxy/mention-mcp` | `mcp.mention.earth`                  | `.github/workflows/deploy-mcp-aws.yml` |
 
 Infra: `oxy-infra` — ALB rule priority 140, ACM cert `mcp.mention.earth`, DNS CNAME → ALB (DNS-only/grey cloud like `api.mention.earth`).
 

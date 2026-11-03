@@ -14,7 +14,7 @@ Two symptoms, one missing abstraction.
 ### Root causes (verified in code)
 
 1. **Native has no coordinator at all.** `context/ActiveVideoContext.tsx:139` — `if (!context || !IS_WEB) return { active: true, ... }`. Every mounted `VideoPlayer` therefore believes it is the active video, and `PostAttachmentVideo` passes `autoPlay={true}`. FlashList keeps off-screen cells mounted, so several videos play with audio simultaneously.
-2. **Web never releases the active video.** `sendViewPosition` (`ActiveVideoContext.tsx:64-96`) picks the reporter closest to `windowHeight / 2.5` but never checks that the current active view is still *inside* the viewport. Scroll past the last video and nothing contests it, so it keeps playing off-screen.
+2. **Web never releases the active video.** `sendViewPosition` (`ActiveVideoContext.tsx:64-96`) picks the reporter closest to `windowHeight / 2.5` but never checks that the current active view is still _inside_ the viewport. Scroll past the last video and nothing contests it, so it keeps playing off-screen.
 3. **Nothing reacts to screen blur or app/tab backgrounding.** `VideoPlayer` has no `useIsFocused` and no `AppState`/`visibilitychange` awareness. Only `app/(app)/videos.tsx` has a focus gate (`screenFocused`).
 4. **GIF mode bypasses coordination entirely.** `VideoPlayer.tsx:75` — `effectiveActive = gif ? true : active`. Every GIF-as-mp4 decodes forever, on-screen or not. Silent, but it burns CPU and battery.
 
@@ -24,14 +24,14 @@ The missing abstraction is a single app-wide authority answering "may this playe
 
 Two orthogonal concepts, one authority.
 
-| Concept | Rule | Applies to |
-|---|---|---|
-| **Visible** | on screen **AND** its screen is focused **AND** the app/tab is in the foreground → may play; otherwise pause | every player, GIFs included |
-| **Active** | among *visible audible* players, exactly one plays — the one closest to the viewport's ideal line | audible players only; silent (GIF) players never compete, so every visible GIF may animate |
+| Concept     | Rule                                                                                                         | Applies to                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **Visible** | on screen **AND** its screen is focused **AND** the app/tab is in the foreground → may play; otherwise pause | every player, GIFs included                                                                |
+| **Active**  | among _visible audible_ players, exactly one plays — the one closest to the viewport's ideal line            | audible players only; silent (GIF) players never compete, so every visible GIF may animate |
 
 PiP is the **single** exception to the foreground gate: a player that has entered PiP keeps playing while the app is backgrounded.
 
-Visibility is *reported*, never guessed, and the reporting source is per platform:
+Visibility is _reported_, never guessed, and the reporting source is per platform:
 
 - **web** — each player's own `IntersectionObserver` (already implemented) reports both its center-Y **and** whether it is intersecting.
 - **native, inside a list** — the list's `onViewableItemsChanged` publishes the viewable keys; a player inside that list is visible only if its key is in the set.
@@ -46,7 +46,11 @@ Clean cut: the old file and the `ActiveVideoProvider` / `useActiveVideo` names a
 Exported API:
 
 ```ts
-export function VideoPlaybackProvider({ children }: { children: React.ReactNode }): React.ReactElement;
+export function VideoPlaybackProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactElement;
 
 /** Mounted by a list that owns viewability for the players inside it (native feeds). */
 export function VideoViewabilityProvider({
@@ -104,7 +108,7 @@ Behaviour:
 
 ### `app/(app)/videos.tsx` — the only PiP surface
 
-Tapping a video in the feed navigates to `/videos?postId=…&mediaIndex=…` (`PostAttachmentsRow.tsx:394-399`), so the reels screen *is* the fullscreen post-video screen. It is therefore the only surface that gets PiP.
+Tapping a video in the feed navigates to `/videos?postId=…&mediaIndex=…` (`PostAttachmentsRow.tsx:394-399`), so the reels screen _is_ the fullscreen post-video screen. It is therefore the only surface that gets PiP.
 
 - Only the surface that is both active and focused receives `allowsPictureInPicture` and `startsPictureInPictureAutomatically` — expo-video allows exactly one player in PiP, and neighbouring surfaces are preloaded but never playing.
 - A PiP button in the overlay calls `startPictureInPicture()` through a `VideoView` ref. It renders only when `isPictureInPictureSupported()` is true, which is what gives web a PiP affordance (web has no automatic PiP, and `nativeControls={false}` means the browser shows no button of its own).
@@ -115,7 +119,7 @@ Tapping a video in the feed navigates to `/videos?postId=…&mediaIndex=…` (`P
 
 `"expo-video"` becomes `["expo-video", { supportsPictureInPicture: true }]`, which adds `UIBackgroundModes: ["audio"]` on iOS and `android:supportsPictureInPicture="true"` on the main activity.
 
-`supportsBackgroundPlayback` stays off: it pulls in a foreground service plus a now-playing notification on Android, which is background *audio*, not PiP, and was not requested.
+`supportsBackgroundPlayback` stays off: it pulls in a foreground service plus a now-playing notification on Android, which is background _audio_, not PiP, and was not requested.
 
 `android/` and `ios/` are gitignored (CNG), so this applies at the next prebuild / EAS build. **It does not ship over OTA.**
 
@@ -128,5 +132,5 @@ Tapping a video in the feed navigates to `/videos?postId=…&mediaIndex=…` (`P
 
 ## Verification
 
-- `useEffect` for subscribing to an imperative external object *with cleanup* is the legitimate case, and the repo already documents this (`videos.tsx:1165`). The cleanup replaces those with expo's official `useEvent` / `useEventListener` rather than inventing a worse pattern; it does not delete effects that must exist.
+- `useEffect` for subscribing to an imperative external object _with cleanup_ is the legitimate case, and the repo already documents this (`videos.tsx:1165`). The cleanup replaces those with expo's official `useEvent` / `useEventListener` rather than inventing a worse pattern; it does not delete effects that must exist.
 - Jest does not reproduce autoplay, viewability, focus, or backgrounding behaviour. Playback must be verified in a real foregrounded browser tab and on a device build: scroll a video off screen (must go silent), navigate away (must go silent), background the app (must go silent unless in PiP), and confirm exactly one audible video at a time.

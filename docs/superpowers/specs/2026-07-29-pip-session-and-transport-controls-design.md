@@ -9,12 +9,12 @@ The OS Picture-in-Picture window should offer more than play/pause — at minimu
 
 ## What is actually possible (verified against installed source)
 
-| Platform | Next/previous in the PiP window | Mechanism |
-|---|---|---|
-| **Android** | Yes, with native code | `PictureInPictureParams.Builder().setActions(List<RemoteAction>)` |
-| **Chromium web** | Yes, JS only | `navigator.mediaSession.setActionHandler('nexttrack' \| 'previoustrack')` |
-| **iOS** | **No. Platform limit.** | AVKit exposes no public API to add buttons to an `AVPlayer`-backed PiP window |
-| Safari / Firefox web | No | Safari's PiP ignores MediaSession handlers; Firefox is already excluded by our capability check |
+| Platform             | Next/previous in the PiP window | Mechanism                                                                                       |
+| -------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Android**          | Yes, with native code           | `PictureInPictureParams.Builder().setActions(List<RemoteAction>)`                               |
+| **Chromium web**     | Yes, JS only                    | `navigator.mediaSession.setActionHandler('nexttrack' \| 'previoustrack')`                       |
+| **iOS**              | **No. Platform limit.**         | AVKit exposes no public API to add buttons to an `AVPlayer`-backed PiP window                   |
+| Safari / Firefox web | No                              | Safari's PiP ignores MediaSession handlers; Firefox is already excluded by our capability check |
 
 Supporting evidence:
 
@@ -29,7 +29,7 @@ Supporting evidence:
 
 Wiring a handler is the small part. The reels screen cannot service a "next" today, on any platform:
 
-- Each slide owns its own `useVideoPlayer` (`videos.tsx:310`), mounted within `ACTIVE_WINDOW_RADIUS`. PiP binds to **one** `VideoView`/player, so advancing the pager mounts a *different* player while the PiP window keeps showing the old one.
+- Each slide owns its own `useVideoPlayer` (`videos.tsx:310`), mounted within `ACTIVE_WINDOW_RADIUS`. PiP binds to **one** `VideoView`/player, so advancing the pager mounts a _different_ player while the PiP window keeps showing the old one.
 - On Android, expo-video reparents the PiP-owning `playerView` into the activity root and sets every other root child to `View.GONE` (`PictureInPictureManager.kt:265-280`), so scrolling the list is driving a hidden subtree.
 - **The playback authority actively fights it.** `shouldPlay` is `eligible && (foreground || inPictureInPicture) && (silent || activeId === id)` with `eligible = visible && screenFocused` (`VideoPlaybackContext.tsx:363,378-379`), and visibility on this screen comes from `isActive && screenFocused`. The moment a background "next" moves the index, the old surface stops being active → not visible → not eligible → **the player inside the PiP window pauses**; the new surface has `inPictureInPicture: false` and `foreground: false`, so it does not play either. The window freezes on a still frame. This falls out of the model as designed and is not a tuning problem.
 
@@ -37,7 +37,7 @@ Wiring a handler is the small part. The reels screen cannot service a "next" tod
 
 One idea fixes all of the above: **while PiP is open, the surface that entered it stays the owner and stays playing, and "next" swaps the SOURCE rather than the player.**
 
-- Entering PiP opens a *session* pinned to the owning surface: that surface remains `active` for the authority regardless of the pager index, and remains the single audible player.
+- Entering PiP opens a _session_ pinned to the owning surface: that surface remains `active` for the authority regardless of the pager index, and remains the single audible player.
 - Next/previous call `player.replace(nextSource)` on that same player (`src/VideoPlayer.types.ts:285,292`; `VideoModule.kt:311-321`) — no new player is mounted, so the PiP window never loses its subject.
 - The session tracks its own cursor into the post list. On PiP exit, the pager index is re-synced to wherever the session ended up, so returning to the app lands on the video the user was actually watching.
 - The authority gains an explicit notion of a session owner, replacing the implicit "the visible surface wins" rule for the duration. This is the one place the two-concept model (visible / active) needs a third input, and it must be expressed as such rather than by special-casing `videos.tsx`.

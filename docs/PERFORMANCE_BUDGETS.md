@@ -17,14 +17,14 @@ missing before a numeric budget would mean anything.
 budget — `packages/frontend/scripts/analyze-bundle.js --ci` fails the build
 past any of:
 
-| Budget | Ceiling |
-| --- | --- |
-| Total bytes | 20.1875 MiB |
-| JavaScript bytes | 15.5 MiB |
-| Initial JavaScript bytes | 5.875 MiB |
+| Budget                        | Ceiling                       |
+| ----------------------------- | ----------------------------- |
+| Total bytes                   | 20.1875 MiB                   |
+| JavaScript bytes              | 15.5 MiB                      |
+| Initial JavaScript bytes      | 5.875 MiB                     |
 | Initial JavaScript gzip bytes | 1.65625 MiB (target: 1.6 MiB) |
-| Font bytes | 4 MiB |
-| Largest single file | 7.5 MiB |
+| Font bytes                    | 4 MiB                         |
+| Largest single file           | 7.5 MiB                       |
 
 Wired into `.github/workflows/ci.yml`'s "Enforce bundle budgets" step, which
 also diffs the merge-queue entry's export against `main`'s baseline (pull
@@ -37,11 +37,11 @@ These are CEILINGS, and the distance to them is not the interesting number —
 where the build actually sits is. Measured from a local `expo export --platform
 web` (2026-09-05):
 
-| Signal | Measured | Ceiling | Long-term target |
-| --- | --- | --- | --- |
-| Initial JavaScript bytes | 7.88 MiB | 8.5 MiB | — |
-| Initial JavaScript gzip bytes | **1.93 MiB** | ~2.35 MiB | ~1.9 MiB |
-| Font bytes | 1.91 MiB | 4 MiB | — |
+| Signal                        | Measured     | Ceiling   | Long-term target |
+| ----------------------------- | ------------ | --------- | ---------------- |
+| Initial JavaScript bytes      | 7.88 MiB     | 8.5 MiB   | —                |
+| Initial JavaScript gzip bytes | **1.93 MiB** | ~2.35 MiB | ~1.9 MiB         |
+| Font bytes                    | 1.91 MiB     | 4 MiB     | —                |
 
 So the initial gzip figure is ~30 KiB from its target, not ~470 KiB — reading
 the gap off the ceiling instead of off the build overstates it by more than an
@@ -62,12 +62,12 @@ the JavaScript ceiling 15.125 → 15.3125 MiB (+192 KiB each); every other ceili
 Measured on one `expo export --platform web` each of main `b09efb2c9` (Bloom 10.16, SDK 15.8)
 and the branch (SDK 21.2):
 
-| Signal | Main | SDK 21 | Change |
-| --- | --- | --- | --- |
-| Total bytes | 20,362,177 | 20,572,151 | +209,974 |
-| JavaScript bytes | 15,727,238 | 15,937,212 | +209,974 |
-| Initial JavaScript bytes | 5,424,936 | 5,457,887 | +32,951 |
-| Initial JavaScript gzip bytes | 1,500,701 | 1,511,946 | +11,245 |
+| Signal                        | Main       | SDK 21     | Change   |
+| ----------------------------- | ---------- | ---------- | -------- |
+| Total bytes                   | 20,362,177 | 20,572,151 | +209,974 |
+| JavaScript bytes              | 15,727,238 | 15,937,212 | +209,974 |
+| Initial JavaScript bytes      | 5,424,936  | 5,457,887  | +32,951  |
+| Initial JavaScript gzip bytes | 1,500,701  | 1,511,946  | +11,245  |
 
 The growth is the chat that SDK 21 and Bloom 10.17 add (the multi-agent header, host tools and
 renderers, the sheet's recent conversations, Bloom's Markdown), and almost all of it is deferred:
@@ -80,12 +80,12 @@ The canonical Experience feature (#1408, 2026-10-16) moves no ceiling. Measured
 on one `expo export --platform web` each of main `fa91c8947` and the merged
 branch, same analyzer, Clarity SDK 0.6.0:
 
-| Signal | Main | With Experience | Change |
-| --- | --- | --- | --- |
-| Total bytes | 20,047,386 | 20,166,957 | +119,571 |
-| JavaScript bytes | 15,413,519 | 15,532,984 | +119,465 |
-| Initial JavaScript bytes | 5,465,353 | 5,469,574 | +4,221 |
-| Initial JavaScript gzip bytes | 1,515,738 | 1,517,174 | +1,436 |
+| Signal                        | Main       | With Experience | Change   |
+| ----------------------------- | ---------- | --------------- | -------- |
+| Total bytes                   | 20,047,386 | 20,166,957      | +119,571 |
+| JavaScript bytes              | 15,413,519 | 15,532,984      | +119,465 |
+| Initial JavaScript bytes      | 5,465,353  | 5,469,574       | +4,221   |
+| Initial JavaScript gzip bytes | 1,515,738  | 1,517,174       | +1,436   |
 
 The history, the editor and the Clarity client load behind one lazy boundary,
 only when the profile Experience tab opens; the `deferredSources` gate asserts
@@ -120,12 +120,12 @@ It was raised from 15 to 15.125 MiB (+128 KiB) by the Oxy Files SDK
 each of main `f064dbe89` (contracts 4.21.0, core 4.17.0, services 11.8.0) and
 the branch, same analyzer:
 
-| Signal | Main | With the SDK | Change |
-| --- | --- | --- | --- |
-| Total bytes | 20,305,797 | 20,383,811 | +78,014 |
-| JavaScript bytes | 15,671,388 | 15,749,026 | +77,638 |
-| Initial JavaScript bytes | 5,390,065 | 5,418,632 | +28,567 |
-| Initial JavaScript gzip bytes | 1,491,227 | 1,498,756 | +7,529 |
+| Signal                        | Main       | With the SDK | Change  |
+| ----------------------------- | ---------- | ------------ | ------- |
+| Total bytes                   | 20,305,797 | 20,383,811   | +78,014 |
+| JavaScript bytes              | 15,671,388 | 15,749,026   | +77,638 |
+| Initial JavaScript bytes      | 5,390,065  | 5,418,632    | +28,567 |
+| Initial JavaScript gzip bytes | 1,491,227  | 1,498,756    | +7,529  |
 
 Every byte is the SDK's own: core +58 KiB (its assets and apps clients and the file,
 trash and app-access strings in each of its locale catalogues), services
@@ -166,11 +166,11 @@ replies panel, the settings dialog, the Syra rooms engine (via
 `@syra.fm/sdk/client`) and Bloom's settings/contact-row/app-shell families
 (Bloom 5.2 lean subpaths):
 
-| Signal | Before (2026-09-28) | After | Ceiling | Target |
-| --- | --- | --- | --- | --- |
-| Initial JavaScript bytes | 8.08 MiB | 6.86 MiB | 7.25 MiB | — |
-| Initial JavaScript gzip bytes | 2.09 MiB | 1.75 MiB | 1.85 MiB | 1.6 MiB |
-| Initial JavaScript brotli bytes | 1.60 MiB | 1.35 MiB | — | — |
+| Signal                          | Before (2026-09-28) | After    | Ceiling  | Target  |
+| ------------------------------- | ------------------- | -------- | -------- | ------- |
+| Initial JavaScript bytes        | 8.08 MiB            | 6.86 MiB | 7.25 MiB | —       |
+| Initial JavaScript gzip bytes   | 2.09 MiB            | 1.75 MiB | 1.85 MiB | 1.6 MiB |
+| Initial JavaScript brotli bytes | 1.60 MiB            | 1.35 MiB | —        | —       |
 
 The ceilings sit ~5 % above the measured build and move down with each
 further cut: after #1244 (lean SDK entries, Bloom's on-demand languages, the
@@ -205,13 +205,13 @@ among them (393 KiB of `@oxy.so/contracts` in `__common` before, 109 KiB after).
 Bloom (1204 → 962 KiB), gesture-handler, keyboard-controller and the SDKs shrink
 the same way. Measured on one `expo export --platform web` of the same commit:
 
-| Signal | Before | After | Δ |
-| --- | --- | --- | --- |
-| Initial JavaScript bytes | 6.98 MiB | 6.10 MiB | −0.88 MiB (−12.5 %) |
-| Initial JavaScript gzip bytes | 1.80 MiB | 1.59 MiB | −216 KiB (−11.7 %) |
-| Initial JavaScript brotli bytes | 1.37 MiB | 1.21 MiB | −162 KiB (−11.5 %) |
-| JavaScript bytes (all chunks) | 16.29 MiB | 14.96 MiB | −1.33 MiB |
-| Total bytes | 20.71 MiB | 19.38 MiB | −1.33 MiB |
+| Signal                          | Before    | After     | Δ                   |
+| ------------------------------- | --------- | --------- | ------------------- |
+| Initial JavaScript bytes        | 6.98 MiB  | 6.10 MiB  | −0.88 MiB (−12.5 %) |
+| Initial JavaScript gzip bytes   | 1.80 MiB  | 1.59 MiB  | −216 KiB (−11.7 %)  |
+| Initial JavaScript brotli bytes | 1.37 MiB  | 1.21 MiB  | −162 KiB (−11.5 %)  |
+| JavaScript bytes (all chunks)   | 16.29 MiB | 14.96 MiB | −1.33 MiB           |
+| Total bytes                     | 20.71 MiB | 19.38 MiB | −1.33 MiB           |
 
 The long-term initial gzip target (1.6 MiB) is met. The ceilings moved down to
 ~5 % above the build (initial) and ~2 % (totals).
@@ -260,13 +260,13 @@ and its locales stay in that async chunk and leave `__common`. No Mention code
 changed. Measured on one `expo export --platform web` (tree shaking on) of the
 same commit, `@syra.fm/sdk` 0.16.2 vs 0.18.0:
 
-| Signal | Before | After | Δ |
-| --- | --- | --- | --- |
-| Initial JavaScript bytes | 6,275,398 (5.98 MiB) | 5,695,652 (5.43 MiB) | −579,746 (−9.2 %) |
-| Initial JavaScript gzip bytes | 1,641,225 (1.57 MiB) | 1,540,839 (1.47 MiB) | −100,386 (−6.1 %) |
-| Initial JavaScript brotli bytes | 1,257,560 (1.20 MiB) | 1,177,799 (1.12 MiB) | −79,761 (−6.3 %) |
-| `__common` bytes | 5,170,316 | 4,590,570 | −579,746 |
-| JavaScript bytes (all chunks) | 15,645,157 | 15,648,050 | +2,893 |
+| Signal                          | Before               | After                | Δ                 |
+| ------------------------------- | -------------------- | -------------------- | ----------------- |
+| Initial JavaScript bytes        | 6,275,398 (5.98 MiB) | 5,695,652 (5.43 MiB) | −579,746 (−9.2 %) |
+| Initial JavaScript gzip bytes   | 1,641,225 (1.57 MiB) | 1,540,839 (1.47 MiB) | −100,386 (−6.1 %) |
+| Initial JavaScript brotli bytes | 1,257,560 (1.20 MiB) | 1,177,799 (1.12 MiB) | −79,761 (−6.3 %)  |
+| `__common` bytes                | 5,170,316            | 4,590,570            | −579,746          |
+| JavaScript bytes (all chunks)   | 15,645,157           | 15,648,050           | +2,893            |
 
 The ceilings moved down to ~5 % above the build (5.7 MiB initial, 1.55 MiB
 gzip). `bundle-budgets.json` lists `^/node_modules/zod/` under
@@ -309,11 +309,11 @@ Measured with no byte change, local export of the same commit with and without
 the preloads (headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s, cold
 cache, median of 7 interleaved loads; profile and post median of 5–7):
 
-| Page | LCP before | LCP after | Δ |
-| --- | --- | --- | --- |
-| `/` | 4.44 s | 4.14 s | −0.30 s |
-| `/p/<id>` | 4.48 s | 4.24 s | −0.24 s |
-| `/@gargron@mastodon.social` | 5.82 s | 5.59 s | −0.23 s |
+| Page                        | LCP before | LCP after | Δ       |
+| --------------------------- | ---------- | --------- | ------- |
+| `/`                         | 4.44 s     | 4.14 s    | −0.30 s |
+| `/p/<id>`                   | 4.48 s     | 4.24 s    | −0.24 s |
+| `/@gargron@mastodon.social` | 5.82 s     | 5.59 s    | −0.23 s |
 
 Layout chunks finish at ~0.58 s instead of ~2.28 s. FCP moves only ~40 ms:
 first paint is bound by downloading and running `__common` (1.3 MB brotli,
@@ -332,12 +332,12 @@ startup cost; the subscription catalogue still does not enable purchases.
 Measured with production `build:analyze` on main `319ab1dd6` and this integration,
 using the same environment and analyzer (bytes):
 
-| Metric | Main | Shared surfaces | Change |
-| --- | --- | --- | --- |
-| totalBytes | 20,606,564 | 21,103,092 | +496,528 |
-| javascriptBytes | 15,971,625 | 16,180,683 | +209,058 |
-| initialJavascriptBytes | 5,458,316 | 6,091,862 | +633,546 |
-| initialJavascriptGzipBytes | 1,512,325 | 1,696,923 | +184,598 |
+| Metric                     | Main       | Shared surfaces | Change   |
+| -------------------------- | ---------- | --------------- | -------- |
+| totalBytes                 | 20,606,564 | 21,103,092      | +496,528 |
+| javascriptBytes            | 15,971,625 | 16,180,683      | +209,058 |
+| initialJavascriptBytes     | 5,458,316  | 6,091,862       | +633,546 |
+| initialJavascriptGzipBytes | 1,512,325  | 1,696,923       | +184,598 |
 
 Source maps attribute the initial growth to the eager SDK screens and shared
 Bloom controls: country flag artwork alone adds about 44 KiB of isolated gzip;
@@ -367,12 +367,12 @@ the lean panel-hook imports. Both use `build:analyze`, identical optimized-graph
 and tree-shaking flags, external source maps, and the unchanged analyzer. Maps
 are excluded from byte totals. The feature measurements use the installed npm package, with no source mirror.
 
-| Metric | Main | Unified screens and Deck | Change | Ceiling | Remaining headroom |
-| --- | --- | --- | --- | --- | --- |
-| totalBytes | 21,108,095 | 21,363,484 | +255,389 | 21,423,495 | 60,011 |
-| javascriptBytes | 16,186,835 | 16,441,195 | +254,360 | 16,507,266 | 66,071 |
-| initialJavascriptBytes | 6,092,384 | 6,168,581 | +76,197 | 6,236,559 | 67,978 |
-| initialJavascriptGzipBytes | 1,692,093 | 1,720,784 | +28,691 | 1,765,382 | 44,598 |
+| Metric                     | Main       | Unified screens and Deck | Change   | Ceiling    | Remaining headroom |
+| -------------------------- | ---------- | ------------------------ | -------- | ---------- | ------------------ |
+| totalBytes                 | 21,108,095 | 21,363,484               | +255,389 | 21,423,495 | 60,011             |
+| javascriptBytes            | 16,186,835 | 16,441,195               | +254,360 | 16,507,266 | 66,071             |
+| initialJavascriptBytes     | 6,092,384  | 6,168,581                | +76,197  | 6,236,559  | 67,978             |
+| initialJavascriptGzipBytes | 1,692,093  | 1,720,784                | +28,691  | 1,765,382  | 44,598             |
 
 The four ceilings were calibrated by adding the measured feature-minus-main
 delta to their previous values, preserving existing headroom. The final gesture
@@ -412,12 +412,12 @@ What stays of the layout animations (101 KiB) is Reanimated's own web
 layout-animation runtime, which every animated component imports, and the
 Fade and Slide presets the app and Bloom use.
 
-| Signal | Before | After | Δ |
-| --- | --- | --- | --- |
-| Initial JavaScript bytes | 5,695,652 | 5,464,883 | −230,769 (−4.1 %) |
-| Initial JavaScript gzip bytes | 1,540,839 | 1,515,556 | −25,283 |
-| Initial JavaScript brotli bytes | 1,177,799 | 1,158,657 | −19,142 |
-| Reanimated in `__common` | 722 KiB | 500 KiB | −222 KiB |
+| Signal                          | Before    | After     | Δ                 |
+| ------------------------------- | --------- | --------- | ----------------- |
+| Initial JavaScript bytes        | 5,695,652 | 5,464,883 | −230,769 (−4.1 %) |
+| Initial JavaScript gzip bytes   | 1,540,839 | 1,515,556 | −25,283           |
+| Initial JavaScript brotli bytes | 1,177,799 | 1,158,657 | −19,142           |
+| Reanimated in `__common`        | 722 KiB   | 500 KiB   | −222 KiB          |
 
 **The feed's first request waited for the whole screen.** A cold feed's first
 page left from the React Query observer's subscription, which React makes only
@@ -433,11 +433,11 @@ chunk — is what it waits for.
 Both together, against the export before them (median of 9 interleaved cold
 loads on `/`, 5 on a post and a profile; production API):
 
-| Page | FCP | LCP | First feed request | First row | Long tasks |
-| --- | --- | --- | --- | --- | --- |
-| `/` | 2.67 → 2.63 s | 4.08 → 3.96 s | 3.21 → 3.06 s | 3.97 → 3.84 s | 1.43 → 1.42 s |
-| `/p/<id>` | 2.64 → 2.62 s | 4.19 → 4.07 s | 3.48 → 3.37 s | 3.89 → 3.86 s | 1.25 → 1.23 s |
-| `/@gargron@mastodon.social` | 2.63 → 2.60 s | 4.71 → 4.76 s | 3.49 → 3.43 s | 4.38 → 4.34 s | 1.59 → 1.59 s |
+| Page                        | FCP           | LCP           | First feed request | First row     | Long tasks    |
+| --------------------------- | ------------- | ------------- | ------------------ | ------------- | ------------- |
+| `/`                         | 2.67 → 2.63 s | 4.08 → 3.96 s | 3.21 → 3.06 s      | 3.97 → 3.84 s | 1.43 → 1.42 s |
+| `/p/<id>`                   | 2.64 → 2.62 s | 4.19 → 4.07 s | 3.48 → 3.37 s      | 3.89 → 3.86 s | 1.25 → 1.23 s |
+| `/@gargron@mastodon.social` | 2.63 → 2.60 s | 4.71 → 4.76 s | 3.49 → 3.43 s      | 4.38 → 4.34 s | 1.59 → 1.59 s |
 
 The profile's LCP is its banner image, which neither change touches; its
 difference is inside the run-to-run spread.
@@ -454,14 +454,14 @@ and the feed takes it only when it resolves as that same viewer
 the production API (headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s,
 cold context, signed out, median of 9 interleaved loads of `/`):
 
-| Signal | Main | Branch |
-| --- | --- | --- |
-| First feed request | 3.05 s | **1.12 s** |
-| Feed response | 3.31 s | 2.03 s |
-| First row (`content-ready`) | 3.99 s | 3.54 s |
-| LCP | 4.20 s | 3.71 s |
-| FCP | 2.51 s | 1.60 s |
-| Feed requests per load | 1 | 1 |
+| Signal                      | Main   | Branch     |
+| --------------------------- | ------ | ---------- |
+| First feed request          | 3.05 s | **1.12 s** |
+| Feed response               | 3.31 s | 2.03 s     |
+| First row (`content-ready`) | 3.99 s | 3.54 s     |
+| LCP                         | 4.20 s | 3.71 s     |
+| FCP                         | 2.51 s | 1.60 s     |
+| Feed requests per load      | 1      | 1          |
 
 The first row now waits for the boot, not for the network: the page is in hand
 ~1.5 s before the feed can render it. The FCP difference was not attributed
@@ -540,14 +540,14 @@ and p50/p99 history per metric, and the labels are Logs Insights properties.
 ### Where a request's time goes: Postgres, or Oxy
 
 Two instrumentations answer the question `http_request_duration_ms` cannot —
-*what* a slow route was slow doing. Both attach at a single seam and both
+_what_ a slow route was slow doing. Both attach at a single seam and both
 report per request, on the `HTTP request completed` log line that
 `middleware/requestObservability.ts` emits:
 
-| Field | Source | Reads |
-| --- | --- | --- |
-| `queryCount` / `queryDurationMs` | `db/queryMetrics.ts` | Postgres statements issued and time inside them |
-| `oxyCallCount` / `oxyDurationMs` | `utils/oxyMetrics.ts` | Oxy API calls issued and time waiting on them |
+| Field                            | Source                | Reads                                           |
+| -------------------------------- | --------------------- | ----------------------------------------------- |
+| `queryCount` / `queryDurationMs` | `db/queryMetrics.ts`  | Postgres statements issued and time inside them |
+| `oxyCallCount` / `oxyDurationMs` | `utils/oxyMetrics.ts` | Oxy API calls issued and time waiting on them   |
 
 The line is not written for the readiness probe (`/health/ready`), the uptime
 check (`HEAD /`) or the web telemetry beacon (`/telemetry/web`) unless they
@@ -600,17 +600,17 @@ out of the path entirely (no wrapper, no async context), the same posture as
 Before/after `EXPLAIN ANALYZE` on seeded local databases, single backend, sizes
 stated. Query-plan evidence, not request latency — see the caveat above.
 
-| Query | Before | After | Data |
-|---|---|---|---|
-| Oxy people search, rare term | 191.97 ms (seq scan, 200k rows filtered) | **0.026 ms** | 200k users |
-| Oxy people search, common term | 71.57 ms (3 parallel workers) | **18.84 ms** | 200k users |
-| Oxy people search, 2-char term | seq scan, guaranteed | **19.90 ms** | 200k users |
-| `GET /lists?search=`, selective | 59.87 ms (seq scan, 120k filtered) | **0.19 ms** | 120k lists |
-| `GET /lists?search=`, unselective | 56.98 ms | 31.36 ms | 120k lists |
-| The `count(*)` beside it | 54.07 ms | **0.21 ms** | 120k lists |
-| `GET /hashtags/` trending window | 325.79 ms | cached | 400k posts |
-| `GET /hashtags/` direction maps (×2) | 63.94 ms each | cached | 400k posts |
-| `GET /hashtags/search` and the overview's hashtag lane | 51.50 ms (parallel seq scan — see below) | **1.16 ms** | 500k posts, 200k tagged |
+| Query                                                  | Before                                   | After        | Data                    |
+| ------------------------------------------------------ | ---------------------------------------- | ------------ | ----------------------- |
+| Oxy people search, rare term                           | 191.97 ms (seq scan, 200k rows filtered) | **0.026 ms** | 200k users              |
+| Oxy people search, common term                         | 71.57 ms (3 parallel workers)            | **18.84 ms** | 200k users              |
+| Oxy people search, 2-char term                         | seq scan, guaranteed                     | **19.90 ms** | 200k users              |
+| `GET /lists?search=`, selective                        | 59.87 ms (seq scan, 120k filtered)       | **0.19 ms**  | 120k lists              |
+| `GET /lists?search=`, unselective                      | 56.98 ms                                 | 31.36 ms     | 120k lists              |
+| The `count(*)` beside it                               | 54.07 ms                                 | **0.21 ms**  | 120k lists              |
+| `GET /hashtags/` trending window                       | 325.79 ms                                | cached       | 400k posts              |
+| `GET /hashtags/` direction maps (×2)                   | 63.94 ms each                            | cached       | 400k posts              |
+| `GET /hashtags/search` and the overview's hashtag lane | 51.50 ms (parallel seq scan — see below) | **1.16 ms**  | 500k posts, 200k tagged |
 
 The rare-term row is the one that matters: a sequential scan costs the same
 whether it finds nothing or everything, so the old plan charged full price for
@@ -712,10 +712,10 @@ it prints numbers and never fails.
 Measured 2026-09-05 against production, real Chrome on a private Xvfb, signed
 out, warm cache, fresh page per run, n=10 (mobile) / n=6 (desktop):
 
-| feed row → `/p/<id>` | cold (first of the session) | hot (second, same page) |
-| --- | --- | --- |
-| blank frame, p50 | **315 ms** (430x932) / 310 ms (1440x900) | **1 ms** / 2 ms |
-| tap → real content, p50 | 332 ms / 321 ms | **13 ms** / 16 ms |
+| feed row → `/p/<id>`    | cold (first of the session)              | hot (second, same page) |
+| ----------------------- | ---------------------------------------- | ----------------------- |
+| blank frame, p50        | **315 ms** (430x932) / 310 ms (1440x900) | **1 ms** / 2 ms         |
+| tap → real content, p50 | 332 ms / 321 ms                          | **13 ms** / 16 ms       |
 
 The attribution matters more than the totals: the route chunk is fetched in
 **1 ms** from disk cache, **no API call completes inside the blank window**
@@ -764,17 +764,17 @@ Baseline is `main` at a1705141f, before any #1103 change
 (`__perf__/results/baseline-main.json`); the current numbers are in
 `__perf__/results/latest.json`. node 24, jest-expo ios.
 
-| Row | baseline | #1109 selectors | #1114 lazy machinery | #1112 one controller | #1115 compiled | change |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| text | 478 | 498 | 427 | 342 | **291** | −39% |
-| image | 645 | 665 | 493 | 408 | **349** | −46% |
-| multiImage | 726 | 746 | 574 | 489 | **406** | −44% |
-| video | 600 | 620 | 549 | 464 | **402** | −33% |
-| linkPreview | 531 | 551 | 480 | 395 | **344** | −35% |
-| quote (2 posts) | 826 | 866 | 756 | 586 | **484** | −41% |
-| repost | 497 | 517 | 446 | 361 | **310** | −38% |
-| poll | 512 | 532 | 461 | 376 | **325** | −37% |
-| communityNote | 522 | 542 | 471 | 386 | **335** | −36% |
+| Row             | baseline | #1109 selectors | #1114 lazy machinery | #1112 one controller | #1115 compiled | change |
+| --------------- | -------: | --------------: | -------------------: | -------------------: | -------------: | -----: |
+| text            |      478 |             498 |                  427 |                  342 |        **291** |   −39% |
+| image           |      645 |             665 |                  493 |                  408 |        **349** |   −46% |
+| multiImage      |      726 |             746 |                  574 |                  489 |        **406** |   −44% |
+| video           |      600 |             620 |                  549 |                  464 |        **402** |   −33% |
+| linkPreview     |      531 |             551 |                  480 |                  395 |        **344** |   −35% |
+| quote (2 posts) |      826 |             866 |                  756 |                  586 |        **484** |   −41% |
+| repost          |      497 |             517 |                  446 |                  361 |        **310** |   −38% |
+| poll            |      512 |             532 |                  461 |                  376 |        **325** |   −37% |
+| communityNote   |      522 |             542 |                  471 |                  386 |        **335** |   −36% |
 
 Context reads per text row went 52 → 39. Element instances and host nodes did
 not move: the work removed was hook state, subscriptions and controllers, not
@@ -793,11 +793,11 @@ views. What each step did:
   `PostActions`, `PostAttachmentMedia`, `VideoPlayer` and `PollCard`. They were
   skipped on `main` too.
 
-| Isolation (10 mixed rows mounted) | baseline | now |
-| --- | ---: | ---: |
-| row renders on an unrelated posts-store write | **10** | **0** |
-| other-row renders when post A is liked | 0 | 0 |
-| other-row renders on a view-count update | 0 | 0 |
+| Isolation (10 mixed rows mounted)             | baseline |   now |
+| --------------------------------------------- | -------: | ----: |
+| row renders on an unrelated posts-store write |   **10** | **0** |
+| other-row renders when post A is liked        |        0 |     0 |
+| other-row renders on a view-count update      |        0 |     0 |
 
 A row makes no request of its own. The last one, a prefetch of the author's
 avatar, was removed (2026-10-19): the row's `Avatar` asks for the same image in
@@ -809,16 +809,16 @@ endpoint.
 
 Measured outside the row harness, in each PR's own test:
 
-| What | before | after | PR |
-| --- | ---: | ---: | --- |
-| live-presence Query observers, 50 avatars mounted | 51 | 1 | #1108 |
-| avatars re-rendered when one user goes live | 51 | 1 | #1108 |
-| video players re-rendered when one more row becomes visible (21 mounted) | 21 | 1 | #1116 |
-| video player renders per scroll step (21 mounted) | 42 | 6 | #1116 |
-| video players re-rendered when the active player changes | 21 | 2 | #1116 |
-| identity edit for user A: rows re-rendered that do not show A | all | 0 | #1107 |
-| poll fetches when a poll row remounts or recycles | 1 per mount | 0 (cached per viewer) | #1115 |
-| inference calls for N concurrent translate requests (same post and locale, across instances) | N | 1 | #1110, #1113 |
+| What                                                                                         |      before |                 after | PR           |
+| -------------------------------------------------------------------------------------------- | ----------: | --------------------: | ------------ |
+| live-presence Query observers, 50 avatars mounted                                            |          51 |                     1 | #1108        |
+| avatars re-rendered when one user goes live                                                  |          51 |                     1 | #1108        |
+| video players re-rendered when one more row becomes visible (21 mounted)                     |          21 |                     1 | #1116        |
+| video player renders per scroll step (21 mounted)                                            |          42 |                     6 | #1116        |
+| video players re-rendered when the active player changes                                     |          21 |                     2 | #1116        |
+| identity edit for user A: rows re-rendered that do not show A                                |         all |                     0 | #1107        |
+| poll fetches when a poll row remounts or recycles                                            | 1 per mount | 0 (cached per viewer) | #1115        |
+| inference calls for N concurrent translate requests (same post and locale, across instances) |           N |                     1 | #1110, #1113 |
 
 `LinkifiedText` parsing (§11) was measured and **not** optimized, because it is
 not material: `scanLinkifyEntities` takes 0.3 µs for a plain 96-character body,
@@ -843,15 +843,15 @@ over the 40 drags. "Before" is a1705141f, the commit before #1103's first PR;
 "after" is main at bf6eeb66c. Both builds include #1272's anonymous-pagination
 fix, which the signed-out fling needs in order to scroll at all:
 
-| | before #1103 | after #1103 |
-|---|---:|---:|
-| JS thread (`mqt_v_js`) CPU | 1,911 | 1,864 (−2%) |
-| UI thread CPU | 1,657 | 1,649 |
-| RenderThread CPU | 1,652 | 1,733 |
-| Janky frames | 0.28% | 0.35% |
-| p90 / p99 frame | 8 / 12 ms | 9 / 13 ms |
-| RSS after 40 drags | 829 MB | 862 MB |
-| Blank rows during fast flings | 0 / 24 | 0 / 24 |
+|                               | before #1103 | after #1103 |
+| ----------------------------- | -----------: | ----------: |
+| JS thread (`mqt_v_js`) CPU    |        1,911 | 1,864 (−2%) |
+| UI thread CPU                 |        1,657 |       1,649 |
+| RenderThread CPU              |        1,652 |       1,733 |
+| Janky frames                  |        0.28% |       0.35% |
+| p90 / p99 frame               |    8 / 12 ms |   9 / 13 ms |
+| RSS after 40 drags            |       829 MB |      862 MB |
+| Blank rows during fast flings |       0 / 24 |      0 / 24 |
 
 **The row work did not move the device.** Hook slots per row fell 39–46% in
 the harness above, but the JS thread's cost during a scroll is not dominated by
@@ -887,11 +887,11 @@ eliminated, and no performance ceiling was raised.
 
 ### FlashList tuning (Phase 6): measured, kept at 1000
 
-| drawDistance / pool | JS CPU | Janky | RSS | Blank rows (fast flings) |
-|---|---:|---:|---:|---:|
-| 1000 / 20 (shipped) | 1,864 | 0.35% | 862 MB | 0 / 24 |
-| 500 / 20 | 1,836 | 0.48% | 857 MB | 0 / 24 |
-| 250 / 20 | 1,888 | 0.41% | 845 MB | 0 / 24 |
+| drawDistance / pool | JS CPU | Janky |    RSS | Blank rows (fast flings) |
+| ------------------- | -----: | ----: | -----: | -----------------------: |
+| 1000 / 20 (shipped) |  1,864 | 0.35% | 862 MB |                   0 / 24 |
+| 500 / 20            |  1,836 | 0.48% | 857 MB |                   0 / 24 |
+| 250 / 20            |  1,888 | 0.41% | 845 MB |                   0 / 24 |
 
 Lowering `drawDistance` shows no blank rows on this device, but it buys
 nothing measurable either: JS CPU moves less than run-to-run noise, and RSS

@@ -12,7 +12,7 @@ Oxy's own source-available license. See [License](#license) for usage terms.
   <img alt="Expo SDK 57" src="https://img.shields.io/badge/Expo-SDK%2057-000020?style=flat-square&logo=expo&logoColor=white">
   <img alt="React Native 0.86" src="https://img.shields.io/badge/React%20Native-0.86-61DAFB?style=flat-square&logo=react&logoColor=black">
   <img alt="TypeScript 6" src="https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white">
-  <img alt="Bun 1.4.3" src="https://img.shields.io/badge/Bun-1.4.3-000000?style=flat-square&logo=bun&logoColor=white">
+  <img alt="Bun 1.4.4" src="https://img.shields.io/badge/Bun-1.4.4-000000?style=flat-square&logo=bun&logoColor=white">
 </p>
 
 ---
@@ -42,17 +42,17 @@ The interface is built with [**Bloom**](https://github.com/OxyHQ/Bloom). Live au
 
 ## Workspaces
 
-| Package | Path | What it holds |
-|---|---|---|
-| `@mention/frontend` | [`packages/frontend`](./packages/frontend) | Expo Router app for iOS, Android and web. Expo 57, React Native 0.86, React 19, NativeWind, TanStack Query, Zustand |
-| `@mention/backend` | [`packages/backend`](./packages/backend) | Express 5 API over PostgreSQL (Drizzle ORM) and Valkey, Socket.IO, background workers, ActivityPub federation, the MTN signed record layer and the web shell |
-| `@mention/shared-types` | [`packages/shared-types`](./packages/shared-types) | The request and response contracts, plus the MTN record schemas, that both sides compile against |
-| `@mention/mcp` | [`packages/mcp`](./packages/mcp) | Model Context Protocol server, remote over HTTP and local over stdio |
-| `@mention/e2e` | [`packages/e2e`](./packages/e2e) | Real browser release gate that exercises a candidate web build before it is promoted |
+| Package                 | Path                                               | What it holds                                                                                                                                                |
+| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@mention/frontend`     | [`packages/frontend`](./packages/frontend)         | Expo Router app for iOS, Android and web. Expo 57, React Native 0.86, React 19, NativeWind, TanStack Query, Zustand                                          |
+| `@mention/backend`      | [`packages/backend`](./packages/backend)           | Express 5 API over PostgreSQL (Drizzle ORM) and Valkey, Socket.IO, background workers, ActivityPub federation, the MTN signed record layer and the web shell |
+| `@mention/shared-types` | [`packages/shared-types`](./packages/shared-types) | The request and response contracts, plus the MTN record schemas, that both sides compile against                                                             |
+| `@mention/mcp`          | [`packages/mcp`](./packages/mcp)                   | Model Context Protocol server, remote over HTTP and local over stdio                                                                                         |
+| `@mention/e2e`          | [`packages/e2e`](./packages/e2e)                   | Real browser release gate that exercises a candidate web build before it is promoted                                                                         |
 
 ## Quick start
 
-You need [Bun](https://bun.sh) 1.4.3, Node.js 24.21.0 for the Expo and Jest toolchains, and Docker with Compose for the local data plane. Xcode or Android Studio are needed only when you run the matching native target.
+You need [Bun](https://bun.sh) 1.4.4, Node.js 24.21.0 for the Expo and Jest toolchains, and Docker with Compose for the local data plane. Xcode or Android Studio are needed only when you run the matching native target.
 
 ```bash
 bun install --frozen-lockfile
@@ -151,24 +151,24 @@ Reports go to [**CrowdSource**](https://github.com/OxyHQ/CrowdSource), which dra
 
 ## Documentation
 
-| Document | Covers |
-|---|---|
-| [Overview](./docs/index.mdx) | Entry point, workspace responsibilities, data ownership |
-| [Architecture](./docs/architecture.mdx) | How the pieces fit together |
-| [API](./docs/api.mdx) | The HTTP surface |
-| [Fediverse](./docs/fediverse.mdx) | ActivityPub integration and discovery |
-| [Federation behaviors](./docs/federation-behaviors.md) | Reposted-post shapes, bridge identity, thread federation, blocklist/purge, HLS media proxy |
-| [Channels and lanes](./docs/channels-and-lanes.md) | Channel-as-account design, disclosure, correction trail, lane curation |
-| [Moderation (CrowdSource)](./docs/moderation-crowdsource.md) | Report intake, enforcement modes, the subject-provider seam, known gaps |
-| [Feed ranking](./docs/feed-ranking.md) | Content classification, safety gating, ranking signals, interstitials |
-| [Frontend compiler notes](./docs/frontend-compiler-notes.md) | React Compiler ref-write findings, web feed virtualization |
-| [Product positioning](./docs/PRODUCT_POSITIONING.md) | What Mention is (and is not) as a product category |
-| [Performance budgets](./docs/PERFORMANCE_BUDGETS.md) | What is measured today, what is instrumented but unheld, what is missing |
-| [Compose intent URLs](./docs/compose-intent.mdx) | Linking into the composer from outside the app |
-| [User mentions](./docs/mentions.md) | How handles resolve, local and federated |
-| [Theming](./docs/THEMING.md) | Bloom and NativeWind in this app |
-| [MCP server](./packages/mcp/README.md) | Connecting Claude through central Oxy OAuth, account binding, and the tool list |
-| [Compatibility retirement](./docs/COMPATIBILITY_RETIREMENT.md) | What we removed and why |
+| Document                                                       | Covers                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [Overview](./docs/index.mdx)                                   | Entry point, workspace responsibilities, data ownership                                    |
+| [Architecture](./docs/architecture.mdx)                        | How the pieces fit together                                                                |
+| [API](./docs/api.mdx)                                          | The HTTP surface                                                                           |
+| [Fediverse](./docs/fediverse.mdx)                              | ActivityPub integration and discovery                                                      |
+| [Federation behaviors](./docs/federation-behaviors.md)         | Reposted-post shapes, bridge identity, thread federation, blocklist/purge, HLS media proxy |
+| [Channels and lanes](./docs/channels-and-lanes.md)             | Channel-as-account design, disclosure, correction trail, lane curation                     |
+| [Moderation (CrowdSource)](./docs/moderation-crowdsource.md)   | Report intake, enforcement modes, the subject-provider seam, known gaps                    |
+| [Feed ranking](./docs/feed-ranking.md)                         | Content classification, safety gating, ranking signals, interstitials                      |
+| [Frontend compiler notes](./docs/frontend-compiler-notes.md)   | React Compiler ref-write findings, web feed virtualization                                 |
+| [Product positioning](./docs/PRODUCT_POSITIONING.md)           | What Mention is (and is not) as a product category                                         |
+| [Performance budgets](./docs/PERFORMANCE_BUDGETS.md)           | What is measured today, what is instrumented but unheld, what is missing                   |
+| [Compose intent URLs](./docs/compose-intent.mdx)               | Linking into the composer from outside the app                                             |
+| [User mentions](./docs/mentions.md)                            | How handles resolve, local and federated                                                   |
+| [Theming](./docs/THEMING.md)                                   | Bloom and NativeWind in this app                                                           |
+| [MCP server](./packages/mcp/README.md)                         | Connecting Claude through central Oxy OAuth, account binding, and the tool list            |
+| [Compatibility retirement](./docs/COMPATIBILITY_RETIREMENT.md) | What we removed and why                                                                    |
 
 Instructions for AI coding agents live in [`AGENTS.md`](./AGENTS.md). The parent files it references apply as well.
 

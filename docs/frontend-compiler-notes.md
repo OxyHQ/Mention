@@ -40,15 +40,15 @@ A `finally` CLAUSE also bails the whole function (BuildHIR cannot lower
 it), while the promise `.finally()` METHOD is fine. Measured on the same
 plugin, one synthetic hook per shape against a no-try control at `_c(6)`:
 
-| shape | result |
-|---|---|
-| no `try` at all (control) | `_c(6)` |
-| `try` / `catch` | `_c(5)` |
-| `try` / `finally` | **bails** |
-| `try` / `catch` / `finally` | **bails** |
-| `try` / `catch`, cleanup duplicated into both paths | `_c(6)` |
-| promise `.finally()` method | `_c(6)` |
-| `try` / `finally` nested inside a `try` / `catch` | **bails** |
+| shape                                               | result    |
+| --------------------------------------------------- | --------- |
+| no `try` at all (control)                           | `_c(6)`   |
+| `try` / `catch`                                     | `_c(5)`   |
+| `try` / `finally`                                   | **bails** |
+| `try` / `catch` / `finally`                         | **bails** |
+| `try` / `catch`, cleanup duplicated into both paths | `_c(6)`   |
+| promise `.finally()` method                         | `_c(6)`   |
+| `try` / `finally` nested inside a `try` / `catch`   | **bails** |
 
 But a bail is NOT by itself evidence of a missing optimization. Three hooks
 were audited for this (`useProfileScroll`, `useDrafts`, `useDeferredToggle`)

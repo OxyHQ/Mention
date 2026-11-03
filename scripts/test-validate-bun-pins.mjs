@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const validator = resolve(repositoryRoot, 'scripts/validate-bun-pins.mjs');
 
-const PIN = '1.4.3';
+const PIN = '1.4.4';
 const manifest = (packageManager = `bun@${PIN}`) =>
   `${JSON.stringify({ name: 'fixture', private: true, packageManager }, null, 2)}\n`;
 const dockerfile = (first = `oven/bun:${PIN}-alpine`, second = `oven/bun:${PIN}-alpine`) =>
@@ -98,9 +98,9 @@ const cases = [
   },
   {
     name: 'packageManager moving without the images fails',
-    files: { ...base(), 'package.json': manifest('bun@1.4.4') },
+    files: { ...base(), 'package.json': manifest('bun@1.4.5') },
     pass: false,
-    expect: 'package.json pins bun@1.4.4',
+    expect: 'package.json pins bun@1.4.5',
   },
   {
     name: 'a workflow BUN_VERSION on another bun fails',

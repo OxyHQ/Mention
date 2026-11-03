@@ -32,12 +32,12 @@ updates:
   # that actually declares the dependency, so adding `/packages/*` alongside `/`
   # does not widen coverage — it opens a second, identical PR for every bump
   # (#783/#787, #784/#788, #785/#789, #786/#790 were four such pairs).
-  - package-ecosystem: "bun"
-    directory: "/"
+  - package-ecosystem: 'bun'
+    directory: '/'
     schedule:
-      interval: "daily"
-      time: "06:00"
-      timezone: "Europe/Madrid"
+      interval: 'daily'
+      time: '06:00'
+      timezone: 'Europe/Madrid'
     open-pull-requests-limit: 5
     # Each rebase reruns the full CI, and Dependabot rebased every open PR on
     # each merge to main, mostly red PRs nothing had changed in (the org shares
@@ -45,10 +45,10 @@ updates:
     rebase-strategy: disabled
     versioning-strategy: increase
     labels:
-      - "dependencies"
+      - 'dependencies'
     commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
     # Group low-risk updates so we get a small number of consolidated PRs
     # instead of one PR per package.
     groups:
@@ -57,42 +57,42 @@ updates:
       # group: a dependency joins the first group it matches.
       oxy-platform:
         patterns:
-          - "@oxy.so/*"
-          - "@alia.onl/*"
-          - "@clarity.surf/*"
+          - '@oxy.so/*'
+          - '@alia.onl/*'
+          - '@clarity.surf/*'
       minor-and-patch:
         applies-to: version-updates
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       dev-dependencies:
         applies-to: version-updates
-        dependency-type: "development"
+        dependency-type: 'development'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
     # MANUALLY managed — do NOT let Dependabot touch the pinned toolchains.
     ignore:
       # Expo SDK + toolchain — locked to the Expo SDK release train.
-      - dependency-name: "expo"
-      - dependency-name: "expo-*"
-      - dependency-name: "@expo/*"
-      - dependency-name: "jest-expo"
-      - dependency-name: "eslint-plugin-expo"
+      - dependency-name: 'expo'
+      - dependency-name: 'expo-*'
+      - dependency-name: '@expo/*'
+      - dependency-name: 'jest-expo'
+      - dependency-name: 'eslint-plugin-expo'
       # React / React Native core — version-locked via root `overrides`.
-      - dependency-name: "react"
-      - dependency-name: "react-dom"
-      - dependency-name: "react-native"
-      - dependency-name: "react-native-web"
+      - dependency-name: 'react'
+      - dependency-name: 'react-dom'
+      - dependency-name: 'react-native'
+      - dependency-name: 'react-native-web'
       # The React Native toolchain packages ship on RN's own release train, so
       # they are only correct at the RN minor this app is on — Dependabot
       # offered `@react-native/jest-preset` and `@react-native/metro-config`
       # 0.87.0 against RN 0.86.
-      - dependency-name: "@react-native/*"
+      - dependency-name: '@react-native/*'
       # Pinned to the exact `react` version, never to its own latest: a
       # `react-test-renderer` ahead of `react` renders against a reconciler the
       # app does not ship (offered 19.2.8 against react 19.2.3).
-      - dependency-name: "react-test-renderer"
+      - dependency-name: 'react-test-renderer'
       # Third-party native modules that the Expo SDK itself version-pins. These
       # are named individually rather than as `react-native-*` on purpose: the
       # list below is exactly `packages/frontend`'s dependencies intersected
@@ -101,52 +101,52 @@ updates:
       # react-native-nitro-modules, react-native-popup-menu and
       # react-native-qrcode-svg, none of which Expo pins. Bump these with
       # `bunx expo install` at SDK-upgrade time, never one at a time.
-      - dependency-name: "@react-native-async-storage/async-storage"
-      - dependency-name: "@react-native-community/netinfo"
-      - dependency-name: "@shopify/flash-list"
-      - dependency-name: "react-native-gesture-handler"
-      - dependency-name: "react-native-keyboard-controller"
-      - dependency-name: "react-native-safe-area-context"
-      - dependency-name: "react-native-screens"
-      - dependency-name: "react-native-svg"
-      - dependency-name: "react-native-webview"
+      - dependency-name: '@react-native-async-storage/async-storage'
+      - dependency-name: '@react-native-community/netinfo'
+      - dependency-name: '@shopify/flash-list'
+      - dependency-name: 'react-native-gesture-handler'
+      - dependency-name: 'react-native-keyboard-controller'
+      - dependency-name: 'react-native-safe-area-context'
+      - dependency-name: 'react-native-screens'
+      - dependency-name: 'react-native-svg'
+      - dependency-name: 'react-native-webview'
       # Metro / RN build + animation stack — must move in lockstep with Expo.
-      - dependency-name: "react-native-reanimated"
-      - dependency-name: "react-native-worklets"
-      - dependency-name: "react-native-worklets-core"
-      - dependency-name: "nativewind"
-      - dependency-name: "tailwindcss"
-      - dependency-name: "@tailwindcss/*"
-      - dependency-name: "lightningcss"
-      - dependency-name: "lightningcss-*"
+      - dependency-name: 'react-native-reanimated'
+      - dependency-name: 'react-native-worklets'
+      - dependency-name: 'react-native-worklets-core'
+      - dependency-name: 'nativewind'
+      - dependency-name: 'tailwindcss'
+      - dependency-name: '@tailwindcss/*'
+      - dependency-name: 'lightningcss'
+      - dependency-name: 'lightningcss-*'
       # AI SDK — intentionally pinned (breaking changes between minors).
-      - dependency-name: "ai"
+      - dependency-name: 'ai'
       # The environment behind `@jest-environment jsdom` test files. 30's
       # unforgeable `window` makes React Native's jest setup (which every file
       # runs, jsdom ones included) throw "Cannot redefine property: window";
       # see docs/dependencies.md.
-      - dependency-name: "jest-environment-jsdom"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: 'jest-environment-jsdom'
+        update-types: ['version-update:semver-major']
 
   # ---------------------------------------------------------------------------
   # GitHub Actions — keep workflow action versions current.
   # ---------------------------------------------------------------------------
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Europe/Madrid"
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Europe/Madrid'
     open-pull-requests-limit: 3
     labels:
-      - "dependencies"
-      - "github-actions"
+      - 'dependencies'
+      - 'github-actions'
     commit-message:
-      prefix: "ci(deps)"
+      prefix: 'ci(deps)'
     groups:
       github-actions:
         applies-to: version-updates
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'

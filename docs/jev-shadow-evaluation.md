@@ -56,14 +56,14 @@ classification:
    it is aborted.
 4. **Settle the outcome**:
 
-   | What happened | Row | Lane |
-   |---|---|---|
-   | Answer written | `completed` | continues |
-   | Post changed meanwhile | `cancelled` | continues |
-   | The lane refused before anything ran (auth, permission or policy, `no_route_available`, a 503 `service_unavailable`, the SDK finding the credential empty) | deleted | stops for this cycle |
-   | This request refused before it ran (`invalid_request`, `request_too_large`, `idempotency_conflict`, or the SDK's own contract check before sending) | `rejected` | continues; never resent |
-   | `rate_limited`, `quota_exceeded` or a spend limit | deleted | sleeps until the next UTC midnight |
-   | Anything that may have run (`provider_error`, any 502 or 504, timeout, dropped connection, invalid output) | `cost_uncertain` | continues; never resent |
+   | What happened                                                                                                                                              | Row              | Lane                               |
+   | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------- |
+   | Answer written                                                                                                                                             | `completed`      | continues                          |
+   | Post changed meanwhile                                                                                                                                     | `cancelled`      | continues                          |
+   | The lane refused before anything ran (auth, permission or policy, `no_route_available`, a 503 `service_unavailable`, the SDK finding the credential empty) | deleted          | stops for this cycle               |
+   | This request refused before it ran (`invalid_request`, `request_too_large`, `idempotency_conflict`, or the SDK's own contract check before sending)        | `rejected`       | continues; never resent            |
+   | `rate_limited`, `quota_exceeded` or a spend limit                                                                                                          | deleted          | sleeps until the next UTC midnight |
+   | Anything that may have run (`provider_error`, any 502 or 504, timeout, dropped connection, invalid output)                                                 | `cost_uncertain` | continues; never resent            |
 
    A 502 or 504 is never a refusal, whatever its code: Kaana answers them after
    a provider ran, and Cloudflare in front of kaana.ai replaces their body, so

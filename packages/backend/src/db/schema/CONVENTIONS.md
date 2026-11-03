@@ -177,11 +177,11 @@ Always `timestamptz`, always `mode: 'date'` (`timestamptz()` from `@oxy.so/db`).
 `timestamp` without a time zone reinterprets the value in the session's
 `TimeZone` on every read, silently changing what a stored instant meant.
 
-| Model shape | Postgres |
-|---|---|
-| `timestamps: true` | `created_at` + `updated_at`, both `NOT NULL DEFAULT now()` |
-| `timestamps: { createdAt: true, updatedAt: false }` | `created_at` only — the ABSENCE of `updated_at` is the append-only contract |
-| `timestamps: false` + own `createdAt: { default: Date.now }` | `created_at`, identical to the row above |
+| Model shape                                                  | Postgres                                                                    |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `timestamps: true`                                           | `created_at` + `updated_at`, both `NOT NULL DEFAULT now()`                  |
+| `timestamps: { createdAt: true, updatedAt: false }`          | `created_at` only — the ABSENCE of `updated_at` is the append-only contract |
+| `timestamps: false` + own `createdAt: { default: Date.now }` | `created_at`, identical to the row above                                    |
 
 **`updated_at` is maintained by the application** (`$onUpdate`). Deliberately not a trigger: a trigger is invisible in the schema file,
 and it would fire during backfill and overwrite the historical value the
@@ -201,12 +201,12 @@ deletes the post and then, best-effort, its article, poll, likes, bookmarks and
 notifications — and does NOT touch replies, boosts or quotes. Each self-reference
 on `posts` states its choice against that:
 
-| Column | Action | Why |
-|---|---|---|
-| `boost_of` | CASCADE | A `type:'boost'` row has an intentionally EMPTY body and exists only to point at the original. Without CASCADE it would be left as a permanently blank card. |
-| `quote_of` | SET NULL | A quote has a body of its own and must outlive its subject; NULL is exactly "the quoted post is gone". |
-| `thread_id` | SET NULL | Continuations are real posts. |
-| `parent_post_id` | SET NULL — **ESCALATED** | Neither choice is a faithful port. See below. |
+| Column           | Action                   | Why                                                                                                                                                          |
+| ---------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `boost_of`       | CASCADE                  | A `type:'boost'` row has an intentionally EMPTY body and exists only to point at the original. Without CASCADE it would be left as a permanently blank card. |
+| `quote_of`       | SET NULL                 | A quote has a body of its own and must outlive its subject; NULL is exactly "the quoted post is gone".                                                       |
+| `thread_id`      | SET NULL                 | Continuations are real posts.                                                                                                                                |
+| `parent_post_id` | SET NULL — **ESCALATED** | Neither choice is a faithful port. See below.                                                                                                                |
 
 **`parent_post_id` is an open decision, not a settled one.** Today an orphaned
 reply keeps a dead id and root feeds exclude it because `notAReplyClause()` tests
@@ -356,11 +356,11 @@ source: an attempt fails with SQLSTATE `428C9`.
 **The trap: the expression must be IMMUTABLE, and the obvious spellings are not.**
 Measured against `pg_proc.provolatile`, not assumed:
 
-| Want | Rejected | Use |
-|---|---|---|
-| a `tsvector` from text | `to_tsvector(x)` — STABLE, reads `default_text_search_config` | `to_tsvector('english', x)` with a LITERAL config |
-| a `tsvector` from `text[]` | `to_tsvector('simple', array_to_string(a, ' '))` — `array_to_string` is STABLE | `array_to_tsvector(a)` — IMMUTABLE |
-| a point | — | `ST_MakePoint(lon, lat)::geography`, both IMMUTABLE in PostGIS 3.5 |
+| Want                       | Rejected                                                                       | Use                                                                |
+| -------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| a `tsvector` from text     | `to_tsvector(x)` — STABLE, reads `default_text_search_config`                  | `to_tsvector('english', x)` with a LITERAL config                  |
+| a `tsvector` from `text[]` | `to_tsvector('simple', array_to_string(a, ' '))` — `array_to_string` is STABLE | `array_to_tsvector(a)` — IMMUTABLE                                 |
+| a point                    | —                                                                              | `ST_MakePoint(lon, lat)::geography`, both IMMUTABLE in PostGIS 3.5 |
 
 ## Text search
 
@@ -446,11 +446,11 @@ Not by discipline — these fail the build. All of them run against a REAL
 Postgres through the application's own pool, and each has been mutation-tested:
 break the thing it guards and it goes red naming the offending table and column.
 
-| Convention | Test |
-|---|---|
-| snake_case tables and columns; every table has a PK; every timestamp is `timestamptz`; no `''` default; no `_id`/`__v`; PostGIS installed | `__tests__/db/schemaInvariants.test.ts` |
-| Deferred FK becomes mandatory when its parent lands; every id-shaped column classified; every FK declares an explicit `ON DELETE` | `__tests__/db/foreignKeys.test.ts` |
-| uuid v7 format and ordering; ObjectId hex accepted verbatim; the widened `status` CHECK; array-element CHECKs; one-owner-per-post; one-variant-per-language; the generated search vector; CASCADE/SET NULL behaviour on real rows | `__tests__/db/constraints.test.ts` |
-| `geo` is generated, SRID 4326, POINT, built as `(longitude, latitude)`, GiST-indexed, and unwritable | `__tests__/db/postgis.test.ts` |
-| Sweep semantics, batching, the index each swept column requires, and the retention constants | `__tests__/db/expiry.test.ts` |
-| Protected-column registry, the `publicColumns` filter at runtime AND at the type level, and no implicit whole-row read anywhere in `src/` | `__tests__/db/protectedColumns.test.ts` |
+| Convention                                                                                                                                                                                                                        | Test                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| snake_case tables and columns; every table has a PK; every timestamp is `timestamptz`; no `''` default; no `_id`/`__v`; PostGIS installed                                                                                         | `__tests__/db/schemaInvariants.test.ts` |
+| Deferred FK becomes mandatory when its parent lands; every id-shaped column classified; every FK declares an explicit `ON DELETE`                                                                                                 | `__tests__/db/foreignKeys.test.ts`      |
+| uuid v7 format and ordering; ObjectId hex accepted verbatim; the widened `status` CHECK; array-element CHECKs; one-owner-per-post; one-variant-per-language; the generated search vector; CASCADE/SET NULL behaviour on real rows | `__tests__/db/constraints.test.ts`      |
+| `geo` is generated, SRID 4326, POINT, built as `(longitude, latitude)`, GiST-indexed, and unwritable                                                                                                                              | `__tests__/db/postgis.test.ts`          |
+| Sweep semantics, batching, the index each swept column requires, and the retention constants                                                                                                                                      | `__tests__/db/expiry.test.ts`           |
+| Protected-column registry, the `publicColumns` filter at runtime AND at the type level, and no implicit whole-row read anywhere in `src/`                                                                                         | `__tests__/db/protectedColumns.test.ts` |

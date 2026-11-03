@@ -125,7 +125,7 @@ jobs:
       - name: Register immutable task definition and deploy
         env:
           IMAGE_URI: ${{ steps.running.outputs.image_uri }}
-          RUN_MIGRATIONS: "false"
+          RUN_MIGRATIONS: 'false'
           ALLOW_ZERO_DESIRED_COUNT: ${{ vars.ALLOW_ZERO_DESIRED_COUNT }}
           TASK_SECRET_OVERRIDES_JSON: |-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",

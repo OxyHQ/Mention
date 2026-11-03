@@ -3,12 +3,12 @@
 Two things that both sit near a post's content and are easy to conflate. They
 are deliberately separate features.
 
-| | Content warning | Community note |
-| --- | --- | --- |
-| Written by | The post's author (or the federated `summary`) | Other readers |
-| When | At publish time | After, and only once rated helpful |
+|              | Content warning                                                                                 | Community note                                 |
+| ------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Written by   | The post's author (or the federated `summary`)                                                  | Other readers                                  |
+| When         | At publish time                                                                                 | After, and only once rated helpful             |
 | What it does | **Gates** the post: body and every block below stay hidden until the reader chooses to see them | **Adds context** under the post; hides nothing |
-| Owner | Mention (`metadata.spoilerText`) | **CrowdSource** |
+| Owner        | Mention (`metadata.spoilerText`)                                                                | **CrowdSource**                                |
 
 ## Content warning (Mention)
 
@@ -52,16 +52,16 @@ key: it presents Mention's Oxy service token and CrowdSource resolves the tenant
 from the Oxy application it names. Where the process cannot obtain one — a local
 checkout — there is no client, nothing is mounted and nothing is asked.
 
-| Mention | CrowdSource |
-| --- | --- |
-| `POST /api/community-notes` | `POST /v1/community-notes` |
-| `POST /api/community-notes/:id/withdraw` | `POST /v1/community-notes/{id}/withdraw` |
-| `POST /api/community-notes/:id/ratings` | `POST /v1/community-notes/{id}/ratings` |
-| `POST /api/community-notes/to-rate` | `POST /v1/community-notes/assignments` |
-| `GET /api/community-notes/mine` | `GET /v1/community-notes/principals/{id}/notes` |
-| `GET /api/community-notes/ratings` | `GET /v1/community-notes/principals/{id}/ratings` |
-| `PostHydrationService` (batch) | `GET /v1/community-notes/shown?subjects=` |
-| `POST /webhooks/crowdsource` | `community_note.status_changed` |
+| Mention                                  | CrowdSource                                       |
+| ---------------------------------------- | ------------------------------------------------- |
+| `POST /api/community-notes`              | `POST /v1/community-notes`                        |
+| `POST /api/community-notes/:id/withdraw` | `POST /v1/community-notes/{id}/withdraw`          |
+| `POST /api/community-notes/:id/ratings`  | `POST /v1/community-notes/{id}/ratings`           |
+| `POST /api/community-notes/to-rate`      | `POST /v1/community-notes/assignments`            |
+| `GET /api/community-notes/mine`          | `GET /v1/community-notes/principals/{id}/notes`   |
+| `GET /api/community-notes/ratings`       | `GET /v1/community-notes/principals/{id}/ratings` |
+| `PostHydrationService` (batch)           | `GET /v1/community-notes/shown?subjects=`         |
+| `POST /webhooks/crowdsource`             | `community_note.status_changed`                   |
 
 Four decisions are worth knowing before changing any of it:
 

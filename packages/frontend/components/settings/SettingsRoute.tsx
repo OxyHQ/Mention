@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
  * intercepted in `app/+native-intent.tsx` (see `settingsRoutes.ts`).
  */
 export function createSettingsRoute(page: string) {
+  // biome-ignore lint/correctness/noComponentHookFactories: each route module calls this once at import time, never during a render, so the component keeps one identity.
   return function SettingsRoute() {
     const { open } = useMentionSettings();
     const router = useRouter();

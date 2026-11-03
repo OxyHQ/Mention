@@ -22,6 +22,7 @@ the explicit links, affecting BOTH the collapsed row and the sheet.
 ## Architecture (Mention frontend)
 
 ### `utils/extractUrls.ts` (new, shared)
+
 Extract a reusable URL parser from `LinkifiedText.tsx` (which has the regex
 `https?:\/\/[^\s]+|www\.[^\s]+` + `trimUrlTrailingPunct` for stripping trailing
 punctuation). `export function extractUrls(text: string): string[]` — returns the
@@ -30,19 +31,22 @@ they're openable). Refactor `LinkifiedText.tsx` to consume this util too, so the
 lives in ONE place (no divergence).
 
 ### `utils/mergeBioAndProfileLinks.ts` (new)
+
 ```ts
 export function mergeBioAndProfileLinks(
-  linksMetadata?: ProfileLinkMetadata[],   // from @oxy.so/core
+  linksMetadata?: ProfileLinkMetadata[], // from @oxy.so/core
   links?: string[],
   bioText?: string,
-): ProfileLink[]
+): ProfileLink[];
 ```
+
 - Start from `normalizeProfileLinks(linksMetadata, links)` (explicit links, first, with metadata).
 - `extractUrls(bioText)` → for each, if its normalized URL (scheme/`www.`/trailing-slash stripped, lowercased — reuse `prettifyUrl` semantics) is NOT already present among the explicit links, append a `{ id: 'bio-<i>', url }` (no title → LinkSummary shows the prettified URL).
 - Dedup by normalized URL; **explicit links win** (keep their title/description/image). Bio-only URLs come after the explicit ones, in bio order.
 - Returns `ProfileLink[]` (same type the LinkSummary already consumes).
 
 ### Wiring
+
 `ProfileContent.tsx`: replace the `:211` call
 `<LinkSummary links={normalizeProfileLinks(profileData.linksMetadata, profileData.links)} />`
 with `<LinkSummary links={mergeBioAndProfileLinks(profileData.linksMetadata, profileData.links, profileData.bio)} />`.
@@ -50,6 +54,7 @@ No change to `LinkSummary` itself — bio links flow through the same prop, so t
 in both the collapsed row ("first … and N other") and the sheet.
 
 ## Edge cases
+
 - No bio / no URLs → identical to today (just the explicit links).
 - URL in both bio and explicit links → shown once (explicit kept).
 - Bio URL without scheme (`www.x.com`) → normalized to an openable `https://` form for `onPressLink`.
@@ -57,11 +62,13 @@ in both the collapsed row ("first … and N other") and the sheet.
 - Trailing punctuation in bio URLs (e.g. "see x.com.") → trimmed via the shared `trimUrlTrailingPunct`.
 
 ## Verification
+
 - Unit-test `mergeBioAndProfileLinks` (explicit-only, bio-only, overlap dedup, ordering, no-bio) and `extractUrls` (plain, www, trailing punct, multiple, none).
 - Frontend tsc (3 livekit allow-listed) + `build:frontend`; real check — a profile with a URL in its bio shows it in the LinkSummary row + sheet; removing it from the bio removes it; `LinkifiedText` still renders bio links inline as before (refactor didn't change behavior).
 - Push via test-build → git-ops.
 
 ## Out of scope
+
 - No backend change (bio already in the profile DTO).
 - No titles/metadata for bio links (URL only).
 - Not touching the explicit-links edit flow (Oxy services).

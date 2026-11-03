@@ -38,7 +38,7 @@ composer, the profile banner fade. Those ask instead:
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 
 const surfaceFill = useSurfaceFill();
-<View style={{ backgroundColor: surfaceFill }} />
+<View style={{ backgroundColor: surfaceFill }} />;
 ```
 
 The shell's `ContentPanel` publishes `colors.card`, a bottom sheet publishes

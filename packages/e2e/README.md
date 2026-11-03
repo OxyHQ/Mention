@@ -142,12 +142,12 @@ MENTION_E2E_CANDIDATE_ORIGIN=http://127.0.0.1:3000 bun run --cwd packages/e2e te
 
 First run needs the browser: `bun run --cwd packages/e2e install-browser`.
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `MENTION_E2E_CANDIDATE_ORIGIN` | *required* | Deployment holding the build under test |
-| `MENTION_E2E_APP_ORIGIN` | `https://mention.earth` | Origin the browser runs at |
-| `MENTION_E2E_API_ORIGIN` | `https://api.mention.earth` | Expected canonical ActivityPub actor host |
-| `MENTION_E2E_PROFILE_HANDLE` | `nate` | A local handle that exists in production |
+| Variable                       | Default                     | Meaning                                   |
+| ------------------------------ | --------------------------- | ----------------------------------------- |
+| `MENTION_E2E_CANDIDATE_ORIGIN` | _required_                  | Deployment holding the build under test   |
+| `MENTION_E2E_APP_ORIGIN`       | `https://mention.earth`     | Origin the browser runs at                |
+| `MENTION_E2E_API_ORIGIN`       | `https://api.mention.earth` | Expected canonical ActivityPub actor host |
+| `MENTION_E2E_PROFILE_HANDLE`   | `nate`                      | A local handle that exists in production  |
 
 There is no default for the candidate origin, and it may not equal the app
 origin. Both rules exist so the suite cannot silently degrade into a test of
@@ -155,14 +155,14 @@ whatever is already live.
 
 ## Coverage, and what is deliberately not here
 
-| # | Flow | What it catches |
-| --- | --- | --- |
-| 1 | Cold boot of `/` | Provider-ordering crash; suspense deadlock that never commits the root |
-| 2 | `/` → `/explore` → `/p/<id>` → back | expo-router async route chunks; the silent `chunkReload.web.ts` recovery reload |
-| 3 | `/@<handle>` as a page, and as ActivityPub | `webShell.routes.ts` content negotiation — breaks fediverse discovery while the profile still looks healthy |
-| 4 | Search suggestions survive typing and blur; submit carries the full query | The suggestion surface vanishing on the first keystroke or on blur; the stale-closure submit that drops the final character |
-| 5 | An image post whose dimensions the feed KNEW settles on ONE layout | The 280x180 fallback box jumping to the real aspect ratio, i.e. media geometry being dropped from the DTO |
-| 6 | `/@<handle>` is the Posts tab, on a cold load and after a client-side push from another profile; the strip survives a tab switch | The profile tab strip being unmounted by the navigation it performs (597ms with no strip); a pushed profile resolving to `/about` because its tab routes sat in a nested group |
+| #   | Flow                                                                                                                             | What it catches                                                                                                                                                                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Cold boot of `/`                                                                                                                 | Provider-ordering crash; suspense deadlock that never commits the root                                                                                                         |
+| 2   | `/` → `/explore` → `/p/<id>` → back                                                                                              | expo-router async route chunks; the silent `chunkReload.web.ts` recovery reload                                                                                                |
+| 3   | `/@<handle>` as a page, and as ActivityPub                                                                                       | `webShell.routes.ts` content negotiation — breaks fediverse discovery while the profile still looks healthy                                                                    |
+| 4   | Search suggestions survive typing and blur; submit carries the full query                                                        | The suggestion surface vanishing on the first keystroke or on blur; the stale-closure submit that drops the final character                                                    |
+| 5   | An image post whose dimensions the feed KNEW settles on ONE layout                                                               | The 280x180 fallback box jumping to the real aspect ratio, i.e. media geometry being dropped from the DTO                                                                      |
+| 6   | `/@<handle>` is the Posts tab, on a cold load and after a client-side push from another profile; the strip survives a tab switch | The profile tab strip being unmounted by the navigation it performs (597ms with no strip); a pushed profile resolving to `/about` because its tab routes sat in a nested group |
 
 ### Reading a red run of flow 5
 
@@ -185,16 +185,15 @@ one needs, and the split is the reason they are not the same size of job:
   because paging past the first window used to be structurally impossible. It is
   deferred rather than blocked, and the mechanics are settled — from the author
   of the surface, so it does not need rediscovering:
-
-  * Use `search=art`. It returns 79 packs across 4 pages, with zero overlap
+  - Use `search=art`. It returns 79 packs across 4 pages, with zero overlap
     between pages one and two. `mention` returns nothing and `?search=` fills
     exactly one page, so either would make the test unable to fail. This is the
     detail that had me wrongly call the flow data-blocked.
-  * The tab pages by page NUMBER, and `hasMore` is computed client-side as
+  - The tab pages by page NUMBER, and `hasMore` is computed client-side as
     `page < totalPages`, driven by FlashList's `onEndReached` at `threshold:
     0.5`. The deterministic trigger is therefore scrolling until the last
     rendered card is reached — not a fixed pixel offset.
-  * Assert the card COUNT grew, never that a particular pack appeared: ranking
+  - Assert the card COUNT grew, never that a particular pack appeared: ranking
     is `useCount desc` and can reorder between page fetches.
 
   What it still needs is a careful pass of its own, because scrolling a
@@ -241,14 +240,16 @@ Create a local JSON manifest; paths are relative to it:
   "oxyDigest": "sha256:<64-character deployed digest>",
   "mentionSha": "<40-character deployed source SHA>",
   "mentionDigest": "sha256:<64-character deployed digest>",
-  "sources": [{
-    "actorUri": "https://bridge.example/users/alice",
-    "canonicalAcct": "alice@instagram.com",
-    "transportAcct": "alice@bridge.example",
-    "oxyRunReport": "pre/oxy/run.json",
-    "oxySummaryReport": "pre/oxy/summary.json",
-    "mentionReport": "pre/mention/reconciliation-report.json"
-  }],
+  "sources": [
+    {
+      "actorUri": "https://bridge.example/users/alice",
+      "canonicalAcct": "alice@instagram.com",
+      "transportAcct": "alice@bridge.example",
+      "oxyRunReport": "pre/oxy/run.json",
+      "oxySummaryReport": "pre/oxy/summary.json",
+      "mentionReport": "pre/mention/reconciliation-report.json"
+    }
+  ],
   "expectedBioText": "A distinctive source biography sentence",
   "expectedMentionLabel": "@friend@instagram.com",
   "expectedMentionHandle": "friend@instagram.com",
@@ -327,14 +328,14 @@ feed `50;w=60` budget. Passing assertions alone therefore did not establish that
 the suite had stopped overloading the backend. Explicit synthetic fixture
 ownership and stable profile geometry data produced the following comparison:
 
-| Recorded metric | SEO-only exploratory run | Complete opt-in boundary |
-| --- | ---: | ---: |
-| Browser tests passed / existing opt-in skip | 91 / 1 | 92 / 1 |
-| Mention records including fixtures | 826 | 758 |
-| Live HTTP response records | 414 | 260 |
-| Live Mention WebSocket handshakes | 71 | 42 |
-| Live HTTP 429 responses | 34 | 0 |
-| Lowest observed global-budget remaining header | 0 | 241 |
+| Recorded metric                                | SEO-only exploratory run | Complete opt-in boundary |
+| ---------------------------------------------- | -----------------------: | -----------------------: |
+| Browser tests passed / existing opt-in skip    |                   91 / 1 |                   92 / 1 |
+| Mention records including fixtures             |                      826 |                      758 |
+| Live HTTP response records                     |                      414 |                      260 |
+| Live Mention WebSocket handshakes              |                       71 |                       42 |
+| Live HTTP 429 responses                        |                       34 |                        0 |
+| Lowest observed global-budget remaining header |                        0 |                      241 |
 
 For the final run, live response statuses were: 213 HTTP 200, 24 HTTP 204,
 15 HTTP 401, 8 HTTP 302, and 42 WebSocket HTTP 101. Live records were identified

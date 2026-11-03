@@ -9,21 +9,21 @@ this file is the accumulated edge-case knowledge on top of it.
 What Mention speaks, compared with Mastodon 4.7. "Oxy" means the work belongs
 to oxy-api or `@oxy.so/federation`, and Mention adapts once it ships.
 
-| Feature | Status | Where |
-|---|---|---|
-| HTTP signatures, draft-cavage `rsa-sha256` | Supported | `@oxy.so/federation`, signing in oxy-api |
-| HTTP signatures, RFC 9421 | Not yet (Oxy) | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
-| FEP-521a keys (Ed25519 / ML-DSA-44) | Not yet (Oxy) | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
-| FEP-8b32 Object Integrity Proofs | Not yet (Oxy) | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
-| FEP-e232 quote `Link` tag, FEP-044f `quote` | Supported, in and out | `extractApQuoteUri`, `buildCreateNoteActivity` |
-| FEP-8967 link previews, inbound | Card text kept as a fallback | `apLinkPreview.ts`, `post_link_previews` |
-| FEP-8967 link previews, outbound | Not yet (Clarity) | [OxyHQ/Clarity#74](https://github.com/OxyHQ/Clarity/issues/74) |
-| `Move` to a local account | Supported (Oxy applies it) | `move.service.ts` |
-| `Move` between two remote servers | Recorded and shown; follows not moved (Oxy) | `recordRemoteMove`, [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
-| Remote handle changes | Supported | `freeStaleHandle` in `actor.service.ts` |
-| FEP-1b12 communities (Lemmy, PieFed, Mbin), inbound | Posts and comments, as their writers' | `apRelay.ts`, `apCommunity.ts` |
-| FEP-1b12 communities hosted here, outbound | Members' posts relayed as `Announce`; removals and bans | `communityRelay.ts`, `communityPosting.ts` |
-| Private signing keys at rest | None stored in Mention (custody in oxy-api) | migration 0061 |
+| Feature                                             | Status                                                  | Where                                                                          |
+| --------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| HTTP signatures, draft-cavage `rsa-sha256`          | Supported                                               | `@oxy.so/federation`, signing in oxy-api                                       |
+| HTTP signatures, RFC 9421                           | Not yet (Oxy)                                           | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502)                     |
+| FEP-521a keys (Ed25519 / ML-DSA-44)                 | Not yet (Oxy)                                           | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502)                     |
+| FEP-8b32 Object Integrity Proofs                    | Not yet (Oxy)                                           | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502)                     |
+| FEP-e232 quote `Link` tag, FEP-044f `quote`         | Supported, in and out                                   | `extractApQuoteUri`, `buildCreateNoteActivity`                                 |
+| FEP-8967 link previews, inbound                     | Card text kept as a fallback                            | `apLinkPreview.ts`, `post_link_previews`                                       |
+| FEP-8967 link previews, outbound                    | Not yet (Clarity)                                       | [OxyHQ/Clarity#74](https://github.com/OxyHQ/Clarity/issues/74)                 |
+| `Move` to a local account                           | Supported (Oxy applies it)                              | `move.service.ts`                                                              |
+| `Move` between two remote servers                   | Recorded and shown; follows not moved (Oxy)             | `recordRemoteMove`, [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
+| Remote handle changes                               | Supported                                               | `freeStaleHandle` in `actor.service.ts`                                        |
+| FEP-1b12 communities (Lemmy, PieFed, Mbin), inbound | Posts and comments, as their writers'                   | `apRelay.ts`, `apCommunity.ts`                                                 |
+| FEP-1b12 communities hosted here, outbound          | Members' posts relayed as `Announce`; removals and bans | `communityRelay.ts`, `communityPosting.ts`                                     |
+| Private signing keys at rest                        | None stored in Mention (custody in oxy-api)             | migration 0061                                                                 |
 
 ## A handle that changed hands
 

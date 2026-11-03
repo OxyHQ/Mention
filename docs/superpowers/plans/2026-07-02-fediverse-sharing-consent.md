@@ -48,12 +48,18 @@ describe('formatUserResponse fediverseSharing', () => {
   });
 
   it('is false only when explicitly disabled', () => {
-    const dto = userService.formatUserResponse({ ...base, privacySettings: { fediverseSharing: false } } as never);
+    const dto = userService.formatUserResponse({
+      ...base,
+      privacySettings: { fediverseSharing: false },
+    } as never);
     expect(dto.fediverseSharing).toBe(false);
   });
 
   it('does not leak the rest of privacySettings publicly', () => {
-    const dto = userService.formatUserResponse({ ...base, privacySettings: { fediverseSharing: true, isPrivateAccount: true } } as never);
+    const dto = userService.formatUserResponse({
+      ...base,
+      privacySettings: { fediverseSharing: true, isPrivateAccount: true },
+    } as never);
     expect(dto.privacySettings).toBeUndefined();
   });
 });
@@ -126,12 +132,18 @@ describe('fediverseSharing', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('true when DTO says true', async () => {
-    (oxy.getUserById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'u1', fediverseSharing: true });
+    (oxy.getUserById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'u1',
+      fediverseSharing: true,
+    });
     expect(await isFediverseSharingEnabled('u1')).toBe(true);
   });
 
   it('false when DTO explicitly false', async () => {
-    (oxy.getUserById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'u1', fediverseSharing: false });
+    (oxy.getUserById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'u1',
+      fediverseSharing: false,
+    });
     expect(await isFediverseSharingEnabled('u1')).toBe(false);
   });
 
@@ -194,7 +206,7 @@ export async function invalidateFediverseSharing(oxyUserId: string): Promise<voi
 - Produces: when OFF, every user-scoped AP/discovery surface returns the SAME 404 shape as an unknown user (no distinguishable body).
 
 - [ ] **Step 1: Failing tests** — supertest-style route tests (follow `apRoutes.test.ts` conventions added recently): mock `fediverseSharing` module; for each route assert 200 when enabled-mock and 404 `{ error: 'User not found' }` (match the existing unknown-user body EXACTLY — read the current 404 literal in each handler first) when disabled-mock. Cover: webfinger, actor, outbox, followers, following, user inbox POST.
-- [ ] **Step 2: Run** → FAIL. 
+- [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement.** In each handler, immediately after the existing user resolution succeeds:
 
 ```ts
@@ -224,7 +236,7 @@ For webfinger: after it resolves the local account, before building the JRD. Do 
 - [ ] **Step 1: Failing tests.**
   - inbox: sharing-off mock → `handleIncomingFollow` returns without calling `bridgeFollowEdge`/`sendAccept`/`FederatedFollow.findOneAndUpdate` (reuse that file's existing mocks).
   - registry: build a `ConnectorRegistry` with one fake enabled connector; sharing-off mock → `federateNewPost(post,'u1','nate')` does NOT call the connector; sharing-on → does. Same for a `deliver({ kind:'follow.add', ... })` event carrying the actor id (read `LocalNetworkEvent` in `connectors/types.ts` for the exact actor field name and use it).
-- [ ] **Step 2: Run** → FAIL. 
+- [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement.** Registry (single seam, before fan-out):
 
 ```ts
@@ -270,7 +282,7 @@ if (!(await isFediverseSharingEnabledByUsername(username))) {
   3. deletes inbound `FederatedFollow` rows LAST;
   4. zero inbound rows → no deliverToFollowers call, returns zeros;
   5. re-run after completion → no-ops (idempotent).
-  Route tests: OFF-flag mock → `enqueueSharingCleanup` called + cache invalidated; ON-flag → invalidated only, no enqueue (the route re-reads the flag from Oxy server-side via a fresh `isFediverseSharingEnabled` AFTER invalidating — never trusts the client).
+     Route tests: OFF-flag mock → `enqueueSharingCleanup` called + cache invalidated; ON-flag → invalidated only, no enqueue (the route re-reads the flag from Oxy server-side via a fresh `isFediverseSharingEnabled` AFTER invalidating — never trusts the client).
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement** service, producer/queue/worker (mirror the periodic queue registration in `startWorkers()`; when `enqueueSharingCleanup` returns false — queue disabled — run `runSharingCleanup` inline fire-and-forget with `.catch(err => logger.error(...))`, same fallback pattern as the inbox 202 path). Route:
 
 ```ts
@@ -287,8 +299,15 @@ router.post('/sharing-changed', async (req: AuthRequest, res: Response) => {
       const user = await oxy.getUserById(userId);
       if (user?.username) {
         cleanupQueued = true;
-        const queued = await enqueueSharingCleanup({ oxyUserId: userId, username: user.username, nonce: String(Date.now()) });
-        if (!queued) runSharingCleanup(userId, user.username).catch((err) => logger.error('sharing cleanup inline failed:', err));
+        const queued = await enqueueSharingCleanup({
+          oxyUserId: userId,
+          username: user.username,
+          nonce: String(Date.now()),
+        });
+        if (!queued)
+          runSharingCleanup(userId, user.username).catch((err) =>
+            logger.error('sharing cleanup inline failed:', err),
+          );
       }
     }
     return res.status(202).json({ status: 'ok', cleanupQueued });
