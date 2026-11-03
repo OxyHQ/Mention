@@ -43,7 +43,9 @@ export function resolvePlusOffer(
 }
 
 /** Display only: preserve ISO currency precision (JPY 0, EUR/USD 2, KWD 3). */
-export function plusPriceMajorUnits(price: NonNullable<PlusOffer['price']>): number {
+export function plusPriceMajorUnits(
+  price: Pick<NonNullable<PlusOffer['price']>, 'currency' | 'amountMinorUnits'>,
+): number {
   const digits = new Intl.NumberFormat('en', {
     style: 'currency',
     currency: price.currency,

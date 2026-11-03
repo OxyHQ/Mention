@@ -128,9 +128,38 @@ gated by the public catalogue and authoritative account access.
 For local UI work only, start Expo development mode with
 `EXPO_PUBLIC_MENTION_PLUS_UI_PREVIEW=true` and open the web app on `localhost`,
 `127.0.0.1` or `[::1]`. All three conditions are required: explicit opt-in,
-`__DEV__`, and a loopback web host. The same sheet then labels itself
-**UI preview · no real charges** and offers Review, Loading, Success and Failure
-controls. Simulate payment enters the loading state. These controls never call
-checkout, open a payment window, write an operation key, refresh entitlements
-or grant access. They use the actual published catalogue prices. Production
-builds and non-loopback hosts cannot enable this simulation.
+`__DEV__`, and a loopback web host. Development scenario and outcome controls
+live on the host page, outside the payment sheet. Choose subscription, physical
+order or a generic trial example, then open Subscribe. Physical orders collect
+shipping and delivery; subscriptions omit both. The generic trial shows zero
+due today and a separate future recurring charge, without advertising a Mention
+trial. Subscription prices come from the actual published catalogue; the physical
+and trial examples are explicitly labelled local fixtures.
+
+The checkout uses Bloom's grouped sections, fields and buttons inside its
+morphing detached bottom dialog. Contact, shipping and card-selection drafts
+survive Back navigation. Fixed test cards contain only brand/last-four metadata;
+no PAN or security-code input exists. Opt-in saved-card metadata stays in memory
+only until the sheet closes. The optional host authorization callback models a
+future device capability; no biometric implementation is claimed or enabled.
+
+Authorization simulates the selected loading/success/failure outcome. It never
+calls checkout, opens a payment window, writes an operation key, refreshes
+entitlements or grants access. Production builds and non-loopback hosts cannot
+enable this simulation. The merchant-neutral request/step model and presentation
+are local extraction candidates for a future SDK surface, not a newly published
+payment API.
+
+### Live iteration
+
+Serve the active isolated implementation worktree while refining the UI, so
+Metro Fast Refresh shows source edits immediately. Run Expo from
+`packages/frontend` with `CI` unset; do not use `CI=true` or `CI=1`, which disables
+watching. Keep the agreed local URL stable. A separate preview checkout that
+needs repeated cherry-picks is unsuitable for interactive design work.
+
+Local upstream Bloom builds may be consumed in that worktree's isolated
+`node_modules` for review, with the original package preserved for restoration.
+Do not change production dependency locks or the user's original dirty checkout
+for this preview. Keep simulation enabled only through the explicit local
+process setting above; local UI iteration does not authorize publication.

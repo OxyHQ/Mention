@@ -15,6 +15,9 @@ import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
+import { CheckoutPreviewControls } from '@/components/payments/CheckoutPreviewControls';
+import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
+import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutFlow';
 import { PlusPaymentSheet } from '@/components/payments/PlusPaymentSheet';
 import { PlusDisplayEstimate } from '@/components/payments/PlusDisplayEstimate';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +30,8 @@ export default function PlusScreen() {
   const { offer, hasAccess, purchaseAvailable, failed, loading } = usePlusOffer(cadence);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [selected, setSelected] = useState('plus');
+  const [previewScenario, setPreviewScenario] = useState<CheckoutScenario>('subscription');
+  const [previewOutcome, setPreviewOutcome] = useState<PreviewOutcome>('success');
 
   const plans: SubscriptionPlan[] = [
     {
@@ -127,8 +132,23 @@ export default function PlusScreen() {
             </Text>
           </View>
         )}
+        {isLocalCheckoutPreview() && (
+          <CheckoutPreviewControls
+            scenario={previewScenario}
+            outcome={previewOutcome}
+            onScenario={setPreviewScenario}
+            onOutcome={setPreviewOutcome}
+          />
+        )}
       </ScreenScrollView>
-      {paymentOpen && <PlusPaymentSheet cadence={cadence} onClose={() => setPaymentOpen(false)} />}
+      {paymentOpen && (
+        <PlusPaymentSheet
+          previewScenario={previewScenario}
+          previewOutcome={previewOutcome}
+          cadence={cadence}
+          onClose={() => setPaymentOpen(false)}
+        />
+      )}
     </Screen>
   );
 }

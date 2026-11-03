@@ -12,6 +12,13 @@ let mockSignedIn = true;
 let mockDisplayCurrency = 'USD';
 const mockFormatUsd = jest.fn(() => 'EUR conversion unavailable');
 const mockSheet = jest.fn();
+const mockPreviewContent = jest.fn();
+jest.mock('../LocalCheckoutPreview', () => ({
+  LocalCheckoutPreview: (props: unknown) => {
+    mockPreviewContent(props);
+    return <>Local checkout preview</>;
+  },
+}));
 const mockCheckout = jest.fn();
 const mockKey = jest.fn();
 const mockClearKey = jest.fn();
@@ -387,7 +394,7 @@ it('displays published terms without starting payment when the catalogue is not 
   expect(window.open).not.toHaveBeenCalled();
 });
 
-it('simulates local review, loading, success and failure without money or access side effects', async () => {
+it('routes opt-in loopback UI exploration to the isolated adapter without payment side effects', async () => {
   mockPreview = true;
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -396,24 +403,15 @@ it('simulates local review, loading, success and failure without money or access
   mockPurchaseAvailable = false;
   mockSignedIn = false;
   await mount();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewLabel');
-  await press('plus.payment.previewPay');
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.pending');
-  await press('plus.payment.preview.success');
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.fulfilled');
-  await press('plus.payment.preview.failure');
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.failed');
-  await press('plus.payment.preview.review');
-  expect(button('plus.payment.previewPay')).toBeDefined();
-  await press('plus.payment.preview.loading');
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.previewState.pending');
+  expect(mockPreviewContent).toHaveBeenCalledWith(
+    expect.objectContaining({ scenario: 'subscription', outcome: 'success', cadence: 'month' }),
+  );
   expect(mockCheckout).not.toHaveBeenCalled();
   expect(mockKey).not.toHaveBeenCalled();
   expect(mockClearKey).not.toHaveBeenCalled();
   expect(mockInvalidate).not.toHaveBeenCalled();
   expect(window.open).not.toHaveBeenCalled();
 });
-
 it('refuses UI simulation on a non-loopback host even when the preview flag is set', async () => {
   mockPreview = true;
   mockPurchaseAvailable = false;
@@ -423,7 +421,7 @@ it('refuses UI simulation on a non-loopback host even when the preview flag is s
   });
   await mount();
   expect(JSON.stringify(renderer.toJSON())).not.toContain('plus.payment.previewLabel');
-  expect(button('plus.payment.previewPay')).toBeUndefined();
+  expect(mockPreviewContent).not.toHaveBeenCalled();
   expect(mockCheckout).not.toHaveBeenCalled();
 });
 
