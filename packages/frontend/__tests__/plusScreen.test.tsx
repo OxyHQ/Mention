@@ -1,3 +1,6 @@
+jest.mock('@/components/payments/CheckoutPreviewBadge', () => ({
+  CheckoutPreviewBadge: () => null,
+}));
 import TestRenderer, { act } from 'react-test-renderer';
 import type { SubscriptionPlansProps } from '@oxy.so/bloom/subscription-plans';
 import PlusScreen from '@/app/(app)/plus';

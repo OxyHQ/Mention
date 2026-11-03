@@ -28,8 +28,11 @@ jest.mock('@oxy.so/bloom/dialog', () => ({
   },
 }));
 jest.mock('@/hooks/usePlusOffer', () => ({
-  usePlusOffer: () => ({
-    offer: { displayName: 'Mention Plus', price: { currency: 'USD', amountMinorUnits: 599 } },
+  usePlusOffer: (cadence: 'month' | 'year') => ({
+    offer: {
+      displayName: 'Mention Plus',
+      price: { currency: 'USD', amountMinorUnits: cadence === 'year' ? 5750 : 599 },
+    },
   }),
 }));
 jest.mock('react-i18next', () => ({
@@ -349,6 +352,7 @@ it('keeps external and wallet top-up navigation local, with a distinct nonpayabl
     renderer.update(
       <LocalCheckoutPreview
         key="topup"
+        incomingFunds
         cadence="month"
         scenario="subscription"
         outcome="success"
@@ -373,13 +377,15 @@ it('keeps external and wallet top-up navigation local, with a distinct nonpayabl
   expect(topup.wallet?.topUp?.payload).toBe('PEABLE_LOCAL_WALLET_TOPUP_PREVIEW_NOT_PAYABLE');
   expect(topup.wallet?.topUp?.payload).not.toBe(topup.external?.payload);
   expect(topup.wallet?.balanceLabel).toBe('25 FAIR');
-  const control = topup.wallet?.topUp?.notice as React.ReactElement<{ onPress(): void }>;
-  act(() => control.props.onPress());
+  expect(topup.wallet?.topUp?.notice).toBeUndefined();
+  act(() => jest.advanceTimersByTime(1999));
+  expect(mockContent.methodDetails).toMatchObject({ wallet: { balanceLabel: '25 FAIR' } });
+  act(() => jest.advanceTimersByTime(1));
   expect(mockContent.methodDetails).toMatchObject({
-    wallet: { balanceLabel: '30 FAIR', remainingLabel: '18 FAIR' },
+    wallet: { balanceLabel: '150 FAIR', remainingLabel: '138 FAIR' },
   });
-  act(() => control.props.onPress());
-  expect(mockContent.methodDetails).toMatchObject({ wallet: { balanceLabel: '30 FAIR' } });
+  act(() => jest.advanceTimersByTime(4000));
+  expect(mockContent.methodDetails).toMatchObject({ wallet: { balanceLabel: '150 FAIR' } });
   act(() => mockContent.onBack());
   expect(mockContent.methodDetails).toMatchObject({ view: 'wallet' });
   act(() => mockContent.onBack());
@@ -432,4 +438,82 @@ it('makes slow confirmation finite without allowing UI dismissal or navigation d
   expect(mockClose).not.toHaveBeenCalled();
   act(() => jest.advanceTimersByTime(1));
   expect(mockContent.step).toBe('success');
+});
+
+it('uses coherent tender fixtures, keeps a free trial free, and blocks insufficient wallet balance until one configured incoming-funds event', () => {
+  mount('trial');
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        key="free"
+        cadence="month"
+        scenario="trial"
+        outcome="success"
+        onClose={mockClose}
+        customer={{ kind: 'account', simulated: true }}
+      />,
+    ),
+  );
+  act(() => mockContent.onMethod?.('faircoin'));
+  expect(mockContent.methodDetails).toMatchObject({
+    amountLabel: '0 FAIR',
+    wallet: { balanceLabel: '25 FAIR', remainingLabel: '25 FAIR', canPay: true },
+  });
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        key="yearly"
+        cadence="year"
+        scenario="subscription"
+        outcome="success"
+        onClose={mockClose}
+        incomingFunds
+        customer={{ kind: 'account', simulated: true }}
+      />,
+    ),
+  );
+  act(() => mockContent.onMethod?.('faircoin'));
+  const details = mockContent.methodDetails;
+  if (details?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
+  expect(details).toMatchObject({
+    amountLabel: '115 FAIR',
+    wallet: { canPay: false, amountNeededLabel: '90 FAIR' },
+  });
+  act(() => details.wallet?.onSelect());
+  expect(mockContent.draft.paymentSelection).toBeNull();
+  act(() => details.wallet?.topUp?.onOpen());
+  act(() => jest.advanceTimersByTime(2000));
+  expect(mockContent.methodDetails).toMatchObject({
+    wallet: { balanceLabel: '150 FAIR', remainingLabel: '35 FAIR', canPay: true },
+  });
+  act(() => mockContent.onBack());
+  const updated = mockContent.methodDetails;
+  if (updated?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
+  act(() => updated.wallet?.topUp?.onOpen());
+  act(() => jest.advanceTimersByTime(2000));
+  expect(mockContent.methodDetails).toMatchObject({ wallet: { balanceLabel: '150 FAIR' } });
+});
+it('cancels configured incoming funds when the receive view is no longer shown', () => {
+  mount();
+  act(() =>
+    renderer.update(
+      <LocalCheckoutPreview
+        key="cancel-arrival"
+        cadence="month"
+        scenario="subscription"
+        outcome="success"
+        incomingFunds
+        onClose={mockClose}
+        customer={{ kind: 'account', simulated: true }}
+      />,
+    ),
+  );
+  act(() => mockContent.onMethod?.('faircoin'));
+  const details = mockContent.methodDetails;
+  if (details?.kind !== 'faircoin') throw new Error('Expected FairCoin detail');
+  act(() => details.wallet?.topUp?.onOpen());
+  act(() => jest.advanceTimersByTime(1000));
+  act(() => mockContent.onStep('review'));
+  act(() => jest.advanceTimersByTime(3000));
+  expect(mockContent.methodDetails).toMatchObject({ wallet: { balanceLabel: '25 FAIR' } });
 });

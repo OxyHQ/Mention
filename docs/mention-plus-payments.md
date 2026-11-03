@@ -234,5 +234,27 @@ USD 28 order total and item amount. Choosing a card restores USD 28 due today.
 This finite schedule is separate from subscription renewal terms. No real
 credit application, underwriting, provider eligibility or installment agreement
 is created, and Mention Plus subscriptions do not advertise this option.
-Product image sources use Bloom's squircle image primitive; the physical sample
-has no supplied product photo and keeps the generic illustration fallback.
+Product image sources use Bloom’s squircle image primitive. The physical sample
+is a fictional Mention sticker pack using the existing Mention artwork.
+
+Renewal and cancellation clauses appear through a Terms and conditions row only
+when the request supplies them. The generic trial fixture provides sample
+clauses under the overall local-preview disclosure; Mention subscriptions do
+not acquire invented policies. Opening or leaving this view never records legal
+acceptance or changes the checkout draft.
+
+The realistic preview keeps one persistent Local preview badge in the host’s
+noninteractive status layer, outside checkout. Customer-facing steps use ordinary
+copy; fictional account mode is Alex Rivera at the reserved alex@example.test
+address. These fixtures remain in memory and are not real account records.
+
+FairCoin tender examples are explicit host fixtures: monthly 12 FAIR, annual
+115 FAIR, physical order 56 FAIR, and trial zero. They are not live exchange
+quotes. Wallet balance starts at 25 FAIR; an insufficient amount disables the
+wallet action and shows the shortfall. The host-only Incoming funds toggle can
+arrange one simulated arrival two seconds after opening the wallet’s own receive
+view, setting that fixture to 150 FAIR once. Closing or leaving cancels the
+pending event. No action labelled “I sent” establishes credit, and the QR payloads
+remain intentionally non-payable despite the normal-looking masked UI. Choosing
+FairCoin replaces an installment selection and restores the full physical order
+amount; it does not invent a FairCoin-funded financing agreement.

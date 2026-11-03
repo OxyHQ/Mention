@@ -55,6 +55,7 @@ export function PlusPaymentSheet({
   previewOutcome = 'success',
   previewCustomerMode = 'automatic',
   previewSoundEnabled = true,
+  previewIncomingFunds = false,
 }: {
   onClose(): void;
   cadence?: PlusCadence;
@@ -62,6 +63,7 @@ export function PlusPaymentSheet({
   previewOutcome?: PreviewOutcome;
   previewCustomerMode?: CheckoutCustomerMode;
   previewSoundEnabled?: boolean;
+  previewIncomingFunds?: boolean;
 }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
@@ -71,7 +73,12 @@ export function PlusPaymentSheet({
         key={`${user?.id}:${activeSessionId}:${cadence}:${previewScenario}:${previewCustomerMode}`}
         customer={
           previewCustomerMode === 'account-preview'
-            ? { kind: 'account', simulated: true }
+            ? {
+                kind: 'account',
+                simulated: true,
+                displayName: 'Alex Rivera',
+                email: 'alex@example.test',
+              }
             : previewCustomerMode === 'guest' || !user
               ? { kind: 'guest' }
               : {
@@ -84,6 +91,7 @@ export function PlusPaymentSheet({
         scenario={previewScenario}
         outcome={previewOutcome}
         soundEnabled={previewSoundEnabled}
+        incomingFunds={previewIncomingFunds}
         onClose={onClose}
       />
     );

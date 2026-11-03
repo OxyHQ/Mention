@@ -1,3 +1,4 @@
+import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge';
 import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -36,6 +37,7 @@ export default function PlusScreen() {
   const [selected, setSelected] = useState('plus');
   const [previewScenario, setPreviewScenario] = useState<CheckoutScenario>('subscription');
   const [previewCustomerMode, setPreviewCustomerMode] = useState<CheckoutCustomerMode>('automatic');
+  const [previewIncomingFunds, setPreviewIncomingFunds] = useState(false);
   const [previewSoundEnabled, setPreviewSoundEnabled] = useState(true);
   const [previewOutcome, setPreviewOutcome] = useState<PreviewOutcome>('success');
 
@@ -140,6 +142,8 @@ export default function PlusScreen() {
         )}
         {isLocalCheckoutPreview() && (
           <CheckoutPreviewControls
+            incomingFunds={previewIncomingFunds}
+            onIncomingFunds={setPreviewIncomingFunds}
             soundEnabled={previewSoundEnabled}
             onSoundEnabled={setPreviewSoundEnabled}
             customerMode={previewCustomerMode}
@@ -151,12 +155,14 @@ export default function PlusScreen() {
           />
         )}
       </ScreenScrollView>
+      {isLocalCheckoutPreview() && <CheckoutPreviewBadge />}
       {paymentOpen && (
         <PlusPaymentSheet
           previewCustomerMode={previewCustomerMode}
           previewScenario={previewScenario}
           previewOutcome={previewOutcome}
           previewSoundEnabled={previewSoundEnabled}
+          previewIncomingFunds={previewIncomingFunds}
           cadence={cadence}
           onClose={() => setPaymentOpen(false)}
         />

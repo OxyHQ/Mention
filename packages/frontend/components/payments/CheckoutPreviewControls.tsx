@@ -1,6 +1,5 @@
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -19,7 +18,11 @@ export function CheckoutPreviewControls({
   onCustomerMode,
   soundEnabled,
   onSoundEnabled,
+  incomingFunds,
+  onIncomingFunds,
 }: {
+  incomingFunds: boolean;
+  onIncomingFunds(value: boolean): void;
   soundEnabled: boolean;
   onSoundEnabled(value: boolean): void;
   customerMode: CheckoutCustomerMode;
@@ -42,9 +45,9 @@ export function CheckoutPreviewControls({
         borderRadius: 16,
       }}
     >
-      <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-        {t('plus.payment.previewLabel')}
-      </Text>
+      <Button size="sm" appearance="outline" onPress={() => onIncomingFunds(!incomingFunds)}>
+        {t(incomingFunds ? 'plus.checkout.incomingOn' : 'plus.checkout.incomingOff')}
+      </Button>
       <Button size="sm" appearance="outline" onPress={() => onSoundEnabled(!soundEnabled)}>
         {t(soundEnabled ? 'plus.checkout.soundOn' : 'plus.checkout.soundOff')}
       </Button>
