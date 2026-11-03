@@ -213,7 +213,7 @@
     "@types/react": "~19.3.0",
     "@types/react-dom": "~19.2.3",
     "@typescript-eslint/parser": "^8.72.1",
-    "eslint": "^9.39.5",
+    "eslint": "^10.14.0",
     "eslint-plugin-expo": "^1.1.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
