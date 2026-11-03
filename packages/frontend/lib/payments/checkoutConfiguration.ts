@@ -102,8 +102,8 @@ export function configurationMatchesBinding(
 ): boolean {
   return (
     configuration.environment === binding.environment &&
-    configuration.scope.merchantId === binding.initial?.intent.merchantId &&
-    configuration.publishableKey === binding.initial?.action.publishableKey
+    configuration.scope.merchantId === binding.initial?.intent.merchant_id &&
+    configuration.publishableKey === binding.initial?.action.publishable_key
   );
 }
 export async function readLocalCheckoutConfiguration(

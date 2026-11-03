@@ -29,7 +29,7 @@ export function localProviderTestBinding(
     return null;
   return { apiUrl: 'http://127.0.0.1:4310', intentId, clientSecret, environment: 'test' };
 }
-export function isTestProviderAction(action: { kind: string; publishableKey?: string }): boolean {
+export function isTestProviderAction(action: { kind: string; publishable_key?: string }): boolean {
   return providerActionMatchesEnvironment(action, 'test');
 }
 export const localProviderPhase = embeddedCheckoutPhase;

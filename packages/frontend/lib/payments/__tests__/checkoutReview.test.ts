@@ -29,7 +29,7 @@ function prepared(): EmbeddedCheckoutBinding {
         object: 'client_action',
         kind: 'client_secret',
         value: 'opaque',
-        publishableKey: 'pk_test_fixture',
+        publishable_key: 'pk_test_fixture',
       },
     },
   };
