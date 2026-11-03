@@ -41,7 +41,7 @@ module.exports = {
   transformIgnorePatterns: [
     preset.transformIgnorePatterns[0].replace(
       '(?!(',
-      '(?!(@oxy\\.so|@syra\\.fm|@mercaria\\.co/sdk|',
+      '(?!(@oxy\\.so|@syra\\.fm|@mercaria\\.co/sdk|@noble|',
     ),
     ...preset.transformIgnorePatterns.slice(1),
   ],
