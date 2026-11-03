@@ -7,7 +7,12 @@ let mockSession = 'session-a';
 let mockPrivate = true;
 let mockData: ReturnType<typeof useProductionCheckoutConfiguration>;
 let mockResult: typeof mockData;
-let mockOptions: { queryKey: readonly unknown[]; enabled: boolean; queryFn(): Promise<unknown> };
+let mockOptions: {
+  queryKey: readonly unknown[];
+  enabled: boolean;
+  queryFn(): Promise<unknown>;
+  refetchInterval(query: { state: { data?: unknown; error?: unknown } }): number;
+};
 jest.mock('@peable.to/sdk/checkout', () => ({ loadProviderSdk: () => mockWarm() }));
 jest.mock('@oxy.so/core', () => ({
   authenticatedApiCall: (_: unknown, __: unknown, run: () => unknown) => run(),
@@ -74,6 +79,12 @@ it('warms only validated public configuration and isolates account/session and u
     const key = mockOptions.queryKey;
     const result = await mockOptions.queryFn();
     expect(result).toMatchObject({ configuration: config });
+    mockData = result as NonNullable<typeof mockData>;
+    act(() => tree?.update(<Probe />));
+    expect(mockResult).toBe(mockData);
+    mockData = { ...mockData, fetchedAt: Date.now() - 61_000 };
+    act(() => tree?.update(<Probe />));
+    expect(mockResult).toBeUndefined();
     expect(mockRead).toHaveBeenCalledWith('mention', mockUser);
     expect(mockWarm).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(result)).not.toContain('clientSecret');
@@ -89,6 +100,7 @@ it('warms only validated public configuration and isolates account/session and u
     expect(mockResult).toBeUndefined();
   } finally {
     act(() => tree?.unmount());
+    mockData = undefined;
     mockPrivate = true;
     mockSession = 'session-a';
   }
