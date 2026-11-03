@@ -140,3 +140,31 @@ it('offers the same scoped retry from the toast on any step and ignores it after
   await act(async () => lateRetry());
   expect(mockCreate).toHaveBeenCalledTimes(2);
 });
+
+it('uses the supplied production transport without touching local checkout and forwards authoritative observation', async () => {
+  const pending = deferred();
+  const createBinding = jest.fn().mockReturnValue(pending.promise);
+  const observeSubscription = jest.fn().mockResolvedValue(false);
+  let tree: TestRenderer.ReactTestRenderer | undefined;
+  await act(async () => {
+    tree = TestRenderer.create(
+      <PreparedPlusCheckout
+        review={review}
+        href="https://mention.earth/plus"
+        operationKey="production-operation"
+        createBinding={createBinding}
+        observeSubscription={observeSubscription}
+        onClose={jest.fn()}
+      />,
+    );
+  });
+  expect(mockProps.review).toBe(review);
+  expect(mockProps.observeSubscription).toBe(observeSubscription);
+  expect(mockCreate).not.toHaveBeenCalled();
+  const signal = createBinding.mock.calls[0][0] as AbortSignal;
+  act(() => tree?.unmount());
+  expect(signal.aborted).toBe(true);
+  await act(async () => pending.resolve(binding));
+  expect(mockPrepare).not.toHaveBeenCalled();
+  expect(mockToast).not.toHaveBeenCalled();
+});

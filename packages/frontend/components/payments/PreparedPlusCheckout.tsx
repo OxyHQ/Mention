@@ -21,6 +21,8 @@ export function PreparedPlusCheckout({
   href,
   operationKey,
   initialBinding,
+  createBinding,
+  observeSubscription,
   onClose,
 }: {
   review: CheckoutReview;
@@ -28,6 +30,8 @@ export function PreparedPlusCheckout({
   href: string;
   operationKey: string;
   initialBinding?: EmbeddedCheckoutBinding;
+  createBinding?: (signal: AbortSignal) => Promise<EmbeddedCheckoutBinding>;
+  observeSubscription?: (binding: EmbeddedCheckoutBinding) => Promise<boolean>;
   onClose(): void;
 }) {
   const { t } = useTranslation();
@@ -41,6 +45,8 @@ export function PreparedPlusCheckout({
   // Keep the created binding through a transient validation-read failure: retry
   // reads the same operation rather than creating another subscription.
   const created = useRef(initialBinding);
+  const createBindingRef = useRef(createBinding);
+  createBindingRef.current = createBinding;
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
   // Retry deliberately reruns preparation with the same scoped operation key.
@@ -53,13 +59,15 @@ export function PreparedPlusCheckout({
       try {
         const pending =
           created.current ??
-          (await createLocalProviderTestBinding(
-            operationKey,
-            href,
-            true,
-            controller.signal,
-            review.interval,
-          ));
+          (await (createBindingRef.current
+            ? createBindingRef.current(controller.signal)
+            : createLocalProviderTestBinding(
+                operationKey,
+                href,
+                true,
+                controller.signal,
+                review.interval,
+              )));
         if (controller.signal.aborted) return;
         created.current = pending;
         const ready = await prepareEmbeddedCheckout(pending, controller.signal);
@@ -102,6 +110,7 @@ export function PreparedPlusCheckout({
           ? configuration
           : undefined
       }
+      observeSubscription={observeSubscription}
       onClose={onClose}
       onRetry={failed ? () => setAttempt((value) => value + 1) : undefined}
     />

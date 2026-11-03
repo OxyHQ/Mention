@@ -91,3 +91,19 @@ it('switching monthly to annual and back retains each pending recovery key', asy
   expect(await storage.getPlusCheckoutKey('account', annual)).toBe(annualKey);
   expect(mockRemove).not.toHaveBeenCalled();
 });
+
+it('keeps embedded recovery stable without changing an existing hosted operation', async () => {
+  mockId
+    .mockReset()
+    .mockReturnValueOnce('hosted')
+    .mockReturnValueOnce('embedded')
+    .mockReturnValue('next');
+  const storage = tab();
+  const hosted = await storage.getPlusCheckoutKey('account', offer);
+  const embedded = await storage.getPlusCheckoutKey('account', offer, 'embedded');
+  expect(embedded).not.toBe(hosted);
+  expect(await storage.getPlusCheckoutKey('account', offer, 'embedded')).toBe(embedded);
+  await storage.clearPlusCheckoutKey('account', offer, embedded, 'embedded');
+  expect(await storage.getPlusCheckoutKey('account', offer)).toBe(hosted);
+  expect(await storage.getPlusCheckoutKey('account', offer, 'embedded')).not.toBe(embedded);
+});

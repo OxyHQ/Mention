@@ -430,3 +430,35 @@ it('allows secure entry with public configuration and retains its fields when pa
   expect(mockFieldUnmounts).toBe(0);
   expect(renderer.root.findAllByType('button').some((button) => !button.props.disabled)).toBe(true);
 });
+
+it('defers success to the supplied account authority rather than the local subscription observer', async () => {
+  const observeSubscription = jest.fn().mockResolvedValue(false);
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <PeableEmbeddedCheckout
+        binding={{
+          ...binding,
+          subscription: {
+            id: 'sub_owned',
+            interval: 'month',
+            amountMinorUnits: 599,
+            currency: 'USD',
+            observationPath: '/unused-local-observation',
+          },
+        }}
+        observeSubscription={observeSubscription}
+        onClose={mockClose}
+      />,
+    );
+  });
+  expect(observeSubscription).toHaveBeenCalledTimes(1);
+  expect(mockObserve).not.toHaveBeenCalled();
+  act(() => mockUpdate({ ...intent, status: 'settled' }));
+  expect(mockSheet.step).toBe('processing');
+  expect(mockPlay).not.toHaveBeenCalled();
+  mockRead.mockResolvedValue({ ...intent, status: 'settled' });
+  observeSubscription.mockResolvedValue(true);
+  await act(async () => jest.advanceTimersByTime(3000));
+  expect(mockSheet.step).toBe('success');
+  expect(mockObserve).not.toHaveBeenCalled();
+});

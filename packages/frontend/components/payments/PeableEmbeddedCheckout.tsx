@@ -29,12 +29,14 @@ export function PeableEmbeddedCheckout({
   review,
   configuration,
   onRetry,
+  observeSubscription,
   onClose,
 }: {
   binding?: EmbeddedCheckoutBinding;
   review?: CheckoutReview;
   configuration?: CheckoutConfiguration;
   onRetry?: () => void;
+  observeSubscription?: (binding: EmbeddedCheckoutBinding) => Promise<boolean>;
   onClose(): void;
 }) {
   const { t, i18n } = useTranslation();
@@ -53,6 +55,8 @@ export function PeableEmbeddedCheckout({
   const inFlight = useRef(false);
   const terminal = useRef<'success' | 'failure' | null>(null);
   const subscriptionReady = useRef(!binding?.subscription);
+  const observation = useRef(observeSubscription ?? observeEmbeddedSubscription);
+  observation.current = observeSubscription ?? observeEmbeddedSubscription;
   const prepareRef = useRef<(() => Promise<ProviderCardPreparation>) | null>(null);
   const authorizationRef = useRef<PreparedCardAuthorization | null>(null);
   const [preparedCard, setPreparedCard] = useState<CheckoutCard | null>(null);
@@ -151,7 +155,7 @@ export function PeableEmbeddedCheckout({
         try {
           const value = await client.getPaymentIntent(binding.intentId, binding.clientSecret);
           if (binding.subscription) {
-            const ready = await observeEmbeddedSubscription(binding);
+            const ready = await observation.current(binding);
             if (disposed) return null;
             subscriptionReady.current ||= ready;
           }

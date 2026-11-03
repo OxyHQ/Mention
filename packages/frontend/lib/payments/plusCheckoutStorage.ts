@@ -12,8 +12,13 @@ async function locked<T>(key: string, run: () => Promise<T>): Promise<T> {
   return globalThis.navigator.locks.request(key, run);
 }
 /** Persist before POST; interruption or dismissal keeps the same operation. */
-export function getPlusCheckoutKey(accountId: string, offer: PlusOfferBinding): Promise<string> {
-  const key = checkoutStorageKey(accountId, offer);
+export function getPlusCheckoutKey(
+  accountId: string,
+  offer: PlusOfferBinding,
+  presentation: 'hosted' | 'embedded' = 'hosted',
+): Promise<string> {
+  const key =
+    checkoutStorageKey(accountId, offer) + (presentation === 'embedded' ? '.embedded' : '');
   const previous = pending.get(key);
   if (previous) return previous;
   const operation = locked(key, async () => {
@@ -31,8 +36,10 @@ export function clearPlusCheckoutKey(
   accountId: string,
   offer: PlusOfferBinding,
   completedKey: string,
+  presentation: 'hosted' | 'embedded' = 'hosted',
 ): Promise<void> {
-  const key = checkoutStorageKey(accountId, offer);
+  const key =
+    checkoutStorageKey(accountId, offer) + (presentation === 'embedded' ? '.embedded' : '');
   return locked(key, async () => {
     // A delayed terminal response must not erase a newer operation's key.
     if ((await AsyncStorage.getItem(key)) === completedKey) await AsyncStorage.removeItem(key);
