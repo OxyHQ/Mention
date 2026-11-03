@@ -76,26 +76,6 @@ the first Ask Alia, and the `deferredSources` gate asserts the SDK's `AliaChatSh
 initial chunk. What reaches the initial chunk is the provider and the modules the sheet shares
 with the SDK's own lazily loaded voice call, which `extractCommonChunk` hoists into `__common`.
 
-The 2026-11-03 dependency refresh (Expo SDK 58.0.23, React Native 0.88.1,
-Expo Router 58.0.30, Gesture Handler 3.4, i18next 26.7) moves the total-bytes
-ceiling 21,423,495 → 21,489,031 bytes (+64 KiB); every other ceiling is
-unchanged. Main sat 17 KiB under it, and the patch releases add 18.3 KiB.
-Measured on one `expo export --platform web` each of main `0bb379774` and the
-branch:
-
-| Signal                        | Main       | Branch     | Change  |
-| ----------------------------- | ---------- | ---------- | ------- |
-| Total bytes                   | 21,405,997 | 21,424,718 | +18,721 |
-| JavaScript bytes              | 15,982,276 | 16,013,141 | +30,865 |
-| Initial JavaScript bytes      | 5,961,433  | 5,982,093  | +20,660 |
-| Initial JavaScript gzip bytes | 1,695,023  | 1,701,414  | +6,391  |
-
-The initial-chunk growth is upstream code: Expo Router +15 KB, Gesture Handler
-+8 KB, i18next +8 KB, `expo-status-bar` +7 KB. Gesture Handler 3.4's new
-`react-native-reanimated/src` probe would also have put a second copy of
-Reanimated's source in `__common` (+501 KB raw); its Bun patch points that
-probe at the `lib/module` build (`patches/README.md`).
-
 The canonical Experience feature (#1408, 2026-10-16) moves no ceiling. Measured
 on one `expo export --platform web` each of main `fa91c8947` and the merged
 branch, same analyzer, Clarity SDK 0.6.0:
