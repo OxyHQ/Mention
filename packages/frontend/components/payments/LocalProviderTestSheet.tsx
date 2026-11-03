@@ -246,13 +246,13 @@ export function LocalProviderTestSheet({
       step={step}
       direction="forward"
       messages={{ 'step.card': t(`${prefix}paymentDetails`) }}
-      nextStep="card"
+      nextStep="payment"
       onDraft={() => {}}
       onStep={(next) => {
         if (!inFlight.current && !accepted) setStep(next);
       }}
       onBack={() => {
-        if (!inFlight.current && !accepted) setStep('review');
+        if (!inFlight.current && !accepted) setStep(step === 'card' ? 'payment' : 'review');
       }}
       onClose={close}
       onAuthorize={() => {

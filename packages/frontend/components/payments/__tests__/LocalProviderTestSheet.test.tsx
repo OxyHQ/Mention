@@ -181,3 +181,17 @@ it('does not remove authentication fields on a pending observation or regress a 
   act(() => mockUpdate({ ...intent, status: 'created' }));
   expect(mockSheet.step).toBe('success');
 });
+
+it('keeps method navigation in Bloom before mounting secure card fields', async () => {
+  await mount();
+  expect(mockSheet.nextStep).toBe('payment');
+  expect(mockSheet.request.paymentMethods).toEqual(['card']);
+  expect(mockSheet.savedCards).toEqual([]);
+  act(() => mockSheet.onStep('payment'));
+  expect(mockSheet.step).toBe('payment');
+  act(() => mockSheet.onStep('card'));
+  expect(mockSheet.step).toBe('card');
+  act(() => mockSheet.onBack());
+  expect(mockSheet.step).toBe('payment');
+  expect(mockConfirm).not.toHaveBeenCalled();
+});
