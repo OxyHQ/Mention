@@ -174,11 +174,18 @@ export default function PlusScreen() {
                         ? 'plus.payment.included'
                         : developmentCheckout || purchaseAvailable
                           ? 'plus.subscribe'
-                          : failed ? 'plus.payment.pricingUnavailable' : 'plus.payment.comingSoon',
+                          : failed
+                            ? 'plus.payment.pricingUnavailable'
+                            : 'plus.payment.comingSoon',
                   ),
-                  disabled: hasAccess || loading || bootstrapBusy || (!developmentCheckout && !purchaseAvailable),
+                  disabled:
+                    hasAccess ||
+                    loading ||
+                    bootstrapBusy ||
+                    (!developmentCheckout && !purchaseAvailable),
                   onPress: () => {
-                    if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable)) void openPayment();
+                    if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
+                      void openPayment();
                   },
                 }
               : undefined

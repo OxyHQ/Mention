@@ -1,3 +1,11 @@
+// These tests exercise page/binding policy, not the SDK transport. Fail on any
+// unexpected transport construction rather than loading its browser-only ESM.
+jest.mock('@peable.to/sdk/checkout', () => ({
+  createPeableCheckout: () => {
+    throw new Error('Unexpected payer transport in policy test');
+  },
+}));
+
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('@/lib/navigation/router', () => ({
   useLocalSearchParams: () => ({}),

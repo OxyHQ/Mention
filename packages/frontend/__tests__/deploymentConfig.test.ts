@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 type Endpoints = {
+  preview: boolean;
   api: string;
   socket: string;
   web: string;
@@ -28,7 +29,7 @@ function evaluateConfig(overrides: ConfigOverrides): Endpoints {
     import * as client from ${JSON.stringify(path.join(root, 'config.ts'))};
     const { expo } = require(${JSON.stringify(path.join(root, 'app.config.js'))})({});
     const widget = expo.plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === './modules/mention-widgets/app.plugin')[1];
-    process.stdout.write(JSON.stringify({ api: client.API_URL, socket: client.API_URL_SOCKET,
+    process.stdout.write(JSON.stringify({ preview: client.MENTION_PLUS_UI_PREVIEW, api: client.API_URL, socket: client.API_URL_SOCKET,
       web: client.WEB_BASE_URL, redirect: client.OXY_AUTH_REDIRECT_URI, widget }));
   `;
   // `--env-file=/dev/null` is load-bearing, not tidiness. A curated `env` is not
@@ -63,6 +64,7 @@ describe('per-deployment frontend endpoint binding', () => {
           EXPO_PUBLIC_WEB_BASE_URL: web,
         }),
       ).toEqual({
+        preview: false,
         api,
         socket: `wss://api.${tenant}.example`,
         web,
@@ -94,4 +96,12 @@ describe('per-deployment frontend endpoint binding', () => {
       redirect: 'https://social.alpha.example/oauth/callback',
     });
   });
+});
+
+it('keeps simulation disabled outside the Metro runtime even when requested', () => {
+  for (const NODE_ENV of ['production', 'development', 'test'] as const) {
+    expect(evaluateConfig({ NODE_ENV, EXPO_PUBLIC_MENTION_PLUS_UI_PREVIEW: 'true' }).preview).toBe(
+      false,
+    );
+  }
 });
