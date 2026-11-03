@@ -400,7 +400,7 @@ export class OutboxSyncService {
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
   async syncOutboxPosts(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri' | 'followersUrl'> & {
       oxyUserId?: string;
       type?: string;
       networkAcct?: string | null;
@@ -426,7 +426,7 @@ export class OutboxSyncService {
   }
 
   async syncOutboxPostsDetailed(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri' | 'followersUrl'> & {
       oxyUserId?: string;
       type?: string;
       networkAcct?: string | null;
@@ -1029,7 +1029,16 @@ export class OutboxSyncService {
         // primary (`languages[0]`, normalized to ISO 639-1), falling back to the
         // raw declared primary when the classifier resolved none.
         const primaryLanguage = baseline.languages[0] ?? apLanguage;
-        const visibility = mapApVisibility(note.to, note.cc);
+        // A community relays its members' notes, whose followers it does not know.
+        const visibility = mapApVisibility(
+          note.to,
+          note.cc,
+          relayedBy ? undefined : actor.followersUrl,
+        );
+        if (!visibility) {
+          logger.debug('[FedSync] skipped an outbox note with no public or followers audience');
+          continue;
+        }
 
         const communityOxyUserId = await resolvePostCommunity(note, relayedBy);
 
@@ -1824,6 +1833,11 @@ export class OutboxSyncService {
       logger.info('[FedSync] skipped boosted object whose author is unresolved');
       return null;
     }
+    const visibility = mapApVisibility(note.to, note.cc, authorActor?.followersUrl);
+    if (!visibility) {
+      logger.info('[FedSync] skipped a note with no public or followers audience');
+      return null;
+    }
 
     const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
     // The boosted original keeps its OWN publish date (validated/falls back to now).
@@ -1915,7 +1929,7 @@ export class OutboxSyncService {
           media: media.length > 0 ? media : undefined,
           attachments: attachments.length > 0 ? attachments : undefined,
         },
-        visibility: mapApVisibility(note.to, note.cc),
+        visibility,
         hashtags,
         ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
         // AP-derived language + author instance for the Stage-A baseline (and the

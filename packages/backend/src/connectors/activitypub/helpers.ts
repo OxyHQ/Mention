@@ -866,15 +866,29 @@ export function extractApHashtags(note: Record<string, unknown>): string[] {
 }
 
 /**
- * Map ActivityPub to/cc addressing to Mention visibility.
- */
-/**
+ * Map ActivityPub to/cc addressing to Mention visibility, or null when the note
+ * has no audience Mention can represent.
+ *
+ * Public (in `to` or `cc`) is public. A note addressed to its author's
+ * followers collection is followers-only: a local user who follows the author
+ * is one of those followers. Anything else — a direct message, or a limited
+ * audience of named actors — is null, and the caller must not store it:
+ * followers-only would show a DM to every local follower of its sender while
+ * hiding it from the person it was sent to.
+ *
  * `to`/`cc` come straight off remote JSON-LD, so they are `unknown` until the
- * addressee check narrows them — the same narrowing {@link isPubliclyAddressed}
- * already performs.
+ * addressee check narrows them.
  */
-export function mapApVisibility(to?: unknown, cc?: unknown): PostVisibility {
-  return isPubliclyAddressed(to, cc) ? PostVisibility.PUBLIC : PostVisibility.FOLLOWERS_ONLY;
+export function mapApVisibility(
+  to?: unknown,
+  cc?: unknown,
+  authorFollowersUrl?: string | null,
+): PostVisibility | null {
+  if (isPubliclyAddressed(to, cc)) return PostVisibility.PUBLIC;
+  const addressees = [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])];
+  return authorFollowersUrl && addressees.includes(authorFollowersUrl)
+    ? PostVisibility.FOLLOWERS_ONLY
+    : null;
 }
 
 /**

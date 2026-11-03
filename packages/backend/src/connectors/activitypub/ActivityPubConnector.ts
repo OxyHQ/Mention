@@ -433,7 +433,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   // ============================================================
 
   syncOutboxPosts(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri' | 'followersUrl'> & {
       oxyUserId?: string;
       type?: string;
     },
@@ -444,7 +444,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   }
 
   syncOutboxPostsDetailed(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri' | 'followersUrl'> & {
       oxyUserId?: string;
       type?: string;
     },
