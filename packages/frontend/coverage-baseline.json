@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 56.24,
-      "covered": 16947,
-      "total": 30130
+      "pct": 56.26,
+      "covered": 16959,
+      "total": 30142
     },
     "branches": {
-      "pct": 52.68,
-      "covered": 12344,
-      "total": 23432
+      "pct": 52.72,
+      "covered": 12363,
+      "total": 23450
     },
     "functions": {
-      "pct": 50.78,
-      "covered": 3975,
-      "total": 7827
+      "pct": 50.79,
+      "covered": 3977,
+      "total": 7829
     },
     "lines": {
-      "pct": 57.19,
-      "covered": 15306,
-      "total": 26759
+      "pct": 57.22,
+      "covered": 15318,
+      "total": 26770
     }
   },
   "pins": {
