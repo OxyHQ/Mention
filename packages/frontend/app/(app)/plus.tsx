@@ -22,8 +22,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
-import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
@@ -149,17 +147,6 @@ export default function PlusScreen() {
           title: t('plus.benefitMono'),
           description: t('plus.benefitMonoDescription'),
           icon: <RiPaletteLine size="lg" fill={colors.primary} />,
-        },
-        {
-          id: 'connect',
-          title: t('plus.benefitConnect'),
-          icon: <RiGroupLine size="lg" fill={colors.primary} />,
-        },
-        {
-          id: 'ai',
-          title: t('plus.benefitAi'),
-          description: t('plus.benefitAiDescription'),
-          icon: <RiQuillPenLine size="lg" fill={colors.primary} />,
         },
       ],
     },

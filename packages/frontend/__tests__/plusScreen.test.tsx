@@ -130,12 +130,7 @@ it('preserves production coming-soon gating before payment activation', () => {
     TestRenderer.create(<PlusScreen />);
   });
   expect(mockGroupTitles).toEqual(
-    expect.arrayContaining([
-      'plus.freeBenefitSocial',
-      'plus.benefitMono',
-      'plus.benefitConnect',
-      'plus.benefitAi',
-    ]),
+    expect.arrayContaining(['plus.freeBenefitSocial', 'plus.benefitMono']),
   );
 
   act(() => mockPrimary.onPress());
@@ -246,11 +241,6 @@ it('groups all Plus benefits and renders both selectors under the same row', () 
   expect(new Set(labels?.map((node) => node.props.label))).toEqual(
     new Set(['plus.selectorLabel', 'plus.payment.cadenceLabel']),
   );
-  expect(mockGroupTitles).toEqual([
-    'plus.freeBenefitSocial',
-    'plus.benefitMono',
-    'plus.benefitConnect',
-    'plus.benefitAi',
-  ]);
+  expect(mockGroupTitles).toEqual(['plus.freeBenefitSocial', 'plus.benefitMono']);
   act(() => tree?.unmount());
 });
