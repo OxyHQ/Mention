@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 55.89,
-      "covered": 16669,
-      "total": 29821
+      "pct": 56.01,
+      "covered": 16727,
+      "total": 29861
     },
     "branches": {
-      "pct": 51.96,
-      "covered": 11946,
-      "total": 22989
+      "pct": 52.17,
+      "covered": 12035,
+      "total": 23067
     },
     "functions": {
-      "pct": 50.48,
-      "covered": 3916,
-      "total": 7757
+      "pct": 50.55,
+      "covered": 3926,
+      "total": 7766
     },
     "lines": {
-      "pct": 56.79,
-      "covered": 15043,
-      "total": 26486
+      "pct": 56.92,
+      "covered": 15098,
+      "total": 26524
     }
   },
   "pins": {
@@ -967,9 +967,15 @@
     },
     "lib/payments/checkoutPreview.ts": {
       "statements": 100,
-      "branches": 20,
+      "branches": 80,
       "functions": 100,
       "lines": 100
+    },
+    "lib/payments/checkoutReview.ts": {
+      "statements": 85,
+      "branches": 90,
+      "functions": 100,
+      "lines": 85
     },
     "lib/payments/embeddedCheckout.ts": {
       "statements": 57,
@@ -978,10 +984,10 @@
       "lines": 55
     },
     "lib/payments/localProviderTest.ts": {
-      "statements": 66,
+      "statements": 69,
       "branches": 56,
       "functions": 75,
-      "lines": 63
+      "lines": 66
     },
     "lib/payments/merchantInstallmentPreview.ts": {
       "statements": 94,
