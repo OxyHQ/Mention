@@ -7,3 +7,10 @@ export function isLocalCheckoutPreview(): boolean {
     ['localhost', '127.0.0.1', '[::1]'].includes(window.location?.hostname ?? '')
   );
 }
+
+export type CheckoutScenario = 'subscription' | 'physical' | 'trial';
+export type PreviewOutcome = 'success' | 'failure' | 'loading';
+/** Host capability only; no biometric implementation is implied. */
+export interface CheckoutAuthorization {
+  authorize?: () => Promise<'authorized' | 'cancelled'>;
+}

@@ -12,7 +12,7 @@ import { authenticatedApiCall } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
-import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutFlow';
+import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutPreview';
 import { LocalCheckoutPreview } from './LocalCheckoutPreview';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { useQueryClient } from '@tanstack/react-query';

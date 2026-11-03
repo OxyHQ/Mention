@@ -146,9 +146,14 @@ future device capability; no biometric implementation is claimed or enabled.
 Authorization simulates the selected loading/success/failure outcome. It never
 calls checkout, opens a payment window, writes an operation key, refreshes
 entitlements or grants access. Production builds and non-loopback hosts cannot
-enable this simulation. The merchant-neutral request/step model and presentation
-are local extraction candidates for a future SDK surface, not a newly published
-payment API.
+enable this simulation. The merchant-neutral request/step model and controlled
+presentation now live in Bloom; Peable branding and copy live in the optional
+SDK UI adapter. These local sources have not been published as a payment API.
+The authoritative Oxy checkout wrapper remains separate from the local simulator.
+The local host keeps success visible for 1.5 seconds, restores the bare logo for
+300 ms, then closes once. Dismissal, navigation and unmount cancel completion
+timers; failures remain open for retry. This presentation never establishes a
+payment outcome or entitlement.
 
 ### Live iteration
 
@@ -163,3 +168,19 @@ Local upstream Bloom builds may be consumed in that worktree's isolated
 Do not change production dependency locks or the user's original dirty checkout
 for this preview. Keep simulation enabled only through the explicit local
 process setting above; local UI iteration does not authorize publication.
+
+The local checkout now spans three owners: Bloom provides the controlled,
+merchant-neutral `CheckoutSheet`; `@peable.to/sdk/checkout/ui` supplies Peable
+branding and copy as an optional UI entry; Mention supplies the offer binding
+and local preview controller. Headless SDK entries do not import the sheet.
+
+For live library iteration, set `OXY_LOCAL_CHECKOUT_SOURCES=1`,
+`OXY_LOCAL_CHECKOUT_ORIGIN=http://localhost:8110`, `OXY_LOCAL_BLOOM_SOURCE` to the
+active Bloom package directory, and `OXY_LOCAL_PEABLE_SDK_SOURCE` to the active
+Peable `packages/sdk` directory. The opt-in Metro resolver watches those source
+roots, resolves Bloom's declared source exports and the SDK UI entry directly,
+and shares Mention's React/native peers. Changes in all three working trees
+then use Fast Refresh; do not replace this with repeated package-copy cycles.
+The resolver refuses production, CI and non-loopback settings and is inactive
+without the explicit flag. A published SDK version containing the optional UI
+entry is still required before any production consumer can adopt this work.

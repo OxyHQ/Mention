@@ -1,23 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Image, View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import type { PlusCadence } from '@/lib/payments/plusCheckout';
+import { emptyCheckoutDraft, nextCheckoutStep } from '@oxy.so/bloom/checkout-sheet/model';
 import {
-  emptyCheckoutDraft,
-  nextCheckoutStep,
-  type CheckoutAuthorization,
+  PeableCheckoutSheet,
   type CheckoutCard,
   type CheckoutDraft,
   type CheckoutRequest,
-  type CheckoutScenario,
   type CheckoutStep,
-  type PreviewOutcome,
-} from '@/lib/payments/checkoutFlow';
-import { PeableCheckoutContent } from './PeableCheckoutContent';
+} from '@peable.to/sdk/checkout/ui';
+import type {
+  CheckoutAuthorization,
+  CheckoutScenario,
+  PreviewOutcome,
+} from '@/lib/payments/checkoutPreview';
+import { LocalCheckoutCardEntry } from './LocalCheckoutCardEntry';
 
 /** Local memory-only adapter. This file deliberately has no payment, storage or entitlement APIs. */
 export function LocalCheckoutPreview({
@@ -37,7 +38,7 @@ export function LocalCheckoutPreview({
   useEffect(() => {
     if (!reviewedOffer && offer) setReviewedOffer(offer);
   }, [offer, reviewedOffer]);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [step, setStep] = useState<CheckoutStep>('review');
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
   const [draft, setDraft] = useState<CheckoutDraft>(() => ({
@@ -48,6 +49,36 @@ export function LocalCheckoutPreview({
   const history = useRef<CheckoutStep[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const active = useRef(true);
+  const closed = useRef(false);
+  const completionTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const [brandState, setBrandState] = useState<'idle' | undefined>();
+  const close = useCallback(() => {
+    if (closed.current) return;
+    closed.current = true;
+    completionTimers.current.forEach(clearTimeout);
+    completionTimers.current = [];
+    active.current = false;
+    clearTimeout(timer.current);
+    onClose();
+  }, [onClose]);
+  useEffect(() => {
+    if (step !== 'success') {
+      setBrandState(undefined);
+      return;
+    }
+    const restore = setTimeout(() => {
+      if (active.current) setBrandState('idle');
+    }, 1500);
+    const dismiss = setTimeout(() => {
+      if (active.current) close();
+    }, 1800);
+    completionTimers.current = [restore, dismiss];
+    return () => {
+      completionTimers.current = [];
+      clearTimeout(restore);
+      clearTimeout(dismiss);
+    };
+  }, [step, close]);
   const authorizing = useRef(false);
   useEffect(() => {
     active.current = true;
@@ -65,14 +96,13 @@ export function LocalCheckoutPreview({
       : reviewedOffer;
   if (!displayOffer?.price && scenario !== 'physical')
     return (
-      <Dialog open onClose={onClose} placement="bottom" detached panelStyle={{ maxWidth: 540 }}>
-        <View style={{ padding: 24, gap: 16 }}>
+      <Dialog open onClose={close} placement="bottom" detached panelStyle={{ maxWidth: 540 }}>
+        <View style={{ padding: 20, gap: 16 }}>
           <Text>
             {t(
               loading ? 'common.loading' : failed ? 'plus.payment.failed' : 'plus.payment.notReady',
             )}
           </Text>
-          <Button onPress={onClose}>{t('common.close')}</Button>
         </View>
       </Dialog>
     );
@@ -95,6 +125,7 @@ export function LocalCheckoutPreview({
           ],
           requiresShipping: true,
           paymentMethods: ['card'],
+          taxDescription: t('plus.checkout.included'),
         }
       : {
           merchant: scenario === 'trial' ? t('plus.checkout.demoTrialMerchant') : 'Mention',
@@ -111,16 +142,20 @@ export function LocalCheckoutPreview({
                 scenario === 'trial'
                   ? t('plus.checkout.trialDetail')
                   : t(`plus.payment.cadence${cadence === 'year' ? 'Year' : 'Month'}`),
-              image:
-                scenario === 'subscription'
-                  ? require('../../assets/images/mention-icon.png')
-                  : undefined,
+              artwork:
+                scenario === 'subscription' ? (
+                  <Image
+                    source={require('../../assets/images/mention-icon.png')}
+                    style={{ width: 40, height: 40 }}
+                  />
+                ) : undefined,
               quantity: 1,
               amountMinorUnits: scenario === 'trial' ? 0 : (price?.amountMinorUnits ?? 0),
             },
           ],
           requiresShipping: false,
           paymentMethods: ['card'],
+          taxDescription: t('plus.checkout.included'),
           recurring: {
             amountMinorUnits: price?.amountMinorUnits ?? 0,
             interval: scenario === 'trial' ? 'month' : cadence,
@@ -177,30 +212,46 @@ export function LocalCheckoutPreview({
     );
   }
   return (
-    <Dialog
+    <PeableCheckoutSheet
       open
-      onClose={onClose}
-      placement="bottom"
-      detached
-      showHandle={false}
-      maxWidth={540}
-      panelStyle={{ maxWidth: 540 }}
-    >
-      <PeableCheckoutContent
-        request={request}
-        draft={draft}
-        step={step}
-        direction={direction}
-        onDraft={setDraft}
-        onStep={navigate}
-        onBack={back}
-        onClose={onClose}
-        onAuthorize={() => {
-          void simulateAuthorization();
-        }}
-        savedCards={savedCards}
-        onCard={chooseCard}
-      />
-    </Dialog>
+      locale={i18n.language}
+      brandState={brandState}
+      request={request}
+      draft={draft}
+      step={step}
+      direction={direction}
+      onDraft={setDraft}
+      onStep={navigate}
+      onBack={back}
+      onClose={close}
+      onAuthorize={() => {
+        void simulateAuthorization();
+      }}
+      savedCards={savedCards}
+      onCard={chooseCard}
+      messages={Object.fromEntries(
+        [
+          'result.processing',
+          'result.success',
+          'result.failure',
+          'result.processingHint',
+          'result.successHint',
+          'result.failureHint',
+          'savedCard',
+          'delivery.standardHint',
+          'delivery.expressHint',
+        ].map((key) => [key, t(`plus.checkout.${key}`)]),
+      )}
+      notice={<Text style={{ textAlign: 'center' }}>{t('plus.checkout.previewNotice')}</Text>}
+      cardEntry={
+        step === 'card' ? (
+          <LocalCheckoutCardEntry
+            card={draft.card}
+            onCard={chooseCard}
+            onDone={() => navigate('review')}
+          />
+        ) : undefined
+      }
+    />
   );
 }

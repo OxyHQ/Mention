@@ -3,7 +3,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutFlow';
+import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutPreview';
 
 /** Explicit development controls live on the host page, never inside consumer checkout. */
 export function CheckoutPreviewControls({

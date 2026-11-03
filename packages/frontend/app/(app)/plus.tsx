@@ -17,7 +17,7 @@ import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { CheckoutPreviewControls } from '@/components/payments/CheckoutPreviewControls';
 import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
-import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutFlow';
+import type { CheckoutScenario, PreviewOutcome } from '@/lib/payments/checkoutPreview';
 import { PlusPaymentSheet } from '@/components/payments/PlusPaymentSheet';
 import { PlusDisplayEstimate } from '@/components/payments/PlusDisplayEstimate';
 import { useTranslation } from 'react-i18next';

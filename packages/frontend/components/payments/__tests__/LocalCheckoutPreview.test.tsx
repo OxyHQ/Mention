@@ -1,23 +1,32 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { LocalCheckoutPreview } from '../LocalCheckoutPreview';
-import type { PeableCheckoutContentProps } from '../PeableCheckoutContent';
-let mockContent: PeableCheckoutContentProps;
+import type { PeableCheckoutSheetProps } from '@peable.to/sdk/checkout/ui';
+let mockContent: PeableCheckoutSheetProps;
 const mockClose = jest.fn();
-jest.mock('../PeableCheckoutContent', () => ({
-  PeableCheckoutContent: (props: PeableCheckoutContentProps) => {
+jest.mock('../LocalCheckoutCardEntry', () => ({ LocalCheckoutCardEntry: () => null }));
+jest.mock('@peable.to/sdk/checkout/ui', () => ({
+  PeableCheckoutSheet: (props: PeableCheckoutSheetProps) => {
     mockContent = props;
     return null;
   },
 }));
 jest.mock('@oxy.so/bloom/dialog', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Dialog: (props: {
+    children: React.ReactNode;
+    header?: { largeTitle: boolean; showClose: boolean; onBack?: () => void };
+    footer?: React.ReactNode;
+  }) => {
+    return <>{props.children}</>;
+  },
 }));
 jest.mock('@/hooks/usePlusOffer', () => ({
   usePlusOffer: () => ({
     offer: { displayName: 'Mention Plus', price: { currency: 'USD', amountMinorUnits: 599 } },
   }),
 }));
-jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+}));
 let renderer: TestRenderer.ReactTestRenderer;
 beforeEach(() => {
   jest.useFakeTimers();
@@ -30,13 +39,14 @@ afterEach(() => {
 function mount(
   scenario: 'subscription' | 'physical' | 'trial' = 'subscription',
   authorize?: () => Promise<'authorized' | 'cancelled'>,
+  outcome: 'success' | 'failure' | 'loading' = 'success',
 ) {
   act(() => {
     renderer = TestRenderer.create(
       <LocalCheckoutPreview
         cadence="month"
         scenario={scenario}
-        outcome="success"
+        outcome={outcome}
         onClose={mockClose}
         authorize={authorize}
       />,
@@ -125,4 +135,64 @@ it('does not update after a pending authorization resolves following dismissal',
   expect(schedule.mock.calls.some(([, delay]) => delay === 1000)).toBe(false);
   schedule.mockRestore();
   expect(mockContent.step).toBe('processing');
+});
+
+it('restores the logo then closes once after accessible success, cancelling on dismissal', async () => {
+  mount();
+  act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
+  await act(async () => mockContent.onAuthorize());
+  act(() => jest.advanceTimersByTime(1000));
+  expect(mockContent.step).toBe('success');
+  act(() => jest.advanceTimersByTime(1499));
+  expect(mockClose).not.toHaveBeenCalled();
+  act(() => jest.advanceTimersByTime(1));
+  expect(mockContent.brandState).toBe('idle');
+  act(() => mockContent.onClose());
+  act(() => jest.advanceTimersByTime(300));
+  expect(mockClose).toHaveBeenCalledTimes(1);
+});
+
+it('closes automatically only after the complete success presentation', async () => {
+  mount();
+  act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
+  await act(async () => mockContent.onAuthorize());
+  act(() => jest.advanceTimersByTime(1000));
+  act(() => jest.advanceTimersByTime(1800));
+  expect(mockClose).toHaveBeenCalledTimes(1);
+  act(() => jest.advanceTimersByTime(10000));
+  expect(mockClose).toHaveBeenCalledTimes(1);
+});
+it('keeps failures open for retry and cancels completion when navigating away', async () => {
+  mount('subscription', undefined, 'failure');
+  act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
+  await act(async () => mockContent.onAuthorize());
+  act(() => jest.advanceTimersByTime(1000));
+  expect(mockContent.step).toBe('failure');
+  act(() => jest.advanceTimersByTime(10000));
+  expect(mockClose).not.toHaveBeenCalled();
+  act(() => renderer.unmount());
+  mount();
+  act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
+  await act(async () => mockContent.onAuthorize());
+  act(() => jest.advanceTimersByTime(1000));
+  act(() => mockContent.onStep('review'));
+  act(() => jest.advanceTimersByTime(1800));
+  expect(mockClose).not.toHaveBeenCalled();
+});
+it('ignores an authorization result after close even if the host has not unmounted yet', async () => {
+  let finish: ((value: 'authorized') => void) | undefined;
+  mount(
+    'subscription',
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  act(() => mockContent.onCard({ id: 'test', brand: 'Visa', last4: '4242', saveForLater: false }));
+  act(() => mockContent.onAuthorize());
+  act(() => mockContent.onClose());
+  await act(async () => finish?.('authorized'));
+  act(() => jest.advanceTimersByTime(10000));
+  expect(mockContent.step).toBe('processing');
+  expect(mockClose).toHaveBeenCalledTimes(1);
 });
