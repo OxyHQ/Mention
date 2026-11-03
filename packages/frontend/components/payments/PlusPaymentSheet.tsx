@@ -25,6 +25,12 @@ import {
   type PlusOffer,
   type PlusOfferBinding,
 } from '@/lib/payments/plusCheckout';
+import {
+  CheckoutBillingAddress,
+  billingAddressComplete,
+  emptyBillingAddress,
+  type CheckoutBillingAddressValue,
+} from './CheckoutBillingAddress';
 import { PlusDisplayEstimate } from './PlusDisplayEstimate';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
 
@@ -38,6 +44,7 @@ type Message =
   | 'closed'
   | 'review'
   | 'blocked'
+  | 'billingRequired'
   | 'included'
   | 'signInRequired'
   | null;
@@ -91,7 +98,10 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
   const [operation, setOperation] = useState<{
     offer: PlusOffer;
     binding: PlusOfferBinding;
+    address: CheckoutBillingAddressValue;
   } | null>(null);
+  const [address, setAddress] = useState(emptyBillingAddress);
+  const frozenAddress = operation?.address ?? address;
   const offer = operation?.offer ?? currentOffer;
   const mentionPlusBinding = operation?.binding ?? currentBinding;
   const [message, setMessage] = useState<Message>('loading');
@@ -150,14 +160,15 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
       !canUsePrivateApi ||
       (openWindow && (!purchaseAvailable || hasAccess || checkingAccess || accessFailed)) ||
       (!openWindow && !hasOperation) ||
-      locked.current
+      locked.current ||
+      !billingAddressComplete(frozenAddress)
     )
       return;
     const attemptScope = scope.current;
     const isCurrent = () => attemptScope.active && scope.current === attemptScope;
     if (!isCurrent()) return;
     locked.current = true;
-    setOperation({ offer, binding: mentionPlusBinding });
+    setOperation({ offer, binding: mentionPlusBinding, address: { ...frozenAddress } });
     setStarted(true);
     setBusy(true);
     // Reserve the browser window in the click gesture, before network awaits.
@@ -199,10 +210,24 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
             offerId: offer.offerId,
             offerVersion: offer.offerVersion,
             idempotencyKey: key,
+            billingAddress: Object.fromEntries(
+              Object.entries(frozenAddress)
+                .filter(([, value]) => value.trim())
+                .map(([field, value]) => [field, value.trim()]),
+            ),
           }),
         );
       });
       if (!isCurrent()) return;
+      if (result.state === 'closed' && result.reason === 'billing_location_required') {
+        windowForAttempt?.close();
+        await clearPlusCheckoutKey(user.id, mentionPlusBinding, key);
+        if (!isCurrent()) return;
+        setOperation(null);
+        setHasOperation(false);
+        setMessage('billingRequired');
+        return;
+      }
       if (result.state === 'pending') {
         setMessage('pending');
         if (openWindow && result.checkoutUrl) {
@@ -297,7 +322,22 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         {(busy || message === 'loading') && (
           <ActivityIndicator accessibilityLabel={t('common.loading')} />
         )}
-        {message && <Text accessibilityLiveRegion="polite">{t(`plus.payment.${message}`)}</Text>}
+        {message && (
+          <Text accessibilityLiveRegion="polite">
+            {t(
+              message === 'billingRequired'
+                ? 'plus.checkout.billing.required'
+                : `plus.payment.${message}`,
+            )}
+          </Text>
+        )}
+        {offer && purchaseAvailable && canUsePrivateApi && !done && (
+          <CheckoutBillingAddress
+            value={frozenAddress}
+            locked={!!operation || busy}
+            onChange={setAddress}
+          />
+        )}
         {purchaseAvailable && !canUsePrivateApi && (
           <Button
             onPress={() => {
@@ -314,7 +354,7 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
           !accessFailed &&
           !done && (
             <Button
-              disabled={busy}
+              disabled={busy || !billingAddressComplete(frozenAddress)}
               onPress={() => {
                 void purchase(true);
               }}

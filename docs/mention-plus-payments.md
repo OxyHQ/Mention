@@ -406,6 +406,9 @@ Peable/Bloom sheet as the local integration. Subscribe opens the captured publis
 offer immediately. A read-only, account/session-scoped configuration warms secure
 card fields without creating a customer or subscription. Native clients retain the
 validated hosted checkout handoff until a native secure-field adapter exists.
+That hosted flow collects the same explicit billing-address prerequisite before
+creating its session and freezes it through status recovery; it never infers a
+country from the device or profile.
 
 The buyer supplies billing address details before Continue creates the subscription
 session. Address, receipt email, and the ephemeral session capability stay in component

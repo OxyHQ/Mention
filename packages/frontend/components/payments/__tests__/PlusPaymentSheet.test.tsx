@@ -1,3 +1,30 @@
+import type { CheckoutBillingAddressValue } from '../CheckoutBillingAddress';
+let mockBilling: { locked: boolean; onChange(value: CheckoutBillingAddressValue): void } | null =
+  null;
+const billingAddress = {
+  country: 'US',
+  state: 'DE',
+  postalCode: '19802',
+  city: 'Wilmington',
+  line1: 'Example street',
+  line2: '',
+};
+jest.mock('../CheckoutBillingAddress', () => ({
+  CheckoutBillingAddress: (props: typeof mockBilling) => {
+    mockBilling = props;
+    return null;
+  },
+  emptyBillingAddress: () => ({
+    country: '',
+    state: '',
+    postalCode: '',
+    city: '',
+    line1: '',
+    line2: '',
+  }),
+  billingAddressComplete: (value: CheckoutBillingAddressValue) =>
+    !!value.country && !!value.line1 && !!value.city,
+}));
 jest.mock('../PeableEmbeddedCheckout', () => ({ PeableEmbeddedCheckout: () => null }));
 import TestRenderer, { act } from 'react-test-renderer';
 import { Platform } from 'react-native';
@@ -125,10 +152,11 @@ let renderer: TestRenderer.ReactTestRenderer;
 function button(label: string) {
   return renderer.root.findAllByType('button').find((node) => node.props.children === label);
 }
-async function mount() {
+async function mount(fillAddress = true) {
   await act(async () => {
     renderer = TestRenderer.create(<PlusPaymentSheet onClose={jest.fn()} />);
   });
+  if (fillAddress) act(() => mockBilling?.onChange(billingAddress));
 }
 async function press(label: string) {
   await act(async () => {
@@ -137,6 +165,7 @@ async function press(label: string) {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  mockBilling = null;
   mockUser = { id: 'account-a' };
   mockSession = 'session-a';
   mockHasAccess = false;
@@ -189,6 +218,13 @@ it('opens a gesture-owned window with a durable key, and checks status without a
     offerId: 'approved',
     offerVersion: 2,
     idempotencyKey: 'durable-key',
+    billingAddress: {
+      country: 'US',
+      state: 'DE',
+      postalCode: '19802',
+      city: 'Wilmington',
+      line1: 'Example street',
+    },
   });
   expect(mockPopup.opener).toBeNull();
   expect(mockLocation.replace).toHaveBeenCalledWith(
@@ -323,9 +359,13 @@ it('recovers a pending operation after access becomes included without creating 
   expect(mockClearKey).toHaveBeenCalled();
 });
 
-it('freezes the reviewed amount and offer while an operation is pending', async () => {
+it('freezes the reviewed amount, offer and billing address while an operation is pending', async () => {
   await mount();
+  const staleAddressEditor = mockBilling;
   await press('plus.payment.continue');
+  act(() =>
+    staleAddressEditor?.onChange({ ...billingAddress, country: 'ES', postalCode: '28001' }),
+  );
   mockOffer = {
     ...offer,
     offerId: 'replacement',
@@ -340,6 +380,13 @@ it('freezes the reviewed amount and offer while an operation is pending', async 
     offerId: 'approved',
     offerVersion: 2,
     idempotencyKey: 'durable-key',
+    billingAddress: {
+      country: 'US',
+      state: 'DE',
+      postalCode: '19802',
+      city: 'Wilmington',
+      line1: 'Example street',
+    },
   });
   expect(mockKey.mock.calls[1][1]).toMatchObject({ offerId: 'approved', offerVersion: 2 });
 });
@@ -353,6 +400,7 @@ it('uses the selected annual offer for checkout and recovery', async () => {
   await act(async () => {
     renderer = TestRenderer.create(<PlusPaymentSheet cadence="year" onClose={jest.fn()} />);
   });
+  act(() => mockBilling?.onChange(billingAddress));
   await press('plus.payment.continue');
   expect(mockCheckout.mock.calls[0][0]).toMatchObject({
     offerId: 'approved-year',
@@ -375,6 +423,13 @@ it('unavailable EUR display conversion does not block or alter the USD checkout'
     offerId: 'approved',
     offerVersion: 2,
     idempotencyKey: 'durable-key',
+    billingAddress: {
+      country: 'US',
+      state: 'DE',
+      postalCode: '19802',
+      city: 'Wilmington',
+      line1: 'Example street',
+    },
   });
 });
 it('USD display preference adds no estimate or rate dependency to checkout', async () => {
@@ -431,4 +486,30 @@ it('allows signed-out users to inspect a prelaunch plan without an authenticatio
   expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.notReady');
   expect(button('plus.payment.signIn')).toBeUndefined();
   expect(mockCheckout).not.toHaveBeenCalled();
+});
+
+it('requires explicit billing evidence for native hosted checkout and only unlocks after proven pre-creation closure', async () => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
+  await mount(false);
+  expect(button('plus.payment.continue')?.props.disabled).toBe(true);
+  await press('plus.payment.continue');
+  expect(mockCheckout).not.toHaveBeenCalled();
+  act(() => mockBilling?.onChange(billingAddress));
+  mockCheckout.mockResolvedValueOnce({
+    state: 'closed',
+    intentId: 'intent',
+    reason: 'billing_location_required',
+  });
+  await press('plus.payment.continue');
+  expect(mockCheckout).toHaveBeenCalledTimes(1);
+  expect(mockClearKey).toHaveBeenCalled();
+  expect(mockNativeBrowser).not.toHaveBeenCalled();
+  expect(mockBilling?.locked).toBe(false);
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.checkout.billing.required');
+  act(() => mockBilling?.onChange({ ...billingAddress, postalCode: '19801' }));
+  expect(mockCheckout).toHaveBeenCalledTimes(1);
+  await press('plus.payment.continue');
+  expect(mockCheckout.mock.calls[1][0].billingAddress.postalCode).toBe('19801');
+  expect(mockNativeBrowser).toHaveBeenCalled();
+  expect(mockBilling?.locked).toBe(true);
 });
