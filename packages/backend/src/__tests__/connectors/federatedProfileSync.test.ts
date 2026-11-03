@@ -43,6 +43,7 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
     refreshActorInBackground: (...a: unknown[]) => refreshActorInBackground(...(a as [])),
     syncOutboxPostsDetailed: (...a: unknown[]) => syncOutboxPostsDetailed(...(a as [])),
     markOutboxBackfillUnavailable: vi.fn(async () => undefined),
+    syncFeaturedPost: vi.fn(async () => undefined),
   },
   isPermanentlyUnavailableOutboxReason: () => false,
 }));

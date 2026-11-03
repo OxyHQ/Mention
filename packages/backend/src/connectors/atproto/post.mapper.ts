@@ -2,10 +2,11 @@ import { PostVisibility } from '@mention/shared-types';
 import { normalizeMultilineText } from '@oxy.so/core';
 import { isUniqueViolation } from '@oxy.so/db';
 import { logger } from '../../utils/logger';
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { findActorByUri } from '../../db/federation/actorRepository';
+import { setFederatedAuthorPinnedPost } from '../../db/posts/postRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { mapWithConcurrency } from '../../utils/concurrency';
@@ -106,8 +107,16 @@ export interface AtprotoPostView {
 }
 interface AtprotoFeedItem {
   post?: AtprotoPostView;
-  /** Present on reposts (`#reasonRepost`) — those are skipped in C2. */
+  /** `#reasonRepost` on a repost (skipped), `#reasonPin` on the pinned post. */
   reason?: unknown;
+}
+
+const REASON_PIN = 'app.bsky.feed.defs#reasonPin';
+
+/** True for the author's pinned post, which `includePins` puts first on page one. */
+function isPinItem(item: AtprotoFeedItem | undefined): boolean {
+  const reason = item?.reason as { $type?: unknown } | undefined;
+  return reason?.$type === REASON_PIN;
 }
 interface AtprotoAuthorFeed {
   feed?: AtprotoFeedItem[];
@@ -618,6 +627,8 @@ export async function importAuthorFeed(
       actor: did,
       limit: opts.limit ?? 20,
       cursor: opts.cursor,
+      // Page one leads with the pinned post, which may be older than the page.
+      includePins: opts.cursor ? undefined : true,
     });
   } catch (err) {
     logger.debug('[atproto] getAuthorFeed failed', err);
@@ -631,19 +642,28 @@ export async function importAuthorFeed(
   // pass as `#link` facets. Reposts are skipped here exactly as in the map loop.
   const mentionDids = new Set<string>();
   for (const item of items) {
-    if (item?.reason) continue;
+    if (item?.reason && !isPinItem(item)) continue;
     for (const mentionedDid of extractMentionDids(item.post?.record)) mentionDids.add(mentionedDid);
   }
   const mentionMap = await resolveMentionDids(mentionDids);
 
   const normalized: NormalizedExternalPost[] = [];
+  let pinnedUri: string | null = null;
   for (const item of items) {
-    if (item?.reason) continue; // skip reposts in C2
+    const pin = isPinItem(item);
+    if (item?.reason && !pin) continue; // skip reposts in C2
     const mapped = mapPostViewToNormalizedPost(item.post, did, mentionMap);
-    if (mapped) normalized.push({ ...mapped, authorOxyUserId: ownerOxyUserId });
+    if (!mapped) continue;
+    if (pin) pinnedUri = mapped.activityId;
+    // The pinned post can also appear at its own place in the page.
+    if (normalized.some((post) => post.activityId === mapped.activityId)) continue;
+    normalized.push({ ...mapped, authorOxyUserId: ownerOxyUserId });
   }
 
-  if (normalized.length === 0) return { posts: [], cursor: feed?.cursor };
+  if (normalized.length === 0) {
+    if (!opts.cursor) await setFederatedAuthorPinnedPost(ownerOxyUserId, null);
+    return { posts: [], cursor: feed?.cursor };
+  }
 
   // Dedup against AT-URIs already imported (the unique sparse
   // `federation.activityId` index is the backstop for concurrent races).
@@ -662,6 +682,21 @@ export async function importAuthorFeed(
     if (seen.has(post.activityId)) continue;
     const created = await createPostFromNormalized(post, ownerOxyUserId, did, instanceDomain);
     if (created) imported.push(post);
+  }
+
+  // Page one is the only page that says what is pinned (including "nothing").
+  if (!opts.cursor) {
+    const [pinned] = pinnedUri
+      ? await getDb()
+          .select({ id: posts.id })
+          .from(posts)
+          .where(
+            and(eq(posts.federationActivityId, pinnedUri), eq(posts.oxyUserId, ownerOxyUserId)),
+          )
+          .limit(1)
+      : [];
+    if (!pinnedUri || pinned)
+      await setFederatedAuthorPinnedPost(ownerOxyUserId, pinned?.id ?? null);
   }
 
   return { posts: imported, cursor: feed?.cursor };

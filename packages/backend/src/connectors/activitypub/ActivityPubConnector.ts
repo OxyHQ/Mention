@@ -453,6 +453,12 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return outboxSyncService.syncOutboxPostsDetailed(actor, limitOrOptions);
   }
 
+  syncFeaturedPost(
+    actor: Pick<FederatedActorRecord, 'uri' | 'featuredUrl' | 'oxyUserId'>,
+  ): Promise<void> {
+    return outboxSyncService.syncFeaturedPost(actor);
+  }
+
   markOutboxBackfillUnavailable(
     actor: Pick<FederatedActorRecord, 'id' | 'outboxUrl'>,
     reason?: string,

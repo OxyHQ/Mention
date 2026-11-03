@@ -20,6 +20,7 @@ import {
   insertPostRecords,
   loadPostRecord,
   replacePostContent,
+  setFederatedAuthorPinnedPost,
 } from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecordInput } from '../../db/posts/postRecord';
 import { extractActorUriFromActivityId } from '@oxy.so/federation';
@@ -411,6 +412,51 @@ export class OutboxSyncService {
   ): Promise<number> {
     const result = await this.syncOutboxPostsDetailed(actor, { limit, importReason });
     return result.syncedCount;
+  }
+
+  /**
+   * Mirror the actor's pinned post: the first item of its `featured` collection
+   * (Mastodon lists the most recently pinned first; Mention shows one pin). The
+   * note is stored through the same verified path a boosted note takes, then
+   * made the author's only pinned post. An actor with an empty collection has
+   * its pin cleared; one whose collection cannot be read keeps what it had.
+   */
+  async syncFeaturedPost(
+    actor: Pick<FederatedActorRecord, 'uri' | 'featuredUrl' | 'oxyUserId'>,
+  ): Promise<void> {
+    const { featuredUrl, oxyUserId } = actor;
+    if (!featuredUrl || !oxyUserId || !isSameOriginHttpUrl(featuredUrl, actor.uri)) return;
+    try {
+      if (isBlockedDomain(new URL(actor.uri).hostname.toLowerCase())) return;
+      const items = await this.featuredItems(featuredUrl);
+      if (!items) return;
+      const noteUri = items.length > 0 ? activityPubLinkUrl(items[0]) : null;
+      if (items.length > 0 && !noteUri) return;
+      const postId = noteUri ? await this.ensureFederatedNote(noteUri, 'requested_profile') : null;
+      if (noteUri && !postId) return;
+      await setFederatedAuthorPinnedPost(oxyUserId, postId);
+    } catch (err) {
+      logger.info('[FedSync] featured collection sync failed', { error: String(err) });
+    }
+  }
+
+  /** The items of a `featured` collection (inline, or on its `first` page); null when unreadable. */
+  private async featuredItems(url: string): Promise<unknown[] | null> {
+    const res = await signedFetch(url, AP_CONTENT_TYPE);
+    if (!res.ok) return null;
+    const collection = asRecord(await res.json());
+    if (!collection) return null;
+    const items = activityPubItems(collection);
+    if (items.length > 0 || collection.totalItems === 0) return items;
+    const first = collection.first;
+    if (typeof first === 'string') {
+      if (!isSameOriginHttpUrl(first, url)) return null;
+      const page = await signedFetch(first, AP_CONTENT_TYPE);
+      const pageRecord = page.ok ? asRecord(await page.json()) : null;
+      return pageRecord ? activityPubItems(pageRecord) : null;
+    }
+    const inlinePage = asRecord(first);
+    return inlinePage ? activityPubItems(inlinePage) : collection.orderedItems ? [] : null;
   }
 
   async markOutboxBackfillUnavailable(

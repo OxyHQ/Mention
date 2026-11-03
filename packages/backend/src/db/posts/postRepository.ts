@@ -2455,3 +2455,43 @@ export const CHRONO_DESC: SQL[] = [
  * to prevent — if the uniqueness is not a constraint, order the read.
  */
 export const UNIQUE_MATCH_NO_ORDER: SQL[] = [];
+
+/**
+ * Make `postId` a federated author's one pinned post, as its source network
+ * says (null: the author pinned nothing). Only the author's own post can be
+ * pinned; every other pin of theirs is cleared in the same transaction, so a
+ * pin moved or removed at the source moves or disappears here too.
+ */
+export async function setFederatedAuthorPinnedPost(
+  authorOxyUserId: string,
+  postId: string | null,
+): Promise<void> {
+  const changed = await getDb().transaction(async (tx) => {
+    const unpinned = await tx
+      .update(posts)
+      .set({ metadataIsPinned: false })
+      .where(
+        and(
+          eq(posts.oxyUserId, authorOxyUserId),
+          eq(posts.metadataIsPinned, true),
+          postId ? sql`${posts.id} <> ${postId}` : undefined,
+        ),
+      )
+      .returning({ id: posts.id });
+    const pinned = postId
+      ? await tx
+          .update(posts)
+          .set({ metadataIsPinned: true })
+          .where(
+            and(
+              eq(posts.id, postId),
+              eq(posts.oxyUserId, authorOxyUserId),
+              eq(posts.metadataIsPinned, false),
+            ),
+          )
+          .returning({ id: posts.id })
+      : [];
+    return [...unpinned, ...pinned].map((row) => row.id);
+  });
+  await Promise.all(changed.map((id) => invalidatePostDetailCache(id)));
+}
