@@ -96,7 +96,7 @@ import { resolveMediaItems } from '../../utils/mediaResolver';
 // for `getServiceOxyClient` (check e.g. an existing test that already mocks
 // `../../utils/oxyHelpers` and read it before writing this mock).
 const mockGetFileDownloadUrl = jest.fn((id: string, variant?: string) =>
-  variant ? `https://cloud.oxy.so/${id}?variant=${variant}` : `https://cloud.oxy.so/${id}`
+  variant ? `https://cloud.oxy.so/${id}?variant=${variant}` : `https://cloud.oxy.so/${id}`,
 );
 
 jest.mock('../../utils/oxyHelpers', () => ({
@@ -117,9 +117,7 @@ describe('resolveMediaItems — video hlsUrl', () => {
   });
 
   it('does NOT populate hlsUrl for a federated (absolute-URL) video item', () => {
-    const [result] = resolveMediaItems([
-      { id: 'https://remote.example/video.mp4', type: 'video' },
-    ]);
+    const [result] = resolveMediaItems([{ id: 'https://remote.example/video.mp4', type: 'video' }]);
     expect(result.hlsUrl).toBeUndefined();
   });
 
@@ -225,11 +223,11 @@ Current (~line 112-118):
 
 ```ts
 interface MediaRef {
-    id?: string;
-    url?: string;
-    thumbUrl?: string;
-    posterUrl?: string;
-    type?: 'image' | 'video' | 'gif';
+  id?: string;
+  url?: string;
+  thumbUrl?: string;
+  posterUrl?: string;
+  type?: 'image' | 'video' | 'gif';
 }
 ```
 
@@ -237,12 +235,12 @@ New:
 
 ```ts
 interface MediaRef {
-    id?: string;
-    url?: string;
-    thumbUrl?: string;
-    posterUrl?: string;
-    hlsUrl?: string;
-    type?: 'image' | 'video' | 'gif';
+  id?: string;
+  url?: string;
+  thumbUrl?: string;
+  posterUrl?: string;
+  hlsUrl?: string;
+  type?: 'image' | 'video' | 'gif';
 }
 ```
 
@@ -264,37 +262,46 @@ Current `VideoPost` (~line 132-155) has `videoUrl: string; posterUrl?: string;`.
 Current (~line 875-881):
 
 ```ts
-    const resolveVideoUrl = useCallback((ref: MediaRef): string => {
-        if (ref?.url) return ref.url;
-        const raw = ref?.id || '';
-        if (!raw) return '';
-        if (raw.startsWith('http')) return proxyExternalUrl(raw);
-        return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
-    }, [oxyServices]);
+const resolveVideoUrl = useCallback(
+  (ref: MediaRef): string => {
+    if (ref?.url) return ref.url;
+    const raw = ref?.id || '';
+    if (!raw) return '';
+    if (raw.startsWith('http')) return proxyExternalUrl(raw);
+    return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
+  },
+  [oxyServices],
+);
 ```
 
 Replace with two functions — rename the existing one's ORIGINAL behavior to `resolveFallbackVideoUrl` (it already resolves the raw/original URL and stays exactly as-is), and add a new `resolveVideoUrl` that prefers `hlsUrl`:
 
 ```ts
-    // The raw/original URL — always playable, used as `fallbackVideoUrl`.
-    // Unchanged from before this HLS work; every existing resolution path
-    // (server `url`, http passthrough via proxy, legacy client-side Oxy
-    // resolution) is preserved exactly.
-    const resolveFallbackVideoUrl = useCallback((ref: MediaRef): string => {
-        if (ref?.url) return ref.url;
-        const raw = ref?.id || '';
-        if (!raw) return '';
-        if (raw.startsWith('http')) return proxyExternalUrl(raw);
-        return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
-    }, [oxyServices]);
+// The raw/original URL — always playable, used as `fallbackVideoUrl`.
+// Unchanged from before this HLS work; every existing resolution path
+// (server `url`, http passthrough via proxy, legacy client-side Oxy
+// resolution) is preserved exactly.
+const resolveFallbackVideoUrl = useCallback(
+  (ref: MediaRef): string => {
+    if (ref?.url) return ref.url;
+    const raw = ref?.id || '';
+    if (!raw) return '';
+    if (raw.startsWith('http')) return proxyExternalUrl(raw);
+    return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
+  },
+  [oxyServices],
+);
 
-    // Preferred playback URL: the adaptive HLS stream when the server resolved
-    // one (native video only — federated media never has `hlsUrl`), else the
-    // same raw/original URL `resolveFallbackVideoUrl` would return.
-    const resolveVideoUrl = useCallback((ref: MediaRef): string => {
-        if (ref?.hlsUrl) return ref.hlsUrl;
-        return resolveFallbackVideoUrl(ref);
-    }, [resolveFallbackVideoUrl]);
+// Preferred playback URL: the adaptive HLS stream when the server resolved
+// one (native video only — federated media never has `hlsUrl`), else the
+// same raw/original URL `resolveFallbackVideoUrl` would return.
+const resolveVideoUrl = useCallback(
+  (ref: MediaRef): string => {
+    if (ref?.hlsUrl) return ref.hlsUrl;
+    return resolveFallbackVideoUrl(ref);
+  },
+  [resolveFallbackVideoUrl],
+);
 ```
 
 - [ ] **Step 4: Thread `fallbackVideoUrl` through `toVideoPost`**
@@ -302,78 +309,78 @@ Replace with two functions — rename the existing one's ORIGINAL behavior to `r
 Current (~line 895-925):
 
 ```ts
-    const toVideoPost = useCallback((post: RawPost, preferredMediaIndex?: number): VideoPost | null => {
-        const media = post?.content?.media || [];
-        if (media.length === 0) return null;
+const toVideoPost = useCallback(
+  (post: RawPost, preferredMediaIndex?: number): VideoPost | null => {
+    const media = post?.content?.media || [];
+    if (media.length === 0) return null;
 
-        let selected: MediaRef | undefined;
-        if (
-            preferredMediaIndex !== undefined &&
-            media[preferredMediaIndex]?.type === 'video'
-        ) {
-            selected = media[preferredMediaIndex];
-        } else {
-            selected = media.find((m) => m?.type === 'video');
-        }
-        if (!selected) return null;
+    let selected: MediaRef | undefined;
+    if (preferredMediaIndex !== undefined && media[preferredMediaIndex]?.type === 'video') {
+      selected = media[preferredMediaIndex];
+    } else {
+      selected = media.find((m) => m?.type === 'video');
+    }
+    if (!selected) return null;
 
-        const videoUrl = resolveVideoUrl(selected);
-        if (!videoUrl) return null;
+    const videoUrl = resolveVideoUrl(selected);
+    if (!videoUrl) return null;
 
-        const id = post?.id || post?._id;
-        if (!id) return null;
+    const id = post?.id || post?._id;
+    if (!id) return null;
 
-        return {
-            ...post,
-            id: String(id),
-            user: post.user as VideoPost['user'],
-            content: post.content || {},
-            stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
-            createdAt: post.createdAt || '',
-            videoUrl,
-            posterUrl: resolvePosterUrl(selected),
-        };
-    }, [resolveVideoUrl, resolvePosterUrl]);
+    return {
+      ...post,
+      id: String(id),
+      user: post.user as VideoPost['user'],
+      content: post.content || {},
+      stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
+      createdAt: post.createdAt || '',
+      videoUrl,
+      posterUrl: resolvePosterUrl(selected),
+    };
+  },
+  [resolveVideoUrl, resolvePosterUrl],
+);
 ```
 
 Change to (adds `fallbackVideoUrl`, and only surfaces it when it genuinely differs from `videoUrl` — no point retrying the exact same URL):
 
 ```ts
-    const toVideoPost = useCallback((post: RawPost, preferredMediaIndex?: number): VideoPost | null => {
-        const media = post?.content?.media || [];
-        if (media.length === 0) return null;
+const toVideoPost = useCallback(
+  (post: RawPost, preferredMediaIndex?: number): VideoPost | null => {
+    const media = post?.content?.media || [];
+    if (media.length === 0) return null;
 
-        let selected: MediaRef | undefined;
-        if (
-            preferredMediaIndex !== undefined &&
-            media[preferredMediaIndex]?.type === 'video'
-        ) {
-            selected = media[preferredMediaIndex];
-        } else {
-            selected = media.find((m) => m?.type === 'video');
-        }
-        if (!selected) return null;
+    let selected: MediaRef | undefined;
+    if (preferredMediaIndex !== undefined && media[preferredMediaIndex]?.type === 'video') {
+      selected = media[preferredMediaIndex];
+    } else {
+      selected = media.find((m) => m?.type === 'video');
+    }
+    if (!selected) return null;
 
-        const videoUrl = resolveVideoUrl(selected);
-        if (!videoUrl) return null;
-        const rawFallback = resolveFallbackVideoUrl(selected);
-        const fallbackVideoUrl = rawFallback && rawFallback !== videoUrl ? rawFallback : undefined;
+    const videoUrl = resolveVideoUrl(selected);
+    if (!videoUrl) return null;
+    const rawFallback = resolveFallbackVideoUrl(selected);
+    const fallbackVideoUrl = rawFallback && rawFallback !== videoUrl ? rawFallback : undefined;
 
-        const id = post?.id || post?._id;
-        if (!id) return null;
+    const id = post?.id || post?._id;
+    if (!id) return null;
 
-        return {
-            ...post,
-            id: String(id),
-            user: post.user as VideoPost['user'],
-            content: post.content || {},
-            stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
-            createdAt: post.createdAt || '',
-            videoUrl,
-            fallbackVideoUrl,
-            posterUrl: resolvePosterUrl(selected),
-        };
-    }, [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl]);
+    return {
+      ...post,
+      id: String(id),
+      user: post.user as VideoPost['user'],
+      content: post.content || {},
+      stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
+      createdAt: post.createdAt || '',
+      videoUrl,
+      fallbackVideoUrl,
+      posterUrl: resolvePosterUrl(selected),
+    };
+  },
+  [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl],
+);
 ```
 
 - [ ] **Step 5: Typecheck**
@@ -410,17 +417,17 @@ Current props interface (~line 192-207):
 
 ```ts
 interface ActiveVideoSurfaceProps {
-    videoUrl: string;
-    posterUrl?: string;
-    isActive: boolean;
-    screenFocused: boolean;
-    muted: boolean;
-    onMutedChange: (muted: boolean) => void;
-    onError: () => void;
-    t: (key: string) => string;
-    theme: ReturnType<typeof useTheme>;
-    isLiked: boolean;
-    onLikePost: () => void;
+  videoUrl: string;
+  posterUrl?: string;
+  isActive: boolean;
+  screenFocused: boolean;
+  muted: boolean;
+  onMutedChange: (muted: boolean) => void;
+  onError: () => void;
+  t: (key: string) => string;
+  theme: ReturnType<typeof useTheme>;
+  isLiked: boolean;
+  onLikePost: () => void;
 }
 ```
 
@@ -433,14 +440,14 @@ Update the destructuring at the top of `ActiveVideoSurface` (~line 209-220) to i
 Right after the existing `const [posterFailed, setPosterFailed] = useState(false);` line (~inside the state block, before `const player = useVideoPlayer(...)`), add:
 
 ```ts
-    // The source actually handed to the player. Starts as the preferred
-    // `videoUrl` (HLS when the server resolved one); swaps to
-    // `fallbackVideoUrl` EXACTLY ONCE if that source errors (e.g. the HLS
-    // ladder hasn't finished transcoding yet). `triedFallbackRef` prevents a
-    // second swap if the fallback ALSO errors — at that point it's a genuine
-    // terminal failure and `onError` (the parent's give-up path) fires.
-    const [currentSource, setCurrentSource] = useState(videoUrl);
-    const triedFallbackRef = useRef(false);
+// The source actually handed to the player. Starts as the preferred
+// `videoUrl` (HLS when the server resolved one); swaps to
+// `fallbackVideoUrl` EXACTLY ONCE if that source errors (e.g. the HLS
+// ladder hasn't finished transcoding yet). `triedFallbackRef` prevents a
+// second swap if the fallback ALSO errors — at that point it's a genuine
+// terminal failure and `onError` (the parent's give-up path) fires.
+const [currentSource, setCurrentSource] = useState(videoUrl);
+const triedFallbackRef = useRef(false);
 ```
 
 - [ ] **Step 3: Use `currentSource` (not the `videoUrl` prop) as the player's source**
@@ -448,11 +455,11 @@ Right after the existing `const [posterFailed, setPosterFailed] = useState(false
 Current (~line 251-256):
 
 ```ts
-    const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
-        p.loop = true;
-        p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
-        p.muted = muted;
-    });
+const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
+  p.loop = true;
+  p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
+  p.muted = muted;
+});
 ```
 
 Change `useVideoPlayer(videoUrl, ...)` to `useVideoPlayer(currentSource, ...)`.
@@ -462,26 +469,26 @@ Change `useVideoPlayer(videoUrl, ...)` to `useVideoPlayer(currentSource, ...)`.
 Current `statusChange` listener (~line 264-284):
 
 ```ts
-    useEffect(() => {
-        const sub = player.addListener('statusChange', ({ status: next }) => {
-            if (next === 'readyToPlay') {
-                setHasRendered(true);
-                setIsBuffering(false);
-                if (player.duration > 0) {
-                    setDuration(player.duration);
-                }
-            } else if (next === 'loading') {
-                setHasRendered((rendered) => {
-                    setIsBuffering(rendered);
-                    return rendered;
-                });
-            } else if (next === 'error') {
-                setHasError(true);
-                onError();
-            }
-        });
-        return () => sub.remove();
-    }, [player, onError]);
+useEffect(() => {
+  const sub = player.addListener('statusChange', ({ status: next }) => {
+    if (next === 'readyToPlay') {
+      setHasRendered(true);
+      setIsBuffering(false);
+      if (player.duration > 0) {
+        setDuration(player.duration);
+      }
+    } else if (next === 'loading') {
+      setHasRendered((rendered) => {
+        setIsBuffering(rendered);
+        return rendered;
+      });
+    } else if (next === 'error') {
+      setHasError(true);
+      onError();
+    }
+  });
+  return () => sub.remove();
+}, [player, onError]);
 ```
 
 Change the `else if (next === 'error')` branch to:
@@ -611,24 +618,24 @@ Run: `grep -n "currentVisibleIndex" "packages/frontend/app/(app)/videos.tsx" | h
 In the main screen component (same scope as `currentVisibleIndex` and the `posts` array — NOT inside `ActiveVideoSurface`, which only knows about its own single post), add:
 
 ```ts
-    // Poster images are tiny (the `thumb` variant, already cached
-    // memory-disk) — prefetch a wider window than the live-player radius so
-    // the very first frame the viewer sees on a fast multi-swipe is already
-    // in cache, even before that row's video decoder starts buffering.
-    const POSTER_PREFETCH_RADIUS = ACTIVE_WINDOW_RADIUS + 2;
-    useEffect(() => {
-        const start = Math.max(0, currentVisibleIndex - POSTER_PREFETCH_RADIUS);
-        const end = Math.min(posts.length - 1, currentVisibleIndex + POSTER_PREFETCH_RADIUS);
-        for (let i = start; i <= end; i++) {
-            const posterUrl = posts[i]?.posterUrl;
-            if (posterUrl) {
-                Image.prefetch(posterUrl).catch(() => {
-                    // Prefetch is a pure optimization — a failure here is
-                    // identical to a cache miss, never surfaced to the viewer.
-                });
-            }
-        }
-    }, [currentVisibleIndex, posts]);
+// Poster images are tiny (the `thumb` variant, already cached
+// memory-disk) — prefetch a wider window than the live-player radius so
+// the very first frame the viewer sees on a fast multi-swipe is already
+// in cache, even before that row's video decoder starts buffering.
+const POSTER_PREFETCH_RADIUS = ACTIVE_WINDOW_RADIUS + 2;
+useEffect(() => {
+  const start = Math.max(0, currentVisibleIndex - POSTER_PREFETCH_RADIUS);
+  const end = Math.min(posts.length - 1, currentVisibleIndex + POSTER_PREFETCH_RADIUS);
+  for (let i = start; i <= end; i++) {
+    const posterUrl = posts[i]?.posterUrl;
+    if (posterUrl) {
+      Image.prefetch(posterUrl).catch(() => {
+        // Prefetch is a pure optimization — a failure here is
+        // identical to a cache miss, never surfaced to the viewer.
+      });
+    }
+  }
+}, [currentVisibleIndex, posts]);
 ```
 
 (`Image` here is the `expo-image` import already at the top of this file, line 3 — `Image.prefetch` is a static method on it, no new import needed.)
@@ -638,28 +645,28 @@ In the main screen component (same scope as `currentVisibleIndex` and the `posts
 In `ActiveVideoSurface`'s poster `<Image>` render (~line 464-471):
 
 ```tsx
-                        <Image
-                            source={{ uri: posterUrl }}
-                            style={styles.poster}
-                            contentFit="contain"
-                            cachePolicy="memory-disk"
-                            transition={150}
-                            onError={handlePosterError}
-                        />
+<Image
+  source={{ uri: posterUrl }}
+  style={styles.poster}
+  contentFit="contain"
+  cachePolicy="memory-disk"
+  transition={150}
+  onError={handlePosterError}
+/>;
 ```
 
 Add `priority="high"`:
 
 ```tsx
-                        <Image
-                            source={{ uri: posterUrl }}
-                            style={styles.poster}
-                            contentFit="contain"
-                            cachePolicy="memory-disk"
-                            transition={150}
-                            priority="high"
-                            onError={handlePosterError}
-                        />
+<Image
+  source={{ uri: posterUrl }}
+  style={styles.poster}
+  contentFit="contain"
+  cachePolicy="memory-disk"
+  transition={150}
+  priority="high"
+  onError={handlePosterError}
+/>;
 ```
 
 - [ ] **Step 4: Typecheck + lint**

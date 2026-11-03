@@ -4,7 +4,7 @@
   "description": "Mention frontend, backend, shared contracts, and MCP server",
   "license": "UNLICENSED",
   "private": true,
-  "packageManager": "bun@1.4.3",
+  "packageManager": "bun@1.4.4",
   "workspaces": {
     "packages": [
       "packages/*"
@@ -17,7 +17,7 @@
       "@oxy.so/services": "14.2.0",
       "@oxy.so/utils": "^1.4.0",
       "@syra.fm/sdk": "0.24.0",
-      "@types/bun": "1.4.3",
+      "@types/bun": "1.4.4",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.6",
       "jsonwebtoken": "^9.0.3",
@@ -83,10 +83,10 @@
     "build:publishing": "bun run --cwd packages/sdk build"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.4",
     "@oxy.so/doctor": "1.5.0",
     "@types/node": "catalog:",
-    "semver": "^7.8.5",
+    "semver": "^7.8.6",
     "typescript": "catalog:",
     "yaml": "^2.9.1"
   },

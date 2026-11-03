@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.4/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true, "defaultBranch": "main" },
   "files": {
     "ignoreUnknown": true,
@@ -47,6 +47,7 @@
     }
   },
   "json": { "formatter": { "trailingCommas": "none" } },
+  "yaml": { "formatter": { "quoteStyle": "single" } },
   "css": { "parser": { "tailwindDirectives": true } },
   "assist": { "enabled": true, "actions": { "source": { "organizeImports": "off" } } },
   "linter": {
@@ -106,8 +107,32 @@
       "includes": ["packages/frontend/**"],
       "linter": {
         "rules": {
-          // react-hooks/rules-of-hooks was an error in the frontend.
-          "correctness": { "useHookAtTopLevel": "error" },
+          "correctness": {
+            // react-hooks/rules-of-hooks was an error in the frontend.
+            "useHookAtTopLevel": "error",
+            // React Native renders a string only inside a <Text>. These Bloom
+            // components (and the app's aliases of Text) place their string
+            // children in one themselves, so a label passed to them is not raw.
+            "noReactNativeRawText": {
+              "level": "error",
+              "options": {
+                "skip": [
+                  "AdmonitionButton",
+                  "AdmonitionText",
+                  "BloomText",
+                  "Button",
+                  "Divider",
+                  "DropdownMenuItem",
+                  "InputGroupAddon",
+                  "LinkButton",
+                  "Muted",
+                  "RNText",
+                  "SectionHeading",
+                  "Title"
+                ]
+              }
+            }
+          },
           "style": {
             "noRestrictedImports": {
               "level": "error",
@@ -168,6 +193,26 @@
         "packages/frontend/test-support/**"
       ],
       "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    },
+    {
+      // Two React Native rules whose hazard does not exist in a test. A test
+      // double declared inside a test case (or a mock factory) is created once
+      // per case, not on every render, so it never remounts a subtree — that
+      // needs a component declared inside another component or hook, which app
+      // code must not do (noComponentHookFactories). And react-test-renderer has
+      // no host Text, so doubles render bare strings for the assertions to read
+      // (noReactNativeRawText).
+      "includes": [
+        "packages/frontend/**/__tests__/**",
+        "packages/frontend/**/*.test.ts",
+        "packages/frontend/**/*.test.tsx",
+        "packages/frontend/test-support/**"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": { "noComponentHookFactories": "off", "noReactNativeRawText": "off" }
+        }
+      }
     },
     {
       // Baseline: test doubles that call hooks outside a component. ESLint only

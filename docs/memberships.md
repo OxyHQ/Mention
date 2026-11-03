@@ -32,19 +32,19 @@ content but does not delete memberships or ordinary public social content.
 
 ## Privacy boundary
 
-| Surface | Protected content behavior | Evidence |
-| --- | --- | --- |
-| HTTP page, direct ID and thread | Membership plus tier policy before body hydration; expired/revoked/blocked denied | PostgreSQL-backed membership route tests |
-| Public metadata/teaser | Explicit authored teaser projection; no body, attachment metadata, poll options or results | Route tests, separate shared DTO |
-| Public feeds/search | Dedicated tables are not written to `posts` or public search indexes | Domain write paths; test verifies no public post created |
-| ActivityPub/embeds | No publication/federation/outbox writer; protected IDs are not ordinary posts | Dedicated domain storage and routes |
-| MCP/AI | Foreground-only endpoints reject MCP, capability and service proofs | Three independent route denial tests |
-| Push/notifications | No private body, membership activity or named viewer fan-out is emitted | No notification writer in the domain |
-| MTN | No protected membership record is published to public repo records | Domain write paths have no MTN append |
-| Media | Mention-owned private copy, original requester, no personal/guardian file access; authoritative live visibility required; callback changes withhold; original requester retained | Route tests, reference registry/outbox tests |
-| Frontend/account switch | Viewer-scoped ephemeral query keys; no stale body after denied refetch or account change; pending leave hides content and cancels/removes pages | React Query screen regressions |
-| Directory/insights | Directory includes explicit badge opt-ins only; metrics aggregate membership states, never page viewers | Route tests |
-| Reports | Creator queue omits reporter identity; independent safety review requires a fresh Oxy app permission and a committed report-bound audit | Real SDK/HTTP authority fixture and PostgreSQL route tests |
+| Surface                         | Protected content behavior                                                                                                                                                       | Evidence                                                   |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| HTTP page, direct ID and thread | Membership plus tier policy before body hydration; expired/revoked/blocked denied                                                                                                | PostgreSQL-backed membership route tests                   |
+| Public metadata/teaser          | Explicit authored teaser projection; no body, attachment metadata, poll options or results                                                                                       | Route tests, separate shared DTO                           |
+| Public feeds/search             | Dedicated tables are not written to `posts` or public search indexes                                                                                                             | Domain write paths; test verifies no public post created   |
+| ActivityPub/embeds              | No publication/federation/outbox writer; protected IDs are not ordinary posts                                                                                                    | Dedicated domain storage and routes                        |
+| MCP/AI                          | Foreground-only endpoints reject MCP, capability and service proofs                                                                                                              | Three independent route denial tests                       |
+| Push/notifications              | No private body, membership activity or named viewer fan-out is emitted                                                                                                          | No notification writer in the domain                       |
+| MTN                             | No protected membership record is published to public repo records                                                                                                               | Domain write paths have no MTN append                      |
+| Media                           | Mention-owned private copy, original requester, no personal/guardian file access; authoritative live visibility required; callback changes withhold; original requester retained | Route tests, reference registry/outbox tests               |
+| Frontend/account switch         | Viewer-scoped ephemeral query keys; no stale body after denied refetch or account change; pending leave hides content and cancels/removes pages                                  | React Query screen regressions                             |
+| Directory/insights              | Directory includes explicit badge opt-ins only; metrics aggregate membership states, never page viewers                                                                          | Route tests                                                |
+| Reports                         | Creator queue omits reporter identity; independent safety review requires a fresh Oxy app permission and a committed report-bound audit                                          | Real SDK/HTTP authority fixture and PostgreSQL route tests |
 
 The absence of public integrations is intentional, not a claim of authenticated
 production validation of every surface. New integrations must extend this matrix

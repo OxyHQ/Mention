@@ -73,7 +73,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  BUN_VERSION: '1.4.3'
+  BUN_VERSION: '1.4.4'
   NODE_VERSION: '24.21.0'
   # The revision this run is judged against — by the per-package scope, the
   # lockfile resolve and the frontend coverage ratchet alike. Each event keeps
@@ -996,7 +996,8 @@ jobs:
   # it failed or was cancelled.
   ci-complete:
     name: CI complete
-    needs: [provenance, quality, tests, backend-test, e2e, frontend-bundle-baseline, frontend-bundle]
+    needs:
+      [provenance, quality, tests, backend-test, e2e, frontend-bundle-baseline, frontend-bundle]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15

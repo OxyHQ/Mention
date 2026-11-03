@@ -15,7 +15,7 @@
 - The "Read more" label text never changes based on the setting — only what tapping it does changes.
 - No i18n JSON file edits — this codebase's established convention (confirmed in `PostContentText.tsx`, `ProfileScreen.tsx`, etc.) is the inline `t('some.key', { defaultValue: 'English text' })` pattern with no corresponding `locales/en.json` entries required.
 - No `as any`, no `@ts-ignore`, no silent catches, no new `useEffect` unless unavoidable (per this repo's AGENTS.md).
-- The frontend `saveSettings` callback in `appearance.tsx` PUTs the **entire** `appearance` object on every save (not a partial patch) — any new field added to that call site MUST default to the *current* stored value when not the field being changed, exactly like the existing `postTextExpand`/`themeMode`/`primaryColor` fields do. Omitting a field here would silently wipe it server-side on the next unrelated settings change (confirmed: the backend route does `update['appearance'] = {...}` as one object, then `$set: { appearance: {...} }` — a full-document replace of the `appearance` subdocument, not a per-field dot-notation patch).
+- The frontend `saveSettings` callback in `appearance.tsx` PUTs the **entire** `appearance` object on every save (not a partial patch) — any new field added to that call site MUST default to the _current_ stored value when not the field being changed, exactly like the existing `postTextExpand`/`themeMode`/`primaryColor` fields do. Omitting a field here would silently wipe it server-side on the next unrelated settings change (confirmed: the backend route does `update['appearance'] = {...}` as one object, then `$set: { appearance: {...} }` — a full-document replace of the `appearance` subdocument, not a per-field dot-notation patch).
 
 ---
 
@@ -77,7 +77,9 @@ function setDot(obj: Record<string, unknown>, path: string, value: unknown): voi
 
 vi.mock('@oxy.so/core/server', () => ({
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
+    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = {
+      id: TEST_USER,
+    };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';
     next();
   },
@@ -86,23 +88,23 @@ vi.mock('@oxy.so/core/server', () => ({
 
 vi.mock('../../models/UserSettings', () => ({
   default: {
-    findOneAndUpdate: vi.fn((filter: { oxyUserId: string }, operation: Record<string, Record<string, unknown>>) => {
-      const doc = getDoc(filter.oxyUserId);
-      if (operation.$set) {
-        for (const [path, value] of Object.entries(operation.$set)) setDot(doc, path, value);
-      }
-      return { lean: () => Promise.resolve(JSON.parse(JSON.stringify(doc))) };
-    }),
+    findOneAndUpdate: vi.fn(
+      (filter: { oxyUserId: string }, operation: Record<string, Record<string, unknown>>) => {
+        const doc = getDoc(filter.oxyUserId);
+        if (operation.$set) {
+          for (const [path, value] of Object.entries(operation.$set)) setDot(doc, path, value);
+        }
+        return { lean: () => Promise.resolve(JSON.parse(JSON.stringify(doc))) };
+      },
+    ),
   },
 }));
 
 vi.mock('../../utils/userSettings', () => ({
-  ensureUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
-  buildSettingsResponseForViewer: (
-    doc: unknown,
-    targetUserId: string,
-    viewerUserId: string,
-  ) => (targetUserId === viewerUserId ? doc : {}),
+  ensureUserSettings: (oxyUserId: string) =>
+    Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
+  buildSettingsResponseForViewer: (doc: unknown, targetUserId: string, viewerUserId: string) =>
+    targetUserId === viewerUserId ? doc : {},
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -140,7 +142,9 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .expect(200);
 
     const settings = await getSettings();
-    expect((settings.appearance as Record<string, unknown>).postReadMoreAction).toBe('expandInline');
+    expect((settings.appearance as Record<string, unknown>).postReadMoreAction).toBe(
+      'expandInline',
+    );
   });
 
   it('rejects an invalid postReadMoreAction value (field left unset)', async () => {
@@ -150,7 +154,9 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .expect(200);
 
     const settings = await getSettings();
-    expect((settings.appearance as Record<string, unknown> | undefined)?.postReadMoreAction).toBeUndefined();
+    expect(
+      (settings.appearance as Record<string, unknown> | undefined)?.postReadMoreAction,
+    ).toBeUndefined();
   });
 
   it('persists collapseLongBio as a boolean', async () => {
@@ -170,13 +176,21 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .expect(200);
 
     const settings = await getSettings();
-    expect((settings.appearance as Record<string, unknown> | undefined)?.collapseLongBio).toBeUndefined();
+    expect(
+      (settings.appearance as Record<string, unknown> | undefined)?.collapseLongBio,
+    ).toBeUndefined();
   });
 
   it('still persists themeMode alongside the two new fields in the same request', async () => {
     await request(app)
       .put('/profile/settings')
-      .send({ appearance: { themeMode: 'dark', postReadMoreAction: 'expandInline', collapseLongBio: false } })
+      .send({
+        appearance: {
+          themeMode: 'dark',
+          postReadMoreAction: 'expandInline',
+          collapseLongBio: false,
+        },
+      })
       .expect(200);
 
     const settings = await getSettings();
@@ -216,13 +230,20 @@ export interface AppearanceSettings {
 Update the schema (around line 152-156):
 
 ```ts
-const AppearanceSchema = new Schema<AppearanceSettings>({
-  themeMode: { type: String, enum: ['light', 'dark', 'system', 'adaptive'], default: 'system' },
-  primaryColor: { type: String, default: undefined },
-  postTextExpand: { type: String, enum: ['default', 'more', 'muchMore', 'all'], default: 'default' },
-  postReadMoreAction: { type: String, enum: ['openPost', 'expandInline'], default: 'openPost' },
-  collapseLongBio: { type: Boolean, default: true },
-}, { _id: false });
+const AppearanceSchema = new Schema<AppearanceSettings>(
+  {
+    themeMode: { type: String, enum: ['light', 'dark', 'system', 'adaptive'], default: 'system' },
+    primaryColor: { type: String, default: undefined },
+    postTextExpand: {
+      type: String,
+      enum: ['default', 'more', 'muchMore', 'all'],
+      default: 'default',
+    },
+    postReadMoreAction: { type: String, enum: ['openPost', 'expandInline'], default: 'openPost' },
+    collapseLongBio: { type: Boolean, default: true },
+  },
+  { _id: false },
+);
 ```
 
 - [ ] **Step 4: Whitelist the fields in the route**
@@ -230,26 +251,26 @@ const AppearanceSchema = new Schema<AppearanceSettings>({
 In `packages/backend/src/routes/profileSettings.ts`, extend the `appearance` validation block (around line 89-102):
 
 ```ts
-    if (appearance) {
-      update['appearance'] = {};
-      if (appearance.themeMode && ['light', 'dark', 'system'].includes(appearance.themeMode)) {
-        update.appearance.themeMode = appearance.themeMode;
-      }
-      if (typeof appearance.primaryColor === 'string' && appearance.primaryColor.trim()) {
-        update.appearance.primaryColor = appearance.primaryColor.trim();
-      } else if (appearance.primaryColor === null) {
-        update.appearance.primaryColor = undefined;
-      }
-      if (['default', 'more', 'muchMore', 'all'].includes(appearance.postTextExpand)) {
-        update.appearance.postTextExpand = appearance.postTextExpand;
-      }
-      if (['openPost', 'expandInline'].includes(appearance.postReadMoreAction)) {
-        update.appearance.postReadMoreAction = appearance.postReadMoreAction;
-      }
-      if (typeof appearance.collapseLongBio === 'boolean') {
-        update.appearance.collapseLongBio = appearance.collapseLongBio;
-      }
-    }
+if (appearance) {
+  update['appearance'] = {};
+  if (appearance.themeMode && ['light', 'dark', 'system'].includes(appearance.themeMode)) {
+    update.appearance.themeMode = appearance.themeMode;
+  }
+  if (typeof appearance.primaryColor === 'string' && appearance.primaryColor.trim()) {
+    update.appearance.primaryColor = appearance.primaryColor.trim();
+  } else if (appearance.primaryColor === null) {
+    update.appearance.primaryColor = undefined;
+  }
+  if (['default', 'more', 'muchMore', 'all'].includes(appearance.postTextExpand)) {
+    update.appearance.postTextExpand = appearance.postTextExpand;
+  }
+  if (['openPost', 'expandInline'].includes(appearance.postReadMoreAction)) {
+    update.appearance.postReadMoreAction = appearance.postReadMoreAction;
+  }
+  if (typeof appearance.collapseLongBio === 'boolean') {
+    update.appearance.collapseLongBio = appearance.collapseLongBio;
+  }
+}
 ```
 
 - [ ] **Step 5: Run test to verify it passes**
@@ -399,7 +420,7 @@ Create `packages/frontend/utils/expandableText.ts`:
 export function computeExpandableText(
   text: string,
   maxChars: number,
-  isExpanded: boolean
+  isExpanded: boolean,
 ): { displayText: string; isTruncated: boolean } {
   const isTruncated = text.length > maxChars;
   if (!isTruncated || isExpanded) {
@@ -463,15 +484,20 @@ git commit -m "feat(frontend): add shared expandable-text truncation logic + hoo
 In `packages/frontend/app/(app)/settings/appearance.tsx`, update the import (line 3):
 
 ```ts
-import { useAppearanceStore, type PostTextExpand, type PostReadMoreAction } from '@/store/appearanceStore';
+import {
+  useAppearanceStore,
+  type PostTextExpand,
+  type PostReadMoreAction,
+} from '@/store/appearanceStore';
 ```
 
 Add local derived values right after the existing `postTextExpand` line (line 40):
 
 ```ts
-  const postTextExpand: PostTextExpand = mySettings?.appearance?.postTextExpand ?? 'default';
-  const postReadMoreAction: PostReadMoreAction = mySettings?.appearance?.postReadMoreAction ?? 'openPost';
-  const collapseLongBio: boolean = mySettings?.appearance?.collapseLongBio ?? true;
+const postTextExpand: PostTextExpand = mySettings?.appearance?.postTextExpand ?? 'default';
+const postReadMoreAction: PostReadMoreAction =
+  mySettings?.appearance?.postReadMoreAction ?? 'openPost';
+const collapseLongBio: boolean = mySettings?.appearance?.collapseLongBio ?? true;
 ```
 
 - [ ] **Step 2: Extend `saveSettings` to always include both new fields**
@@ -479,7 +505,8 @@ Add local derived values right after the existing `postTextExpand` line (line 40
 Replace the `saveSettings` callback (lines 68-79) — this MUST keep sending every appearance field on every save, per the Global Constraints note on the backend's full-subdocument replace:
 
 ```ts
-  const saveSettings = useCallback(async (updates: {
+const saveSettings = useCallback(
+  async (updates: {
     themeMode?: ThemeMode;
     primaryColor?: string;
     headerImageId?: string;
@@ -505,7 +532,17 @@ Replace the `saveSettings` callback (lines 68-79) — this MUST keep sending eve
       profileHeaderImage: header || null,
     });
     setSettingsSaving(false);
-  }, [themeMode, preset.hex, headerImageId, postTextExpand, postReadMoreAction, collapseLongBio, updateMySettings]);
+  },
+  [
+    themeMode,
+    preset.hex,
+    headerImageId,
+    postTextExpand,
+    postReadMoreAction,
+    collapseLongBio,
+    updateMySettings,
+  ],
+);
 ```
 
 - [ ] **Step 3: Add the two change handlers**
@@ -513,13 +550,19 @@ Replace the `saveSettings` callback (lines 68-79) — this MUST keep sending eve
 Right after `onPostTextExpandChange` (line 86-88):
 
 ```ts
-  const onPostReadMoreActionChange = useCallback((value: PostReadMoreAction) => {
+const onPostReadMoreActionChange = useCallback(
+  (value: PostReadMoreAction) => {
     void saveSettings({ postReadMoreAction: value });
-  }, [saveSettings]);
+  },
+  [saveSettings],
+);
 
-  const onCollapseLongBioChange = useCallback((value: 'collapse' | 'full') => {
+const onCollapseLongBioChange = useCallback(
+  (value: 'collapse' | 'full') => {
     void saveSettings({ collapseLongBio: value === 'collapse' });
-  }, [saveSettings]);
+  },
+  [saveSettings],
+);
 ```
 
 - [ ] **Step 4: Add the two SegmentedControl rows to the JSX**
@@ -631,29 +674,39 @@ const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 /** In-feed truncation thresholds (chars) per the `postTextExpand` preference. */
 const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity } as const;
 
-const PostContentText: React.FC<Props> = ({ content, postId, previewChars, translatedText, linkPreviewUrl }) => {
+const PostContentText: React.FC<Props> = ({
+  content,
+  postId,
+  previewChars,
+  translatedText,
+  linkPreviewUrl,
+}) => {
   const router = useRouter();
   const pathname = usePathname();
-  const postTextExpand = useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
+  const postTextExpand =
+    useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
   const effectivePreviewChars = previewChars ?? PREVIEW_CHARS[postTextExpand];
   const originalText = typeof content === 'string' ? content : content?.text || '';
   const rawText = translatedText || originalText;
 
   const textContent = linkPreviewUrl
-    ? rawText.replace(TRAILING_URL_RE, (match, url) => url === linkPreviewUrl ? '' : match)
+    ? rawText.replace(TRAILING_URL_RE, (match, url) => (url === linkPreviewUrl ? '' : match))
     : rawText;
 
   if (!textContent) return null;
 
   const isDetailPage = pathname?.startsWith('/p');
   const shouldTruncate = !isDetailPage && textContent.length > effectivePreviewChars;
-  const displayed = shouldTruncate ? `${textContent.slice(0, effectivePreviewChars).trimEnd()}…` : textContent;
+  const displayed = shouldTruncate
+    ? `${textContent.slice(0, effectivePreviewChars).trimEnd()}…`
+    : textContent;
 
-  const suffix = shouldTruncate && postId ? (
-    <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
-      {' Read more'}
-    </Text>
-  ) : null;
+  const suffix =
+    shouldTruncate && postId ? (
+      <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
+        {' Read more'}
+      </Text>
+    ) : null;
 
   return (
     <LinkifiedText
@@ -700,40 +753,49 @@ const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 /** In-feed truncation thresholds (chars) per the `postTextExpand` preference. */
 const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity } as const;
 
-const PostContentText: React.FC<Props> = ({ content, postId, previewChars, translatedText, linkPreviewUrl }) => {
+const PostContentText: React.FC<Props> = ({
+  content,
+  postId,
+  previewChars,
+  translatedText,
+  linkPreviewUrl,
+}) => {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
-  const postTextExpand = useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
-  const postReadMoreAction = useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
+  const postTextExpand =
+    useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
+  const postReadMoreAction =
+    useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
   const effectivePreviewChars = previewChars ?? PREVIEW_CHARS[postTextExpand];
   const originalText = typeof content === 'string' ? content : content?.text || '';
   const rawText = translatedText || originalText;
 
   const textContent = linkPreviewUrl
-    ? rawText.replace(TRAILING_URL_RE, (match, url) => url === linkPreviewUrl ? '' : match)
+    ? rawText.replace(TRAILING_URL_RE, (match, url) => (url === linkPreviewUrl ? '' : match))
     : rawText;
 
   const isDetailPage = pathname?.startsWith('/p');
   // On the detail page, never truncate — feed it Infinity so the hook is a no-op.
   const { displayText, isTruncated, isExpanded, toggle } = useExpandableText(
     textContent,
-    isDetailPage ? Infinity : effectivePreviewChars
+    isDetailPage ? Infinity : effectivePreviewChars,
   );
 
   if (!textContent) return null;
 
-  const suffix = isTruncated && postId ? (
-    postReadMoreAction === 'expandInline' ? (
-      <Text className="text-primary" onPress={toggle}>
-        {isExpanded ? ` ${t('common.showLess', 'Show less')}` : ' Read more'}
-      </Text>
-    ) : (
-      <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
-        {' Read more'}
-      </Text>
-    )
-  ) : null;
+  const suffix =
+    isTruncated && postId ? (
+      postReadMoreAction === 'expandInline' ? (
+        <Text className="text-primary" onPress={toggle}>
+          {isExpanded ? ` ${t('common.showLess', 'Show less')}` : ' Read more'}
+        </Text>
+      ) : (
+        <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
+          {' Read more'}
+        </Text>
+      )
+    ) : null;
 
   return (
     <LinkifiedText
@@ -814,33 +876,42 @@ const BIO_COLLAPSE_CHARS = 200;
 Current (lines 140-147):
 
 ```tsx
-      {/* Bio */}
-      {!minimalistMode && profileData.bio && (
-        <LinkifiedText
-          text={profileData.bio}
-          className="text-foreground"
-          style={{ fontSize: 15, lineHeight: 20, marginBottom: 12 }}
-        />
-      )}
+{
+  /* Bio */
+}
+{
+  !minimalistMode && profileData.bio && (
+    <LinkifiedText
+      text={profileData.bio}
+      className="text-foreground"
+      style={{ fontSize: 15, lineHeight: 20, marginBottom: 12 }}
+    />
+  );
+}
 ```
 
 `t` is already destructured at the top of `ProfileContent` (`const { t } = useTranslation();`, right after the `ProfileContentProps` destructuring) — reuse it, don't add a second `useTranslation()` call. Insert the two new lines directly after the existing `profileHandle` block and before `handleLayout`:
 
 ```ts
-  const { t } = useTranslation();
-  const design = profileData.design;
-  const minimalistMode = design.minimalistMode;
-  const profileHandle = getNormalizedUserHandle({
+const { t } = useTranslation();
+const design = profileData.design;
+const minimalistMode = design.minimalistMode;
+const profileHandle =
+  getNormalizedUserHandle({
     username: profileData.username || username,
     instance: profileData.instance,
     isFederated: profileData.isFederated,
   }) || username;
-  const collapseLongBio = useAppearanceStore((s) => s.mySettings?.appearance?.collapseLongBio) ?? true;
-  const bioExpand = useExpandableText(profileData.bio ?? '', collapseLongBio ? BIO_COLLAPSE_CHARS : Infinity);
+const collapseLongBio =
+  useAppearanceStore((s) => s.mySettings?.appearance?.collapseLongBio) ?? true;
+const bioExpand = useExpandableText(
+  profileData.bio ?? '',
+  collapseLongBio ? BIO_COLLAPSE_CHARS : Infinity,
+);
 
-  const handleLayout = (event: LayoutChangeEvent) => {
-    onLayout?.(event.nativeEvent.layout.height);
-  };
+const handleLayout = (event: LayoutChangeEvent) => {
+  onLayout?.(event.nativeEvent.layout.height);
+};
 ```
 
 (Only the two new `collapseLongBio`/`bioExpand` lines are additions — everything else shown above is existing code, reproduced so the insertion point is unambiguous.)
@@ -848,22 +919,27 @@ Current (lines 140-147):
 (If `useTranslation`'s `t` is already destructured earlier in this component, do not re-declare it — just reuse that existing binding.)
 
 ```tsx
-      {/* Bio */}
-      {!minimalistMode && profileData.bio && (
-        <LinkifiedText
-          text={bioExpand.displayText}
-          className="text-foreground"
-          style={{ fontSize: 15, lineHeight: 20, marginBottom: 12 }}
-          suffix={bioExpand.isTruncated ? (
-            <Text
-              className="text-primary"
-              onPress={bioExpand.toggle}
-            >
-              {bioExpand.isExpanded ? ` ${t('common.showLess', 'Show less')}` : ` ${t('profile.bio.readMore', 'Read more')}`}
-            </Text>
-          ) : null}
-        />
-      )}
+{
+  /* Bio */
+}
+{
+  !minimalistMode && profileData.bio && (
+    <LinkifiedText
+      text={bioExpand.displayText}
+      className="text-foreground"
+      style={{ fontSize: 15, lineHeight: 20, marginBottom: 12 }}
+      suffix={
+        bioExpand.isTruncated ? (
+          <Text className="text-primary" onPress={bioExpand.toggle}>
+            {bioExpand.isExpanded
+              ? ` ${t('common.showLess', 'Show less')}`
+              : ` ${t('profile.bio.readMore', 'Read more')}`}
+          </Text>
+        ) : null
+      }
+    />
+  );
+}
 ```
 
 `Text` is already imported in this file (`react-native`, line 2) — no new import needed for it. Confirm `LinkifiedText`'s `suffix` prop is passed correctly (it's `React.ReactNode`, same as `PostContentText.tsx`'s usage).

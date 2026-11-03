@@ -80,7 +80,7 @@ Set `VW`/`VH` to run any mode at another viewport. Worth doing: every mode but
 
 ## `landing` — does it land where the destination paints
 
-`geometry` judges the *shape* of a flight and never its endpoint, so a flight
+`geometry` judges the _shape_ of a flight and never its endpoint, so a flight
 that grew perfectly smoothly to the wrong box passed every rule it has. That is
 what shipped: on desktop the surface flew to the whole window while `/videos`
 paints in a ~592px column.
@@ -113,7 +113,7 @@ Production, real Chrome, four viewports. Panel column read by walking up from
 the feed video; painted box read on `/videos` after the surface let go:
 
 | viewport  | `/videos` paints | panel x,width | window height |
-|-----------|------------------|---------------|---------------|
+| --------- | ---------------- | ------------- | ------------- |
 | 430x932   | `0,0,415,932`    | `0`, `415`    | 932           |
 | 1100x900  | `98,0,592,900`   | `98`, `592`   | 900           |
 | 1440x900  | `358,0,592,900`  | `358`, `592`  | 900           |
@@ -232,10 +232,10 @@ they have completely different fixes.
 Production `mention.earth`, real Chrome 152 on a private Xvfb, signed out,
 warm cache, fresh page per run.
 
-| | cold (first `/p/` of the session) | hot (second, same page) |
-| --- | --- | --- |
-| `blankMs` p50 | **315 ms** (430x932) / 310 ms (1440x900) | **1 ms** / 2 ms |
-| `t0→FMP` p50 | 332 ms / 321 ms | **13 ms** / 16 ms |
+|               | cold (first `/p/` of the session)        | hot (second, same page) |
+| ------------- | ---------------------------------------- | ----------------------- |
+| `blankMs` p50 | **315 ms** (430x932) / 310 ms (1440x900) | **1 ms** / 2 ms         |
+| `t0→FMP` p50  | 332 ms / 321 ms                          | **13 ms** / 16 ms       |
 
 And the attribution, which is what makes those numbers actionable:
 
@@ -261,11 +261,11 @@ it needs no local export and no deploy.
 
 Three arms, same build, same session, 430x932:
 
-| | blank frame p50 | tap → real content p50 |
-| --- | --- | --- |
-| `post` — cold | 308 ms | 318 ms |
-| `warm` — chunk evaluated first | **311 ms** | **322 ms** |
-| `hot` — navigated once already | **1 ms** | **14 ms** |
+|                                | blank frame p50 | tap → real content p50 |
+| ------------------------------ | --------------- | ---------------------- |
+| `post` — cold                  | 308 ms          | 318 ms                 |
+| `warm` — chunk evaluated first | **311 ms**      | **322 ms**             |
+| `hot` — navigated once already | **1 ms**        | **14 ms**              |
 
 **Warming the chunk buys nothing.** Registering the module is not what the app
 is waiting for, so `__prefetchImport` would not help and neither would a

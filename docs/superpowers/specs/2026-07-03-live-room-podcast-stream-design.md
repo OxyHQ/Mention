@@ -68,7 +68,7 @@ Add episode support to the public-catalog SDK.
   1. auth → `sendForbiddenUnlessRoomManager` → `room.status === LIVE` (identical gates to `POST /:id/stream`).
   2. `resolvePodcastEpisode(episodeId, syraPodcastId)`; `404`/`400` if unresolvable or podcast-id mismatch.
   3. call `startUrlIngress(room, id, { url: audioUrl, title, image: artworkUrl, description: undefined }, res, userId)`.
-  Response shape identical to `POST /:id/stream` (`{ message, ingressId, url }`).
+     Response shape identical to `POST /:id/stream` (`{ message, ingressId, url }`).
 
 Note: `streamImage` for URL streams is a `cloud.oxy.so` URL; here it's the Syra absolute artwork URL. The stream card renders `room.streamImage` as a remote image — an external Syra URL renders directly. Confirm the card path during implementation; if it must be a proxied/cdn URL, resolve accordingly (no new per-app helper).
 

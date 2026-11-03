@@ -18,7 +18,7 @@ React Native, React Query, Zustand, Bloom, Socket.IO, and the shared
 
 ## Setup
 
-Use the versions pinned at the monorepo root (Bun 1.4.3 and Node 24.21.0):
+Use the versions pinned at the monorepo root (Bun 1.4.4 and Node 24.21.0):
 
 ```bash
 cp packages/frontend/.env.example packages/frontend/.env
@@ -66,12 +66,12 @@ bun run typecheck
 `analyze-bundle` measures `dist/`, exporting it first when it is missing. It
 takes four flags:
 
-| Flag | Effect |
-| --- | --- |
-| `--ci` | Exit non-zero when a `bundle-budgets.json` ceiling is breached. The only hard gate. |
-| `--json <path>` | Write the full JSON report. |
-| `--baseline <path>` | Compare against a previously written JSON report. |
-| `--markdown <path>` | Write a Markdown summary, which CI appends to the job step summary. |
+| Flag                | Effect                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `--ci`              | Exit non-zero when a `bundle-budgets.json` ceiling is breached. The only hard gate. |
+| `--json <path>`     | Write the full JSON report.                                                         |
+| `--baseline <path>` | Compare against a previously written JSON report.                                   |
+| `--markdown <path>` | Write a Markdown summary, which CI appends to the job step summary.                 |
 
 Run it with `--source-maps external` output (`bun run build:analyze`), otherwise
 the per-source attribution is empty. The `--baseline` comparison is advisory: a

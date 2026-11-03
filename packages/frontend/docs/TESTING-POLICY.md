@@ -85,15 +85,15 @@ tests while the total is held up elsewhere. Deleting
 **4. The critical-path bar: 80% statements, 65% branches.** Applied to the seven
 areas issue #700 names:
 
-| area | files | clear the bar |
-|---|---|---|
-| authentication, session and account switching | 4 | 3 |
-| composer and post mutations | 7 | 1 |
-| React Query cache keys and invalidation | 6 | 6 |
-| permissions and channel management | 4 | 3 |
-| federation-facing UI state | 4 | 1 |
-| deep links and share intents | 3 | 1 |
-| feed pagination and state restoration | 9 | 8 |
+| area                                          | files | clear the bar |
+| --------------------------------------------- | ----- | ------------- |
+| authentication, session and account switching | 4     | 3             |
+| composer and post mutations                   | 7     | 1             |
+| React Query cache keys and invalidation       | 6     | 6             |
+| permissions and channel management            | 4     | 3             |
+| federation-facing UI state                    | 4     | 1             |
+| deep links and share intents                  | 3     | 1             |
+| feed pagination and state restoration         | 9     | 8             |
 
 Branches are held higher relative to reality than statements on purpose: a
 permission check, a consent gate and a cursor boundary are all branches, and a
@@ -160,15 +160,15 @@ all move the reassuring way.
 
 ## When the gate stops you
 
-| message | what to do |
-|---|---|
-| `classified nowhere` | New logic file. Run `coverage:record`, or list it in `unenforceable` with a reason and bump `expectedCounts`. |
-| `lost coverage they had at the recorded baseline` | A test stopped exercising something. Add the assertion back — do not re-record. |
-| `critical-path file(s) are under the bar` | Raise the coverage. An exemption needs a reason, a date and a bumped exact count, and should be argued in review. |
-| `Overall … fell to X%` | The change added code nothing covers. Cover it. |
-| `Overall … rose to X% but the baseline still says Y%` | Good news. `coverage:record` and commit the baseline. |
-| `lower than <base>'s` | You (or `coverage:record`) lowered the committed baseline. If the code legitimately shrank, add an `allowedBaselineDecreases` entry. |
-| `missing from the coverage report` | A file failed to parse. Search the run's output for `Failed to collect coverage from`. |
+| message                                               | what to do                                                                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `classified nowhere`                                  | New logic file. Run `coverage:record`, or list it in `unenforceable` with a reason and bump `expectedCounts`.                        |
+| `lost coverage they had at the recorded baseline`     | A test stopped exercising something. Add the assertion back — do not re-record.                                                      |
+| `critical-path file(s) are under the bar`             | Raise the coverage. An exemption needs a reason, a date and a bumped exact count, and should be argued in review.                    |
+| `Overall … fell to X%`                                | The change added code nothing covers. Cover it.                                                                                      |
+| `Overall … rose to X% but the baseline still says Y%` | Good news. `coverage:record` and commit the baseline.                                                                                |
+| `lower than <base>'s`                                 | You (or `coverage:record`) lowered the committed baseline. If the code legitimately shrank, add an `allowedBaselineDecreases` entry. |
+| `missing from the coverage report`                    | A file failed to parse. Search the run's output for `Failed to collect coverage from`.                                               |
 
 ## What this policy does NOT do
 

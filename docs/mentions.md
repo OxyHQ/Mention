@@ -5,13 +5,13 @@ MTN, Mention's signed-record protocol.
 
 ## Canonical forms
 
-| Stage | Form |
-| --- | --- |
-| Composer display | `@handle` |
-| Stored post text | `[mention:<oxyUserId>]` |
-| Stored index/allowlist | `Post.mentions: string[]` |
-| Hydrated API text | `[@<label>](<canonicalHandle>)` |
-| Rendered post | Clickable `<label>` linking to `/@<canonicalHandle>` |
+| Stage                  | Form                                                 |
+| ---------------------- | ---------------------------------------------------- |
+| Composer display       | `@handle`                                            |
+| Stored post text       | `[mention:<oxyUserId>]`                              |
+| Stored index/allowlist | `Post.mentions: string[]`                            |
+| Hydrated API text      | `[@<label>](<canonicalHandle>)`                      |
+| Rendered post          | Clickable `<label>` linking to `/@<canonicalHandle>` |
 
 For example, selecting `@alice` can produce:
 

@@ -15,7 +15,7 @@ Profile bios (`ProfileContent.tsx`) have no truncation at all today — always r
 in full via `LinkifiedText`, however long.
 
 Both are Mention-only, viewer-side display preferences — they live in Mention's
-`UserSettings.appearance`, control how the *viewer* sees other people's content, and
+`UserSettings.appearance`, control how the _viewer_ sees other people's content, and
 follow the exact same settings plumbing as `postTextExpand`.
 
 ## Goal
@@ -57,6 +57,7 @@ follow the exact same settings plumbing as `postTextExpand`.
   Both wire into the existing `saveSettings` callback the same way `postTextExpand`
   does today (extend its `updates` param + the `appearance: {...}` object it PUTs).
 - **Shared logic** — new hook `hooks/useExpandableText.ts`:
+
   ```ts
   function useExpandableText(text: string, maxChars: number): {
     displayText: string;   // truncated + ellipsis, or full text
@@ -65,6 +66,7 @@ follow the exact same settings plumbing as `postTextExpand`.
     toggle: () => void;
   }
   ```
+
   Pure text-truncation + expand/collapse state, no UI. Both call sites below build
   their own "Read more"/"Show less" affordance around it — the hook does not render
   anything or know about navigation, so it stays reusable without forcing posts and

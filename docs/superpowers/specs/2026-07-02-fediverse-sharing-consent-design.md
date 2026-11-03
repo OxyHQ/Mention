@@ -47,13 +47,13 @@ Mention federates every account by default with no user-facing control and no ex
 
 ### Gates (sharing OFF)
 
-| Surface | Behavior when OFF |
-|---|---|
-| `GET /.well-known/webfinger` for the user | 404 (stops discovery) |
-| `GET /ap/users/:username` + `/outbox`, `/followers`, `/following`, user `/inbox` | 404 — indistinguishable from a nonexistent user |
+| Surface                                                                          | Behavior when OFF                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /.well-known/webfinger` for the user                                        | 404 (stops discovery)                                                                                                                                                                                                                                      |
+| `GET /ap/users/:username` + `/outbox`, `/followers`, `/following`, user `/inbox` | 404 — indistinguishable from a nonexistent user                                                                                                                                                                                                            |
 | Shared inbox activities targeting the user (`handleIncomingFollow` and the rest) | dropped silently (debug log) — no `FederatedFollow`, no Oxy bridge, no Accept, no Reject. A `Reject` can't be sent consistently: the remote server couldn't verify its signature against a 404 actor, and answering at all would reveal the account exists |
-| Outbound (posts, likes, boosts, follows) | gated once at the connector-agnostic seam — `ConnectorRegistry` deliver/federate entry points check `actorOxyUserId` — so no network sees the user's activity. `follow.service.federateNewPost` keeps a defensive check |
-| Read side (viewing federated content in Mention) | untouched — consuming public remote content is not sharing |
+| Outbound (posts, likes, boosts, follows)                                         | gated once at the connector-agnostic seam — `ConnectorRegistry` deliver/federate entry points check `actorOxyUserId` — so no network sees the user's activity. `follow.service.federateNewPost` keeps a defensive check                                    |
+| Read side (viewing federated content in Mention)                                 | untouched — consuming public remote content is not sharing                                                                                                                                                                                                 |
 
 ### Toggle transitions
 

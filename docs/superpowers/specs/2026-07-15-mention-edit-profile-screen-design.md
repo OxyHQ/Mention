@@ -44,7 +44,7 @@ is Mention-specific about a profile, clearly separated from `ManageAccount`
   duplicate color picker.
 - The public profile no longer shows an inline "+ Add song or podcast" prompt —
   pinned-media management moves entirely into Edit Profile. The public profile
-  keeps showing the read-only song/podcast card whenever media *is* pinned
+  keeps showing the read-only song/podcast card whenever media _is_ pinned
   (unchanged for both owner and visitors).
 
 ## Non-goals

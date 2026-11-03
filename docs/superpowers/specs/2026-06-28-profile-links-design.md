@@ -41,13 +41,24 @@ model/contract/api change is needed** — this is a presentation feature.
 ## Architecture
 
 ### 1. `@oxy.so/core` — shared normalizer (data layer)
+
 Add a pure helper (no UI, no new deps):
 ```ts
-export interface ProfileLink { id: string; title?: string; url: string }
+export interface ProfileLink {
+  id: string;
+  title?: string;
+  url: string;
+}
 export function normalizeProfileLinks(
-  linksMetadata?: Array<{ url: string; title?: string; description?: string; image?: string; id?: string }>,
+  linksMetadata?: Array<{
+    url: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    id?: string;
+  }>,
   links?: string[],
-): ProfileLink[]
+): ProfileLink[];
 ```
 Logic (mirrors `services` `ProfileScreen` lines ~117-133): prefer `linksMetadata`
 (map to `{ id: id ?? String(index), title, url }`, drop entries without a `url`); else
@@ -55,12 +66,13 @@ map `links` strings to `{ id: String(index), url }`; return `[]` when neither pr
 Pure + unit-testable. Exported from the core public surface. → bump + publish core.
 
 ### 2. Mention — `LinkSummary` component (app UI on Bloom primitives)
+
 New component `packages/frontend/components/Profile/LinkSummary.tsx` (+ a `LinkSummarySheet`
 content piece). Takes the normalized shape:
 ```ts
 interface LinkSummaryProps {
-  links: ProfileLink[];                       // from @oxy.so/core normalizeProfileLinks
-  onPressLink?: (url: string) => void;        // default Linking.openURL
+  links: ProfileLink[]; // from @oxy.so/core normalizeProfileLinks
+  onPressLink?: (url: string) => void; // default Linking.openURL
 }
 ```
 Behavior:
@@ -81,6 +93,7 @@ Behavior:
   extract it to `utils/prettifyUrl.ts` so the row and sheet share it (no duplication).
 
 ### 3. Mention — wiring
+
 - `hooks/useProfileData.ts`: surface `linksMetadata` on `ProfileData` (already spreads the
   `User`; add the explicit field next to `links`).
 - `components/Profile/ProfileContent.tsx`: after `ProfileStats` (~line 198, before
@@ -95,6 +108,7 @@ Behavior:
 - Bump `@oxy.so/core` in Mention (Bloom unchanged at 0.23.0).
 
 ### 4. `@oxy.so/services` — adopt the shared normalizer
+
 - `ui/screens/ProfileScreen.tsx`: replace the inline link extraction (lines ~117-133) with
   `normalizeProfileLinks(profileRes.linksMetadata, profileRes.links)`. Its existing collapsed
   `SettingsListItem` + `navigate('UserLinks')` + `UserLinksScreen` **stay unchanged** (only
@@ -102,11 +116,13 @@ Behavior:
 - Bump `@oxy.so/core` in services; ensure the SDK profile screen still renders links.
 
 ## Data flow
+
 `api linksMetadata` → profile DTO (`@oxy.so/core User`) → `normalizeProfileLinks` →
 `ProfileLink[]` → Mention `<LinkSummary>` (collapsed row → bottom sheet). services uses the
 same normalizer feeding its own existing UI.
 
 ## Edge cases
+
 - 0 links → nothing rendered (no empty row, no sheet).
 - 1 link → no "and N other" suffix; tapping still opens the 1-item sheet (Instagram parity).
 - Link without title → sheet row title falls back to the prettified URL.
@@ -114,6 +130,7 @@ same normalizer feeding its own existing UI.
 - Legacy `links` strings with no `linksMetadata` → normalized to `{id,url}` (no title).
 
 ## Publish / bump order (upstream-first)
+
 1. `@oxy.so/core`: add `normalizeProfileLinks` + unit test → build/tsc/test → bump (minor) →
    publish → verify the tarball exports it.
 2. Consumers: bump `@oxy.so/core` in Mention and OxyHQServices; wire both; run their gates.
@@ -121,6 +138,7 @@ same normalizer feeding its own existing UI.
    already-installed 0.23.0 primitives.)
 
 ## Verification
+
 - **core**: `bun run build` + tsc + unit test for `normalizeProfileLinks` (metadata path,
   legacy-strings path, empty, missing-url filtering).
 - **Mention**: frontend tsc (3 livekit allow-listed) + `bun run build:frontend`; **real
@@ -133,6 +151,7 @@ same normalizer feeding its own existing UI.
 - Push each repo via `test-build` → `git-ops`.
 
 ## Out of scope / follow-up
+
 - Editing links inside Mention (use the existing Oxy services edit flow).
 - Promoting `LinkSummary` itself into Bloom as a reusable component (kept app-local for now).
 - Per-link images/favicons; link-health/validation.

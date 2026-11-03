@@ -39,7 +39,7 @@ Stacked worktree from the tip of Phase 2b (after it merges) — do NOT run in pa
 
 **Upstream (OxyHQServices, oxy-api + core, separate agent, gate deploy/publish with user):**
 - [ ] `GET /users/follows-of-follows-ids?limit=` — viewer from auth token; returns bounded ids = union of (follows of the viewer's follows) minus the viewer's own follows + self. Reuse the Follow aggregation. `@oxy.so/core getFollowsOfFollowsIds({limit?}): Promise<string[]>`. TDD; no deploy/publish without gate.
-**Mention:**
+  **Mention:**
 - [ ] `friendsOfFriends` source (`engine/sources/socialSources.ts`): `oxyUserId ∈ ctx.fofIds` (populated by controller for this source, guarded optional-call like mutuals, ∪ nothing federated), chrono/ranked. Controller wires `ctx.fofIds` gated on the descriptor/source. `userComposable: false` (viewer-relative). TDD. Commit.
 
 ### Task 5: Optional preset definitions

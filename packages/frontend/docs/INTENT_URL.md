@@ -46,35 +46,35 @@ builds). Invalid values are dropped without breaking the rest of the intent.
 
 Parsed by `packages/frontend/utils/composeIntent.ts`.
 
-| Param | Type | Notes |
-|---|---|---|
-| `text` | string | Trimmed, HTML stripped, clamped to 500 chars after assembly. |
-| `url` | string | http/https only. Appended to text with a leading space. |
-| `mediaUrl` | string | Single http/https image or video URL. Fetched server-side (SSRF-guarded), uploaded to your library, and attached as media. |
-| `thread[N].text` | string | Follow-up post text for a thread. `N` = 0–4. HTML stripped; empty entries dropped. |
-| `hashtags` | string | Comma-separated. Lowercased, deduped. Max 10. |
-| `via` | string | Handle to credit. Leading `@` stripped. Renders as ` via @handle`. |
-| `mentions` | string | Comma-separated handles. Deduped. Max 10. |
-| `replyToPostId` | string | Open composer in reply mode for this post. |
-| `quotePostId` | string | Open composer with quote card. If unreachable, the share URL is appended to the text instead. |
-| `editPostId` | string | Open composer in edit mode for this post. |
-| `pollOptions` | string | Pipe-separated (`|`). 2–4 options. Empty entries dropped. Opens the poll creator. |
-| `pollDurationDays` | number | 1–7. Defaults to 7. |
-| `articleTitle` | string | Opens the long-form article editor. |
-| `articleBody` | string | Article body content. |
-| `eventName` | string | Opens the event editor. |
-| `eventDate` | string | ISO-8601 date (`YYYY-MM-DD` or full timestamp). |
-| `eventLocation` | string | Event location label. |
-| `eventDescription` | string | Event description. |
-| `lat` | number | Latitude, -90 to 90. |
-| `lng` | number | Longitude, -180 to 180. |
-| `address` | string | Display address. Only applied with valid `lat`+`lng`. |
-| `sources` | string | Comma-separated URLs. http/https only. Max 5. |
-| `scheduledFor` | string | ISO-8601 future timestamp. Opens schedule sheet. |
-| `sensitive` | `1`/`true` | Marks the post as sensitive content. |
-| `replyPermission` | `anyone` / `following` | Restricts who can reply. |
-| `quotesDisabled` | `1`/`true` | Disables quoting. |
-| `lang` | string | BCP-47 language tag (e.g. `en`, `es-MX`). |
+| Param              | Type                   | Notes                                                                                                                      |
+| ------------------ | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `text`             | string                 | Trimmed, HTML stripped, clamped to 500 chars after assembly.                                                               |
+| `url`              | string                 | http/https only. Appended to text with a leading space.                                                                    |
+| `mediaUrl`         | string                 | Single http/https image or video URL. Fetched server-side (SSRF-guarded), uploaded to your library, and attached as media. |
+| `thread[N].text`   | string                 | Follow-up post text for a thread. `N` = 0–4. HTML stripped; empty entries dropped.                                         |
+| `hashtags`         | string                 | Comma-separated. Lowercased, deduped. Max 10.                                                                              |
+| `via`              | string                 | Handle to credit. Leading `@` stripped. Renders as ` via @handle`.                                                         |
+| `mentions`         | string                 | Comma-separated handles. Deduped. Max 10.                                                                                  |
+| `replyToPostId`    | string                 | Open composer in reply mode for this post.                                                                                 |
+| `quotePostId`      | string                 | Open composer with quote card. If unreachable, the share URL is appended to the text instead.                              |
+| `editPostId`       | string                 | Open composer in edit mode for this post.                                                                                  |
+| `pollOptions`      | string                 | Pipe-separated (`                                                                                                          | `). 2–4 options. Empty entries dropped. Opens the poll creator. |
+| `pollDurationDays` | number                 | 1–7. Defaults to 7.                                                                                                        |
+| `articleTitle`     | string                 | Opens the long-form article editor.                                                                                        |
+| `articleBody`      | string                 | Article body content.                                                                                                      |
+| `eventName`        | string                 | Opens the event editor.                                                                                                    |
+| `eventDate`        | string                 | ISO-8601 date (`YYYY-MM-DD` or full timestamp).                                                                            |
+| `eventLocation`    | string                 | Event location label.                                                                                                      |
+| `eventDescription` | string                 | Event description.                                                                                                         |
+| `lat`              | number                 | Latitude, -90 to 90.                                                                                                       |
+| `lng`              | number                 | Longitude, -180 to 180.                                                                                                    |
+| `address`          | string                 | Display address. Only applied with valid `lat`+`lng`.                                                                      |
+| `sources`          | string                 | Comma-separated URLs. http/https only. Max 5.                                                                              |
+| `scheduledFor`     | string                 | ISO-8601 future timestamp. Opens schedule sheet.                                                                           |
+| `sensitive`        | `1`/`true`             | Marks the post as sensitive content.                                                                                       |
+| `replyPermission`  | `anyone` / `following` | Restricts who can reply.                                                                                                   |
+| `quotesDisabled`   | `1`/`true`             | Disables quoting.                                                                                                          |
+| `lang`             | string                 | BCP-47 language tag (e.g. `en`, `es-MX`).                                                                                  |
 
 ## Examples
 

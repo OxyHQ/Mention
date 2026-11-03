@@ -6,7 +6,7 @@
 # security fixes) needs a new multi-arch index digest, then an owner review and
 # `python3 .github/scripts/reviewed-image.py pin`.
 
-FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS manifests
+FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS manifests
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
@@ -31,7 +31,7 @@ COPY packages/mcp/ packages/mcp/
 RUN bun run --cwd packages/shared-types build
 RUN bun run --cwd packages/mcp build
 
-FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS runtime
+FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production

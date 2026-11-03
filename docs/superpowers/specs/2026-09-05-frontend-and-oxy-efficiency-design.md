@@ -24,24 +24,24 @@ Two things follow, and this document is about both.
 
 Taken on this checkout, not inherited.
 
-| Signal | Measurement |
-|---|---|
-| Backend source | 138,830 non-test lines / 141,869 test lines (532 files) |
-| Frontend source | 109,347 non-test lines / 36,420 test lines (183 files) |
+| Signal                | Measurement                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| Backend source        | 138,830 non-test lines / 141,869 test lines (532 files)                               |
+| Frontend source       | 109,347 non-test lines / 36,420 test lines (183 files)                                |
 | Largest frontend file | `app/(app)/compose.tsx` **4,042** lines, 101 imports, 37 `useState`, 24 manager hooks |
-| Initial web JS | 7.88 MiB raw, **1.93 MiB gzip** (ceiling 2.35, target 1.90) |
-| Fonts | 1.91 MiB, of which `MaterialCommunityIcons.ttf` is **1.25 MiB** |
-| Native bundle | 18,072,060 B, no route splitting (`asyncRoutes` is web-only) |
-| Backend suite | 522 files / 6,300 tests |
-| Frontend suite | 183 files / 1,708 tests |
+| Initial web JS        | 7.88 MiB raw, **1.93 MiB gzip** (ceiling 2.35, target 1.90)                           |
+| Fonts                 | 1.91 MiB, of which `MaterialCommunityIcons.ttf` is **1.25 MiB**                       |
+| Native bundle         | 18,072,060 B, no route splitting (`asyncRoutes` is web-only)                          |
+| Backend suite         | 522 files / 6,300 tests                                                               |
+| Frontend suite        | 183 files / 1,708 tests                                                               |
 
 Two hypotheses were **disproved** before any work was done on them, and are
 recorded so they are not re-opened:
 
-- *"The fourteen locale catalogues bloat the initial bundle."* They do not. Only
+- _"The fourteen locale catalogues bloat the initial bundle."_ They do not. Only
   `en.json` is static; the rest are per-locale `import()`s (`lib/i18n.ts:31-46`).
   They count against total JavaScript, never against first paint.
-- *"The SQLite layer ships to browsers that cannot use it."* `expo-sqlite` is
+- _"The SQLite layer ships to browsers that cannot use it."_ `expo-sqlite` is
   already excluded by a type-only import with a docstring saying why
   (`db/database.web.ts:1-12`). What does ship is ~1,700 lines of SQL string
   builders — real, but a rounding error next to what "the whole db layer" implies.
@@ -61,8 +61,8 @@ sites. `runPopularFallback` was the fifth and did not, while still passing
 `getUserFollowing` + `getUserFollowers` per page on the authenticated never-blank
 path, which is ordinary deep scroll rather than an edge case.
 
-| Path | Before | After |
-|---|---|---|
+| Path                      | Before                | After |
+| ------------------------- | --------------------- | ----- |
 | Never-blank fallback page | **2** Oxy graph calls | **0** |
 
 `__tests__/mtn/feedEngineViewerGraphBudget.test.ts` pins it. Positive control:
@@ -98,11 +98,11 @@ pulled all eight sheets in eagerly while `compose.tsx` declared seven of them as
 `lazy()` seventy lines below. Those were the barrel's only two consumers; both
 now import by path.
 
-| | Before | After |
-|---|---|---|
-| Initial JS gzip | 1.93 MiB | **1.91 MiB** (−20.17 KiB) |
-| Initial JS raw | 7.88 MiB | 7.81 MiB |
-| `async:compose` | 71.66 KiB gzip | 69.93 KiB gzip |
+|                 | Before         | After                     |
+| --------------- | -------------- | ------------------------- |
+| Initial JS gzip | 1.93 MiB       | **1.91 MiB** (−20.17 KiB) |
+| Initial JS raw  | 7.88 MiB       | 7.81 MiB                  |
+| `async:compose` | 71.66 KiB gzip | 69.93 KiB gzip            |
 
 Four and a half times W2's 4.41 KiB for a change of the same kind, and the reason
 generalises: a barrel import moves whole modules, so it defeats a `lazy()`
@@ -127,12 +127,12 @@ conditional UPDATE and a push-token SELECT, plus an FCM multicast in production.
 Measured on a seeded database, medians of five rounds, push stubbed and Oxy
 stubbed at a fixed round trip:
 
-| subscribers | 0 | 10 | 50 | 200 |
-|---|---|---|---|---|
-| before (Oxy 0 ms) | 25.7 | 23.5 | 39.7 | **112.1** ms |
-| after (Oxy 0 ms) | 20.3 | 20.5 | 34.1 | **51.4** |
-| before (Oxy 60 ms) | 32.5 | 147.6 | 464.1 | **1617.7** |
-| after (Oxy 60 ms) | 36.5 | 19.4 | 16.7 | **18.8** |
+| subscribers        | 0    | 10    | 50    | 200          |
+| ------------------ | ---- | ----- | ----- | ------------ |
+| before (Oxy 0 ms)  | 25.7 | 23.5  | 39.7  | **112.1** ms |
+| after (Oxy 0 ms)   | 20.3 | 20.5  | 34.1  | **51.4**     |
+| before (Oxy 60 ms) | 32.5 | 147.6 | 464.1 | **1617.7**   |
+| after (Oxy 60 ms)  | 36.5 | 19.4  | 16.7  | **18.8**     |
 
 Two things worth carrying forward from doing it. The fan-out resolves the same
 `actorId` once per recipient, which reads like a textbook N+1 and is not one:
@@ -185,7 +185,7 @@ workstream:
 
 1. **It returns no followers.** `buildViewerContext` needs `followedBy`, and that
    set feeds `computeReplyPermission` (`PostHydrationService.ts:3031`): the
-   `'following'` permission means *only people the author follows may reply*.
+   `'following'` permission means _only people the author follows may reply_.
    Mutuals are a proper subset of followers, so substituting them would DENY
    replies to someone the author follows who does not follow back — a permission
    regression wearing an optimisation's clothes. `getUserFollowers` stays.

@@ -6,12 +6,12 @@ validate:architecture-boundaries`, which also runs its mutation self-test
 `scripts/test-validate-architecture-boundaries.mjs`, and is part of
 `check:workspace`.
 
-| | Rule 1 | Rule 2 |
-| --- | --- | --- |
-| Forbids | product code importing a federation protocol's internal modules | `src/routes/**`, `src/controllers/**`, `src/mtn/controllers/**` importing `src/db/**` |
-| Allowed instead | the connector class, or `@oxy.so/federation`'s `NetworkConnector` | route/controller → service → repository |
-| Baseline | `BASELINE`, keyed on (file, protocol) | `LAYER_BASELINE`, keyed on (file, db area) |
-| Size at landing | 10 entries / 17 crossings | 88 entries / 110 crossings |
+|                 | Rule 1                                                            | Rule 2                                                                                |
+| --------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Forbids         | product code importing a federation protocol's internal modules   | `src/routes/**`, `src/controllers/**`, `src/mtn/controllers/**` importing `src/db/**` |
+| Allowed instead | the connector class, or `@oxy.so/federation`'s `NetworkConnector` | route/controller → service → repository                                               |
+| Baseline        | `BASELINE`, keyed on (file, protocol)                             | `LAYER_BASELINE`, keyed on (file, db area)                                            |
+| Size at landing | 10 entries / 17 crossings                                         | 88 entries / 110 crossings                                                            |
 
 Both rules are **default-deny with a shrink-only baseline**: an unlisted
 crossing fails immediately, and a listed crossing that no longer exists also
@@ -23,19 +23,19 @@ nobody re-examines.
 **Type-only imports are allowed outright, not baselined.** `import type
 { PostRecord } from '../db/posts/postRecord'` is erased at compile time: it adds
 nothing to the module graph and cannot execute a query. The defect the rule
-exists to stop is a request handler *owning persistence behaviour*, and naming a
+exists to stop is a request handler _owning persistence behaviour_, and naming a
 row shape is not that. Baselining the five such imports in the tree would also
 make the shrink-only property adversarial, because the only way to "fix" one is
 to duplicate the row type elsewhere. A **mixed** import still counts:
 `{ insertLane, type LaneRow }` binds a value.
 
 **The boundary is all of `src/db/`, but the message names two kinds.**
-`src/db/postgres.ts` and `src/db/schema/**` are the *raw query surface* — the
+`src/db/postgres.ts` and `src/db/schema/**` are the _raw query surface_ — the
 connection handle and the drizzle table objects. Importing either means the
 handler is authoring SQL; `schema/` looks innocuous because it is "just table
 definitions", but a table object is a value, and a route holding one plus
 `getDb()` is a query. That is 57 of the 88 (file, area) pairs and the sharper half.
-Everything else under `src/db/` is a *repository*: the query stays where it
+Everything else under `src/db/` is a _repository_: the query stays where it
 belongs and only the service seam is missing. Both are denied by default —
 exempting `schema/` is exactly the argument that lets `getDb()` follow it in —
 but the finding text tells a reader which fix is being asked for.
@@ -51,7 +51,7 @@ tier and stays out.
 
 **Baseline granularity is (file, db area)**, where an area is one directory
 under `src/db/` or one top-level file in it. Per-file alone is too coarse:
-`feed.controller.ts` would be excused for reaching into *any* db module forever,
+`feed.controller.ts` would be excused for reaching into _any_ db module forever,
 including the `getDb()` it does not touch today. Per-imported-module is too
 brittle: renaming `postRepository.ts` would fail 18 entries that describe an
 unchanged fact. The area survives a rename inside `db/` while still making "this
@@ -62,7 +62,7 @@ file started writing its own SQL" — a new `src/db/postgres.ts` or
 
 88 entries share six reasons, defined once in `REASONS` and referenced:
 
-- `BYPASSES_REPOSITORY` (37) — hand-written drizzle over tables that *do* have a repository.
+- `BYPASSES_REPOSITORY` (37) — hand-written drizzle over tables that _do_ have a repository.
 - `REPOSITORY` (31) — calls a repository directly, skipping the service tier. Cheapest group to fix.
 - `NO_REPOSITORY` (16) — hand-written drizzle over tables with no repository at all (engagement, discovery).
 - `HEALTH_PROBE` (2) — imports only `checkPostgresHealth`.

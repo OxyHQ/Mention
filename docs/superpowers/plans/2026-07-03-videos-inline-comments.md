@@ -38,9 +38,9 @@ Change:
 
 ```tsx
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
-    openBottomSheet: () => { },
-    setBottomSheetContent: () => { },
-    bottomSheetRef: { current: null },
+  openBottomSheet: () => {},
+  setBottomSheetContent: () => {},
+  bottomSheetRef: { current: null },
 });
 ```
 
@@ -48,15 +48,15 @@ to (extend the exported interface too):
 
 ```tsx
 export interface BottomSheetContextProps {
-    openBottomSheet: (isOpen: boolean) => void;
-    setBottomSheetContent: (content: ReactNode, options?: { scrollable?: boolean }) => void;
-    bottomSheetRef: React.RefObject<BottomSheetRef | null>;
+  openBottomSheet: (isOpen: boolean) => void;
+  setBottomSheetContent: (content: ReactNode, options?: { scrollable?: boolean }) => void;
+  bottomSheetRef: React.RefObject<BottomSheetRef | null>;
 }
 
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
-    openBottomSheet: () => { },
-    setBottomSheetContent: () => { },
-    bottomSheetRef: { current: null },
+  openBottomSheet: () => {},
+  setBottomSheetContent: () => {},
+  bottomSheetRef: { current: null },
 });
 ```
 
@@ -66,37 +66,34 @@ Change:
 
 ```tsx
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [bottomSheetContent, setBottomSheetContent] = useState<ReactNode>(null);
-    const bottomSheetRef = useRef<BottomSheetRef | null>(null);
+  const [bottomSheetContent, setBottomSheetContent] = useState<ReactNode>(null);
+  const bottomSheetRef = useRef<BottomSheetRef | null>(null);
 
-    const openBottomSheet = useCallback((isOpen: boolean) => {
-        if (isOpen) {
-            bottomSheetRef.current?.present();
-        } else {
-            bottomSheetRef.current?.dismiss();
-        }
-    }, []);
+  const openBottomSheet = useCallback((isOpen: boolean) => {
+    if (isOpen) {
+      bottomSheetRef.current?.present();
+    } else {
+      bottomSheetRef.current?.dismiss();
+    }
+  }, []);
 
-    const contextValue = useMemo(() => ({
-        openBottomSheet,
-        setBottomSheetContent,
-        bottomSheetRef,
-    }), [openBottomSheet]);
+  const contextValue = useMemo(
+    () => ({
+      openBottomSheet,
+      setBottomSheetContent,
+      bottomSheetRef,
+    }),
+    [openBottomSheet],
+  );
 
-    return (
-        <BottomSheetContext.Provider value={contextValue}>
-            {children}
-            <BottomSheet
-                ref={bottomSheetRef}
-                enablePanDownToClose={true}
-                style={styles.contentContainer}
-            >
-                <View style={styles.contentView}>
-                    {bottomSheetContent}
-                </View>
-            </BottomSheet>
-        </BottomSheetContext.Provider>
-    );
+  return (
+    <BottomSheetContext.Provider value={contextValue}>
+      {children}
+      <BottomSheet ref={bottomSheetRef} enablePanDownToClose={true} style={styles.contentContainer}>
+        <View style={styles.contentView}>{bottomSheetContent}</View>
+      </BottomSheet>
+    </BottomSheetContext.Provider>
+  );
 };
 ```
 
@@ -104,44 +101,48 @@ to:
 
 ```tsx
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [bottomSheetContent, setBottomSheetContentState] = useState<ReactNode>(null);
-    const [scrollable, setScrollable] = useState(true);
-    const bottomSheetRef = useRef<BottomSheetRef | null>(null);
+  const [bottomSheetContent, setBottomSheetContentState] = useState<ReactNode>(null);
+  const [scrollable, setScrollable] = useState(true);
+  const bottomSheetRef = useRef<BottomSheetRef | null>(null);
 
-    const openBottomSheet = useCallback((isOpen: boolean) => {
-        if (isOpen) {
-            bottomSheetRef.current?.present();
-        } else {
-            bottomSheetRef.current?.dismiss();
-        }
-    }, []);
+  const openBottomSheet = useCallback((isOpen: boolean) => {
+    if (isOpen) {
+      bottomSheetRef.current?.present();
+    } else {
+      bottomSheetRef.current?.dismiss();
+    }
+  }, []);
 
-    const setBottomSheetContent = useCallback((content: ReactNode, options?: { scrollable?: boolean }) => {
-        setBottomSheetContentState(content);
-        setScrollable(options?.scrollable ?? true);
-    }, []);
+  const setBottomSheetContent = useCallback(
+    (content: ReactNode, options?: { scrollable?: boolean }) => {
+      setBottomSheetContentState(content);
+      setScrollable(options?.scrollable ?? true);
+    },
+    [],
+  );
 
-    const contextValue = useMemo(() => ({
-        openBottomSheet,
-        setBottomSheetContent,
-        bottomSheetRef,
-    }), [openBottomSheet, setBottomSheetContent]);
+  const contextValue = useMemo(
+    () => ({
+      openBottomSheet,
+      setBottomSheetContent,
+      bottomSheetRef,
+    }),
+    [openBottomSheet, setBottomSheetContent],
+  );
 
-    return (
-        <BottomSheetContext.Provider value={contextValue}>
-            {children}
-            <BottomSheet
-                ref={bottomSheetRef}
-                enablePanDownToClose={true}
-                style={styles.contentContainer}
-                scrollable={scrollable}
-            >
-                <View style={styles.contentView}>
-                    {bottomSheetContent}
-                </View>
-            </BottomSheet>
-        </BottomSheetContext.Provider>
-    );
+  return (
+    <BottomSheetContext.Provider value={contextValue}>
+      {children}
+      <BottomSheet
+        ref={bottomSheetRef}
+        enablePanDownToClose={true}
+        style={styles.contentContainer}
+        scrollable={scrollable}
+      >
+        <View style={styles.contentView}>{bottomSheetContent}</View>
+      </BottomSheet>
+    </BottomSheetContext.Provider>
+  );
 };
 ```
 
@@ -335,7 +336,11 @@ export function VideoComments({ postId, onClose, onCommentPosted }: VideoComment
         <Text style={[styles.title, { color: theme.colors.text }]}>
           {t('videos.comments', { defaultValue: 'Comments' })}
         </Text>
-        <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+        >
           <Ionicons name="close" size={22} color={theme.colors.text} />
         </Pressable>
       </View>
@@ -413,9 +418,12 @@ Run: `grep -n "useContext(BottomSheetContext)\|from '@/context/BottomSheetContex
 Current (`videos.tsx:1206-1208`):
 
 ```ts
-    const handleComment = useCallback((postId: string) => {
-        router.push(`/compose?replyToPostId=${postId}`);
-    }, [router]);
+const handleComment = useCallback(
+  (postId: string) => {
+    router.push(`/compose?replyToPostId=${postId}`);
+  },
+  [router],
+);
 ```
 
 Change to (import `BottomSheetContext`/`useContext` and `VideoComments` at the top of the file alongside the other imports; `isDesktop` is already computed in this component at `videos.tsx:826` per this plan's research — reuse it, do not recompute):
@@ -480,8 +488,8 @@ git commit -m "feat(frontend): open inline comments sheet on mobile instead of n
 In `packages/frontend/context/VideosRailContext.tsx`, add to `VideosRailState` (after `activePost`):
 
 ```ts
-  commentsOpen: boolean;
-  commentsPostId: string | null;
+commentsOpen: boolean;
+commentsPostId: string | null;
 ```
 
 Add to `DEFAULT_STATE`:
@@ -562,16 +570,16 @@ export function RightBar() {
 In `packages/frontend/app/(app)/videos.tsx`, change (~line 596):
 
 ```ts
-    const showOnVideoActions = !isDesktop;
+const showOnVideoActions = !isDesktop;
 ```
 
 to:
 
 ```ts
-    // On-video actions now show on every platform/breakpoint — desktop no
-    // longer moves them into the right-column rail (VideosRail keeps only
-    // prev/next + follow + views for desktop; see VideosRail.tsx).
-    const showOnVideoActions = true;
+// On-video actions now show on every platform/breakpoint — desktop no
+// longer moves them into the right-column rail (VideosRail keeps only
+// prev/next + follow + views for desktop; see VideosRail.tsx).
+const showOnVideoActions = true;
 ```
 
 Leave `showOnVideoFollow` (`!isDesktop && ...`) UNCHANGED — the on-video follow button staying mobile-only (desktop already shows it in the rail) is not part of this task's scope; only the 4 action buttons move.
@@ -583,14 +591,14 @@ Without this, swiping to a new video while the comments panel/sheet is open woul
 In `packages/frontend/app/(app)/videos.tsx`, find where `currentVisibleIndex` state is declared (`const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);`, confirmed at line ~834) and add a ref-during-render reset, using the SAME pattern already established elsewhere in this codebase today (`components/Post/PostContentText.tsx` and `components/Profile/ProfileContent.tsx` both reset expand/collapse state this exact way when their driving value changes — see either file for the precedent):
 
 ```ts
-    const prevVisibleIndexRef = useRef(currentVisibleIndex);
-    if (prevVisibleIndexRef.current !== currentVisibleIndex) {
-        prevVisibleIndexRef.current = currentVisibleIndex;
-        if (railCommentsOpen) {
-            setRailState({ commentsOpen: false, commentsPostId: null });
-        }
-        openBottomSheet(false);
-    }
+const prevVisibleIndexRef = useRef(currentVisibleIndex);
+if (prevVisibleIndexRef.current !== currentVisibleIndex) {
+  prevVisibleIndexRef.current = currentVisibleIndex;
+  if (railCommentsOpen) {
+    setRailState({ commentsOpen: false, commentsPostId: null });
+  }
+  openBottomSheet(false);
+}
 ```
 
 Where `railCommentsOpen` reads `commentsOpen` off the same `useVideosRail()` call this file already makes for `setRailState` (Task 4 introduced that call — read the CURRENT file to find its exact destructuring and extend it with `commentsOpen`, rather than adding a second `useVideosRail()` call). `openBottomSheet(false)` is a no-op if no sheet is currently presented (per `BottomSheetContext`'s `dismiss()` call — confirm this is safe to call unconditionally by reading `@oxy.so/bloom/bottom-sheet`'s `dismiss` behavior; if it is not safe to call when nothing is open, gate it on whatever local/context flag already tracks whether the comments sheet specifically is the one presented, e.g. track a local `commentsSheetOpen` boolean alongside the `setBottomSheetContent`/`openBottomSheet(true)` call from Task 4 and only call `openBottomSheet(false)` here when that's true).

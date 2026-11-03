@@ -6,7 +6,7 @@
 # security fixes) needs a new multi-arch index digest, then an owner review and
 # `python3 .github/scripts/reviewed-image.py pin`.
 
-FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS manifests
+FROM oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a AS manifests
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
@@ -33,7 +33,7 @@ RUN bun run --cwd packages/shared-types build
 RUN bun run --cwd packages/contracts build
 RUN bun run --cwd packages/backend build
 
-FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS runtime
+FROM oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a AS runtime
 WORKDIR /app
 
 # ffmpeg powers bounded local frame extraction for /media/poster.

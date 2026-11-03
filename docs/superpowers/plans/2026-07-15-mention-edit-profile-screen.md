@@ -209,24 +209,27 @@ export const ProfileStyleSection: React.FC = () => {
   const [coverPhotoEnabled, setCoverPhotoEnabled] = useState<boolean>(true);
   const [minimalistMode, setMinimalistMode] = useState<boolean>(false);
 
-  const styleOptions: StyleOption[] = useMemo(() => [
-    {
-      id: 'default' as ProfileStyle,
-      name: t('settings.profileCustomization.styleDefault'),
-      description: t('settings.profileCustomization.styleDefaultDesc'),
-      icon: 'image-outline',
-      coverPhotoEnabled: true,
-      minimalistMode: false,
-    },
-    {
-      id: 'minimalist' as ProfileStyle,
-      name: t('settings.profileCustomization.styleMinimalist'),
-      description: t('settings.profileCustomization.styleMinimalistDesc'),
-      icon: 'remove-outline',
-      coverPhotoEnabled: false,
-      minimalistMode: true,
-    },
-  ], [t]);
+  const styleOptions: StyleOption[] = useMemo(
+    () => [
+      {
+        id: 'default' as ProfileStyle,
+        name: t('settings.profileCustomization.styleDefault'),
+        description: t('settings.profileCustomization.styleDefaultDesc'),
+        icon: 'image-outline',
+        coverPhotoEnabled: true,
+        minimalistMode: false,
+      },
+      {
+        id: 'minimalist' as ProfileStyle,
+        name: t('settings.profileCustomization.styleMinimalist'),
+        description: t('settings.profileCustomization.styleMinimalistDesc'),
+        icon: 'remove-outline',
+        coverPhotoEnabled: false,
+        minimalistMode: true,
+      },
+    ],
+    [t],
+  );
 
   const currentStyle: ProfileStyle = useMemo(() => {
     if (minimalistMode && !coverPhotoEnabled) {
@@ -242,23 +245,26 @@ export const ProfileStyleSection: React.FC = () => {
     }
   }, [mySettings]);
 
-  const handleStyleSelect = useCallback(async (style: StyleOption) => {
-    setCoverPhotoEnabled(style.coverPhotoEnabled);
-    setMinimalistMode(style.minimalistMode);
+  const handleStyleSelect = useCallback(
+    async (style: StyleOption) => {
+      setCoverPhotoEnabled(style.coverPhotoEnabled);
+      setMinimalistMode(style.minimalistMode);
 
-    try {
-      await updateMySettings({
-        profileCustomization: {
-          coverPhotoEnabled: style.coverPhotoEnabled,
-          minimalistMode: style.minimalistMode,
-        },
-      });
-    } catch (error) {
-      logger.error('Error updating profile customization', { error });
-      setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
-      setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
-    }
-  }, [updateMySettings, mySettings]);
+      try {
+        await updateMySettings({
+          profileCustomization: {
+            coverPhotoEnabled: style.coverPhotoEnabled,
+            minimalistMode: style.minimalistMode,
+          },
+        });
+      } catch (error) {
+        logger.error('Error updating profile customization', { error });
+        setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
+        setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
+      }
+    },
+    [updateMySettings, mySettings],
+  );
 
   return (
     <View className="px-5 py-3 gap-3">
@@ -286,7 +292,10 @@ export const ProfileStyleSection: React.FC = () => {
             >
               <View className="w-full overflow-hidden">
                 {style.coverPhotoEnabled ? (
-                  <View className="w-full h-[60px]" style={{ backgroundColor: colors.primary + '20' }} />
+                  <View
+                    className="w-full h-[60px]"
+                    style={{ backgroundColor: colors.primary + '20' }}
+                  />
                 ) : (
                   <View className="w-full h-0" />
                 )}
@@ -339,9 +348,7 @@ export const ProfileStyleSection: React.FC = () => {
                     {style.name}
                   </Text>
                 </View>
-                <Text className="text-xs leading-4 text-muted-foreground">
-                  {style.description}
-                </Text>
+                <Text className="text-xs leading-4 text-muted-foreground">{style.description}</Text>
               </View>
 
               {isSelected && (
@@ -422,10 +429,7 @@ export const PinnedMediaSection: React.FC = () => {
 
   const openPicker = useCallback(() => {
     bottomSheet.setBottomSheetContent(
-      <MediaPickerSheet
-        currentMedia={media}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
+      <MediaPickerSheet currentMedia={media} onClose={() => bottomSheet.openBottomSheet(false)} />,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, media]);
@@ -530,7 +534,11 @@ import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services';
 import { useBloomTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxy.so/bloom/theme';
-import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import {
+  SettingsListDivider,
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -583,8 +591,12 @@ export default function EditProfileScreen() {
           disableSticky
         />
         <OxyAuthPrompt
-          label={t('settings.profileCustomization.signInRequired', { defaultValue: 'Sign in to customize your profile' })}
-          description={t('settings.profileCustomization.signInRequiredDesc', { defaultValue: 'Choose your profile layout and accent color.' })}
+          label={t('settings.profileCustomization.signInRequired', {
+            defaultValue: 'Sign in to customize your profile',
+          })}
+          description={t('settings.profileCustomization.signInRequiredDesc', {
+            defaultValue: 'Choose your profile layout and accent color.',
+          })}
         />
       </ThemedView>
     );
@@ -613,7 +625,11 @@ export default function EditProfileScreen() {
         <SettingsListDivider />
         <ProfileStyleSection />
         <SettingsListDivider />
-        <ColorSwatchPicker value={appColor} onChange={saveColor} extraColors={unlockedPremiumColors} />
+        <ColorSwatchPicker
+          value={appColor}
+          onChange={saveColor}
+          extraColors={unlockedPremiumColors}
+        />
         <SettingsListDivider />
         <PinnedMediaSection />
         <SettingsListDivider />
@@ -764,7 +780,7 @@ to:
 
 Run: `grep -n "isOwnProfile\|openPicker\|RiAddLine\|useTheme\|useTranslation\|BottomSheetContext" packages/frontend/components/Profile/ProfileMedia.tsx`
 
-`isOwnProfile` is still used by the `song`/`podcast` render branches (passed to `ProfileSong`/`PodcastCard` as `isOwnProfile={isOwnProfile}` — those still show an edit affordance on the pinned-media card itself when the viewer is the owner, unchanged). `openPicker` is still used by those same branches' `onEdit={openPicker}` — do **not** remove it, editing an *existing* pinned song/podcast from the public profile card is unchanged behavior, only the *empty-state add prompt* moved. `RiAddLine` and `useTheme`'s `colors.primary` usage, however, were only used by the removed branch — if `colors` has no other use in this file after the edit, remove the `useTheme` import and call; remove the `RiAddLine` import regardless (confirm via the grep above before deleting each one — don't remove an import still referenced elsewhere in the file).
+`isOwnProfile` is still used by the `song`/`podcast` render branches (passed to `ProfileSong`/`PodcastCard` as `isOwnProfile={isOwnProfile}` — those still show an edit affordance on the pinned-media card itself when the viewer is the owner, unchanged). `openPicker` is still used by those same branches' `onEdit={openPicker}` — do **not** remove it, editing an _existing_ pinned song/podcast from the public profile card is unchanged behavior, only the _empty-state add prompt_ moved. `RiAddLine` and `useTheme`'s `colors.primary` usage, however, were only used by the removed branch — if `colors` has no other use in this file after the edit, remove the `useTheme` import and call; remove the `RiAddLine` import regardless (confirm via the grep above before deleting each one — don't remove an import still referenced elsewhere in the file).
 
 - [ ] **Step 3: Typecheck and lint**
 
@@ -801,7 +817,8 @@ Delete: the `Icon name="color-palette"` "Accent color" `View` block (current lin
 
 Change:
 ```tsx
-  const saveSettings = useCallback(async (updates: {
+const saveSettings = useCallback(
+  async (updates: {
     themeMode?: ThemeMode;
     primaryColor?: string;
     headerImageId?: string;
@@ -827,11 +844,22 @@ Change:
       profileHeaderImage: header || null,
     });
     setSettingsSaving(false);
-  }, [themeMode, preset.hex, headerImageId, postTextExpand, postReadMoreAction, collapseLongBio, updateMySettings]);
+  },
+  [
+    themeMode,
+    preset.hex,
+    headerImageId,
+    postTextExpand,
+    postReadMoreAction,
+    collapseLongBio,
+    updateMySettings,
+  ],
+);
 ```
 to:
 ```tsx
-  const saveSettings = useCallback(async (updates: {
+const saveSettings = useCallback(
+  async (updates: {
     themeMode?: ThemeMode;
     postTextExpand?: PostTextExpand;
     postReadMoreAction?: PostReadMoreAction;
@@ -851,7 +879,9 @@ to:
       },
     });
     setSettingsSaving(false);
-  }, [themeMode, postTextExpand, postReadMoreAction, collapseLongBio, updateMySettings]);
+  },
+  [themeMode, postTextExpand, postReadMoreAction, collapseLongBio, updateMySettings],
+);
 ```
 
 Note: `primaryColor` is deliberately dropped from this screen's payload — the accent color is now written exclusively via `useAppColorSave`'s `saveColor` on the Edit Profile screen (Task 4), which already calls `updateMySettings` itself; this screen must not also write a stale/undefined `primaryColor` on every unrelated save (e.g. toggling dark mode would otherwise silently overwrite the user's chosen color with `undefined` under the old code's `color || undefined` fallback once `preset`/`appColor` are removed from this file — removing the field entirely, not defaulting it, is the correct fix here, not incidental).
@@ -894,12 +924,14 @@ git rm packages/frontend/app/\(app\)/settings/profile-customization.tsx
 
 In `packages/frontend/app/(app)/settings/index.tsx`, delete:
 ```tsx
-                        <SettingsListItem
-                            icon={<RowIcon name="person-outline" />}
-                            title={t('settings.preferences.profileCustomization')}
-                            description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, profile color' })}
-                            onPress={() => router.push('/settings/profile-customization')}
-                        />
+<SettingsListItem
+  icon={<RowIcon name="person-outline" />}
+  title={t('settings.preferences.profileCustomization')}
+  description={t('settings.preferences.profileCustomizationDesc', {
+    defaultValue: 'Layout, profile color',
+  })}
+  onPress={() => router.push('/settings/profile-customization')}
+/>;
 ```
 Leave the surrounding `SettingsListGroup`/`isAuthenticated &&` wrapper and the sibling `Your interests` item intact — only this one `SettingsListItem` is removed. If `Your interests` is the only remaining child of that group, double-check the group still renders sensibly (it will — `SettingsListGroup` doesn't require a minimum child count).
 
@@ -907,21 +939,21 @@ Leave the surrounding `SettingsListGroup`/`isAuthenticated &&` wrapper and the s
 
 Change:
 ```tsx
-                    <SettingsListItem
-                        icon={<RowIcon name="color-palette-outline" />}
-                        title={t('settings.preferences.appearance')}
-                        description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, colors, display' })}
-                        onPress={() => router.push('/settings/appearance')}
-                    />
+<SettingsListItem
+  icon={<RowIcon name="color-palette-outline" />}
+  title={t('settings.preferences.appearance')}
+  description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, colors, display' })}
+  onPress={() => router.push('/settings/appearance')}
+/>;
 ```
 to:
 ```tsx
-                    <SettingsListItem
-                        icon={<RowIcon name="color-palette-outline" />}
-                        title={t('settings.preferences.appearance')}
-                        description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, text, display' })}
-                        onPress={() => router.push('/settings/appearance')}
-                    />
+<SettingsListItem
+  icon={<RowIcon name="color-palette-outline" />}
+  title={t('settings.preferences.appearance')}
+  description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, text, display' })}
+  onPress={() => router.push('/settings/appearance')}
+/>;
 ```
 This is inline-default text only (no locale-key change needed) — the same key `settings.preferences.appearanceDesc` is reused; if it has a real translated value in `en.json`/`es.json`/`it.json` (check with `grep -n "settings.preferences.appearanceDesc" packages/frontend/locales/*.json`), update those translated strings too so they no longer claim "colors" live there — translate "Theme, text, display" appropriately per locale rather than leaving stale copy.
 
