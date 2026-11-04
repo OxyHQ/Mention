@@ -105,4 +105,30 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+/**
+ * GET /recommendations/newest
+ *
+ * The newest people on Oxy, in sign-up order (most recent first). Same
+ * pagination and response shape as `GET /recommendations`, minus the
+ * `excludeTypes` filter (the list is local people only); the viewer's
+ * blocked/muted/restricted users and self are still removed.
+ */
+router.get('/newest', async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await recommendationService.getNewest({
+      viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
+      limit: parseLimit(req.query.limit),
+      offset: parseOffset(req.query),
+    });
+    return res.json(result);
+  } catch (error) {
+    if (!(error instanceof RecommendationsUnavailableError)) {
+      logger.error('[recommendations/newest] unexpected error:', error);
+    }
+    res.setHeader('Retry-After', '5');
+    return res.status(503).json({ error: 'recommendations_unavailable' });
+  }
+});
+
 export default router;

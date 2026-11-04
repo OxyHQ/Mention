@@ -3090,5 +3090,10 @@
   "plus.benefitMono": "Monochrome theme",
   "plus.benefitMonoDescription": "Personalize Mention with the Mono theme.",
   "plus.payment.cadenceYearShort": "Annual",
-  "plus.payment.annualDiscount": "Save 20% with annual billing."
+  "plus.payment.annualDiscount": "Save 20% with annual billing.",
+  "explore": {
+    "newPeople": {
+      "empty": "还没有新用户"
+    }
+  }
 }

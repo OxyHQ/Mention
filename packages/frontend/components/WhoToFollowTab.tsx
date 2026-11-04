@@ -18,7 +18,11 @@ import {
 import { Error as ErrorDisplay } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@oxy.so/core/logger';
-import { useInfiniteRecommendations } from '@/hooks/useRecommendations';
+import {
+  useInfiniteNewestUsers,
+  useInfiniteRecommendations,
+  type UseInfiniteRecommendationsResult,
+} from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
 const APP_URL = 'https://mention.earth';
@@ -35,14 +39,52 @@ interface WhoToFollowTabProps {
   listHeaderComponent?: React.ReactElement;
 }
 
+/** Explore › Who to follow: recommended accounts for the viewer. */
 export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}) {
+  const { t } = useTranslation();
+  const query = useInfiniteRecommendations();
+  return (
+    <ProfileDiscoveryList
+      query={query}
+      emptyTitle={t('connections.emptyRecommendations')}
+      // Recommendations never include anyone the viewer follows (Oxy's
+      // contract), so each button starts at Follow instead of asking.
+      excludesFollowed
+      listHeaderComponent={listHeaderComponent}
+    />
+  );
+}
+
+/** Explore › Who to follow › New: the newest people, in sign-up order. */
+export function NewUsersTab() {
+  const { t } = useTranslation();
+  const query = useInfiniteNewestUsers();
+  return (
+    <ProfileDiscoveryList
+      query={query}
+      emptyTitle={t('explore.newPeople.empty')}
+      excludesFollowed={false}
+    />
+  );
+}
+
+interface ProfileDiscoveryListProps extends WhoToFollowTabProps {
+  query: UseInfiniteRecommendationsResult;
+  emptyTitle: string;
+  /** The list never holds someone the viewer follows, so no row asks. */
+  excludesFollowed: boolean;
+}
+
+function ProfileDiscoveryList({
+  query,
+  emptyTitle,
+  excludesFollowed,
+  listHeaderComponent,
+}: ProfileDiscoveryListProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
   const theme = useTheme();
 
-  // Cursor-paginated recommendations: this tab loads more on scroll-end. The
-  // single-page `useRecommendations` still backs the widgets; this infinite
-  // variant shares the same fetch/precache/enrich core and dedups by id.
   const {
     recommendations,
     isLoading: loading,
@@ -52,7 +94,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteRecommendations();
+  } = query;
 
   const handleLoadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -118,10 +160,13 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     }
   }, [getInviteMessage, t]);
 
-  const renderUser = useCallback(({ item }: { item: ProfileData }) => {
-    if (!item.id) return null;
-    return <FollowRow item={item} userId={item.id} />;
-  }, []);
+  const renderUser = useCallback(
+    ({ item }: { item: ProfileData }) => {
+      if (!item.id) return null;
+      return <FollowRow item={item} userId={item.id} excludesFollowed={excludesFollowed} />;
+    },
+    [excludesFollowed],
+  );
 
   const listHeader = useMemo(
     () => (
@@ -183,12 +228,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
         keyExtractor={(item: ProfileData) => item.id || item.username || ''}
         ListHeaderComponent={listHeader}
         ListFooterComponent={renderFooter}
-        ListEmptyComponent={
-          <EmptyState
-            title={t('No recommendations available')}
-            sticker="connectionsRecommendations"
-          />
-        }
+        ListEmptyComponent={<EmptyState title={emptyTitle} sticker="connectionsRecommendations" />}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         removeClippedSubviews={false}
@@ -207,12 +247,19 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
 }
 
 /**
- * A recommendation row. The cached user fills in the fields the recommendations
- * payload can omit (an avatar the batched enrichment found), without a fetch of
- * its own per row; the shared {@link ProfileCard} renders the row and owns the
- * follow button.
+ * A discovery row. The cached user fills in the fields the payload can omit (an
+ * avatar the batched enrichment found), without a fetch of its own per row; the
+ * shared {@link ProfileCard} renders the row and owns the follow button.
  */
-const FollowRow = React.memo(({ item, userId }: { item: ProfileData; userId: string }) => {
+const FollowRow = React.memo(function FollowRow({
+  item,
+  userId,
+  excludesFollowed,
+}: {
+  item: ProfileData;
+  userId: string;
+  excludesFollowed: boolean;
+}) {
   const cachedUser = useCachedUserSnapshot(userId);
 
   const profile: ProfileCardData = {
@@ -230,11 +277,14 @@ const FollowRow = React.memo(({ item, userId }: { item: ProfileData; userId: str
     federation: item.federation,
   };
 
-  // Recommendations never include anyone the viewer follows (Oxy's contract),
-  // so the button starts at Follow instead of asking for each row's status.
-  return <ProfileCard profile={profile} showFollowButton initiallyFollowing={false} />;
+  return (
+    <ProfileCard
+      profile={profile}
+      showFollowButton
+      initiallyFollowing={excludesFollowed ? false : undefined}
+    />
+  );
 });
-FollowRow.displayName = 'FollowRow';
 
 const styles = StyleSheet.create({
   container: {

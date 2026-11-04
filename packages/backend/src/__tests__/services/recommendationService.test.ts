@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   redisGet: vi.fn(),
   redisSet: vi.fn(),
   rank: vi.fn(),
+  newest: vi.fn(),
   getMentionOxyClientId: vi.fn(),
   getContentCandidates: vi.fn(),
 }));
@@ -26,7 +27,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // injected client via its constructor, but it also imports the default for the
 // no-arg singleton path, so we mock the module to be safe.
 vi.mock('../../services/OxyRankingClient', () => ({
-  oxyRankingClient: { rank: mocks.rank },
+  oxyRankingClient: { rank: mocks.rank, newest: mocks.newest },
   OxyRankingClient: class {},
 }));
 
@@ -48,7 +49,7 @@ import {
 import { ForegroundRankingError } from '../../services/ForegroundOxyProfileClient';
 import { logger } from '../../utils/logger';
 
-const rankingClient = { rank: mocks.rank };
+const rankingClient = { rank: mocks.rank, newest: mocks.newest };
 const affinityService = { getContentCandidates: mocks.getContentCandidates };
 
 function makeService() {
@@ -597,6 +598,37 @@ describe('RecommendationService pagination', () => {
     expect(key0).not.toBe(key1);
     expect(key0).toContain(':o:0:');
     expect(key1).toContain(':o:10:');
+  });
+});
+
+describe('RecommendationService.getNewest', () => {
+  it('pages Oxy newest-first and removes the viewer and whom they exclude', async () => {
+    mocks.loadPrivacyState.mockResolvedValue({
+      blockedUserIds: new Set(['blocked']),
+      mutedUserIds: new Set(),
+      restrictedUserIds: new Set(),
+      excludedUserIds: new Set(['blocked']),
+    });
+    const profile = (id: string) => ({
+      id,
+      name: { displayName: id },
+      mutualCount: 0,
+      verified: false,
+      isFederated: false,
+      isAgent: false,
+      isAutomated: false,
+      _count: { followers: 0, following: 0 },
+    });
+    mocks.newest.mockResolvedValue({
+      profiles: [profile('new'), profile('blocked'), profile('self_1')],
+      rawCount: 3,
+    });
+
+    const result = await makeService().getNewest({ viewerId: 'self_1', limit: 3, offset: 6 });
+
+    expect(mocks.newest).toHaveBeenCalledWith({ limit: 3, offset: 6 });
+    expect(result.recommendations.map((p) => p.id)).toEqual(['new']);
+    expect(result.nextOffset).toBe(9);
   });
 });
 

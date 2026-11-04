@@ -54,6 +54,9 @@ export interface OxyRecommendationItem {
  */
 const RECOMMENDATIONS_PATH = '/profiles/recommendations';
 
+/** Oxy's newest-people listing (sign-up order); same item shape and envelope. */
+const NEWEST_PATH = '/profiles/newest';
+
 /**
  * The most `excludeIds` Oxy's recommendation routes accept (`maxItems: 500` on
  * both the service and the foreground lane); one more and the whole request is
@@ -254,6 +257,26 @@ export class OxyRankingClient {
       offset: options.offset ?? 0,
     });
 
+    return { profiles, rawCount: items.length };
+  }
+
+  /**
+   * The newest people on Oxy, in sign-up order. Not personalized, so it is a
+   * service call; the caller applies the viewer's exclusions. Returns the mapped
+   * page plus the raw upstream count, like {@link rank}.
+   */
+  async newest(options: { limit: number; offset?: number }): Promise<RankPage> {
+    const query = new URLSearchParams({ limit: String(options.limit) });
+    if (typeof options.offset === 'number' && options.offset > 0) {
+      query.set('offset', String(options.offset));
+    }
+    const items = await getServiceOxyClient().serviceRequest<OxyRecommendationItem[]>(
+      'GET',
+      `${NEWEST_PATH}?${query.toString()}`,
+    );
+    const profiles = items
+      .map(toRankedProfile)
+      .filter((profile): profile is RankedProfile => profile !== null);
     return { profiles, rawCount: items.length };
   }
 }

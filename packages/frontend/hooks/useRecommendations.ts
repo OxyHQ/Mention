@@ -30,6 +30,7 @@ import { logger } from '@oxy.so/core/logger';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import {
   fetchRecommendationsPage,
+  fetchNewestUsersPage,
   deriveExcludeTypes,
   type ProfileData,
   type RecommendationExcludeType,
@@ -74,12 +75,10 @@ export interface UseRecommendationsOptions {
  */
 async function loadRecommendationsPage(
   getUsersByIds: (ids: string[]) => Promise<User[]>,
-  excludeTypes: RecommendationExcludeType[],
-  limit: number,
-  cursor?: string,
+  fetchPage: () => Promise<RecommendationsPage>,
 ): Promise<RecommendationsPage> {
   try {
-    const page = await fetchRecommendationsPage({ excludeTypes, limit, cursor });
+    const page = await fetchPage();
     const users = page.recommendations.filter((u) => u.id.length > 0);
     if (users.length > 0) {
       cacheActors(users);
@@ -159,9 +158,9 @@ export function useRecommendations(opts?: UseRecommendationsOptions): UseRecomme
   const query = useQuery<ProfileData[]>({
     queryKey: viewerQueryKeys.recommendations(viewerId, excludeTypesCsv),
     queryFn: () =>
-      loadRecommendationsPage(getUsersByIds, excludeTypes, RECOMMENDATIONS_SINGLE_PAGE_SIZE).then(
-        (page) => page.recommendations,
-      ),
+      loadRecommendationsPage(getUsersByIds, () =>
+        fetchRecommendationsPage({ excludeTypes, limit: RECOMMENDATIONS_SINGLE_PAGE_SIZE }),
+      ).then((page) => page.recommendations),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
@@ -198,9 +197,7 @@ export interface UseInfiniteRecommendationsResult {
 
 /**
  * Cursor-paginated recommendations for the who-to-follow tab. Pages forward by
- * echoing the previous page's `nextCursor`; the flattened list is deduped by id
- * (ranking is only loosely stable within a short window, so an occasional
- * cross-page overlap is filtered out cheaply on the client).
+ * echoing the previous page's `nextCursor`.
  */
 export function useInfiniteRecommendations(
   opts?: UseRecommendationsOptions,
@@ -208,15 +205,56 @@ export function useInfiniteRecommendations(
   const { getUsersByIds, viewerId, excludeTypes, excludeTypesCsv, enabled } =
     useRecommendationParams(opts);
 
-  const query = useInfiniteQuery({
-    queryKey: viewerQueryKeys.infiniteRecommendations(viewerId, excludeTypesCsv),
-    queryFn: ({ pageParam }) =>
-      loadRecommendationsPage(
-        getUsersByIds,
-        excludeTypes,
-        RECOMMENDATIONS_INFINITE_PAGE_SIZE,
-        pageParam ?? undefined,
+  return useInfiniteProfilePages(
+    viewerQueryKeys.infiniteRecommendations(viewerId, excludeTypesCsv),
+    (cursor) =>
+      loadRecommendationsPage(getUsersByIds, () =>
+        fetchRecommendationsPage({
+          excludeTypes,
+          limit: RECOMMENDATIONS_INFINITE_PAGE_SIZE,
+          cursor,
+        }),
       ),
+    enabled,
+  );
+}
+
+/**
+ * The newest people on Oxy, in sign-up order, cursor-paginated for
+ * `/explore/who-to-follow/new`. Same page handling as
+ * {@link useInfiniteRecommendations}.
+ */
+export function useInfiniteNewestUsers(): UseInfiniteRecommendationsResult {
+  const { oxyServices, user } = useAuth();
+  const getUsersByIds = useCallback(
+    (ids: string[]) => oxyServices.users.getMany(ids),
+    [oxyServices],
+  );
+
+  return useInfiniteProfilePages(
+    viewerQueryKeys.newestUsers(user?.id ?? 'anon'),
+    (cursor) =>
+      loadRecommendationsPage(getUsersByIds, () =>
+        fetchNewestUsersPage({ limit: RECOMMENDATIONS_INFINITE_PAGE_SIZE, cursor }),
+      ),
+    true,
+  );
+}
+
+/**
+ * The shared infinite-query core: pages forward by echoing the previous page's
+ * `nextCursor`, and flattens the pages deduped by id (ranking is only loosely
+ * stable within a short window, and new sign-ups shift an offset page, so an
+ * occasional cross-page overlap is filtered out cheaply on the client).
+ */
+function useInfiniteProfilePages(
+  queryKey: readonly unknown[],
+  loadPage: (cursor: string | undefined) => Promise<RecommendationsPage>,
+  enabled: boolean,
+): UseInfiniteRecommendationsResult {
+  const query = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) => loadPage(pageParam ?? undefined),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) =>
       nextUnvisitedCursor(lastPage.nextCursor, pageParams),

@@ -69,6 +69,7 @@ describe('Explore tabs', () => {
     expect(renderAt('/explore').value).toBe('all');
     expect(renderAt('/explore/media').value).toBe('media');
     expect(renderAt('/explore/who-to-follow').value).toBe('people');
+    expect(renderAt('/explore/who-to-follow/new').value).toBe('people');
   });
 
   it('pushes the route of any other tab', () => {
