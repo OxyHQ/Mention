@@ -76,6 +76,14 @@ the first Ask Alia, and the `deferredSources` gate asserts the SDK's `AliaChatSh
 initial chunk. What reaches the initial chunk is the provider and the modules the sheet shares
 with the SDK's own lazily loaded voice call, which `extractCommonChunk` hoists into `__common`.
 
+`@peable.to/sdk` 1.0.0 (#1798, 2026-11-04) moves the total-bytes ceiling 21,423,495 →
+21,489,031 bytes (+64 KiB); every other ceiling is unchanged. The merge-queue export measured
++58.46 KiB JavaScript (+12.28 KiB gzip) against main, all of it deferred: initial JavaScript is
+unchanged (+10 B gzip). The SDK's browser graph newly imports `@peable.to/contracts/vocabulary`
+(66 KB of unminified ESM, absent from 0.20.0's graph) through `core/errors.js` (`ERROR_CODES`,
+`errorDocUrl`) and `PEABLE_API_VERSION`, into the lazily loaded Plus checkout; trimming that is
+Peable's to do, in the SDK.
+
 The canonical Experience feature (#1408, 2026-10-16) moves no ceiling. Measured
 on one `expo export --platform web` each of main `fa91c8947` and the merged
 branch, same analyzer, Clarity SDK 0.6.0:
