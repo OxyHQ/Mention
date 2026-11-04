@@ -125,6 +125,7 @@ import { notifications } from '../../db/schema/discovery';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import notificationsRouter from '../../routes/notifications';
+import { resetOxyUserFailureMemory } from '../../services/PostHydrationService';
 
 const scope = postScope('notifications-privacy');
 const ACTOR = scope.user('actor');
@@ -192,6 +193,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetOxyUserFailureMemory();
   mocks.getUsersByIds.mockResolvedValue([]);
 });
 

@@ -77,7 +77,7 @@ import { readPersistedMediaFields } from './MediaMetadataService';
 // has to hide exactly what the DTO hides — see `engagementCountPrivacy.ts`.
 import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPrivacy';
 import type { User as OxyUser } from '@oxy.so/core';
-import { getNormalizedUserHandle } from '@oxy.so/core';
+import { getNormalizedUserHandle, isRetryableError } from '@oxy.so/core';
 import { assignThreadState } from './ThreadSlicingService';
 import {
   mget as mgetUserSummaries,
@@ -565,6 +565,55 @@ async function applyStarterPackScores(
 export const OXY_USER_FALLBACK_CONCURRENCY = 8;
 /** One wall-clock budget shared by the bulk read and every fallback read. */
 export const OXY_USER_RESOLUTION_DEADLINE_MS = 1_500;
+/**
+ * How long an author Oxy could not resolve is answered with the placeholder
+ * without asking again. A failed author was never cached, so during an Oxy
+ * outage every feed render re-asked for the same authors — on the budget that
+ * had just run out. A few seconds absorbs the renders of a burst and still
+ * lets a recovered Oxy show real names on the next scroll.
+ */
+export const OXY_USER_FAILURE_TTL_MS = 5_000;
+const OXY_USER_FAILURE_MAX_ENTRIES = 10_000;
+
+/** Authors whose resolution just failed, with when they may be asked again. Per task. */
+const failedUserLookups = new Map<string, number>();
+
+/** Forget every remembered failure: a test that fails an author, then serves it. */
+export function resetOxyUserFailureMemory(): void {
+  failedUserLookups.clear();
+}
+
+function recentlyFailedUserLookup(userId: string, now: number): boolean {
+  const retryAt = failedUserLookups.get(userId);
+  if (retryAt === undefined) return false;
+  if (retryAt > now) return true;
+  failedUserLookups.delete(userId);
+  return false;
+}
+
+function rememberFailedUserLookups(userIds: readonly string[]): void {
+  const retryAt = Date.now() + OXY_USER_FAILURE_TTL_MS;
+  for (const userId of userIds) {
+    failedUserLookups.delete(userId);
+    failedUserLookups.set(userId, retryAt);
+  }
+  // Insertion-ordered: the oldest failures go first.
+  for (const userId of failedUserLookups.keys()) {
+    if (failedUserLookups.size <= OXY_USER_FAILURE_MAX_ENTRIES) break;
+    failedUserLookups.delete(userId);
+  }
+}
+
+/**
+ * Whether the bulk read failed because Oxy is overloaded or unreachable (a 429,
+ * a 5xx, a network failure, the deadline). Asking for each author on its own
+ * would spend the same exhausted budget N times over, so it is not attempted.
+ * Any other failure (a 400/401/403 on the service read) still falls back to the
+ * public per-id reads, which do not share its cause.
+ */
+function isOxyOverloaded(error: unknown): boolean {
+  return error instanceof OxyUserResolutionDeadlineError || isRetryableError(error);
+}
 
 class OxyUserResolutionDeadlineError extends Error {
   constructor() {
@@ -726,8 +775,11 @@ async function resolveOxyUserSummaryMisses(
   const unresolved = missIds.filter((userId) => !freshlyResolved.has(userId));
   let perIdFailures = 0;
   let deadlineExceeded = bulkFailure instanceof OxyUserResolutionDeadlineError;
+  const overloaded = bulkFailure !== undefined && isOxyOverloaded(bulkFailure);
 
-  if (unresolved.length > 0 && Date.now() < deadlineAt) {
+  if (unresolved.length > 0 && overloaded) {
+    perIdFailures = unresolved.length;
+  } else if (unresolved.length > 0 && Date.now() < deadlineAt) {
     await runWithConcurrencyLimit(unresolved, OXY_USER_FALLBACK_CONCURRENCY, async (userId) => {
       if (Date.now() >= deadlineAt) {
         deadlineExceeded = true;
@@ -754,10 +806,12 @@ async function resolveOxyUserSummaryMisses(
   }
 
   if (bulkFailure || perIdFailures > 0) {
+    rememberFailedUserLookups(missIds.filter((userId) => !freshlyResolved.has(userId)));
     logger.warn('[PostHydration] Oxy user resolution was partial', {
       requested: missIds.length,
       resolved: freshlyResolved.size,
       fallbackFailures: perIdFailures,
+      fallbackSkipped: overloaded,
       deadlineExceeded,
       bulkReason: bulkFailure instanceof Error ? bulkFailure.message : undefined,
     });
@@ -784,8 +838,10 @@ async function resolveOxyUserSummaryMisses(
  *      via the service client; bounded per-id fallback under one deadline), then
  *   3. a single batched write of the freshly-resolved summaries back to cache.
  *
- * Cache hits never touch Oxy. Misses that error fall back to a minimal summary
- * (and are NOT cached, so they re-resolve next time). Shared by hydration
+ * Cache hits never touch Oxy. Misses that error fall back to a minimal summary,
+ * never written to Redis; this task answers them with it for
+ * {@link OXY_USER_FAILURE_TTL_MS} before asking Oxy again. A bulk read that
+ * failed because Oxy is overloaded is not fanned out per id. Shared by hydration
  * ({@link PostHydrationService.buildUserMap}) and the ranking authority signal.
  */
 export async function resolveUserSummaries(
@@ -800,10 +856,14 @@ export async function resolveUserSummaries(
   // 1. Batched cache read.
   const cached = await mgetUserSummaries(uniqueUserIds);
   const missIds: string[] = [];
+  const now = Date.now();
   for (const userId of uniqueUserIds) {
     const hit = cached.get(userId);
     if (hit) {
       resolved.set(userId, hit);
+    } else if (recentlyFailedUserLookup(userId, now)) {
+      // Asked a moment ago and Oxy could not answer: the placeholder again.
+      resolved.set(userId, fallbackSummary(userId));
     } else {
       missIds.push(userId);
     }

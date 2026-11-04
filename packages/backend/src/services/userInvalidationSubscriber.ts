@@ -13,7 +13,7 @@
  * rebroadcasts a local actor whose `alsoKnownAs` changed (the precondition of an
  * incoming Mastodon `Move`). That check claims each event once across tasks.
  *
- * WHAT IT DROPS, and why all four:
+ * WHAT IT DROPS, and why all of it:
  *  - the {@link userSummaryCache} entry — the shared, cross-task Redis copy that
  *    `PostHydrationService` reads for every post author, AND this task's own
  *    short-lived in-process copy of it, which only a per-task signal like this
@@ -21,6 +21,9 @@
  *  - the Redis viewer-languages entry (`utils/viewerLanguage`) — the user's own
  *    ordered locales, which decide the rendition of every post they are served,
  *    so a reorder in Oxy applies on their next request;
+ *  - the Redis author-visibility entry (`oxyAuthorVisibilityCache`) — whether
+ *    Oxy serves the account's public profile, which gates every crawled page
+ *    of theirs, so an archived or restricted account leaves them at once;
  *  - the GET response cache of BOTH process-level Oxy clients (service and
  *    runtime). Those are per-PROCESS in-memory caches inside `@oxy.so/core`, so
  *    the Redis eviction alone would leave each task serving its own stale copy
@@ -50,6 +53,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { invalidateViewerLanguages } from '../utils/viewerLanguage';
 import { invalidate as invalidateUserSummaries } from './userSummaryCache';
+import { invalidateOxyAuthorVisibility } from './oxyAuthorVisibilityCache';
 import { publishAliasChange } from './federation/aliasPublication';
 
 /** Handle for shutting the subscriber down. */
@@ -101,6 +105,7 @@ export async function startUserInvalidationSubscriber(): Promise<UserInvalidatio
           return Promise.all([
             invalidateUserSummaries([event.userId]),
             invalidateViewerLanguages([event.userId]),
+            invalidateOxyAuthorVisibility([event.userId]),
           ]).then(() => undefined);
         },
         onError: (error, raw) => {

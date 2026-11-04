@@ -18,6 +18,7 @@ import { feedSeenPostsService } from '../FeedSeenPostsService';
 import { invalidateViewerRelations } from '../../utils/privacyHelpers';
 import { clearRecentTopics } from '../viewerRecentTopics';
 import { invalidateViewerLanguages } from '../../utils/viewerLanguage';
+import { invalidateOxyAuthorVisibility } from '../oxyAuthorVisibilityCache';
 
 /** Drop every cache entry keyed by the account. Returns how many helpers ran. */
 export async function dropAccountCaches(oxyUserId: string): Promise<number> {
@@ -28,6 +29,7 @@ export async function dropAccountCaches(oxyUserId: string): Promise<number> {
     () => feedSeenPostsService.clearSeenPosts(oxyUserId),
     () => clearRecentTopics(oxyUserId),
     () => invalidateViewerLanguages([oxyUserId]),
+    () => invalidateOxyAuthorVisibility([oxyUserId]),
   ];
   const settled = await Promise.allSettled(operations.map((operation) => operation()));
   return settled.filter((outcome) => outcome.status === 'fulfilled').length;

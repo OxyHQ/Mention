@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   publisherQuit: vi.fn(),
   invalidateUserSummaries: vi.fn(),
   invalidateViewerLanguages: vi.fn(),
+  invalidateOxyAuthorVisibility: vi.fn(),
   serviceInvalidate: vi.fn(() => 0),
   runtimeInvalidate: vi.fn(() => 0),
   info: vi.fn(),
@@ -67,6 +68,10 @@ vi.mock('../services/userSummaryCache', () => ({
 
 vi.mock('../utils/viewerLanguage', () => ({
   invalidateViewerLanguages: mocks.invalidateViewerLanguages,
+}));
+
+vi.mock('../services/oxyAuthorVisibilityCache', () => ({
+  invalidateOxyAuthorVisibility: mocks.invalidateOxyAuthorVisibility,
 }));
 
 vi.mock('../services/federation/aliasPublication', () => ({
@@ -108,12 +113,13 @@ describe('startUserInvalidationSubscriber', () => {
     });
   });
 
-  it('drops the Redis summary, the viewer languages AND both per-process SDK caches', async () => {
+  it('drops the Redis summary, the viewer languages, the author visibility AND both per-process SDK caches', async () => {
     await startUserInvalidationSubscriber();
     deliver(VALID);
 
     expect(mocks.invalidateUserSummaries).toHaveBeenCalledWith(['user-1']);
     expect(mocks.invalidateViewerLanguages).toHaveBeenCalledWith(['user-1']);
+    expect(mocks.invalidateOxyAuthorVisibility).toHaveBeenCalledWith(['user-1']);
     // Both clients, or one task keeps answering from its own stale copy.
     const sweep = expect.objectContaining({
       keys: ['GET:/users/user-1'],

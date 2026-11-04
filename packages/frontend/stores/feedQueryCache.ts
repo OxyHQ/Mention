@@ -63,6 +63,24 @@ export function foldFeedPages(pages: readonly FeedPage[]): MergedFeedPageContent
   });
 }
 
+/**
+ * Whether any row shows an author the server could not resolve from Oxy: the
+ * degraded placeholder, the only user with an EMPTY `username` (`PostUser`).
+ * That is the server's answer for the moment of the read, not the account's —
+ * an Oxy outage puts it on every author it hydrated — so a feed holding one is
+ * worth reading again (`hooks/useFeedQuery`).
+ */
+export function hasUnresolvedAuthor(items: readonly HydratedPost[]): boolean {
+  const unresolved = (user: { username?: string } | null | undefined) =>
+    Boolean(user) && !user?.username;
+  return items.some(
+    (post) =>
+      unresolved(post.user) ||
+      unresolved(post.boost?.actor) ||
+      unresolved((post.boost?.originalPost ?? post.quotedPost ?? post.originalPost)?.user),
+  );
+}
+
 /** A single-post slice for a post the viewer just created. */
 function localPostSlice(post: HydratedPost): FeedPostSlice {
   return {

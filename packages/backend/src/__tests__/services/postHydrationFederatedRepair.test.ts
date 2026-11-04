@@ -51,6 +51,7 @@ import {
   resolveUserSummaries,
   degradedActorSummary,
   isFallbackUserSummary,
+  resetOxyUserFailureMemory,
 } from '../../services/PostHydrationService';
 
 /**
@@ -74,6 +75,7 @@ afterAll(async () => {
 describe('resolveUserSummaries Oxy public identity authority', () => {
   beforeEach(async () => {
     await clearFederationScope(scope);
+    resetOxyUserFailureMemory();
     cachedSummaries.mockResolvedValue(new Map());
     getUsersByIds.mockReset();
     getUserById.mockReset();

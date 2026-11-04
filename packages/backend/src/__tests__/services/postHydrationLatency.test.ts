@@ -54,7 +54,11 @@ vi.mock('../../services/userSummaryCache', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import {
+  OXY_USER_FAILURE_TTL_MS,
+  PostHydrationService,
+  resetOxyUserFailureMemory,
+} from '../../services/PostHydrationService';
 import type { HydrationOptions } from '../../services/PostHydrationService';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
@@ -70,6 +74,7 @@ afterEach(async () => {
 });
 beforeEach(() => {
   cache.clear();
+  resetOxyUserFailureMemory();
   for (const read of [getMany, getUser, me, blocked, restricted, following, followers])
     read.mockReset();
   getMany.mockImplementation(async (ids: string[]) => {
@@ -208,7 +213,7 @@ describe('feed hydration latency', () => {
     ).rejects.toThrow('privacy unavailable');
   });
 
-  it('does not retry an unresolved mention for every post or cache it across requests', async () => {
+  it('does not retry an unresolved mention for every post, and asks again after a brief memory', async () => {
     const missing = scope.user('missing');
     getMany.mockImplementation(async (ids: string[]) => {
       await delay(REMOTE_LATENCY_MS);
@@ -232,7 +237,17 @@ describe('feed hydration latency', () => {
     expect(getMany).toHaveBeenCalledTimes(1);
     expect(getUser).toHaveBeenCalledTimes(1);
     getMany.mockClear();
+    // The next request inside the failure window answers from this task's memory...
     await service.hydratePosts(posts);
-    expect(getMany).toHaveBeenCalledWith([missing]);
+    expect(getMany).not.toHaveBeenCalled();
+    // ...and the one after it asks Oxy again.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(Date.now() + OXY_USER_FAILURE_TTL_MS);
+      await service.hydratePosts(posts);
+      expect(getMany).toHaveBeenCalledWith([missing]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

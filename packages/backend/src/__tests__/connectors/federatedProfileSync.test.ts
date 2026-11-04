@@ -226,10 +226,21 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
   });
 
-  it('does NOT report pending inside the outbox-sync cooldown window', async () => {
-    await seedCachedActor(federatedActor({ lastOutboxSyncAt: new Date() }));
+  it.each([
+    ['an ActivityPub', federatedActor({ lastOutboxSyncAt: new Date() }), 'fed1'],
+    ['an atproto', atprotoActor({ postsCount: 5, lastOutboxSyncAt: new Date() }), 'at1'],
+  ])('does no network work for %s actor inside the cooldown window', async (_kind, actor, id) => {
+    connectorFor.mockReturnValue({ fetchPosts: atprotoFetchPosts });
+    await seedCachedActor(actor);
 
-    await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
+    await expect(federatedProfileSync.syncOnProfileView(id)).resolves.toBe(false);
+    // The detached task starts its network calls in its first tick.
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(getUserById).not.toHaveBeenCalled();
+    expect(fetchRemoteActor).not.toHaveBeenCalled();
+    expect(refreshActorInBackground).not.toHaveBeenCalled();
+    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+    expect(atprotoFetchPosts).not.toHaveBeenCalled();
   });
 
   it('reports pending again once the cooldown window has elapsed', async () => {
@@ -303,14 +314,6 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     await vi.waitFor(() => expect(atprotoFetchPosts).toHaveBeenCalledTimes(3));
     await vi.waitFor(() => expect(syncAtprotoProfileGraph).toHaveBeenCalledOnce());
     expect(syncAtprotoProfileGraph).toHaveBeenCalledWith('did:plc:abc123', 'at1');
-  });
-
-  it('clears pending for an atproto actor once the backfill has been stamped', async () => {
-    // postsCount > 0 skips the zero-post short-circuit; a recent stamp inside the
-    // cooldown window is what terminates the poll after the background import.
-    await seedCachedActor(atprotoActor({ postsCount: 5, lastOutboxSyncAt: new Date() }));
-
-    await expect(federatedProfileSync.syncOnProfileView('at1')).resolves.toBe(false);
   });
 });
 

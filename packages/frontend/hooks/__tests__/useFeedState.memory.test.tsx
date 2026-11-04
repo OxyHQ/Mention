@@ -13,7 +13,11 @@ import { noteLaneListsChanged, resetLaneInvalidation } from '@/stores/laneInvali
 import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { resetBylineInvalidation } from '@/stores/bylineInvalidation';
 import { useFeedState, type UseFeedStateOptions, type UseFeedStateReturn } from '../useFeedState';
-import { FED_PENDING_POLL_DELAYS_MS, prefetchFeed } from '../useFeedQuery';
+import {
+  FED_PENDING_POLL_DELAYS_MS,
+  prefetchFeed,
+  UNRESOLVED_AUTHOR_REREAD_DELAYS_MS,
+} from '../useFeedQuery';
 import { __feedPageReadForTests, startBootFeedRead } from '@/services/feedPageRead';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
@@ -66,7 +70,12 @@ jest.mock('@/lib/precacheActorsFromPosts', () => ({
 }));
 
 function post(id: string, extra: Partial<HydratedPost> = {}): HydratedPost {
-  return { id, user: { id: `author-${id}` }, ...extra } as unknown as HydratedPost;
+  // A resolved author: only the degraded placeholder has no `username`.
+  return {
+    id,
+    user: { id: `author-${id}`, username: `author-${id}` },
+    ...extra,
+  } as unknown as HydratedPost;
 }
 
 function page(
@@ -915,6 +924,66 @@ describe('useFeedState memory mode: one feed query', () => {
       await advance(FED_PENDING_POLL_DELAYS_MS[0] + SLACK_MS);
       expect(ids()).toEqual(['shown', 'newer']);
       expect(latest?.pending).toBe(false);
+    });
+  });
+
+  describe('an author Oxy could not resolve', () => {
+    const unresolvedPage = (): SlicedFeedResponse => ({
+      ...page([]),
+      items: [post('p1', { user: { id: 'author-p1', username: '' } as HydratedPost['user'] })],
+    });
+
+    it('reads page 1 again on the bounded backoff until the author resolves', async () => {
+      jest.useFakeTimers();
+      getFeedMock.mockResolvedValueOnce(unresolvedPage()).mockResolvedValueOnce(page(['p1']));
+      let renderer!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(tree(explore));
+      });
+      open.add(renderer);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10);
+      });
+      expect(getFeedMock).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(UNRESOLVED_AUTHOR_REREAD_DELAYS_MS[0]);
+      });
+      expect(getFeedMock).toHaveBeenCalledTimes(2);
+      expect(getFeedMock.mock.lastCall?.[0].cursor).toBeUndefined();
+      expect(latest?.items[0]?.user.username).toBe('author-p1');
+
+      // Resolved: nothing more to read.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10 * 60_000);
+      });
+      expect(getFeedMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('reads it again when the feed mounts after the backoff, instead of keeping it all session', async () => {
+      jest.useFakeTimers();
+      getFeedMock.mockResolvedValueOnce(unresolvedPage()).mockResolvedValueOnce(page(['p1']));
+      const advance = (ms: number) =>
+        act(async () => {
+          await jest.advanceTimersByTimeAsync(ms);
+        });
+      let first!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        first = TestRenderer.create(tree(explore));
+      });
+      await advance(10);
+      act(() => first.unmount());
+
+      await advance(UNRESOLVED_AUTHOR_REREAD_DELAYS_MS[0]);
+      expect(getFeedMock).toHaveBeenCalledTimes(1);
+      let second!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        second = TestRenderer.create(tree(explore));
+      });
+      open.add(second);
+      await advance(10);
+      expect(getFeedMock).toHaveBeenCalledTimes(2);
+      expect(latest?.items[0]?.user.username).toBe('author-p1');
     });
   });
 
