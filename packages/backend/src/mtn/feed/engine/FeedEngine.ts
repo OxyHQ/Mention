@@ -587,33 +587,34 @@ export class FeedEngine {
     // Consume a raw chronological window before filtering. Keep the overfetch
     // row for the next page, including when several timelines are merged.
     const raw = Array.from(new Map(sourceResults.flat().map((post) => [post.id, post])).values());
-    const bellMatches =
-      definition.id === 'for_you'
-        ? await activitySubscriptionMatches(raw, ctx)
-        : new Map<string, string[]>();
     const poolNeedsTextMedia = this.needsTextMedia(definition.filters, ctx);
     const gateNeedsTextMedia = this.needsTextMedia(definition.discoveryFilters ?? [], ctx);
-    const gateViews = await this.prepareTextMediaViews(
-      sourceResults.flatMap((rows, index) =>
-        poolNeedsTextMedia ||
-        (gateNeedsTextMedia && !this.registry.getSource(enabledSources[index].module)?.trusted)
-          ? rows
-          : [],
+    // Three independent reads over the same raw window: one round trip, not three.
+    const [bellMatches, gateViews, numberIds] = await Promise.all([
+      definition.id === 'for_you'
+        ? activitySubscriptionMatches(raw, ctx)
+        : new Map<string, string[]>(),
+      this.prepareTextMediaViews(
+        sourceResults.flatMap((rows, index) =>
+          poolNeedsTextMedia ||
+          (gateNeedsTextMedia && !this.registry.getSource(enabledSources[index].module)?.trusted)
+            ? rows
+            : [],
+        ),
+        [
+          ...definition.filters,
+          ...(sourceResults.some(
+            (rows, index) =>
+              rows.length && !this.registry.getSource(enabledSources[index].module)?.trusted,
+          )
+            ? (definition.discoveryFilters ?? [])
+            : []),
+        ],
       ),
-      [
-        ...definition.filters,
-        ...(sourceResults.some(
-          (rows, index) =>
-            rows.length && !this.registry.getSource(enabledSources[index].module)?.trusted,
-        )
-          ? (definition.discoveryFilters ?? [])
-          : []),
-      ],
-    );
-    const numberIds =
       definition.id === 'for_you' || definition.id === 'explore'
-        ? await standaloneNumberIds(raw)
-        : new Set<string>();
+        ? standaloneNumberIds(raw)
+        : new Set<string>(),
+    ]);
     const chronological = definition.mode === 'chronological' && !exec.ordered;
     const scanned = chronological ? raw.sort(compareChronological).slice(0, cap - 1) : raw;
     const scannedIds = chronological ? new Set(scanned.map((post) => post.id)) : undefined;
@@ -931,17 +932,21 @@ export class FeedEngine {
       state.pending.length > 0 ||
       !exhausted() ||
       (state.phase === 'ranked' && allowFallback && Boolean(exec.popularFallback));
-    const nextCursor = hasMore ? await rankedFeedSessionStore.save(state) : undefined;
-    const hydrated = await postHydrationService.hydrateSlices(selected, {
-      viewerId: ctx.currentUserId,
-      oxyClient: ctx.oxyClient,
-      safetyRequester: ctx.safetyRequester,
-      maxDepth: exec.hydrateMaxDepth ?? 0,
-      includeLinkMetadata: true,
-      viewerGraph: this.viewerGraphOption(ctx),
-      viewerPrivacy: this.viewerPrivacyOption(ctx),
-      viewerLanguages: ctx.viewerLanguages,
-    });
+    // The session write (Redis) and hydration (Postgres/Oxy) share nothing, so
+    // they run side by side; a failed save still fails the page.
+    const [nextCursor, hydrated] = await Promise.all([
+      hasMore ? rankedFeedSessionStore.save(state) : undefined,
+      postHydrationService.hydrateSlices(selected, {
+        viewerId: ctx.currentUserId,
+        oxyClient: ctx.oxyClient,
+        safetyRequester: ctx.safetyRequester,
+        maxDepth: exec.hydrateMaxDepth ?? 0,
+        includeLinkMetadata: true,
+        viewerGraph: this.viewerGraphOption(ctx),
+        viewerPrivacy: this.viewerPrivacyOption(ctx),
+        viewerLanguages: ctx.viewerLanguages,
+      }),
+    ]);
     if (definition.id === 'for_you' || definition.id === 'friends_popular')
       await attachSocialFeedContext(hydrated, ctx);
     if (exec.seenPosts && ctx.currentUserId) this.markSlicesSeen(ctx.currentUserId, hydrated);
@@ -1526,26 +1531,27 @@ export class FeedEngine {
       ? Math.ceil(limit * MtnConfig.feed.sliceOverfetchMultiplier) + 1
       : limit + 1;
     const candidates = await source.gather({ ...ctx, cursor, pageLimit: limit }, {}, fetch);
-    const gateViews = await this.prepareTextMediaViews(
-      this.needsTextMedia(definition.discoveryFilters ?? [], ctx) ? candidates : [],
-      definition.discoveryFilters ?? [],
-    );
+    // The gate's author-aware half needs the authors of the fetched window. One
+    // batch, and fail-soft: an empty map leaves every author-aware filter neutral.
+    // It, the gate's text/media evidence and the standalone-number probe are
+    // independent reads of the same window, so they share one round trip.
+    const needsAuthors = gateKeeps.authorAware.length > 0 && candidates.length > 0;
+    const [gateViews, authorSummaries, numberIds] = await Promise.all([
+      this.prepareTextMediaViews(
+        this.needsTextMedia(definition.discoveryFilters ?? [], ctx) ? candidates : [],
+        definition.discoveryFilters ?? [],
+      ),
+      needsAuthors ? resolveAuthorQuality(candidates, (post) => post.oxyUserId) : undefined,
+      definition.id === 'for_you' || definition.id === 'explore'
+        ? standaloneNumberIds(candidates)
+        : new Set<string>(),
+    ]);
+    if (needsAuthors) ctx.authorSummaries = authorSummaries;
 
     // The ONE path that never passes through `gatherPool`, so the reader's muted
     // lanes have to be applied here too — `neverBlank` reaches it from an
     // authenticated ranked feed, which is exactly the reader who has mutes.
     const mutedLaneKeep = buildMutedLanePredicate(ctx);
-
-    // The gate's author-aware half needs the authors of the fetched window. One
-    // batch, and fail-soft: an empty map leaves every author-aware filter neutral.
-    if (gateKeeps.authorAware.length > 0 && candidates.length > 0) {
-      ctx.authorSummaries = await resolveAuthorQuality(candidates, (post) => post.oxyUserId);
-    }
-
-    const numberIds =
-      definition.id === 'for_you' || definition.id === 'explore'
-        ? await standaloneNumberIds(candidates)
-        : new Set<string>();
     const page: CandidatePost[] = [];
     let scanned = 0;
     for (const post of candidates) {
