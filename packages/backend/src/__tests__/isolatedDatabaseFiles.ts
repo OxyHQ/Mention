@@ -319,6 +319,13 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       "`outbox_backfill_*` columns of whatever it selected, another file's actors included.",
   },
   {
+    path: 'src/__tests__/connectors/remoteGraphMirror.test.ts',
+    jobEntryPoint: 'syncRemoteGraphMirror',
+    reason:
+      'Crawls every followed actor that is due and expires every remote follow edge with ' +
+      "an unknown end across `remote_follow_edges`, another file's actors and edges included.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillFederatedHandleQualificationRows.test.ts',
     jobEntryPoint: 'backfillFederatedHandleQualification',
     reason:

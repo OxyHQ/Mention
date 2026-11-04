@@ -15,10 +15,12 @@
  */
 
 import { stripHandlePrefix } from '@mention/shared-types/handle';
-import { ANY_DID_RE, BSKY_APP_ORIGIN, didFromAtUri } from '../atproto/constants';
-
-/** Bridgy Fed's Bluesky↔fediverse bridge host (where the `/ap/<did>` scheme lives). */
-const BRIDGY_FED_BSKY_HOST = 'bsky.brid.gy';
+import { BSKY_APP_ORIGIN, didFromAtUri } from '../atproto/constants';
+import {
+  BRIDGY_FED_BSKY_HOST,
+  bridgyActorUriForDid,
+  didFromBridgyActorUri,
+} from '../shared/bridgyActor';
 
 /**
  * Derive the canonical Bridgy Fed ActivityPub actor URI
@@ -42,7 +44,7 @@ export function deriveBridgyActorUri(
     }
     if (host !== BRIDGY_FED_BSKY_HOST) continue;
     const did = didFromAtUri(candidate);
-    if (did) return `https://${BRIDGY_FED_BSKY_HOST}/ap/${did}`;
+    if (did) return bridgyActorUriForDid(did);
   }
   return undefined;
 }
@@ -58,25 +60,6 @@ export function atUriFromBridgyObjectUri(objectUri: string): string | undefined 
   if (!objectUri.startsWith(prefix)) return undefined;
   const atUri = objectUri.slice(prefix.length);
   return atUri.startsWith('at://') && didFromAtUri(atUri) ? atUri : undefined;
-}
-
-/**
- * The atproto DID of a Bridgy Fed actor URI (`https://bsky.brid.gy/ap/<did>`) —
- * the inverse of {@link deriveBridgyActorUri}. Returns undefined for any
- * non-brid.gy URL or one whose path is not exactly `/ap/<did>`. Pure and
- * synchronous; used to recognise a bridged mention and derive its Bluesky web
- * profile URL.
- */
-export function didFromBridgyActorUri(actorUri: string): string | undefined {
-  let url: URL;
-  try {
-    url = new URL(actorUri);
-  } catch {
-    return undefined;
-  }
-  if (url.host.toLowerCase() !== BRIDGY_FED_BSKY_HOST) return undefined;
-  const did = url.pathname.match(/^\/ap\/(did:(?:plc|web):[^/]+)$/i)?.[1];
-  return did && ANY_DID_RE.test(did) ? did : undefined;
 }
 
 /**

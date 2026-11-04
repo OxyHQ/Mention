@@ -37,7 +37,8 @@ export type PeriodicTaskName =
   | 'syncInstagramFollowedAccounts'
   | 'drainFederatedMediaDeletions'
   | 'runFederatedBannerMirrors'
-  | 'syncOxyFileReferences';
+  | 'syncOxyFileReferences'
+  | 'syncRemoteGraphMirror';
 
 /** Payload for a periodic (repeatable) federation maintenance job. */
 export interface PeriodicJobData {

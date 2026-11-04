@@ -30,6 +30,7 @@ import { runEvictionOnce } from './mediaCache/evictionJob';
 import { drainFederatedMediaDeletions } from './mediaCache/federatedMediaDeletion';
 import { drainFileReferenceSync } from './oxyFiles/fileReferenceSync';
 import { runFederatedBannerMirrors } from './federatedBannerMirror';
+import { syncRemoteGraphMirror } from '../connectors/remoteGraphMirror';
 import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
 import {
   MEDIA_CACHE_EVICTION_INTERVAL_MS,
@@ -54,6 +55,8 @@ import {
   FEDERATED_BANNER_MIRRORS_INTERVAL_MS,
   PERIODIC_OXY_FILE_REFERENCE_SYNC,
   OXY_FILE_REFERENCE_SYNC_INTERVAL_MS,
+  PERIODIC_REMOTE_GRAPH_MIRROR,
+  REMOTE_GRAPH_MIRROR_INTERVAL_MS,
   REFRESH_STALE_ACTORS_INTERVAL_MS,
   SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
   RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
@@ -111,6 +114,7 @@ class FederationJobScheduler {
   private federatedMediaDeletionsInterval: ReturnType<typeof setInterval> | null = null;
   private oxyFileReferenceSyncInterval: ReturnType<typeof setInterval> | null = null;
   private federatedBannerMirrorsInterval: ReturnType<typeof setInterval> | null = null;
+  private remoteGraphMirrorInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
   private initialSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -128,6 +132,7 @@ class FederationJobScheduler {
   private isFederatedMediaDeletionsRunning = false;
   private isOxyFileReferenceSyncRunning = false;
   private isFederatedBannerMirrorsRunning = false;
+  private isRemoteGraphMirrorRunning = false;
 
   /** True when this scheduler registered BullMQ repeatable jobs (queue mode). */
   private usingQueue = false;
@@ -264,6 +269,13 @@ class FederationJobScheduler {
     }, OXY_FILE_REFERENCE_SYNC_INTERVAL_MS);
     this.oxyFileReferenceSyncInterval.unref?.();
 
+    this.remoteGraphMirrorInterval = setInterval(() => {
+      this.syncRemoteGraphMirror().catch((err) =>
+        logger.error('Remote graph mirror sweep failed:', err),
+      );
+    }, REMOTE_GRAPH_MIRROR_INTERVAL_MS);
+    this.remoteGraphMirrorInterval.unref?.();
+
     // Instagram Graph sync — armed only when the connector is configured, for
     // the same reason as the media-cache timers: a disabled job would no-op
     // every tick, and enabling it requires a redeploy anyway.
@@ -369,6 +381,12 @@ class FederationJobScheduler {
       PERIODIC_OXY_FILE_REFERENCE_SYNC,
       OXY_FILE_REFERENCE_SYNC_INTERVAL_MS,
       'syncOxyFileReferences',
+    );
+
+    await upsert(
+      PERIODIC_REMOTE_GRAPH_MIRROR,
+      REMOTE_GRAPH_MIRROR_INTERVAL_MS,
+      'syncRemoteGraphMirror',
     );
 
     if (instagramGraphConnector.enabled) {
@@ -505,6 +523,10 @@ class FederationJobScheduler {
     if (this.oxyFileReferenceSyncInterval) {
       clearInterval(this.oxyFileReferenceSyncInterval);
       this.oxyFileReferenceSyncInterval = null;
+    }
+    if (this.remoteGraphMirrorInterval) {
+      clearInterval(this.remoteGraphMirrorInterval);
+      this.remoteGraphMirrorInterval = null;
     }
     if (this.federatedBannerMirrorsInterval) {
       clearInterval(this.federatedBannerMirrorsInterval);
@@ -1076,6 +1098,20 @@ class FederationJobScheduler {
       await drainFileReferenceSync();
     } finally {
       this.isOxyFileReferenceSyncRunning = false;
+    }
+  }
+
+  /**
+   * Re-crawl the follow graphs of accounts local users follow, and expire mirrored
+   * edges whose other end never became an account here (`connectors/remoteGraphMirror.ts`).
+   */
+  async syncRemoteGraphMirror(): Promise<void> {
+    if (this.isRemoteGraphMirrorRunning) return;
+    this.isRemoteGraphMirrorRunning = true;
+    try {
+      await syncRemoteGraphMirror();
+    } finally {
+      this.isRemoteGraphMirrorRunning = false;
     }
   }
 

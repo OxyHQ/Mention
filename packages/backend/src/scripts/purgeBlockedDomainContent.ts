@@ -173,6 +173,8 @@ import { postgates, threadgates } from '../db/schema/gates';
 import { feedInteractions } from '../db/schema/feeds';
 import { engagementOutbox } from '../db/schema/outbox';
 import { contentLabels, reports } from '../db/schema/moderation';
+import { remoteActorRefs, remoteFollowEdges, remoteGraphCrawls } from '../db/schema/federation';
+import { graphNode } from '../connectors/remoteGraphMirror';
 import { authoredBy } from '../db/posts/postRepository';
 import { countActors, deleteActorsByUris, scanActors } from '../db/federation/actorRepository';
 import { countFollows, deleteFollowsFor } from '../db/federation/followRepository';
@@ -440,6 +442,8 @@ export interface PurgeCounts {
   /** Posts a blocked actor was de-linked from in `mentions[]`. */
   mentionsDelinked: number;
   federatedFollows: number;
+  /** Mirrored remote follow edges (either end) and crawl state of a blocked actor. */
+  remoteFollowEdges: number;
   /**
    * Of those, ACCEPTED OUTBOUND edges — a local user who chose to follow an
    * account there. The sharpest signal that a domain is one real people here
@@ -483,6 +487,7 @@ const COUNT_KEYS: readonly (keyof PurgeCounts)[] = [
   'recentReplierEntriesPulled',
   'mentionsDelinked',
   'federatedFollows',
+  'remoteFollowEdges',
   'localFollowsRemoved',
   'entityFollows',
   'mediaCacheRows',
@@ -1506,6 +1511,34 @@ async function purgeActorContent(
     options.dryRun
       ? await countFollows({ remoteActorUri: actor.uri })
       : await deleteFollowsFor({ remoteActorUri: actor.uri }),
+  );
+  // The mirror holds the actor as one node; its edges go with it (and the node).
+  const node = sql`(select ${remoteActorRefs.id} from ${remoteActorRefs} where ${remoteActorRefs.uri} = ${graphNode(actor.uri)})`;
+  record(
+    report,
+    domain,
+    'remoteFollowEdges',
+    await countOrDelete(
+      remoteFollowEdges,
+      remoteFollowEdges.sourceId,
+      or(
+        sql`${remoteFollowEdges.sourceId} = ${node}`,
+        sql`${remoteFollowEdges.targetId} = ${node}`,
+      ) as SQL,
+      options.dryRun,
+    ),
+  );
+  await countOrDelete(
+    remoteActorRefs,
+    remoteActorRefs.id,
+    eq(remoteActorRefs.uri, graphNode(actor.uri)),
+    options.dryRun,
+  );
+  await countOrDelete(
+    remoteGraphCrawls,
+    remoteGraphCrawls.actorUri,
+    eq(remoteGraphCrawls.actorUri, actor.uri),
+    options.dryRun,
   );
 }
 

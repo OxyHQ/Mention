@@ -410,6 +410,55 @@ links to their URLs) and `movedTo`. Anything the origin did not report is absent
 never `0`. `movedTo` is stored only once its target confirms it, whether it came
 from an inbound `Move` or from the `movedTo` an actor refresh read (`recordRemoteMove`).
 
+### Remote follow graph and engagement
+
+A federated profile's Oxy follow graph holds only the follows made from an Oxy
+app, because Oxy refuses a remote→remote edge. So Mention mirrors who remote
+accounts follow into `remote_follow_edges` (`connectors/remoteGraphMirror.ts`),
+and `GET /profile/connections/:userId/followers|following` lists Oxy's graph
+followed by every mirrored edge whose other end is an account known here
+(`services/federation/remoteConnections.ts`). The connections screen uses it for
+federated profiles. The counts stay the origin's (`remote` above).
+
+- **Who is crawled.** Only accounts that matter to people here: one a local
+  user follows (`syncRemoteGraphMirror`, every 30 minutes), one whose profile or
+  connections were opened, and one that just followed, liked, boosted, replied to
+  or mentioned someone here. Never every known account: all 165k at the cap would
+  be ~82M edges on the database every Oxy app shares. Each account sits behind
+  one 24-hour cooldown and lease (`remote_graph_crawls`).
+- **How much.** At most 2 000 accounts it follows, and its followers only when
+  it has at most 2 000 (a bigger followers list fills in from everyone else's
+  `following`). 2 000 covers p99 of the accounts synced in a month.
+- **Compact.** An edge is two integers into `remote_actor_refs` (97 bytes with
+  its indexes, against 353 for two URIs), and a node goes with its last edge.
+- **One person, one node.** A Bridgy Fed actor URI (`https://bsky.brid.gy/ap/<did>`)
+  is stored as its DID, and a known account matches either spelling.
+- **How long.** Edges are joined to `federated_actors` at read time, so an
+  account synced later appears on every list that named it, for 30 days after
+  the edge was last seen: an edge with an end that is still not an account here
+  then expires. An edge between two known accounts stays until a re-crawl stops
+  seeing it.
+- **Unfollows.** ActivityPub sends a third party no `Undo`, so a COMPLETE re-crawl
+  of a side deletes the edges it did not see again (`last_seen_at`). A crawl cut
+  short by its cap prunes nothing.
+- **Privacy.** An ActivityPub collection is listed only once a crawl found it
+  visible. One the origin refuses (401/403), does not publish, or serves as a
+  total with no items (Mastodon's "hide your network") is never rendered or
+  crawled, and the edges stored from it are dropped. The viewer's blocks, mutes
+  and restrictions are removed as on the engagement lists, and a signed-out
+  viewer sees nothing of an account that hides itself from them.
+- **Not a follow.** Nothing reaches Oxy's `user_follows`, so the mirror never
+  feeds recommendations, mutuals, follow events or a feed. A blocked-domain purge
+  deletes a purged actor's node and edges.
+
+Viewing an imported Bluesky post (`GET /posts/:id`) reads its
+`getLikes`/`getRepostedBy`/`getQuotes` (a few pages, once an hour per post,
+`connectors/remoteEngagementImport.ts`). Only accounts known here are kept,
+and none are minted. They are written through the native records:
+`materializeEngagementRelationship` for a like, the shared boost import (once per
+booster, `importAtprotoRepost`), and the post import for a quote. An ActivityPub
+post publishes only totals, so it keeps its inbound activities.
+
 ## Identity and safety on federated surfaces
 
 **Author hydration must NEVER emit a raw `oxyUserId` as a handle.**

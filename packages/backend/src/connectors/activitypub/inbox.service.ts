@@ -89,6 +89,7 @@ import {
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { applyInboundMove } from './move.service';
 import { bridgeFollowEdge } from './followBridge';
+import { crawlRemoteGraphForInteraction } from '../remoteGraphMirror';
 import {
   addressedLocalCommunity,
   isSelfConsistentActivity,
@@ -740,6 +741,10 @@ export class InboxProcessingService {
     // post but not notified (no Mention inbox). The parent's authors were just
     // told about this reply, and a Mastodon reply always mentions them — they are
     // left out rather than notified twice for one post.
+    // An account that replied to or mentioned someone here is worth mirroring.
+    if (repliedToIds.length > 0 || mentionResult.localIds.length > 0) {
+      crawlRemoteGraphForInteraction(actorUri);
+    }
     if (mentionResult.localIds.length > 0) {
       await this.notifyLocalMentionedUsers(
         mentionResult.localIds,
@@ -856,6 +861,7 @@ export class InboxProcessingService {
     });
     if (!changed) return;
     logger.debug('[Federation] recorded Like');
+    crawlRemoteGraphForInteraction(actorUri);
 
     // Notify the local owner exactly like a native like. Only reached after a
     // NEW Like doc was inserted — a redelivered Like returns on the duplicate-key
@@ -918,6 +924,7 @@ export class InboxProcessingService {
     );
     if (created) {
       logger.debug('[Federation] imported boost');
+      if (announcedPostId) crawlRemoteGraphForInteraction(actorUri);
 
       // Notify the local owner exactly like a native boost. Only reached when a
       // NEW boost Post was created (`importAnnounce` returns false on a
@@ -1302,8 +1309,12 @@ const inboundDispatcherConfig: InboundDispatcherConfig = {
   consent: { isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user) },
   actorResolver: { getOrFetchActor: (actorUri) => actorService.getOrFetchActor(actorUri) },
   follows: {
-    upsertInboundAccepted: (localUserId, remoteActorUri, activityId) =>
-      upsertInboundAccepted(localUserId, remoteActorUri, activityId),
+    upsertInboundAccepted: async (localUserId, remoteActorUri, activityId) => {
+      const result = await upsertInboundAccepted(localUserId, remoteActorUri, activityId);
+      // A new follower here is an account worth mirroring (24h cooldown inside).
+      crawlRemoteGraphForInteraction(remoteActorUri);
+      return result;
+    },
     findInboundFollow: async (remoteActorUri, localUserId) => {
       const follow = await findInboundFollow(remoteActorUri, localUserId || undefined);
       return follow === null ? null : { _id: follow.id, localUserId: follow.localUserId };

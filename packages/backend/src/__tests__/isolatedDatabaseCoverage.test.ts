@@ -140,6 +140,8 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'reportNodeinfoAuthors', call: /\breportNodeinfoAuthors\s*\(/ },
   // The Bluesky pull jobs select every due atproto actor and stamp it.
   { name: 'syncFollowedAtprotoAccounts', call: /\bsyncFollowedAtprotoAccounts\s*\(/ },
+  // The remote graph mirror sweep: due crawls and the table-wide edge expiry.
+  { name: 'syncRemoteGraphMirror', call: /\bsyncRemoteGraphMirror\s*\(/ },
 
   /*
    * The admin one-shots, added by the second scan. Each is keyed on the IMPORTED
