@@ -24,10 +24,10 @@
  *    certain Lemmy/PeerTube objects, send an array). `apType` models both.
  *  - `object` / `attributedTo` / addressing are modeled as the string-IRI OR
  *    embedded-object unions the code branches on.
- *  - `published` is validated as an ISO-8601 datetime and COERCED to a JS `Date`
- *    (preserving the original instant). This is the contract the date-fix relies
- *    on so imported federated posts carry their REAL original timestamp instead
- *    of the time we happened to ingest them.
+ *  - `published` is parsed by `apDate` into a JS `Date` (preserving the original
+ *    instant), so imported federated posts carry their REAL original timestamp
+ *    instead of the time we happened to ingest them; a value that names no date
+ *    is absent, never a rejection.
  *  - Remote data is NEVER trusted to be well-formed: every parse helper uses
  *    `safeParse` and returns a discriminated `{ ok }` result. Nothing here throws
  *    on bad input.
@@ -43,6 +43,7 @@
  * validate through these schemas.
  */
 
+import { apDate } from '@oxy.so/federation';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -59,24 +60,20 @@ import { z } from 'zod';
 export const apId = z.string().min(1);
 
 /**
- * Optional `published` timestamp.
+ * Optional `published` / `updated` timestamp, read by `apDate`
+ * (`@oxy.so/federation`): ISO 8601 in every offset spelling servers send (`Z`,
+ * `+00:00`, `+0000`, `+00`), a local datetime read as UTC. The parsed value is a
+ * real `Date` carrying the original instant, so an imported post's `createdAt`
+ * reflects when it was authored upstream, not when Mention ingested it.
  *
- * Validates an ISO-8601 datetime WITH timezone offset (`Z` or `±HH:MM`) and
- * ALSO accepts a local (offset-less) datetime, then PIPES the validated string
- * through `z.coerce.date()` so the parsed value is a real JS `Date` carrying the
- * original instant. Offset-bearing inputs normalize to the correct UTC instant
- * (e.g. `2023-11-02T14:25:43+02:00` → `2023-11-02T12:25:43Z`).
- *
- * This is the single contract the federated-post date fix depends on: a Note's
- * past `published` must coerce to a `Date` with that past time so the imported
- * post's `createdAt` reflects when it was authored upstream — not when Mention
- * ingested it.
+ * It NEVER rejects: a date is descriptive, and a value that names no date (a
+ * number, garbage, `null`) is simply absent, so the readers fall back exactly as
+ * they do for a missing one. A Note is never dropped over its date.
  */
 export const apPublished = z
-  .string()
-  .datetime({ offset: true, local: true })
-  .pipe(z.coerce.date())
-  .nullish();
+  .unknown()
+  .transform((value): Date | undefined => (typeof value === 'string' ? apDate(value) : undefined))
+  .optional();
 
 /**
  * AP `type`: a single string OR an array of strings. Some servers advertise
@@ -152,8 +149,8 @@ export const apTagSchema = z
 /**
  * An AP `icon` / `image` value. AP allows a string URL, an `Image` object with
  * a `url` (string or nested Link), or an array of either. The ingest code runs
- * this through `firstStringUrl`, so the schema is deliberately permissive and
- * only constrains the optional shape.
+ * this through `apImageUrl` (`@oxy.so/federation`), so the schema is
+ * deliberately permissive and only constrains the optional shape.
  */
 export const apImageSchema: z.ZodType<unknown> = z.lazy(() =>
   z.union([
