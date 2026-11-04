@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DropdownMenuItem,
@@ -12,11 +11,11 @@ import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import type { HydratedPost, PostSourceLink } from '@mention/shared-types';
 import { ReplySettingsMenuItems } from '@/components/Compose/ReplySettingsMenuItems';
-import type { ReplyPermission } from '@/components/Compose/replyPermission';
 import { usePublisherLanes } from '@/hooks/usePublisherLanes';
 import { useRouter } from '@/lib/navigation/router';
-import { feedService } from '@/services/feedService';
 import { lanesService } from '@/services/lanesService';
+import { openExternalLink } from '@/utils/openExternalLink';
+import { savePostSettings, type PostSettingsPatch } from './postSettings';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -35,7 +34,10 @@ function sourceLabel(source: PostSourceLink): string {
   }
 }
 
-/** "Sources": each source the post cites, opened as a link. */
+/**
+ * "Sources": each source the post cites. `href` keeps a real anchor on web;
+ * the press goes through `openExternalLink`, which refuses unsafe schemes.
+ */
 export function PostSourcesSubmenu({ sources }: { sources: PostSourceLink[] }) {
   const theme = useTheme();
   return (
@@ -54,56 +56,27 @@ export function PostSourcesSubmenu({ sources }: { sources: PostSourceLink[] }) {
 }
 
 /**
- * "Reply options": who can reply and whether the post can be quoted, written as
- * each row changes. The rows keep the menu open, so the choice is held here and
- * shown at once; a failed write puts it back.
+ * "Reply options": who can reply and whether the post can be quoted. The rows
+ * keep the menu open; each change is shown at once through the posts store, and
+ * a refused write puts it back.
  */
 export function PostReplySettingsSubmenu({ post }: { post: HydratedPost }) {
   const { t } = useTranslation();
-  const [replyPermission, setReplyPermission] = useState<ReplyPermission[]>(
-    post.metadata?.replyPermission ?? ['anyone'],
-  );
-  const [quotesDisabled, setQuotesDisabled] = useState(post.metadata?.quotesDisabled ?? false);
 
-  const write = async (
-    patch: { replyPermission?: ReplyPermission[]; quotesDisabled?: boolean },
-    revert: () => void,
-    failure: string,
-  ) => {
-    try {
-      await feedService.updatePostSettings(post.id, patch);
-      usePostsStore.getState().updatePostEverywhere(post.id, (prev) => ({
-        ...prev,
-        metadata: { ...prev.metadata, ...patch },
-      }));
-    } catch {
-      revert();
-      toast(failure, { type: 'error' });
-    }
+  const change = async (patch: PostSettingsPatch, failureKey: string) => {
+    if (!(await savePostSettings(post.id, patch))) toast(t(failureKey), { type: 'error' });
   };
 
   return (
     <ReplySettingsMenuItems
-      replyPermission={replyPermission}
-      onReplyPermissionChange={(next) => {
-        const previous = replyPermission;
-        setReplyPermission(next);
-        void write(
-          { replyPermission: next },
-          () => setReplyPermission(previous),
-          t('postActions.failedToUpdateReplyPermissions'),
-        );
-      }}
-      quotesDisabled={quotesDisabled}
-      onQuotesDisabledChange={(next) => {
-        const previous = quotesDisabled;
-        setQuotesDisabled(next);
-        void write(
-          { quotesDisabled: next },
-          () => setQuotesDisabled(previous),
-          t('postActions.failedToUpdateQuoteSettings'),
-        );
-      }}
+      replyPermission={post.metadata?.replyPermission ?? ['anyone']}
+      onReplyPermissionChange={(replyPermission) =>
+        change({ replyPermission }, 'postActions.failedToUpdateReplyPermissions')
+      }
+      quotesDisabled={post.metadata?.quotesDisabled ?? false}
+      onQuotesDisabledChange={(quotesDisabled) =>
+        change({ quotesDisabled }, 'postActions.failedToUpdateQuoteSettings')
+      }
     />
   );
 }

@@ -1,12 +1,7 @@
 import { PostVisibility } from '@mention/shared-types';
 import type { HydratedPost } from '@mention/shared-types';
 
-import {
-  buildPostMenuActions,
-  isPostMenuSubmenu,
-  type PostMenuDeps,
-  type PostMenuParams,
-} from '../postMenuActions';
+import { buildPostMenuActions, type PostMenuDeps, type PostMenuParams } from '../postMenuActions';
 import { presentSheet } from '@/utils/sheet';
 
 /**
@@ -49,7 +44,7 @@ jest.mock('@/services/muteService', () => ({
     return mockMute;
   },
 }));
-const mockLanes = { mute: jest.fn(async () => undefined), setPostLane: jest.fn(async () => null) };
+const mockLanes = { mute: jest.fn(async () => undefined) };
 jest.mock('@/services/lanesService', () => ({
   get lanesService() {
     return mockLanes;
@@ -297,12 +292,17 @@ describe('who gets which actions', () => {
 });
 
 describe('what the actions do', () => {
-  const find = (actions: ReturnType<typeof build>, label: string) => {
-    const action = Object.values(actions)
+  const entry = (actions: ReturnType<typeof build>, label: string) => {
+    const found = Object.values(actions)
       .flat()
       .find((a) => a.label === label);
-    if (!action || isPostMenuSubmenu(action)) throw new Error(`no action ${label}`);
-    return action;
+    if (!found) throw new Error(`no entry ${label}`);
+    return found;
+  };
+  const find = (actions: ReturnType<typeof build>, label: string) => {
+    const found = entry(actions, label);
+    if ('submenu' in found) throw new Error(`${label} is a submenu`);
+    return found;
   };
 
   it('deletes optimistically and leaves the detail screen', async () => {
@@ -370,12 +370,10 @@ describe('what the actions do', () => {
       isOwner: true,
       canViewInsights: true,
     });
-    for (const label of ['postActions.insights']) {
-      presentSheetMock.mockClear();
-      find(actions, label).onPress();
-      expect(presentSheetMock).toHaveBeenCalledTimes(1);
-      expect(presentSheetMock.mock.calls[0][0](surface)).toBeTruthy();
-    }
+    presentSheetMock.mockClear();
+    find(actions, 'postActions.insights').onPress();
+    expect(presentSheetMock).toHaveBeenCalledTimes(1);
+    expect(presentSheetMock.mock.calls[0][0](surface)).toBeTruthy();
     const strangerActions = build({ viewPost: makePost() });
     for (const label of ['postActions.reportPost', 'lists.addTo.menuItem']) {
       presentSheetMock.mockClear();
@@ -446,10 +444,7 @@ describe('what the actions do', () => {
       'postActions.replyOptions',
       'lanes.postActions.moveToLane',
     ]) {
-      const entry = Object.values(actions)
-        .flat()
-        .find((a) => a.label === label);
-      expect(entry && isPostMenuSubmenu(entry)).toBe(true);
+      expect('submenu' in entry(actions, label)).toBe(true);
     }
   });
 

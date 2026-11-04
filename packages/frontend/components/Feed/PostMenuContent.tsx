@@ -21,7 +21,7 @@ import { useOperatesAccount } from '@/components/Profile/hooks/useOperatesAccoun
 import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useRouter } from '@/lib/navigation/router';
-import { buildPostMenuActions, isPostMenuSubmenu, type PostMenuEntry } from './postMenuActions';
+import { buildPostMenuActions, type PostMenuEntry } from './postMenuActions';
 import { currentPost, usePostInteractions } from './postInteractions';
 
 interface PostMenuContentProps {
@@ -130,7 +130,7 @@ export function PostMenuContent({
           {index > 0 ? <DropdownMenuSeparator /> : null}
           <DropdownMenuGroup>
             {group.map((entry) =>
-              isPostMenuSubmenu(entry) ? (
+              'submenu' in entry ? (
                 <DropdownMenuSub key={entry.label}>
                   <DropdownMenuSubTrigger leading={entry.icon}>
                     {entry.label}

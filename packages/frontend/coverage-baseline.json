@@ -3,23 +3,23 @@
   "total": {
     "statements": {
       "pct": 56.43,
-      "covered": 16872,
-      "total": 29898
+      "covered": 16870,
+      "total": 29892
     },
     "branches": {
-      "pct": 52.92,
-      "covered": 12261,
-      "total": 23167
+      "pct": 52.94,
+      "covered": 12268,
+      "total": 23173
     },
     "functions": {
-      "pct": 50.88,
-      "covered": 3960,
-      "total": 7783
+      "pct": 50.91,
+      "covered": 3962,
+      "total": 7781
     },
     "lines": {
-      "pct": 57.37,
-      "covered": 15228,
-      "total": 26543
+      "pct": 57.36,
+      "covered": 15223,
+      "total": 26537
     }
   },
   "pins": {
@@ -42,9 +42,9 @@
       "lines": 97
     },
     "components/Feed/postMenuActions.tsx": {
-      "statements": 88,
-      "branches": 83,
-      "functions": 63,
+      "statements": 89,
+      "branches": 84,
+      "functions": 66,
       "lines": 94
     },
     "components/providers/AccountSwitchReset.tsx": {

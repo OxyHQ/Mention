@@ -41,6 +41,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { postPermalink } from '@/utils/postPermalink';
 import { PostLaneSubmenu, PostReplySettingsSubmenu, PostSourcesSubmenu } from './PostMenuSubmenus';
+import { savePostSettings } from './postSettings';
 
 /**
  * The post overflow menu, built when the reader PRESSES "⋯" — never per row.
@@ -53,19 +54,11 @@ import { PostLaneSubmenu, PostReplySettingsSubmenu, PostSourcesSubmenu } from '.
  * once per press, against the post as the store holds it at that moment — so a
  * menu can no longer act on a stale captured copy either.
  *
- * The sheets below are LAZY because the feed chunk imports this module.
- *
- * Every one of them is only ever mounted from an `onPress`, through
- * `presentSheet`. Imported statically they were pulled into
- * the feed chunk anyway, together with their service graphs (`insightsService`,
- * `muteService`, `reportService`, `lanesService`, `listsService`) — and
- * `PostItem` was already declaring `lazy(() => import(…))` for
- * `PostInsightsSheet`, so that boundary bought nothing while this file named the
- * same module eagerly.
- *
- * Keep them lazy, and keep each render site wrapped in `<Suspense>`: a static
- * `import` added back here silently defeats the split for the most-used screen
- * in the app, with nothing failing to say so.
+ * This module is reached only through `PostMenuContent`, which `PostItem`
+ * loads lazily on the first ⋯ press, so its static imports (the submenus
+ * included) stay out of the feed chunk. The sheets below are lazy as well: each
+ * is mounted from an `onPress` through `presentSheet`, wrapped in `<Suspense>`,
+ * and only the actions a reader picks should cost their service graphs.
  */
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 const ReportModal = lazy(() =>
@@ -128,10 +121,6 @@ export interface PostMenuSubmenu {
 }
 
 export type PostMenuEntry = ActionMenuAction | PostMenuSubmenu;
-
-export function isPostMenuSubmenu(entry: PostMenuEntry): entry is PostMenuSubmenu {
-  return 'submenu' in entry;
-}
 
 export interface PostMenuActions {
   insightsAction: ActionMenuAction[];
@@ -277,24 +266,18 @@ export function buildPostMenuActions(
         ),
         label: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
         onPress: async () => {
-          const nextPinned = !isPinned;
-          try {
-            await feedService.updatePostSettings(postId, { isPinned: nextPinned });
-            updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              metadata: { ...prev.metadata, isPinned: nextPinned },
-            }));
-            const authorId = viewPost?.user?.id;
-            if (authorId) {
-              queryClient.invalidateQueries({
-                queryKey: viewerQueryKeys.pinnedPost(viewerId, authorId),
-              });
-            }
-          } catch {
+          if (!(await savePostSettings(postId, { isPinned: !isPinned }))) {
             toast(
               isPinned ? t('postActions.failedToUnpinPost') : t('postActions.failedToPinPost'),
               { type: 'error' },
             );
+            return;
+          }
+          const authorId = viewPost?.user?.id;
+          if (authorId) {
+            queryClient.invalidateQueries({
+              queryKey: viewerQueryKeys.pinnedPost(viewerId, authorId),
+            });
           }
         },
       });
@@ -325,14 +308,7 @@ export function buildPostMenuActions(
           ? t('postActions.showEngagementCounts')
           : t('postActions.hideEngagementCounts'),
         onPress: async () => {
-          const nextHidden = !isHidden;
-          try {
-            await feedService.updatePostSettings(postId, { hideEngagementCounts: nextHidden });
-            updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              metadata: { ...prev.metadata, hideEngagementCounts: nextHidden },
-            }));
-          } catch {
+          if (!(await savePostSettings(postId, { hideEngagementCounts: !isHidden }))) {
             toast(t('postActions.failedToUpdateEngagement'), { type: 'error' });
           }
         },
