@@ -349,6 +349,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Who a destroyed post mentioned. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_recipients',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'Who a destroyed private mention was addressed to. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
     table: 'post_media',
     column: 'postId',
     scope: 'channel-posts',
@@ -687,6 +694,15 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       "Other people's posts that @-mention the channel. The mention is a junction-table row and only " +
       'that row goes — the post is theirs and stays, and the mention would otherwise render a link to an ' +
       'account that no longer resolves.',
+  },
+  {
+    table: 'post_recipients',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'delete-entry',
+    why:
+      "Other people's private mentions addressed to the channel. Only the address goes — the post is " +
+      'theirs and stays, readable by its author and remaining recipients.',
   },
 
   // ---------------------------------------------------------------------------

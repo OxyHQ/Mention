@@ -277,12 +277,13 @@ beforeAll(async () => {
   // The parent every `localReply` points at. It is NOT one of the fixtures — it
   // carries no lane selector and is never expected in any lane's output — so it
   // is tracked for teardown but left out of `LABEL_BY_ID`, and a lane that
-  // returned it would be reported as `unseeded:`.
+  // returned it would be reported as `unseeded:`. A draft keeps it out of every
+  // lane; it stays PUBLIC because a reply is never wider than its parent.
   const parent = await insertPostRecord({
     oxyUserId: OTHER_AUTHOR,
     authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }],
     type: PostType.TEXT,
-    visibility: PostVisibility.PRIVATE,
+    visibility: PostVisibility.PUBLIC,
     status: 'draft',
     content: { variants: [{ source: 'author', text: 'the parent' }] },
   });

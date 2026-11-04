@@ -61,6 +61,7 @@ const mocks = vi.hoisted(() => ({
   getProfileByUsername: vi.fn(),
   searchProfiles: vi.fn(),
   createMentionNotifications: vi.fn(),
+  createPrivateMentionNotifications: vi.fn(),
   createPostAuthorNotifications: vi.fn(),
   createNotification: vi.fn(),
   loggerWarn: vi.fn(),
@@ -115,6 +116,7 @@ vi.mock('../../../services/fediverseSharing', () => ({
 // server cycle); this module mock intercepts that dynamic import too.
 vi.mock('../../../utils/notificationUtils', () => ({
   createMentionNotifications: mocks.createMentionNotifications,
+  createPrivateMentionNotifications: mocks.createPrivateMentionNotifications,
   createPostAuthorNotifications: mocks.createPostAuthorNotifications,
   createNotification: mocks.createNotification,
   createWelcomeNotification: vi.fn(),
@@ -489,7 +491,7 @@ describe('handleCreate — a Note addressed to a local user needs no local follo
     expect(createdPost().mentions).toEqual([LOCAL_MENTION_OXY_ID]);
   });
 
-  it('keeps a followers-only Note to one of our users, and drops a direct message', async () => {
+  it('stores a direct message as a private mention for its local addressee, and notifies them', async () => {
     mocks.getProfileByUsername.mockResolvedValue({ _id: LOCAL_MENTION_OXY_ID, username: 'alice' });
     const addressed = (to: string[]) => {
       const activity = createActivity('<p>@alice hi</p>', [
@@ -499,20 +501,35 @@ describe('handleCreate — a Note addressed to a local user needs no local follo
       return activity;
     };
 
-    // A DM has no audience Mention can represent; followers-only would show it to
-    // every local follower of its sender.
+    // Addressed to alice alone: readable by her and its sender, nobody else.
     await inboxProcessingService.processInboxActivity(
       addressed([LOCAL_MENTION_ACTOR_URI]),
       AUTHOR_URI,
     );
-    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+    const stored = mocks.postCreatorCreate.mock.calls[0]?.[0] as {
+      visibility?: string;
+      recipients?: string[];
+    };
+    expect(stored.visibility).toBe('direct');
+    expect(stored.recipients).toEqual([LOCAL_MENTION_OXY_ID]);
+    expect(mocks.createPrivateMentionNotifications).toHaveBeenCalledWith(
+      [LOCAL_MENTION_OXY_ID],
+      CREATED_POST_ID,
+      AUTHOR_OXY_ID,
+      'post',
+    );
+    expect(mocks.createMentionNotifications).not.toHaveBeenCalled();
 
+    // Addressed to the sender's followers: followers-only, as before.
+    mocks.postCreatorCreate.mockResolvedValue({
+      id: 'created_post_2',
+      visibility: 'followers_only',
+    });
     await inboxProcessingService.processInboxActivity(
       addressed([`${AUTHOR_URI}/followers`, LOCAL_MENTION_ACTOR_URI]),
       AUTHOR_URI,
     );
-    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
-    expect((mocks.postCreatorCreate.mock.calls[0]?.[0] as { visibility?: string }).visibility).toBe(
+    expect((mocks.postCreatorCreate.mock.calls[1]?.[0] as { visibility?: string }).visibility).toBe(
       'followers_only',
     );
   });

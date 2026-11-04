@@ -16,6 +16,8 @@ import { and, eq } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../../connectors/shared/instagramSourceKey';
 import { resolveMentionCommunity } from '../publishAsAccount';
 
+const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+
 /** Public protocol pages use current account policy, including every persisted coauthor. */
 export async function filterFederatablePosts(
   records: readonly PostRecord[],
@@ -282,5 +284,39 @@ export async function authorizeFederationDelivery({
   if (!match) return false;
   const post = await loadPostRecord(decodeURIComponent(match[1]));
   if (!post || (isPostWrite && !postAuthorIds(post).includes(senderAccountId))) return false;
+  if (post.visibility === 'direct')
+    return isPostWrite && (await authorizeDirectNoteWrite(activity, post));
   return (await filterFederatablePosts([post])).length === 1;
+}
+
+/**
+ * A private mention's Create/Update may go out only as a private mention: the
+ * activity and its note addressed to named actors — never the public
+ * collection, the sender's followers or a community audience — and the post
+ * still published under authors whose current policy lets them federate. Oxy's
+ * content decision is asked as for the people it is addressed to (a resource
+ * grant), so a protected or unavailable author is still refused.
+ */
+async function authorizeDirectNoteWrite(
+  activity: Record<string, unknown>,
+  post: PostRecord,
+): Promise<boolean> {
+  if (post.status !== 'published') return false;
+  const note = activity.object as Record<string, unknown>;
+  const addressed = [activity.to, activity.cc, note.to, note.cc].flatMap((value) =>
+    Array.isArray(value) ? value : value === undefined ? [] : [value],
+  );
+  const followers = `${String(activity.actor)}/followers`;
+  if (
+    note.audience !== undefined ||
+    addressed.some((entry) => entry === AP_PUBLIC || entry === followers)
+  )
+    return false;
+  if (!(await authorsMayFederate(postAuthorIds(post)))) return false;
+  const decisions = await loadPostSafetyDecisions(
+    [post],
+    { accessToken: null },
+    new Map([[post.id, { applicationAudienceAllowed: true, applicationResourceGrant: true }]]),
+  );
+  return decisions.get(post.id)?.allowed === true;
 }

@@ -77,7 +77,8 @@ export const hashtagsSchema = z
   .max(MAX_HASHTAGS_PER_POST, `Too many hashtags: maximum is ${MAX_HASHTAGS_PER_POST}`);
 
 /**
- * The `visibility` a client asks for, mapped to the stored enum.
+ * The `visibility` a client asks for, mapped to the stored enum. `direct` is a
+ * private mention, addressed to the people the post mentions.
  *
  * `followers` is an ACCEPTED SPELLING of `followers_only`, not a typo tolerated
  * by accident — `POST /posts` has always mapped it, and dropping it here would
@@ -93,9 +94,10 @@ export const hashtagsSchema = z
  * to an audience nobody asked for.
  */
 export const postVisibilitySchema = z
-  .enum(['public', 'followers', 'followers_only', 'private'], 'Invalid visibility')
+  .enum(['public', 'followers', 'followers_only', 'private', 'direct'], 'Invalid visibility')
   .transform((value) => {
     if (value === 'private') return PostVisibility.PRIVATE;
+    if (value === 'direct') return PostVisibility.DIRECT;
     if (value === 'public') return PostVisibility.PUBLIC;
     return PostVisibility.FOLLOWERS_ONLY;
   });

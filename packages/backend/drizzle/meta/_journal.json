@@ -764,6 +764,20 @@
       "when": 1793750826771,
       "tag": "0108_federated_poll_tallies",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1793753704832,
+      "tag": "0109_private_mentions",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1793753706143,
+      "tag": "0110_validate_private_mentions_checks",
+      "breakpoints": true
     }
   ]
 }

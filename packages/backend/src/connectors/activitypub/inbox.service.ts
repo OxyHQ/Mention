@@ -37,7 +37,7 @@ import {
   isBlockedDomain,
   resolveOxyUser,
 } from './constants';
-import { PostType } from '@mention/shared-types';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { storeRemoteLinkPreviews } from '../shared/linkPreviews';
@@ -57,7 +57,7 @@ import {
   extractInReplyToUri,
   resolveDeclaredQuoteTarget,
   stripQuoteMarkerFromVariants,
-  mapApVisibility,
+  apAddressees,
   parseApPublished,
   resolvePostIdFromObjectUri,
 } from './helpers';
@@ -76,7 +76,12 @@ import {
   detectCrosspostEquivalence,
   reevaluateClusterForPost,
 } from '../../services/PostEquivalenceService';
-import { applyMentionPlaceholders, extractMentionTags, resolveInboundMentions } from './apMentions';
+import {
+  applyMentionPlaceholders,
+  extractMentionTags,
+  resolveApAudience,
+  resolveInboundMentions,
+} from './apMentions';
 import { OWN_DOMAINS } from './ownDomain';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
@@ -106,16 +111,27 @@ import { communityOfPost } from '../../services/communities/communityPosting';
 import { getNotificationRecipients, normalizeAuthorship } from '../../utils/postAuthorship';
 
 /**
- * Whether a Note replies to one of our posts or mentions one of our users. Such
- * a Note concerns a local user whoever sent it, so it is kept without a local
- * follower of its author — the rule Mastodon applies to its own inbox.
+ * Whether a Note replies to one of our posts, or mentions or is addressed to one
+ * of our users. Such a Note concerns a local user whoever sent it, so it is kept
+ * without a local follower of its author — the rule Mastodon applies to its own
+ * inbox.
  */
 export function addressesLocalUsers(object: Record<string, unknown>): boolean {
   const inReplyTo = extractInReplyToUri(object.inReplyTo);
   if (inReplyTo && extractLocalPostIdFromApUri(inReplyTo)) return true;
-  return extractMentionTags(object).some(
-    (tag) => ownProfileUrlHandle(tag.href, OWN_DOMAINS) !== undefined,
+  const isLocalActor = (href: string) => ownProfileUrlHandle(href, OWN_DOMAINS) !== undefined;
+  return (
+    extractMentionTags(object).some((tag) => isLocalActor(tag.href)) ||
+    apAddressees(object.to, object.cc).some(isLocalActor)
   );
+}
+
+/** The local users, of these, whose fediverse-sharing consent is on. Fails open per user. */
+async function fediverseSharingConsented(oxyUserIds: readonly string[]): Promise<string[]> {
+  const consented = await Promise.all(
+    oxyUserIds.map(async (id) => ((await isFediverseSharingEnabled(id)) ? id : null)),
+  );
+  return consented.filter((id): id is string => id !== null);
 }
 
 /**
@@ -359,11 +375,7 @@ export class InboxProcessingService {
         return;
       }
 
-      const consented = (
-        await Promise.all(
-          localMentionIds.map(async (id) => ((await isFediverseSharingEnabled(id)) ? id : null)),
-        )
-      ).filter((id): id is string => id !== null);
+      const consented = await fediverseSharingConsented(localMentionIds);
       if (consented.length === 0) return;
 
       const { createMentionNotifications } = await import('../../utils/notificationUtils.js');
@@ -377,6 +389,31 @@ export class InboxProcessingService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('[Federation] mention notification failed', { error: message });
+    }
+  }
+
+  /**
+   * Notify the LOCAL recipients of a federated private mention — the same
+   * per-user fediverse-sharing consent rule {@link notifyLocalMentionedUsers}
+   * applies, failing open per user on an Oxy outage. Never throws: a
+   * notification failure must not fail (and retry) the inbox activity.
+   */
+  private async notifyLocalPrivateMentionRecipients(
+    localRecipientIds: string[],
+    actorOxyUserId: string,
+    entityId: string,
+    entityType: 'post' | 'reply',
+  ): Promise<void> {
+    try {
+      const consented = await fediverseSharingConsented(localRecipientIds);
+      if (consented.length === 0) return;
+      const { createPrivateMentionNotifications } = await import(
+        '../../utils/notificationUtils.js'
+      );
+      await createPrivateMentionNotifications(consented, entityId, actorOxyUserId, entityType);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('[Federation] private mention notification failed', { error: message });
     }
   }
 
@@ -644,10 +681,14 @@ export class InboxProcessingService {
     // We NEVER insert an orphan post with a null author.
     const actor = await actorService.getOrFetchActor(actorUri);
     const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${note.id}`);
-    // A direct message or limited-audience note has no Mention audience: never stored.
-    const visibility = mapApVisibility(object.to, object.cc, actor?.followersUrl);
-    if (!visibility) {
-      logger.debug('[Federation] skipped a note with no public or followers audience');
+    // A direct message is stored as a private mention for the local users it is
+    // addressed to — and not at all when it names none of them.
+    const audience = await resolveApAudience(object, {
+      uri: actorUri,
+      followersUrl: actor?.followersUrl,
+    });
+    if (!audience) {
+      logger.debug('[Federation] skipped a direct note addressed to no local user');
       return;
     }
 
@@ -809,7 +850,8 @@ export class InboxProcessingService {
         media: media.length > 0 ? media : undefined,
         attachments: attachments.length > 0 ? attachments : undefined,
       },
-      visibility,
+      visibility: audience.visibility,
+      ...(audience.recipients.length > 0 ? { recipients: audience.recipients } : {}),
       hashtags,
       // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist the
       // native path stores, keyed by the `[mention:<id>]` placeholders now in the
@@ -844,6 +886,19 @@ export class InboxProcessingService {
 
     // The community relays the member's Create to its own followers.
     if (relayingCommunity) await relayToCommunityFollowers(relayingCommunity, activity);
+
+    // A direct message tells the local users it is addressed to, once each, and
+    // nobody else — no reply or mention notice besides.
+    if (audience.visibility === PostVisibility.DIRECT) {
+      await this.notifyLocalPrivateMentionRecipients(
+        audience.localRecipients,
+        authorOxyUserId,
+        createdPost.id,
+        threadLink?.parentPostId ? 'reply' : 'post',
+      );
+      logger.debug('[Federation] stored federated private mention');
+      return;
+    }
 
     // A federated reply to a LOCAL post notifies the parent owner exactly like a
     // native reply (`type:'reply'`, entityId = the new reply post). Only reached

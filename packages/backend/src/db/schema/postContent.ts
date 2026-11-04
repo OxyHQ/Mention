@@ -724,6 +724,31 @@ export const postMentions = pgTable(
 );
 
 /**
+ * `post_recipients` — who a `direct` post (a private mention) is addressed to.
+ *
+ * The read ACL for a direct post: its author and these Oxy accounts, nobody
+ * else (`PostHydrationService`). For a federated note they are its `to`/`cc`
+ * actors, resolved to Oxy users the way its mentions are; for a native post,
+ * the people it mentions; for a reply, also everyone in the parent's
+ * conversation. The author is never a row. Written once with the post.
+ */
+export const postRecipients = pgTable(
+  'post_recipients',
+  {
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    /** An Oxy account id — no foreign key. */
+    oxyUserId: text().notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'post_recipients_pkey', columns: [t.postId, t.oxyUserId] }),
+    // "Private mentions addressed to me" — the conversations surface.
+    index('post_recipients_oxy_user_id_idx').on(t.oxyUserId),
+  ],
+);
+
+/**
  * `post_hashtags` — one row per (public post, hashtag), newest first per tag.
  *
  * A hashtag page asks for the newest public posts carrying ONE tag.

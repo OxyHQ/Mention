@@ -32,7 +32,7 @@ import {
 } from './constants';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { dropsFlattenedReposts } from './repostTransportPolicy';
-import { PostVisibility } from '@mention/shared-types';
+import type { PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import {
   buildFederatedNoteContent,
@@ -73,7 +73,6 @@ import {
   resolveDeclaredQuoteTarget,
   stripQuoteMarkerFromVariants,
   extractInReplyToUri,
-  mapApVisibility,
   parseApPublished,
   resolvePostIdFromObjectUri,
 } from './helpers';
@@ -91,6 +90,7 @@ import {
   applyMentionPlaceholders,
   extractMentionTags,
   hasSourceMentionLink,
+  resolveApAudience,
   resolveInboundMentions,
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
@@ -1078,15 +1078,16 @@ export class OutboxSyncService {
         // raw declared primary when the classifier resolved none.
         const primaryLanguage = baseline.languages[0] ?? apLanguage;
         // A community relays its members' notes, whose followers it does not know.
-        const visibility = mapApVisibility(
-          note.to,
-          note.cc,
-          relayedBy ? undefined : actor.followersUrl,
-        );
-        if (!visibility) {
-          logger.debug('[FedSync] skipped an outbox note with no public or followers audience');
+        // A direct note is kept only for the local users it is addressed to.
+        const audience = await resolveApAudience(note, {
+          uri: authorUri,
+          followersUrl: relayedBy ? undefined : actor.followersUrl,
+        });
+        if (!audience) {
+          logger.debug('[FedSync] skipped a direct outbox note addressed to no local user');
           continue;
         }
+        const { visibility } = audience;
 
         const communityOxyUserId = await resolvePostCommunity(note, relayedBy);
 
@@ -1130,6 +1131,7 @@ export class OutboxSyncService {
           },
           quoteOf,
           visibility,
+          ...(audience.recipients.length > 0 ? { recipients: audience.recipients } : {}),
           hashtags,
           // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist
           // the inbox path stores, keyed by the `[mention:<id>]` placeholders now in
@@ -1842,11 +1844,15 @@ export class OutboxSyncService {
       logger.info('[FedSync] skipped boosted object whose author is unresolved');
       return null;
     }
-    const visibility = mapApVisibility(note.to, note.cc, authorActor?.followersUrl);
-    if (!visibility) {
-      logger.info('[FedSync] skipped a note with no public or followers audience');
+    const audience = await resolveApAudience(note, {
+      uri: authorUri,
+      followersUrl: authorActor?.followersUrl,
+    });
+    if (!audience) {
+      logger.info('[FedSync] skipped a direct note addressed to no local user');
       return null;
     }
+    const { visibility } = audience;
 
     const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
     // The boosted original keeps its OWN publish date (validated/falls back to now).
@@ -1939,6 +1945,7 @@ export class OutboxSyncService {
           attachments: attachments.length > 0 ? attachments : undefined,
         },
         visibility,
+        ...(audience.recipients.length > 0 ? { recipients: audience.recipients } : {}),
         hashtags,
         ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
         // AP-derived language + author instance for the Stage-A baseline (and the

@@ -138,6 +138,12 @@ entity. A successful notification is stored, emitted on the Socket.IO
 on a best-effort basis. The entity type distinguishes a post mention from a
 reply mention.
 
+A private mention (a `direct` post) notifies its recipients instead — one
+`private_mention` each (`createPrivateMentionNotifications`), with no separate
+mention, reply or subscriber notice. Its push copy names only the sender, and
+the Mentions push toggle governs it. See
+[post lifecycle](./post-lifecycle.md#visibility).
+
 ## ActivityPub
 
 Inbound and outbound federation preserve the same storage invariant.

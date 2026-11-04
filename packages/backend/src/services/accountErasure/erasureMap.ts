@@ -281,6 +281,15 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     why: "Other people's posts that mention the account. The mention link goes; their text stays theirs.",
   },
   {
+    table: 'post_recipients',
+    column: 'oxyUserId',
+    disposition: 'delete-entry',
+    phase: 'account',
+    why:
+      "Other people's private mentions addressed to the account. The address goes; the post stays " +
+      "its author's, readable by its author and remaining recipients.",
+  },
+  {
     table: 'post_recent_repliers',
     column: 'oxyUserId',
     disposition: 'delete-entry',

@@ -1,4 +1,5 @@
 import { eventOpenApi } from '@oxy.so/mention-contracts';
+import { getPrivateMentionConversations } from '../controllers/posts/privateMentions';
 import {
   readEvent,
   eventAttendees,
@@ -144,6 +145,7 @@ publicPostsRouter.post('/documents', ...postDocumentsRateLimiters, getPostDocume
 publicPostsRouter.get('/drafts', getDrafts);
 publicPostsRouter.get('/scheduled', getScheduledPosts);
 publicPostsRouter.get('/saved', getSavedPosts);
+publicPostsRouter.get('/private-mentions', getPrivateMentionConversations);
 
 // Social proof on the post-detail screen: the likers the VIEWER follows. Public,
 // unlike the `/:id/likes` engagement list below, because it discloses nothing an

@@ -13,7 +13,10 @@ import { actorService } from './actor.service';
 import { getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { bridgedMentionAnchorHrefs } from './bridgy';
-import { runWithTimeout } from './helpers';
+import { PostVisibility } from '@mention/shared-types';
+import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
+import { apAddressees, mapApVisibility, runWithTimeout } from './helpers';
+import { OWN_DOMAINS } from './ownDomain';
 
 /**
  * INBOUND @mention ingestion for federated ActivityPub Notes.
@@ -576,4 +579,76 @@ export function applyMentionPlaceholders(
   }
 
   return rewritten;
+}
+
+/** Where a stored federated note may be read, as {@link resolveApAudience} decides it. */
+export interface ApAudience {
+  visibility: PostVisibility;
+  /** A `direct` note's addressees as Oxy user ids; empty for any other visibility. */
+  recipients: string[];
+  /** The subset of {@link recipients} who are OUR users — the ones to notify. */
+  localRecipients: string[];
+}
+
+/**
+ * Who a federated note is for, or `null` when it must not be stored.
+ *
+ * Public and followers-only notes keep the audience {@link mapApVisibility}
+ * reads off their addressing. Anything else is a direct message (or a limited
+ * audience of named actors): stored as `direct`, addressed to every actor in its
+ * `to`/`cc` — resolved to Oxy users the way its mentions are, fetching a
+ * first-seen remote actor through `resolveRemote` — and readable by nobody else.
+ * A direct note that names none of our users concerns nobody here and is
+ * dropped, and that is checked BEFORE any remote actor is fetched: a DM between
+ * two remote people seen on an outbox page costs no lookups at all.
+ *
+ * The author, the public collection and the author's followers collection are
+ * never recipients; any other collection simply fails to resolve to a user.
+ * Bounded by {@link MAX_MENTIONS_PER_POST}, like the mentions it parallels.
+ */
+export async function resolveApAudience(
+  note: Record<string, unknown>,
+  author: { uri: string; followersUrl?: string | null },
+  resolveRemote: RemoteMentionResolver = fetchOrCreateRemoteActorOxyId,
+): Promise<ApAudience | null> {
+  const visibility = mapApVisibility(note.to, note.cc, author.followersUrl);
+  if (visibility !== PostVisibility.DIRECT) {
+    return { visibility, recipients: [], localRecipients: [] };
+  }
+  const addressees = [...new Set(apAddressees(note.to, note.cc))]
+    .filter((href) => href !== author.uri && href !== author.followersUrl)
+    .slice(0, MAX_MENTIONS_PER_POST);
+  if (!addressees.some((href) => ownProfileUrlHandle(href, OWN_DOMAINS) !== undefined)) {
+    return null;
+  }
+
+  const resolved = await Promise.all(
+    addressees.map((href) =>
+      resolveHrefIdentity(href, resolveRemote).catch((err) => {
+        logger.warn('[Federation] failed to resolve a direct-message addressee', { error: err });
+        return null;
+      }),
+    ),
+  );
+  const recipients = new Set<string>();
+  const localRecipients = new Set<string>();
+  for (const entry of resolved) {
+    if (!entry) continue;
+    recipients.add(entry.oxyUserId);
+    if (entry.isLocal) localRecipients.add(entry.oxyUserId);
+  }
+  if (localRecipients.size === 0) return null;
+  return {
+    visibility,
+    recipients: [...recipients],
+    localRecipients: [...localRecipients],
+  };
+}
+
+/** {@link resolveApAudience} against already-stored actors only — never a fetch. */
+export function resolveApAudienceExisting(
+  note: Record<string, unknown>,
+  author: { uri: string; followersUrl?: string | null },
+): Promise<ApAudience | null> {
+  return resolveApAudience(note, author, lookupExistingRemoteActorOxyId);
 }

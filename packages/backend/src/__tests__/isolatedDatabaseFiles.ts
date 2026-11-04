@@ -282,6 +282,13 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'blocked domain is a candidate, and the run also writes the shared purge ledger.',
   },
   {
+    path: 'src/__tests__/scripts/recoverFederatedDirectMessages.test.ts',
+    jobEntryPoint: 'recoverFederatedDirectMessages',
+    reason:
+      'Scans every private and followers-only ActivityPub post in the table and rewrites the ' +
+      'visibility (and recipients) of whatever its re-fetched note says is a direct message.',
+  },
+  {
     path: 'src/__tests__/scripts/repairFederatedMentions.test.ts',
     jobEntryPoint: 'repairFederatedMentions',
     reason:

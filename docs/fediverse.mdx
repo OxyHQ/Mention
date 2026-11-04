@@ -127,6 +127,31 @@ An `Announce` of an ACTIVITY is a community relaying a member (FEP-1b12): the
 inner activity is verified and processed as the member's own, never as a boost
 — see [federation behaviors](./federation-behaviors.md#a-community-relays-its-members-fep-1b12).
 
+### Who a remote note is for
+
+`resolveApAudience` (`connectors/activitypub/apMentions.ts`) decides the stored
+audience of every inbound note, on the inbox, outbox-backfill and dependency
+(`ensureFederatedNote`) paths alike:
+
+| Addressing | Stored as |
+| --- | --- |
+| `as:Public` in `to` or `cc` | `public` |
+| the author's followers collection | `followers_only` |
+| anything else (a direct message, a limited audience) addressed to at least one local user | `direct`, with every `to`/`cc` actor as a recipient |
+| anything else addressed to no local user | not stored |
+
+Addressees resolve to Oxy users the way mentions do; a direct note is dropped
+before any remote actor is fetched when none of its addressees is local. Each
+local recipient gets one `private_mention` notification (subject to their
+fediverse-sharing consent) instead of `mention`/`reply`. A direct message is
+never `followers_only`: that would show it to every local follower of its sender
+and hide it from the person it was sent to.
+
+`scripts/recoverFederatedDirectMessages.ts` repairs posts stored before this:
+it re-fetches every private or followers-only ActivityPub post and converts a
+direct note with a local recipient to `direct` (DRY_RUN by default,
+`CONFIRM_ADMIN_MUTATION=recoverFederatedDirectMessages`, idempotent).
+
 ### Remote custom emoji
 
 Mention does not render instance-specific ActivityPub custom-emoji images. At
@@ -158,6 +183,17 @@ never federate as an empty `Create(Note)`.
 Delivery work is isolated with `Promise.allSettled` and queued when Redis is
 available. A connector failure does not roll back a successful native post.
 Replies additionally deliver to the parent author's inbox when required.
+
+Only public posts and private mentions federate. A private mention (`direct`)
+goes to the ActivityPub connector alone (`deliversDirectPosts`) as a Note
+addressed `to` its recipients' actor URIs — no `as:Public`, no followers
+collection, empty `cc` — with a `Mention` tag per recipient and `inReplyTo` for
+a reply, which Mastodon renders as a private mention. It is queued only to the
+remote recipients' (shared) inboxes, never fanned out to followers; one whose
+recipients are all local federates nothing. Its edits and its `Delete` follow
+the same route (the delete event carries the recipients captured before the
+row went). `authorizeFederationDelivery` refuses a direct post's Create/Update
+unless it is addressed that way.
 
 Collaborative posts are not federated while an invitation is pending. The
 publish pipeline fans out only after the last invitation resolves, preventing

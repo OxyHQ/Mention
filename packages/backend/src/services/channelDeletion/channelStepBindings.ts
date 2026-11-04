@@ -21,7 +21,12 @@ import { deckWorkspaces } from '../../db/schema/deck';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { qualified } from '@oxy.so/db';
-import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
+import {
+  postAuthorships,
+  postMentions,
+  postRecentRepliers,
+  postRecipients,
+} from '../../db/schema/postContent';
 import { articles } from '../../db/schema/articles';
 import { authorPostCounts } from '../../db/schema/posts';
 import { polls, pollVotes } from '../../db/schema/polls';
@@ -204,6 +209,11 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: postMentions,
     where: accountEq(postMentions.oxyUserId),
+  },
+  'post_recipients.oxyUserId|channel-account': {
+    phase: 'account',
+    table: postRecipients,
+    where: accountEq(postRecipients.oxyUserId),
   },
 
   // --- Lanes -----------------------------------------------------------------

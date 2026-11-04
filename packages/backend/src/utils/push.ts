@@ -147,6 +147,7 @@ const PUSH_PREFERENCE_COLUMN = {
   reply: userSettings.notifyReplies,
   boost: userSettings.notifyBoosts,
   mention: userSettings.notifyMentions,
+  private_mention: userSettings.notifyMentions,
   quote: userSettings.notifyQuotes,
   follow: userSettings.notifyFollows,
 } as const satisfies Partial<Record<NotificationType, unknown>>;
@@ -262,6 +263,10 @@ export async function formatPushForNotification(
     like: { title: 'New like', body: `${actorName} liked your post` },
     reply: { title: 'New reply', body: `${actorName} replied to your post` },
     mention: { title: 'You were mentioned', body: `${actorName} mentioned you` },
+    private_mention: {
+      title: 'Private mention',
+      body: `${actorName} mentioned you privately`,
+    },
     boost: { title: 'Post boosted', body: `${actorName} boosted your post` },
     quote: { title: 'Post quoted', body: `${actorName} quoted your post` },
     follow: { title: 'New follower', body: `${actorName} followed you` },
