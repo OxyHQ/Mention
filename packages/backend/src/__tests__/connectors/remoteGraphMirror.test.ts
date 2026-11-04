@@ -191,6 +191,9 @@ describe('remote follow-graph bounds', () => {
 
     await crawlRemoteGraph({ uri: ALICE, protocol: 'atproto' });
     await crawlRemoteGraph({ ...frank, followersCount: undefined });
+    // Bob's own crawl, as his bridge actor, reads Bluesky: it has no ActivityPub
+    // collections that could pass for hidden and drop the edges just stored.
+    await crawlRemoteGraph({ uri: `https://bsky.brid.gy/ap/${BOB}`, protocol: 'activitypub' });
 
     // Alice named Bob by DID, Frank by his bridge URI: one node, one follower list.
     const nodes = await getDb()

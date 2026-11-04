@@ -110,16 +110,26 @@ function protocolEnabled(protocol: RemoteGraphCrawlSubject['protocol']): boolean
   return false;
 }
 
-/** Read both sides of one account; a followers side that is too big is probed only. */
+/**
+ * Read both sides of one account; a followers side that is too big is probed only.
+ *
+ * A Bridgy Fed actor IS a Bluesky account (its node is the DID), so its graph is
+ * read from Bluesky by that DID. Read over ActivityPub it has no follow
+ * collections, which would count as hidden and prune every edge of the DID node
+ * that the account's own Bluesky crawl, and everyone else's, had stored.
+ */
 async function readSides(
   subject: RemoteGraphCrawlSubject,
 ): Promise<{ following: SideRead; followers: SideRead }> {
   const smallFollowers =
     typeof subject.followersCount === 'number' && subject.followersCount <= GRAPH_SIDE_CAP;
-  if (subject.protocol === 'atproto') {
-    const following = fromAtproto(await readAtprotoGraph(subject.uri, 'follows', GRAPH_SIDE_CAP));
+  const did = subject.protocol === 'atproto' ? subject.uri : didFromBridgyActorUri(subject.uri);
+  if (did) {
+    if (!ATPROTO_ENABLED)
+      return { following: { status: 'failed' }, followers: { status: 'failed' } };
+    const following = fromAtproto(await readAtprotoGraph(did, 'follows', GRAPH_SIDE_CAP));
     const followers: SideRead = smallFollowers
-      ? fromAtproto(await readAtprotoGraph(subject.uri, 'followers', GRAPH_SIDE_CAP))
+      ? fromAtproto(await readAtprotoGraph(did, 'followers', GRAPH_SIDE_CAP))
       : { status: 'visible', uris: [], complete: false };
     return { following, followers };
   }
