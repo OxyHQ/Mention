@@ -27,6 +27,7 @@ import labelerRoutes from './routes/labeler.routes';
 import statisticsRoutes, { publicStatisticsRouter } from './routes/statistics.routes';
 import profileSettingsRoutes from './routes/profileSettings';
 import profileDesignRoutes from './routes/profileDesign';
+import profileConnectionsRoutes from './routes/profileConnections';
 import profileMediaRoutes from './routes/profileMedia';
 import subscriptionsRoutes from './routes/subscriptions';
 import pokesRoutes from './routes/pokes';
@@ -144,6 +145,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);
   publicApi.use('/profile/design', profileDesignRoutes);
+  publicApi.use('/profile/connections', profileConnectionsRoutes);
   publicApi.use('/commerce', commerceRoutes);
   // An article body is as readable as the post it belongs to, and the
   // controller asks the post ACL for that. Auth stays OPTIONAL so a public

@@ -149,6 +149,8 @@ export const PERIODIC_FEDERATED_MEDIA_DELETIONS = 'federation:federated-media-de
 export const PERIODIC_FEDERATED_BANNER_MIRRORS = 'federation:federated-banner-mirrors';
 /** Tell Oxy which files Mention uses (ADR 0043; services/oxyFiles/fileReferenceSync.ts). */
 export const PERIODIC_OXY_FILE_REFERENCE_SYNC = 'oxy-files:reference-sync';
+/** Re-crawl followed accounts' graphs and expire stale mirror edges (connectors/remoteGraphMirror.ts). */
+export const PERIODIC_REMOTE_GRAPH_MIRROR = 'federation:remote-graph-mirror';
 
 /**
  * Recommendation-signal scheduler ids. These pipe Mention curation + engagement
@@ -199,6 +201,14 @@ export const FLUSH_AFFINITY_EVENTS_INTERVAL_MS = 30 * MS_PER_SECOND;
  * the job to a small, bounded share of the ~200 calls/hour budget.
  */
 export const INSTAGRAM_GRAPH_SYNC_INTERVAL_MS = 30 * MS_PER_MINUTE;
+
+/**
+ * Remote follow-graph sweep cadence. Each run re-crawls at most 5 accounts local
+ * users follow (each due once a day, so 240 a day keeps up with today's 79) and
+ * expires at most 100 000 stale edges in batches of 5 000, so an idle run is two
+ * indexed reads.
+ */
+export const REMOTE_GRAPH_MIRROR_INTERVAL_MS = 30 * MS_PER_MINUTE;
 
 /**
  * Federated-media deletion drain cadence. Each run makes at most one Oxy batch

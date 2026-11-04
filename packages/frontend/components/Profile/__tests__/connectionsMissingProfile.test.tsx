@@ -23,7 +23,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
  */
 
 type ProfileState = {
-  data: { id: string; username: string; design: { displayName: string } } | null;
+  data: {
+    id: string;
+    username: string;
+    isFederated?: boolean;
+    design: { displayName: string };
+  } | null;
   loading: boolean;
   error: boolean;
   notFound: boolean;
@@ -33,6 +38,7 @@ type ProfileState = {
 let mockProfile: ProfileState;
 const mockGetUserFollowers = jest.fn();
 const mockGetUserFollowing = jest.fn();
+const mockApiGet = jest.fn();
 const mockBack = jest.fn();
 let mockPathname = '/@qa_missing/followers';
 
@@ -43,6 +49,9 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn() },
 }));
 jest.mock('@/hooks/useProfileData', () => ({ useProfileData: () => mockProfile }));
+jest.mock('@/utils/api', () => ({
+  authenticatedClient: { get: (...args: unknown[]) => mockApiGet(...args) },
+}));
 
 jest.mock('@/hooks/useRecommendations', () => ({
   useRecommendations: () => ({
@@ -315,4 +324,27 @@ it('lists the rows a real profile has', async () => {
 
   expect(mockGetUserFollowers).toHaveBeenCalledWith('profile-1');
   expect(texts(tree)).toContain('row:alice');
+});
+
+it("lists a federated profile's connections from Mention, merged with its origin's", async () => {
+  mockProfile = {
+    data: {
+      id: 'remote-1',
+      username: 'someone@example.social',
+      isFederated: true,
+      design: { displayName: 'Someone' },
+    },
+    loading: false,
+    error: false,
+    notFound: false,
+    refresh: jest.fn(),
+  };
+  mockApiGet.mockResolvedValue({
+    data: { users: [{ id: 'u2', username: 'bob@bsky.social', name: {} }], hasMore: false },
+  });
+  const tree = await renderScreen();
+
+  expect(mockApiGet).toHaveBeenCalledWith('/profile/connections/remote-1/followers', undefined);
+  expect(mockGetUserFollowers).not.toHaveBeenCalled();
+  expect(texts(tree)).toContain('row:bob@bsky.social');
 });

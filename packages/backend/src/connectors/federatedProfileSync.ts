@@ -53,6 +53,7 @@ import { instagramGraphConnector } from './instagram/InstagramGraphConnector';
 import { INSTAGRAM_IDENTITY_DOMAIN } from './instagram/constants';
 import { identityDomainOfActor } from './activitypub/identityDomain';
 import { connectorRegistry } from './index';
+import { crawlRemoteGraphInBackground } from './remoteGraphMirror';
 
 /**
  * Minimum interval between background outbox re-syncs for the same federated
@@ -189,6 +190,9 @@ class FederatedProfileSync {
         }
         // A Graph-only actor has no ActivityPub side at all.
         if (cachedActor?.protocol === 'instagram-graph') return;
+
+        // The follow-graph mirror keeps its own 24-hour cooldown and lease.
+        if (cachedActor) crawlRemoteGraphInBackground(cachedActor);
 
         // Dispatch by the cached actor's network. atproto profiles backfill
         // through the atproto connector's pull-based author feed (no AP outbox

@@ -11,8 +11,8 @@ import { describe, it, expect } from 'bun:test';
 import {
   bridgedMentionAnchorHrefs,
   deriveBridgyActorUri,
-  didFromBridgyActorUri,
 } from '../../connectors/activitypub/bridgy';
+import { didFromBridgyActorUri } from '../../connectors/shared/bridgyActor';
 import { didFromAtUri } from '../../connectors/atproto/constants';
 
 const DID = 'did:plc:reu7q3altx5gsonhu5nxcfp6';

@@ -1105,14 +1105,50 @@ async function importReposts(
   for (const repost of reposts) {
     const originalPostId = stored.get(repost.subjectUri)?.id;
     if (stored.has(repost.uri) || !originalPostId) continue;
-    await createFederatedBoost({
+    await importAtprotoRepost({
       activityId: repost.uri,
       originalPostId,
       boosterOxyUserId,
-      actorUri: did,
+      boosterDid: did,
       createdAt: repost.createdAt,
     });
   }
+}
+
+/**
+ * Store one Bluesky repost as a boost of a LOCAL original, at most once per
+ * booster and original — the ONE path an atproto repost takes, whether it was
+ * read off the booster's author feed (with its own AT-URI) or off the post's
+ * `getRepostedBy` list, which names the booster but not the repost record, so
+ * the caller supplies a stable id of its own. Without the per-booster check the
+ * two sightings of one repost would be two boosts.
+ */
+export async function importAtprotoRepost(input: {
+  activityId: string;
+  originalPostId: string;
+  boosterOxyUserId: string;
+  boosterDid: string;
+  createdAt?: Date;
+}): Promise<boolean> {
+  const [existing] = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(
+      and(
+        eq(posts.boostOf, input.originalPostId),
+        eq(posts.oxyUserId, input.boosterOxyUserId),
+        eq(posts.type, 'boost'),
+      ),
+    )
+    .limit(1);
+  if (existing) return false;
+  return createFederatedBoost({
+    activityId: input.activityId,
+    originalPostId: input.originalPostId,
+    boosterOxyUserId: input.boosterOxyUserId,
+    actorUri: input.boosterDid,
+    createdAt: input.createdAt,
+  });
 }
 
 /**

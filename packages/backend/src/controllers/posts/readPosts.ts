@@ -29,6 +29,7 @@ import { listPostCorrections } from '../../db/posts/postCorrectionsRepository';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
 import { resolveViewerPrivacyAndGraph } from '../../utils/privacyHelpers';
 import { getOrLoadPostRecord } from '../../services/postDetailCache';
+import { importRemoteEngagementOnView } from '../../connectors/remoteEngagementImport';
 
 // Get all posts
 export const getPosts = async (req: AuthRequest, res: Response) => {
@@ -111,6 +112,9 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     if (!hydratedPost) {
       return res.status(404).json({ message: 'Post not available' });
     }
+
+    // A viewed Bluesky post learns which known accounts engaged with it (detached).
+    importRemoteEngagementOnView(post);
 
     res.json(hydratedPost);
   } catch (error) {

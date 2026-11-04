@@ -1408,6 +1408,15 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
       'own rows are deleted by `local_user_id`',
   ],
   [
+    'remote_follow_edges.sourceId',
+    'a `remote_actor_refs` node of the mirrored REMOTE follow graph (a foreign key); a channel is a local account and is never crawled',
+  ],
+  [
+    'remote_follow_edges.targetId',
+    'a `remote_actor_refs` node of the mirrored REMOTE follow graph (a foreign key); our own domains are dropped at ingest',
+  ],
+  ['remote_graph_crawls.actorUri', 'the REMOTE actor whose follow graph was crawled'],
+  [
     'federated_media_cache.oxyFileId',
     'an Oxy S3 file id; the cache is keyed on a remote URL, never on an account',
   ],

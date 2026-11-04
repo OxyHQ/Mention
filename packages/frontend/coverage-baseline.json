@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Counts, never percentages: `total` and each pin are [covered, total] per metric, and `sizes` are every reported file's [statements, branches, functions, lines] totals, from which the check works out how much code was ADDED since. Added code may be uncovered at the recorded rate; nothing covered may become uncovered. Do not hand-edit: a looser number here is a looser gate, and the base-revision check refuses one that is not listed in allowedBaselineRelaxations.",
   "schemaVersion": 2,
-  "total": {"statements":[17081,29850],"branches":[12453,23247],"functions":[4044,7837],"lines":[15397,26477]},
+  "total": {"statements":[17101,29873],"branches":[12465,23269],"functions":[4050,7844],"lines":[15416,26497]},
   "pins": {
     "components/Feed/PostInteractionsBinder.tsx": {"statements":[31,32],"branches":[12,12],"functions":[11,12],"lines":[28,28]},
     "components/Feed/PostMenuContent.tsx": {"statements":[24,25],"branches":[22,25],"functions":[5,6],"lines":[24,25]},
@@ -228,6 +228,7 @@
     "services/pokeService.ts": {"statements":[0,13],"branches":[0,0],"functions":[0,6],"lines":[0,13]},
     "services/pollService.ts": {"statements":[0,29],"branches":[0,27],"functions":[0,10],"lines":[0,27]},
     "services/privacyService.ts": {"statements":[4,4],"branches":[0,0],"functions":[1,1],"lines":[4,4]},
+    "services/profileConnectionsService.ts": {"statements":[2,2],"branches":[2,2],"functions":[1,1],"lines":[2,2]},
     "services/publicRealtimeService.ts": {"statements":[35,40],"branches":[9,14],"functions":[6,8],"lines":[32,34]},
     "services/reportService.ts": {"statements":[0,34],"branches":[0,8],"functions":[0,4],"lines":[0,34]},
     "services/savedPostsRequest.ts": {"statements":[8,8],"branches":[10,10],"functions":[2,2],"lines":[8,8]},
@@ -673,7 +674,7 @@
     "components/Profile/AccountCategoryLine.tsx": [6,4,1,5],
     "components/Profile/ChannelHeader.tsx": [9,6,2,8],
     "components/Profile/ConnectionsHeader.tsx": [13,11,4,12],
-    "components/Profile/ConnectionsScreen.tsx": [125,118,19,118],
+    "components/Profile/ConnectionsScreen.tsx": [146,138,25,136],
     "components/Profile/EditProfile/BannerSection.tsx": [22,8,8,18],
     "components/Profile/EditProfile/PinnedMediaSection.tsx": [10,6,3,9],
     "components/Profile/ExperienceEditor.tsx": [62,102,27,52],
@@ -1122,6 +1123,7 @@
     "services/pokeService.ts": [13,0,6,13],
     "services/pollService.ts": [29,27,10,27],
     "services/privacyService.ts": [4,0,1,4],
+    "services/profileConnectionsService.ts": [2,2,1,2],
     "services/publicRealtimeService.ts": [40,14,8,34],
     "services/reportService.ts": [34,8,4,34],
     "services/savedPostsRequest.ts": [8,10,2,8],

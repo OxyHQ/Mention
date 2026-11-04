@@ -19,12 +19,12 @@ import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
 import { cacheActors } from '@/lib/actorCache';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAuth, type CacheableUser } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
@@ -35,8 +35,15 @@ import type { ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { fetchProfileConnections } from '@/services/profileConnectionsService';
 
 type TabType = ConnectionTab;
+
+/** One loaded page of a followers/following list; no cursor ends the list. */
+interface ConnectionsPage {
+  users: ConnectionUser[];
+  nextCursor?: string;
+}
 
 /** The catalogue sticker each tab shows when it has nobody to list. */
 const EMPTY_STICKER_BY_TAB: Record<TabType, EmptyStateStickerName> = {
@@ -199,30 +206,60 @@ function ConnectionsContent({
   // A query that is not enabled is simply not loading.
   const listKind: 'followers' | 'following' | null =
     activeTab === 'followers' || activeTab === 'following' ? activeTab : null;
-  const connectionsListQuery = useQuery<ConnectionUser[]>({
+  // A FEDERATED profile's lists come from Mention, which appends to the Oxy
+  // follow graph the edges mirrored from the account's origin whose other end is
+  // an account known here — Oxy holds no remote→remote follow, so its lists name
+  // only the people who followed from an Oxy app. They page; a local profile's
+  // lists are Oxy's single page, unchanged.
+  const isFederatedProfile = Boolean(profileData?.isFederated);
+  const connectionsListQuery = useInfiniteQuery({
     queryKey: viewerQueryKeys.connectionsList(user?.id, listKind ?? 'followers', profileId),
-    queryFn: async () => {
-      if (!profileId) return [];
+    queryFn: async ({ pageParam }): Promise<ConnectionsPage> => {
+      if (!profileId) return { users: [] };
+      const kind = listKind ?? 'followers';
       try {
+        if (isFederatedProfile) {
+          const page = await fetchProfileConnections(profileId, kind, pageParam);
+          // `PostUser` is an interface, so it is spread into a plain record to cache.
+          cacheActors(page.users.map((item): CacheableUser => ({ ...item })));
+          return { users: page.users, nextCursor: page.nextCursor };
+        }
         const list =
-          listKind === 'following'
+          kind === 'following'
             ? (await oxyServices.follows.following(profileId)).following
             : (await oxyServices.follows.followers(profileId)).followers;
         cacheActors(list);
-        return list;
+        return { users: list };
       } catch (err) {
         // The lists are public; an auth error (no usable bearer yet on cold
         // boot, or a signed-out visitor) shows the empty state, not an error.
         if (isAuthError(err)) {
           logger.warn('Auth error loading connections, showing empty state', { error: err });
-          return [];
+          return { users: [] };
         }
         throw err;
       }
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: listKind !== null && Boolean(profileId),
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
   });
+  const connectionsList = useMemo<ConnectionUser[]>(() => {
+    const seen = new Set<string>();
+    return (connectionsListQuery.data?.pages ?? []).flatMap((page) =>
+      page.users.filter((item) => {
+        const key = String(item.id || item._id || item.userID || item.username);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }),
+    );
+  }, [connectionsListQuery.data]);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = connectionsListQuery;
+  const loadMoreConnections = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   // Who-may-know recommendations are personalized for the SIGNED-IN VIEWER (not
   // the profile being viewed) by `GET /recommendations` — an optional-auth,
   // public endpoint (popular profiles logged-out, mutual-overlap personalized
@@ -384,7 +421,7 @@ function ConnectionsContent({
     switch (activeTab) {
       case 'followers':
       case 'following':
-        return connectionsListQuery.data ?? [];
+        return connectionsList;
       case 'who-may-know':
         return recommendations;
       case 'in-common':
@@ -392,7 +429,7 @@ function ConnectionsContent({
       default:
         return [];
     }
-  }, [activeTab, connectionsListQuery.data, recommendations, mutuals]);
+  }, [activeTab, connectionsList, recommendations, mutuals]);
 
   const profileDisplayName = profileData?.design.displayName;
 
@@ -460,7 +497,8 @@ function ConnectionsContent({
     ? getErrorMessage(activeQuery.error, activeFailure)
     : null;
   const activeLoading = activeQuery.isLoading;
-  const activeRefreshing = activeQuery.isFetching;
+  // Fetching the next page of a list is not a pull-to-refresh.
+  const activeRefreshing = activeQuery.isFetching && !(listKind !== null && isFetchingNextPage);
   const { refetch: refetchActive } = activeQuery;
   const refreshCurrent = useCallback(() => {
     void refetchActive();
@@ -533,6 +571,7 @@ function ConnectionsContent({
       contentContainerStyle={{ paddingBottom: 20 }}
       refreshing={activeRefreshing}
       onRefresh={refreshCurrent}
+      onEndReached={listKind !== null ? loadMoreConnections : undefined}
     />
   );
   return Platform.OS === 'web' ? (

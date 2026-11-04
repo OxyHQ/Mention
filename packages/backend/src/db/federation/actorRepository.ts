@@ -202,6 +202,31 @@ export async function findActorsByUris(
 }
 
 /**
+ * `uri → oxyUserId` for the actors among `uris` that are linked to an Oxy user —
+ * "is this account known here", without minting anything. Projected: a remote
+ * engagement list names hundreds of accounts and needs only the id.
+ */
+export async function findKnownOxyUserIdsByActorUris(
+  uris: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Map<string, string>> {
+  const known = new Map<string, string>();
+  if (uris.length === 0) return known;
+  const rows = await db
+    .select({ uri: federatedActors.uri, oxyUserId: federatedActors.oxyUserId })
+    .from(federatedActors)
+    .where(
+      and(
+        inArray(federatedActors.uri, [...uris]),
+        isNotNull(federatedActors.oxyUserId),
+        eq(federatedActors.suspended, false),
+      ),
+    );
+  for (const row of rows) if (row.oxyUserId) known.set(row.uri, row.oxyUserId);
+  return known;
+}
+
+/**
  * `acct → oxyUserId` for a set of accts, in ONE indexed query — the typed-handle
  * mentions of a post (`@bob@remote.tld`). Projected: the caller needs the id
  * and nothing else. An acct we do not store, or one not yet linked to an Oxy

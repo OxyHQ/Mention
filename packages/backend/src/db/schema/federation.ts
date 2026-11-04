@@ -1,6 +1,7 @@
 /**
  * The federation layer: `actor_key_pairs`, `federated_actors` (+ its profile
- * fields), `federated_follows`, `federated_media_cache`,
+ * fields), `federated_follows`, the remote follow-graph mirror
+ * (`remote_actor_refs`, `remote_follow_edges`, `remote_graph_crawls`), `federated_media_cache`,
  * `federation_delivery_queue`.
  *
  * ## `actor_key_pairs` holds no private key
@@ -22,7 +23,17 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  unique,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
@@ -506,6 +517,108 @@ export const federatedFollows = pgTable(
     ),
     index('federated_follows_local_direction_status_idx').on(t.localUserId, t.direction, t.status),
     index('federated_follows_remote_direction_idx').on(t.remoteActorUri, t.direction),
+  ],
+);
+
+/** Whether an account's own follow collection may be shown. */
+export const REMOTE_GRAPH_COLLECTION_STATES = ['visible', 'hidden'] as const;
+
+/**
+ * `remote_actor_refs` — the dictionary that lets `remote_follow_edges` store two
+ * integers per edge instead of two URIs.
+ *
+ * The mirror lives on the database every Oxy app shares, so its size is the
+ * design constraint. Measured on 1M synthetic edges over 200k accounts: URI-keyed
+ * edges cost 353 bytes each (heap + three indexes); integer-keyed ones 97, plus
+ * 183 bytes once per distinct account here — about 2.6x smaller at the overlap
+ * a follow graph has. The id is internal to this database (it is never
+ * published, unlike the text ids `CONVENTIONS.md` protects), so an identity
+ * integer is the honest type.
+ *
+ * `uri` is the account's CANONICAL node: an actor URI, or for a Bluesky account
+ * its DID — a Bridgy Fed actor URI (`https://bsky.brid.gy/ap/<did>`) is stored
+ * as the DID, so one person is one node whichever protocol named them. A ref
+ * that no edge uses any more is deleted with the edge that last used it.
+ */
+export const remoteActorRefs = pgTable('remote_actor_refs', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  uri: text().notNull().unique('remote_actor_refs_uri_key'),
+});
+
+/**
+ * `remote_follow_edges` — who follows whom BETWEEN remote accounts, as their
+ * origins publish it (an ActivityPub `following`/`followers` collection, a
+ * Bluesky `app.bsky.graph.follow`).
+ *
+ * Oxy owns the follow graph of its users and refuses a remote→remote edge, so
+ * the connections of a federated profile would otherwise list only the people
+ * who followed it from here. This is a MIRROR for display, never a follow:
+ * nothing here enters Oxy's `user_follows`, so it cannot reach recommendations,
+ * mutuals, follow events or a feed.
+ *
+ * An edge is kept before its other end is known here, and the profile lists join
+ * it to `federated_actors` at read time, so an account synced later appears on
+ * every list that already named it. That window is bounded: an edge with an end
+ * still unknown expires `REMOTE_EDGE_UNKNOWN_TTL` after it was last seen
+ * (`connectors/remoteGraphMirror.ts`); an edge with both ends known stays until
+ * a re-crawl stops seeing it. `last_seen_at` is also the prune key for that
+ * re-crawl — ActivityPub sends no unfollow to a third party.
+ */
+export const remoteFollowEdges = pgTable(
+  'remote_follow_edges',
+  {
+    sourceId: integer()
+      .notNull()
+      .references(() => remoteActorRefs.id, { onDelete: 'cascade' }),
+    targetId: integer()
+      .notNull()
+      .references(() => remoteActorRefs.id, { onDelete: 'cascade' }),
+    /** The atproto follow record's key, when known (a firehose delete names only it). */
+    recordKey: text(),
+    lastSeenAt: timestamptz().notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: 'remote_follow_edges_pkey', columns: [t.sourceId, t.targetId] }),
+    // A profile's followers: every edge pointing at it.
+    index('remote_follow_edges_target_idx').on(t.targetId),
+    // The expiry sweep's range scan.
+    index('remote_follow_edges_last_seen_at_idx').on(t.lastSeenAt),
+  ],
+);
+
+/**
+ * `remote_graph_crawls` — per remote account, when its follow graph was last read
+ * into `remote_follow_edges` and whether its collections may be shown.
+ *
+ * The same cooldown + lease pair as the atproto profile-graph sync on
+ * `federated_actors`, kept in its own table so that hot table gains no columns.
+ * A `hidden` collection (the origin answered 401/403, advertises none, or states
+ * a total but serves no items — Mastodon's "hide your network") is never rendered
+ * and never crawled; NULL is "never read", which for an ActivityPub account
+ * renders nothing either.
+ */
+export const remoteGraphCrawls = pgTable(
+  'remote_graph_crawls',
+  {
+    actorUri: text().primaryKey(),
+    followingState: text({ enum: REMOTE_GRAPH_COLLECTION_STATES }),
+    followersState: text({ enum: REMOTE_GRAPH_COLLECTION_STATES }),
+    /** The cooldown: when the last crawl finished. */
+    crawledAt: timestamptz(),
+    /** The lease: a crawl is running, since when. */
+    crawlStartedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      'remote_graph_crawls_following_state_check',
+      sql`${t.followingState} is null or ${t.followingState} in (${sql.raw(inList(REMOTE_GRAPH_COLLECTION_STATES))})`,
+    ),
+    check(
+      'remote_graph_crawls_followers_state_check',
+      sql`${t.followersState} is null or ${t.followersState} in (${sql.raw(inList(REMOTE_GRAPH_COLLECTION_STATES))})`,
+    ),
   ],
 );
 

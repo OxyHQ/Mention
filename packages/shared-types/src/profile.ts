@@ -2,6 +2,8 @@
  * Profile-related types shared across Mention frontend and backend
  */
 
+import type { PostUser } from './post';
+
 export enum ProfileVisibility {
   PUBLIC = 'public',
   PRIVATE = 'private',
@@ -135,4 +137,16 @@ export interface RemoteProfileField {
 export interface RemoteProfileMove {
   handle: string;
   actorUri: string;
+}
+
+/**
+ * One page of `GET /profile/connections/:userId/:kind` (`followers` | `following`):
+ * the account's Oxy follow graph, then the remote edges mirrored from its origin
+ * whose other end is an account known here. `nextCursor` is opaque. The origin's
+ * totals are {@link RemoteProfileStats}, never the length of this list.
+ */
+export interface ProfileConnectionsPage {
+  users: PostUser[];
+  hasMore: boolean;
+  nextCursor?: string;
 }
