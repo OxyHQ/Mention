@@ -140,6 +140,7 @@ async function seedActors(byUri: Record<string, string>): Promise<void> {
       username: `actor${index}`,
       uri,
       oxyUserId,
+      followersUrl: `${uri}/followers`,
       lastFetchedAt: new Date(),
     });
   }
@@ -486,6 +487,34 @@ describe('handleCreate — a Note addressed to a local user needs no local follo
 
     expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
     expect(createdPost().mentions).toEqual([LOCAL_MENTION_OXY_ID]);
+  });
+
+  it('keeps a followers-only Note to one of our users, and drops a direct message', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ _id: LOCAL_MENTION_OXY_ID, username: 'alice' });
+    const addressed = (to: string[]) => {
+      const activity = createActivity('<p>@alice hi</p>', [
+        { type: 'Mention', href: LOCAL_MENTION_ACTOR_URI, name: '@alice@mention.earth' },
+      ]);
+      Object.assign(activity.object as Record<string, unknown>, { to, cc: [] });
+      return activity;
+    };
+
+    // A DM has no audience Mention can represent; followers-only would show it to
+    // every local follower of its sender.
+    await inboxProcessingService.processInboxActivity(
+      addressed([LOCAL_MENTION_ACTOR_URI]),
+      AUTHOR_URI,
+    );
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+
+    await inboxProcessingService.processInboxActivity(
+      addressed([`${AUTHOR_URI}/followers`, LOCAL_MENTION_ACTOR_URI]),
+      AUTHOR_URI,
+    );
+    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
+    expect((mocks.postCreatorCreate.mock.calls[0]?.[0] as { visibility?: string }).visibility).toBe(
+      'followers_only',
+    );
   });
 
   it('still drops a Note that concerns no local user', async () => {

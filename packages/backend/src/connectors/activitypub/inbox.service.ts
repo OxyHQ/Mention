@@ -614,6 +614,12 @@ export class InboxProcessingService {
     // We NEVER insert an orphan post with a null author.
     const actor = await actorService.getOrFetchActor(actorUri);
     const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${note.id}`);
+    // A direct message or limited-audience note has no Mention audience: never stored.
+    const visibility = mapApVisibility(object.to, object.cc, actor?.followersUrl);
+    if (!visibility) {
+      logger.debug('[Federation] skipped a note with no public or followers audience');
+      return;
+    }
 
     // Resolve the Note's @mentions BEFORE building the body: each `Mention` tag's
     // actor URI is resolved (and synced/created) to a federated or local Oxy user
@@ -773,7 +779,7 @@ export class InboxProcessingService {
         media: media.length > 0 ? media : undefined,
         attachments: attachments.length > 0 ? attachments : undefined,
       },
-      visibility: mapApVisibility(object.to, object.cc),
+      visibility,
       hashtags,
       // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist the
       // native path stores, keyed by the `[mention:<id>]` placeholders now in the

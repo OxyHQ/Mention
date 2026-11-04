@@ -2651,7 +2651,7 @@ export class PostHydrationService {
    * May this viewer read this post at all?
    *
    * The single post-level ACL, applied to LOCAL and FEDERATED posts alike.
-   * `mapApVisibility` turns a Note that is not publicly addressed into
+   * `mapApVisibility` stores a Note addressed to its author's followers as
    * `followers_only`, so a federated post is NOT public by definition and a
    * blanket bypass here served a remote author's private post to anybody who
    * asked for it by id. Hydration is used for globally-broadcast DTOs and for
