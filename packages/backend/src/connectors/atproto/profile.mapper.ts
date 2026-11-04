@@ -3,7 +3,8 @@ import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { upsertActor } from '../../db/federation/actorRepository';
-import { resolveOxyIdentity } from '../oxyIdentity';
+import type { ResolveExternalIdentityResponse } from '@oxy.so/contracts';
+import { observeOxySource, resolveOxyIdentity, type ObservedOxySource } from '../oxyIdentity';
 import { syncFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
@@ -15,8 +16,8 @@ import {
 } from '@oxy.so/federation';
 import { describeDriverError, isUniqueViolation } from '@oxy.so/db';
 import { metrics } from '../../utils/metrics';
-import { xrpcGet } from './xrpcClient';
-import { PUBLIC_APPVIEW } from './constants';
+import { isDid } from './constants';
+import { oxyErrorStatus } from '../../services/oxyFiles/oxyErrors';
 
 /**
  * Counter a run can fail on when an actor row could not be written.
@@ -29,9 +30,9 @@ import { PUBLIC_APPVIEW } from './constants';
 export const ACTOR_UPSERT_FAILED_METRIC = 'federated_actor_upsert_failed_total';
 
 /**
- * Maps an `app.bsky.actor.getProfile` response into a network-neutral actor,
- * upserts the backing `federated_actors` row (`protocol:'atproto'`), and mints /
- * stamps the Oxy user it maps to through the shared identity bridge.
+ * Maps the `app.bsky.actor.getProfile` view Oxy verified into a network-neutral
+ * actor and upserts the backing `federated_actors` row (`protocol:'atproto'`)
+ * under the Oxy user Oxy resolved it to.
  */
 
 /** The subset of `app.bsky.actor.defs#profileViewDetailed` this connector reads. */
@@ -173,19 +174,22 @@ export function mapProfileToNormalizedActor(
 }
 
 /**
- * Upsert the `federated_actors` row for a normalized atproto actor and resolve its
- * Oxy user. Returns the actor with `oxyUserId` populated when Oxy resolved it.
- *
- * Fails soft: if `resolveOxyExternalUser` returns null (e.g. oxy-api does not yet
- * accept a `did:` `actorUri`), the actor row is still upserted but `oxyUserId`
- * stays undefined — callers MUST NOT import posts for an unresolved author (no
- * orphan posts), exactly like the ActivityPub no-orphan invariant.
+ * Upsert the `federated_actors` row for a normalized atproto actor under the Oxy
+ * user Oxy `resolved` it to. Returns the actor with `oxyUserId` populated, or
+ * without one when the row could not be written or projected — callers MUST NOT
+ * import posts for an unresolved author (no orphan posts), exactly like the
+ * ActivityPub no-orphan invariant.
  */
 export async function upsertAtprotoActor(
   actor: NormalizedExternalActor,
+  resolved: ResolveExternalIdentityResponse,
   profileFacts: AtprotoProfileFacts = {},
 ): Promise<NormalizedExternalActor> {
   const did = actor.externalId;
+  if (resolved.externalIdentity.actorUri !== did) {
+    logger.warn('[atproto] Oxy resolved a different source actor', { did });
+    return { ...actor, oxyUserId: undefined };
+  }
   // Substituted again (idempotent) rather than trusted, for the same reason the
   // bio is re-normalized below: this function is exported and does not require
   // its caller to have gone through `mapProfileToNormalizedActor`. A caller that
@@ -193,20 +197,6 @@ export async function upsertAtprotoActor(
   // uniquely-constrained columns derived here.
   const identityHandle = atprotoIdentityHandle(actor.handle, did);
   const { username, domain } = splitHandle(identityHandle);
-
-  let resolved: Awaited<ReturnType<typeof resolveOxyIdentity>>;
-  try {
-    resolved = await resolveOxyIdentity({
-      actorUri: did,
-      transportAcct: identityHandle,
-      protocol: 'atproto',
-    });
-    if (resolved.externalIdentity.actorUri !== did)
-      throw new Error('Oxy resolved a different source actor');
-  } catch (err) {
-    logger.warn('[atproto] Oxy identity resolution failed', { did, err });
-    return { ...actor, oxyUserId: undefined };
-  }
 
   let fedActor: FederatedActorRecord | null = null;
   try {
@@ -308,23 +298,52 @@ export async function upsertAtprotoActor(
 }
 
 /**
- * Fetch a Bluesky profile (`app.bsky.actor.getProfile`), normalize it, upsert the
- * `federated_actors` row, and resolve its Oxy user. `actor` may be a handle or a DID.
- * Returns null when the profile cannot be fetched / mapped.
+ * Oxy's fresh, verified read of a Bluesky account by handle or DID. A handle is
+ * resolved by Oxy (which verifies handle→DID); when Oxy answers it from its
+ * registry, without reading the source, the DID it names is read once.
+ */
+async function observeAtprotoSource(actor: string): Promise<ObservedOxySource | undefined> {
+  let did = actor;
+  if (!isDid(actor)) {
+    let known: ResolveExternalIdentityResponse;
+    try {
+      known = await resolveOxyIdentity({ handle: actor });
+    } catch (error) {
+      if (oxyErrorStatus(error) === 404) return undefined;
+      throw error;
+    }
+    if (known.externalIdentity.protocol !== 'atproto') return undefined;
+    if (known.sourceDocument) return { ...known, sourceDocument: known.sourceDocument };
+    did = known.externalIdentity.actorUri;
+  }
+  return (await observeOxySource({ actorUri: did, protocol: 'atproto' })).resolved;
+}
+
+/**
+ * Read a Bluesky profile through Oxy, normalize it, upsert the `federated_actors`
+ * row, and return it with its Oxy user. `actor` may be a handle or a DID.
+ *
+ * ONE `app.bsky.actor.getProfile` per call, made by Oxy: Oxy reads the profile to
+ * verify the account and returns the view it read (`sourceDocument`), so the
+ * banner, counts, creation date and labels come from that answer — Mention never
+ * calls `getProfile` itself. Returns null when Oxy cannot verify the account.
  */
 export async function fetchAndUpsertAtprotoProfile(
   actor: string,
 ): Promise<NormalizedExternalActor | null> {
-  let profile: AtprotoProfileView;
+  let resolved: ObservedOxySource | undefined;
   try {
-    profile = await xrpcGet<AtprotoProfileView>(PUBLIC_APPVIEW, 'app.bsky.actor.getProfile', {
-      actor,
-    });
+    resolved = await observeAtprotoSource(actor);
   } catch (err) {
-    logger.debug('[atproto] getProfile failed', err);
+    logger.warn('[atproto] Oxy identity resolution failed', { err });
+    return null;
+  }
+  if (!resolved) {
+    logger.debug('[atproto] Oxy could not verify the profile');
     return null;
   }
 
+  const profile = resolved.sourceDocument as AtprotoProfileView;
   const normalized = mapProfileToNormalizedActor(profile);
   if (!normalized) {
     logger.debug('[atproto] getProfile returned an unmappable profile');
@@ -333,7 +352,7 @@ export async function fetchAndUpsertAtprotoProfile(
 
   // The account's own creation date is the profile's "Joined", not the day
   // Mention discovered it; the network-neutral actor has no field for it.
-  return upsertAtprotoActor(normalized, {
+  return upsertAtprotoActor(normalized, resolved, {
     remoteCreatedAt:
       typeof profile.createdAt === 'string'
         ? trustedRemoteCreatedAt(new Date(profile.createdAt))

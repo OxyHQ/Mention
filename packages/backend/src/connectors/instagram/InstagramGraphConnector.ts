@@ -5,7 +5,6 @@ import type {
   LocalNetworkEvent,
   NetworkConnector,
   NormalizedExternalActor,
-  ReceiveContext,
 } from '@oxy.so/federation';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorByUri } from '../../db/federation/actorRepository';
@@ -14,7 +13,6 @@ import {
   upsertOutboundAcceptedSubscription,
 } from '../../db/federation/followRepository';
 import { logger } from '../../utils/logger';
-import { resolveOxyExternalUser } from '../identity';
 import {
   INSTAGRAM_GRAPH_NETWORK_ID,
   isInstagramGraphActorUri,
@@ -69,16 +67,6 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
     return isInstagramGraphActorUri(subject.trim());
   }
 
-  /**
-   * A `<u>@instagram.com` handle is resolved by Oxy (`/federation/resolve`), which
-   * decides between the bridge and the Graph API; this connector only resolves
-   * the URIs Oxy hands back.
-   */
-  async resolve(handle: string): Promise<NormalizedExternalActor | null> {
-    const value = handle.trim();
-    return this.matches(value) ? this.fetchProfile(value) : null;
-  }
-
   fetchProfile(externalId: string): Promise<NormalizedExternalActor | null> {
     if (!this.enabled) return Promise.resolve(null);
     return fetchAndUpsertInstagramGraphActor(externalId);
@@ -122,15 +110,6 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
         );
       }
     }
-  }
-
-  /** No push transport: posts arrive only through the pull-based sync. */
-  async receive(_payload: unknown, _ctx: ReceiveContext): Promise<void> {
-    // No-op.
-  }
-
-  mapIdentity(actor: NormalizedExternalActor): Promise<string | null> {
-    return resolveOxyExternalUser(actor);
   }
 
   /**

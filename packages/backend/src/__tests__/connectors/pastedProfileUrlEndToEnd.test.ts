@@ -45,13 +45,18 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
   upsertActor: mocks.upsertActor,
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: () => ({
-    serviceRequest: mocks.serviceRequest,
-    users: { get: vi.fn(), getMany: vi.fn(async () => []) },
-  }),
-}));
+vi.mock('../../utils/oxyHelpers', async () => {
+  const { oxyServiceRequestDouble } = await import('../helpers/oxyIdentityFixtures');
+  // Oxy reads an `actorUri` source (served by `signedFetch`, the remote double).
+  const serviceRequest = oxyServiceRequestDouble(mocks.serviceRequest, mocks.signedFetch);
+  return {
+    createScopedOxyClient: vi.fn(),
+    getServiceOxyClient: () => ({
+      serviceRequest,
+      users: { get: vi.fn(), getMany: vi.fn(async () => []) },
+    }),
+  };
+});
 
 vi.mock('@oxy.so/core/server', async (importOriginal) => {
   const { Readable } = await import('node:stream');

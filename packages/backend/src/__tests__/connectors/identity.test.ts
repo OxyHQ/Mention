@@ -18,7 +18,8 @@ vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-import { reportFederatedActorGone, resolveOxyExternalUser } from '../../connectors/identity';
+import { reportFederatedActorGone } from '../../connectors/identity';
+import { observeOxySource } from '../../connectors/oxyIdentity';
 import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
@@ -51,54 +52,39 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('resolveOxyExternalUser', () => {
-  it.each(['activitypub', 'atproto'] as const)(
-    'asks Oxy to verify %s transport without app identity claims',
-    async (protocol) => {
-      const actorUri =
-        protocol === 'atproto'
-          ? 'did:plc:ewvi7nxzyoun6zhxrhs64oiz'
-          : 'https://bird.makeup/users/alice';
-      const transportAcct = protocol === 'atproto' ? 'alice.bsky.social' : 'alice@bird.makeup';
-      mocks.serviceRequest.mockResolvedValue(
-        oxyIdentityFixture({
-          actorUri,
-          transportAcct,
-          protocol,
-          canonicalAcct: 'alice@x.com',
-          network: 'x.com',
-        }),
-      );
-      expect(
-        await resolveOxyExternalUser({
-          network: protocol,
-          externalId: actorUri,
-          handle: transportAcct,
-          federatedUsername: 'untrusted@app.test',
-          instanceDomain: 'app.test',
-          bio: 'raw transport bio',
-        }),
-      ).toBe('oxy-resolved');
-      expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
-        actorUri,
-        transportAcct,
-        protocol,
-      });
-      expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
-    },
-  );
+describe('observeOxySource', () => {
+  const actorUri = 'https://bird.makeup/users/alice';
 
-  it('returns null when Oxy returns no authoritative identity', async () => {
-    mocks.serviceRequest.mockResolvedValue({ id: 'legacy-only-id' });
-    expect(
-      await resolveOxyExternalUser({
-        network: 'activitypub',
-        externalId: 'https://bird.makeup/users/alice',
-        handle: 'alice@bird.makeup',
-        federatedUsername: 'alice@x.com',
-        instanceDomain: 'x.com',
+  it('returns the document Oxy verified with the identity, asking Oxy only for the source actor', async () => {
+    const sourceDocument = { id: actorUri, inbox: `${actorUri}/inbox` };
+    mocks.serviceRequest.mockResolvedValue({
+      ...oxyIdentityFixture({
+        actorUri,
+        transportAcct: 'alice@bird.makeup',
+        canonicalAcct: 'alice@x.com',
+        network: 'x.com',
       }),
-    ).toBeNull();
+      sourceDocument,
+    });
+
+    const observed = await observeOxySource({ actorUri, protocol: 'activitypub' });
+
+    expect(observed).toMatchObject({ status: 200, resolved: { sourceDocument } });
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      actorUri,
+      protocol: 'activitypub',
+    });
+    expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
+  });
+
+  it("reports the source's own refusal, so a gone actor is told apart", async () => {
+    mocks.serviceRequest.mockRejectedValue(
+      Object.assign(httpError(404), { details: { sourceStatus: 410 } }),
+    );
+    expect(await observeOxySource({ actorUri, protocol: 'activitypub' })).toEqual({ status: 410 });
+
+    mocks.serviceRequest.mockRejectedValue(httpError(503));
+    await expect(observeOxySource({ actorUri, protocol: 'activitypub' })).rejects.toThrow();
   });
 });
 

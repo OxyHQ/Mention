@@ -12,16 +12,18 @@ const scope = federationScope('atproto-profile-mapper');
 import { getNormalizedUserHandle } from '@oxy.so/core';
 
 /**
- * atproto profile mapping: `app.bsky.actor.getProfile` → normalized actor →
- * `federated_actors` upsert (`protocol:'atproto'`) → Oxy identity resolution.
- * Verifies the no-orphan fail-soft contract: when Oxy cannot resolve the actor's
- * `did:` (oxy-api dependency), the actor returns WITHOUT an `oxyUserId` and never
- * throws.
+ * atproto profile mapping: the `app.bsky.actor.getProfile` view Oxy verified →
+ * normalized actor → `federated_actors` upsert (`protocol:'atproto'`) under the
+ * Oxy user Oxy resolved. Mention never calls `getProfile` itself; Oxy's read is
+ * the only one. When Oxy cannot verify the `did:`, nothing is written and the
+ * call never throws.
  */
 
 const mocks = vi.hoisted(() => ({
-  xrpcGet: vi.fn(),
+  /** The profile view Oxy reads from the AppView (null: not found). */
+  getProfile: vi.fn(),
   resolveOxyIdentity: vi.fn(),
+  observeOxySource: vi.fn(),
   syncFederatedBannerInBackground: vi.fn(),
 }));
 
@@ -29,14 +31,9 @@ vi.mock('../../../db/federation/bannerMirrorRepository', () => ({
   syncFederatedBannerInBackground: mocks.syncFederatedBannerInBackground,
 }));
 
-vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
-
 vi.mock('../../../connectors/oxyIdentity', () => ({
-  // The atproto path resolves through the shared MERGE, not straight at the
-  // identity bridge: the same Bluesky account can also arrive over ActivityPub
-  // through Bridgy Fed, and whichever lands second must adopt the first's Oxy
-  // user rather than mint a twin.
   resolveOxyIdentity: mocks.resolveOxyIdentity,
+  observeOxySource: mocks.observeOxySource,
 }));
 
 import {
@@ -73,6 +70,13 @@ const PROFILE = {
 beforeEach(async () => {
   await clearFederationScope(scope, [DID, DID_TWO]);
   vi.clearAllMocks();
+  // Oxy reads the profile once and answers with the identity and the view it read.
+  mocks.observeOxySource.mockImplementation(async (input: { actorUri: string }) => {
+    const view = await mocks.getProfile(input.actorUri);
+    if (!view) return { status: 404 };
+    const identity = await mocks.resolveOxyIdentity({ ...input, transportAcct: view.handle });
+    return { status: 200, resolved: { ...identity, sourceDocument: view } };
+  });
   mocks.resolveOxyIdentity.mockImplementation(
     async (input: { actorUri: string; transportAcct: string }) =>
       oxyIdentityFixture({
@@ -263,13 +267,16 @@ describe('splitHandle', () => {
 
 describe('fetchAndUpsertAtprotoProfile', () => {
   it('upserts the FederatedActor (atproto) and stamps the resolved Oxy user', async () => {
-    mocks.xrpcGet.mockResolvedValue(PROFILE);
+    mocks.getProfile.mockResolvedValue(PROFILE);
 
     const actor = await fetchAndUpsertAtprotoProfile(DID);
 
-    expect(mocks.xrpcGet).toHaveBeenCalledWith('public.api.bsky.app', 'app.bsky.actor.getProfile', {
-      actor: DID,
+    // One read of the profile, made by Oxy.
+    expect(mocks.observeOxySource).toHaveBeenCalledExactlyOnceWith({
+      actorUri: DID,
+      protocol: 'atproto',
     });
+    expect(mocks.getProfile).toHaveBeenCalledTimes(1);
     // The ROW is keyed on the DID and carries protocol + acct + banner.
     const stored = await readActor(DID);
     expect(stored).toMatchObject({
@@ -280,17 +287,6 @@ describe('fetchAndUpsertAtprotoProfile', () => {
       // The account's own creation date, not the day Mention discovered it.
       remoteCreatedAt: new Date(PROFILE.createdAt),
     });
-    // Oxy resolution is handed the canonical federated identity (`handle@domain`
-    // username + instance domain) — the exact shape oxy-api's username↔domain
-    // binding requires for a `did:` actor. Passing the bare handle here would
-    // make `PUT /users/resolve` 400 → no oxyUserId → no posts and proxied media.
-    expect(mocks.resolveOxyIdentity).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorUri: DID,
-        transportAcct: 'alice.bsky.social',
-        protocol: 'atproto',
-      }),
-    );
     // Oxy user resolved + stamped ON THE ROW (the upsert carried no prior one).
     expect((await readActor(DID))?.oxyUserId).toBe('oxy-alice');
     expect(actor?.oxyUserId).toBe('oxy-alice');
@@ -303,7 +299,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
   });
 
   it('carries a `!no-unauthenticated` self-label to the actor row', async () => {
-    mocks.xrpcGet.mockResolvedValue({
+    mocks.getProfile.mockResolvedValue({
       ...PROFILE,
       labels: [{ src: DID, val: '!no-unauthenticated' }],
     });
@@ -316,16 +312,12 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     });
   });
 
-  it('fails soft (no oxyUserId, no throw, no stamp) when Oxy cannot resolve the did:', async () => {
+  it('fails soft (no actor, no throw, no row) when Oxy cannot resolve the did:', async () => {
     await clearFederationScope(scope, [DID]);
-    mocks.xrpcGet.mockResolvedValue(PROFILE);
-    mocks.resolveOxyIdentity.mockRejectedValue(new Error('Oxy unavailable'));
+    mocks.observeOxySource.mockRejectedValue(new Error('Oxy unavailable'));
 
-    const actor = await fetchAndUpsertAtprotoProfile(DID);
-
-    expect(actor).not.toBeNull();
-    expect(actor?.oxyUserId).toBeUndefined();
-    expect((await readActor(DID))?.oxyUserId).toBeUndefined();
+    expect(await fetchAndUpsertAtprotoProfile(DID)).toBeNull();
+    expect(await readActor(DID)).toBeNull();
   });
 
   it('does not adopt another identity when a reassigned handle collides during upsert', async () => {
@@ -344,17 +336,22 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     });
 
     const actor = mapProfileToNormalizedActor(PROFILE)!;
-    const resolved = await upsertAtprotoActor(actor);
+    const resolved = await upsertAtprotoActor(
+      actor,
+      oxyIdentityFixture({
+        actorUri: DID,
+        transportAcct: 'alice.bsky.social',
+        canonicalAcct: 'alice@bsky.social',
+        network: 'bsky.social',
+        protocol: 'atproto',
+        userId: 'oxy-alice',
+      }),
+    );
 
     // Fail closed. Without the early return the caller keeps an actor that has
     // no row of its own, and identity resolution runs against the handle the
     // PREVIOUS holder still owns — attributing this DID's posts to them.
     expect(resolved.oxyUserId).toBeUndefined();
-    expect(mocks.resolveOxyIdentity).toHaveBeenCalledWith({
-      actorUri: DID,
-      transportAcct: 'alice.bsky.social',
-      protocol: 'atproto',
-    });
     // No row was written for the new DID, and the previous holder's row is intact.
     expect(await readActor(DID)).toBeNull();
     expect((await readActor(DID_TWO))?.oxyUserId).toBe('oxy-previous-holder');
@@ -366,10 +363,12 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     ).toBe(1);
   });
 
-  it('returns null when the profile cannot be fetched', async () => {
-    mocks.xrpcGet.mockRejectedValue(new Error('not found'));
-    const actor = await fetchAndUpsertAtprotoProfile('ghost.example');
-    expect(actor).toBeNull();
+  it('returns null when Oxy cannot verify the handle', async () => {
+    mocks.resolveOxyIdentity.mockRejectedValue(
+      Object.assign(new Error('not found'), { status: 404 }),
+    );
+    expect(await fetchAndUpsertAtprotoProfile('ghost.example')).toBeNull();
+    expect(mocks.observeOxySource).not.toHaveBeenCalled();
   });
 
   /**
@@ -403,9 +402,9 @@ describe('fetchAndUpsertAtprotoProfile', () => {
         }),
     );
 
-    mocks.xrpcGet.mockResolvedValue({ ...PROFILE, did: DID, handle: 'handle.invalid' });
+    mocks.getProfile.mockResolvedValue({ ...PROFILE, did: DID, handle: 'handle.invalid' });
     const first = await fetchAndUpsertAtprotoProfile(DID);
-    mocks.xrpcGet.mockResolvedValue({ ...PROFILE, did: DID_TWO, handle: 'handle.invalid' });
+    mocks.getProfile.mockResolvedValue({ ...PROFILE, did: DID_TWO, handle: 'handle.invalid' });
     const second = await fetchAndUpsertAtprotoProfile(DID_TWO);
 
     // FIRST, and on its own line, the claim this test exists for: the second
@@ -431,10 +430,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     expect(await readActor(DID_TWO)).toMatchObject({ oxyUserId: `oxy-${DID_TWO}` });
     expect(second?.oxyUserId).toBe(`oxy-${DID_TWO}`);
     expect(first?.oxyUserId).toBe(`oxy-${DID}`);
-    expect(mocks.resolveOxyIdentity.mock.calls.map(([a]) => a.transportAcct)).toEqual([
-      DID,
-      DID_TWO,
-    ]);
+    expect(mocks.observeOxySource.mock.calls.map(([a]) => a.actorUri)).toEqual([DID, DID_TWO]);
 
     // And nothing was swallowed on the way. Asserted rather than assumed,
     // because a row can also go missing without an exception — this separates

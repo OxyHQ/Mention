@@ -57,12 +57,9 @@ function makeConnector(
     id,
     enabled,
     matches: vi.fn().mockReturnValue(false),
-    resolve: vi.fn().mockResolvedValue(null),
     fetchProfile: vi.fn().mockResolvedValue(null),
     fetchPosts: vi.fn().mockResolvedValue({ posts: [] }),
     deliver,
-    receive: vi.fn().mockResolvedValue(undefined),
-    mapIdentity: vi.fn().mockResolvedValue(null),
   };
 }
 

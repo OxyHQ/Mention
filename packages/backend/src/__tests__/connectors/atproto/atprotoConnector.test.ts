@@ -18,14 +18,8 @@ const scope = federationScope('atproto-connector');
  */
 
 const mocks = vi.hoisted(() => ({
-  resolveIdentity: vi.fn(),
   fetchAndUpsertAtprotoProfile: vi.fn(),
   importAuthorFeed: vi.fn(),
-  resolveOxyExternalUser: vi.fn(),
-}));
-
-vi.mock('../../../connectors/atproto/identityResolver', () => ({
-  resolveIdentity: mocks.resolveIdentity,
 }));
 
 vi.mock('../../../connectors/atproto/profile.mapper', () => ({
@@ -36,10 +30,6 @@ vi.mock('../../../connectors/atproto/post.mapper', () => ({
   importAuthorFeed: mocks.importAuthorFeed,
 }));
 
-vi.mock('../../../connectors/identity', () => ({
-  resolveOxyExternalUser: mocks.resolveOxyExternalUser,
-}));
-
 import { atprotoConnector } from '../../../connectors/atproto/AtprotoConnector';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
@@ -47,7 +37,6 @@ const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
 beforeEach(async () => {
   await clearFederationScope(scope);
   vi.clearAllMocks();
-  mocks.resolveIdentity.mockResolvedValue({ did: DID, handle: 'alice.bsky.social' });
   mocks.fetchAndUpsertAtprotoProfile.mockResolvedValue({
     network: 'atproto',
     externalId: DID,

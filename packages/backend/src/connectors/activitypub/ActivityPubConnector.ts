@@ -7,13 +7,11 @@ import type {
   LocalDeleteEventPayload,
   LocalNetworkEvent,
   LocalPostEventPayload,
-  ReceiveContext,
   FetchPostsOptions,
   FetchPostsResult,
 } from '@oxy.so/federation';
 import { withEngineId, type FederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorByUriOrAcct } from '../../db/federation/actorRepository';
-import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { deliveryService } from './delivery.service';
@@ -149,13 +147,6 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       }
     }
     return false;
-  }
-
-  /** Resolve a fediverse handle to a normalized actor (WebFinger → actor fetch). */
-  async resolve(handle: string): Promise<NormalizedExternalActor | null> {
-    const actorUri = await actorService.resolveWebFinger(handle);
-    if (!actorUri) return null;
-    return this.fetchProfile(actorUri);
   }
 
   /**
@@ -366,27 +357,6 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       default:
         await this.deliver(event);
     }
-  }
-
-  /** Process an inbound, already-verified ActivityPub activity. */
-  async receive(payload: unknown, ctx: ReceiveContext): Promise<void> {
-    await inboxProcessingService.processInboxActivity(
-      payload as Record<string, unknown>,
-      ctx.verifiedActorUri,
-    );
-  }
-
-  /**
-   * Resolve/mint the Oxy user a normalized actor maps to.
-   *
-   * The same decision the ingest path makes — a bridged actor's identity can
-   * already be held by another row (the same person mirrored twice, or held
-   * natively over atproto and again through Bridgy Fed), and minting a second
-   * one for it does not merely duplicate: oxy-api's unique username index refuses
-   * it, so the actor resolves to nothing at all.
-   */
-  mapIdentity(actor: NormalizedExternalActor): Promise<string | null> {
-    return resolveOxyExternalUser(actor);
   }
 
   /** Map a stored {@link FederatedActorRecord} to the network-neutral shape. */

@@ -69,10 +69,6 @@ vi.mock('../../../connectors/activitypub/inbox.service', () => ({
   inboxProcessingService: { processInboxActivity: vi.fn() },
 }));
 
-vi.mock('../../../connectors/identity', () => ({
-  resolveOxyExternalUser: vi.fn(),
-}));
-
 import { activityPubConnector } from '../../../connectors/activitypub/ActivityPubConnector';
 
 const ACTOR_URI = 'https://mastodon.social/users/alice';
