@@ -383,6 +383,23 @@ const environmentSchema = z
     ATPROTO_ENABLED: booleanFromEnv(true),
     ATPROTO_APPVIEW: z.preprocess(emptyAsUndefined, host.default('public.api.bsky.app')),
     ATPROTO_PLC_DIRECTORY: z.preprocess(emptyAsUndefined, host.default('plc.directory')),
+    /**
+     * The Bluesky Jetstream consumer (`connectors/atproto/jetstream/`): live
+     * posts and deletes, read by the scheduler leader. ON with the connector;
+     * `false` closes the stream and leaves the periodic author-feed sync. The URL
+     * is a Jetstream v2 origin (`network.bsky.jetstream.subscribeEvents`).
+     */
+    ATPROTO_JETSTREAM_ENABLED: booleanFromEnv(true),
+    ATPROTO_JETSTREAM_URL: z.preprocess(
+      emptyAsUndefined,
+      z
+        .string()
+        .trim()
+        .url()
+        .refine((value) => new URL(value).protocol === 'wss:', 'must use wss://')
+        .transform(withoutTrailingSlash)
+        .default('wss://jetstream.us-east.bsky.network'),
+    ),
 
     /**
      * Instagram posts through Meta's Graph API (Business Discovery). OFF by
@@ -851,6 +868,10 @@ export const config = {
     enabled: environment.ATPROTO_ENABLED,
     appViewHost: environment.ATPROTO_APPVIEW,
     plcDirectoryHost: environment.ATPROTO_PLC_DIRECTORY,
+    jetstream: {
+      enabled: environment.ATPROTO_ENABLED && environment.ATPROTO_JETSTREAM_ENABLED,
+      url: environment.ATPROTO_JETSTREAM_URL,
+    },
   },
   oxyFiles: {
     webhookSecret: environment.OXY_FILES_WEBHOOK_SECRET,

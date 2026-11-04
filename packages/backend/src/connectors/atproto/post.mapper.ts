@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { findActorByUri } from '../../db/federation/actorRepository';
+import { findActorByUri, findActorsByUris } from '../../db/federation/actorRepository';
 import { setFederatedAuthorPinnedPost } from '../../db/posts/postRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
@@ -1230,4 +1230,89 @@ export async function importPostViews(
 ): Promise<string[]> {
   const imported = await importPostViewBatch(postViews, { context });
   return imported.map((entry) => entry.uri);
+}
+
+/** `app.bsky.feed.getPosts` hydrates at most this many AT-URIs per call. */
+const GET_POSTS_MAX_URIS = 25;
+
+/** Hydrate AT-URIs through `app.bsky.feed.getPosts`; a post that is gone is simply absent. */
+async function getPostViews(uris: readonly string[]): Promise<AtprotoPostView[]> {
+  const views: AtprotoPostView[] = [];
+  for (let start = 0; start < uris.length; start += GET_POSTS_MAX_URIS) {
+    const page = await xrpcGet<{ posts?: AtprotoPostView[] }>(
+      PUBLIC_APPVIEW,
+      'app.bsky.feed.getPosts',
+      { uris: uris.slice(start, start + GET_POSTS_MAX_URIS) },
+    );
+    if (Array.isArray(page?.posts)) views.push(...page.posts);
+  }
+  return views;
+}
+
+/** The AT-URIs of `uris` that are not stored yet. */
+async function unstoredUris(uris: readonly string[]): Promise<string[]> {
+  if (uris.length === 0) return [];
+  const stored = await getDb()
+    .select({ activityId: posts.federationActivityId })
+    .from(posts)
+    .where(inArray(posts.federationActivityId, [...uris]));
+  const known = new Set(stored.map((row) => row.activityId));
+  return uris.filter((uri) => !known.has(uri));
+}
+
+/**
+ * Post authors Mention already holds, from their stored actor rows, so a post
+ * from an account we follow does not cost a profile read and an Oxy identity
+ * resolution each time. The instance domain is the Oxy network of the stored
+ * `network_acct` — what the profile upsert returns as `instanceDomain`.
+ */
+async function storedAuthors(dids: readonly string[]): Promise<Map<string, ResolvedAuthor>> {
+  const actors = await findActorsByUris(dids);
+  const authors = new Map<string, ResolvedAuthor>();
+  for (const actor of actors) {
+    if (actor.protocol !== 'atproto' || !actor.oxyUserId) continue;
+    const network = actor.networkAcct?.split('@').pop();
+    authors.set(actor.uri, { oxyUserId: actor.oxyUserId, instanceDomain: network || actor.domain });
+  }
+  return authors;
+}
+
+/**
+ * Import posts known only by their AT-URIs — a stream of record events (the
+ * Jetstream consumer) says WHICH posts exist, not what they look like. Each is
+ * hydrated through the AppView (`app.bsky.feed.getPosts`), so it carries the same
+ * moderation labels, CDN media and handle as an author-feed import, and then goes
+ * through the one {@link importPostViewBatch} path; the posts they reply to are
+ * hydrated and imported first, so the reply links resolve.
+ *
+ * Already-stored URIs cost one indexed query and no AppView call, which is what
+ * makes an at-least-once stream cheap to replay. Throws `XrpcError` when the
+ * AppView cannot be read, so the caller can retry instead of losing the posts.
+ *
+ * @returns how many posts were newly created.
+ */
+export async function importPostsByUri(uris: readonly string[]): Promise<number> {
+  const missing = await unstoredUris([...new Set(uris)]);
+  if (missing.length === 0) return 0;
+
+  const views = await getPostViews(missing);
+  if (views.length === 0) return 0;
+
+  const asked = new Set(missing);
+  const replyContextUris = new Set<string>();
+  for (const view of views) {
+    for (const uri of [view.record?.reply?.parent?.uri, view.record?.reply?.root?.uri]) {
+      if (typeof uri === 'string' && !asked.has(uri)) replyContextUris.add(uri);
+    }
+  }
+  const context = await getPostViews(await unstoredUris([...replyContextUris]));
+
+  const authorDids = views.flatMap((view) =>
+    typeof view.author?.did === 'string' ? [view.author.did] : [],
+  );
+  const imported = await importPostViewBatch(views, {
+    authors: await storedAuthors([...new Set(authorDids)]),
+    context,
+  });
+  return imported.filter((entry) => entry.created).length;
 }

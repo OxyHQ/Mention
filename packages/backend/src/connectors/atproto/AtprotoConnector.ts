@@ -17,6 +17,7 @@ import { resolveOxyExternalUser } from '../identity';
 import { ATPROTO_ENABLED, isAtUri, isAtprotoHandle, isDid } from './constants';
 import { resolveIdentity } from './identityResolver';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
+import { startJetstreamIngestion, stopJetstreamIngestion } from './jetstream';
 import { importAuthorFeed } from './post.mapper';
 import {
   advanceAtprotoHistoryBackfills,
@@ -89,6 +90,16 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
   /** The periodic job body: advance the bounded post-history backfills. */
   advanceHistoryBackfills(): Promise<number> {
     return advanceAtprotoHistoryBackfills();
+  }
+
+  /** Open the live Jetstream subscription (scheduler leader only). */
+  startLiveIngestion(): void {
+    startJetstreamIngestion();
+  }
+
+  /** Close it, saving how far it got. */
+  stopLiveIngestion(): Promise<void> {
+    return stopJetstreamIngestion();
   }
 
   /** Deliver a local domain event. */
