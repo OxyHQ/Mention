@@ -34,6 +34,15 @@
  * enters Mention. A 410 is final. A refusal to every one of them hides the post
  * (privacy first); not one of them answering is never a reason to publish it.
  *
+ * WHOSE FOLLOWERS. Followers-only is told from direct by the author's followers
+ * collection. An author stored without one (or not stored) may only be stale —
+ * read before `@oxy.so/federation` 2.16.0 understood an embedded collection —
+ * so before a non-public note is judged its author is re-read once per run
+ * through the shared resolver (`authorFollowersUrl`, which honours the domain
+ * policy). Still none after a successful re-read: decided as before. The re-read
+ * failed: the post is left as it is and counted `actorUnresolved` — missing
+ * author data never hides a post.
+ *
  * Addressees resolve against stored identities only, never a fetch: a remote
  * addressee nobody here knows is not a reader here anyway. Nothing is deleted.
  *
@@ -71,7 +80,11 @@ import {
   localActorKeyIdResolver,
 } from '../connectors/activitypub/helpers';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
-import { resolveApAudienceExisting } from '../connectors/activitypub/apMentions';
+import {
+  authorFollowersUrl,
+  resolveApAudienceExisting,
+  type AuthorRefreshOptions,
+} from '../connectors/activitypub/apMentions';
 import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY } from '../utils/concurrency';
@@ -105,6 +118,8 @@ export interface RecoverDirectMessagesResult {
   refused: number;
   /** Notes whose origin failed (5xx, network): left unchanged for a re-run. */
   retryLater: number;
+  /** Notes whose author lacked a followers collection and could not be re-read: left unchanged. */
+  actorUnresolved: number;
 }
 
 /** Shapes kept per outcome, and samples logged per outcome, on a dry run. */
@@ -275,15 +290,23 @@ export async function recoverFederatedDirectMessages(options: {
     gone: 0,
     refused: 0,
     retryLater: 0,
+    actorUnresolved: 0,
   };
-  const followersUrlByActor = new Map<string, Promise<string | undefined>>();
-  const followersUrlOf = (actorUri: string) => {
-    let url = followersUrlByActor.get(actorUri);
-    if (!url) {
-      url = findActorByUri(actorUri).then((actor) => actor?.followersUrl);
-      followersUrlByActor.set(actorUri, url);
+  const storedActors = new Map<string, ReturnType<typeof findActorByUri>>();
+  const authorRefreshes: AuthorRefreshOptions['refreshes'] = new Map();
+  /** The author's followers collection, re-reading a row without one once per run. */
+  const followersUrlOf = async (note: Record<string, unknown>, actorUri: string) => {
+    let stored = storedActors.get(actorUri);
+    if (!stored) {
+      stored = findActorByUri(actorUri);
+      storedActors.set(actorUri, stored);
     }
-    return url;
+    const actor = await stored;
+    return authorFollowersUrl(
+      note,
+      { uri: actorUri, followersUrl: actor?.followersUrl },
+      { recheckAfterMs: 0, refreshes: authorRefreshes },
+    );
   };
   const signersFor = actorSigners();
   const shapes = new Map<string, Map<string, number>>();
@@ -339,7 +362,12 @@ export async function recoverFederatedDirectMessages(options: {
     }
     if (fetched.asActor) result.fetchedAsActor += 1;
 
-    const followersUrl = await followersUrlOf(actorUri);
+    const followers = await followersUrlOf(fetched.note, actorUri);
+    if (!followers) {
+      result.actorUnresolved += 1;
+      return;
+    }
+    const { followersUrl } = followers;
     const audience = await resolveApAudienceExisting(fetched.note, { uri: actorUri, followersUrl });
     const shape = () => addressingShape(fetched.note, actorUri, followersUrl);
     if (audience?.visibility === PostVisibility.DIRECT) {

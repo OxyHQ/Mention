@@ -47,6 +47,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
+import { actorService } from '../../connectors/activitypub/actor.service';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import {
@@ -72,8 +73,15 @@ function federatedPost(
 }
 
 describe('recoverFederatedDirectMessages', () => {
+  // The author is not stored here, so a non-public note re-reads it once per run.
+  const refreshAuthor = vi.spyOn(actorService, 'fetchRemoteActor');
   beforeAll(async () => {
     await connectPostgres();
+    refreshAuthor.mockImplementation(async (uri) => ({
+      uri,
+      followersUrl: `${uri}/followers`,
+      lastFetchedAt: new Date(),
+    }));
   });
   afterAll(async () => {
     await clearPostScope(scope);
@@ -126,6 +134,22 @@ describe('recoverFederatedDirectMessages', () => {
     const run = await recoverFederatedDirectMessages({ dryRun: false });
     expect(run).toMatchObject({ restoredPublic: 1, hidden: 0 });
     expect((await loadPostRecord(post.id))?.visibility).toBe(PostVisibility.PUBLIC);
+  });
+
+  it('re-reads an author without a followers collection, and never hides on a failed re-read', async () => {
+    const noteId = 'https://remote.test/notes/followers-only';
+    const post = await federatedPost(noteId, PostVisibility.FOLLOWERS_ONLY, [
+      `${REMOTE_AUTHOR}/followers`,
+    ]);
+
+    refreshAuthor.mockResolvedValueOnce(null);
+    const failed = await recoverFederatedDirectMessages({ dryRun: false });
+    expect(failed).toMatchObject({ actorUnresolved: 1, hidden: 0 });
+    expect((await loadPostRecord(post.id))?.visibility).toBe(PostVisibility.FOLLOWERS_ONLY);
+
+    const refreshed = await recoverFederatedDirectMessages({ dryRun: false });
+    expect(refreshed).toMatchObject({ actorUnresolved: 0, followersOnly: 1, hidden: 0 });
+    expect((await loadPostRecord(post.id))?.visibility).toBe(PostVisibility.FOLLOWERS_ONLY);
   });
 
   it('leaves a post whose origin fails unchanged for a re-run', async () => {
