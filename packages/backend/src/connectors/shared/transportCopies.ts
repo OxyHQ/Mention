@@ -31,7 +31,8 @@ import { logger } from '../../utils/logger';
  * in a FIXED order, so the result is the same whichever copy arrived first.
  *
  * THE ORDER. Copies are ranked: the network's own protocol or API (a native
- * atproto post, the Instagram Graph API) before a bridge, then by object id.
+ * atproto post, the Instagram Graph API) before a bridge ({@link transportRank}),
+ * then by object id.
  *
  * THE RULES, field by field:
  *
@@ -59,9 +60,14 @@ import { logger } from '../../utils/logger';
 /** One transport copy: its object id, the actor that delivered it, and what it said. */
 export type TransportCopy = TransportCopyRow;
 
-/** 0 for the network's own protocol or API, 1 for a bridge. */
-export function transportRank(actorUri: string): 0 | 1 {
-  return actorUri.startsWith('did:') || actorUri.startsWith('instagram-graph:') ? 0 : 1;
+/**
+ * 0 for a copy read from the network's own protocol or API, 1 for a bridge's.
+ * Decided by the copy's object id, not its actor: a Graph-imported Instagram
+ * post (`instagram:<shortcode>`) is stored under the kilogram actor it shares
+ * with the bridge, and a native atproto post is its at-URI.
+ */
+export function transportRank(objectUri: string): 0 | 1 {
+  return objectUri.startsWith('at://') || objectUri.startsWith('instagram:') ? 0 : 1;
 }
 
 /** What the merged post shows, and which copy each part comes from. */
@@ -141,7 +147,7 @@ export function mergeTransportCopies(copies: readonly TransportCopy[]): MergedTr
 
 /** A copy's facts from its post as it would be stored. */
 export function transportCopyFacts(post: {
-  actorUri: string;
+  objectUri: string;
   content: StoredPostContent;
   createdAt?: Date;
   url?: string;
@@ -153,7 +159,7 @@ export function transportCopyFacts(post: {
   spoilerText?: string;
 }): TransportCopyFacts {
   return {
-    rank: transportRank(post.actorUri),
+    rank: transportRank(post.objectUri),
     ...(post.createdAt ? { publishedAt: post.createdAt.toISOString() } : {}),
     ...(post.url ? { url: post.url } : {}),
     ...(post.inReplyTo ? { inReplyTo: post.inReplyTo } : {}),
@@ -179,7 +185,7 @@ function copyOfStoredPost(record: PostRecord): TransportCopy | undefined {
     objectUri,
     actorUri,
     facts: transportCopyFacts({
-      actorUri,
+      objectUri,
       content: record.content,
       createdAt: record.createdAt,
       url: record.federation?.url,

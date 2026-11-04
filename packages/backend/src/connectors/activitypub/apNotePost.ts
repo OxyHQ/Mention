@@ -387,7 +387,7 @@ export async function absorbNoteCopy(
       objectUri,
       actorUri,
       facts: transportCopyFacts({
-        actorUri,
+        objectUri,
         content: record.content,
         createdAt: params.createdAt,
         url: params.federation.url,
