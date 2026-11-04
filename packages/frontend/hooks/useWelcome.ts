@@ -14,8 +14,9 @@ import { authenticatedClient } from '@/utils/api';
 
 /**
  * `needsWelcome` is true only once the server has ANSWERED that the flow is
- * unfinished. Loading, signed out and a failed read all say false: a person is
- * never sent to `/welcome` on a guess.
+ * unfinished (`welcomeCompletedAt: null`). Loading, signed out, a failed read and
+ * a server that does not send the field at all (one that predates the flow) all
+ * say false: a person is never sent to `/welcome` on a guess.
  */
 export function useWelcomeStatus(): { needsWelcome: boolean } {
   const { user, canUsePrivateApi } = useAuth();
@@ -24,13 +25,13 @@ export function useWelcomeStatus(): { needsWelcome: boolean } {
     queryKey: viewerQueryKeys.welcomeStatus(viewerId),
     queryFn: async () => {
       const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      return response.data.welcomeCompletedAt ?? null;
+      return response.data.welcomeCompletedAt === null;
     },
     enabled: canUsePrivateApi && Boolean(viewerId),
     // It changes once, through `useCompleteWelcome`, which writes the cache.
     staleTime: Number.POSITIVE_INFINITY,
   });
-  return { needsWelcome: query.isSuccess && query.data === null };
+  return { needsWelcome: query.isSuccess && query.data };
 }
 
 /** Record that the viewer finished or skipped `/welcome`. Idempotent server-side. */
@@ -39,18 +40,15 @@ export function useCompleteWelcome() {
   const viewerId = user?.id;
   return useMutation({
     mutationFn: async () => {
-      const response = await authenticatedClient.post<{ welcomeCompletedAt: string }>(
-        '/profile/settings/welcome',
-      );
-      return response.data.welcomeCompletedAt;
+      await authenticatedClient.post('/profile/settings/welcome');
     },
-    onSuccess: (welcomeCompletedAt) => {
-      queryClient.setQueryData(viewerQueryKeys.welcomeStatus(viewerId), welcomeCompletedAt);
+    onSuccess: () => {
+      queryClient.setQueryData(viewerQueryKeys.welcomeStatus(viewerId), false);
     },
     // A failed write must not trap the person in the flow: this session treats
     // it as done, and the server asks again next time it is read.
     onError: () => {
-      queryClient.setQueryData(viewerQueryKeys.welcomeStatus(viewerId), new Date().toISOString());
+      queryClient.setQueryData(viewerQueryKeys.welcomeStatus(viewerId), false);
     },
   });
 }

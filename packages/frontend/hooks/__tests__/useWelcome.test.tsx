@@ -46,7 +46,9 @@ describe('useWelcome', () => {
   });
 
   it('needs the flow only when the server says it is unfinished, until it is completed', async () => {
-    (authenticatedClient.get as jest.Mock).mockResolvedValue({ data: {} });
+    (authenticatedClient.get as jest.Mock).mockResolvedValue({
+      data: { welcomeCompletedAt: null },
+    });
     (authenticatedClient.post as jest.Mock).mockResolvedValue({
       data: { welcomeCompletedAt: '2026-11-04T00:00:00.000Z' },
     });
@@ -61,7 +63,7 @@ describe('useWelcome', () => {
     expect(status?.needsWelcome).toBe(false);
   });
 
-  it('never sends a finished account, and lets a failed write go for this session', async () => {
+  it('never sends a finished account or one served by a server without the field', async () => {
     (authenticatedClient.get as jest.Mock).mockResolvedValue({
       data: { welcomeCompletedAt: '2026-01-01T00:00:00.000Z' },
     });
@@ -70,6 +72,14 @@ describe('useWelcome', () => {
 
     queryClient.clear();
     (authenticatedClient.get as jest.Mock).mockResolvedValue({ data: {} });
+    await render();
+    expect(status?.needsWelcome).toBe(false);
+  });
+
+  it('lets a failed write go for this session', async () => {
+    (authenticatedClient.get as jest.Mock).mockResolvedValue({
+      data: { welcomeCompletedAt: null },
+    });
     (authenticatedClient.post as jest.Mock).mockRejectedValue(new Error('offline'));
     await render();
     expect(status?.needsWelcome).toBe(true);

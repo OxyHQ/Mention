@@ -228,8 +228,12 @@ export interface UserSettingsRecord {
    * primary language variant client-side.
    */
   fediversePreferredLanguage?: string;
-  /** When the account finished or skipped `/welcome`. Absent until then. Owner-only. */
-  welcomeCompletedAt?: Date;
+  /**
+   * When the account finished or skipped `/welcome`; `null` until then. Always
+   * present, so a client can tell "not yet" from a server that predates the flow.
+   * Owner-only.
+   */
+  welcomeCompletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

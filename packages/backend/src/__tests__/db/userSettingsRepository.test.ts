@@ -299,7 +299,7 @@ describe('user settings — read after write', () => {
 describe('user settings — the first-run welcome', () => {
   it('starts unfinished and keeps the FIRST completion', async () => {
     const id = userId('welcome');
-    expect((await ensureUserSettings(id)).welcomeCompletedAt).toBeUndefined();
+    expect((await ensureUserSettings(id)).welcomeCompletedAt).toBeNull();
 
     const first = await completeWelcome(id);
     const again = await completeWelcome(id);

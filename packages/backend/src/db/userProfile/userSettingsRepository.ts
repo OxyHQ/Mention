@@ -439,7 +439,7 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
     ...(row.fediversePreferredLanguage
       ? { fediversePreferredLanguage: row.fediversePreferredLanguage }
       : {}),
-    ...(row.welcomeCompletedAt ? { welcomeCompletedAt: row.welcomeCompletedAt } : {}),
+    welcomeCompletedAt: row.welcomeCompletedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
