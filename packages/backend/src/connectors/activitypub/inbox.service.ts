@@ -2,6 +2,7 @@ import { observeFederationImportReason } from '../../db/federation/importProvena
 import type { FederationImportReason } from '../../db/schema/federationImports';
 import { and, eq } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../shared/upstreamPostKey';
+import { recordHandoffOnAccept } from './transportHandoff';
 import {
   deliveredByActorSql,
   findRecordedTransportCopies,
@@ -1278,6 +1279,22 @@ export default inboxProcessingService;
  * verb to Mention's {@link InboxProcessingService.onContentActivity}. Everything
  * app-specific is wired here.
  */
+/**
+ * After an outbound follow was accepted: when the actor is a keyed transport of
+ * an account (bird.makeup), fix that account's handoff now (`./transportHandoff`).
+ * Never fails the Accept — the handoff is also written on the account's next post.
+ */
+async function handoffOnAccept(remoteActorUri: string, accepted: boolean): Promise<boolean> {
+  if (!accepted) return accepted;
+  try {
+    const actor = await findActorByUri(remoteActorUri);
+    if (actor) await recordHandoffOnAccept(actor);
+  } catch (err) {
+    logger.warn('[Federation] could not record the transport handoff on Accept', { err });
+  }
+  return accepted;
+}
+
 const inboundDispatcherConfig: InboundDispatcherConfig = {
   // Mention's instance domain policy (own AP domains + Oxy identity apex +
   // `FEDERATION_BLOCKED_DOMAINS`). The engine applies it to the verified origin of
@@ -1331,10 +1348,15 @@ const inboundDispatcherConfig: InboundDispatcherConfig = {
     // `updateOne` semantics — which matters for the id-less fallback: two local
     // users may have a pending follow to the same actor, and one Accept answers
     // one of them.
-    markOutboundAcceptedByActivityId: (remoteActorUri, activityId) =>
-      markOutboundAcceptedByActivityId(remoteActorUri, activityId),
-    markOutboundAcceptedAnyPending: (remoteActorUri) =>
-      markOutboundAcceptedAnyPending(remoteActorUri),
+    // An accepted follow of a keyed transport fixes the account's handoff at
+    // this instant (`./transportHandoff`).
+    markOutboundAcceptedByActivityId: async (remoteActorUri, activityId) =>
+      handoffOnAccept(
+        remoteActorUri,
+        await markOutboundAcceptedByActivityId(remoteActorUri, activityId),
+      ),
+    markOutboundAcceptedAnyPending: async (remoteActorUri) =>
+      handoffOnAccept(remoteActorUri, await markOutboundAcceptedAnyPending(remoteActorUri)),
     markOutboundRejected: (remoteActorUri, activityId) =>
       markOutboundRejected(remoteActorUri, activityId || undefined),
   },

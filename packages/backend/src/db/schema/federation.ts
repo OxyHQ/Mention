@@ -470,6 +470,23 @@ export const federatedBannerMirrors = pgTable(
 );
 
 /**
+ * `federated_transport_handoffs` — the instant an account's posts stop coming from
+ * a KEYLESS transport (mastox.eu) and start coming from a KEYED one (bird.makeup),
+ * one row per account (Oxy's `canonicalAcct`, cached as `network_acct`).
+ *
+ * Written once, when Mention first holds an accepted follow of a keyed transport
+ * of the account, and never moved. `handoff_at` is that Accept's time when Mention
+ * already held posts from a keyless transport of the account, and NULL when it
+ * held none — then the keyed transport is the account's only source. The rule
+ * that reads it is `connectors/activitypub/transportHandoff.ts`.
+ */
+export const federatedTransportHandoffs = pgTable('federated_transport_handoffs', {
+  networkAcct: text().primaryKey(),
+  handoffAt: timestamptz(),
+  createdAt: createdAt(),
+});
+
+/**
  * `federated_follows` — a follow edge across a protocol boundary.
  *
  * `remote_actor_uri` is a URI rather than a `federated_actors.id` because an

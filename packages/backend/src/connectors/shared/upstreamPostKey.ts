@@ -32,7 +32,7 @@ import { AT_URI_RE, ANY_DID_RE } from '../atproto/constants';
  * {@link findPostsByFederatedObjects}) finds the first transport's row by key.
  *
  * A transport whose ids are its own (mastox.eu) yields no key. What that means
- * for its posts is `connectors/activitypub/keylessTransport.ts`.
+ * for its posts is `connectors/activitypub/transportHandoff.ts`.
  */
 
 const BLUESKY_KEY_PREFIX = 'bluesky:';
