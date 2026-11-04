@@ -161,11 +161,40 @@ const CONSECUTIVE_HASHTAG_BLOCK = new RegExp(
 );
 
 /**
+ * One line made of hashtags and nothing else: tokens separated only by
+ * horizontal whitespace. Tested against a TRIMMED line, so indentation and a
+ * trailing `\r` do not stop a line from qualifying.
+ */
+const HASHTAG_ONLY_LINE = new RegExp(`^${HASHTAG_TOKEN}(?:\\s+${HASHTAG_TOKEN})*$`, 'u');
+
+/**
+ * `text` without the hashtag-only lines at its end, and without the blank lines
+ * that separated them from the body. A line carrying any other word — `I love
+ * #Apple` — ends the run: those hashtags are the author's sentence.
+ *
+ * A walk from the last line rather than one regex anchored on `$`: a pattern that
+ * restarts at every line break rescans the remainder each time, which is
+ * quadratic on a body that is hundreds of lines of hashtags.
+ */
+function stripTrailingHashtagLines(text: string): string {
+  const lines = text.split('\n');
+  let end = lines.length;
+  let removed = false;
+  while (end > 0) {
+    const line = lines[end - 1].trim();
+    if (line.length > 0 && !HASHTAG_ONLY_LINE.test(line)) break;
+    if (line.length > 0) removed = true;
+    end -= 1;
+  }
+  return removed ? lines.slice(0, end).join('\n').trimEnd() : text;
+}
+
+/**
  * Result of {@link normalizePostHashtags}: the cleaned, user-visible content and
  * the full set of detected hashtags in canonical form.
  */
 export interface NormalizedPostHashtags {
-  /** Visible post text with spammy consecutive hashtag blocks removed per the rules. */
+  /** Visible post text: trailing hashtag lines and spammy blocks removed per the rules. */
   content: string;
   /** Every detected hashtag: lowercase, no leading `#`, deduplicated, order preserved. */
   hashtags: string[];
@@ -174,27 +203,38 @@ export interface NormalizedPostHashtags {
 /**
  * Centralized post-hashtag normalization. This is the single source of truth for
  * how every post-creation/update path derives the stored `hashtags` field and
- * cleans spammy hashtag blocks from the visible `content` text.
+ * which hashtags stay in the visible `content` text.
  *
  * Behavior:
  *   1. Detects ALL hashtags in `text` (and merges any caller-supplied tags),
  *      storing them lowercase, without the leading `#`, deduplicated, order
  *      preserved. These ALWAYS land in `hashtags` even when removed from view.
- *   2. Detects blocks of {@link SPAM_HASHTAG_BLOCK_THRESHOLD}+ CONSECUTIVE
- *      hashtags (separated only by whitespace) and removes the spammy part from
- *      the visible `content`.
- *   3. The FIRST hashtag of a consecutive block is preserved in `content` ONLY
- *      when normal (non-hashtag) text precedes the block — it may naturally
- *      complete the sentence. With no preceding text the whole block is removed.
- *   4. Hashtags used naturally inside sentence text (not part of a 4+ block)
- *      stay in `content` untouched.
+ *   2. TRAILING hashtag lines are removed from `content` whole, whatever their
+ *      length: lines at the end of the body made of hashtags and nothing else
+ *      (separated only by whitespace), together with the blank lines before
+ *      them. Hashtags at the END of a post are filing, not prose — the reader
+ *      never sees them, the `hashtags` column carries them. Any other word,
+ *      emoji, mention or punctuation on such a line keeps the whole line.
+ *   3. Then blocks of {@link SPAM_HASHTAG_BLOCK_THRESHOLD}+ CONSECUTIVE hashtags
+ *      left anywhere else — mid-text, or at the end of a line that also carries
+ *      words — lose all but their FIRST tag, which may naturally complete the
+ *      sentence before it. With no text before the block it is removed whole.
+ *   4. Hashtags used inside sentence text (`I love #Apple`, including at the
+ *      very end of the post on the same line as other words, up to three in a
+ *      row) stay in `content` untouched.
+ *   5. A post is NEVER emptied: when nothing visible would remain — a body of
+ *      nothing but hashtags — `content` is `text` exactly as given. Those
+ *      hashtags ARE the post.
  *
- * Pure and side-effect free so it is unit-testable in isolation. Its callers are
- * named individually — the federated
- * ingest (`connectors/activitypub/apPostContent.ts`) reads both halves, and the
- * native write paths read the cleaned `content` through
- * `services/postVariants.ts`'s `stripSpamHashtagBlocks` while deriving the
- * `hashtags` column with `mergeHashtags` over the RAW body.
+ * Pure, side-effect free and idempotent: a second pass over its own `content`
+ * changes nothing (rule 2 leaves a last line with a word on it, rule 3 leaves at
+ * most one tag where a block was, and rule 5 hands back a body the rules would
+ * empty again). Its callers are named individually
+ * — the federated ingest (`connectors/activitypub/apPostContent.ts`) reads both
+ * halves, the native write paths read the cleaned `content` through
+ * `services/postVariants.ts`'s `stripHiddenHashtags` while deriving the
+ * `hashtags` column with `mergeHashtags` over the RAW body, and
+ * `scripts/stripTrailingHashtagLines.ts` applies it to bodies stored before rule 2.
  */
 export function normalizePostHashtags(
   text: string | undefined | null,
@@ -203,11 +243,12 @@ export function normalizePostHashtags(
   const source = typeof text === 'string' ? text : '';
   const hashtags = mergeHashtags(source, userProvided);
 
-  const content = source
+  const visible = stripTrailingHashtagLines(source);
+  const cleaned = visible
     .replace(
       CONSECUTIVE_HASHTAG_BLOCK,
       (_match, leadingWhitespace: string, block: string, offset: number) => {
-        const hasPrecedingText = source.slice(0, offset).trim().length > 0;
+        const hasPrecedingText = visible.slice(0, offset).trim().length > 0;
         if (!hasPrecedingText) {
           // Block sits at the very start (only whitespace before it): drop it whole.
           return '';
@@ -219,6 +260,7 @@ export function normalizePostHashtags(
       },
     )
     .replace(/[ \t]+$/g, '');
+  const content = cleaned.trim().length === 0 ? source : cleaned;
 
   return { content, hashtags };
 }

@@ -2028,7 +2028,7 @@ export async function replacePostContent(
         // pass their EXISTING variants through unchanged (the media backfill, the
         // metadata enrich job, the federated repair paths) recompute the same
         // value from the same text, so a derivation — unlike a body REWRITE, which
-        // `stripSpamHashtagBlocks` keeps out of here for that very reason — is
+        // `stripHiddenHashtags` keeps out of here for that very reason — is
         // safe at this seam.
         //
         // Not covered, and deliberately: the two one-shot repair scripts that

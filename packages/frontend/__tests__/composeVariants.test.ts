@@ -335,7 +335,6 @@ describe('the payload', () => {
       postContent: 'Hola mundo',
       mediaIds: [image('img-1', 'Un gráfico')],
       mentions: [],
-      hashtags: [],
       variantContent: buildVariantContent(state, MAIN_ITEM_ID, 'Hola mundo', ['img-1']),
     });
 

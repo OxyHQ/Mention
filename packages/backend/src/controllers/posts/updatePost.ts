@@ -54,7 +54,7 @@ import {
   applyDetectedPrimaryTag,
   authorVariants,
   buildPrimaryVariant,
-  stripSpamHashtagBlocks,
+  stripHiddenHashtags,
   translationSourceFingerprint,
   validateAuthorVariants,
 } from '../../services/postVariants';
@@ -398,14 +398,14 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       // translate a body that no longer exists, and serving one would show a reader
       // the post as it used to be.
       //
-      // `stripSpamHashtagBlocks` is the edit half of the retired `pre('validate')`
+      // `stripHiddenHashtags` is the edit half of the retired `pre('validate')`
       // hook (`toStoredContent` is the create half). It sits INSIDE this branch on
       // purpose: the branch condition — the edit supplied renditions, or the body
       // changed — is what `isModified('content.variants')` used to answer, so a
       // media-only or settings-only edit still rewrites nobody's words. The tags
       // themselves survive the strip: `patch.hashtags` was taken from the RAW body
       // above, before this runs.
-      content.variants = stripSpamHashtagBlocks(
+      content.variants = stripHiddenHashtags(
         rewriteEditedVariants({
           authorLanguageVariants,
           existingAuthorVariants,

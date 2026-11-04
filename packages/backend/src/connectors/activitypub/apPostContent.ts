@@ -347,24 +347,15 @@ function resolveApPrimaryTag(
  * Turn one remote HTML body into the plain text we store: HTML stripped, spammy
  * hashtag blocks removed, whitespace normalized — the SAME treatment the primary
  * body gets, so a localized variant is never stored as raw markup.
- *
- * The all-hashtag restore is preserved: when normalization empties a body that
- * DID carry visible text and the note has no media, the raw text is kept rather
- * than blanking the rendition.
+ * `normalizePostHashtags` never empties a body that carried visible text, so an
+ * all-hashtag post keeps its hashtags.
  */
-function normalizeRemoteBody(
-  html: string,
-  hasMedia: boolean,
-  customEmojiNames: readonly string[],
-): string {
+function normalizeRemoteBody(html: string, customEmojiNames: readonly string[]): string {
   const rawText = removeDeclaredCustomEmoji(
     htmlToPlainText(html, { preserveMentionLinks: true }),
     customEmojiNames,
   );
-  const { content } = normalizePostHashtags(rawText);
-  const text = normalizeMultilineText(content);
-  if (text.length === 0 && rawText.length > 0 && !hasMedia) return rawText;
-  return text;
+  return normalizeMultilineText(normalizePostHashtags(rawText).content);
 }
 
 /**
@@ -398,7 +389,6 @@ function buildApAuthorVariants(
   object: Record<string, unknown>,
   primaryTag: string | undefined,
   primaryText: string,
-  hasMedia: boolean,
   customEmojiNames: readonly string[],
 ): PostContentVariant[] {
   const variants: PostContentVariant[] = [];
@@ -415,7 +405,7 @@ function buildApAuthorVariants(
       if (typeof value !== 'string') continue;
       const tag = canonicalizeLanguageTag(key);
       if (tag === null || variants.some((variant) => variant.tag === tag)) continue;
-      const text = rewriteMirrorUrls(normalizeRemoteBody(value, hasMedia, customEmojiNames));
+      const text = rewriteMirrorUrls(normalizeRemoteBody(value, customEmojiNames));
       if (text.length === 0) continue;
       variants.push({ tag, source: 'author', text });
     }
@@ -590,19 +580,13 @@ async function assembleFederatedNoteContent(
   const summary = cleanedSummary && cleanedSummary.length > 0 ? cleanedSummary : undefined;
   const sensitive = object.sensitive === true;
 
-  // Normalization strips a spammy leading hashtag block to empty. When the post
-  // was NOTHING but that block (empty normalized text) yet the original body had
-  // visible text and there is no media, keep the raw hashtag text visible rather
-  // than blanking an all-hashtag post.
-  //
-  // `normalizePostHashtags` removes the block but NOT the line breaks around it,
+  // `normalizePostHashtags` never empties a body that carried visible text (an
+  // all-hashtag post keeps its hashtags). It removes a block but NOT the line
+  // breaks around it,
   // so a body that opened with one is left starting with blank lines — which the
   // client renders verbatim. Re-normalizing the result closes that gap; the
   // helper is idempotent, so it is a no-op for a body the removal did not touch.
-  let text = normalizeMultilineText(normalizedText);
-  if (text.length === 0 && rawText.length > 0 && media.length === 0) {
-    text = rawText;
-  }
+  const text = normalizeMultilineText(normalizedText);
 
   // The localized bodies — the post's only body storage. `text` is handed in as
   // the primary rendition, so the body the guard/classifier see and the body
@@ -628,7 +612,7 @@ async function assembleFederatedNoteContent(
   // different entity — so this cannot double-qualify or disturb one.
   const qualifiedText = ctx.identityDomain ? qualifyBareHandles(text, ctx.identityDomain) : text;
   const variants = await expandVariantTcoLinks(
-    buildApAuthorVariants(source, primaryTag, qualifiedText, media.length > 0, customEmojiNames),
+    buildApAuthorVariants(source, primaryTag, qualifiedText, customEmojiNames),
   );
 
   const primaryText = variants[0]?.text ?? '';
@@ -789,16 +773,15 @@ export async function buildFederatedNoteContentForEdit(
 /**
  * Re-derive ONLY the localized author variants of a federated Note — the exact
  * same text pipeline {@link assembleFederatedNoteContent} runs (hashtag-anchor
- * rewrite, `contentMap` fallback, hashtag normalization, the all-hashtag "don't
- * blank" restore, per-language variant assembly) but with **no media I/O**.
+ * rewrite, `contentMap` fallback, hashtag normalization, per-language variant
+ * assembly) but with **no media I/O**.
  *
  * This is the outbox @mention SELF-HEAL seam: a post imported before the outbox
  * path resolved mentions kept its `@name` anchors as bare text, and the dedup pass
  * never re-inserts it. The caller has the original Note in hand (already fetched by
  * the outbox sync), applies the mention placeholders to it, then re-derives the
  * body here to `$set content.variants` — WITHOUT re-materializing media (which
- * would issue an extra remote fetch). The stored media state is reused via
- * `hasMedia`, which only feeds the all-hashtag restore. Its only network use is
+ * would issue an extra remote fetch). Its only network use is
  * the `t.co` expansion every body gets, so a re-derived body never brings the
  * wrapper back.
  *
@@ -807,7 +790,6 @@ export async function buildFederatedNoteContentForEdit(
  */
 export function buildFederatedNoteVariants(
   object: Record<string, unknown>,
-  hasMedia: boolean,
 ): Promise<PostContentVariant[]> {
   const source = rewriteHashtagAnchorsInObject(object);
   const customEmojiNames = extractDeclaredCustomEmojiNames(source);
@@ -817,12 +799,7 @@ export function buildFederatedNoteVariants(
     customEmojiNames,
   );
   const { content: normalizedText } = normalizePostHashtags(rawText, extractApHashtags(object));
-  let text = normalizeMultilineText(normalizedText);
-  if (text.length === 0 && rawText.length > 0 && !hasMedia) {
-    text = rawText;
-  }
+  const text = normalizeMultilineText(normalizedText);
   const primaryTag = resolveApPrimaryTag(source, primaryHtml);
-  return expandVariantTcoLinks(
-    buildApAuthorVariants(source, primaryTag, text, hasMedia, customEmojiNames),
-  );
+  return expandVariantTcoLinks(buildApAuthorVariants(source, primaryTag, text, customEmojiNames));
 }

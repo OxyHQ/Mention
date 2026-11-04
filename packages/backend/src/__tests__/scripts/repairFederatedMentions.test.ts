@@ -357,7 +357,7 @@ function apResponse(body: unknown): Response {
 
 /** A `CandidatePostRow` carrying only the federation fields under test. */
 function candidateRow(federation: CandidatePostRow['federation']): CandidatePostRow {
-  return { id: oid('1'), mentions: [], variants: [], hasMedia: false, federation };
+  return { id: oid('1'), mentions: [], variants: [], federation };
 }
 
 beforeAll(async () => {

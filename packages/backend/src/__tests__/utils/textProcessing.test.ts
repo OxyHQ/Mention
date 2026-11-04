@@ -205,8 +205,9 @@ describe('extractHashtags', () => {
 //
 // The centralized post-hashtag normalizer (issues #166 + #146). Single source of
 // truth for: (a) the stored `hashtags` field (lowercase, no #, deduped, order
-// preserved) and (b) cleaning spammy 4+ consecutive hashtag blocks from the
-// visible `content` text. Threshold lives in SPAM_HASHTAG_BLOCK_THRESHOLD.
+// preserved) and (b) cleaning the visible `content` text: trailing hashtag lines
+// go whole, spammy 4+ consecutive blocks elsewhere keep their first tag.
+// Threshold lives in SPAM_HASHTAG_BLOCK_THRESHOLD.
 
 describe('normalizePostHashtags', () => {
   it('exposes a threshold of 4', () => {
@@ -253,24 +254,26 @@ describe('normalizePostHashtags', () => {
     expect(r.hashtags).toEqual(['design', 'product', 'ux']);
   });
 
-  it('removes the whole block when there is no preceding text', () => {
+  it('never empties a post: a body of nothing but hashtags stays as written', () => {
     const r = normalizePostHashtags('#startup #social #tech #ai #growth');
-    expect(r.content).toBe('');
+    expect(r.content).toBe('#startup #social #tech #ai #growth');
     expect(r.hashtags).toEqual(['startup', 'social', 'tech', 'ai', 'growth']);
   });
 
   // --- threshold boundary ----------------------------------------------------
 
-  it('keeps exactly 3 consecutive hashtags with no preceding text', () => {
-    const r = normalizePostHashtags('#design #product #ux');
-    expect(r.content).toBe('#design #product #ux');
-    expect(r.hashtags).toEqual(['design', 'product', 'ux']);
-  });
-
-  it('cleans exactly 4 consecutive hashtags (threshold), no preceding text', () => {
-    const r = normalizePostHashtags('#design #product #ux #ai');
-    expect(r.content).toBe('');
-    expect(r.hashtags).toEqual(['design', 'product', 'ux', 'ai']);
+  it('removes trailing hashtag LINES whole but keeps a tag ending a sentence', () => {
+    const body = 'Read this https://example.com/a\n\n#Apple\n#News #Tech';
+    const r = normalizePostHashtags(body);
+    // The post now ends with its link, so the card alone shows it.
+    expect(r.content).toBe('Read this https://example.com/a');
+    expect(r.hashtags).toEqual(['apple', 'news', 'tech']);
+    expect(normalizePostHashtags(r.content).content).toBe(r.content);
+    // On the same line as other words — or punctuation — the line is the author's.
+    expect(normalizePostHashtags('Line one\nI love #Apple').content).toBe(
+      'Line one\nI love #Apple',
+    );
+    expect(normalizePostHashtags('Line one\n#Apple!').content).toBe('Line one\n#Apple!');
   });
 
   it('cleans exactly 4 consecutive hashtags (threshold), keeps first after text', () => {

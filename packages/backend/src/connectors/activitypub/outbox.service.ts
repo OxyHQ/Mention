@@ -774,17 +774,12 @@ export class OutboxSyncService {
       );
       const existingIds = new Set(existingPosts.map((p) => p.federation?.activityId));
       // activityId → the stored post's mention state, keyed for the self-heal pass.
-      const existingMentionStateByActivityId = new Map<
-        string,
-        { mentions: string[]; hasMedia: boolean }
-      >();
+      const existingMentionStateByActivityId = new Map<string, { mentions: string[] }>();
       for (const p of existingPosts) {
         const activityId = p.federation?.activityId;
         if (!activityId) continue;
-        const media = p.content.media;
         existingMentionStateByActivityId.set(activityId, {
           mentions: normalizeMentionIds(p.mentions),
-          hasMedia: Array.isArray(media) && media.length > 0,
         });
       }
 
@@ -857,7 +852,6 @@ export class OutboxSyncService {
         note: Record<string, unknown>;
         activityId: string;
         storedMentions: string[];
-        hasMedia: boolean;
       }> = [];
       for (const c of noteCandidates) {
         if (!existingIds.has(c.activityId)) continue;
@@ -870,7 +864,6 @@ export class OutboxSyncService {
           note: c.note,
           activityId: c.activityId,
           storedMentions: stored.mentions,
-          hasMedia: stored.hasMedia,
         });
       }
 
@@ -1368,7 +1361,6 @@ export class OutboxSyncService {
       note: Record<string, unknown>;
       activityId: string;
       storedMentions: string[];
-      hasMedia: boolean;
     }>,
     mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
   ): Promise<number> {
@@ -1395,7 +1387,6 @@ export class OutboxSyncService {
       note: Record<string, unknown>;
       activityId: string;
       storedMentions: string[];
-      hasMedia: boolean;
     },
     mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
   ): Promise<boolean> {
@@ -1409,12 +1400,11 @@ export class OutboxSyncService {
     const addsIdentity = resolved.ids.some((id) => !storedSet.has(id));
 
     // Rewrite the in-hand note's mention anchors to `[mention:<id>]` placeholders,
-    // then re-derive ONLY the body variants (NO media I/O — the stored media state
-    // is reused via `hasMedia`) and `$set` them alongside the mention allowlist,
+    // then re-derive ONLY the body variants (NO media I/O) and `$set` them alongside the mention allowlist,
     // keeping the stored body and `mentions` in lockstep exactly like the inbox
     // Update path — without re-materializing media or re-fetching anything.
     const noteObject = applyMentionPlaceholders(candidate.note, resolved.anchorMap);
-    const variants = await buildFederatedNoteVariants(noteObject, candidate.hasMedia);
+    const variants = await buildFederatedNoteVariants(noteObject);
     // A note that re-derives to an empty body (media-only / CW-only) must never
     // blank an existing post's body — leave it untouched.
     if (variants.length === 0) return false;

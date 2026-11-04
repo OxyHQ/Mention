@@ -256,7 +256,6 @@ interface BuildEditPostParams {
   commerce?: CommerceReference[];
   mediaIds: ComposerMediaItem[];
   mentions: string[];
-  hashtags: string[];
   collaboratorIds?: string[];
   variantContent?: PostContentVariant[] | null;
   /**
@@ -274,6 +273,12 @@ interface BuildEditPostParams {
  * body, the sources, the media and the collaborators, so it sends `UpdatePostRequest`, not a
  * whole post. It still has to carry the renditions: without them, editing a
  * multilingual post would silently strip every language but the primary.
+ *
+ * It sends NO `hashtags`. The composer never knows a post's tags — the stored
+ * body no longer shows its trailing ones — and the API reads a sent list as the
+ * whole new set, so an empty one erased the post from every hashtag feed on any
+ * edit. Omitted, the API keeps the stored tags and adds the ones the new body
+ * carries.
  */
 export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest => {
   const {
@@ -281,7 +286,6 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
     commerce,
     mediaIds,
     mentions,
-    hashtags,
     collaboratorIds,
     variantContent,
     scheduledAt,
@@ -304,7 +308,6 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
         ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
       })),
     },
-    hashtags,
     mentions: mentionIds,
     ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
     ...(scheduledAt ? { scheduledFor: scheduledAt.toISOString() } : {}),

@@ -210,27 +210,30 @@ export function applyDetectedPrimaryTag(
 }
 
 /**
- * Remove a spammy 4+ consecutive-hashtag block from every AUTHOR rendition.
+ * Take the hashtags the reader does not see out of every AUTHOR rendition: the
+ * trailing hashtag lines and the spammy 4+ blocks {@link normalizePostHashtags}
+ * defines.
  *
- * It runs on every native create and every native edit. The federated ingest
- * path does not depend on it (`connectors/activitypub/apPostContent.ts` calls
- * `normalizePostHashtags` directly); without it Mention would clean other
- * instances' bodies while storing its own users' verbatim.
+ * It runs on every native create and every native edit, and the stored-body
+ * backfill (`scripts/stripTrailingHashtagLines.ts`) runs it over posts written
+ * before the trailing-line rule. The federated ingest path does not depend on it
+ * (`connectors/activitypub/apPostContent.ts` calls `normalizePostHashtags`
+ * directly); without it Mention would clean other instances' bodies while
+ * storing its own users' verbatim.
  *
  * MACHINE renditions are deliberately untouched: a translation is produced FROM
- * the already-cleaned primary, so only the author's own words can carry a block
- * of their own.
+ * the already-cleaned primary, so only the author's own words can carry hidden
+ * hashtags of their own.
  *
  * The `hashtags` COLUMN is not this function's business and never loses a tag to
  * the strip: both writers derive it with `mergeHashtags` over the RAW body before
- * the clean (`normalizePostHashtags` returns
- * the full tag set alongside the cleaned text, from the same call).
+ * the clean (`normalizePostHashtags` returns the full tag set alongside the
+ * cleaned text, from the same call).
  *
- * Idempotent — a cleaned block leaves at most one hashtag behind, which is no
- * longer a block — so a body that already came through `normalizePostHashtags`
- * on ingest passes through unchanged.
+ * Idempotent, because `normalizePostHashtags` is — so a body that already came
+ * through it on ingest passes through unchanged, as the same object.
  */
-export function stripSpamHashtagBlocks(variants: PostContentVariant[]): PostContentVariant[] {
+export function stripHiddenHashtags(variants: PostContentVariant[]): PostContentVariant[] {
   return variants.map((variant) => {
     if (variant.source !== 'author') return variant;
     const cleaned = normalizePostHashtags(variant.text).content;
@@ -251,7 +254,7 @@ export function stripSpamHashtagBlocks(variants: PostContentVariant[]): PostCont
  * becomes the primary variant. A post with no body at all — a boost — keeps no
  * variant.
  *
- * Every rendition it produces goes through {@link stripSpamHashtagBlocks} on the
+ * Every rendition it produces goes through {@link stripHiddenHashtags} on the
  * way out — this conversion is the create/reply/boost half of the two native
  * writers that the retired `pre('validate')` hook used to cover; `updatePost`
  * calls it for itself on the edit half.
@@ -268,7 +271,7 @@ export function toStoredContent(
 ): StoredPostContent {
   const declared = authorVariants(content);
   const primary = buildPrimaryVariant(content.text, primaryLanguage);
-  const variants = stripSpamHashtagBlocks(
+  const variants = stripHiddenHashtags(
     declared.length > 0
       ? applyDetectedPrimaryTag(declared, primaryLanguage)
       : primary

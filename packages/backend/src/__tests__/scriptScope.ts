@@ -123,6 +123,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     reason:
       'Every variant of every federated post with a LINKED quote whose body still renders `RE: <url>`.',
   },
+  stripTrailingHashtagLines: {
+    scope: 'whole-table',
+    reason: 'Every author rendition, native or federated, whose body contains a `#`.',
+  },
   'lib/reconcileVideoMetadata': {
     scope: 'whole-table',
     reason:

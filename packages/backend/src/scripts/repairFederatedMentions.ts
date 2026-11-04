@@ -218,7 +218,7 @@ import { and, asc, count, eq, exists, gt, inArray, lte, ne, sql, type SQL } from
 import type { PostContentVariant } from '@mention/shared-types';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
+import { postContentVariants, postMentions } from '../db/schema/postContent';
 import { isLiveEntityId } from '@oxy.so/db';
 import { logger } from '../utils/logger';
 import {
@@ -324,12 +324,6 @@ export interface CandidatePostRow {
   id: string;
   mentions: string[];
   variants: CandidateVariantRow[];
-  /**
-   * Whether the post has stored media — the ONE thing the re-derived body needs
-   * to know about it. Reused rather than re-fetched: a body repair performs no
-   * media I/O.
-   */
-  hasMedia: boolean;
   federation: {
     activityId?: string;
     actorUri?: string;
@@ -826,9 +820,8 @@ async function prepareRepair(
   const resolved = await resolveInboundMentionsExisting(fetched.object);
 
   const noteObject = applyMentionPlaceholders(fetched.object, resolved.anchorMap);
-  // Re-derive the body ONLY (no media I/O — the stored media state is reused via
-  // `hasMedia`), exactly like the live outbox self-heal.
-  const freshVariants = await buildFederatedNoteVariants(noteObject, post.hasMedia);
+  // Re-derive the body ONLY (no media I/O), exactly like the live outbox self-heal.
+  const freshVariants = await buildFederatedNoteVariants(noteObject);
   if (
     resolved.ids.length === 0 &&
     !freshVariants.some((variant) => hasSourceMentionLink(variant.text))
@@ -912,7 +905,7 @@ async function loadCandidatePage(match: SQL, limit: number): Promise<CandidatePo
   if (parents.length === 0) return [];
 
   const ids = parents.map((row) => row.id);
-  const [variantRows, mentionRows, mediaRows] = await Promise.all([
+  const [variantRows, mentionRows] = await Promise.all([
     db
       .select()
       .from(postContentVariants)
@@ -922,7 +915,6 @@ async function loadCandidatePage(match: SQL, limit: number): Promise<CandidatePo
       .select({ postId: postMentions.postId, oxyUserId: postMentions.oxyUserId })
       .from(postMentions)
       .where(inArray(postMentions.postId, ids)),
-    db.select({ postId: postMedia.postId }).from(postMedia).where(inArray(postMedia.postId, ids)),
   ]);
 
   const variantsByPost = new Map<string, CandidateVariantRow[]>();
@@ -937,13 +929,11 @@ async function loadCandidatePage(match: SQL, limit: number): Promise<CandidatePo
     list.push(row.oxyUserId);
     mentionsByPost.set(row.postId, list);
   }
-  const postsWithMedia = new Set(mediaRows.map((row) => row.postId));
 
   return parents.map((row) => ({
     id: row.id,
     mentions: mentionsByPost.get(row.id) ?? [],
     variants: variantsByPost.get(row.id) ?? [],
-    hasMedia: postsWithMedia.has(row.id),
     federation: {
       activityId: row.federationActivityId ?? undefined,
       actorUri: row.federationActorUri ?? undefined,

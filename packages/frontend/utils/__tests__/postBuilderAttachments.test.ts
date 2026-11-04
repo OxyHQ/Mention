@@ -122,7 +122,6 @@ it('trims edited post text with the same rule as create and compose validation',
     postContent: `  ${'x'.repeat(25_000)}  `,
     mediaIds: [],
     mentions: [],
-    hashtags: [],
   });
   expect(result.content?.text).toBe('x'.repeat(25_000));
 });
@@ -134,7 +133,6 @@ it.each([[[{ title: 'Source', url: 'https://example.com/' }]], [[]]])(
       postContent: 'Edited post',
       mediaIds: [],
       mentions: [],
-      hashtags: [],
       formattedSources,
     });
     expect(result.content?.sources).toEqual(formattedSources);
@@ -160,7 +158,6 @@ describe('commerce identities across compose paths', () => {
       postContent: 'Edited',
       mediaIds: [],
       mentions: [],
-      hashtags: [],
       commerce: [],
     });
     expect(edit.content?.commerce).toEqual([]);
