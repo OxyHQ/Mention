@@ -322,6 +322,31 @@ existing clients. A new client does not fall back to them, so deploy the backend
 before the frontend: against an older backend those writes fail visibly (404 or
 a failed preflight) instead of running unguarded.
 
+### Blocks and notifications
+
+A block in either direction keeps an actor's notifications from the other
+account. The inbox read (`GET /notifications`) drops every row whose actor a
+block separates from the viewer, asked of Oxy with the viewer's proof
+(`blockedEitherWay`, two-way; old rows included). The writer
+(`writeNotifications`, which every notification goes through) runs from queues
+and federated inboxes holding neither party's proof, and Oxy discloses blocks
+to nobody else, so it skips a row, and with it the socket emit and push,
+when either party's own block list, retained for 30 minutes after their last
+read, names the other (`separatedByRetainedBlock`). A block whose two parties
+have not read recently can still push once; its row stays out of the inbox.
+Closing that needs an Oxy delivery lane that answers adult blocks for a
+service.
+
+### Presence
+
+`getPresence`, `getPresenceBulk` and `subscribePresence` on the main socket
+answer through one policy (`services/presencePolicy.ts`): an account with
+`privacy.showOnlineStatus` off reads offline to everyone else and broadcasts
+nothing, and a block in either direction reads offline both ways (Oxy's
+two-way answer for the socket's verified bearer). A hidden account is never
+joined to the subscriber's presence room. A failed check reads offline. A block
+set while subscribed takes effect on the next subscription.
+
 ## Federation and media
 
 The app-facing federation routes are documented in

@@ -12,6 +12,7 @@ import { extractUrls } from '../../utils/extractUrls';
 import { logger } from '../../utils/logger';
 import { getClarityClient } from '../../utils/clarityClient';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
+import { openAudienceAuthorSql } from '../../db/userProfile/profileAudience';
 import { extractTrendTerms } from './termExtraction';
 
 const MIN_RELEVANCE = 0.5;
@@ -121,6 +122,8 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
           gte(posts.createdAt, windowStart),
           eq(posts.visibility, 'public'),
           eq(posts.status, 'published'),
+          // A story is public evidence; a closed profile's posts are not.
+          openAudienceAuthorSql(),
           // One cross-post is one member. `trendDetection` and `trendExcerpts` — the
           // two other reads in this family — already exclude the collapsed half, so
           // without this a Meta creator's story would list the Instagram and the
@@ -180,6 +183,7 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
             gte(posts.createdAt, windowStart),
             eq(posts.visibility, 'public'),
             eq(posts.status, 'published'),
+            openAudienceAuthorSql(),
             notCollapsedCrosspostSql(),
             or(
               inArray(posts.boostOf, postIds),

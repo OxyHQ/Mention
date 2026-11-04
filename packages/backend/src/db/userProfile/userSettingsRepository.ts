@@ -28,7 +28,7 @@
  * first write instead of being quietly dropped forever.
  */
 
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   EXTERNAL_EMBED_SOURCES,
   type ExternalEmbedsSettings,
@@ -620,6 +620,26 @@ export async function loadChannelSignPostsByIds(
     .from(userSettings)
     .where(inArray(userSettings.oxyUserId, [...oxyUserIds]));
   return new Map(rows.map((row) => [row.oxyUserId, row.signPosts]));
+}
+
+/**
+ * The accounts among `oxyUserIds` that turned off `privacy.showOnlineStatus`.
+ * No row reads as shown, the column's default.
+ */
+export async function accountsHidingOnlineStatus(
+  oxyUserIds: readonly string[],
+): Promise<Set<string>> {
+  if (oxyUserIds.length === 0) return new Set();
+  const rows = await getDb()
+    .select({ oxyUserId: userSettings.oxyUserId })
+    .from(userSettings)
+    .where(
+      and(
+        inArray(userSettings.oxyUserId, [...oxyUserIds]),
+        eq(userSettings.privacyShowOnlineStatus, false),
+      ),
+    );
+  return new Set(rows.map((row) => row.oxyUserId));
 }
 
 /** Several users' settings in one query — the hydration batch path. */

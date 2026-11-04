@@ -1,5 +1,11 @@
 # Deterministic multilingual trends
 
+Only posts whose author's profile is public count toward trends, stories and
+the excerpts the labeller and the trend summary read
+(`openAudienceAuthorSql`, `db/userProfile/profileAudience.ts`). A private or
+followers-only profile's posts are for its followers, and a trend is shown to
+everyone.
+
 Mention detects stories without generative AI, embeddings, translation calls or
 provider inference. Author-written terms and hashtags propose a trend; corpus
 statistics decide whether it is unusual; a reviewed alias registry joins known

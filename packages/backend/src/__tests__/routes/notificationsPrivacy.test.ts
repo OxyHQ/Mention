@@ -81,6 +81,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   getRestrictedUserIds: vi.fn(async () => []),
   extractFollowingIds: vi.fn(() => []),
   extractFollowersIds: vi.fn(() => []),
+  blockedEitherWay: vi.fn(async () => new Set()),
 }));
 
 vi.mock('../../services/userSummaryCache', () => ({

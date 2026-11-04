@@ -195,6 +195,18 @@ the same route (the delete event carries the recipients captured before the
 row went). `authorizeFederationDelivery` refuses a direct post's Create/Update
 unless it is addressed that way.
 
+A private or followers-only profile (`privacy.profileVisibility`) keeps every
+post its author writes from federating, whatever the post's own visibility:
+Mention shows those posts only to followers, while ActivityPub serves anyone.
+Unsigned fetches and remote follows are accepted from anyone, so "remote
+followers" is not an audience Mention controls. The outbox, featured collection
+and `/ap/users/:u/posts/:id` omit such posts, delivery refuses their
+Create/Update and the author's boosts (`authorizeFederationDelivery`), and the
+connector registry does not dispatch them. Private mentions are addressed to
+their recipients and still federate. One predicate decides it,
+`db/userProfile/profileAudience.ts`, shared with trends and Jev. Making a
+profile private does not retract posts already delivered.
+
 Collaborative posts are not federated while an invitation is pending. The
 publish pipeline fans out only after the last invitation resolves, preventing
 an unaccepted collaborator from appearing on the fediverse.

@@ -48,6 +48,8 @@ const mocks = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
   getUserFollowing: vi.fn(),
   loadFollowedAuthorIds: vi.fn(),
+  /** Accounts Oxy reports a block between, either way, for the viewer's proof. */
+  blockedAccounts: new Set<string>(),
 }));
 
 vi.mock('../../middleware/rateLimiter', () => ({
@@ -62,7 +64,17 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerOxyUser: () => undefined,
   callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
-    safety: adultSafetyFixture(),
+    safety: {
+      ...adultSafetyFixture(),
+      profileAccessBatch: async (input: { subjectAccountIds: string[] }) => ({
+        items: input.subjectAccountIds.map((subjectAccountId) => ({
+          subjectAccountId,
+          decision: mocks.blockedAccounts.has(subjectAccountId)
+            ? { allowed: false, reason: 'blocked', policyVersion: '2' }
+            : { allowed: true, reason: 'public', policyVersion: '2' },
+        })),
+      }),
+    },
     users: { getMany: mocks.getUsersByIds },
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
     getClarityDocuments: vi.fn(async () => ({})),
@@ -245,6 +257,7 @@ beforeEach(() => {
     { id: ACTOR, username: 'actor', name: { displayName: 'Actor' } },
   ]);
   mocks.getUserFollowing.mockResolvedValue([]);
+  mocks.blockedAccounts.clear();
 });
 
 afterEach(async () => {
@@ -259,6 +272,16 @@ afterEach(async () => {
 
 afterAll(async () => {
   await closePostgres();
+});
+
+describe('GET /notifications across a block', () => {
+  it('drops every row from an actor a block separates from the viewer, either way', async () => {
+    const viewer = viewerId();
+    await seedNotification(viewer, 'like', await seedReferencedPost('plain text'));
+    mocks.blockedAccounts.add(ACTOR);
+
+    expect((await fetchPage(viewer)).notifications).toHaveLength(0);
+  });
 });
 
 describe('GET /notifications sensitive-content gating', () => {

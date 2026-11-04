@@ -1,3 +1,4 @@
+import type { SafetyRequester } from '@oxy.so/contracts';
 import { createCache } from './cache';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
@@ -241,6 +242,34 @@ export async function invalidateViewerRelations(viewerId: string): Promise<void>
 }
 
 /**
+ * For work that runs on nobody's behalf (notification delivery from a queue or
+ * a federated inbox): which `[a, b]` pairs a block separates, as far as either
+ * party's OWN block list — retained above from their own proof — says.
+ *
+ * Oxy discloses a block only to a proof of one of the two accounts, and such
+ * work holds neither, so this is the most it can know without a second copy of
+ * Oxy's blocks: a list is retained for {@link VIEWER_RELATIONS_RETENTION_SECONDS}
+ * after its owner's last read, and a client that blocks drops it
+ * ({@link invalidateViewerRelations}) so the next read retains the new one. A
+ * pair neither list covers reads as unblocked; the reads that hold a proof
+ * (the notification inbox) re-check with {@link blockedEitherWay}. Never rejects:
+ * a cache failure reads as no retained list.
+ */
+export async function separatedByRetainedBlock(
+  pairs: readonly (readonly [string, string])[],
+): Promise<boolean[]> {
+  const ids = [...new Set(pairs.flat())];
+  if (ids.length === 0) return pairs.map(() => false);
+  const lists = await viewerRelationsCache.getMany<string[]>(
+    ids.map((id) => viewerRelationKey('blocked', id)),
+  );
+  const blockedBy = new Map(ids.map((id, index) => [id, new Set(lists[index] ?? [])]));
+  return pairs.map(
+    ([a, b]) => blockedBy.get(a)?.has(b) === true || blockedBy.get(b)?.has(a) === true,
+  );
+}
+
+/**
  * Read one of the viewer's relation lists through the cache above.
  *
  * `viewerId` is what keys it, so a caller that does not know whose list this is
@@ -319,6 +348,37 @@ export async function getBlockedUserIds(client?: OxyClient, viewerId?: string): 
     });
   }
   return getUserIdsFromPrivacyList(() => client.privacy.blocked(), 'blocked', viewerId);
+}
+
+/** Oxy's per-call ceiling for `safety.profileAccessBatch`. */
+const PROFILE_ACCESS_BATCH_MAX = 100;
+
+/**
+ * The accounts among `accountIds` that a block separates from the requester, in
+ * EITHER direction: the requester blocked them, or they blocked the requester.
+ *
+ * Oxy owns blocks and keeps them private to the account that set them, so the
+ * requester's own proof is what lets Oxy answer, and its safety graph answers
+ * both directions (`decideProfiles`: a block row in either direction is
+ * `blocked`). This is the one two-way block read; the requester's own block
+ * list (`getBlockedUserIds`) covers one direction only. Rejections propagate:
+ * an unanswered check is never read as "no block".
+ */
+export async function blockedEitherWay(
+  requester: SafetyRequester,
+  accountIds: readonly string[],
+): Promise<Set<string>> {
+  const ids = [...new Set(accountIds.filter(Boolean))];
+  const blocked = new Set<string>();
+  for (let index = 0; index < ids.length; index += PROFILE_ACCESS_BATCH_MAX) {
+    const { items } = await getServiceOxyClient().safety.profileAccessBatch(
+      { subjectAccountIds: ids.slice(index, index + PROFILE_ACCESS_BATCH_MAX) },
+      requester,
+    );
+    for (const item of items)
+      if (item.decision.reason === 'blocked') blocked.add(item.subjectAccountId);
+  }
+  return blocked;
 }
 
 /**
