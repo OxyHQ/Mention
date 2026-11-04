@@ -354,6 +354,15 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
           event.actorUsername,
         );
         return;
+      case 'follow.add': {
+        // In the delivery queue before this resolves: a caller that exits right
+        // after (a one-shot) cannot lose the Follow to background work.
+        const actorUri = await this.followTargetUri(event.targetActorUri);
+        await deliveryService.sendFollow(event.localOxyUserId, event.localUsername, actorUri, {
+          durable: true,
+        });
+        return;
+      }
       default:
         await this.deliver(event);
     }

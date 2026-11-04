@@ -7,8 +7,10 @@
  *
  * HOW IT WALKS. Every outbound follow (`accepted` or `pending`), by primary key;
  * the transports of each page's actors from ONE Oxy lookup (`externalIdentities`,
- * same `canonicalAcct`); a transport the follower does not follow yet is
- * missing. Followers who turned fediverse sharing off are skipped, as the
+ * same `canonicalAcct`); a transport the follower does not follow yet — or
+ * follows only as `pending`, never accepted — is missing. Each Follow is in the
+ * delivery queue before the script moves on (`durable`), since the script exits
+ * when it is done. Followers who turned fediverse sharing off are skipped, as the
  * follow route refuses them.
  *
  * SAFETY: `DRY_RUN` defaults to `true` (counts only, sends nothing);
@@ -87,6 +89,8 @@ export async function followAccountTransports(
     after = page[page.length - 1].id;
 
     const identities = await lookupOxyIdentities([...new Set(page.map((row) => row.actorUri))]);
+    // Only an ACCEPTED transport follow is present: one still pending was
+    // never answered, and is sent again (a Follow is idempotent at the remote).
     const followed = new Set(
       (
         await getDb()
@@ -98,6 +102,7 @@ export async function followAccountTransports(
           .where(
             and(
               eq(federatedFollows.direction, 'outbound'),
+              eq(federatedFollows.status, 'accepted'),
               inArray(federatedFollows.localUserId, [
                 ...new Set(page.map((row) => row.localUserId)),
               ]),
@@ -135,7 +140,9 @@ export async function followAccountTransports(
         try {
           const connector = await resolveTargetConnector(uri);
           if (!connector) throw new Error('no connector');
-          await followTransport({ oxyUserId: follow.localUserId, username }, uri, connector);
+          await followTransport({ oxyUserId: follow.localUserId, username }, uri, connector, {
+            durable: true,
+          });
           backfillFollowedTransport(connector, uri);
           followed.add(`${follow.localUserId} ${uri}`);
           result.sent += 1;
