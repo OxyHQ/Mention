@@ -3157,5 +3157,10 @@
   "plus.benefitMono": "Tema monocromático",
   "plus.benefitMonoDescription": "Personaliza Mention con el tema Mono.",
   "plus.payment.cadenceYearShort": "Anual",
-  "plus.payment.annualDiscount": "Ahorra un 20 % con el pago anual."
+  "plus.payment.annualDiscount": "Ahorra un 20 % con el pago anual.",
+  "explore": {
+    "newPeople": {
+      "empty": "Todavía no hay gente nueva"
+    }
+  }
 }

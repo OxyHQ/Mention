@@ -588,6 +588,7 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'recommendations', excludeTypesCsv] as const,
   infiniteRecommendations: (viewerId: ViewerId, excludeTypesCsv: string) =>
     [...viewerQueryKeys.all(viewerId), 'recommendations', 'infinite', excludeTypesCsv] as const,
+  newestUsers: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'newest-users'] as const,
   viewerFollowing: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'following'] as const,
   postActivity: (viewerId: ViewerId, userId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'post-activity', userId ?? ''] as const,

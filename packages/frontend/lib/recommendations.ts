@@ -126,7 +126,29 @@ export async function fetchRecommendationsPage(opts?: {
   if (typeof opts?.limit === 'number') params.limit = opts.limit;
   if (opts?.cursor) params.cursor = opts.cursor;
 
-  const res = await api.get<RecommendationsResponse>('/recommendations', params);
+  return getRecommendationsPage('/recommendations', params);
+}
+
+/**
+ * Fetch one page of the newest people on Oxy, in sign-up order (most recent
+ * first). Same page shape and cursor as {@link fetchRecommendationsPage}; the
+ * list is local people only, so it takes no `excludeTypes`.
+ */
+export async function fetchNewestUsersPage(opts?: {
+  limit?: number;
+  cursor?: string;
+}): Promise<RecommendationsPage> {
+  const params: Record<string, unknown> = {};
+  if (typeof opts?.limit === 'number') params.limit = opts.limit;
+  if (opts?.cursor) params.cursor = opts.cursor;
+  return getRecommendationsPage('/recommendations/newest', params);
+}
+
+async function getRecommendationsPage(
+  path: string,
+  params: Record<string, unknown>,
+): Promise<RecommendationsPage> {
+  const res = await api.get<RecommendationsResponse>(path, params);
   return {
     recommendations: res.data.recommendations ?? [],
     nextCursor: res.data.nextCursor ?? null,

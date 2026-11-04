@@ -36,7 +36,11 @@ export default function ExploreLayout() {
   };
   const { t } = useTranslation();
   const pathname = usePathname();
-  const activeTab = TABS.find((tab) => tab.href === pathname)?.id ?? 'all';
+  // A page under a tab (`/explore/who-to-follow/new`) keeps that tab selected.
+  const activeTab =
+    TABS.find((tab) => tab.href === pathname)?.id ??
+    TABS.find((tab) => tab.href !== '/explore' && pathname.startsWith(`${tab.href}/`))?.id ??
+    'all';
 
   return (
     <Screen

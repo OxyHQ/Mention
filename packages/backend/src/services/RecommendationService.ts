@@ -55,6 +55,9 @@ const CACHE_TTL_SECONDS = 90;
 /** Redis key namespace for cached recommendation pages. */
 const CACHE_PREFIX = 'rec:v1:';
 
+/** Redis key namespace for the viewer-independent newest-people pages. */
+const NEWEST_CACHE_PREFIX = 'rec:newest:v1:';
+
 /** Inputs accepted by {@link RecommendationService.getRecommendations}. */
 export interface GetRecommendationsInput {
   /** Viewer's Oxy user id, or undefined when logged out. */
@@ -123,6 +126,26 @@ export function decodeRecommendationCursor(cursor: string): number | null {
   const parsed = Number.parseInt(decoded, 10);
   if (!Number.isInteger(parsed) || parsed < 0) return null;
   return parsed;
+}
+
+/**
+ * Shape one upstream page into the paginated response. A FULL upstream page
+ * (`rawCount >= limit`) implies a next page may exist. The cursor advances by
+ * the raw count Oxy returned (NOT the mapped `profiles.length`) so dropped
+ * malformed items never shift the window into duplicates/skips, and stops once
+ * it would exceed the offset cap so it can never loop on a clamped offset.
+ */
+function toOffsetPage(
+  profiles: RankedProfile[],
+  rawCount: number,
+  limit: number,
+  offset: number,
+): RecommendationsResult {
+  const candidateNextOffset = offset + rawCount;
+  const hasMore = rawCount >= limit && candidateNextOffset <= MAX_RECOMMENDATION_OFFSET;
+  const nextOffset = hasMore ? candidateNextOffset : null;
+  const nextCursor = nextOffset !== null ? encodeRecommendationCursor(nextOffset) : null;
+  return { recommendations: profiles, nextCursor, nextOffset, hasMore };
 }
 
 /** Clamp a requested limit into the supported range. */
@@ -377,45 +400,63 @@ export class RecommendationService {
         boosts: boosts.length > 0 ? boosts : undefined,
       });
 
-      // Offset pagination: a FULL upstream page (rawCount >= limit) implies a next
-      // page may exist. Advance the cursor by the raw count Oxy returned (NOT the
-      // mapped `profiles.length`) so any dropped malformed items never shift the
-      // window into duplicates/skips. Stop offering a next page once it would
-      // exceed the offset cap, so the cursor can never loop on a clamped offset.
-      const candidateNextOffset = offset + rawCount;
-      const hasMore = rawCount >= limit && candidateNextOffset <= MAX_RECOMMENDATION_OFFSET;
-      const nextOffset = hasMore ? candidateNextOffset : null;
-      const nextCursor = nextOffset !== null ? encodeRecommendationCursor(nextOffset) : null;
-
-      const result: RecommendationsResult = {
-        // Defend against an upstream ranking regression/race that returns an id
-        // it was explicitly asked to exclude.
-        recommendations: filterExcludedProfiles(
-          {
-            recommendations: profiles,
-            nextCursor,
-            nextOffset,
-            hasMore,
-          },
-          excludeIds,
-        ).recommendations,
-        nextCursor,
-        nextOffset,
-        hasMore,
-      };
+      // Defend against an upstream ranking regression/race that returns an id
+      // it was explicitly asked to exclude.
+      const result = filterExcludedProfiles(
+        toOffsetPage(profiles, rawCount, limit, offset),
+        excludeIds,
+      );
       if (!viewerId) await this.writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      const context = {
-        reason: error instanceof Error ? error.message : 'unknown',
-        ...(error instanceof ForegroundRankingError ? error.failure : {}),
-      };
-      if (isOxyUnavailable(error)) {
-        logger.warn('[RecommendationService] ranking failed', context);
-      } else {
-        logger.error('[RecommendationService] ranking failed', context);
-      }
+      this.logRankingFailure(error);
       throw new RecommendationsUnavailableError();
+    }
+  }
+
+  /**
+   * The newest people on Oxy, in sign-up order. The list is the same for every
+   * viewer, so one cached page serves everyone; the viewer's CURRENT exclusions
+   * are applied on top of it, cached or not.
+   */
+  async getNewest(input: GetRecommendationsInput): Promise<RecommendationsResult> {
+    const limit = clampLimit(input.limit);
+    const offset = clampOffset(input.offset);
+    const cacheKey = `${NEWEST_CACHE_PREFIX}l:${limit}:o:${offset}`;
+
+    const [excludeIds, cached] = await Promise.all([
+      input.viewerId
+        ? this.resolveExcludeIds(input.viewerId, input.oxyClient)
+        : Promise.resolve<string[] | undefined>(undefined),
+      this.readCache(cacheKey),
+    ]);
+    if (cached) return filterExcludedProfiles(cached, excludeIds);
+
+    let page: RecommendationsResult;
+    try {
+      const { profiles, rawCount } = await this.rankingClient.newest({ limit, offset });
+      page = toOffsetPage(profiles, rawCount, limit, offset);
+    } catch (error) {
+      this.logRankingFailure(error);
+      throw new RecommendationsUnavailableError();
+    }
+    await this.writeCache(cacheKey, page);
+    return filterExcludedProfiles(page, excludeIds);
+  }
+
+  /**
+   * Oxy timing out or answering 5xx is a warning (the 503 is the designed
+   * degradation); anything else is an error.
+   */
+  private logRankingFailure(error: unknown): void {
+    const context = {
+      reason: error instanceof Error ? error.message : 'unknown',
+      ...(error instanceof ForegroundRankingError ? error.failure : {}),
+    };
+    if (isOxyUnavailable(error)) {
+      logger.warn('[RecommendationService] ranking failed', context);
+    } else {
+      logger.error('[RecommendationService] ranking failed', context);
     }
   }
 }
