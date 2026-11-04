@@ -16,6 +16,9 @@ function isUnixSeconds(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
 }
 
+/** Peable amounts are base-unit integer strings (ADR 0014 D1, authority schema 3). */
+const BASE_UNITS = /^(0|[1-9][0-9]*)$/;
+
 /** Called only after the official SDK verifies the final authority signature. */
 export function normalizeMembershipInvoice(
   offer: MembershipBillingOffer,
@@ -51,9 +54,9 @@ export function normalizeMembershipInvoice(
     [context.environment, offer.environment],
     [context.offer_id, offer.offerId],
     [paid.currency, invoice.currency],
-    [paid.amount_paid, String(invoice.gross_minor_units)],
-    [paid.net_amount, String(invoice.net_minor_units)],
-    [paid.tax_amount, String(invoice.tax_minor_units)],
+    [paid.amount_paid, invoice.gross_minor_units],
+    [paid.net_amount, invoice.net_minor_units],
+    [paid.tax_amount, invoice.tax_minor_units],
   ];
   const instants = [paid.period_start, paid.period_end, paid.paid_at, paid.observed_at];
   const [start, end, paidAt, observedAt] = instants;
@@ -64,13 +67,12 @@ export function normalizeMembershipInvoice(
     !Number.isSafeInteger(offer.offerVersion) ||
     offer.offerVersion < 1 ||
     paid.livemode !== (offer.mode === 'live') ||
-    !Number.isSafeInteger(invoice.gross_minor_units) ||
-    invoice.gross_minor_units <= 0 ||
-    !Number.isSafeInteger(invoice.net_minor_units) ||
-    invoice.net_minor_units < 0 ||
-    !Number.isSafeInteger(invoice.tax_minor_units) ||
-    invoice.tax_minor_units < 0 ||
-    invoice.net_minor_units + invoice.tax_minor_units !== invoice.gross_minor_units ||
+    ![invoice.gross_minor_units, invoice.net_minor_units, invoice.tax_minor_units].every(
+      (amount) => BASE_UNITS.test(amount),
+    ) ||
+    invoice.gross_minor_units === '0' ||
+    BigInt(invoice.net_minor_units) + BigInt(invoice.tax_minor_units) !==
+      BigInt(invoice.gross_minor_units) ||
     !instants.every(isUnixSeconds) ||
     start === undefined ||
     end === undefined ||
@@ -83,7 +85,7 @@ export function normalizeMembershipInvoice(
     observedAt > nowSeconds ||
     observedAt < paidAt ||
     !['paid', 'partially_refunded', 'fully_refunded'].includes(paid.state) ||
-    !/^(0|[1-9][0-9]*)$/.test(paid.amount_refunded)
+    !BASE_UNITS.test(paid.amount_refunded)
   )
     throw new MembershipError(409, 'Invoice does not match the membership offer');
   const refunded = BigInt(paid.amount_refunded);

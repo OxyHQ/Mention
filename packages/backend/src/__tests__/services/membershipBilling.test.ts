@@ -62,7 +62,7 @@ function fixture() {
     state: 'paid',
   };
   const authority: Parameters<typeof normalizeMembershipInvoice>[3] = {
-    schema_version: 2,
+    schema_version: 3,
     source: {
       invoice_id: request.invoiceId,
       payment_intent_id: paid.payment_intent_id,
@@ -78,10 +78,10 @@ function fixture() {
     invoice: {
       platform: 'peable',
       currency: 'EUR',
-      gross_minor_units: 100,
-      net_minor_units: 80,
-      tax_minor_units: 20,
-      merchant_fee_minor_units: 0,
+      gross_minor_units: '100',
+      net_minor_units: '80',
+      tax_minor_units: '20',
+      merchant_fee_minor_units: '0',
       tax_treatment: 'inclusive',
       seller_id: 'seller',
       invoice_issuer_id: 'issuer',
@@ -168,6 +168,18 @@ describe('membership invoice normalization (after SDK signature verification)', 
         now,
       ),
     ).toThrow();
+    // Amounts are base-unit strings that add up exactly (authority schema 3).
+    const unbalanced = structuredClone(f.authority);
+    unbalanced.invoice.net_minor_units = '81';
+    expect(() =>
+      normalizeMembershipInvoice(
+        f.offer,
+        f.request,
+        { ...f.paid, net_amount: '81' },
+        unbalanced,
+        now,
+      ),
+    ).toThrow('does not match');
   });
   it('rejects inconsistent refunds and future observations', () => {
     const f = fixture();
