@@ -36,7 +36,7 @@ import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 const ABOUT_AVATAR_SIZE = 80;
 
@@ -77,9 +77,8 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
 
   const color = resolveProfileColor(profileData?.design.color);
 
-  // Same split as ProfileShell: a preset is the Screen's claim, which themes the
-  // whole shell on a split layout and only this column in the Deck; an exact
-  // seed has no claim, so it scopes the content.
+  // As in ProfileShell: the profile's colour (preset or seed) is the Screen's
+  // claim, which themes the whole shell on a split layout.
   //
   // Same back-nav header the sibling profile sub-screens (followers / following /
   // connections) render, shared by the loading / not-found / loaded states.
@@ -95,20 +94,19 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   );
   if (Platform.OS === 'web' && routedFamily === 'person') return content;
   return (
-    <BloomColorScope seed={color?.seed} asChild>
-      <Screen
-        scroll={Platform.OS === 'web' ? 'auto' : 'content'}
-        colorPreset={color?.colorPreset}
-        header={
-          <PageHeader
-            title={t('profile.about.title', { defaultValue: 'About' })}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
-      >
-        {content}
-      </Screen>
-    </BloomColorScope>
+    <Screen
+      scroll={Platform.OS === 'web' ? 'auto' : 'content'}
+      colorPreset={color?.colorPreset}
+      seed={color?.seed}
+      header={
+        <PageHeader
+          title={t('profile.about.title', { defaultValue: 'About' })}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
+      {content}
+    </Screen>
   );
 }
 

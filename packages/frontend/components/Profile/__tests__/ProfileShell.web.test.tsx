@@ -23,7 +23,6 @@ import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
 
 const mockHeader = jest.fn();
 const mockScreen = jest.fn();
-const mockColorScope = jest.fn();
 const mockTabs = jest.fn();
 const mockList = jest.fn();
 const mockDock = jest.fn();
@@ -68,10 +67,6 @@ jest.mock('@oxy.so/bloom/cover-header', () => ({
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ isDark: false }),
-  BloomColorScope: (props: { children: React.ReactNode }) => {
-    mockColorScope(props);
-    return props.children;
-  },
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -242,7 +237,7 @@ test('without children (a channel on web), it renders the tabs itself', () => {
   act(() => tree.unmount());
 });
 
-it('passes the stored profile identity to Bloom without choosing a replacement', () => {
+it('hands an exact seed to Screen, which claims it for the whole shell', () => {
   const props = makeProps();
   const profileData = props.profileData;
   if (!profileData) throw new Error('Profile fixture required');
@@ -258,6 +253,7 @@ it('passes the stored profile identity to Bloom without choosing a replacement',
       />,
     );
   });
-  expect(mockColorScope.mock.calls.at(-1)?.[0]).toMatchObject({ seed: '#aabbcc' });
+  // An exact seed is the Screen's claim too, so it themes the whole shell like a preset.
+  expect(mockScreen.mock.calls.at(-1)?.[0]).toMatchObject({ seed: '#aabbcc' });
   act(() => tree.unmount());
 });
