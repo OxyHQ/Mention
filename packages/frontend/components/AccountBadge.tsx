@@ -211,26 +211,3 @@ function AccountBadgeMarker({
     />
   );
 }
-
-/**
- * The viewer's OWN-profile fediverse-sharing marker: the fediverse icon next to
- * the handle when the viewer has sharing on.
- *
- * A different fact from {@link AccountBadge} — it describes a SETTING the viewer
- * controls, not what the account is — but it obeys the same default, so there is
- * one rule about badge interactivity in this file rather than two.
- */
-export function FediverseSharingBadge({
-  onExplainNetwork,
-  ...visual
-}: IdentityBadgeVisualProps & { onExplainNetwork?: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <IdentityMarker
-      {...visual}
-      Icon={RiFediverseLine}
-      a11yLabel={t('fediverse.badge.a11yLabel')}
-      onExplain={onExplainNetwork}
-    />
-  );
-}

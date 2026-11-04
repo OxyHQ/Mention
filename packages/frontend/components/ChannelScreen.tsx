@@ -80,8 +80,8 @@ interface ChannelProfileProps {
  * - **No poke.** A poke is addressed to a person; `isDelegatedActAsEligibleKind` refuses
  *   `channel`, so no human is ever signed in as one to receive it.
  * - **No self view.** For the same reason, `isOwnProfile` can never be true for
- *   a channel — so no edit/analytics/settings cluster, no "your own lanes"
- *   button beside the tabs, and no fediverse badge (which is own-profile only).
+ *   a channel — so no edit/analytics/settings cluster and no "your own lanes"
+ *   button beside the tabs.
  * - **No DM.** Messaging a person opens a conversation with them in Allo
  *   (`useOpenInAllo`); a channel is nobody to talk to.
  * - **No "Follows you" tag.** A channel cannot follow anybody, since following

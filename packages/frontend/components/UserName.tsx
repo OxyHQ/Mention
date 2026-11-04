@@ -28,7 +28,6 @@ const UserName: React.FC<UserNameProps> = ({
   variant = 'default',
   align = 'start',
   style,
-  trailingBadge,
   handleTrailing,
 }) => {
   const theme = useTheme();
@@ -224,7 +223,6 @@ const UserName: React.FC<UserNameProps> = ({
             style={{ transform: [{ translateY: baselineNudge }] }}
           />
         )}
-        {trailingBadge}
       </View>
       {handleLineNode}
     </>
