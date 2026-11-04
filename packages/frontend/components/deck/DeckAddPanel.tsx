@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Button, IconButton } from '@oxy.so/bloom/button';
 import { RiInsertColumnRight } from '@oxy.so/bloom/icons/RiInsertColumnRight';
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { DECK_SOURCES, useDeckSettings, type DeckSource } from './deckSettings';
 
 export function DeckAddPanel() {

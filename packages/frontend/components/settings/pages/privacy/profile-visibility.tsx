@@ -1,7 +1,7 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { useSettingsBack } from '@/context/MentionSettingsContext';
 import {
   createPrivacySettingsCacheLease,

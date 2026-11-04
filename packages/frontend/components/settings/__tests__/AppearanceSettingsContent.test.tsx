@@ -30,7 +30,7 @@ jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@oxy.so/bloom/toast', () => ({
   toast: { error: (...args: unknown[]) => mockToast(...args) },
 }));
-jest.mock('@oxy.so/bloom/settings-modal/rows', () => ({ SettingsSelect: () => null }));
+jest.mock('@oxy.so/bloom/settings-modal/select', () => ({ SettingsSelect: () => null }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: string | { defaultValue?: string }) =>
