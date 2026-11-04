@@ -118,6 +118,7 @@ describe('private mentions screen', () => {
     mockPush.mockClear();
     mockHook.conversations = [];
     mockHook.isError = false;
+    mockHook.isLoading = false;
   });
 
   it('names each conversation, previews its newest post and opens its thread', () => {
@@ -135,6 +136,21 @@ describe('private mentions screen', () => {
     expect(mockPush).toHaveBeenCalledWith('/p/root-2');
   });
 
+  it('names a pair, credits the other sender in a group, and falls back for media and unknowns', () => {
+    const media = conversation('root-4', ['u9'], { id: 'u9', username: '' }, '');
+    (media.latestPost.content as { media?: unknown[] }).media = [{ id: 'm1' }];
+    mockHook.conversations = [
+      conversation('root-3', ['u1', 'u2'], { id: 'u1', username: 'ana', displayName: 'Ana' }, 'yo'),
+      media,
+    ];
+    const rows = render().root.findAllByType('ChatListItem' as unknown as React.ElementType);
+
+    expect(rows[0].props.name).toBe('Ana and Luis');
+    expect(rows[0].props.preview).toEqual({ text: 'yo', sender: 'Ana' });
+    expect(rows[1].props.name).toBe('Private mentions');
+    expect(rows[1].props.preview.attachment.label).toBe('Media');
+  });
+
   it('keeps an empty or failed read inside the list', () => {
     const empty = render().root.findByType('EmptyState' as unknown as React.ElementType);
     expect(empty.props.title).toBe('No private mentions yet');
@@ -142,5 +158,11 @@ describe('private mentions screen', () => {
     mockHook.isError = true;
     const failed = render().root.findByType('EmptyState' as unknown as React.ElementType);
     expect(failed.props.error.title).toBe("Couldn't load private mentions");
+
+    mockHook.isError = false;
+    mockHook.isLoading = true;
+    expect(
+      render().root.findAllByType('ChatListItemSkeleton' as unknown as React.ElementType),
+    ).not.toHaveLength(0);
   });
 });
