@@ -130,6 +130,8 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   'vite -> lightningcss@^1.33.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
   '@alia.onl/sdk -> react-native-css@^3.0.7':
     'The override installs 3.1.0-rc.0, the release candidate of the next 3.x minor, which semver ranges exclude only because it is a prerelease. It is the single copy nativewind 5.0.0-rc.0 needs and the exact version @oxy.so/bloom 10.17 depends on, so the SDK draws through the same react-native-css as the rest of the app.',
+  '@oxy.so/services -> @peable.to/sdk@1.0.0':
+    'Temporary, until @oxy.so/services 14.3.6 pins @peable.to/sdk 2.0.0. services imports only @peable.to/sdk/display, whose built files (display.js, display.d.ts, core/timeoutSignal.js) are byte-identical in 1.0.0 and 2.0.0; 2.0 changed only tax and billing amounts. The override keeps one SDK copy in the bundle. Delete this entry and bump services once 14.3.6 is published.',
 };
 
 /**

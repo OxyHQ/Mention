@@ -142,8 +142,8 @@ removes them while Peable remains the accounting system of record.
 `reconcileMembershipInvoice` uses the official Peable SDK and its pinned
 invoice authority keys. It reads authoritative invoice state and the verified
 signed final authority (`billing.retrieveInvoiceState` and
-`billing.retrieveFinalInvoiceAuthority`; `schema_version: 2`, snake_case, instants in integer
-Unix seconds), checks their payer, product, period and fiscal totals, and
+`billing.retrieveFinalInvoiceAuthority`; `schema_version: 3`, snake_case, instants in integer
+Unix seconds, amounts as base-unit integer strings), checks their payer, product, period and fiscal totals, and
 disposes the requester-bound client. Peable instants are converted to
 `timestamptz` only after validation; the receipt table stores Mention's own
 normalized columns, never a Peable payload. The reviewed versioned catalogue is
