@@ -1,5 +1,6 @@
-import { and, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, min } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
+import { federatedActors } from '../schema/federation';
 import { posts } from '../schema/posts';
 import {
   federationPostImports,
@@ -49,4 +50,36 @@ export async function observeFederationImportReason(
   };
   if ('transaction' in db) await db.transaction(write);
   else await write(db);
+}
+
+/** The reasons a post is stored because Mention follows its author: delivery. */
+const SUBSCRIPTION_REASONS: readonly FederationImportReason[] = ['inbox_follow', 'inbox_announce'];
+
+/**
+ * When the transports of `networkAcct` on `hosts` began delivering it by
+ * subscription: the publication time of the earliest post (a boost included)
+ * Mention stored from one of those actors because it follows them, or null
+ * when none was ever stored that way. Posts fetched as a reply parent, a quote
+ * or a boosted original do not count: they say nothing about whether the
+ * account's stream is covered.
+ */
+export async function subscribedSinceForAccount(
+  networkAcct: string,
+  hosts: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Date | null> {
+  if (hosts.length === 0) return null;
+  const [row] = await db
+    .select({ since: min(posts.createdAt) })
+    .from(posts)
+    .innerJoin(federatedActors, eq(federatedActors.uri, posts.federationActorUri))
+    .innerJoin(federationPostImports, eq(federationPostImports.postId, posts.id))
+    .where(
+      and(
+        eq(federatedActors.networkAcct, networkAcct),
+        inArray(federatedActors.domain, [...hosts]),
+        inArray(federationPostImports.initialReason, [...SUBSCRIPTION_REASONS]),
+      ),
+    );
+  return row?.since ?? null;
 }

@@ -17,7 +17,7 @@
  * failure resolves to an empty page and never throws out of the feed engine.
  */
 
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext } from '../FeedAPI';
 import { getDb } from '../../../db/postgres';
 import { feedGenerators, posts } from '../../../db/schema';
@@ -28,6 +28,7 @@ import {
   importPostViews,
   type AtprotoPostView,
 } from '../../../connectors/atproto/post.mapper';
+import { findPostsByFederatedObjects } from '../../../connectors/shared/upstreamPostKey';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { logger } from '../../../utils/logger';
 
@@ -137,22 +138,18 @@ export class FeedGeneratorFeed implements FeedAPI {
     const uris = await importPostViews(postViews, replyContext);
     if (uris.length === 0) return [];
 
+    // A post stored through Bridgy Fed first is the same post: matched by key.
+    const stored = await findPostsByFederatedObjects(uris);
+    const ids = [...new Set([...stored.values()].map((post) => post.id))];
+    if (ids.length === 0) return [];
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(posts)
-      .where(and(isNotNull(posts.federationActivityId), inArray(posts.federationActivityId, uris)));
-    const docs = await assemblePostRecords(rows, db);
-
-    const byUri = new Map<string, OrderedPostDoc>();
-    for (const doc of docs) {
-      const uri = doc.federation?.activityId;
-      if (uri) byUri.set(uri, doc);
-    }
+    const rows = await db.select().from(posts).where(inArray(posts.id, ids));
+    const byId = new Map((await assemblePostRecords(rows, db)).map((doc) => [doc.id, doc]));
 
     const ordered: OrderedPostDoc[] = [];
     for (const uri of uris) {
-      const doc = byUri.get(uri);
+      const id = stored.get(uri)?.id;
+      const doc = id ? byId.get(id) : undefined;
       if (doc) ordered.push(doc);
     }
     return ordered;

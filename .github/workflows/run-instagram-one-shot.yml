@@ -11,9 +11,9 @@ name: Run Instagram one-shot
 #                                for deletion). Calls the Graph API with the
 #                                BACKGROUND budget. `repair_depth` = listed items
 #                                walked per account (default 100, max 1000).
-#   backfillInstagramSourceKeys  The post-deploy step of migration 0054: key the
-#                                kilogram bridge posts stored before it, then
-#                                VALIDATE the three CHECKs 0054 added NOT VALID.
+#   backfillUpstreamPostKeys     Key the posts every keyed transport (bird.makeup,
+#                                kilogram.makeup, Bridgy Fed, atproto) delivered
+#                                before its upstream post key was written.
 #
 # SAFETY, in the order it is enforced:
 #   1. Only from protected `main`, and only when `main` IS the recorded backend
@@ -47,7 +47,7 @@ on:
       script:
         description: 'Which reviewed script to run'
         type: choice
-        options: [repairInstagramReelPosters, backfillInstagramSourceKeys]
+        options: [repairInstagramReelPosters, backfillUpstreamPostKeys]
         required: true
       dry_run:
         description: 'Report what WOULD change, write nothing'
@@ -113,7 +113,7 @@ jobs:
           [[ "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo '::error::expected_image_digest must be sha256:<64 hex>'; exit 1; }
           case "$SCRIPT" in
             repairInstagramReelPosters) ;;
-            backfillInstagramSourceKeys) [[ -z "$REPAIR_DEPTH" ]] || { echo '::error::repair_depth applies to repairInstagramReelPosters only'; exit 1; } ;;
+            backfillUpstreamPostKeys) [[ -z "$REPAIR_DEPTH" ]] || { echo '::error::repair_depth applies to repairInstagramReelPosters only'; exit 1; } ;;
             *) exit 1 ;;
           esac
           if [[ -n "$REPAIR_DEPTH" ]]; then

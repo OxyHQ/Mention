@@ -3,7 +3,7 @@ import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
-import { postMatchesFederatedObjectSql } from '../../../connectors/shared/instagramSourceKey';
+import { postMatchesFederatedObjectSql } from '../../../connectors/shared/upstreamPostKey';
 
 /**
  * THE PLAN of "is this federated object already here?" for a bridged Instagram

@@ -13,8 +13,8 @@ describe('mirror transports', () => {
       'https://x.com/a/status/123',
     );
     expect(networkUrlOf('https://mastox.eu/@wired')).toBe('https://x.com/wired');
-    expect(networkUrlOf('https://kilogram.makeup/users/zuck/statuses/Dc1')).toBe(
-      'https://instagram.com/p/Dc1',
+    expect(networkUrlOf('https://kilogram.makeup/users/zuck/statuses/Dc1abc')).toBe(
+      'https://instagram.com/p/Dc1abc',
     );
   });
 

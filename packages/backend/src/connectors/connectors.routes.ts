@@ -5,11 +5,7 @@ import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.s
 import type { User as OxyUser } from '@oxy.so/core';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { getErrorStatus } from '@oxy.so/core';
-import {
-  PostVisibility,
-  type FederationBlocksResponse,
-  type PostContent,
-} from '@mention/shared-types';
+import { PostVisibility, type FederationBlocksResponse } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import {
   activityPubConnector,
@@ -39,8 +35,13 @@ import {
 import { resolveOxyIdentity } from './oxyIdentity';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
+import {
+  backfillFollowedTransport,
+  followTransport,
+  resolveTargetConnector,
+  syncOtherTransports,
+} from './transportFollows';
 import { classifyQuery } from './resolve';
-import type { NetworkConnector } from '@oxy.so/federation';
 import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { postHydrationService } from '../services/PostHydrationService';
 import { hydrationOptionsFor } from '../utils/hydrationOptions';
@@ -186,24 +187,6 @@ function resolveUserOr401(req: AuthRequest, res: Response): string | null {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
-}
-
-/**
- * Resolve the connector that owns a follow/unfollow target. Prefers the stored
- * `federated_actors.protocol` (authoritative once an actor is known), falling back
- * to shape-based `matches` (an http URI → ActivityPub, a DID → atproto).
- */
-async function resolveTargetConnector(
-  target: string,
-): Promise<NetworkConnector<PostContent> | undefined> {
-  const stored = await findActorByUri(target);
-  if (stored?.protocol) {
-    const byProtocol = connectorRegistry
-      .list()
-      .find((connector) => connector.id === stored.protocol);
-    if (byProtocol) return byProtocol;
-  }
-  return connectorRegistry.connectorFor(target);
 }
 
 /** Batch Oxy profiles by source URI, including historical IDs redirected to the same person. */
@@ -501,12 +484,8 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     const user = await getServiceOxyClient().users.get(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
-    await connector.deliver({
-      kind: 'follow.add',
-      localOxyUserId: userId,
-      localUsername: user.username,
-      targetActorUri: parsed.data.actorUri,
-    });
+    const follower = { oxyUserId: userId, username: user.username };
+    await followTransport(follower, parsed.data.actorUri, connector);
 
     // Read back the actor the connector persisted so the response carries the
     // CANONICAL id the system stores — atproto resolves a handle → DID before
@@ -521,12 +500,10 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     const canonicalActorUri = actor?.uri ?? parsed.data.actorUri;
     const pending = actor?.manuallyApprovesFollowers === true;
 
-    // A followed kilogram (Instagram-bridge) actor gets its history from the
-    // Graph API: the bridge only pushes what is posted after the follow. The
-    // Instagram connector backfills its own follows inside `deliver`.
-    if (connector.id !== instagramGraphConnector.id) {
-      void instagramGraphConnector.backfillOnFollow(canonicalActorUri);
-    }
+    backfillFollowedTransport(connector, canonicalActorUri);
+    // The person's other transports follow in the background; the answer is
+    // about the actor the caller named.
+    void syncOtherTransports(follower, canonicalActorUri, 'follow');
 
     return res.json({ success: true, pending, actorUri: canonicalActorUri });
   } catch (err) {
@@ -567,6 +544,13 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
       localUsername: user.username,
       targetActorUri: parsed.data.actorUri,
     });
+    // Every other transport of the person this follower follows goes too.
+    const actor = await findActorByUriOrAcct(parsed.data.actorUri);
+    void syncOtherTransports(
+      { oxyUserId: userId, username: user.username },
+      actor?.uri ?? parsed.data.actorUri,
+      'unfollow',
+    );
 
     return res.json({ success: true, actorUri: parsed.data.actorUri });
   } catch (err) {

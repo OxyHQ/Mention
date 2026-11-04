@@ -1,5 +1,5 @@
 import { and, eq, sql, type SQL } from 'drizzle-orm';
-import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
+import { postMatchesFederatedObjectSql } from '../shared/upstreamPostKey';
 import { logger } from '../../utils/logger';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';

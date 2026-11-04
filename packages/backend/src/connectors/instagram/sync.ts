@@ -16,7 +16,7 @@ import {
 import { enqueueInstagramGraphSync } from '../../queue/producers';
 import { logger } from '../../utils/logger';
 import { mapWithConcurrency } from '../../utils/concurrency';
-import { INSTAGRAM_AP_BRIDGE_HOSTS } from '../shared/instagramSourceKey';
+import { mirrorHosts } from '../../utils/federation/mirrorTransports';
 import {
   DEADLINE_RETRY_MS,
   igUserIdFromActorUri,
@@ -171,7 +171,8 @@ export async function syncInstagramActor(
   let result: InstagramImportResult | null = null;
   try {
     const isKilogram =
-      actor.protocol === 'activitypub' && INSTAGRAM_AP_BRIDGE_HOSTS.has(actor.domain.toLowerCase());
+      actor.protocol === 'activitypub' &&
+      mirrorHosts('instagram').includes(actor.domain.toLowerCase());
     // The id the username must still answer with: the pin from the first
     // successful sync, or — for a Graph-only actor — the id in its own URI.
     const expectedIgUserId =

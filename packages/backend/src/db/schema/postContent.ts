@@ -25,6 +25,7 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -645,12 +646,12 @@ export const postSources = pgTable(
 
 /**
  * `post_source_keys` — the network-level identity of a post that can reach
- * Mention by more than one road. Today only Instagram: `instagram:<shortcode>`,
- * written both by the Graph API import and by the ActivityPub ingest of a
- * kilogram.makeup Note (whose activity id is the bridge's `…/statuses/<shortcode>`
- * URL). The UNIQUE key makes the second arrival collide instead of duplicating
- * the post, whichever road it took; it is written in the same transaction as the
- * post, so the collision rolls the whole post back.
+ * Mention by more than one road: its upstream post key (`x:<tweet id>`,
+ * `instagram:<shortcode>`, `bluesky:<at-uri>`; `connectors/shared/upstreamPostKey.ts`),
+ * written by every transport whose object id names it. The UNIQUE key makes the
+ * second arrival collide instead of duplicating the post, whichever road it
+ * took; it is written in the same transaction as the post, so the collision
+ * rolls the whole post back.
  *
  * A row is either FILLED (`post_id` set: this post IS that source) or a CLAIM
  * (`post_id` NULL, `claimed_until` + `claim_token` set): the Graph import claims
@@ -670,7 +671,7 @@ export const postSourceKeys = pgTable(
   'post_source_keys',
   {
     id: generatedId(),
-    /** `instagram:<shortcode>`. Case-sensitive: Instagram shortcodes are. */
+    /** The upstream post key. Case-sensitive: Instagram shortcodes are. */
     sourceKey: text().notNull().unique('post_source_keys_source_key_key'),
     /** The post that IS this source; NULL while the key is only claimed. */
     postId: text()
@@ -696,6 +697,56 @@ export const postSourceKeys = pgTable(
         or (${t.postId} is null and ${t.claimedUntil} is not null and ${t.claimToken} is not null)`,
     ),
   ],
+);
+
+/** What one transport's copy of an upstream post said — see `postTransportCopies`. */
+export interface TransportCopyFacts {
+  /** 0: the network's own protocol or API (native atproto, Graph); 1: a bridge. */
+  rank: 0 | 1;
+  publishedAt?: string;
+  url?: string;
+  inReplyTo?: string;
+  /** The LOCAL post the copy quotes. */
+  quoteOf?: string;
+  /** The LOCAL post the copy replies to, and that post's thread. */
+  replyTo?: { parentPostId: string; threadId: string };
+  /** The primary body as the transport delivered it. */
+  text: string;
+  media: Array<{ type: string; alt?: string }>;
+  language?: string;
+  sensitive: boolean;
+  spoilerText?: string;
+}
+
+/**
+ * `post_transport_copies` — every transport copy that asserts one upstream post.
+ *
+ * A post held under an upstream key (`post_source_keys`) can be delivered by
+ * several transports — bird.makeup under two handle spellings, a Bluesky post
+ * natively and through Bridgy Fed, an Instagram post through kilogram.makeup and
+ * the Graph API. The post is ONE row whose fields are merged from every copy
+ * (`connectors/shared/transportCopies.ts`); this table keeps what each copy
+ * said, so the merge is recomputed from all of them in a fixed order whatever
+ * order they arrived in, an edit from any one of them re-merges, and a Delete
+ * from one transport removes only its copy while another still asserts the post.
+ *
+ * Written only once a SECOND copy arrives: until then the post row is exactly
+ * its one copy. `object_uri` is the copy's own object id.
+ */
+export const postTransportCopies = pgTable(
+  'post_transport_copies',
+  {
+    objectUri: text().primaryKey(),
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    /** The transport actor that delivered the copy; only it may edit or delete the copy. */
+    actorUri: text().notNull(),
+    facts: jsonb().$type<TransportCopyFacts>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('post_transport_copies_post_id_idx').on(t.postId)],
 );
 
 /**

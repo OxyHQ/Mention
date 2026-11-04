@@ -430,12 +430,12 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       "so on a shared database it would mirror other suites' rows and queue their actors.",
   },
   {
-    path: 'src/__tests__/scripts/backfillInstagramSourceKeys.test.ts',
-    jobEntryPoint: 'backfillInstagramSourceKeys',
+    path: 'src/__tests__/scripts/backfillUpstreamPostKeys.test.ts',
+    jobEntryPoint: 'backfillUpstreamPostKeys',
     reason:
-      'Walks EVERY kilogram.makeup actor and keys all of its bridge posts, then runs ' +
-      '`VALIDATE CONSTRAINT` on `federated_actors` / `federated_follows` — so on a shared ' +
-      "database it would key other suites' bridge posts and scan their actor rows.",
+      'Walks EVERY keyed transport actor (bird.makeup, kilogram.makeup, Bridgy Fed, ' +
+      'atproto) and keys all of its posts — so on a shared database it would key other ' +
+      "suites' posts.",
   },
   {
     path: 'src/__tests__/scripts/backfillVariantPostCreatedAtRows.test.ts',

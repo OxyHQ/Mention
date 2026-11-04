@@ -655,7 +655,8 @@ the permalink. A kilogram Note's id is
 `https://kilogram.makeup/users/<u>/statuses/<shortcode>`, measured live. Both
 roads write `instagram:<shortcode>` into `post_source_keys` under a UNIQUE key,
 in the same transaction as the post, so whichever road arrives second collides
-instead of duplicating.
+instead of duplicating. This is the Instagram case of the upstream post key every
+keyed transport writes (see [Federated transports](./federated-transports.md)).
 
 - The Graph import **claims** the key before it downloads anything, and the post
   insert fills the claim. A kilogram push racing it collides, and its inbox job
@@ -766,16 +767,17 @@ transactional migrator.
   `posts`, so reads continue.
 - It adds the widened CHECKs on `federated_actors` and `federated_follows` as
   `NOT VALID`, so it scans no rows under their ACCESS EXCLUSIVE.
-- After the deploy, run `packages/backend/src/scripts/backfillInstagramSourceKeys.ts` (`DRY_RUN`
-  first). It gives pre-0054 kilogram posts their source key, batched per bridge
-  actor through the actor-URI index, then runs `VALIDATE CONSTRAINT` on the three
-  CHECKs. VALIDATE does not block reads or writes. Until the script runs, the
-  Graph import still recognises those posts by their bridge Note id. Run it in
-  production with the **Run Instagram one-shot** workflow (see below).
+- Its post-deploy step keyed the pre-0054 kilogram posts and validated the three
+  CHECKs; both are done in production. The key is now generic (every keyed
+  transport, see [Federated transports](./federated-transports.md)), and
+  `packages/backend/src/scripts/backfillUpstreamPostKeys.ts` (`DRY_RUN` first)
+  keys the posts any keyed transport delivered before their key was written,
+  batched per transport actor through the actor-URI index. Run it in production
+  with the **Run Instagram one-shot** workflow (see below).
 
 **Running the Instagram one-shots in production.**
 `.github/workflows/run-instagram-one-shot.yml` runs `repairInstagramReelPosters`
-or `backfillInstagramSourceKeys` as an ECS one-shot on the exact deployed backend
+or `backfillUpstreamPostKeys` as an ECS one-shot on the exact deployed backend
 image. It is dispatched from protected `main` only, when `main` is the recorded
 backend deployment, by a login listed in the repository variable
 `INSTAGRAM_ONE_SHOT_OPERATORS`. A dry run comes first. A write needs
@@ -788,11 +790,11 @@ DIGEST=$(aws ecs describe-task-definition --task-definition \
      --query 'services[0].taskDefinition' --output text)" \
   --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*@//')
 gh workflow run run-instagram-one-shot.yml --ref main \
-  -f script=backfillInstagramSourceKeys -f dry_run=true -f expected_image_digest="$DIGEST"
+  -f script=backfillUpstreamPostKeys -f dry_run=true -f expected_image_digest="$DIGEST"
 # after reading its report:
 gh workflow run run-instagram-one-shot.yml --ref main \
-  -f script=backfillInstagramSourceKeys -f dry_run=false -f expected_image_digest="$DIGEST" \
-  -f preview_run_id=<dry-run id> -f confirm_write=backfillInstagramSourceKeys
+  -f script=backfillUpstreamPostKeys -f dry_run=false -f expected_image_digest="$DIGEST" \
+  -f preview_run_id=<dry-run id> -f confirm_write=backfillUpstreamPostKeys
 ```
 
 The same two commands with `script=repairInstagramReelPosters` (optionally

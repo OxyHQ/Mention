@@ -18,6 +18,10 @@ import { inArray } from 'drizzle-orm';
 import { distinctRemoteActorUris } from '../../../db/federation/followRepository';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
+import {
+  findTransportCopies,
+  releaseTransportCopy,
+} from '../../../db/posts/postTransportCopyRepository';
 import { deleteFederatedPostSubtree } from '../../../services/FederatedPostDeletionService';
 import { logger } from '../../../utils/logger';
 import { POST_COLLECTION } from '../constants';
@@ -61,8 +65,15 @@ export async function deleteStoredAtprotoRecords(
   let deleted = 0;
   for (const post of stored) {
     const did = post.uri ? didByUri.get(post.uri) : undefined;
-    if (!did || post.actorUri !== did) continue;
+    if (!did || !post.uri || post.actorUri !== did) continue;
+    // A post another transport (Bridgy Fed) still asserts keeps; only this copy goes.
+    if (await releaseTransportCopy(post.id, post.uri)) continue;
     if ((await deleteFederatedPostSubtree(post.id, did)) === 'deleted') deleted += 1;
+  }
+  // The native copy merged into a post Bridgy Fed stored first.
+  for (const copy of await findTransportCopies([...didByUri.keys()])) {
+    if (copy.actorUri !== didByUri.get(copy.objectUri)) continue;
+    await releaseTransportCopy(copy.postId, copy.objectUri);
   }
   return deleted;
 }

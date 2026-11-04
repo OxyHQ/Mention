@@ -76,8 +76,9 @@ export interface PostRecordFederation {
   /** The remote content warning. Mention's own CW gate reads this. */
   spoilerText?: string;
   /**
-   * WRITE-SIDE ONLY: the network-level source identity (`instagram:<shortcode>`)
-   * that makes one post reached by two roads collide on
+   * WRITE-SIDE ONLY: the upstream post key (`x:<tweet id>`,
+   * `instagram:<shortcode>`, `bluesky:<at-uri>`; `connectors/shared/upstreamPostKey.ts`)
+   * that makes one post reached by two transports collide on
    * `post_source_keys_source_key_key` instead of duplicating. Never read back into the
    * record — nothing downstream decides anything on it; readers that need it
    * query the column.

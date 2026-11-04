@@ -4,6 +4,7 @@ import type { FederationImportReason } from '../../db/schema/federationImports';
 import { bumpPostCounters, loadPostRecord } from '../../db/posts/postRepository';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { logger } from '../../utils/logger';
+import { upstreamPostKey } from './upstreamPostKey';
 
 /**
  * Store a federated boost — an ActivityPub `Announce`, a Bluesky repost — as a
@@ -13,8 +14,9 @@ import { logger } from '../../utils/logger';
  * The caller has already resolved the booster to a real, listable Oxy user and
  * the original to a LOCAL post id; this refuses an original that is not
  * published and public. Idempotent on `activityId` (the boost's own identity on
- * its network, held by the unique `federation.activityId` index): a duplicate is
- * `false`, not an error. The original's `boostsCount` and `federatedBoostsCount`
+ * its network, held by the unique `federation.activityId` index) and on its
+ * upstream key (a Bluesky repost reached natively and through Bridgy Fed is one
+ * repost): a duplicate is `false`, not an error. The original's `boostsCount` and `federatedBoostsCount`
  * move +1 in lockstep only when a new boost Post is created — this is the ONLY
  * site a federated boost becomes a boost count, so `boostsCount -
  * federatedBoostsCount` isolates the native ones.
@@ -50,6 +52,7 @@ export async function createFederatedBoost(input: {
         ...(input.importReason ? { importReason: input.importReason } : {}),
         actorUri: input.actorUri,
         url: input.url ?? input.activityId,
+        sourcePostKey: upstreamPostKey(input.activityId),
       },
       status: 'published',
       skipNotifications: true,
