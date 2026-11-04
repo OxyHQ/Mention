@@ -83,3 +83,10 @@ if (CANDIDATE_ORIGIN === APP_ORIGIN && process.env.MENTION_E2E_COLD_IDENTITY !==
       'the live site turns every assertion below into a test of the release that already shipped.',
   );
 }
+
+/**
+ * What a signed-in fixture's settings, preferences and entitlements reads answer:
+ * an account that already finished `/welcome`, so the first-run gate leaves the
+ * screen under test alone.
+ */
+export const FIXTURE_VIEWER_SETTINGS = { welcomeCompletedAt: '2026-01-01T00:00:00.000Z' };

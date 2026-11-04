@@ -1,5 +1,5 @@
 import type { BrowserContext } from '@playwright/test';
-import { APP_ORIGIN } from '../environment';
+import { APP_ORIGIN, FIXTURE_VIEWER_SETTINGS } from '../environment';
 import { expect, test } from '../fixtures';
 
 const viewer = {
@@ -138,7 +138,7 @@ async function installSession(context: BrowserContext) {
     if (path.startsWith('/profile/design/'))
       return json({ privacy: { profileVisibility: 'public' }, appearance: {}, profileMedia: null });
     if (path.includes('settings') || path.includes('preferences') || path.includes('entitlements'))
-      return json({});
+      return json(FIXTURE_VIEWER_SETTINGS);
     if (path === '/notifications' || path.startsWith('/notifications/'))
       return json({ notifications: [], unreadCount: 0, count: 0, hasMore: false });
     if (path === '/feed/mtn') return json({ items: [], hasMore: false });

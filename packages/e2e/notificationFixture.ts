@@ -1,5 +1,5 @@
 import type { BrowserContext, Request } from '@playwright/test';
-import { APP_ORIGIN } from './environment';
+import { APP_ORIGIN, FIXTURE_VIEWER_SETTINGS } from './environment';
 
 export const user = {
   id: 'notification-navigation-viewer',
@@ -118,7 +118,7 @@ export async function installNotificationFixture(
     if (path.includes('/users/by-ids')) return json({ users: [user] });
     if (path === '/safety/supervision') return json({ self: null, children: [], invitations: [] });
     if (path.includes('settings') || path.includes('preferences') || path.includes('entitlements'))
-      return json({});
+      return json(FIXTURE_VIEWER_SETTINGS);
     if (path === '/notifications' || path === '/notifications/_viewer/inbox')
       return json({
         notifications: Array.from({ length: 20 }, (_, index) => ({
