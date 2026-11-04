@@ -4,114 +4,39 @@
  * scannable output without excessive JSON noise.
  */
 
-import type { PollDetail, PollResults } from '@mention/shared-types';
+import type { HydratedPost, PollDetail, PollResults } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 
-interface PostData {
-  id?: string;
-  _id?: string;
-  // Canonical Oxy `User` shape emitted by `PostHydrationService` (Oxy owns
-  // identity): render `name.displayName`, derive the handle via
-  // `getNormalizedUserHandle`. No flat `name`/`handle` strings.
-  user?: {
-    id?: string;
-    username?: string;
-    name?: { displayName?: string };
-    isFederated?: boolean;
-    instance?: string;
-    federation?: { domain?: string };
-    verified?: boolean;
-  };
-  oxyUserId?: string;
-  lane?: { id?: string; name?: string };
-  content?: {
-    text?: string;
-    media?: Array<{ id: string; type: string }>;
-    pollId?: string;
-    poll?: { question?: string; options?: string[] };
-    sources?: Array<{ url: string; title?: string }>;
-    location?: { address?: string; coordinates?: [number, number] };
-    article?: { title?: string; excerpt?: string };
-    event?: { name?: string; date?: string; location?: string };
-    room?: { roomId?: string; title?: string; status?: string };
-    podcast?: { syraPodcastId?: string; title?: string };
-  };
-  type?: string;
-  visibility?: string;
-  stats?: {
-    likesCount?: number;
-    boostsCount?: number;
-    commentsCount?: number;
-    viewsCount?: number;
-  };
-  engagement?: {
-    likes?: number;
-    boosts?: number;
-    replies?: number;
-  };
-  hashtags?: string[];
-  date?: string;
-  createdAt?: string;
-  parentPostId?: string;
-  boostOf?: string;
-  quoteOf?: string;
-  /** A boost's original, as hydration attaches it (null when it is gone). */
-  originalPost?: PostData | null;
-  /** Hydrated posts carry their audience here; `visibility` is the raw row's. */
-  metadata?: { visibility?: string; createdAt?: string };
-  authors?: Array<{
-    id?: string;
-    username?: string;
-    name?: { displayName?: string };
-    role?: string;
-    status?: string;
-    isFederated?: boolean;
-  }>;
-  authorship?: Array<{
-    oxyUserId: string;
-    role: string;
-    status: string;
-  }>;
-  viewerState?: {
-    collabInvitePending?: boolean;
-    isCollaborator?: boolean;
-    isOwner?: boolean;
-    isLiked?: boolean;
-    isBoosted?: boolean;
-    isSaved?: boolean;
-  };
-  documents?: Array<{
-    canonicalUrl: string;
-    title?: string;
-    description?: string;
-    imageUrl?: string;
-    publisher?: string;
-  }>;
-}
+/**
+ * A post as `PostHydrationService` serves it. Every field is optional because
+ * tools hand the API's JSON straight through: a formatter prints what is there
+ * and never throws on what is not.
+ */
+type PostView = Partial<HydratedPost>;
 
-export function formatPost(post: PostData): string {
-  const id = post.id || post._id || 'unknown';
+export function formatPost(post: PostView): string {
+  const id = post.id || 'unknown';
   const handle = post.user ? getNormalizedUserHandle(post.user) : undefined;
   const author = post.user
     ? `@${handle || 'unknown'}${post.user.verified ? ' ✓' : ''} (${post.user.name?.displayName || ''})`
-    : post.oxyUserId || 'unknown author';
+    : 'unknown author';
 
   // A bare boost has no body of its own: what it shares is the original.
   const original = post.originalPost;
   const text =
     post.content?.text ||
     (original
-      ? `↻ Reposted [${original.id || original._id || 'unknown'}] @${original.user ? getNormalizedUserHandle(original.user) || 'unknown' : 'unknown'}: ${original.content?.text || '(no text)'}`
+      ? `↻ Reposted [${original.id || 'unknown'}] @${original.user ? getNormalizedUserHandle(original.user) || 'unknown' : 'unknown'}: ${original.content?.text || '(no text)'}`
       : '(no text)');
   // Say when a post is NOT public, so a client never repeats a followers-only
   // or private post to an audience its author did not choose.
-  const visibility = post.metadata?.visibility ?? post.visibility;
-  const date = post.metadata?.createdAt || post.date || post.createdAt || '';
+  const visibility = post.metadata?.visibility;
+  const date = post.metadata?.createdAt || '';
 
-  const rawStats = (post.stats || post.engagement || {}) as Record<string, number | undefined>;
-  const likesCount = rawStats.likesCount ?? rawStats.likes ?? 0;
-  const boostsCount = rawStats.boostsCount ?? rawStats.boosts ?? 0;
-  const commentsCount = rawStats.commentsCount ?? rawStats.replies ?? 0;
+  // A count the author hides arrives as `null`; it prints as 0, as before.
+  const likesCount = post.engagement?.likes ?? 0;
+  const boostsCount = post.engagement?.boosts ?? 0;
+  const commentsCount = post.engagement?.replies ?? 0;
 
   // The author's Oxy id, because the tools that act on a person (get-profile,
   // mute-user, subscribe-to-user, poke-user) take the id, not the handle.
@@ -124,8 +49,9 @@ export function formatPost(post: PostData): string {
     `♥ ${likesCount}  ↻ ${boostsCount}  💬 ${commentsCount}`,
   ];
 
-  if (post.hashtags && post.hashtags.length > 0) {
-    parts.push(`Tags: ${post.hashtags.map((h) => `#${h}`).join(' ')}`);
+  const hashtags = post.metadata?.hashtags;
+  if (hashtags && hashtags.length > 0) {
+    parts.push(`Tags: ${hashtags.map((h) => `#${h}`).join(' ')}`);
   }
 
   if (post.content?.media && post.content.media.length > 0) {
@@ -166,14 +92,9 @@ export function formatPost(post: PostData): string {
     parts.push(`Room: ${post.content.room.title}`);
   }
 
-  if (post.content?.podcast?.title) {
-    parts.push(`Podcast: ${post.content.podcast.title}`);
-  }
-
   if (post.lane?.id) parts.push(`Lane: ${post.lane.name ?? 'unnamed'} (id: ${post.lane.id})`);
   if (post.parentPostId) parts.push(`Reply to: ${post.parentPostId}`);
-  if (post.boostOf) parts.push(`Boost of: ${post.boostOf}`);
-  if (post.quoteOf) parts.push(`Quote of: ${post.quoteOf}`);
+  if (post.quotedPost?.id) parts.push(`Quote of: ${post.quotedPost.id}`);
 
   const authorLines = formatAuthors(post);
   if (authorLines.length > 0) {
@@ -185,7 +106,6 @@ export function formatPost(post: PostData): string {
   }
 
   if (date) parts.push(`Date: ${date}`);
-  if (post.visibility && post.visibility !== 'public') parts.push(`Visibility: ${post.visibility}`);
 
   const flags: string[] = [];
   if (post.viewerState?.isLiked) flags.push('liked');
@@ -196,7 +116,7 @@ export function formatPost(post: PostData): string {
   return parts.join('\n');
 }
 
-function formatAuthors(post: PostData): string[] {
+function formatAuthors(post: PostView): string[] {
   if (post.authors && post.authors.length > 0) {
     return post.authors.map((author) => {
       const handle = author.username ? `@${author.username}` : author.id || 'unknown';
@@ -216,15 +136,16 @@ function formatAuthors(post: PostData): string[] {
 }
 
 interface FeedResponse {
-  items?: Array<{ data?: PostData } & PostData>;
-  posts?: PostData[];
+  /** List timelines wrap each post as `{ id, type, data }`; other feeds do not. */
+  items?: Array<{ data?: PostView } & PostView>;
+  posts?: PostView[];
   hasMore?: boolean;
   nextCursor?: string;
   totalCount?: number;
 }
 
 export function formatFeed(response: FeedResponse): string {
-  const posts: PostData[] = [];
+  const posts: PostView[] = [];
 
   if (response.items) {
     for (const item of response.items) {

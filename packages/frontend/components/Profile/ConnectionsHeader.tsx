@@ -10,20 +10,20 @@ export function ConnectionsHeader({
   username,
   profileData,
 }: {
+  /** The routed handle, its `@` already stripped by `useRoutedProfileUsername`. */
   username: string;
   profileData: ProfileData | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const cleanUsername = username.replace(/^@/, '');
   const data = profileData;
   const { t } = useTranslation();
   const handle =
     getNormalizedUserHandle({
-      username: data?.username || cleanUsername,
+      username: data?.username || username,
       instance: data?.instance,
       isFederated: data?.isFederated,
-    }) || cleanUsername;
+    }) || username;
   const active = connectionTabFromPathname(pathname) ?? 'followers';
   const tabs = [
     { id: 'followers', label: t('profile.followers', { defaultValue: 'Followers' }) },

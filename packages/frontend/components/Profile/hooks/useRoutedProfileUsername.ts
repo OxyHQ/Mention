@@ -1,7 +1,8 @@
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 
 /**
- * The handle the URL names, with its leading `@` stripped.
+ * The handle the URL names, with its leading `@` stripped (`stripHandlePrefix`).
  *
  * THE ONE PLACE profile code reads the `[username]` segment. It is a hook about
  * the ROUTE, named for exactly that, and only route-level code calls it: the
@@ -21,5 +22,5 @@ import { useLocalSearchParams } from '@/lib/navigation/router';
 export function useRoutedProfileUsername(): string {
   const { username } = useLocalSearchParams<{ username: string }>();
   if (typeof username !== 'string') return '';
-  return username.startsWith('@') ? username.slice(1) : username;
+  return stripHandlePrefix(username);
 }

@@ -16,6 +16,8 @@
  *  - `https://x.com/elonmusk`                        → a pasted profile link
  */
 
+import { stripHandlePrefix } from '@mention/shared-types/handle';
+
 /** A `did:plc:` or `did:web:` identifier. */
 const DID_RE = /^did:(?:plc|web):/;
 
@@ -28,7 +30,7 @@ const HANDLE_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z
 
 /** True when `query` is a fediverse `user@host` acct (with or without a leading `@`). */
 function isFediverseAcct(query: string): boolean {
-  const cleaned = query.replace(/^@/, '');
+  const cleaned = stripHandlePrefix(query);
   const at = cleaned.indexOf('@');
   if (at <= 0 || at === cleaned.length - 1) return false;
   const domain = cleaned.slice(at + 1);

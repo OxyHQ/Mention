@@ -23,28 +23,13 @@ export interface NotificationsResponse {
 
 class NotificationService {
   /**
-   * Get notifications for the current user.
+   * The viewer's notifications, bound to the effective authenticated subject.
    * The cursor is an opaque backend pagination token.
    */
-  async getNotifications(cursor?: string, limit: number = 20): Promise<NotificationsResponse> {
-    return this.fetchNotifications('/notifications', cursor, limit);
-  }
-
-  /** A reconciliation read bound to the effective authenticated subject. */
   async getNotificationsForViewer(
     viewerId: string,
     cursor?: string,
     limit: number = 20,
-    signal?: AbortSignal,
-  ): Promise<NotificationsResponse> {
-    return this.fetchNotifications('/notifications/_viewer/inbox', cursor, limit, viewerId, signal);
-  }
-
-  private async fetchNotifications(
-    path: string,
-    cursor: string | undefined,
-    limit: number,
-    viewerId?: string,
     signal?: AbortSignal,
   ): Promise<NotificationsResponse> {
     try {
@@ -55,9 +40,9 @@ class NotificationService {
       }
 
       const [response, { validateNotifications }] = await Promise.all([
-        authenticatedClient.get<Partial<NotificationsResponse>>(path, {
+        authenticatedClient.get<Partial<NotificationsResponse>>('/notifications/_viewer/inbox', {
           params,
-          ...(viewerId ? { headers: expectedViewerHeaders(viewerId) } : {}),
+          headers: expectedViewerHeaders(viewerId),
           ...(signal ? { signal } : {}),
         }),
         loadNotificationValidation(),
@@ -109,21 +94,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Get unread notification count
-   */
-  async getUnreadCount(): Promise<number> {
-    try {
-      const response = await authenticatedClient.get<{ count?: number }>(
-        '/notifications/unread-count',
-      );
-      return response.data.count || 0;
-    } catch (error) {
-      logger.error('Error fetching unread count', error);
-      return 0;
-    }
-  }
-
   /** A protected reconciliation failure must not be reported as a zero badge. */
   async getUnreadCountForViewer(viewerId: string, signal?: AbortSignal): Promise<number> {
     const response = await authenticatedClient.get<{ count?: number }>(
@@ -143,22 +113,6 @@ class NotificationService {
       });
     } catch (error) {
       logger.error('Error deleting notification', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Archive a notification
-   */
-  async archiveNotification(notificationId: string, viewerId: string): Promise<void> {
-    try {
-      await authenticatedClient.patch(
-        `/notifications/_viewer/${notificationId}/archive`,
-        undefined,
-        { headers: expectedViewerHeaders(viewerId) },
-      );
-    } catch (error) {
-      logger.error('Error archiving notification', error);
       throw error;
     }
   }

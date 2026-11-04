@@ -1,3 +1,4 @@
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { useMemo } from 'react';
 import type { Href } from '@/lib/navigation/router';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -39,7 +40,7 @@ export interface ProfileAccount {
  * them.
  */
 export function useProfileAccount(routedUsername: string): ProfileAccount {
-  const username = routedUsername.startsWith('@') ? routedUsername.slice(1) : routedUsername;
+  const username = stripHandlePrefix(routedUsername);
 
   // A federated handle carries its instance in the segment itself. A Mention
   // channel is a local account, so this can only ever be true on the person

@@ -2,6 +2,8 @@
  * Federation types for ActivityPub/Mastodon integration
  */
 
+import { stripHandlePrefix } from './handle';
+
 /**
  * The one spelling of a fediverse `user@host` account: no `acct:` scheme, no
  * leading `@`, lower case. `undefined` when the value names no such account.
@@ -13,10 +15,7 @@
  */
 export function normalizeFederatedAcct(acct: string | undefined): string | undefined {
   if (!acct) return undefined;
-  const cleaned = acct
-    .trim()
-    .replace(/^acct:/i, '')
-    .replace(/^@/, '');
+  const cleaned = stripHandlePrefix(acct.trim().replace(/^acct:/i, ''));
   const atIndex = cleaned.indexOf('@');
   if (atIndex <= 0 || atIndex === cleaned.length - 1) return undefined;
 

@@ -1,3 +1,4 @@
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
 import { and, arrayContains, eq, exists, gte, lte, sql, type SQL } from 'drizzle-orm';
@@ -121,10 +122,10 @@ function parseSearchOperators(raw: string): ParsedOperators {
 
     switch (key) {
       case 'from':
-        result.from = value.replace(/^@/, ''); // strip leading @
+        result.from = stripHandlePrefix(value);
         break;
       case 'to':
-        result.to = value.replace(/^@/, ''); // strip leading @
+        result.to = stripHandlePrefix(value);
         break;
       case 'since':
         if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {

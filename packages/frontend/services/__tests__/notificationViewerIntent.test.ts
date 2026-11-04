@@ -18,13 +18,11 @@ it('sends the intended viewer on all new notification write routes', async () =>
   mockDelete.mockResolvedValue({ data: {} });
   await notificationService.markAsRead('n', 'A');
   await notificationService.markAllAsRead('A');
-  await notificationService.archiveNotification('n', 'A');
   await notificationService.deleteNotification('n', 'A');
   const config = { headers: { 'X-Mention-Expected-Viewer': 'A' } };
   expect(mockPatch.mock.calls).toEqual([
     ['/notifications/_viewer/n/read', undefined, config],
     ['/notifications/_viewer/read-all', undefined, config],
-    ['/notifications/_viewer/n/archive', undefined, config],
   ]);
   expect(mockDelete.mock.calls).toEqual([['/notifications/_viewer/n', config]]);
 });

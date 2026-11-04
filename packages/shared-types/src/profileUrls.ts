@@ -27,6 +27,7 @@
  */
 
 import type { AccountKind } from '@oxy.so/contracts';
+import { stripHandlePrefix } from './handle';
 
 /**
  * Our minted ActivityPub actor URI — `https://<us>/ap/users/<username>`.
@@ -188,7 +189,7 @@ export function ownProfileUrlHandle(url: string, hosts: readonly string[]): stri
     return undefined;
   }
 
-  handle = handle.replace(/^@+/, '').trim();
+  handle = stripHandlePrefix(handle);
   if (!handle || ROUTE_HOSTILE_HANDLE.test(handle)) return undefined;
   return handle;
 }

@@ -1,8 +1,5 @@
+import { handleKey } from '@mention/shared-types/handle';
 import { checkContract, externalIdentityReferenceCheck } from '@oxy.so/contracts/client';
-
-function normalizeHandle(raw: string): string {
-  return raw.trim().replace(/^@+/, '').trim().toLowerCase();
-}
 
 /**
  * Public routes may name the canonical Oxy username or an Oxy-proven network
@@ -14,9 +11,9 @@ export function isPublicProfileHandle(
   resolvedUsername: string | null | undefined,
   resolvedProfile?: unknown,
 ): boolean {
-  const canonical = typeof resolvedUsername === 'string' ? normalizeHandle(resolvedUsername) : '';
+  const canonical = typeof resolvedUsername === 'string' ? handleKey(resolvedUsername) : '';
   if (!canonical) return false;
-  const routed = normalizeHandle(routedHandle);
+  const routed = handleKey(routedHandle);
   if (routed === canonical) return true;
   if (
     !resolvedProfile ||
@@ -33,5 +30,5 @@ export function isPublicProfileHandle(
     .map((alias) => checkContract(externalIdentityReferenceCheck, alias))
     .filter((alias) => alias !== null);
   if (aliases.length !== listed.length) return false;
-  return aliases.some((alias) => normalizeHandle(alias.canonicalAcct) === routed);
+  return aliases.some((alias) => handleKey(alias.canonicalAcct) === routed);
 }

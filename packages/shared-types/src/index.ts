@@ -54,6 +54,9 @@ export * from './customFeed';
 // Federation types (ActivityPub/Mastodon)
 export * from './federation';
 
+// Handle prefix stripping and comparison keys
+export * from './handle';
+
 // Trending-topic telemetry
 export * from './trending';
 
