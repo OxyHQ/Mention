@@ -18,8 +18,10 @@
  *  - a followers-addressed note stays `followers_only`;
  *  - a followers-only post whose note is direct to nobody here, is gone, or is
  *    refused to every actor below, moves to `private`, as the first form did;
- *  - a publicly addressed note is left as it is (counted as `public`): this
- *    repair narrows audiences and never widens one;
+ *  - a publicly addressed note becomes `public` again (`restoredPublic`): it
+ *    was stored narrower only because the old rule misread `as:Public`, a
+ *    single-value `to`/`cc` or an embedded `{ id }` addressee, and the origin's
+ *    addressing is the source of truth;
  *  - a note whose origin failed (5xx, network) is left as it is, to retry;
  *  - anything else is left exactly as it is.
  *
@@ -91,8 +93,8 @@ export interface RecoverDirectMessagesResult {
   followersOnly: number;
   /** Followers-only posts that are not followers-addressed, gone or refused: moved to private. */
   hidden: number;
-  /** Notes the origin addresses publicly: left as they are (this repair never widens a post). */
-  public: number;
+  /** Notes the origin addresses publicly: restored to public. */
+  restoredPublic: number;
   /** Posts left as they are (still private, or no longer followers-only). */
   unchanged: number;
   /** Notes the instance was refused but a local user's signature fetched. */
@@ -267,7 +269,7 @@ export async function recoverFederatedDirectMessages(options: {
     converted: 0,
     followersOnly: 0,
     hidden: 0,
-    public: 0,
+    restoredPublic: 0,
     unchanged: 0,
     fetchedAsActor: 0,
     gone: 0,
@@ -298,15 +300,19 @@ export async function recoverFederatedDirectMessages(options: {
     }
   };
 
-  const hide = async (id: string) => {
-    result.hidden += 1;
+  /** Move a post from the visibility this run read to `to`; a concurrent change wins. */
+  const setVisibility = async (id: string, from: PostVisibility, to: PostVisibility) => {
     if (options.dryRun) return;
     const updated = await getDb()
       .update(posts)
-      .set({ visibility: PostVisibility.PRIVATE })
-      .where(and(eq(posts.id, id), eq(posts.visibility, PostVisibility.FOLLOWERS_ONLY)))
+      .set({ visibility: to })
+      .where(and(eq(posts.id, id), eq(posts.visibility, from)))
       .returning({ id: posts.id });
     if (updated.length > 0) await invalidatePostDetailCache(id);
+  };
+  const hide = async (id: string) => {
+    result.hidden += 1;
+    await setVisibility(id, PostVisibility.FOLLOWERS_ONLY, PostVisibility.PRIVATE);
   };
 
   const recoverOne = async (row: {
@@ -346,8 +352,9 @@ export async function recoverFederatedDirectMessages(options: {
       result.followersOnly += 1;
       observe('followersOnly', row.activityId, shape());
     } else if (audience?.visibility === PostVisibility.PUBLIC) {
-      result.public += 1;
-      observe('public', row.activityId, shape());
+      result.restoredPublic += 1;
+      observe('restoredPublic', row.activityId, shape());
+      await setVisibility(row.id, stored, PostVisibility.PUBLIC);
     } else if (stored === PostVisibility.FOLLOWERS_ONLY) {
       observe('hidden', row.activityId, shape());
       await hide(row.id);

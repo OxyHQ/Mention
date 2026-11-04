@@ -116,6 +116,18 @@ describe('recoverFederatedDirectMessages', () => {
     );
   });
 
+  it('restores a post the old rule misread as non-public', async () => {
+    const post = await federatedPost(
+      'https://remote.test/notes/compact-public',
+      PostVisibility.FOLLOWERS_ONLY,
+      ['as:Public'],
+    );
+
+    const run = await recoverFederatedDirectMessages({ dryRun: false });
+    expect(run).toMatchObject({ restoredPublic: 1, hidden: 0 });
+    expect((await loadPostRecord(post.id))?.visibility).toBe(PostVisibility.PUBLIC);
+  });
+
   it('leaves a post whose origin fails unchanged for a re-run', async () => {
     const noteId = 'https://remote.test/notes/origin-down';
     gated.set(noteId, { readers: [], status: 503 });
