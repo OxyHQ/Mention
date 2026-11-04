@@ -75,6 +75,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
+import { federatedActors } from '../../db/schema/federation';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
 import type { PostRecord } from '../../db/posts/postRecord';
@@ -209,6 +210,31 @@ describe('getPostById ACL — anonymous viewer cannot see non-public posts', () 
     const post = await seedPost(scope, { oxyUserId: AUTHOR_ID });
 
     expect(await hydrateAsAnon(post)).toHaveLength(0);
+  });
+
+  it('DROPS a public post whose federated author hides from signed-out readers', async () => {
+    // Bluesky's `!no-unauthenticated`: no Mention settings row, the origin's
+    // choice on the actor row is the whole signal.
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, AUTHOR_ID));
+    const did = `did:plc:${AUTHOR_ID}`;
+    await getDb()
+      .insert(federatedActors)
+      .values({
+        protocol: 'atproto',
+        uri: did,
+        username: AUTHOR_ID,
+        domain: 'bsky.social',
+        acct: `${AUTHOR_ID}.bsky.social`,
+        oxyUserId: AUTHOR_ID,
+        requiresSignIn: true,
+      });
+    try {
+      const post = await seedPost(scope, { oxyUserId: AUTHOR_ID });
+
+      expect(await hydrateAsAnon(post)).toHaveLength(0);
+    } finally {
+      await getDb().delete(federatedActors).where(eq(federatedActors.uri, did));
+    }
   });
 
   it('RETURNS a public post from an author with NO settings row at all', async () => {

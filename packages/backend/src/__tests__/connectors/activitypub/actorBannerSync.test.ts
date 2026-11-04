@@ -38,7 +38,9 @@ vi.mock('../../../db/federation/bannerMirrorRepository', () => ({
   syncFederatedBannerInBackground: mocks.syncFederatedBannerInBackground,
 }));
 
-import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { federatedActors } from '../../../db/schema/federation';
 import { findActorByUri, setActorMovedTo } from '../../../db/federation/actorRepository';
 import { actorService } from '../../../connectors/activitypub/actor.service';
 import { clearFederationScope, federationScope } from '../../helpers/federationFixtures';
@@ -50,6 +52,7 @@ const BANNER = `${scope.origin}/media/header.png`;
 
 let image: string | undefined;
 let movedTo: string | undefined;
+let indexable: boolean | undefined;
 
 beforeAll(connectPostgres);
 afterAll(closePostgres);
@@ -67,6 +70,7 @@ beforeEach(() => {
           inbox: `${ACTOR}/inbox`,
           ...(image && { image: { type: 'Image', url: image } }),
           ...(movedTo && { movedTo }),
+          ...(indexable !== undefined && { indexable }),
         }),
         { status: 200, headers: { 'content-type': 'application/activity+json' } },
       ),
@@ -120,5 +124,23 @@ describe('the actor upsert', () => {
     movedTo = undefined;
     await actorService.fetchRemoteActor(ACTOR);
     expect((await findActorByUri(ACTOR))?.movedTo).toBeUndefined();
+  });
+
+  it('stores the `indexable` the actor states, and NULL once it stops stating it', async () => {
+    const stored = async () =>
+      (
+        await getDb()
+          .select({ indexable: federatedActors.indexable })
+          .from(federatedActors)
+          .where(eq(federatedActors.uri, ACTOR))
+      )[0]?.indexable;
+
+    indexable = true;
+    await actorService.fetchRemoteActor(ACTOR);
+    expect(await stored()).toBe(true);
+
+    indexable = undefined;
+    await actorService.fetchRemoteActor(ACTOR);
+    expect(await stored()).toBeNull();
   });
 });

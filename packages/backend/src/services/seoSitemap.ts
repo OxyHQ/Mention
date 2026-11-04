@@ -24,11 +24,15 @@
  * the leader's first build lands.
  */
 
-import { and, asc, eq, isNotNull, isNull, max, or, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, max, not, or, sql } from 'drizzle-orm';
 import { normalizeUserIdentity, type User } from '@oxy.so/core';
 import { promisify } from 'node:util';
 import { gzip, gunzip } from 'node:zlib';
 import { getDb, getPostgresClient } from '../db/postgres';
+import {
+  federatedSearchOptOutExists,
+  findFederatedVisibilityOptOuts,
+} from '../db/federation/actorRepository';
 import { posts } from '../db/schema/posts';
 import { userSettings } from '../db/schema/userProfile';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
@@ -101,35 +105,51 @@ export interface SitemapCatalog {
   builtAt?: string;
 }
 
-/** What an account's Mention privacy settings allow its public pages. */
+/**
+ * What an account's privacy choices allow its public pages: a local account's
+ * Mention settings, and a federated account's own opt-outs at its origin
+ * (`findFederatedVisibilityOptOuts`). One policy for both, so every reader —
+ * the web shell's robots, its post replies, the sitemaps — decides the same way.
+ */
 export interface MentionProfileSeoPolicy {
-  /** The profile is public on Mention, so its page and posts render for anyone. */
+  /**
+   * The profile renders for anyone, signed out included. False for a private
+   * profile and for a federated account that hides from signed-out readers.
+   */
   visible: boolean;
   /**
    * Search engines may index it. False when the account opted out
-   * (`privacy.searchEngineIndexing`), and whenever it is not `visible`.
+   * (`privacy.searchEngineIndexing`, or its origin's `discoverable` /
+   * `indexable`), and whenever it is not `visible`.
    */
   indexable: boolean;
 }
 
 /**
- * An account's Mention-side publishing policy, read fresh. An account with no
- * settings row has never changed a default: public and indexable.
+ * An account's publishing policy, read fresh. An account with no settings row
+ * has never changed a default, and one with no federated actor row has no
+ * origin to opt out at: public and indexable.
  */
 export async function mentionProfileSeoPolicy(
   oxyUserId: string | undefined,
 ): Promise<MentionProfileSeoPolicy> {
   if (!oxyUserId) return { visible: true, indexable: true };
-  const [settings] = await getDb()
-    .select({
-      visibility: userSettings.privacyProfileVisibility,
-      searchEngineIndexing: userSettings.privacySearchEngineIndexing,
-    })
-    .from(userSettings)
-    .where(eq(userSettings.oxyUserId, oxyUserId))
-    .limit(1);
-  const visible = !settings || settings.visibility === 'public';
-  return { visible, indexable: visible && (!settings || settings.searchEngineIndexing) };
+  const [[settings], federated] = await Promise.all([
+    getDb()
+      .select({
+        visibility: userSettings.privacyProfileVisibility,
+        searchEngineIndexing: userSettings.privacySearchEngineIndexing,
+      })
+      .from(userSettings)
+      .where(eq(userSettings.oxyUserId, oxyUserId))
+      .limit(1),
+    findFederatedVisibilityOptOuts([oxyUserId]).then((optOuts) => optOuts.get(oxyUserId)),
+  ]);
+  const visible = (!settings || settings.visibility === 'public') && !federated?.requiresSignIn;
+  return {
+    visible,
+    indexable: visible && (!settings || settings.searchEngineIndexing) && !federated?.searchOptOut,
+  };
 }
 
 /**
@@ -163,6 +183,8 @@ function publicSeoPost(): ReturnType<typeof and> {
       isNull(userSettings.privacySearchEngineIndexing),
       eq(userSettings.privacySearchEngineIndexing, true),
     ),
+    // The same choice made at a federated author's origin.
+    not(federatedSearchOptOutExists(posts.oxyUserId)),
   );
 }
 

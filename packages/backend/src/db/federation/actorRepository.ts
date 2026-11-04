@@ -47,6 +47,7 @@ import {
   ne,
   or,
   sql,
+  type Column,
   type SQL,
 } from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
@@ -547,6 +548,13 @@ export interface ActorUpsertColumns {
   type: string;
   manuallyApprovesFollowers: boolean;
   discoverable: boolean;
+  /**
+   * The ActivityPub `indexable` the origin sent. Absent is "no statement" and is
+   * stored as NULL — what it MEANS is decided by {@link federatedSearchOptOutSql}.
+   */
+  indexable?: boolean;
+  /** Bluesky's `!no-unauthenticated` self-label. Absent is false. */
+  requiresSignIn?: boolean;
   memorial: boolean;
   suspended: boolean;
   featuredUrl?: string;
@@ -615,6 +623,10 @@ export async function upsertActor(
     type: normalizeActorType(columns.type),
     manuallyApprovesFollowers: columns.manuallyApprovesFollowers,
     discoverable: columns.discoverable,
+    // Written on every refresh, so an account that withdraws an opt-in (or an
+    // opt-out) is read the way it is now, not the way it once was.
+    indexable: columns.indexable ?? null,
+    requiresSignIn: columns.requiresSignIn ?? false,
     memorial: columns.memorial,
     suspended: columns.suspended,
     featuredUrl: columns.featuredUrl ?? null,
@@ -669,6 +681,80 @@ export async function upsertActor(
   // no `.transaction`, so the nesting is decided by the type rather than a probe.
   const row = 'transaction' in db ? await db.transaction(write) : await write(db);
   return row ? assembleActorRecord(row) : null;
+}
+
+/**
+ * The ONE definition of a federated actor row whose origin keeps it out of
+ * search engines:
+ *
+ * - it hides from signed-out readers (`requires_sign_in`), and a crawler is one;
+ * - it is not `discoverable`;
+ * - it is an ActivityPub actor that did not opt IN with `indexable: true`.
+ *   Mastodon reads a remote account's `false` and its absence alike as "not
+ *   indexable", so a NULL here is out too. atproto and Instagram make no such
+ *   statement, so their NULL decides nothing.
+ *
+ * Every reference is `qualified()`, because this runs inside a correlated
+ * subquery (see {@link federatedSearchOptOutExists}).
+ */
+function federatedSearchOptOutSql(): SQL {
+  return sql`(${qualified(federatedActors.requiresSignIn)}
+    or not ${qualified(federatedActors.discoverable)}
+    or (${qualified(federatedActors.protocol)} = 'activitypub'
+      and ${qualified(federatedActors.indexable)} is not true))`;
+}
+
+/**
+ * SQL: a federated actor behind the Oxy account in `oxyUserId` (an OUTER query's
+ * column) is kept out of search engines by its origin. Any one of an account's
+ * actor rows opting out is enough — two transports of one person must not let
+ * the louder one override the quieter one.
+ */
+export function federatedSearchOptOutExists(oxyUserId: Column): SQL {
+  return sql`exists (select 1 from ${federatedActors}
+    where ${qualified(federatedActors.oxyUserId)} = ${qualified(oxyUserId)}
+      and ${federatedSearchOptOutSql()})`;
+}
+
+/** What a federated account's origin withholds from the open web. */
+export interface FederatedVisibilityOptOuts {
+  /** Signed-out readers see neither the profile nor its posts. */
+  requiresSignIn: boolean;
+  /** Search engines may not index it ({@link federatedSearchOptOutSql}). */
+  searchOptOut: boolean;
+}
+
+/**
+ * The origin-side opt-outs of each of these Oxy accounts that is a federated
+ * account, keyed by Oxy id. A local account (no actor row) is absent: it has
+ * nothing to opt out of here, its own settings decide.
+ */
+export async function findFederatedVisibilityOptOuts(
+  oxyUserIds: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Map<string, FederatedVisibilityOptOuts>> {
+  if (oxyUserIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      oxyUserId: federatedActors.oxyUserId,
+      requiresSignIn: sql<boolean>`bool_or(${qualified(federatedActors.requiresSignIn)})`,
+      searchOptOut: sql<boolean>`bool_or(${federatedSearchOptOutSql()})`,
+    })
+    .from(federatedActors)
+    .where(inArray(federatedActors.oxyUserId, [...oxyUserIds]))
+    .groupBy(federatedActors.oxyUserId);
+  return new Map(
+    rows.flatMap((row) =>
+      row.oxyUserId
+        ? [
+            [
+              row.oxyUserId,
+              { requiresSignIn: row.requiresSignIn, searchOptOut: row.searchOptOut },
+            ] as const,
+          ]
+        : [],
+    ),
+  );
 }
 
 /** Stamp the resolved Oxy user id onto an actor row. */

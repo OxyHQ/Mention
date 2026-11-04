@@ -778,6 +778,13 @@
       "when": 1793753706143,
       "tag": "0110_validate_private_mentions_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1793760696133,
+      "tag": "0111_federated_actor_visibility_opt_outs",
+      "breakpoints": true
     }
   ]
 }

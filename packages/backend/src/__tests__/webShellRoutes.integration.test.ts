@@ -616,6 +616,35 @@ describe('webShell routes (integration)', () => {
     }
   });
 
+  it('serves a federated profile that hides from signed-out readers as unavailable', async () => {
+    const did = `did:plc:${AUTHOR}`;
+    await getDb()
+      .insert(federatedActors)
+      .values({
+        protocol: 'atproto',
+        uri: did,
+        username: AUTHOR,
+        domain: 'bsky.social',
+        acct: `${AUTHOR}.bsky.social`,
+        oxyUserId: AUTHOR,
+        requiresSignIn: true,
+      });
+    try {
+      stubFetch({
+        ok: true,
+        body: { data: { id: AUTHOR, username: `${AUTHOR}@bsky.social`, bio: 'members only' } },
+      });
+
+      const res = await request(makeApp()).get(`/@${AUTHOR}@bsky.social`);
+
+      expect(res.status).toBe(404);
+      expect(res.text).toContain('content="noindex,nofollow"');
+      expect(res.text).not.toContain('members only');
+    } finally {
+      await getDb().delete(federatedActors).where(eq(federatedActors.uri, did));
+    }
+  });
+
   describe('hashtag pages', () => {
     const apex = new URL(config.web.origin).hostname;
 

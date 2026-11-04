@@ -135,6 +135,23 @@ export const federatedActors = pgTable(
     type: text({ enum: FEDERATED_ACTOR_TYPES }).notNull().default('Person'),
     manuallyApprovesFollowers: boolean().notNull().default(false),
     discoverable: boolean().notNull().default(true),
+    /**
+     * The ActivityPub actor's `indexable`, as the origin stated it: Mastodon's
+     * opt-IN to search. NULL is "no statement" — a server or a release that never
+     * sends it, an actor not yet refreshed since the column existed, and every
+     * protocol that has no such flag (atproto, Instagram).
+     *
+     * Stored as said, never as decided: `federatedSearchOptOutSql` in
+     * `actorRepository.ts` is where it is read, and where an ActivityPub actor's
+     * NULL counts as "not indexable" (Mastodon's own rule for a remote account).
+     */
+    indexable: boolean(),
+    /**
+     * The account hides itself from signed-out readers — Bluesky's
+     * `!no-unauthenticated` self-label. Logged-out viewers get neither the
+     * profile nor its posts, and search engines are one of them.
+     */
+    requiresSignIn: boolean().notNull().default(false),
     memorial: boolean().notNull().default(false),
     suspended: boolean().notNull().default(false),
     featuredUrl: text(),

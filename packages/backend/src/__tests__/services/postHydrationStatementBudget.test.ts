@@ -305,7 +305,9 @@ describe('the statement budget for an anonymous feed cache hit', () => {
     /**
      * A hit loads the current records of the page's graph (posts + its ten
      * child tables, once for the whole graph), the authors' privacy settings and
-     * the safety evidence, and asks Oxy for current decisions. It does NOT run
+     * the safety evidence, and asks Oxy for current decisions. A signed-out read
+     * also asks `federated_actors` once whether an author hides from signed-out
+     * readers at their origin (Bluesky's `!no-unauthenticated`). It does NOT run
      * the hydration pipeline: no `post_recent_repliers`, `starter_pack_members`,
      * `post_imports` and no second or third `posts` level.
      */
@@ -327,6 +329,7 @@ describe('the statement budget for an anonymous feed cache hit', () => {
     const statements = await statementsByTable();
     expect(statements.get('posts')).toBe(1);
     expect(statements.get('post_recent_repliers')).toBeUndefined();
-    expect([...statements.values()].reduce((sum, count) => sum + count, 0)).toBe(13);
+    expect(statements.get('federated_actors')).toBe(1);
+    expect([...statements.values()].reduce((sum, count) => sum + count, 0)).toBe(14);
   });
 });
