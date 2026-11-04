@@ -1,86 +1,70 @@
 import type { EmbeddedCheckoutBinding } from './embeddedCheckout';
+import { type CheckoutPaymentMethod, parseBaseUnits, parsePaymentMethods } from './peableWire';
 import type { CheckoutReview } from './checkoutReview';
+
+const PRODUCT = 'peable_local_mention_plus';
 
 /** Public collection configuration, never payer or merchant authorization. */
 export interface CheckoutConfiguration {
-  environment: 'test';
+  livemode: false;
   publishableKey: string;
   currency: 'USD';
-  expiresAt: string;
-  scope: { merchantId: string; productId: 'peable_local_mention_plus' };
+  /** Epoch milliseconds; the configuration is stale after it. */
+  expiresAt: number;
+  /** The local test merchant's public `merch_…`. */
+  merchant: string;
+  product: typeof PRODUCT;
   prices: Record<'month' | 'year', { amountMinorUnits: number; interval: 'month' | 'year' }>;
-  paymentMethods: NonNullable<EmbeddedCheckoutBinding['paymentMethods']>;
+  paymentMethods: readonly CheckoutPaymentMethod[];
 }
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
+/** `GET /__local/checkout-test/config` (`local_checkout_configuration`), Peable's ADR 0014 wire. */
 export function parseCheckoutConfiguration(
   value: unknown,
   now = Date.now(),
 ): CheckoutConfiguration {
+  const expiresAt =
+    record(value) && typeof value.expires_at === 'number' && Number.isSafeInteger(value.expires_at)
+      ? value.expires_at * 1000
+      : Number.NaN;
   if (
     !record(value) ||
-    value.environment !== 'test' ||
+    value.object !== 'local_checkout_configuration' ||
+    value.livemode !== false ||
     value.currency !== 'USD' ||
-    typeof value.publishableKey !== 'string' ||
-    !/^pk_test_[A-Za-z0-9]+$/.test(value.publishableKey) ||
-    value.publishableKey.length > 256 ||
-    typeof value.expiresAt !== 'string' ||
-    !Number.isFinite(Date.parse(value.expiresAt)) ||
-    Date.parse(value.expiresAt) <= now ||
-    Date.parse(value.expiresAt) > now + 120_000 ||
-    !record(value.scope) ||
-    typeof value.scope.merchantId !== 'string' ||
-    !/^merch_[A-Za-z0-9_-]+$/.test(value.scope.merchantId) ||
-    value.scope.productId !== 'peable_local_mention_plus' ||
+    typeof value.publishable_key !== 'string' ||
+    !/^pk_test_[A-Za-z0-9]+$/.test(value.publishable_key) ||
+    value.publishable_key.length > 256 ||
+    !(expiresAt > now) ||
+    expiresAt > now + 120_000 ||
+    typeof value.merchant !== 'string' ||
+    !/^merch_[A-Za-z0-9_-]+$/.test(value.merchant) ||
+    value.product !== PRODUCT ||
     !record(value.prices)
   )
     throw new Error('Checkout configuration is unavailable.');
   const parsePrice = (candidate: unknown, interval: 'month' | 'year') => {
-    if (
-      !record(candidate) ||
-      candidate.interval !== interval ||
-      typeof candidate.amountMinorUnits !== 'number' ||
-      !Number.isSafeInteger(candidate.amountMinorUnits) ||
-      candidate.amountMinorUnits <= 0
-    )
+    if (!record(candidate) || candidate.interval !== interval)
       throw new Error('Checkout configuration is unavailable.');
-    return { interval, amountMinorUnits: candidate.amountMinorUnits };
+    const amount = parseBaseUnits(candidate.unit_amount);
+    if (amount === null || amount <= 0) throw new Error('Checkout configuration is unavailable.');
+    return { interval, amountMinorUnits: amount };
   };
-  const prices = {
-    month: parsePrice(value.prices.month, 'month'),
-    year: parsePrice(value.prices.year, 'year'),
-  };
-  if (!Array.isArray(value.paymentMethods) || value.paymentMethods.length !== 4)
-    throw new Error('Checkout methods are unavailable.');
-  const ids = new Set<string>();
-  const paymentMethods = value.paymentMethods.map((method: unknown) => {
-    if (
-      !record(method) ||
-      typeof method.id !== 'string' ||
-      !['card', 'bank', 'installments', 'faircoin'].includes(method.id) ||
-      ids.has(method.id) ||
-      typeof method.available !== 'boolean' ||
-      (method.reason !== undefined &&
-        (typeof method.reason !== 'string' || method.reason.length > 200))
-    )
-      throw new Error('Checkout methods are unavailable.');
-    ids.add(method.id);
-    return {
-      id: method.id as CheckoutConfiguration['paymentMethods'][number]['id'],
-      available: method.available,
-      reason: method.reason as string | undefined,
-    };
-  });
   // Copy only the reviewed public fields; unknown fields never reach UI state.
   return {
-    environment: 'test',
-    publishableKey: value.publishableKey,
+    livemode: false,
+    publishableKey: value.publishable_key,
     currency: 'USD',
-    expiresAt: value.expiresAt,
-    scope: { merchantId: value.scope.merchantId, productId: 'peable_local_mention_plus' },
-    prices,
-    paymentMethods,
+    expiresAt,
+    merchant: value.merchant,
+    product: PRODUCT,
+    prices: {
+      month: parsePrice(value.prices.month, 'month'),
+      year: parsePrice(value.prices.year, 'year'),
+    },
+    paymentMethods: parsePaymentMethods(value.payment_methods),
   };
 }
 export function configurationMatchesReview(
@@ -90,7 +74,7 @@ export function configurationMatchesReview(
 ): boolean {
   const price = configuration.prices[review.interval];
   return (
-    Date.parse(configuration.expiresAt) > now &&
+    configuration.expiresAt > now &&
     configuration.currency === review.currency &&
     price.interval === review.interval &&
     price.amountMinorUnits === review.amountMinorUnits
@@ -101,8 +85,8 @@ export function configurationMatchesBinding(
   binding: EmbeddedCheckoutBinding,
 ): boolean {
   return (
-    configuration.environment === binding.environment &&
-    configuration.scope.merchantId === binding.initial?.intent.merchant_id &&
+    configuration.livemode === binding.livemode &&
+    configuration.merchant === binding.initial?.intent.merchant_id &&
     configuration.publishableKey === binding.initial?.action.publishable_key
   );
 }

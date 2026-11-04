@@ -13,7 +13,7 @@ function prepared(): EmbeddedCheckoutBinding {
     apiUrl: 'https://gateway.example',
     intentId: 'pi_test',
     clientSecret: 'opaque',
-    environment: 'test',
+    livemode: false,
     subscription: {
       id: 'sub_test',
       currency: 'USD',

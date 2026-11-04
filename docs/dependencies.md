@@ -46,9 +46,12 @@ move it when the reason goes away.
   peers `^2.2.0` (`@oxy.so/core`, `@oxy.so/services` and `@oxy.so/protocol`
   already accept 3).
 - `react-native-audio-api` stays on 0.13: `@alia.onl/sdk` peers `^0.13.6`.
-- `@peable.to/sdk` follows `@oxy.so/services`, which depends on one exact
-  version (0.20.0 for services 14.3.3): the app must load one Peable copy, so
-  it moves when services does.
+- `@peable.to/sdk` is catalogued and the root `overrides` names it
+  (`"catalog:"`): the app must load one Peable copy, and `@oxy.so/services`
+  14.3.3 still depends on exactly 0.20.0. Services imports only
+  `@peable.to/sdk/display`, byte-identical in 0.20.0 and 1.0.0, so the override
+  is recorded in `ACCEPTED_OVERRIDE_RANGE_VIOLATIONS`; drop that entry when
+  services depends on 1.x.
 - `nativewind` 5.0.0-rc.0 and `react-native-css` 3.1.0-rc.0: `@oxy.so/bloom`
   depends on `react-native-css` 3.1.0-rc.0 exactly and peers `nativewind`
   `>=5.0.0 || 5.0.0-rc.0`.

@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { Peable, PEABLE_BILLING_AUTHORITY_KEYS } from '@peable.to/sdk';
+import { PEABLE_BILLING_AUTHORITY_KEYS, peableForOxyService } from '@peable.to/sdk';
 import { getDb } from '../../../db/postgres';
 import { membershipBillingReceipts } from '../../../db/schema/membershipBilling';
 import { membershipTiers } from '../../../db/schema/memberships';
@@ -103,7 +103,7 @@ export async function reconcileMembershipInvoice(
     .from(membershipTiers)
     .where(and(eq(membershipTiers.id, tierId), eq(membershipTiers.communityId, communityId)));
   if (tier?.kind !== 'paid') throw new MembershipError(409, 'Paid tier required');
-  const client = new Peable({
+  const client = peableForOxyService({
     invoiceAuthorityKeys: PEABLE_BILLING_AUTHORITY_KEYS,
     oxy: getServiceOxyClient(),
     requester: { accountId: actor.accountId, token: request.accessToken },

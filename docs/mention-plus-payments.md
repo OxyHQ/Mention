@@ -319,11 +319,11 @@ shows a canonical Bloom error toast without falling back to simulation. The
 small development badge is outside the checkout flow.
 
 `PeableEmbeddedCheckout` is transport-neutral: its binding declares the gateway,
-payer capability, environment and authoritative subscription terms. The same view
-checks that the provider key matches that environment. Its numeric tax breakdown,
+payer capability, Peable mode (`livemode`) and authoritative subscription terms.
+The same view checks that the intent and the provider key are of that mode. Its numeric tax breakdown,
 when supplied, comes from the actual invoice; preview tax fixtures are never
 reused. It serializes readiness polling and only completes when the first payment
-is settled, the invoice is paid and the subscription is active. No development
+has succeeded, the invoice is paid and the subscription is active. No development
 payment grants the real user's Mention Plus access.
 
 The product view uses Bloom's CardForm in both cases. In actual payment handling,

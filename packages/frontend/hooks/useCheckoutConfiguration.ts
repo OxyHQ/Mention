@@ -23,11 +23,7 @@ export function useCheckoutConfiguration(
     gcTime: 0,
     retry: false,
     refetchInterval: (query) =>
-      query.state.data
-        ? Math.max(1000, Date.parse(query.state.data.expiresAt) - Date.now() - 5000)
-        : 5000,
+      query.state.data ? Math.max(1000, query.state.data.expiresAt - Date.now() - 5000) : 5000,
   });
-  return enabled && query.data && Date.parse(query.data.expiresAt) > Date.now()
-    ? query.data
-    : undefined;
+  return enabled && query.data && query.data.expiresAt > Date.now() ? query.data : undefined;
 }

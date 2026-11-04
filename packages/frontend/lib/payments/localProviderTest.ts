@@ -1,10 +1,13 @@
 import {
   type EmbeddedCheckoutBinding,
   embeddedCheckoutPhase,
-  providerActionMatchesEnvironment,
+  providerActionMatchesMode,
 } from './embeddedCheckout';
+import { parseBaseUnits, parsePaymentMethods } from './peableWire';
 /** Explicit local payer capability; never an application/server credential. */
 export type LocalProviderTestBinding = EmbeddedCheckoutBinding;
+const LOCAL_API_URL = 'http://127.0.0.1:4310';
+const INTENT_ID = /^pi_[A-Za-z0-9_-]+$/;
 export function localProviderTestBinding(
   href: string,
   enabled: boolean,
@@ -20,19 +23,40 @@ export function localProviderTestBinding(
   const fragment = new URLSearchParams(url.hash.slice(1));
   const intentId = fragment.get('peable_test_intent');
   const clientSecret = fragment.get('peable_test_secret');
-  if (
-    !intentId ||
-    !/^pi_[A-Za-z0-9_-]+$/.test(intentId) ||
-    !clientSecret ||
-    clientSecret.length > 512
-  )
+  if (!intentId || !INTENT_ID.test(intentId) || !clientSecret || clientSecret.length > 512)
     return null;
-  return { apiUrl: 'http://127.0.0.1:4310', intentId, clientSecret, environment: 'test' };
+  return { apiUrl: LOCAL_API_URL, intentId, clientSecret, livemode: false };
 }
 export function isTestProviderAction(action: { kind: string; publishable_key?: string }): boolean {
-  return providerActionMatchesEnvironment(action, 'test');
+  return providerActionMatchesMode(action, false);
 }
 export const localProviderPhase = embeddedCheckoutPhase;
+
+type SubscriptionTax = NonNullable<EmbeddedCheckoutBinding['subscription']>['tax'];
+
+/** The first invoice's breakdown (`amount_subtotal` / `amount_tax` / `amount_total`), or `undefined` when the harness has none. */
+function parseTax(value: unknown, amount: number): SubscriptionTax {
+  if (value === null) return undefined;
+  if (!value || typeof value !== 'object') throw new Error('Subscription quote is unavailable.');
+  const subtotal = 'amount_subtotal' in value ? parseBaseUnits(value.amount_subtotal) : null;
+  const tax = 'amount_tax' in value ? parseBaseUnits(value.amount_tax) : null;
+  const total = 'amount_total' in value ? parseBaseUnits(value.amount_total) : null;
+  if (
+    subtotal === null ||
+    tax === null ||
+    total !== amount ||
+    subtotal + tax !== total ||
+    !('inclusive' in value) ||
+    typeof value.inclusive !== 'boolean'
+  )
+    throw new Error('Subscription quote is unavailable.');
+  return {
+    subtotalMinorUnits: subtotal,
+    taxMinorUnits: tax,
+    totalMinorUnits: total,
+    inclusive: value.inclusive,
+  };
+}
 
 /** Local harness only: credentials remain in component memory and errors never echo response bodies. */
 export async function createLocalProviderTestBinding(
@@ -45,7 +69,7 @@ export async function createLocalProviderTestBinding(
   const url = new URL(href);
   if (!enabled || !['localhost', '127.0.0.1'].includes(url.hostname) || url.port !== '8110')
     throw new Error('Local test checkout is unavailable.');
-  const response = await fetch('http://127.0.0.1:4310/__local/checkout-test', {
+  const response = await fetch(`${LOCAL_API_URL}/__local/checkout-test`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -62,93 +86,46 @@ export async function createLocalProviderTestBinding(
   if (
     !data ||
     typeof data !== 'object' ||
-    !('intentId' in data) ||
-    !('clientSecret' in data) ||
-    typeof data.intentId !== 'string' ||
-    !/^pi_[A-Za-z0-9_-]+$/.test(data.intentId) ||
-    typeof data.clientSecret !== 'string' ||
-    !data.clientSecret ||
-    data.clientSecret.length > 512
+    !('object' in data) ||
+    data.object !== 'local_test_subscription' ||
+    !('livemode' in data) ||
+    data.livemode !== false ||
+    !('payment_intent' in data) ||
+    typeof data.payment_intent !== 'string' ||
+    !INTENT_ID.test(data.payment_intent) ||
+    !('client_secret' in data) ||
+    typeof data.client_secret !== 'string' ||
+    !data.client_secret ||
+    data.client_secret.length > 512
   )
     throw new Error('Local test checkout is unavailable.');
+  const amount = 'amount' in data ? parseBaseUnits(data.amount) : null;
   if (
-    !('kind' in data) ||
-    data.kind !== 'subscription' ||
-    !('subscriptionId' in data) ||
-    typeof data.subscriptionId !== 'string' ||
-    !data.subscriptionId ||
-    data.subscriptionId.length > 128 ||
+    !('subscription' in data) ||
+    typeof data.subscription !== 'string' ||
+    !data.subscription ||
+    data.subscription.length > 128 ||
     !('interval' in data) ||
     data.interval !== interval ||
-    !('amountMinorUnits' in data) ||
-    typeof data.amountMinorUnits !== 'number' ||
-    !Number.isSafeInteger(data.amountMinorUnits) ||
-    data.amountMinorUnits <= 0 ||
+    amount === null ||
+    amount <= 0 ||
     !('currency' in data) ||
     data.currency !== 'USD'
   )
     throw new Error('Subscription checkout is unavailable.');
-  let tax: NonNullable<EmbeddedCheckoutBinding['subscription']>['tax'];
-  if ('tax' in data && data.tax && typeof data.tax === 'object') {
-    const quote = data.tax;
-    if (
-      'subtotalMinorUnits' in quote &&
-      typeof quote.subtotalMinorUnits === 'number' &&
-      Number.isSafeInteger(quote.subtotalMinorUnits) &&
-      quote.subtotalMinorUnits >= 0 &&
-      'taxMinorUnits' in quote &&
-      typeof quote.taxMinorUnits === 'number' &&
-      Number.isSafeInteger(quote.taxMinorUnits) &&
-      quote.taxMinorUnits >= 0 &&
-      'totalMinorUnits' in quote &&
-      quote.totalMinorUnits === data.amountMinorUnits &&
-      quote.subtotalMinorUnits + quote.taxMinorUnits === quote.totalMinorUnits &&
-      'inclusive' in quote &&
-      typeof quote.inclusive === 'boolean'
-    )
-      tax = {
-        subtotalMinorUnits: quote.subtotalMinorUnits,
-        taxMinorUnits: quote.taxMinorUnits,
-        totalMinorUnits: quote.totalMinorUnits,
-        inclusive: quote.inclusive,
-      };
-    else throw new Error('Subscription quote is unavailable.');
-  }
-  let paymentMethods: EmbeddedCheckoutBinding['paymentMethods'];
-  if ('paymentMethods' in data) {
-    if (!Array.isArray(data.paymentMethods))
-      throw new Error('Payment availability is unavailable.');
-    paymentMethods = data.paymentMethods.map((entry: unknown) => {
-      if (
-        !entry ||
-        typeof entry !== 'object' ||
-        !('id' in entry) ||
-        !['card', 'bank', 'installments', 'faircoin'].includes(String(entry.id)) ||
-        !('available' in entry) ||
-        typeof entry.available !== 'boolean' ||
-        ('reason' in entry && typeof entry.reason !== 'string')
-      )
-        throw new Error('Payment availability is unavailable.');
-      return {
-        id: entry.id as 'card' | 'bank' | 'installments' | 'faircoin',
-        available: entry.available,
-        reason: 'reason' in entry ? String(entry.reason) : undefined,
-      };
-    });
-  }
   return {
-    apiUrl: 'http://127.0.0.1:4310',
-    intentId: data.intentId,
-    clientSecret: data.clientSecret,
-    environment: 'test',
-    paymentMethods,
+    apiUrl: LOCAL_API_URL,
+    intentId: data.payment_intent,
+    clientSecret: data.client_secret,
+    livemode: false,
+    paymentMethods: parsePaymentMethods('payment_methods' in data ? data.payment_methods : null),
     subscription: {
-      id: data.subscriptionId,
+      id: data.subscription,
       interval,
-      amountMinorUnits: data.amountMinorUnits,
+      amountMinorUnits: amount,
       currency: data.currency,
-      tax,
-      observationPath: `/__local/checkout-test/${data.intentId}/subscription`,
+      tax: parseTax('tax' in data ? data.tax : undefined, amount),
+      observationPath: `/__local/checkout-test/${data.payment_intent}/subscription`,
     },
   };
 }
