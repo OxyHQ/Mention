@@ -32,8 +32,15 @@
  *    `safeParse` and returns a discriminated `{ ok }` result. Nothing here throws
  *    on bad input.
  *
- * NOTE: This module is the foundation only — it is intentionally NOT yet wired
- * into the ingest services. Follow-up inbox/outbox applier agents consume it.
+ *  - A gate, so it rejects only what makes an object unusable (its `id`/`type`).
+ *    Every OPTIONAL field accepts `null` (Mastodon sends `"name": null` for an
+ *    attachment without alt text), every list accepts a single value (JSON-LD
+ *    compacts a one-element array) and every reference accepts an IRI or an
+ *    embedded `{ id }` object — the shapes the spec allows. A post is never
+ *    dropped over a descriptive field; the readers decide what a value means.
+ *
+ * The inbound dispatcher, the inbox handlers and the outbox backfill all
+ * validate through these schemas.
  */
 
 import { z } from 'zod';
@@ -69,7 +76,7 @@ export const apPublished = z
   .string()
   .datetime({ offset: true, local: true })
   .pipe(z.coerce.date())
-  .optional();
+  .nullish();
 
 /**
  * AP `type`: a single string OR an array of strings. Some servers advertise
@@ -78,6 +85,17 @@ export const apPublished = z
  * normalize it with {@link primaryApType}.
  */
 export const apType = z.union([z.string(), z.array(z.string())]);
+
+/**
+ * A field ActivityStreams lets a server send as one value or a list of them:
+ * JSON-LD compaction turns a one-element array into the value itself.
+ */
+export function apOneOrMany<T extends z.ZodType>(schema: T) {
+  return z.union([schema, z.array(schema)]);
+}
+
+/** A reference: an IRI, or an embedded object naming it by its `id`. */
+export const apIriRef = z.union([z.string(), z.object({ id: z.string() }).loose()]);
 
 /** The primary `type` string from an `apType` value (first entry of an array). */
 export function primaryApType(type: unknown): string | undefined {
@@ -92,9 +110,9 @@ export function primaryApType(type: unknown): string | undefined {
  */
 export const apLinkEntrySchema = z
   .object({
-    type: apType.optional(),
-    href: z.string().optional(),
-    mediaType: z.string().optional(),
+    type: apType.nullish(),
+    href: z.string().nullish(),
+    mediaType: z.string().nullish(),
   })
   .loose();
 
@@ -106,15 +124,15 @@ export const apLinkEntrySchema = z
  */
 export const apAttachmentSchema = z
   .object({
-    type: apType.optional(),
-    mediaType: z.string().optional(),
-    name: z.string().optional(),
+    type: apType.nullish(),
+    mediaType: z.string().nullish(),
+    name: z.string().nullish(),
     url: z
       .union([z.string(), apLinkEntrySchema, z.array(z.union([z.string(), apLinkEntrySchema]))])
-      .optional(),
+      .nullish(),
     // PropertyValue (actor profile fields)
-    value: z.string().optional(),
-    verifiedAt: z.string().optional(),
+    value: z.string().nullish(),
+    verifiedAt: z.string().nullish(),
   })
   .loose();
 
@@ -125,9 +143,9 @@ export const apAttachmentSchema = z
  */
 export const apTagSchema = z
   .object({
-    type: apType.optional(),
-    name: z.string().optional(),
-    href: z.string().optional(),
+    type: apType.nullish(),
+    name: z.string().nullish(),
+    href: z.string().nullish(),
   })
   .loose();
 
@@ -142,12 +160,12 @@ export const apImageSchema: z.ZodType<unknown> = z.lazy(() =>
     z.string(),
     z
       .object({
-        type: apType.optional(),
-        mediaType: z.string().optional(),
+        type: apType.nullish(),
+        mediaType: z.string().nullish(),
         url: z
           .union([z.string(), apLinkEntrySchema, z.array(z.union([z.string(), apLinkEntrySchema]))])
-          .optional(),
-        href: z.string().optional(),
+          .nullish(),
+        href: z.string().nullish(),
       })
       .loose(),
     z.array(apImageSchema),
@@ -155,21 +173,21 @@ export const apImageSchema: z.ZodType<unknown> = z.lazy(() =>
 );
 
 /** Addressing field (`to` / `cc` / `audience`): a single IRI or an array of IRIs. */
-export const apAddressing = z.union([z.string(), z.array(z.string())]).optional();
+export const apAddressing = apOneOrMany(apIriRef).nullish();
 
 /** A `publicKey` block on an actor. Only `id` + `publicKeyPem` are read. */
 export const apPublicKeySchema = z
   .object({
-    id: z.string().optional(),
-    owner: z.string().optional(),
-    publicKeyPem: z.string().optional(),
+    id: z.string().nullish(),
+    owner: z.string().nullish(),
+    publicKeyPem: z.string().nullish(),
   })
   .loose();
 
 /** Actor `endpoints` block — only `sharedInbox` is read. */
 export const apEndpointsSchema = z
   .object({
-    sharedInbox: z.string().optional(),
+    sharedInbox: z.string().nullish(),
   })
   .loose();
 
@@ -185,28 +203,26 @@ export const apEndpointsSchema = z
 const apContentObjectBase = {
   id: apId,
   type: apType,
-  attributedTo: z.union([z.string(), apLinkEntrySchema]).optional(),
-  content: z.string().optional(),
-  contentMap: z.record(z.string(), z.string()).optional(),
-  name: z.string().optional(),
-  summary: z.string().nullable().optional(),
+  attributedTo: apOneOrMany(z.union([z.string(), apLinkEntrySchema])).nullish(),
+  content: z.string().nullish(),
+  contentMap: z.record(z.string(), z.string()).nullish(),
+  name: z.string().nullish(),
+  summary: z.string().nullish(),
   published: apPublished,
   updated: apPublished,
-  inReplyTo: z.union([z.string(), apLinkEntrySchema]).nullable().optional(),
+  inReplyTo: z.union([z.string(), apLinkEntrySchema]).nullish(),
   url: z
     .union([z.string(), apLinkEntrySchema, z.array(z.union([z.string(), apLinkEntrySchema]))])
-    .optional(),
-  sensitive: z.boolean().optional(),
+    .nullish(),
+  sensitive: z.boolean().nullish(),
   // Mastodon: the BCP-47 tag. Lemmy/PieFed: `{ identifier, name }`. Read by
   // `declaredApLanguage`.
-  language: z
-    .union([z.string(), z.object({ identifier: z.string().optional() }).loose()])
-    .optional(),
+  language: z.union([z.string(), z.object({ identifier: z.string().nullish() }).loose()]).nullish(),
   to: apAddressing,
   cc: apAddressing,
   audience: apAddressing,
-  tag: z.array(apTagSchema).optional(),
-  attachment: z.array(apAttachmentSchema).optional(),
+  tag: apOneOrMany(apTagSchema).nullish(),
+  attachment: apOneOrMany(apAttachmentSchema).nullish(),
 };
 
 /**
@@ -242,9 +258,9 @@ export function isApPostObjectType(type: unknown): boolean {
 export const apTombstoneSchema = z
   .object({
     id: apId,
-    type: apType.optional(),
-    formerType: apType.optional(),
-    deleted: z.string().optional(),
+    type: apType.nullish(),
+    formerType: apType.nullish(),
+    deleted: z.string().nullish(),
   })
   .loose();
 
@@ -257,31 +273,31 @@ export const apTombstoneSchema = z
 export const apActorSchema = z
   .object({
     id: apId,
-    type: apType.optional(),
+    type: apType.nullish(),
     inbox: z.string(),
-    outbox: z.string().optional(),
-    followers: z.string().optional(),
-    following: z.string().optional(),
-    preferredUsername: z.string().optional(),
-    name: z.string().nullable().optional(),
-    summary: z.string().nullable().optional(),
+    outbox: apIriRef.nullish(),
+    followers: apIriRef.nullish(),
+    following: apIriRef.nullish(),
+    preferredUsername: z.string().nullish(),
+    name: z.string().nullish(),
+    summary: z.string().nullish(),
     url: z
       .union([z.string(), apLinkEntrySchema, z.array(z.union([z.string(), apLinkEntrySchema]))])
-      .optional(),
-    icon: apImageSchema.optional(),
-    image: apImageSchema.optional(),
-    publicKey: apPublicKeySchema.optional(),
-    endpoints: apEndpointsSchema.optional(),
-    manuallyApprovesFollowers: z.boolean().optional(),
-    discoverable: z.boolean().optional(),
-    memorial: z.boolean().optional(),
-    suspended: z.boolean().optional(),
-    attachment: z.array(apAttachmentSchema).optional(),
-    featured: z.string().optional(),
-    featuredTags: z.string().optional(),
-    alsoKnownAs: z.array(z.string()).optional(),
+      .nullish(),
+    icon: apImageSchema.nullish(),
+    image: apImageSchema.nullish(),
+    publicKey: apPublicKeySchema.nullish(),
+    endpoints: apEndpointsSchema.nullish(),
+    manuallyApprovesFollowers: z.boolean().nullish(),
+    discoverable: z.boolean().nullish(),
+    memorial: z.boolean().nullish(),
+    suspended: z.boolean().nullish(),
+    attachment: apOneOrMany(apAttachmentSchema).nullish(),
+    featured: apIriRef.nullish(),
+    featuredTags: apIriRef.nullish(),
+    alsoKnownAs: apOneOrMany(apIriRef).nullish(),
     published: apPublished,
-    webfinger: z.string().optional(),
+    webfinger: z.string().nullish(),
   })
   .loose();
 
@@ -296,7 +312,7 @@ export const apActorSchema = z
  */
 export const apObjectOrIri = z.union([
   z.string(),
-  z.object({ id: apId.optional(), type: apType.optional() }).loose(),
+  z.object({ id: apId.nullish(), type: apType.nullish() }).loose(),
 ]);
 
 /** `Create` — wraps a new Note/Article. `object` is usually embedded. */
@@ -304,7 +320,7 @@ export const apCreateSchema = z
   .object({
     id: apId,
     type: z.literal('Create'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: z.union([z.string(), apNoteSchema]),
     published: apPublished,
     to: apAddressing,
@@ -317,7 +333,7 @@ export const apUpdateSchema = z
   .object({
     id: apId,
     type: z.literal('Update'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: z.union([z.string(), apNoteSchema, apActorSchema]),
     published: apPublished,
   })
@@ -326,9 +342,9 @@ export const apUpdateSchema = z
 /** `Delete` — `object` is the deleted object's IRI or a `Tombstone`. */
 export const apDeleteSchema = z
   .object({
-    id: apId.optional(),
+    id: apId.nullish(),
     type: z.literal('Delete'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: z.union([z.string(), apTombstoneSchema]),
     published: apPublished,
   })
@@ -339,9 +355,9 @@ export const apAnnounceSchema = z
   .object({
     id: apId,
     type: z.literal('Announce'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: apObjectOrIri,
-    url: z.string().optional(),
+    url: z.string().nullish(),
     published: apPublished,
     to: apAddressing,
     cc: apAddressing,
@@ -351,9 +367,9 @@ export const apAnnounceSchema = z
 /** `Like` (favourite) — `object` is the liked post's IRI or embed. */
 export const apLikeSchema = z
   .object({
-    id: apId.optional(),
+    id: apId.nullish(),
     type: z.literal('Like'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: apObjectOrIri,
     published: apPublished,
   })
@@ -362,9 +378,9 @@ export const apLikeSchema = z
 /** `Follow` — `object` is the followed actor's IRI or embed. */
 export const apFollowSchema = z
   .object({
-    id: apId.optional(),
+    id: apId.nullish(),
     type: z.literal('Follow'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: apObjectOrIri,
   })
   .loose();
@@ -376,18 +392,18 @@ export const apFollowSchema = z
  */
 export const apAcceptSchema = z
   .object({
-    id: apId.optional(),
+    id: apId.nullish(),
     type: z.literal('Accept'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: apObjectOrIri,
   })
   .loose();
 
 export const apRejectSchema = z
   .object({
-    id: apId.optional(),
+    id: apId.nullish(),
     type: z.literal('Reject'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: apObjectOrIri,
   })
   .loose();
@@ -399,17 +415,17 @@ export const apRejectSchema = z
  */
 export const apUndoSchema = z
   .object({
-    id: apId.optional(),
+    id: apId.nullish(),
     type: z.literal('Undo'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: z.union([
       z.string(),
       z
         .object({
-          id: apId.optional(),
-          type: apType.optional(),
-          actor: z.union([z.string(), apLinkEntrySchema]).optional(),
-          object: apObjectOrIri.optional(),
+          id: apId.nullish(),
+          type: apType.nullish(),
+          actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
+          object: apObjectOrIri.nullish(),
         })
         .loose(),
     ]),
@@ -445,9 +461,9 @@ const apCollectionTarget = z.union([z.string().min(1), z.object({ id: apId }).lo
 
 export const apAddSchema = z
   .object({
-    id: apId.optional(),
+    id: apId.nullish(),
     type: z.literal('Add'),
-    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    actor: z.union([z.string(), apLinkEntrySchema]).nullish(),
     object: apObjectOrIri,
     target: apCollectionTarget,
   })
@@ -490,16 +506,16 @@ export const apInboundActivitySchema = z.union([
  */
 export const apOrderedCollectionPageSchema = z
   .object({
-    id: z.string().optional(),
-    type: apType.optional(),
-    totalItems: z.number().optional(),
-    orderedItems: z.array(z.unknown()).optional(),
-    items: z.array(z.unknown()).optional(),
-    next: z.union([z.string(), apLinkEntrySchema]).optional(),
-    prev: z.union([z.string(), apLinkEntrySchema]).optional(),
-    first: z.union([z.string(), apLinkEntrySchema]).optional(),
-    last: z.union([z.string(), apLinkEntrySchema]).optional(),
-    partOf: z.string().optional(),
+    id: z.string().nullish(),
+    type: apType.nullish(),
+    totalItems: z.number().nullish(),
+    orderedItems: z.array(z.unknown()).nullish(),
+    items: z.array(z.unknown()).nullish(),
+    next: z.union([z.string(), apLinkEntrySchema]).nullish(),
+    prev: z.union([z.string(), apLinkEntrySchema]).nullish(),
+    first: z.union([z.string(), apLinkEntrySchema]).nullish(),
+    last: z.union([z.string(), apLinkEntrySchema]).nullish(),
+    partOf: z.string().nullish(),
   })
   .loose();
 
@@ -510,14 +526,14 @@ export const apOrderedCollectionPageSchema = z
  */
 export const apOrderedCollectionSchema = z
   .object({
-    id: z.string().optional(),
-    type: apType.optional(),
-    totalItems: z.number().optional(),
-    orderedItems: z.array(z.unknown()).optional(),
-    items: z.array(z.unknown()).optional(),
-    first: z.union([z.string(), apOrderedCollectionPageSchema, apLinkEntrySchema]).optional(),
-    next: z.union([z.string(), apLinkEntrySchema]).optional(),
-    last: z.union([z.string(), apLinkEntrySchema]).optional(),
+    id: z.string().nullish(),
+    type: apType.nullish(),
+    totalItems: z.number().nullish(),
+    orderedItems: z.array(z.unknown()).nullish(),
+    items: z.array(z.unknown()).nullish(),
+    first: z.union([z.string(), apOrderedCollectionPageSchema, apLinkEntrySchema]).nullish(),
+    next: z.union([z.string(), apLinkEntrySchema]).nullish(),
+    last: z.union([z.string(), apLinkEntrySchema]).nullish(),
   })
   .loose();
 
