@@ -180,13 +180,16 @@ describe('useKnownIdentitySet', () => {
     expect(seen.none[0].size).toBe(0);
   });
 
-  it('skips an actor without an id when reconciling', () => {
+  it('never wakes a row for a batch that retires nothing', () => {
+    // A batch reconciles on every page of every feed; waking the mounted rows
+    // for one that changed nothing is the cost this guard avoids.
     recordIdentityChange({ id: 'A', avatar: 'edited' });
     mount(<Row name="a" actors={['A']} />);
     act(() => {
       reconcileKnownIdentities([
         { id: '', avatar: 'edited' },
         { id: 'unrecorded', avatar: 'edited' },
+        { id: 'A', avatar: 'before' },
       ]);
     });
     expect(renders.a).toBe(1);

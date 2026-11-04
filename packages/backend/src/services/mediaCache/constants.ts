@@ -64,12 +64,6 @@ export const MEDIA_CACHE_BACKOFF_BASE_MS = 5 * MS_PER_SECOND * SECONDS_PER_MINUT
 /** Cap on the computed exponential backoff so it never grows unbounded. */
 export const MEDIA_CACHE_BACKOFF_MAX_MS = 6 * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
-/** Visibility for cached media in Oxy — public so the CDN can serve it freely. */
-export const MEDIA_CACHE_OXY_VISIBILITY = 'public' as const;
-
-/** Oxy asset metadata `app` tag so cached objects are attributable/auditable. */
-export const MEDIA_CACHE_OXY_APP = 'mention-federation-media-cache' as const;
-
 // --- Worker / scheduler bounds ----------------------------------------------
 
 /** Max pending entries a single cache-worker run will claim and process. */

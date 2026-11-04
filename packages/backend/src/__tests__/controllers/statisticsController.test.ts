@@ -2,18 +2,15 @@
  * `statistics.controller` against REAL Postgres rows — the `$facet` translation.
  *
  * The legacy store ran ONE `$match` and four independent sub-pipelines over the matched
- * set. The port runs four queries over the same predicate inside one
- * transaction, and three of its properties are load-bearing enough to have a
- * test that NAMES them when it breaks:
+ * set. The port runs two queries over the same predicate inside one transaction
+ * (a `grouping sets` aggregate for the days and types, the totals summed from the
+ * days; and the top-N leaderboard), and three of its properties are load-bearing
+ * enough to have a test that NAMES them when it breaks:
  *
- *  1. **The overview totals are their own query.** `totalPosts` is the size of
- *     the MATCHED SET, never of the returned page — seeded with 12 posts against
- *     a `topPosts` branch capped at 10, so the two differ and reading the total
- *     off that branch is visible. (A `count(*) OVER ()` there would happen to be
- *     right today, because a window aggregate is evaluated before `LIMIT`; it
- *     becomes the silent-zero bug the moment that branch grows an OFFSET, which
- *     is why `routes/customFeeds.routes.ts` — where the offsets already exist —
- *     counts with a second query and has the mutation test for it.)
+ *  1. **The overview totals cover the whole matched set.** `totalPosts` is the
+ *     size of the MATCHED SET, never of the returned page — seeded with 12 posts
+ *     against a `topPosts` branch capped at 10, so the two differ and reading the
+ *     total off that branch is visible.
  *  2. **The date bucket is a WIRE FORMAT.** `{ date: string }` ships to the
  *     client. `to_char(created_at at time zone 'UTC', 'YYYY-MM-DD')` has to
  *     produce byte-identically what the legacy store's

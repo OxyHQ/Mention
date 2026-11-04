@@ -89,8 +89,8 @@ function requestedStatsDays(value: unknown): number {
 /**
  * Run statistics reads inside one transaction carrying a statement timeout.
  *
- * The timeout bounds every read, and the transaction does a second job: four
- * independent queries on four pooled connections could disagree with each
+ * The timeout bounds every read, and the transaction does a second job:
+ * independent queries on separate pooled connections could disagree with each
  * other — a post created between them would be counted by one branch and not
  * another. One transaction gives them ONE snapshot.
  *
@@ -190,27 +190,20 @@ function rounded(value: number): number {
 /**
  * The owner statistics.
  *
- * ONE filter (posts this user OWNS, created inside the window) and then four
- * INDEPENDENT reads over the matched set. Those four answer at
- * four different GRAINS — one scalar row, a per-day series, a top-N row list,
- * and a per-type series — and Postgres has no single statement that returns all
- * four without either a lateral contortion or `json_agg`, and `json_agg` would
- * have to be read back through `db.execute`, which bypasses drizzle's column
- * mappers and would turn `topPosts[].createdAt` from a `Date` into whatever
- * string the driver felt like. So: four queries over the SAME predicate, in one
+ * ONE filter (posts this user OWNS, created inside the window) read TWICE, in one
  * transaction (see {@link withStatisticsTimeout} for why the transaction, not
- * `Promise.all`, is the faithful shape).
+ * `Promise.all`, is the faithful shape):
  *
- * **The overview totals are their own query, deliberately.** The tempting
- * collapse is to read them off the `topPosts` branch — either as
- * `topRows.length` or as a `count(*) OVER ()` carried by its rows. Both make the
- * total a property of the PAGE rather than of the matched set: the first is
- * already wrong (it reports 10 for a user with 12 posts), and the second becomes
- * wrong the moment that branch grows an offset, because a window aggregate is
- * carried BY the returned rows and a page past the end returns none. Neither
- * failure raises anything; the response just says the user has less than they
- * have. The same reasoning is why `routes/customFeeds.routes.ts` counts its
- * paginated listings with a second query.
+ *  - a `grouping sets ((day), (type))` aggregate, which returns the per-day series
+ *    and the per-type counts from a single scan. The overview totals are the sums
+ *    of the per-day rows: every matched post falls in exactly one UTC day, so the
+ *    days partition the matched set and their sums ARE the totals (a JS sum of
+ *    per-day integer sums is exact far past any real count).
+ *  - the top-N leaderboard, a different grain (rows, not groups) with its own
+ *    order and limit.
+ *
+ * The totals are never read off the `topPosts` branch: its `topRows.length` is
+ * the size of the PAGE (10 for a user with 12 posts), not of the matched set.
  */
 async function queryUserStatistics(userId: string, days: number): Promise<UserStatisticsPayload> {
   const cacheKey = `${userId}:${days}`;
@@ -239,22 +232,15 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
   const typeBucket = sql<string>`coalesce(${posts.type}, 'text')`;
 
   const facets = await withStatisticsTimeout(async (tx) => {
-    const [overview] = await tx
+    // Day rows have `byDay = true` and a null `type`; type rows the reverse.
+    // `grouping()` tells them apart (not the null), and the order lists every
+    // day row by date, then every type row by type.
+    const groupedRows = await tx
       .select({
-        totalPosts: countAll(),
-        totalViews: sumOf(posts.statsViewsCount),
-        totalLikes: sumOf(posts.statsLikesCount),
-        totalReplies: sumOf(posts.statsCommentsCount),
-        totalBoosts: sumOf(posts.statsBoostsCount),
-        totalShares: sumOf(posts.statsSharesCount),
-      })
-      .from(posts)
-      .innerJoin(postAuthorships, eq(postAuthorships.postId, posts.id))
-      .where(ownedInWindow);
-
-    const dailyRows = await tx
-      .select({
+        byDay: sql<boolean>`grouping(${utcDayBucket}) = 0`,
         date: utcDayBucket,
+        type: typeBucket,
+        postCount: countAll(),
         views: sumOf(posts.statsViewsCount),
         likes: sumOf(posts.statsLikesCount),
         replies: sumOf(posts.statsCommentsCount),
@@ -264,10 +250,11 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
       .from(posts)
       .innerJoin(postAuthorships, eq(postAuthorships.postId, posts.id))
       .where(ownedInWindow)
-      .groupBy(utcDayBucket)
+      .groupBy(sql`grouping sets ((${utcDayBucket}), (${typeBucket}))`)
       // `$sort: { date: 1 }` sorted the FORMATTED string; so does this. The two
       // orders coincide because `YYYY-MM-DD` is lexicographically chronological.
-      .orderBy(asc(utcDayBucket));
+      // The type order makes the key order of `postsByType` plan-independent.
+      .orderBy(sql`grouping(${utcDayBucket})`, asc(utcDayBucket), asc(typeBucket));
 
     const topRows = await tx
       .select({
@@ -288,22 +275,23 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
       .orderBy(desc(engagementExpr), desc(posts.createdAt), desc(posts.id))
       .limit(TOP_POSTS_LIMIT);
 
-    const typeRows = await tx
-      .select({ type: typeBucket, count: countAll() })
-      .from(posts)
-      .innerJoin(postAuthorships, eq(postAuthorships.postId, posts.id))
-      .where(ownedInWindow)
-      .groupBy(typeBucket)
-      // Ordered so the key order of `postsByType` does not depend on the plan.
-      // Ordering costs nothing on a handful of groups.
-      .orderBy(asc(typeBucket));
-
-    return { overview, dailyRows, topRows, typeRows };
+    return {
+      dailyRows: groupedRows.filter((row) => row.byDay),
+      typeRows: groupedRows.filter((row) => !row.byDay),
+      topRows,
+    };
   });
 
-  const totals = facets.overview;
-  const totalInteractions =
-    totals.totalLikes + totals.totalReplies + totals.totalBoosts + totals.totalShares;
+  const totals = { posts: 0, views: 0, likes: 0, replies: 0, boosts: 0, shares: 0 };
+  for (const row of facets.dailyRows) {
+    totals.posts += row.postCount;
+    totals.views += row.views;
+    totals.likes += row.likes;
+    totals.replies += row.replies;
+    totals.boosts += row.boosts;
+    totals.shares += row.shares;
+  }
+  const totalInteractions = totals.likes + totals.replies + totals.boosts + totals.shares;
   const value: UserStatisticsPayload = {
     period: {
       startDate: startDate.toISOString(),
@@ -311,21 +299,17 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
       days,
     },
     overview: {
-      totalPosts: totals.totalPosts,
-      totalViews: totals.totalViews,
+      totalPosts: totals.posts,
+      totalViews: totals.views,
       totalInteractions,
-      engagementRate: rounded(
-        totals.totalViews > 0 ? (totalInteractions / totals.totalViews) * 100 : 0,
-      ),
-      averageEngagementPerPost: rounded(
-        totals.totalPosts > 0 ? totalInteractions / totals.totalPosts : 0,
-      ),
+      engagementRate: rounded(totals.views > 0 ? (totalInteractions / totals.views) * 100 : 0),
+      averageEngagementPerPost: rounded(totals.posts > 0 ? totalInteractions / totals.posts : 0),
     },
     interactions: {
-      likes: totals.totalLikes,
-      replies: totals.totalReplies,
-      boosts: totals.totalBoosts,
-      shares: totals.totalShares,
+      likes: totals.likes,
+      replies: totals.replies,
+      boosts: totals.boosts,
+      shares: totals.shares,
     },
     // `shares` fed the `interactions` sum and was then `$unset` — it is summed
     // here and dropped from the emitted row for the same reason.
@@ -346,7 +330,9 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
       engagement: row.engagement,
       createdAt: row.createdAt,
     })),
-    postsByType: Object.fromEntries(facets.typeRows.map(({ type, count }) => [type, count])),
+    postsByType: Object.fromEntries(
+      facets.typeRows.map(({ type, postCount }) => [type, postCount]),
+    ),
   };
   cacheStatistics(cacheKey, value);
   return value;

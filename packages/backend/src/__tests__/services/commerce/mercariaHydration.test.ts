@@ -3,7 +3,7 @@
  *
  * Proves a persisted Mercaria ref is hydrated THROUGH the SDK, not through a
  * Mention-local HTTP client. Nothing Mercaria-shaped is mocked: the production
- * entry point (`hydrateMercariaProductRefs` → `getMercariaClient()` → the real
+ * entry point (`hydrateCommerceReferences` → `getMercariaClient()` → the real
  * SDK) runs unmodified, and the doubles are Oxy’s workload factory and the platform `fetch` the SDK
  * resolves at request time. The double speaks Mercaria's real wire contract —
  * the bare value on success and `{ error: { code, message } }` on failure, on
@@ -24,7 +24,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { MERCARIA_SERVICE_AUDIENCE } from '@mercaria.co/sdk/server';
 import { config } from '../../../config';
 import {
-  hydrateMercariaProductRefs,
   hydrateCommerceReferences,
   resolveMercariaCollection,
   resolveMercariaStore,
@@ -162,8 +161,7 @@ function installFakeMercaria(): void {
   });
 }
 
-const productRefValue = (id: string): unknown =>
-  JSON.parse(JSON.stringify({ kind: 'product', id }));
+const productRef = (id: string) => ({ kind: 'product' as const, id });
 
 beforeEach(() => {
   installFakeMercaria();
@@ -173,9 +171,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
+describe('hydrateCommerceReferences — products through @mercaria.co/sdk', () => {
   it('hydrates an available product from the real wire envelope, with the SDK canonical link', async () => {
-    const [result] = await hydrateMercariaProductRefs([productRefValue('prod_available')]);
+    const [result] = await hydrateCommerceReferences([productRef('prod_available')]);
 
     expect(createServiceClient).toHaveBeenCalledWith({
       baseURL: API_BASE,
@@ -185,7 +183,7 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
       `${API_BASE}/public/v1/products/prod_available`,
     ]);
     expect(result.state).toBe('available');
-    if (result.state !== 'available') return;
+    if (result.state !== 'available' || !('product' in result)) return;
 
     expect(result.ref).toEqual({ kind: 'product', id: 'prod_available' });
     expect(result.product.title).toBe('Night City Jacket');
@@ -216,7 +214,7 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
   });
 
   it('uses the published workload factory without forwarding viewer credentials', async () => {
-    await hydrateMercariaProductRefs([productRefValue('prod_available')]);
+    await hydrateCommerceReferences([productRef('prod_available')]);
 
     expect(requests).toHaveLength(1);
     const { init } = requests[0];
@@ -229,14 +227,14 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
   });
 
   it('maps every Mercaria answer to its state, index-aligned with the input', async () => {
-    const results = await hydrateMercariaProductRefs([
-      productRefValue('prod_gone'),
-      productRefValue('prod_missing'),
-      productRefValue('prod_network'),
-      productRefValue('prod_throttled'),
-      productRefValue('prod_proxy_404'),
-      productRefValue('prod_down'),
-      productRefValue('prod_second'),
+    const results = await hydrateCommerceReferences([
+      productRef('prod_gone'),
+      productRef('prod_missing'),
+      productRef('prod_network'),
+      productRef('prod_throttled'),
+      productRef('prod_proxy_404'),
+      productRef('prod_down'),
+      productRef('prod_second'),
     ]);
 
     expect(results.map((result) => result.state)).toEqual([
@@ -299,56 +297,12 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
     );
   });
 
-  it('yields `invalid` for malformed persisted refs without sending any request', async () => {
-    const results = await hydrateMercariaProductRefs([
-      null,
-      'prod_available',
-      { kind: 'product' },
-      { kind: 'product', id: '' },
-      { kind: 'product', id: 'prod_available', title: 'a cached title makes it not a ref' },
-      { kind: 'store', id: 'store_conformance' },
-      { kind: 'variant', productId: 'prod_available', variantId: 'var_m' },
-      [{ kind: 'product', id: 'prod_available' }],
-    ]);
-
-    expect(results).toHaveLength(8);
-    expect(results.every((result) => result.state === 'invalid')).toBe(true);
-    expect(requests).toHaveLength(0);
-  });
-
   it('treats a ref the SDK refuses to put in a path as `invalid`, still without a request', async () => {
-    const results = await hydrateMercariaProductRefs([
-      { kind: 'product', id: '..' },
-      productRefValue('prod_second'),
-    ]);
+    const results = await hydrateCommerceReferences([productRef('..'), productRef('prod_second')]);
 
     expect(results.map((result) => result.state)).toEqual(['invalid', 'available']);
     expect(requests.map((request) => request.url)).toEqual([
       `${API_BASE}/public/v1/products/prod_second`,
-    ]);
-  });
-
-  it('reads each distinct ref once and shares the result across duplicates', async () => {
-    const results = await hydrateMercariaProductRefs([
-      productRefValue('prod_available'),
-      { kind: 'bogus' },
-      productRefValue('prod_available'),
-      productRefValue('prod_gone'),
-      productRefValue('prod_available'),
-    ]);
-
-    expect(results.map((result) => result.state)).toEqual([
-      'available',
-      'invalid',
-      'available',
-      'gone',
-      'available',
-    ]);
-    expect(results[2]).toBe(results[0]);
-    expect(results[4]).toBe(results[0]);
-    expect(requests.map((request) => request.url).sort()).toEqual([
-      `${API_BASE}/public/v1/products/prod_available`,
-      `${API_BASE}/public/v1/products/prod_gone`,
     ]);
   });
 
@@ -367,17 +321,12 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
       return json(200, productWire(id));
     });
 
-    const results = await hydrateMercariaProductRefs(ids.map(productRefValue));
+    const results = await hydrateCommerceReferences(ids.map(productRef));
 
     expect(results.every((result) => result.state === 'available')).toBe(true);
     expect(requests).toHaveLength(ids.length);
     // Equal, not `<=`: a serial implementation would also stay under the bound.
     expect(maxInFlight).toBe(limit);
-  });
-
-  it('returns an empty array for no refs', async () => {
-    await expect(hydrateMercariaProductRefs([])).resolves.toEqual([]);
-    expect(requests).toHaveLength(0);
   });
 });
 

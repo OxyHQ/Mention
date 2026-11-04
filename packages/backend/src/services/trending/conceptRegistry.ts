@@ -96,15 +96,6 @@ export function resolveTrendConcept(
   return aliasIndex.get(`und\u0000${normalized}`);
 }
 
-/** Best reviewed label for an audience, falling back to the corpus spelling. */
-export function localizedConceptLabel(
-  concept: TrendConceptDefinition,
-  language: string,
-  fallback: string,
-): string {
-  return concept.labels[language] ?? concept.labels.und ?? concept.labels.en ?? fallback;
-}
-
 /** Labels safe to persist on a trend row. */
 export function conceptLabels(concept: TrendConceptDefinition | undefined): Record<string, string> {
   return concept ? { ...concept.labels } : {};

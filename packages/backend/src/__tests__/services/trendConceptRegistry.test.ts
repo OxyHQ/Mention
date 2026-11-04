@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import {
-  conceptLabels,
-  localizedConceptLabel,
-  resolveTrendConcept,
-} from '../../services/trending/conceptRegistry';
+import { conceptLabels, resolveTrendConcept } from '../../services/trending/conceptRegistry';
 import { resolveTrendScope } from '../../services/trending/trendItems';
 
 describe('multilingual trend concept identity', () => {
@@ -27,8 +23,7 @@ describe('multilingual trend concept identity', () => {
     const concept = resolveTrendConcept('oil', ['en']);
     expect(concept).toBeDefined();
     if (!concept) return;
-    expect(localizedConceptLabel(concept, 'es', 'oil')).toBe('Petróleo');
-    expect(conceptLabels(concept).en).toBe('Oil');
+    expect(conceptLabels(concept)).toMatchObject({ en: 'Oil', es: 'Petróleo' });
   });
 });
 

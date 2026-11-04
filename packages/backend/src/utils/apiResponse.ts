@@ -1,16 +1,6 @@
 import type { Response } from 'express';
 
 /**
- * Standard API response format.
- * Ensures consistent response shape across all endpoints.
- */
-export interface ApiSuccessResponse<T = unknown> {
-  success: true;
-  data: T;
-  pagination?: PaginationMeta;
-}
-
-/**
  * Pagination metadata. Supports both cursor-based (`nextCursor`) and
  * offset-based (`offset` + `limit`, for infinite scroll) pagination; `hasMore`
  * is the single signal shared by both styles.
@@ -21,26 +11,6 @@ export interface PaginationMeta {
   totalCount?: number;
   offset?: number;
   limit?: number;
-}
-
-export interface ApiErrorResponse {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-  };
-}
-
-export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
-
-/**
- * Send a success response with consistent format.
- */
-export function sendSuccess<T>(res: Response, data: T, status = 200): void {
-  res.status(status).json({
-    success: true,
-    data,
-  });
 }
 
 /**
@@ -70,14 +40,8 @@ export function sendError(res: Response, code: string, message: string, status =
 }
 
 /**
- * Common error codes for use with sendError.
+ * Error codes for use with sendError.
  */
 export const ErrorCodes = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN',
-  NOT_FOUND: 'NOT_FOUND',
-  CONFLICT: 'CONFLICT',
-  RATE_LIMITED: 'RATE_LIMITED',
-  INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

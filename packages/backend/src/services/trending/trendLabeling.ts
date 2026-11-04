@@ -13,8 +13,8 @@
  * every trend of every batch. That is a deliberate reversal: an earlier version
  * asked a model to name each new trend, which meant paying for a generation
  * every time a term crossed the threshold, forever, whether or not a single
- * reader ever looked at it. Generated prose now happens ON DEMAND and only for
- * trends people actually open (see {@link ./trendSummary}).
+ * reader ever looked at it. `GET /trending/summary` generates nothing either: it
+ * presents a trend from what is already stored.
  *
  * The two rules below are worth stating because they are what makes a
  * deterministic label good enough to be the default:
