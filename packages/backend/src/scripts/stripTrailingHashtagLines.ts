@@ -21,14 +21,26 @@
  * cleaned both with the older rule), whose body contains a `#`. A MACHINE
  * rendition is never read: a translation is regenerated from the primary.
  *
+ * IT ALSO DROPS TRUNCATED TAG FRAGMENTS from the `hashtags` column. Before
+ * 6329ab340 (2026-08-03) the extractor accepted only `[A-Za-z0-9_]`, so a tag
+ * was cut at its first non-ASCII letter: `#Göttingen` stored a stray `g` next to
+ * the `gottingen` the Note's `tag` array supplied (measured on
+ * https://mention.earth/p/6a3a324868a43bdaaff95eb1). The extractor is fixed;
+ * the rows are not. {@link truncatedHashtagFragments} names a stored tag a
+ * fragment only when it is the ASCII prefix the old extractor cut from a tag the
+ * post's own author text holds whole, and the current extractor does not find
+ * it as a tag of its own anywhere in that text. It runs in the same pass because
+ * the trailing-line strip removes exactly the text that proves a fragment.
+ *
  * WHAT IT DOES NOT TOUCH, deliberately:
- *  - the `hashtags` column — it already holds every tag the strip removes, since
- *    both writers derived it from the raw body;
+ *  - any other tag in the `hashtags` column — it already holds every tag the
+ *    strip removes, since both writers derived it from the raw body;
  *  - `is_edited` / `edit_history` — the author did not edit anything;
  *  - federation — nothing is re-sent; remote copies already carry the tags in
  *    the Note's `tag` array, and a later author edit federates the clean body.
- * Only `post_content_variants.body` changes, and each post's detail cache entry
- * is evicted after the write commits, as every content write does.
+ * Only `post_content_variants.body` and the fragments in `posts.hashtags`
+ * change, and each post's detail cache entry is evicted after the write commits,
+ * as every content write does.
  *
  * PACE: `oxy-postgres` serves every Oxy app. Pages of {@link DEFAULT_PAGE_SIZE}
  * renditions by the variant id cursor; a page's writes go in ONE transaction
@@ -54,6 +66,7 @@
  *   DRY_RUN          defaults to `true`; only `=false` writes
  *   CONFIRM_ADMIN_MUTATION=stripTrailingHashtagLines  required for a real apply
  *   START_AFTER_ID, RESET_CURSOR  cursor control (live runs)
+ *   SAMPLE_POST_IDS  comma-separated post ids always sampled (the measured posts)
  *   BACKFILL_PAGE_SIZE, BACKFILL_PAUSE_MS, BACKFILL_ROWS_PER_SECOND  pacing
  */
 
@@ -61,9 +74,11 @@ import { isLiveEntityId } from '@oxy.so/db';
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { connectPostgres, getDb, type Transaction } from '../db/postgres';
 import { postContentVariants } from '../db/schema/postContent';
+import { posts } from '../db/schema/posts';
 import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
 import { stripHiddenHashtags } from '../services/postVariants';
 import { logger } from '../utils/logger';
+import { extractHashtags, mergeHashtags } from '../utils/textProcessing';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
   clearAdminScriptCursor,
@@ -88,7 +103,30 @@ const SAMPLE_LENGTH = 200;
 /** Any letter outside Latin: the non-English sample the review must include. */
 const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
 
-export type SampleKind = 'native' | 'federated' | 'non-latin';
+export type SampleKind = 'named' | 'native' | 'federated' | 'non-latin';
+
+/** What the pre-6329ab340 extractor kept of a tag: its leading ASCII run. */
+const OLD_EXTRACTOR_PREFIX = /^[a-z0-9_]+/;
+
+/**
+ * The stored tags in `hashtags` that are fragments the pre-6329ab340 extractor
+ * cut from a tag `text` holds whole: `g` for `#Göttingen`. A stored tag is one
+ * only when BOTH hold —
+ *  - it is the leading ASCII run of a tag the current extractor finds in `text`,
+ *    and shorter than that tag (the old extractor stopped there);
+ *  - the current extractor does not find it as a tag of its own in `text`.
+ * Anything else — a tag the remote's `tag` array supplied, an ASCII-folded
+ * spelling like `gottingen` — is not a prefix cut and is never named.
+ */
+export function truncatedHashtagFragments(text: string, hashtags: readonly string[]): string[] {
+  const whole = new Set(mergeHashtags(text));
+  const cut = new Set<string>();
+  for (const tag of extractHashtags(text)) {
+    const prefix = OLD_EXTRACTOR_PREFIX.exec(tag)?.[0];
+    if (prefix && prefix !== tag && !whole.has(prefix)) cut.add(prefix);
+  }
+  return hashtags.filter((tag) => cut.has(tag));
+}
 
 export interface StripTrailingHashtagLinesOptions {
   dryRun?: boolean;
@@ -103,6 +141,8 @@ export interface StripTrailingHashtagLinesOptions {
   pageSize?: number;
   pauseMs?: number;
   rowsPerSecond?: number;
+  /** Posts always sampled, whatever the per-kind caps. */
+  samplePostIds?: readonly string[];
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -113,6 +153,10 @@ export interface StripTrailingHashtagLinesResult {
   changed: number;
   /** Rows Postgres REPORTED updating. Always 0 on a dry run. */
   written: number;
+  /** Posts whose `hashtags` hold truncated fragments. */
+  fragmentPosts: number;
+  /** Of those, the posts Postgres REPORTED updating. Always 0 on a dry run. */
+  fragmentPostsWritten: number;
   /** Pages whose resume cursor could not be recorded. */
   cursorWriteFailures: number;
   /**
@@ -121,6 +165,8 @@ export interface StripTrailingHashtagLinesResult {
    * line break.
    */
   samples: Array<{ kind: SampleKind; postId: string; before: string; after: string }>;
+  /** Fragment removals, the first {@link SAMPLES_PER_KIND} plus every named post. */
+  fragmentSamples: Array<{ postId: string; removed: string[]; kept: string[] }>;
 }
 
 interface PlannedWrite {
@@ -128,6 +174,12 @@ interface PlannedWrite {
   postId: string;
   before: string;
   after: string;
+}
+
+interface PlannedTagWrite {
+  postId: string;
+  before: string[];
+  after: string[];
 }
 
 /** Lock or statement timeout, serialization or deadlock: the database asked us to back off. */
@@ -142,8 +194,12 @@ function isBackoffError(error: unknown): boolean {
 }
 
 /** One page's writes, in one transaction under the pacing timeouts. */
-async function writePage(plans: readonly PlannedWrite[]): Promise<number> {
+async function writePage(
+  plans: readonly PlannedWrite[],
+  tagPlans: readonly PlannedTagWrite[],
+): Promise<{ written: number; tagsWritten: number }> {
   let written = 0;
+  let tagsWritten = 0;
   await getDb().transaction(async (tx: Transaction) => {
     await tx.execute(
       sql`select set_config('lock_timeout', ${String(LOCK_TIMEOUT_MS)}, true),
@@ -159,10 +215,25 @@ async function writePage(plans: readonly PlannedWrite[]): Promise<number> {
         .returning({ id: postContentVariants.id });
       written += updated.length;
     }
+    for (const plan of tagPlans) {
+      // Guarded on the column READ, for the same two reasons.
+      const updated = await tx
+        .update(posts)
+        .set({ hashtags: plan.after })
+        .where(
+          and(
+            eq(posts.id, plan.postId),
+            sql`${posts.hashtags} = ${sql.param(plan.before)}::text[]`,
+          ),
+        )
+        .returning({ id: posts.id });
+      tagsWritten += updated.length;
+    }
   });
-  // Evicted after COMMIT, so a reader in between cannot re-cache the old body.
-  await Promise.all([...new Set(plans.map((plan) => plan.postId))].map(invalidatePostDetailCache));
-  return written;
+  // Evicted after COMMIT, so a reader in between cannot re-cache the old row.
+  const touched = new Set([...plans, ...tagPlans].map((plan) => plan.postId));
+  await Promise.all([...touched].map(invalidatePostDetailCache));
+  return { written, tagsWritten };
 }
 
 /** The end of a body, where the change is, with line breaks shown as `⏎`. */
@@ -211,9 +282,13 @@ export async function stripTrailingHashtagLines(
     scanned: 0,
     changed: 0,
     written: 0,
+    fragmentPosts: 0,
+    fragmentPostsWritten: 0,
     cursorWriteFailures: 0,
     samples: [],
+    fragmentSamples: [],
   };
+  const named = new Set(opts.samplePostIds ?? []);
 
   for (;;) {
     const startedAt = Date.now();
@@ -222,11 +297,15 @@ export async function stripTrailingHashtagLines(
         id: postContentVariants.id,
         postId: postContentVariants.postId,
         body: postContentVariants.body,
-        // Spelled by hand: drizzle renders a single-table select's columns
-        // unqualified, and a bare `post_id` here would not name this row's.
-        isFederated: sql<boolean>`exists (select 1 from posts p where p.id = "post_content_variants"."post_id" and p.federation_actor_uri is not null)`,
+        hashtags: posts.hashtags,
+        isFederated: sql<boolean>`${posts.federationActorUri} is not null`,
+        // Every author rendition of the post: a fragment is judged against all
+        // of the author's words, never one rendition alone.
+        authorText: sql<string>`(select string_agg(v.body, E'\n') from post_content_variants v
+          where v.post_id = ${postContentVariants.postId} and v.source = 'author')`,
       })
       .from(postContentVariants)
+      .innerJoin(posts, eq(posts.id, postContentVariants.postId))
       .where(
         and(
           eq(postContentVariants.source, 'author'),
@@ -239,17 +318,39 @@ export async function stripTrailingHashtagLines(
     if (rows.length === 0) break;
 
     const plans: PlannedWrite[] = [];
+    const tagPlans: PlannedTagWrite[] = [];
+    // A post with several author renditions is read once per rendition; its
+    // column is planned once per page (a later page reads the repaired column).
+    const tagPlanned = new Set<string>();
     for (const row of rows) {
+      const stored = row.hashtags ?? [];
+      if (!tagPlanned.has(row.postId)) {
+        tagPlanned.add(row.postId);
+        const fragments = truncatedHashtagFragments(row.authorText ?? row.body, stored);
+        if (fragments.length > 0) {
+          const after = stored.filter((tag) => !fragments.includes(tag));
+          tagPlans.push({ postId: row.postId, before: stored, after });
+          if (result.fragmentSamples.length < SAMPLES_PER_KIND || named.has(row.postId)) {
+            result.fragmentSamples.push({ postId: row.postId, removed: fragments, kept: after });
+          }
+        }
+      }
+
       const [cleaned] = stripHiddenHashtags([{ source: 'author', text: row.body }]);
       const after = cleaned?.text ?? row.body;
       if (after === row.body) continue;
       plans.push({ id: row.id, postId: row.postId, before: row.body, after });
-      const kind: SampleKind = NON_LATIN.test(row.body)
-        ? 'non-latin'
-        : row.isFederated
-          ? 'federated'
-          : 'native';
-      if (result.samples.filter((sample) => sample.kind === kind).length < SAMPLES_PER_KIND) {
+      const kind: SampleKind = named.has(row.postId)
+        ? 'named'
+        : NON_LATIN.test(row.body)
+          ? 'non-latin'
+          : row.isFederated
+            ? 'federated'
+            : 'native';
+      if (
+        kind === 'named' ||
+        result.samples.filter((sample) => sample.kind === kind).length < SAMPLES_PER_KIND
+      ) {
         result.samples.push({
           kind,
           postId: row.postId,
@@ -260,11 +361,14 @@ export async function stripTrailingHashtagLines(
     }
     result.scanned += rows.length;
     result.changed += plans.length;
+    result.fragmentPosts += tagPlans.length;
 
-    if (!dryRun && plans.length > 0) {
+    if (!dryRun && plans.length + tagPlans.length > 0) {
       for (let attempt = 1; ; attempt += 1) {
         try {
-          result.written += await writePage(plans);
+          const page = await writePage(plans, tagPlans);
+          result.written += page.written;
+          result.fragmentPostsWritten += page.tagsWritten;
           break;
         } catch (error) {
           if (!isBackoffError(error) || attempt >= MAX_WRITE_ATTEMPTS) throw error;
@@ -285,10 +389,11 @@ export async function stripTrailingHashtagLines(
       if (!recorded) result.cursorWriteFailures += 1;
     }
     logger.info(
-      `[${SCRIPT_NAME}] progress: scanned ${result.scanned}, ${dryRun ? 'would change' : 'changed'} ${result.changed}, written ${result.written}`,
+      `[${SCRIPT_NAME}] progress: scanned ${result.scanned}, ${dryRun ? 'would change' : 'changed'} ${result.changed}, written ${result.written}, fragment posts ${result.fragmentPosts}`,
     );
 
-    const budgetMs = !dryRun && rowsPerSecond > 0 ? (plans.length * 1000) / rowsPerSecond : 0;
+    const writes = plans.length + tagPlans.length;
+    const budgetMs = !dryRun && rowsPerSecond > 0 ? (writes * 1000) / rowsPerSecond : 0;
     await sleep(Math.max(pauseMs, Math.ceil(budgetMs - (Date.now() - startedAt))));
   }
 
@@ -327,6 +432,10 @@ async function main(): Promise<void> {
       useCursor: true,
       startAfterId: process.env.START_AFTER_ID,
       resetCursor: process.env.RESET_CURSOR === 'true',
+      samplePostIds: (process.env.SAMPLE_POST_IDS ?? '')
+        .split(',')
+        .map((id) => id.trim().toLowerCase())
+        .filter((id) => id.length > 0),
       ...(pageSize !== undefined ? { pageSize: Math.max(1, Math.floor(pageSize)) } : {}),
       ...(pauseMs !== undefined ? { pauseMs } : {}),
       ...(rowsPerSecond !== undefined ? { rowsPerSecond } : {}),
@@ -342,8 +451,15 @@ async function main(): Promise<void> {
         after: sample.after,
       });
     }
+    for (const sample of result.fragmentSamples) {
+      logger.info(`[${SCRIPT_NAME}] fragment sample`, {
+        postId: sample.postId,
+        removed: sample.removed,
+        kept: sample.kept,
+      });
+    }
     logger.info(
-      `[${SCRIPT_NAME}] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, ${dryRun ? 'would change' : 'changed'} ${result.changed}, written ${result.written}`,
+      `[${SCRIPT_NAME}] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, ${dryRun ? 'would change' : 'changed'} ${result.changed}, written ${result.written}, fragment posts ${result.fragmentPosts}, fragment posts written ${result.fragmentPostsWritten}`,
     );
 
     assertAdminRunComplete(SCRIPT_NAME, {
@@ -351,6 +467,7 @@ async function main(): Promise<void> {
       // A body changed by the rule but not written was edited concurrently, or
       // the write path is broken; either way the run did not finish its work.
       unwritten: dryRun ? 0 : result.changed - result.written,
+      unwrittenFragments: dryRun ? 0 : result.fragmentPosts - result.fragmentPostsWritten,
     });
   } finally {
     await closeAdminScriptResources();
