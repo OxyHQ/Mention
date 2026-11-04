@@ -3,7 +3,7 @@ import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { useSettingsBack } from '@/context/MentionSettingsContext';
-import { useViewerSettingsSection } from '@/lib/viewerSettings';
+import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { alertDialog } from '@/utils/alerts';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';

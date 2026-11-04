@@ -10,7 +10,7 @@ import {
   type RecommendationFilters,
 } from '@/lib/recommendationFilters';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { useViewerSettingsSection } from '@/lib/viewerSettings';
+import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';

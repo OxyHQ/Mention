@@ -1,6 +1,6 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
-import { useViewerSettingsSection } from '@/lib/viewerSettings';
+import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
