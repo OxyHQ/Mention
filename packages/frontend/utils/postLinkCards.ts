@@ -28,6 +28,12 @@ export function normalizedLinkUrl(url: string): string {
   }
 }
 
+/** A document's byline as a card shows it: its authors' names, joined. */
+export function documentByline(document: ClarityDocument | undefined): string | undefined {
+  const names = (document?.authors ?? []).map((author) => author.name).filter(Boolean);
+  return names.length > 0 ? names.join(', ') : undefined;
+}
+
 export interface PostLinkCard {
   /** Where the card leads: Clarity's canonical URL when it has a document. */
   url: string;

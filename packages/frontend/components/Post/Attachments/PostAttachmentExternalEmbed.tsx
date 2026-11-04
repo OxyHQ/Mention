@@ -17,6 +17,7 @@ interface PostAttachmentExternalEmbedProps {
   description?: string;
   image?: string;
   siteName?: string;
+  author?: string;
   style?: ViewStyle;
 }
 
@@ -36,6 +37,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   description,
   image,
   siteName,
+  author,
   style,
 }) => {
   const params = useMemo(() => parseEmbedPlayerFromUrl(url), [url]);
@@ -73,6 +75,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         description={description}
         image={image}
         siteName={siteName}
+        author={author}
         className="w-full"
         style={style}
       />
