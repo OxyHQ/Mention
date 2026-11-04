@@ -1,3 +1,4 @@
+import type { ClarityDocument } from '@mention/shared-types/post';
 import { documentByline, postLinkCards, withoutCardLinks } from '../postLinkCards';
 
 const ARTICLE =
@@ -25,7 +26,21 @@ describe('postLinkCards / withoutCardLinks', () => {
     expect(withoutCardLinks(written, postLinkCards(written, []))).toBe(written);
     const uncarded = `Line\n${ARTICLE}`;
     expect(withoutCardLinks(uncarded, [])).toBe(uncarded);
-    expect(withoutCardLinks(uncarded, [{ url: 'https://other.example/' }])).toBe(uncarded);
+    expect(withoutCardLinks(uncarded, [{ url: 'https://other.example/', sourceUrls: [] }])).toBe(
+      uncarded,
+    );
+  });
+
+  it('draws one card for two links to one document and drops both bare links', () => {
+    const first = 'https://video.example/watch?v=1';
+    const second = `${first}&t=2s`;
+    const text = `Watch this\n${first}\n\n${second}`;
+    const document = { canonicalUrl: first, requestedUrl: first } as ClarityDocument;
+    const cards = postLinkCards(text, [document, { ...document, requestedUrl: second }]);
+    expect(cards.map(({ url, sourceUrls }) => ({ url, sourceUrls }))).toEqual([
+      { url: first, sourceUrls: [first, second] },
+    ]);
+    expect(withoutCardLinks(text, cards)).toBe('Watch this');
   });
 
   it("joins a document's authors into the card's byline", () => {
