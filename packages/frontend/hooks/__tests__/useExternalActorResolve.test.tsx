@@ -39,7 +39,7 @@ it('aborts obsolete network requests when the query changes and when search unmo
   expect(mockGet).toHaveBeenCalledWith(
     '/federation/resolve',
     expect.objectContaining({
-      params: { handle: '@alice@example.org' },
+      params: { handle: 'alice@example.org' },
       signal: expect.any(AbortSignal),
     }),
   );
@@ -112,5 +112,45 @@ it('retains a successful cached result when returning to the same search', async
   expect(tree.toJSON()).toBe('alice@example.org');
   expect(mockGet).toHaveBeenCalledTimes(1);
   await act(async () => tree.unmount());
+  client.clear();
+});
+
+/** Mount a search for `query`, let the debounce and the request settle, and unmount it. */
+async function searchOnce(client: QueryClient, query: string): Promise<unknown> {
+  let tree!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    tree = TestRenderer.create(
+      <QueryClientProvider client={client}>
+        <Probe query={query} />
+      </QueryClientProvider>,
+    );
+  });
+  await act(async () => jest.advanceTimersByTime(400));
+  await act(async () => jest.advanceTimersByTime(10));
+  const rendered = tree.toJSON();
+  await act(async () => tree.unmount());
+  return rendered;
+}
+
+it('treats every spelling of a fediverse handle as one lookup', async () => {
+  mockGet.mockResolvedValue({ data: { actor: { handle: 'elctrixr@x.com' } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  expect(await searchOnce(client, '@ElctrixR@x.com')).toBe('elctrixr@x.com');
+  expect(await searchOnce(client, 'elctrixr@X.com')).toBe('elctrixr@x.com');
+  expect(mockGet).toHaveBeenCalledTimes(1);
+  expect(mockGet).toHaveBeenCalledWith(
+    '/federation/resolve',
+    expect.objectContaining({ params: { handle: 'elctrixr@x.com' } }),
+  );
+  client.clear();
+});
+
+it('asks again after a miss instead of repeating it', async () => {
+  mockGet
+    .mockResolvedValueOnce({ data: { actor: null } })
+    .mockResolvedValueOnce({ data: { actor: { handle: 'elctrixr@x.com' } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  expect(await searchOnce(client, '@ElctrixR@x.com')).toBe('none');
+  expect(await searchOnce(client, '@ElctrixR@x.com')).toBe('elctrixr@x.com');
   client.clear();
 });

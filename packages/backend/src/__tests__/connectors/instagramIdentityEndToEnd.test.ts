@@ -98,6 +98,7 @@ vi.mock('../../services/mediaCache/cacheWorker', () => ({
 }));
 
 import connectorsRoutes from '../../connectors/connectors.routes';
+import { activityPubConnector } from '../../connectors/activitypub/ActivityPubConnector';
 import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 
 const ACTOR_URI = 'https://kilogram.makeup/users/zuck';
@@ -218,12 +219,9 @@ beforeEach(() => {
 });
 
 describe('resolving @zuck@kilogram.makeup', () => {
-  it('refuses discovery if source-scoped identity projection cannot complete', async () => {
+  it('refuses to import an actor whose source-scoped identity projection cannot complete', async () => {
     mocks.reconcileProjection.mockResolvedValueOnce({ refusal: 'actor_not_cached' });
-    const res = await request(app)
-      .get('/federation/resolve')
-      .query({ handle: '@zuck@kilogram.makeup' });
-    expect(res.body.actor).toBeNull();
+    expect(await activityPubConnector.fetchProfile(ACTOR_URI)).toBeNull();
     expect(mocks.reconcileProjection).toHaveBeenCalledWith({
       actorUri: 'https://kilogram.makeup/users/zuck',
       oxyUserId: 'oxy-zuck',
@@ -252,9 +250,12 @@ describe('resolving @zuck@kilogram.makeup', () => {
 
   it('asks Oxy to discover the person without sending app-derived profile assertions', async () => {
     await request(app).get('/federation/resolve').query({ handle: '@zuck@kilogram.makeup' });
-    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
-      handle: '@zuck@kilogram.makeup',
-    });
+    expect(mocks.serviceRequest).toHaveBeenCalledExactlyOnceWith(
+      'POST',
+      '/federation/identities/resolve',
+      { handle: '@zuck@kilogram.makeup' },
+    );
+    await activityPubConnector.fetchProfile(ACTOR_URI);
     expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       actorUri: ACTOR_URI,
       transportAcct: 'zuck@kilogram.makeup',
@@ -266,7 +267,7 @@ describe('resolving @zuck@kilogram.makeup', () => {
   });
 
   it('keeps the bridge address on the row it holds for reaching the actor', async () => {
-    await request(app).get('/federation/resolve').query({ handle: '@zuck@kilogram.makeup' });
+    await activityPubConnector.fetchProfile(ACTOR_URI);
 
     expect(storedRow).toMatchObject({
       acct: 'zuck@kilogram.makeup',
@@ -276,7 +277,7 @@ describe('resolving @zuck@kilogram.makeup', () => {
   });
 
   it("strips the bridge's own notice without taking the account's bio with it", async () => {
-    await request(app).get('/federation/resolve').query({ handle: '@zuck@kilogram.makeup' });
+    await activityPubConnector.fetchProfile(ACTOR_URI);
 
     expect(storedRow.summary).toBe('I build stuff');
   });
@@ -344,6 +345,9 @@ describe('what the bridge lane deliberately leaves alone', () => {
       oxyUserId: 'oxy-jordievole',
       externalId: actorUri,
     });
+    // Answering the search imports nothing: the actor is imported where it is used.
+    expect(storedRow).toEqual({});
+    await activityPubConnector.fetchProfile(actorUri);
     expect(storedRow).toMatchObject({
       networkAcct: 'jordievole@x.com',
       summary: 'Uno @delbarriotv@x.com y de @lodeevole@x.com',
@@ -382,6 +386,7 @@ describe('what the bridge lane deliberately leaves alone', () => {
       .query({ handle: '@kilogram.makeup@kilogram.makeup' });
 
     expect(res.body.actor.handle).toBe('kilogram.makeup@kilogram.makeup');
+    await activityPubConnector.fetchProfile(OPERATOR_ACTOR.id);
     expect(storedRow.networkAcct).toBe('kilogram.makeup@kilogram.makeup');
     expect(storedRow.summary).toBe(OPERATOR_ACTOR.summary);
   });

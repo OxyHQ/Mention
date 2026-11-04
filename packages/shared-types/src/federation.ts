@@ -2,6 +2,31 @@
  * Federation types for ActivityPub/Mastodon integration
  */
 
+/**
+ * The one spelling of a fediverse `user@host` account: no `acct:` scheme, no
+ * leading `@`, lower case. `undefined` when the value names no such account.
+ *
+ * Shared because both ends must agree on it: the search box keys its resolve
+ * cache and request by it, and the backend classifies and stores by it, so
+ * `@ElctrixR@x.com`, `ElctrixR@x.com` and `elctrixr@x.com` are one account and
+ * one request everywhere.
+ */
+export function normalizeFederatedAcct(acct: string | undefined): string | undefined {
+  if (!acct) return undefined;
+  const cleaned = acct
+    .trim()
+    .replace(/^acct:/i, '')
+    .replace(/^@/, '');
+  const atIndex = cleaned.indexOf('@');
+  if (atIndex <= 0 || atIndex === cleaned.length - 1) return undefined;
+
+  const localPart = cleaned.substring(0, atIndex).toLowerCase();
+  const domain = cleaned.substring(atIndex + 1).toLowerCase();
+  if (!localPart || !domain) return undefined;
+
+  return `${localPart}@${domain}`;
+}
+
 export interface FederatedActorField {
   name: string;
   value: string;

@@ -2,17 +2,25 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
+/** Oxy supplies the verified identity; Mention renders that exact profile without re-fetching it. */
 
-const { resolve, classifyQuery, getUserById, serviceRequest, connectorFor, fetchProfile } =
-  vi.hoisted(() => ({
-    resolve: vi.fn(),
-    serviceRequest: vi.fn(),
-    connectorFor: vi.fn(),
-    fetchProfile: vi.fn(),
-    classifyQuery: vi.fn(() => 'activitypub' as const),
-    getUserById: vi.fn(),
-  }));
+const {
+  resolve,
+  classifyQuery,
+  getUserById,
+  serviceRequest,
+  connectorFor,
+  fetchProfile,
+  isBlockedDomain,
+} = vi.hoisted(() => ({
+  resolve: vi.fn(),
+  serviceRequest: vi.fn(),
+  connectorFor: vi.fn(),
+  fetchProfile: vi.fn(),
+  classifyQuery: vi.fn(() => 'activitypub' as const),
+  getUserById: vi.fn(),
+  isBlockedDomain: vi.fn((_host: string) => false),
+}));
 
 // Same isolation strategy as `connectorsRoutesSharingGate.test.ts`: the route
 // module transitively imports the server entrypoint and the full connector
@@ -30,7 +38,7 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
 
 vi.mock('../../connectors/activitypub/constants', () => ({
   FEDERATION_ENABLED: true,
-  isBlockedDomain: () => false,
+  isBlockedDomain,
   FEDERATION_DOMAIN: 'mention.earth',
   AP_CONTENT_TYPE: 'application/activity+json',
   USER_AGENT: 'Mention/mention.earth (ActivityPub)',
@@ -100,15 +108,17 @@ const source = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  isBlockedDomain.mockReturnValue(false);
   classifyQuery.mockReturnValue('activitypub');
   serviceRequest.mockResolvedValue(oxyIdentityFixture(source));
   connectorFor.mockReturnValue({ id: 'activitypub', enabled: true, fetchProfile });
-  fetchProfile.mockResolvedValue({ externalId: source.actorUri, handle: source.transportAcct });
+  // The bridge 404s Mention's own fetch, as bird.makeup does for a fresh mirror.
+  fetchProfile.mockResolvedValue(null);
 });
 
 describe('GET /federation/resolve delegates public identity discovery to Oxy', () => {
   it.each(['https://x.com/elonmusk', '@elonmusk@x.com', '@elonmusk@bird.makeup'])(
-    'passes %s to Oxy and imports only its returned transport actor',
+    'passes %s to Oxy and returns the identity it verified, never asking the source again',
     async (handle) => {
       const res = await request(app).get('/federation/resolve').query({ handle });
       expect(res.status).toBe(200);
@@ -120,7 +130,7 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
       expect(serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
         handle,
       });
-      expect(fetchProfile).toHaveBeenCalledExactlyOnceWith(source.actorUri);
+      expect(fetchProfile).not.toHaveBeenCalled();
       expect(resolve).not.toHaveBeenCalled();
     },
   );
@@ -144,6 +154,14 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
     expect(fetchProfile).not.toHaveBeenCalled();
   });
 
+  it('returns no match for a source on an instance Mention blocks', async () => {
+    isBlockedDomain.mockImplementation((host) => host === 'bird.makeup');
+    const res = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'https://x.com/elonmusk' });
+    expect(res.body.actor).toBeNull();
+  });
+
   it('does not use a source response whose Oxy owner disagrees with the public profile', async () => {
     const response = oxyIdentityFixture(source);
     response.externalIdentity.userId = 'somebody-else';
@@ -155,7 +173,7 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
     expect(fetchProfile).not.toHaveBeenCalled();
   });
 
-  it('imports atproto by the DID Oxy verified and renders its canonical username', async () => {
+  it('returns atproto by the DID Oxy verified and renders its canonical username', async () => {
     const did = 'did:plc:verified';
     serviceRequest.mockResolvedValue(
       oxyIdentityFixture({
@@ -167,7 +185,6 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
       }),
     );
     connectorFor.mockReturnValue({ id: 'atproto', enabled: true, fetchProfile });
-    fetchProfile.mockResolvedValue({ externalId: did });
     const res = await request(app).get('/federation/resolve').query({ handle: did });
     expect(res.body.actor).toMatchObject({
       handle: 'alice@bsky.social',

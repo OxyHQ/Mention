@@ -83,6 +83,7 @@ vi.mock('../../services/mediaCache/cacheWorker', () => ({
 }));
 
 import connectorsRoutes from '../../connectors/connectors.routes';
+import { activityPubConnector } from '../../connectors/activitypub/ActivityPubConnector';
 import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 
 const ACTOR_URI = 'https://bird.makeup/users/elonmusk';
@@ -176,7 +177,7 @@ describe('pasting https://x.com/elonmusk', () => {
   });
 
   it('stores the bridge address on the row it keeps for reaching the actor', async () => {
-    await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
+    await activityPubConnector.fetchProfile(ACTOR_URI);
 
     expect(storedRow).toMatchObject({
       acct: 'elonmusk@bird.makeup',
@@ -186,7 +187,7 @@ describe('pasting https://x.com/elonmusk', () => {
   });
 
   it("does not keep the bridge's boilerplate notice as the account's bio", async () => {
-    await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
+    await activityPubConnector.fetchProfile(ACTOR_URI);
 
     // This account's bio is the notice and nothing else, so nothing survives it.
     expect(storedRow.summary).toBe('');

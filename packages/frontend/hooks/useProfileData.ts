@@ -10,6 +10,7 @@ import {
   type ProfileMedia,
 } from '@/stores/appearanceStore';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
+import { normalizeFederatedAcct } from '@mention/shared-types/federation';
 import type { Community } from '@/components/Profile/types';
 import type { RemoteProfileField, RemoteProfileMove } from '@mention/shared-types/profile';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -273,11 +274,16 @@ export function useProfileData(username?: string): {
   // so the "Follows you" tag would flash then vanish forever. Adding the viewer
   // makes anon vs authed distinct entries AND forces a refetch when the session
   // resolves or the account switches — identical to the local path.
+  //
+  // Keyed by the account's one spelling, so `/@Alice@Host` and `/@alice@host`
+  // are one entry. A miss is never fresh: an account discovered a moment later
+  // must not stay "not found" here for the stale window.
+  const federatedHandle = normalizeFederatedAcct(handle) ?? handle;
   const federatedQuery = useQuery<User | null>({
-    queryKey: viewerQueryKeys.federatedProfile(viewerId, handle),
-    queryFn: () => oxyServices.users.resolveHandle(handle),
+    queryKey: viewerQueryKeys.federatedProfile(viewerId, federatedHandle),
+    queryFn: () => oxyServices.users.resolveHandle(federatedHandle),
     enabled: readUnrated && isFederated && handle.length > 0,
-    staleTime: PROFILE_STALE_TIME,
+    staleTime: (query) => (query.state.data ? PROFILE_STALE_TIME : 0),
     gcTime: PROFILE_GC_TIME,
   });
 
