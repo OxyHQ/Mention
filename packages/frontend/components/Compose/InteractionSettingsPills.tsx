@@ -63,7 +63,9 @@ const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
           <TouchableOpacity activeOpacity={0.7} style={replyPillStyle}>
             <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
             <Text numberOfLines={1} style={replyTextStyle}>
-              {anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited')}
+              {anyoneCanInteract
+                ? t('compose.replySettings.anyoneCanInteract')
+                : t('compose.replySettings.limited')}
             </Text>
           </TouchableOpacity>
         </ReplySettingsMenu>

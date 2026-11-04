@@ -50,15 +50,15 @@ export default function ReplySettingsSheet({
 
   return (
     <View className="px-4 pb-4 gap-3">
-      <Text variant="title-2-bold">{t('Post interaction settings')}</Text>
+      <Text variant="title-2-bold">{t('compose.replySettings.title')}</Text>
       <RadioGroup
-        label={t('Who can reply')}
+        label={t('compose.replySettings.whoCanReply')}
         value={isAnyone ? 'anyone' : isNobody ? 'nobody' : undefined}
         onValueChange={handleRadioPress}
         variant="card"
         options={[
-          { value: 'anyone', label: t('Anyone') },
-          { value: 'nobody', label: t('Nobody') },
+          { value: 'anyone', label: t('compose.replySettings.anyone') },
+          { value: 'nobody', label: t('compose.replySettings.nobody') },
         ]}
       />
       <View className="gap-1">
@@ -73,18 +73,18 @@ export default function ReplySettingsSheet({
       </View>
       <SettingsListGroup>
         <SettingsListItem
-          title={t('Allow quote posts')}
+          title={t('compose.replySettings.allowQuotes')}
           rightElement={
             <Switch
               checked={!quotesDisabled}
               onCheckedChange={(allowed) => onQuotesDisabledChange(!allowed)}
-              accessibilityLabel={t('Allow quote posts')}
+              accessibilityLabel={t('compose.replySettings.allowQuotes')}
             />
           }
         />
       </SettingsListGroup>
       <Button size="lg" onPress={onClose}>
-        {t('Save')}
+        {t('common.save')}
       </Button>
     </View>
   );

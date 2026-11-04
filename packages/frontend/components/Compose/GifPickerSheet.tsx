@@ -105,7 +105,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       onClose();
     } catch (error: unknown) {
       logger.error('Error selecting GIF', error);
-      toast(normalizeApiError(error).message || t('Failed to add GIF'), { type: 'error' });
+      toast(normalizeApiError(error).message || t('compose.gif.addFailed'), { type: 'error' });
     } finally {
       setUploading(false);
       setSelectedGif(null);
@@ -152,7 +152,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
   return (
     <View className="flex-1 bg-background">
       <PageHeader
-        title={t('Select a GIF')}
+        title={t('compose.gif.title')}
         safeArea={false}
         actions={
           <Button
@@ -168,7 +168,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
       <View className="mx-4 mt-3 mb-2">
         <Search
-          label={t('Search GIFs...')}
+          label={t('compose.gif.searchPlaceholder')}
           value={searchQuery}
           onChangeText={setSearchQuery}
           onClearText={() => setSearchQuery('')}
@@ -180,19 +180,19 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       {loading ? (
         <View className="flex-1 justify-center items-center py-12">
           <MediaGridSkeleton />
-          <Text className="mt-3 text-sm text-muted-foreground">{t('Loading GIFs...')}</Text>
+          <Text className="mt-3 text-sm text-muted-foreground">{t('compose.gif.loading')}</Text>
         </View>
       ) : search.isError ? (
         <View className="flex-1 items-center justify-center py-12 gap-3">
           <Text accessibilityRole="alert" className="text-muted-foreground">
-            {t('Failed to load GIFs')}
+            {t('compose.gif.loadFailed')}
           </Text>
           <Button onPress={() => void search.refetch()}>{t('common.retry')}</Button>
         </View>
       ) : gifs.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12">
           <RiImageLine width={64} height={64} fill={theme.colors.textSecondary} />
-          <Text className="mt-4 text-base text-muted-foreground">{t('No GIFs found')}</Text>
+          <Text className="mt-4 text-base text-muted-foreground">{t('compose.gif.empty')}</Text>
         </View>
       ) : (
         <FlatList

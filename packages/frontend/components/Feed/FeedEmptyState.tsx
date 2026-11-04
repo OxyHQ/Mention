@@ -66,7 +66,7 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
           error={{
             title: t('feed.empty.title'),
             message: isOffline
-              ? t('No connection. Check your network and try again.', {
+              ? t('common.errors.offline', {
                   defaultValue: 'No connection. Check your network and try again.',
                 })
               : t('feed.empty.message'),

@@ -44,7 +44,7 @@ export const SearchBar = () => {
       style={{ backgroundColor: surfaceFill }}
     >
       <Search
-        label={t('Search Mention')}
+        label={t('searchBar.placeholder')}
         value={query}
         onValueChange={setQuery}
         onClearText={() => setQuery('')}

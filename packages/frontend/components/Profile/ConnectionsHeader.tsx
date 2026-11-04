@@ -26,10 +26,13 @@ export function ConnectionsHeader({
     }) || cleanUsername;
   const active = connectionTabFromPathname(pathname) ?? 'followers';
   const tabs = [
-    { id: 'followers', label: t('Followers', { defaultValue: 'Followers' }) },
-    { id: 'following', label: t('Following', { defaultValue: 'Following' }) },
+    { id: 'followers', label: t('profile.followers', { defaultValue: 'Followers' }) },
+    { id: 'following', label: t('common.following', { defaultValue: 'Following' }) },
     { id: 'in-common', label: t('connections.tabs.inCommon', { defaultValue: 'In common' }) },
-    { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
+    {
+      id: 'who-may-know',
+      label: t('profile.connections.whoMayKnow', { defaultValue: 'Who May Know' }),
+    },
   ];
   const selected = tabs.find((tab) => tab.id === active);
   const title =

@@ -182,7 +182,7 @@ export function MembershipComposer({
               appearance={requiredTierIds.length === 0 ? 'solid' : 'outline'}
               onPress={() => setRequiredTierIds([])}
             >
-              {t('All')}
+              {t('explore.tabs.all')}
             </Button>
             {tiers.map((tier) => (
               <Button

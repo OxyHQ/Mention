@@ -21,7 +21,7 @@ export const useLocationManager = () => {
       // Request permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        toast(t('Location permission denied'), { type: 'error' });
+        toast(t('compose.location.permissionDenied'), { type: 'error' });
         return;
       }
 
@@ -46,10 +46,10 @@ export const useLocationManager = () => {
       };
 
       setLocation(locationData);
-      toast(t('Location added'), { type: 'success' });
+      toast(t('compose.location.added'), { type: 'success' });
     } catch (error) {
       logger.error('Error getting location', error);
-      toast(t('Failed to get location'), { type: 'error' });
+      toast(t('compose.location.failed'), { type: 'error' });
     } finally {
       setIsGettingLocation(false);
     }
@@ -57,7 +57,7 @@ export const useLocationManager = () => {
 
   const removeLocation = () => {
     setLocation(null);
-    toast(t('Location removed'), { type: 'success' });
+    toast(t('compose.location.removed'), { type: 'success' });
   };
 
   return {

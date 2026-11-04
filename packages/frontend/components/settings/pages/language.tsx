@@ -41,13 +41,13 @@ export default function LanguageSettingsScreen() {
       <View className="gap-4">
         <SettingsSection label={t('settings.language.selectLanguage')}>
           <SettingsCard>
-            <SettingsRow label={t('Language')} description={languageDescription}>
+            <SettingsRow label={t('settings.language.title')} description={languageDescription}>
               <Button
                 size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={openLanguageSelector}
-                accessibilityLabel={t('Language')}
+                accessibilityLabel={t('settings.language.title')}
               >
                 {t('common.open', { defaultValue: 'Open' })}
               </Button>

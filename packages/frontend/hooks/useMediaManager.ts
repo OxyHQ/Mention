@@ -16,7 +16,7 @@ export const useMediaManager = () => {
       const isVideo = file?.contentType?.startsWith?.('video/');
 
       if (!isImage && !isVideo) {
-        toast(t('Please select an image or video file'), { type: 'error' });
+        toast(t('compose.media.invalidType'), { type: 'error' });
         return false;
       }
 
@@ -24,10 +24,12 @@ export const useMediaManager = () => {
         const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
         const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
         setMediaIds((prev) => (prev.some((m) => m.id === file.id) ? prev : [...prev, mediaItem]));
-        toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
+        toast(t(isImage ? 'compose.media.imageAttached' : 'compose.media.videoAttached'), {
+          type: 'success',
+        });
         return true;
       } catch (e: unknown) {
-        toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
+        toast(normalizeApiError(e).message || t('compose.media.attachFailed'), { type: 'error' });
         return false;
       }
     },
@@ -42,7 +44,7 @@ export const useMediaManager = () => {
       });
 
       if (validFiles.length !== (files || []).length) {
-        toast(t('Please select only image or video files'), { type: 'error' });
+        toast(t('compose.media.invalidTypes'), { type: 'error' });
       }
 
       const mediaItems = validFiles.map((f) => ({
@@ -67,7 +69,7 @@ export const useMediaManager = () => {
   const removeMedia = useCallback(
     (mediaId: string) => {
       setMediaIds((prev) => prev.filter((m) => m.id !== mediaId));
-      toast(t('Media removed'), { type: 'success' });
+      toast(t('compose.media.removed'), { type: 'success' });
     },
     [t],
   );

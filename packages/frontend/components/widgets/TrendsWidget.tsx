@@ -133,14 +133,16 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   if (variant === 'inline') {
     return (
       <View className="px-4 pt-3 pb-2 border-b border-border">
-        <Text className="text-[15px] font-bold text-foreground mb-1">{t('Trending')}</Text>
+        <Text className="text-[15px] font-bold text-foreground mb-1">
+          {t('discovery.trending')}
+        </Text>
         {content}
       </View>
     );
   }
 
   return (
-    <BaseWidget title={t('Trending')} divider={divider}>
+    <BaseWidget title={t('discovery.trending')} divider={divider}>
       {content}
     </BaseWidget>
   );

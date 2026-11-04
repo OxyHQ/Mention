@@ -458,7 +458,7 @@ const NotificationsScreen: React.FC = () => {
           t('notification.mark_all_read_confirm') ||
           'Are you sure you want to mark all notifications as read?',
         okText: t('notification.mark_all_read') || 'Mark All as Read',
-        cancelText: t('cancel') || 'Cancel',
+        cancelText: t('common.cancel') || 'Cancel',
         signal,
         onClosed,
       }),
@@ -802,7 +802,7 @@ const NotificationsScreen: React.FC = () => {
         scroll="auto"
         header={
           <PageHeader
-            title={t('Notifications')}
+            title={t('notifications.title')}
             presentation="floating"
             actions={
               <>

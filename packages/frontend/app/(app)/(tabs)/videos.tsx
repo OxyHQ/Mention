@@ -1987,11 +1987,13 @@ export default function VideosScreen() {
                   onValueChange={handleSelectFeed}
                 >
                   <SegmentedControlItem value="videos">
-                    <SegmentedControlItemText>{t('For You')}</SegmentedControlItemText>
+                    <SegmentedControlItemText>{t('videos.tabs.forYou')}</SegmentedControlItemText>
                   </SegmentedControlItem>
                   {canUsePrivateApi && (
                     <SegmentedControlItem value="following">
-                      <SegmentedControlItemText>{t('Following')}</SegmentedControlItemText>
+                      <SegmentedControlItemText>
+                        {t('videos.tabs.following')}
+                      </SegmentedControlItemText>
                     </SegmentedControlItem>
                   )}
                 </SegmentedControl>

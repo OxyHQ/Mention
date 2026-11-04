@@ -157,7 +157,11 @@ export default function ExploreTrendingScreen() {
   const sections = useMemo<TrendSection[]>(() => {
     const result: TrendSection[] = [];
     if (visibleTrends.length > 0) {
-      result.push({ key: LIVE_SECTION_KEY, title: t('Trending now'), data: visibleTrends });
+      result.push({
+        key: LIVE_SECTION_KEY,
+        title: t('explore.trending.title'),
+        data: visibleTrends,
+      });
     }
     const todayKey = localTodayKey();
     for (const day of historyDays) {

@@ -192,7 +192,7 @@ const PostActions: React.FC<Props> = ({
       {onReply ? (
         <EngagementAction
           icon={RiChat3Line}
-          accessibilityLabel={t('Reply')}
+          accessibilityLabel={t('common.reply')}
           count={engagement?.replies}
           onPress={onReply}
         />

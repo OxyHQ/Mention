@@ -210,7 +210,7 @@ function ProfileDiscoveryList({
   if (error && recommendations.length === 0) {
     return (
       <ErrorDisplay
-        title={t('Error', { defaultValue: 'Error' })}
+        title={t('common.error', { defaultValue: 'Error' })}
         message={error.message}
         onRetry={refetch}
         hideBackButton={true}

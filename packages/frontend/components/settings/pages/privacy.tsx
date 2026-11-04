@@ -233,7 +233,7 @@ function PrivacySettingsScreen() {
               </Button>
             </SettingsRow>
             <SettingsRow
-              label={t('settings.privacy.onlineStatus')}
+              label={t('settings.privacy.onlineStatus.title')}
               description={t('settings.privacy.onlineStatusDesc', {
                 defaultValue: 'Show when you are active',
               })}
@@ -243,7 +243,7 @@ function PrivacySettingsScreen() {
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push('/settings/privacy/online-status')}
-                accessibilityLabel={t('settings.privacy.onlineStatus')}
+                accessibilityLabel={t('settings.privacy.onlineStatus.title')}
               >
                 {t('common.open', { defaultValue: 'Open' })}
               </Button>

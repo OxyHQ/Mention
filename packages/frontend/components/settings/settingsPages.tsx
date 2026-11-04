@@ -81,7 +81,7 @@ export function useMentionSettingsPages(): MentionSettingsPages {
       content: <Page2 />,
     },
     appearance: {
-      title: t('settings.appearance', 'Appearance'),
+      title: t('settings.appearance.title', 'Appearance'),
       content: <Page3 />,
     },
     'connected-ai': {
@@ -115,7 +115,7 @@ export function useMentionSettingsPages(): MentionSettingsPages {
       content: <Page10 />,
     },
     language: {
-      title: t('Language'),
+      title: t('settings.language.title'),
       content: <Page11 />,
     },
     'live-presence': {
@@ -153,7 +153,7 @@ export function useMentionSettingsPages(): MentionSettingsPages {
       content: <Page18 />,
     },
     'privacy/online-status': {
-      title: t('settings.privacy.onlineStatus'),
+      title: t('settings.privacy.onlineStatus.title'),
       content: <Page19 />,
     },
     'privacy/profile-visibility': {

@@ -955,7 +955,11 @@ function SearchIndex() {
 
       const showTrendsSection = visibleTrends.length > 0 || !trendsFetched || Boolean(trendsError);
       if (showTrendsSection) {
-        rows.push({ kind: 'sectionHeader', key: 'header-trending', title: t('Trending') });
+        rows.push({
+          kind: 'sectionHeader',
+          key: 'header-trending',
+          title: t('discovery.trending'),
+        });
         if (visibleTrends.length > 0) {
           for (const trend of visibleTrends) {
             rows.push({ kind: 'trend', key: `trend-${trend.id}`, trend });
