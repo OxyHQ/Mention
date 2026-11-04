@@ -11,6 +11,7 @@ import { bookmarks as bookmarksTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
 import { postContentVariants } from '../../db/schema/postContent';
 import { CHRONO_DESC, findPostRecords } from '../../db/posts/postRepository';
+import type { PostRecord } from '../../db/posts/postRecord';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   userPreferenceService,
@@ -34,7 +35,9 @@ import {
   loadEngagementCountPrivacy,
   visibleEngagementCounts,
 } from '../../services/engagementCountPrivacy';
-import { collectReadable } from '../../services/readablePage';
+import { collectReadable, DEFAULT_SCAN_BUDGET } from '../../services/readablePage';
+import { chronoAfterSql } from '../../mtn/feed/CursorBuilder';
+import { decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
 import {
   BookmarkFolderInputError,
   type BookmarkFolderTarget,
@@ -148,6 +151,11 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
 
     const page = queryInt(req.query.page) || 1;
     const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const cursorParam = queryString(req.query.cursor);
+    const cursor = cursorParam === undefined ? undefined : decodeChronoCursor(cursorParam);
+    if (cursorParam !== undefined && !cursor) {
+      return res.status(400).json({ message: 'Invalid saved posts cursor' });
+    }
     const searchQuery = queryString(req.query.search);
 
     const folderFilter = queryString(req.query.folder);
@@ -208,7 +216,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     }
 
     const where = and(...conditions);
-    const hydrate = (rows: object[]) =>
+    const hydrate = (rows: PostRecord[]) =>
       postHydrationService.hydratePosts(rows, {
         viewerId: userId,
         safetyRequester: safetyRequesterFor(req),
@@ -224,34 +232,33 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
         operatedAccountReader: callerOxyUser(req),
       });
 
-    const offset = (page - 1) * limit;
-    const posts = await findPostRecords(where, { orderBy: CHRONO_DESC, limit, offset });
-    const hydratedPosts = await hydrate(posts);
-
-    // `hasMore` is decided by READABLE saved posts only (`collectReadable`): a
-    // bookmark can outlive the viewer's right to read its post, and a flag taken
-    // from the raw rows let `search` probe that post's text.
-    let nextOffset = offset + posts.length;
-    const beyond =
-      posts.length < limit
-        ? []
-        : await collectReadable({
-            want: 1,
-            fetchAfter: async (_last, size) => {
-              const rows = await findPostRecords(where, {
-                orderBy: CHRONO_DESC,
-                limit: size,
-                offset: nextOffset,
-              });
-              nextOffset += rows.length;
-              return rows;
-            },
-            hydrate,
-          });
+    // Paged over READABLE saved posts only (`collectReadable`), never over the
+    // raw bookmark rows: a bookmark can outlive the viewer's right to read its
+    // post, and a raw offset or `hasMore` let `search` probe that post's text by
+    // where it shifted the page. `cursor` continues after the last post returned;
+    // `page` (older clients, MCP) counts readable posts from the start.
+    const skip = cursor ? 0 : (page - 1) * limit;
+    const want = skip + limit + 1;
+    const entries = await collectReadable({
+      want,
+      scanBudget: want + DEFAULT_SCAN_BUDGET,
+      fetchAfter: (last, size) => {
+        const anchor = last ?? cursor;
+        return findPostRecords(anchor ? and(where, chronoAfterSql(anchor)) : where, {
+          orderBy: CHRONO_DESC,
+          limit: size,
+        });
+      },
+      hydrate,
+    });
+    const pageEntries = entries.slice(skip, skip + limit);
+    const hasMore = entries.length > skip + limit;
+    const last = pageEntries[pageEntries.length - 1]?.row;
 
     res.json({
-      posts: hydratedPosts,
-      hasMore: beyond.length > 0,
+      posts: pageEntries.map((entry) => entry.item),
+      hasMore,
+      nextCursor: hasMore && last ? encodeChronoCursor(last.createdAt, last.id) : undefined,
       page,
       limit,
     });

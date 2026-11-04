@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import {
   canonicalCapabilityJson,
   type AppCapabilityCatalog,
@@ -24,10 +24,14 @@ import { connectPostgres, closePostgres, type Database } from '../../db/postgres
 import { posts } from '../../db/schema/posts';
 import { bookmarks } from '../../db/schema/engagement';
 import { mcpEffectReceipts } from '../../db/schema/mcp';
-import { savePost } from '../../controllers/posts/bookmarks';
 import { createOptionalMentionCapabilityAuth } from '../../capabilities/capabilityAuth.middleware';
 import { createMentionCapabilityEffectIdempotency } from '../../capabilities/capabilityEffectIdempotency.middleware';
 import type { McpHttpConfig } from '../../../../mcp/lib/config';
+
+// The post read gate has its own suites, and this fixture's Oxy serves no
+// block lists or safety decisions; this suite is about the capability pipeline.
+mock.module('../../services/postReadAccess', () => ({ canRequestReadPost: async () => true }));
+const { savePost } = await import('../../controllers/posts/bookmarks');
 
 const keys = generateKeyPairSync('ed25519');
 const oldEnvironment = new Map(

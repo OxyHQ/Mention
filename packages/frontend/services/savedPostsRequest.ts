@@ -1,4 +1,6 @@
 export interface SavedPostsRequest {
+  /** Continue after the previous page's `nextCursor`. Preferred over `page`. */
+  cursor?: string;
   page?: number;
   limit?: number;
   search?: string;
@@ -28,10 +30,9 @@ export function buildSavedPostsRequestConfig(request: SavedPostsRequest): {
   params: Record<string, unknown>;
   signal?: AbortSignal;
 } {
-  const params: Record<string, unknown> = {
-    page: request.page || 1,
-    limit: request.limit || 20,
-  };
+  const params: Record<string, unknown> = request.cursor
+    ? { cursor: request.cursor, limit: request.limit || 20 }
+    : { page: request.page || 1, limit: request.limit || 20 };
 
   if (request.search) {
     params.search = request.search;

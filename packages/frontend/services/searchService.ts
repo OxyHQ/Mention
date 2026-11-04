@@ -123,7 +123,8 @@ export interface SearchUsersPage {
 export interface SearchSavedPage {
   posts: SearchPostResult[];
   hasMore: boolean;
-  nextPage: number;
+  /** The next page's cursor; present exactly when `hasMore`. */
+  nextCursor?: string;
 }
 
 /** A page of feed results plus the offset to request the next page. */
@@ -629,12 +630,16 @@ class SearchService {
     }
   }
 
-  // Paginated saved-posts search — `GET /posts/saved` page-paginates
-  // (`{ page, limit }` → `{ posts, hasMore }`). Drives the infinite Saved tab.
-  async searchSavedPage(query: string, page = 1, signal?: AbortSignal): Promise<SearchSavedPage> {
+  // Paginated saved-posts search — `GET /posts/saved` pages by cursor
+  // (`{ cursor, limit }` → `{ posts, hasMore, nextCursor }`). Drives the infinite Saved tab.
+  async searchSavedPage(
+    query: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<SearchSavedPage> {
     try {
       const response = await feedService.getSavedPosts({
-        page,
+        cursor,
         limit: SEARCH_PAGE_LIMIT,
         search: query,
         signal,
@@ -642,12 +647,14 @@ class SearchService {
       const data = response.data;
       const posts =
         isRecord(data) && Array.isArray(data.posts) ? data.posts.filter(isHydratedPost) : [];
-      return { posts, hasMore: isRecord(data) ? Boolean(data.hasMore) : false, nextPage: page + 1 };
+      const hasMore = isRecord(data) ? Boolean(data.hasMore) : false;
+      const nextCursor =
+        isRecord(data) && typeof data.nextCursor === 'string' ? data.nextCursor : undefined;
+      return { posts, hasMore: hasMore && nextCursor !== undefined, nextCursor };
     } catch (error) {
       return {
         posts: emptyIfSignedOut<SearchPostResult>(error, 'saved'),
         hasMore: false,
-        nextPage: page + 1,
       };
     }
   }

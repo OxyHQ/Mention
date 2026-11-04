@@ -236,9 +236,11 @@ threadgate/postgate is managing the post (`postManagementRefusal`), and the gate
 is stored under the post's own URI. Like and save responses carry their counters
 through the author's count privacy: a hidden counter is `null`, as on the post DTO.
 
-Listings that hydrate candidate rows (`GET /search`, `GET /posts/saved`) compute
-`hasMore` and cursors from the posts the viewer may read
-(`services/readablePage.ts`), never from the raw rows.
+Listings that hydrate candidate rows (`GET /search`, `GET /posts/saved`) page
+over the posts the viewer may read (`services/readablePage.ts`): the page,
+`hasMore` and `nextCursor` never describe a raw row. `GET /posts/saved` takes
+`cursor` (the previous page's `nextCursor`); the older `page` parameter still
+works and counts readable posts from the start.
 
 ## Search and statistics
 

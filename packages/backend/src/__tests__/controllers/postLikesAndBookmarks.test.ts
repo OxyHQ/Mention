@@ -535,18 +535,53 @@ describe('getSavedPosts', () => {
     expect(await saved({ search: 'C:\\Users' })).toEqual([literal.id]);
   });
 
-  it('derives hasMore from readable saved posts only', async () => {
-    // A bookmark can outlive the right to read its post; its text must not be
-    // probeable through the page flag.
-    const hidden = await seedSaved('the secret plan');
+  it('pages over readable saved posts only, by cursor and by page', async () => {
+    // A bookmark can outlive the right to read its post. It must neither shift
+    // the pages nor show through `hasMore`, or `search` probes its text.
+    const save = async (text: string, createdAt: string) => {
+      const post = await seedPost(scope, {
+        oxyUserId: scope.user('author'),
+        createdAt: new Date(createdAt),
+        content: { variants: [{ source: 'author', text, tag: 'en' }] },
+      });
+      await getDb().insert(bookmarks).values({ userId: VIEWER, postId: post.id, folder: null });
+      return post;
+    };
+    const newest = await save('secret one', '2026-05-03T00:00:00.000Z');
+    const hidden = await save('secret hidden', '2026-05-02T00:00:00.000Z');
+    const oldest = await save('secret two', '2026-05-01T00:00:00.000Z');
     hoisted.unreadableIds.add(hidden.id);
 
-    const { res, captured } = buildResponse();
-    await getSavedPosts(
-      buildRequest({ user: { id: VIEWER }, query: { search: 'secret', limit: '1' } }) as never,
-      res as never,
-    );
-    expect(captured.body).toMatchObject({ posts: [], hasMore: false });
+    const page = async (query: Record<string, string>) => {
+      const { res, captured } = buildResponse();
+      await getSavedPosts(
+        buildRequest({
+          user: { id: VIEWER },
+          query: { search: 'secret', limit: '1', ...query },
+        }) as never,
+        res as never,
+      );
+      const body = captured.body as {
+        posts: Array<{ id: string }>;
+        hasMore: boolean;
+        nextCursor?: string;
+      };
+      return {
+        ids: body.posts.map((post) => post.id),
+        hasMore: body.hasMore,
+        nextCursor: body.nextCursor,
+      };
+    };
+
+    const first = await page({});
+    expect(first).toMatchObject({ ids: [newest.id], hasMore: true });
+    expect(await page({ cursor: first.nextCursor as string })).toEqual({
+      ids: [oldest.id],
+      hasMore: false,
+      nextCursor: undefined,
+    });
+    expect(await page({ page: '2' })).toMatchObject({ ids: [oldest.id], hasMore: false });
+    expect(await page({ search: 'hidden' })).toMatchObject({ ids: [], hasMore: false });
   });
 
   it('answers an unauthenticated caller with 401', async () => {

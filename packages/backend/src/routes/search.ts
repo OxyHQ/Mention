@@ -1,6 +1,6 @@
 import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
-import { and, arrayContains, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayContains, eq, exists, gte, lte, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { QUERY_CANCELED, sqlStateOf } from '@oxy.so/db';
 import { posts } from '../db/schema/posts';
@@ -20,6 +20,7 @@ import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
+import { chronoAfterSql } from '../mtn/feed/CursorBuilder';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
@@ -426,12 +427,6 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         }
         requestCursor = decodedCursor;
       }
-      const after = (anchor: { createdAt: Date; id: string }) =>
-        or(
-          lt(posts.createdAt, anchor.createdAt),
-          and(eq(posts.createdAt, anchor.createdAt), lt(posts.id, anchor.id)),
-        ) as SQL;
-
       // Validate and normalize limit (max 100)
       const limitNum = Math.min(
         Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1),
@@ -448,7 +443,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       const fetchAfter = (last: SearchRow | undefined, size: number) => {
         const anchor = last ?? requestCursor;
         return findPostSearchPage(
-          and(...conditions, ...(anchor ? [after(anchor)] : [])),
+          and(...conditions, ...(anchor ? [chronoAfterSql(anchor)] : [])),
           size,
           operators.textQuery
             ? { query: operators.textQuery, newest: anchor?.createdAt }
