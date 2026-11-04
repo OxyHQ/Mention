@@ -150,7 +150,14 @@ and hide it from the person it was sent to.
 `scripts/recoverFederatedDirectMessages.ts` repairs posts stored before this:
 it re-fetches every private or followers-only ActivityPub post and converts a
 direct note with a local recipient to `direct` (DRY_RUN by default,
-`CONFIRM_ADMIN_MUTATION=recoverFederatedDirectMessages`, idempotent).
+`CONFIRM_ADMIN_MUTATION=recoverFederatedDirectMessages`, idempotent). Mastodon
+serves those notes only to their addressees or the author's followers, so a
+fetch refused to the instance actor is retried signed as up to three local users
+entitled to read it (the users the post mentions, then local followers of its
+author); Oxy signs as them through `signedFetch`'s `keyId`. A note refused to
+all of them, or gone, hides the post; an origin failure leaves it for a re-run.
+A post whose origin addresses it publicly (stored narrower because the old rule
+misread `as:Public` or single-value addressing) is restored to `public`.
 
 ### Remote custom emoji
 

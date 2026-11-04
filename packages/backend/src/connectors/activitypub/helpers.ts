@@ -3,8 +3,8 @@ import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { apIri, apList, isActivityPubMediaType } from '@oxy.so/federation';
-import { createSignedFetch, type SignedFetch } from '@oxy.so/federation/node';
+import { apIri, apIriList, apList, isActivityPubMediaType } from '@oxy.so/federation';
+import { createSignedFetch, type SignedFetch, type SignedFetchInit } from '@oxy.so/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
 import { AP_CONTENT_TYPE, USER_AGENT, extractLocalPostIdFromApUri } from './constants';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
@@ -302,12 +302,13 @@ function getSignedFetch(): SignedFetch {
  * TOCTOU window). The engine re-validates AND re-signs each redirect hop, honours
  * `init.redirect === 'manual'` (returning the redirect for a stricter per-hop
  * policy — see {@link fetchVerifiedAnnouncedNote}), and retries unsigned on a 5xx
- * for public resources.
+ * for public resources. `init.keyId` signs as a local user instead of the
+ * instance (Oxy signs for that key too); such a request is never retried unsigned.
  */
 export function signedFetch(
   url: string,
   accept: string,
-  init: RequestInit = {},
+  init: SignedFetchInit = {},
 ): Promise<Response> {
   return withActivityPubDeadline(
     (signal) => getSignedFetch()(url, accept, { ...init, signal }),
@@ -326,9 +327,24 @@ export function sameOrigin(left: string, right: string): boolean {
   }
 }
 
+/**
+ * The public collection in each form a server may send it: JSON-LD compaction
+ * against the ActivityStreams context turns the IRI into `as:Public` or
+ * `Public`, and Mastodon accepts all three.
+ */
+const AP_PUBLIC_ADDRESSEES: ReadonlySet<string> = new Set([
+  'https://www.w3.org/ns/activitystreams#Public',
+  'as:Public',
+  'Public',
+]);
+
+/** Whether one addressee is the public collection. */
+export function isApPublicAddressee(addressee: string): boolean {
+  return AP_PUBLIC_ADDRESSEES.has(addressee);
+}
+
 function isPubliclyAddressed(to?: unknown, cc?: unknown): boolean {
-  const addressees = [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])];
-  return addressees.includes('https://www.w3.org/ns/activitystreams#Public');
+  return apAddressees(to, cc).some(isApPublicAddressee);
 }
 
 export interface FetchedOriginDocument {
@@ -446,28 +462,76 @@ export async function fetchVerifiedAnnouncedNote(
 }
 
 /**
- * Fetch and parse a remote ActivityPub object via `signedFetch`. Returns null
- * on any HTTP/parse failure.
+ * What one signed fetch of an ActivityPub object answered:
+ *  - `object`: the parsed document;
+ *  - `refused`: 401/403 — the signing actor may not read it;
+ *  - `notFound`: 404/410 — absent, or (Mastodon) hidden from this actor;
+ *  - `failed`: anything else (5xx, network, unparseable) — no verdict, try later.
  */
-export async function fetchActivityPubObject(url: string): Promise<Record<string, unknown> | null> {
+export type ActivityPubObjectFetch =
+  | { kind: 'object'; object: Record<string, unknown> }
+  | { kind: 'refused' | 'notFound'; status: number }
+  | { kind: 'failed'; status?: number };
+
+/**
+ * Fetch and parse a remote ActivityPub object via `signedFetch`, signed as the
+ * instance or — with `keyId` — as a local user (see
+ * {@link localActorKeyIdResolver}), and say how it went.
+ */
+export async function fetchActivityPubObjectAs(
+  url: string,
+  options: { keyId?: string } = {},
+): Promise<ActivityPubObjectFetch> {
   try {
-    const res = await signedFetch(url, AP_CONTENT_TYPE);
+    const res = await signedFetch(url, AP_CONTENT_TYPE, { keyId: options.keyId });
     if (!res.ok) {
       logger.info('[FedSync] ActivityPub object fetch failed', {
         status: res.status,
         statusText: res.statusText,
+        asActor: options.keyId !== undefined,
       });
-      return null;
+      await res.body?.cancel().catch(() => undefined);
+      if (res.status === 401 || res.status === 403) return { kind: 'refused', status: res.status };
+      if (res.status === 404 || res.status === 410) return { kind: 'notFound', status: res.status };
+      return { kind: 'failed', status: res.status };
     }
-    const object = await res.json();
-    return asRecord(object);
+    const object = asRecord(await res.json());
+    return object ? { kind: 'object', object } : { kind: 'failed', status: res.status };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.info('[FedSync] ActivityPub object fetch error', {
       error: message,
     });
-    return null;
+    return { kind: 'failed' };
   }
+}
+
+/**
+ * Fetch and parse a remote ActivityPub object signed as the instance. Returns
+ * null on any HTTP/parse failure.
+ */
+export async function fetchActivityPubObject(url: string): Promise<Record<string, unknown> | null> {
+  const fetched = await fetchActivityPubObjectAs(url);
+  return fetched.kind === 'object' ? fetched.object : null;
+}
+
+/**
+ * A local user's signing `keyId` by username, memoized for the life of the
+ * returned function — one script run, say — so a sweep signing many fetches as
+ * the same user asks Oxy once. Not module state: Oxy owns the binding of a
+ * handle to its key and is asked again by the next caller.
+ */
+export function localActorKeyIdResolver(): (username: string) => Promise<string> {
+  const keyIds = new Map<string, Promise<string>>();
+  return (username) => {
+    let keyId = keyIds.get(username);
+    if (!keyId) {
+      keyId = getPublicKey(username).then((key) => key.keyId);
+      keyId.catch(() => keyIds.delete(username));
+      keyIds.set(username, keyId);
+    }
+    return keyId;
+  };
 }
 
 /**
@@ -853,11 +917,9 @@ export function mapApVisibility(
     : PostVisibility.DIRECT;
 }
 
-/** Every string addressee of a note's `to` and `cc`, in order. */
+/** Every addressee of a note's `to` and `cc`, in order ({@link apIriList}). */
 export function apAddressees(to?: unknown, cc?: unknown): string[] {
-  return [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])].filter(
-    (entry): entry is string => typeof entry === 'string',
-  );
+  return [...apIriList(to), ...apIriList(cc)];
 }
 
 /**
