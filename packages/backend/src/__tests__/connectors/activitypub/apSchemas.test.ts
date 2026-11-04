@@ -111,6 +111,21 @@ describe('apType + primaryApType', () => {
 // ---------------------------------------------------------------------------
 
 describe('apNoteSchema', () => {
+  it('accepts every shape the spec allows for descriptive fields (never drops a post over them)', () => {
+    const r = parseNote({
+      id: 'https://example.social/notes/1',
+      type: 'Note',
+      // Mastodon: an image without alt text carries `"name": null`.
+      attachment: { type: 'Document', mediaType: null, name: null, url: 'https://x/y.jpg' },
+      // JSON-LD compaction: a one-element list arrives as the value itself.
+      tag: { type: 'Hashtag', name: '#a', href: null },
+      to: 'as:Public',
+      cc: { id: 'https://example.social/users/a/followers' },
+      attributedTo: ['https://example.social/users/a'],
+    });
+    expect(r.ok).toBe(true);
+  });
+
   it('parses a realistic Mastodon Note with published, tags and attachment', () => {
     const note = {
       '@context': 'https://www.w3.org/ns/activitystreams',
