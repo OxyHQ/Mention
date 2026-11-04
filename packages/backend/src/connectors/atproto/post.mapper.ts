@@ -9,8 +9,17 @@ import { findActorByUri } from '../../db/federation/actorRepository';
 import { setFederatedAuthorPinnedPost } from '../../db/posts/postRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { previewableUrls } from '../../utils/clarityDocuments';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
+import { createFederatedBoost } from '../shared/federatedBoost';
+import {
+  linkPreviewKey,
+  remoteLinkPreview,
+  remoteLinkUrl,
+  storeRemoteLinkPreviews,
+  type RemoteLinkPreview,
+} from '../shared/linkPreviews';
 import type { MediaItem } from '@mention/shared-types';
 import type {
   NormalizedExternalActor,
@@ -19,17 +28,27 @@ import type {
 } from '@oxy.so/federation';
 import { xrpcGet } from './xrpcClient';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
-import { BSKY_APP_ORIGIN, POST_COLLECTION, PUBLIC_APPVIEW } from './constants';
+import { pdsEndpointFromDidDocument, resolveDidDocument } from './identityResolver';
+import { atprotoLabelValues, type AtprotoLabel } from './labels';
+import {
+  BSKY_APP_ORIGIN,
+  BSKY_MODERATION_LABELER,
+  POST_COLLECTION,
+  PUBLIC_APPVIEW,
+} from './constants';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
 
 /**
- * Maps Bluesky `app.bsky.feed.post` records (from `app.bsky.feed.getAuthorFeed`)
- * into native `posts` rows via the SAME `getPostCreator().create({...})` path the
- * ActivityPub ingest uses, deduped on `posts.federation_activity_id` (the AT-URI),
- * with remote media mirrored to Oxy S3 by the shared `materializeFederatedMedia`.
+ * Maps Bluesky `app.bsky.feed.post` records (from `app.bsky.feed.getAuthorFeed`
+ * and feed generators) into native `posts` rows via the SAME
+ * `getPostCreator().create({...})` path the ActivityPub ingest uses, deduped on
+ * `posts.federation_activity_id` (the AT-URI), with remote media mirrored to Oxy
+ * S3 by the shared `materializeFederatedMedia`, link cards stored by the shared
+ * `storeRemoteLinkPreviews`, and reposts stored as boosts by the shared
+ * `createFederatedBoost`.
  */
 
-/** Adult/sensitive self-label values that flip a post's content warning on. */
+/** Adult/sensitive label values that flip a post's content warning on. */
 const ADULT_LABEL_VALUES = new Set(['porn', 'nudity', 'sexual', 'graphic-media']);
 
 /** Clamp self-asserted future timestamps (atproto `createdAt` is author-supplied). */
@@ -72,23 +91,45 @@ interface AtprotoEmbedImage {
   alt?: string;
   aspectRatio?: { width: number; height: number };
 }
+interface AtprotoAuthor {
+  did?: string;
+  handle?: string;
+}
 /**
  * A hydrated record embed view. Self-referential so it covers both nesting levels:
  * a top-level `app.bsky.embed.record#view` whose `.record` is the quoted
- * `#viewRecord` (carrying its `uri`), and the `app.bsky.embed.recordWithMedia#view`
- * whose `.record` is a nested `#view` whose `.record` is that `#viewRecord`.
+ * `#viewRecord`, and the `app.bsky.embed.recordWithMedia#view` whose `.record` is
+ * a nested `#view` whose `.record` is that `#viewRecord`. The `#viewRecord` is
+ * the quoted post itself, hydrated: its record is `value` and its embeds
+ * `embeds`.
  */
 interface AtprotoEmbedRecordView {
   $type?: string;
   uri?: string;
+  cid?: string;
+  author?: AtprotoAuthor;
+  value?: AtprotoPostRecord;
+  labels?: AtprotoLabel[];
+  embeds?: AtprotoEmbedView[];
+  indexedAt?: string;
   record?: AtprotoEmbedRecordView;
+}
+/** `app.bsky.embed.external#viewExternal` — a link card, or a GIF from the picker. */
+interface AtprotoExternalView {
+  uri?: string;
+  title?: string;
+  description?: string;
 }
 interface AtprotoEmbedView {
   $type?: string;
   images?: AtprotoEmbedImage[];
+  /** `app.bsky.embed.video#view`: the video blob's CID, its HLS manifest, poster and alt. */
+  cid?: string;
   playlist?: string;
   thumbnail?: string;
+  alt?: string;
   aspectRatio?: { width: number; height: number };
+  external?: AtprotoExternalView;
   media?: AtprotoEmbedView;
   record?: AtprotoEmbedRecordView;
 }
@@ -100,27 +141,54 @@ interface AtprotoEmbedView {
 export interface AtprotoPostView {
   uri?: string;
   cid?: string;
-  author?: { did?: string; handle?: string };
+  author?: AtprotoAuthor;
   record?: AtprotoPostRecord;
   embed?: AtprotoEmbedView;
+  /** Self-labels AND labels a labeler applied (Bluesky's moderation service by default). */
+  labels?: AtprotoLabel[];
+  indexedAt?: string;
+}
+/** `#reasonRepost` on a repost, `#reasonPin` on the pinned post. */
+interface AtprotoFeedReason {
+  $type?: string;
+  /** The reposter. */
+  by?: AtprotoAuthor;
+  /** The `app.bsky.feed.repost` record's AT-URI — the repost's own identity. */
+  uri?: string;
   indexedAt?: string;
 }
 interface AtprotoFeedItem {
   post?: AtprotoPostView;
-  /** `#reasonRepost` on a repost (skipped), `#reasonPin` on the pinned post. */
-  reason?: unknown;
+  /**
+   * The post this item replies to and its thread root, hydrated. Either can be a
+   * `#notFoundPost` / `#blockedPost` stub, which carries no record and maps to
+   * nothing.
+   */
+  reply?: { root?: AtprotoPostView; parent?: AtprotoPostView };
+  reason?: AtprotoFeedReason;
 }
 
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin';
+const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost';
 
 /** True for the author's pinned post, which `includePins` puts first on page one. */
 function isPinItem(item: AtprotoFeedItem | undefined): boolean {
-  const reason = item?.reason as { $type?: unknown } | undefined;
-  return reason?.$type === REASON_PIN;
+  return item?.reason?.$type === REASON_PIN;
 }
 interface AtprotoAuthorFeed {
   feed?: AtprotoFeedItem[];
   cursor?: string;
+}
+
+/**
+ * A normalized atproto post plus what only this connector reads off it: the
+ * thread root (atproto names it on every reply), and the link a post's external
+ * embed is about with the card the author's client rendered for it.
+ */
+export interface AtprotoNormalizedPost extends NormalizedExternalPost {
+  rootUri?: string;
+  linkUrl?: string;
+  linkPreview?: RemoteLinkPreview;
 }
 
 /** Parse an AT-URI `at://<authority>/<collection>/<rkey>` into its parts. */
@@ -265,13 +333,15 @@ function applyFacetReplacements(text: string, ops: FacetReplacement[]): string {
 }
 
 /**
- * The quoted post's AT-URI from a hydrated record embed
+ * The quoted post's hydrated `#viewRecord` from a record embed
  * (`app.bsky.embed.record#view`, or the record half of
  * `app.bsky.embed.recordWithMedia#view`) — but ONLY when the quoted record is a
  * real, viewable feed post (`#viewRecord` of `app.bsky.feed.post`). A blocked /
- * detached / not-found / feed-generator / list embed yields no quote. Pure.
+ * detached / not-found / feed-generator / list embed yields nothing. Pure.
  */
-function extractQuotedUri(embed: AtprotoEmbedView | undefined): string | undefined {
+function quotedRecordView(
+  embed: AtprotoEmbedView | undefined,
+): (AtprotoEmbedRecordView & { uri: string }) | undefined {
   const recordView =
     embed?.$type === 'app.bsky.embed.record#view'
       ? embed.record
@@ -280,12 +350,30 @@ function extractQuotedUri(embed: AtprotoEmbedView | undefined): string | undefin
         : undefined;
   if (
     recordView?.$type === 'app.bsky.embed.record#viewRecord' &&
-    typeof recordView.uri === 'string'
+    typeof recordView.uri === 'string' &&
+    parseAtUri(recordView.uri)?.collection === POST_COLLECTION
   ) {
-    const parsed = parseAtUri(recordView.uri);
-    if (parsed && parsed.collection === POST_COLLECTION) return recordView.uri;
+    return recordView as AtprotoEmbedRecordView & { uri: string };
   }
   return undefined;
+}
+
+/**
+ * The quoted post, re-shaped from its `#viewRecord` into the PostView it is, so
+ * it imports through the same path as any other post. Pure.
+ */
+function quotedPostView(embed: AtprotoEmbedView | undefined): AtprotoPostView | undefined {
+  const view = quotedRecordView(embed);
+  if (!view) return undefined;
+  return {
+    uri: view.uri,
+    cid: view.cid,
+    author: view.author,
+    record: view.value,
+    embed: view.embeds?.[0],
+    labels: view.labels,
+    indexedAt: view.indexedAt,
+  };
 }
 
 /** Normalize `record.langs` to ISO 639-1 primary subtags (deduped, capped at 3). */
@@ -301,13 +389,21 @@ function normalizeLangs(langs: unknown): string[] {
   return out;
 }
 
-/** True when the post carries an adult self-label. */
-function hasAdultLabel(record: AtprotoPostRecord): boolean {
-  const values = record.labels?.values;
-  if (!Array.isArray(values)) return false;
-  return values.some(
-    (entry) => typeof entry?.val === 'string' && ADULT_LABEL_VALUES.has(entry.val),
-  );
+/**
+ * True when the post carries an adult label: one of the author's self-labels
+ * (in the record), or one the AppView applied — the author's own again, or
+ * Bluesky's moderation service's. Any other labeler's verdict is ignored.
+ */
+function hasAdultLabel(postView: AtprotoPostView, authorDid: string): boolean {
+  const selfLabels = postView.record?.labels?.values;
+  if (
+    Array.isArray(selfLabels) &&
+    selfLabels.some((entry) => typeof entry?.val === 'string' && ADULT_LABEL_VALUES.has(entry.val))
+  ) {
+    return true;
+  }
+  const applied = atprotoLabelValues(postView.labels, [authorDid, BSKY_MODERATION_LABELER]);
+  return [...applied].some((value) => ADULT_LABEL_VALUES.has(value));
 }
 
 function patchFromAspectRatio(
@@ -325,13 +421,75 @@ function patchFromAspectRatio(
 }
 
 /**
- * Extract playable media from a hydrated embed VIEW. Bluesky returns full CDN
- * URLs in `app.bsky.embed.images#view` (`fullsize`) and
- * `app.bsky.embed.video#view` (`playlist`, an HLS manifest); `recordWithMedia`
- * nests its media under `.media`.
+ * The original bytes of a post's video: the blob on the author's PDS
+ * (`com.atproto.sync.getBlob`), a progressive file the media mirror stores like
+ * any other remote video. The AppView's `playlist` is an HLS manifest of
+ * relative segment paths on Bluesky's video CDN: mirroring it stores a text file,
+ * and proxying it breaks every segment. Undefined without an https PDS. Pure.
  */
-function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedExternalMedia[] {
-  const out: NormalizedExternalMedia[] = [];
+function videoBlobUrl(
+  pdsEndpoint: string | undefined,
+  did: string,
+  cid: string | undefined,
+): string | undefined {
+  if (!pdsEndpoint || !cid) return undefined;
+  try {
+    const url = new URL('/xrpc/com.atproto.sync.getBlob', pdsEndpoint);
+    if (url.protocol !== 'https:') return undefined;
+    url.searchParams.set('did', did);
+    url.searchParams.set('cid', cid);
+    return url.href;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A GIF from Bluesky's picker: an external embed whose URL is the GIF itself
+ * (`https://media.tenor.com/<id>/<name>.gif?hh=<height>&ww=<width>`). Stored as
+ * an image, as an ActivityPub GIF attachment is. The picker writes the author's
+ * alt text into the card's description, behind an `Alt: ` prefix. Pure.
+ */
+function gifFromExternal(external: AtprotoExternalView): NormalizedExternalMedia | undefined {
+  let url: URL;
+  try {
+    url = new URL(external.uri ?? '');
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' || !/\.gif$/i.test(url.pathname)) return undefined;
+  const width = Number(url.searchParams.get('ww'));
+  const height = Number(url.searchParams.get('hh'));
+  const alt =
+    typeof external.description === 'string'
+      ? external.description.replace(/^alt:\s*/i, '')
+      : undefined;
+  return {
+    id: url.href,
+    type: 'image',
+    remoteUrl: url.href,
+    alt: normalizeAlt(alt),
+    ...(Number.isFinite(width) && Number.isFinite(height)
+      ? patchFromAspectRatio({ width, height })
+      : {}),
+  };
+}
+
+/**
+ * What a hydrated embed VIEW carries: its media, and the link card of an
+ * external embed. Bluesky returns full CDN URLs in `app.bsky.embed.images#view`
+ * (`fullsize`); a video is its blob ({@link videoBlobUrl}); an external embed is
+ * a GIF ({@link gifFromExternal}) or a link card; `recordWithMedia` nests its
+ * media under `.media`. `pdsEndpoint` is the post author's PDS.
+ */
+function extractEmbedContent(
+  embed: AtprotoEmbedView | undefined,
+  did: string,
+  pdsEndpoint: string | undefined,
+): { media: NormalizedExternalMedia[]; linkPreview?: RemoteLinkPreview; linkUrl?: string } {
+  const media: NormalizedExternalMedia[] = [];
+  let linkUrl: string | undefined;
+  let linkPreview: RemoteLinkPreview | undefined;
   const collect = (view: AtprotoEmbedView | undefined): void => {
     if (!view) return;
     switch (view.$type) {
@@ -342,7 +500,7 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
             // Alt text is a one-line label authored on a remote client, so it gets
             // the SAME canonical rule as every other alt in the system (native
             // writes, AP attachments): whitespace-only becomes absent, never `''`.
-            out.push({
+            media.push({
               id: url,
               type: 'image',
               remoteUrl: url,
@@ -353,15 +511,38 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
         }
         break;
       case 'app.bsky.embed.video#view': {
-        const url = view.playlist || view.thumbnail;
-        if (typeof url === 'string' && url) {
-          out.push({
-            id: url,
-            type: 'video',
-            remoteUrl: url,
-            ...patchFromAspectRatio(view.aspectRatio),
+        const alt = normalizeAlt(view.alt);
+        const shape = patchFromAspectRatio(view.aspectRatio);
+        const url = videoBlobUrl(pdsEndpoint, did, view.cid);
+        if (url) {
+          media.push({ id: url, type: 'video', remoteUrl: url, alt, ...shape });
+        } else if (typeof view.thumbnail === 'string' && view.thumbnail) {
+          // No playable source: the poster frame is still a picture of the post,
+          // and it is stored as what it is.
+          media.push({
+            id: view.thumbnail,
+            type: 'image',
+            remoteUrl: view.thumbnail,
+            alt,
+            ...shape,
           });
         }
+        break;
+      }
+      case 'app.bsky.embed.external#view': {
+        const external = view.external;
+        if (!external) break;
+        const gif = gifFromExternal(external);
+        if (gif) {
+          media.push(gif);
+          break;
+        }
+        linkUrl = remoteLinkUrl(external.uri);
+        linkPreview = remoteLinkPreview({
+          url: external.uri,
+          title: external.title,
+          description: external.description,
+        });
         break;
       }
       case 'app.bsky.embed.recordWithMedia#view':
@@ -372,7 +553,7 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
     }
   };
   collect(embed);
-  return out;
+  return { media, linkUrl, linkPreview };
 }
 
 /**
@@ -381,12 +562,14 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
  * Returns null for anything that is not an `app.bsky.feed.post` authored by
  * `expectedAuthorDid` (the synced actor) — mirroring the ActivityPub
  * actor-match guard so an author feed cannot smuggle in another actor's post.
+ * `pdsEndpoint` is the author's PDS, which a video's playable bytes live on.
  */
 export function mapPostViewToNormalizedPost(
   postView: AtprotoPostView | undefined,
   expectedAuthorDid: string,
   mentionMap: ReadonlyMap<string, string> = new Map(),
-): NormalizedExternalPost | null {
+  pdsEndpoint?: string,
+): AtprotoNormalizedPost | null {
   if (!postView || typeof postView.uri !== 'string') return null;
   const parsed = parseAtUri(postView.uri);
   if (!parsed || parsed.collection !== POST_COLLECTION) return null;
@@ -401,10 +584,11 @@ export function mapPostViewToNormalizedPost(
   const profileRef = handle || did;
   const url = `${BSKY_APP_ORIGIN}/profile/${profileRef}/post/${parsed.rkey}`;
   const langs = normalizeLangs(record.langs);
-  const media = extractMediaFromEmbed(postView.embed);
+  const embed = extractEmbedContent(postView.embed, did, pdsEndpoint);
   const inReplyTo =
     typeof record.reply?.parent?.uri === 'string' ? record.reply.parent.uri : undefined;
-  const quotedUri = extractQuotedUri(postView.embed);
+  const rootUri = typeof record.reply?.root?.uri === 'string' ? record.reply.root.uri : undefined;
+  const quotedUri = quotedRecordView(postView.embed)?.uri;
 
   // Rewrite richtext facets over the RAW body FIRST, then normalize whitespace:
   // the facet indices are byte offsets into `record.text`, so they must be applied
@@ -416,17 +600,27 @@ export function mapPostViewToNormalizedPost(
   // survive, but the surrounding whitespace noise is normalized away.
   const text = normalizeMultilineText(applyFacetReplacements(rawText, ops));
 
+  // The external embed's link becomes the post's subject link (`content.linkUrl`)
+  // only when the body does not already carry it — the usual case, since the
+  // composer strips the pasted URL once it turns it into a card.
+  const linkKey = embed.linkUrl ? linkPreviewKey(embed.linkUrl) : undefined;
+  const bodyCarriesLink =
+    linkKey !== undefined && previewableUrls(text).some((link) => linkPreviewKey(link) === linkKey);
+
   return {
     network: 'atproto',
     activityId: postView.uri,
     actorUri: did,
     url,
     inReplyTo,
+    rootUri,
     quotedUri,
-    sensitive: hasAdultLabel(record),
+    sensitive: hasAdultLabel(postView, did),
     authorOxyUserId: undefined,
     text,
-    media: media.length > 0 ? media : undefined,
+    media: embed.media.length > 0 ? embed.media : undefined,
+    linkUrl: bodyCarriesLink ? undefined : embed.linkUrl,
+    linkPreview: embed.linkPreview,
     hashtags: extractHashtags(record),
     mentions: mentionIds.length > 0 ? mentionIds : undefined,
     language: langs[0],
@@ -479,17 +673,19 @@ async function resolveMentionDids(
 }
 
 /**
- * Resolve a federated atproto post's `inReplyTo` / quoted AT-URIs to LOCAL thread +
- * quote links by matching each against an imported post's `federation.activityId`.
- * Mirrors the ActivityPub inbox reply rule (`threadId = parent.threadId ??
- * parent._id`). Best-effort: a parent / quoted post not yet imported is left
- * unlinked (a later re-ingest resolves it once that post exists locally).
+ * Resolve a federated atproto post's reply parent, thread root and quoted
+ * AT-URIs to LOCAL thread + quote links by matching each against an imported
+ * post's `federation.activityId`. The ActivityPub reply rule (`threadId =
+ * parent.threadId ?? parent._id`), except that atproto NAMES the root on every
+ * reply, so an unlinked parent still joins the root's thread. The importers
+ * store the parent, root and quoted post first ({@link importPostViewBatch}), so
+ * a miss here is a post that could not be imported (deleted, blocked, an
+ * unresolvable author) and is left unlinked.
  */
 async function resolveThreadAndQuoteLinks(
-  inReplyTo: string | undefined,
-  quotedUri: string | undefined,
+  post: AtprotoNormalizedPost,
 ): Promise<{ parentPostId?: string; threadId?: string; quoteOf?: string }> {
-  const uris = [inReplyTo, quotedUri].filter(
+  const uris = [post.inReplyTo, post.rootUri, post.quotedUri].filter(
     (uri): uri is string => typeof uri === 'string' && uri.length > 0,
   );
   if (uris.length === 0) return {};
@@ -507,27 +703,25 @@ async function resolveThreadAndQuoteLinks(
   );
 
   const links: { parentPostId?: string; threadId?: string; quoteOf?: string } = {};
-  if (inReplyTo) {
-    const parent = byUri.get(inReplyTo);
-    if (parent) {
-      links.parentPostId = parent.id;
-      links.threadId = parent.threadId ?? parent.id;
-    }
+  const parent = post.inReplyTo ? byUri.get(post.inReplyTo) : undefined;
+  if (parent) {
+    const root = post.rootUri ? byUri.get(post.rootUri) : undefined;
+    links.parentPostId = parent.id;
+    links.threadId = parent.threadId ?? root?.id ?? parent.id;
   }
-  if (quotedUri) {
-    const quoted = byUri.get(quotedUri);
-    if (quoted) links.quoteOf = quoted.id;
-  }
+  const quoted = post.quotedUri ? byUri.get(post.quotedUri) : undefined;
+  if (quoted) links.quoteOf = quoted.id;
   return links;
 }
 
 /**
  * Persist a normalized atproto post as a native `Post` via the shared creation
- * path, after mirroring its media to Oxy S3. Returns true on a fresh insert,
- * false when it already existed (dedup race) or creation failed.
+ * path, after mirroring its media to Oxy S3, and store the card its external
+ * embed carried. Returns true on a fresh insert, false when it already existed
+ * (dedup race) or creation failed.
  */
 async function createPostFromNormalized(
-  post: NormalizedExternalPost,
+  post: AtprotoNormalizedPost,
   ownerOxyUserId: string,
   did: string,
   instanceDomain: string,
@@ -554,12 +748,10 @@ async function createPostFromNormalized(
     actorUri: did,
   });
 
-  // Resolve reply-parent + quoted AT-URIs to local thread/quote links (best-effort;
-  // a not-yet-imported parent/quote is left unlinked).
-  const links = await resolveThreadAndQuoteLinks(post.inReplyTo, post.quotedUri);
+  const links = await resolveThreadAndQuoteLinks(post);
 
   try {
-    await getPostCreator().create({
+    const created = await getPostCreator().create({
       oxyUserId: ownerOxyUserId,
       federation: {
         activityId: post.activityId,
@@ -573,6 +765,7 @@ async function createPostFromNormalized(
       quoteOf: links.quoteOf ?? null,
       content: {
         text: post.text,
+        linkUrl: post.linkUrl,
         media: materialized.media.length > 0 ? materialized.media : undefined,
         attachments: materialized.attachments.length > 0 ? materialized.attachments : undefined,
       },
@@ -591,6 +784,9 @@ async function createPostFromNormalized(
       skipFederationDelivery: true,
       ...(post.createdAt ? { createdAt: post.createdAt, updatedAt: post.createdAt } : {}),
     });
+    // The card the author's client rendered: the fallback for a link Clarity
+    // has not described yet, exactly as an ActivityPub FEP-8967 card.
+    if (post.linkPreview) await storeRemoteLinkPreviews(created.id, [post.linkPreview]);
     return true;
   } catch (err) {
     if (isUniqueViolation(err)) return false;
@@ -599,154 +795,8 @@ async function createPostFromNormalized(
   }
 }
 
-/**
- * Fetch `app.bsky.feed.getAuthorFeed` for the resolved atproto `actor`, map each
- * original `app.bsky.feed.post` to a native `Post`, dedup on the AT-URI, and
- * import the new ones. Reposts (items carrying a `reason`) are skipped in C2.
- *
- * The actor MUST already carry a resolved `oxyUserId` (no orphan posts).
- */
-export async function importAuthorFeed(
-  actor: NormalizedExternalActor,
-  opts: { limit?: number; cursor?: string } = {},
-): Promise<{ posts: NormalizedExternalPost[]; cursor?: string }> {
-  const did = actor.externalId;
-  const ownerOxyUserId = actor.oxyUserId;
-  if (!ownerOxyUserId) {
-    logger.warn('[atproto] skipped author feed import without a resolved Oxy user');
-    return { posts: [] };
-  }
-  // Stamp the actor's instance domain (e.g. `bsky.social`) on imported posts —
-  // matching the AP convention (the post's instance domain = the actor's host), not
-  // the bare full handle.
-  const instanceDomain = actor.instanceDomain;
-
-  let feed: AtprotoAuthorFeed;
-  try {
-    feed = await xrpcGet<AtprotoAuthorFeed>(PUBLIC_APPVIEW, 'app.bsky.feed.getAuthorFeed', {
-      actor: did,
-      limit: opts.limit ?? 20,
-      cursor: opts.cursor,
-      // Page one leads with the pinned post, which may be older than the page.
-      includePins: opts.cursor ? undefined : true,
-    });
-  } catch (err) {
-    logger.debug('[atproto] getAuthorFeed failed', err);
-    return { posts: [] };
-  }
-
-  const items = Array.isArray(feed?.feed) ? feed.feed : [];
-
-  // Pre-resolve every mentioned DID across the batch (deduped, fail-soft) so the
-  // pure mapper can splice `[mention:<oxyUserId>]` placeholders in the same byte
-  // pass as `#link` facets. Reposts are skipped here exactly as in the map loop.
-  const mentionDids = new Set<string>();
-  for (const item of items) {
-    if (item?.reason && !isPinItem(item)) continue;
-    for (const mentionedDid of extractMentionDids(item.post?.record)) mentionDids.add(mentionedDid);
-  }
-  const mentionMap = await resolveMentionDids(mentionDids);
-
-  const normalized: NormalizedExternalPost[] = [];
-  let pinnedUri: string | null = null;
-  for (const item of items) {
-    const pin = isPinItem(item);
-    if (item?.reason && !pin) continue; // skip reposts in C2
-    const mapped = mapPostViewToNormalizedPost(item.post, did, mentionMap);
-    if (!mapped) continue;
-    if (pin) pinnedUri = mapped.activityId;
-    // The pinned post can also appear at its own place in the page.
-    if (normalized.some((post) => post.activityId === mapped.activityId)) continue;
-    normalized.push({ ...mapped, authorOxyUserId: ownerOxyUserId });
-  }
-
-  if (normalized.length === 0) {
-    if (!opts.cursor) await setFederatedAuthorPinnedPost(ownerOxyUserId, null);
-    return { posts: [], cursor: feed?.cursor };
-  }
-
-  // Dedup against AT-URIs already imported (the unique sparse
-  // `federation.activityId` index is the backstop for concurrent races).
-  const atUris = normalized.map((post) => post.activityId);
-  const existingDocs = await getDb()
-    .select({ activityId: posts.federationActivityId })
-    .from(posts)
-    .where(inArray(posts.federationActivityId, atUris));
-  const seen = new Set<string>();
-  for (const doc of existingDocs) {
-    if (doc.activityId) seen.add(doc.activityId);
-  }
-
-  const imported: NormalizedExternalPost[] = [];
-  for (const post of normalized) {
-    if (seen.has(post.activityId)) continue;
-    const created = await createPostFromNormalized(post, ownerOxyUserId, did, instanceDomain);
-    if (created) imported.push(post);
-  }
-
-  // Page one is the only page that says what is pinned (including "nothing").
-  if (!opts.cursor) {
-    const [pinned] = pinnedUri
-      ? await getDb()
-          .select({ id: posts.id })
-          .from(posts)
-          .where(
-            and(eq(posts.federationActivityId, pinnedUri), eq(posts.oxyUserId, ownerOxyUserId)),
-          )
-          .limit(1)
-      : [];
-    if (!pinnedUri || pinned)
-      await setFederatedAuthorPinnedPost(ownerOxyUserId, pinned?.id ?? null);
-  }
-
-  return { posts: imported, cursor: feed?.cursor };
-}
-
 /** How many distinct post authors to resolve to Oxy users in parallel. */
 const FEED_AUTHOR_CONCURRENCY = 6;
-
-/** The `app.bsky.feed.getFeed` response — the same hydrated shape `getAuthorFeed` returns. */
-interface AtprotoGetFeedResponse {
-  feed?: AtprotoFeedItem[];
-  cursor?: string;
-}
-
-/**
- * Fetch one page of a Bluesky FEED GENERATOR's output (`app.bsky.feed.getFeed`)
- * from the public AppView. Returns the hydrated `PostView`s in the generator's
- * ranking ORDER plus the paging cursor.
- *
- * `getFeed` returns the identical hydrated `PostView` shape `getAuthorFeed` does,
- * so its posts feed straight into {@link importPostViews} → the same native-post
- * import path the author-feed backfill uses. Unlike an author feed, a generator
- * mixes many authors and its items carry the algorithm's ranking, so the `.post`
- * of every item is kept in order (a `reason`/repost item still resolves to the
- * post's REAL author, which is what gets imported). Fail-soft: a fetch error
- * yields an empty page, never throws.
- */
-export async function getFeed(
-  feedUri: string,
-  opts: { limit?: number; cursor?: string } = {},
-): Promise<{ posts: AtprotoPostView[]; cursor?: string }> {
-  let response: AtprotoGetFeedResponse;
-  try {
-    response = await xrpcGet<AtprotoGetFeedResponse>(PUBLIC_APPVIEW, 'app.bsky.feed.getFeed', {
-      feed: feedUri,
-      limit: opts.limit ?? 30,
-      cursor: opts.cursor,
-    });
-  } catch (err) {
-    logger.debug('[atproto] getFeed failed', err);
-    return { posts: [] };
-  }
-
-  const items = Array.isArray(response?.feed) ? response.feed : [];
-  const posts: AtprotoPostView[] = [];
-  for (const item of items) {
-    if (item?.post) posts.push(item.post);
-  }
-  return { posts, cursor: response?.cursor };
-}
 
 /** A resolved post author: the federated Oxy user + the instance domain to stamp on the post. */
 interface ResolvedAuthor {
@@ -780,90 +830,352 @@ async function resolveFeedAuthors(dids: readonly string[]): Promise<Map<string, 
   return map;
 }
 
+/** True when a post view embeds a video, whose playable bytes live on the author's PDS. */
+function embedsVideo(view: AtprotoPostView): boolean {
+  const embed = view.embed;
+  return (
+    embed?.$type === 'app.bsky.embed.video#view' ||
+    embed?.media?.$type === 'app.bsky.embed.video#view'
+  );
+}
+
 /**
- * Import a batch of hydrated `PostView`s (from a feed generator's {@link getFeed})
- * as native `Post` rows, and return the AT-URIs that map to a local post — in INPUT
- * ORDER — so the caller can load + hydrate them preserving the generator's ranking.
- *
- * This is the MULTI-AUTHOR sibling of {@link importAuthorFeed}: a generator feed
- * mixes many authors, so each post's author is independently resolved/minted to its
- * federated Oxy user (deduped, bounded). Everything else reuses the exact same path
- * as the author-feed backfill — {@link mapPostViewToNormalizedPost} (author validated
- * against its own DID), the batched mention resolution, media materialization,
- * AT-URI dedup, and {@link createPostFromNormalized}. Best-effort + fail-soft: an
- * unresolvable author or unmappable view is skipped, a duplicate is a no-op, and
- * nothing throws. A returned URI whose creation genuinely failed simply won't have a
- * local `Post` for the caller to load — it drops out of the page rather than
- * appearing blank.
+ * Resolve the PDS of each DISTINCT author DID (its DID document's
+ * `#atproto_pds`), bounded + fail-soft: an author whose document cannot be read
+ * is absent, and its video keeps only its poster.
  */
-export async function importPostViews(
+async function resolvePdsEndpoints(dids: readonly string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const settled = await mapWithConcurrency(dids, FEED_AUTHOR_CONCURRENCY, async (did) => {
+    const doc = await resolveDidDocument(did);
+    const endpoint = doc ? pdsEndpointFromDidDocument(doc) : undefined;
+    return endpoint ? { did, endpoint } : undefined;
+  });
+  for (const result of settled) {
+    if (result.status === 'fulfilled' && result.value) {
+      map.set(result.value.did, result.value.endpoint);
+    }
+  }
+  return map;
+}
+
+/** One post view of a batch that mapped to a native post. */
+interface ImportedView {
+  uri: string;
+  post: AtprotoNormalizedPost;
+  /** False when it was already stored (or lost a dedup race, or creation failed). */
+  created: boolean;
+}
+
+/**
+ * Import a batch of hydrated `PostView`s as native `Post` rows, in input order —
+ * the ONE path every atproto post takes, whether it is an author's own, a post
+ * in a feed generator, a reposted original, or the context of one of those.
+ *
+ * `context` is the posts the batch replies to (a feed item's hydrated
+ * `reply.root` / `reply.parent`); the posts the batch QUOTES are read off each
+ * view's own embed. All of them are imported FIRST, so the batch's reply and
+ * quote links resolve against real local rows — the equivalent of the
+ * ActivityPub ancestor and quote imports (`ensureFederatedReplyLink`,
+ * `ensureQuotedNote`). The recursion is one level deep: a context post's own
+ * parent or quote links only if it is already stored.
+ *
+ * Each post's author is resolved to its federated Oxy user (deduped, bounded);
+ * `authors` seeds already-resolved ones. A post whose author cannot be resolved
+ * is skipped (no orphan), each view is validated against its OWN author's DID,
+ * and the AT-URI dedup (backstopped by the unique `federation.activityId`
+ * index) makes a re-import a no-op. Best-effort + fail-soft; nothing throws.
+ */
+async function importPostViewBatch(
   postViews: ReadonlyArray<AtprotoPostView | undefined>,
-): Promise<string[]> {
-  // Keep only real feed-post views that carry both an AT-URI and an author DID, in
-  // the generator's order.
+  options: {
+    authors?: ReadonlyMap<string, ResolvedAuthor>;
+    context?: ReadonlyArray<AtprotoPostView | undefined>;
+    withContext?: boolean;
+  } = {},
+): Promise<ImportedView[]> {
+  // Keep only real feed-post views that carry both an AT-URI and an author DID,
+  // once each, in order.
   const candidates: Array<{ uri: string; did: string; view: AtprotoPostView }> = [];
   for (const view of postViews) {
     const uri = typeof view?.uri === 'string' ? view.uri : '';
     const did = typeof view?.author?.did === 'string' ? view.author.did : '';
-    if (!uri || !did) continue;
-    const parsed = parseAtUri(uri);
-    if (!parsed || parsed.collection !== POST_COLLECTION) continue;
+    if (!uri || !did || candidates.some((candidate) => candidate.uri === uri)) continue;
+    if (parseAtUri(uri)?.collection !== POST_COLLECTION) continue;
     candidates.push({ uri, did, view: view as AtprotoPostView });
+  }
+
+  if (options.withContext !== false) {
+    const own = new Set(candidates.map((candidate) => candidate.uri));
+    const context = [
+      ...(options.context ?? []),
+      ...candidates.map((candidate) => quotedPostView(candidate.view.embed)),
+    ].filter((view) => typeof view?.uri === 'string' && !own.has(view.uri));
+    if (context.length > 0) {
+      await importPostViewBatch(context, { authors: options.authors, withContext: false });
+    }
   }
   if (candidates.length === 0) return [];
 
-  // Resolve each distinct author to its federated Oxy user (no orphan posts) and
-  // pre-resolve every mentioned DID across the batch, both bounded + fail-soft.
-  const authorMap = await resolveFeedAuthors([...new Set(candidates.map((c) => c.did))]);
+  // Resolve each distinct author to its federated Oxy user (no orphan posts),
+  // pre-resolve every mentioned DID across the batch, and find the PDS of each
+  // author who posted a video — all bounded + fail-soft.
+  const authorMap = new Map(options.authors);
+  const unresolved = [...new Set(candidates.map((c) => c.did))].filter((d) => !authorMap.has(d));
+  for (const [did, author] of await resolveFeedAuthors(unresolved)) authorMap.set(did, author);
   const mentionDids = new Set<string>();
   for (const candidate of candidates) {
     for (const mentionedDid of extractMentionDids(candidate.view.record))
       mentionDids.add(mentionedDid);
   }
   const mentionMap = await resolveMentionDids(mentionDids);
+  const pdsMap = await resolvePdsEndpoints([
+    ...new Set(candidates.filter((c) => embedsVideo(c.view)).map((c) => c.did)),
+  ]);
 
-  // Map each view to a normalized post (author validated against its own DID).
-  const mapped: Array<{
-    uri: string;
-    post: NormalizedExternalPost;
-    owner: string;
-    did: string;
-    instanceDomain: string;
-  }> = [];
+  const mapped: Array<{ uri: string; post: AtprotoNormalizedPost; did: string } & ResolvedAuthor> =
+    [];
   for (const candidate of candidates) {
     const author = authorMap.get(candidate.did);
     if (!author) continue; // unresolved author → skip (no orphan)
-    const normalized = mapPostViewToNormalizedPost(candidate.view, candidate.did, mentionMap);
+    const normalized = mapPostViewToNormalizedPost(
+      candidate.view,
+      candidate.did,
+      mentionMap,
+      pdsMap.get(candidate.did),
+    );
     if (!normalized) continue;
     mapped.push({
       uri: candidate.uri,
       post: { ...normalized, authorOxyUserId: author.oxyUserId },
-      owner: author.oxyUserId,
       did: candidate.did,
-      instanceDomain: author.instanceDomain,
+      ...author,
     });
   }
   if (mapped.length === 0) return [];
 
-  // Dedup against AT-URIs already imported (the unique sparse `federation.activityId`
-  // index is the backstop for concurrent races), then create the new ones. Every
-  // mapped URI is returned in order — a pre-existing / freshly-created / dup-raced
-  // post all have a local `Post`; only a genuine creation failure has none, and the
-  // caller's load naturally drops it.
-  const atUris = mapped.map((entry) => entry.uri);
   const existingDocs = await getDb()
     .select({ activityId: posts.federationActivityId })
     .from(posts)
-    .where(inArray(posts.federationActivityId, atUris));
-  const seen = new Set<string>();
-  for (const doc of existingDocs) {
-    if (doc.activityId) seen.add(doc.activityId);
+    .where(
+      inArray(
+        posts.federationActivityId,
+        mapped.map((entry) => entry.uri),
+      ),
+    );
+  const seen = new Set(existingDocs.flatMap((doc) => (doc.activityId ? [doc.activityId] : [])));
+
+  const imported: ImportedView[] = [];
+  for (const entry of mapped) {
+    const created =
+      !seen.has(entry.uri) &&
+      (await createPostFromNormalized(
+        entry.post,
+        entry.oxyUserId,
+        entry.did,
+        entry.instanceDomain,
+      ));
+    imported.push({ uri: entry.uri, post: entry.post, created });
+  }
+  return imported;
+}
+
+/** A repost on an author's feed: its own AT-URI, the reposted post's, and when. */
+interface AuthorRepost {
+  uri: string;
+  subjectUri: string;
+  createdAt?: Date;
+}
+
+/**
+ * Store an author's reposts as boosts of the (already imported) originals,
+ * through the network-neutral {@link createFederatedBoost} the ActivityPub
+ * `Announce` import uses. Deduped on the repost's AT-URI; a repost whose
+ * original could not be imported is skipped.
+ */
+async function importReposts(
+  reposts: readonly AuthorRepost[],
+  boosterOxyUserId: string,
+  did: string,
+): Promise<void> {
+  if (reposts.length === 0) return;
+  const rows = await getDb()
+    .select({ id: posts.id, activityId: posts.federationActivityId })
+    .from(posts)
+    .where(
+      inArray(
+        posts.federationActivityId,
+        reposts.flatMap((repost) => [repost.uri, repost.subjectUri]),
+      ),
+    );
+  const idByUri = new Map(
+    rows.flatMap((row) => (row.activityId ? [[row.activityId, row.id]] : [])),
+  );
+  for (const repost of reposts) {
+    const originalPostId = idByUri.get(repost.subjectUri);
+    if (idByUri.has(repost.uri) || !originalPostId) continue;
+    await createFederatedBoost({
+      activityId: repost.uri,
+      originalPostId,
+      boosterOxyUserId,
+      actorUri: did,
+      createdAt: repost.createdAt,
+    });
+  }
+}
+
+/**
+ * Fetch `app.bsky.feed.getAuthorFeed` for the resolved atproto `actor` and import
+ * the page: the author's own posts (the pinned one included), the posts they
+ * reply to and quote (so the links resolve), and their reposts — the reposted
+ * original under ITS author, then a boost of it by this one, as an ActivityPub
+ * `Announce` is stored. Page one also mirrors which post is pinned.
+ *
+ * The actor MUST already carry a resolved `oxyUserId` (no orphan posts).
+ */
+export async function importAuthorFeed(
+  actor: NormalizedExternalActor,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<{ posts: NormalizedExternalPost[]; cursor?: string }> {
+  const did = actor.externalId;
+  const ownerOxyUserId = actor.oxyUserId;
+  if (!ownerOxyUserId) {
+    logger.warn('[atproto] skipped author feed import without a resolved Oxy user');
+    return { posts: [] };
   }
 
-  for (const entry of mapped) {
-    if (!seen.has(entry.uri)) {
-      await createPostFromNormalized(entry.post, entry.owner, entry.did, entry.instanceDomain);
-    }
+  let feed: AtprotoAuthorFeed;
+  try {
+    feed = await xrpcGet<AtprotoAuthorFeed>(PUBLIC_APPVIEW, 'app.bsky.feed.getAuthorFeed', {
+      actor: did,
+      limit: opts.limit ?? 20,
+      cursor: opts.cursor,
+      // Page one leads with the pinned post, which may be older than the page.
+      includePins: opts.cursor ? undefined : true,
+    });
+  } catch (err) {
+    logger.debug('[atproto] getAuthorFeed failed', err);
+    return { posts: [] };
   }
-  return atUris;
+
+  const items = Array.isArray(feed?.feed) ? feed.feed : [];
+  const own: AtprotoPostView[] = [];
+  const context: Array<AtprotoPostView | undefined> = [];
+  const reposts: AuthorRepost[] = [];
+  let pinItemUri: string | undefined;
+  for (const item of items) {
+    const post = item?.post;
+    if (typeof post?.uri !== 'string') continue;
+    if (item.reason?.$type === REASON_REPOST) {
+      if (item.reason.by?.did !== did || typeof item.reason.uri !== 'string') continue;
+      context.push(post);
+      reposts.push({
+        uri: item.reason.uri,
+        subjectUri: post.uri,
+        createdAt: parseCreatedAt(item.reason.indexedAt),
+      });
+      continue;
+    }
+    if (item.reason && !isPinItem(item)) continue;
+    // Only the author's own posts are theirs to import under this actor.
+    if (post.author?.did !== did) continue;
+    if (isPinItem(item)) pinItemUri = post.uri;
+    own.push(post);
+    context.push(item.reply?.root, item.reply?.parent);
+  }
+
+  // Stamp the actor's instance domain (e.g. `bsky.social`) on imported posts —
+  // matching the AP convention (the post's instance domain = the actor's host), not
+  // the bare full handle.
+  const imported = await importPostViewBatch(own, {
+    authors: new Map([[did, { oxyUserId: ownerOxyUserId, instanceDomain: actor.instanceDomain }]]),
+    context,
+  });
+  await importReposts(reposts, ownerOxyUserId, did);
+
+  // Page one is the only page that says what is pinned (including "nothing").
+  if (!opts.cursor) {
+    const pinnedUri = imported.some((entry) => entry.uri === pinItemUri) ? pinItemUri : undefined;
+    const [pinned] = pinnedUri
+      ? await getDb()
+          .select({ id: posts.id })
+          .from(posts)
+          .where(
+            and(eq(posts.federationActivityId, pinnedUri), eq(posts.oxyUserId, ownerOxyUserId)),
+          )
+          .limit(1)
+      : [];
+    if (!pinnedUri || pinned)
+      await setFederatedAuthorPinnedPost(ownerOxyUserId, pinned?.id ?? null);
+  }
+
+  return {
+    posts: imported.filter((entry) => entry.created).map((entry) => entry.post),
+    cursor: feed?.cursor,
+  };
+}
+
+/** The `app.bsky.feed.getFeed` response — the same hydrated shape `getAuthorFeed` returns. */
+interface AtprotoGetFeedResponse {
+  feed?: AtprotoFeedItem[];
+  cursor?: string;
+}
+
+/**
+ * Fetch one page of a Bluesky FEED GENERATOR's output (`app.bsky.feed.getFeed`)
+ * from the public AppView. Returns the hydrated `PostView`s in the generator's
+ * ranking ORDER, the posts they reply to (`context`), and the paging cursor.
+ *
+ * `getFeed` returns the identical hydrated `PostView` shape `getAuthorFeed` does,
+ * so its posts feed straight into {@link importPostViews} → the same native-post
+ * import path the author-feed backfill uses. Unlike an author feed, a generator
+ * mixes many authors and its items carry the algorithm's ranking, so the `.post`
+ * of every item is kept in order (a `reason`/repost item still resolves to the
+ * post's REAL author, which is what gets imported). Fail-soft: a fetch error
+ * yields an empty page, never throws.
+ */
+export async function getFeed(
+  feedUri: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<{ posts: AtprotoPostView[]; context: AtprotoPostView[]; cursor?: string }> {
+  let response: AtprotoGetFeedResponse;
+  try {
+    response = await xrpcGet<AtprotoGetFeedResponse>(PUBLIC_APPVIEW, 'app.bsky.feed.getFeed', {
+      feed: feedUri,
+      limit: opts.limit ?? 30,
+      cursor: opts.cursor,
+    });
+  } catch (err) {
+    logger.debug('[atproto] getFeed failed', err);
+    return { posts: [], context: [] };
+  }
+
+  const items = Array.isArray(response?.feed) ? response.feed : [];
+  const posts: AtprotoPostView[] = [];
+  const context: AtprotoPostView[] = [];
+  for (const item of items) {
+    if (item?.post) posts.push(item.post);
+    for (const view of [item?.reply?.root, item?.reply?.parent]) if (view) context.push(view);
+  }
+  return { posts, context, cursor: response?.cursor };
+}
+
+/**
+ * Import a batch of hydrated `PostView`s (from a feed generator's {@link getFeed})
+ * as native `Post` rows, and return the AT-URIs that map to a local post — in INPUT
+ * ORDER — so the caller can load + hydrate them preserving the generator's ranking.
+ * `context` is the posts they reply to ({@link getFeed}'s `context`), imported
+ * first so the reply links resolve.
+ *
+ * The MULTI-AUTHOR sibling of {@link importAuthorFeed}, over the same
+ * {@link importPostViewBatch}. A returned URI whose creation genuinely failed simply
+ * won't have a local `Post` for the caller to load — it drops out of the page
+ * rather than appearing blank.
+ */
+export async function importPostViews(
+  postViews: ReadonlyArray<AtprotoPostView | undefined>,
+  context: ReadonlyArray<AtprotoPostView | undefined> = [],
+): Promise<string[]> {
+  const imported = await importPostViewBatch(postViews, { context });
+  return imported.map((entry) => entry.uri);
 }

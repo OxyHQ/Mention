@@ -15,7 +15,8 @@ import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../sha
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { isMediaLinkAttachment, type ApAttachment } from './apMedia';
 import { extractApHashtags, extractApMedia } from './helpers';
-import { extractApLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
+import { extractApLinkPreviews } from './apLinkPreview';
+import type { RemoteLinkPreview } from '../shared/linkPreviews';
 import { declaredApLanguage, extractApLanguage, getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { expandVariantTcoLinks } from './tcoLinks';

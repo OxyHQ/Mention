@@ -131,7 +131,7 @@ describe('FeedGeneratorFeed.fetch', () => {
     const postC = await importedPost(uriC);
     const postA = await importedPost(uriA);
 
-    mocks.getFeed.mockResolvedValue({ posts: views, cursor: 'next-cursor' });
+    mocks.getFeed.mockResolvedValue({ posts: views, context: [], cursor: 'next-cursor' });
     mocks.importPostViews.mockResolvedValue([uriA, uriB, uriC]);
 
     const feed = new FeedGeneratorFeed(GEN_URI);
@@ -141,7 +141,7 @@ describe('FeedGeneratorFeed.fetch', () => {
     );
 
     expect(mocks.getFeed).toHaveBeenCalledWith(GEN_URI, { cursor: undefined, limit: 30 });
-    expect(mocks.importPostViews).toHaveBeenCalledWith(views);
+    expect(mocks.importPostViews).toHaveBeenCalledWith(views, []);
 
     // The generator's ranking (a, b, c), against real rows stored (b, c, a).
     expect(response.items.map((item) => item.id)).toEqual([postA.id, postB.id, postC.id]);

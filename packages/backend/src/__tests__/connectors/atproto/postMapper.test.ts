@@ -16,11 +16,13 @@ const scope = federationScope('atproto-post-mapper');
  * atproto post mapping + import.
  *
  *  - `mapPostViewToNormalizedPost`: `app.bsky.feed.post` PostView → normalized
- *    post (AT-URI provenance, bsky.app web URL, reply parent, embed media,
- *    richtext hashtags, langs, adult self-labels), with the actor-match guard.
- *  - `importAuthorFeed`: getAuthorFeed → dedup on the AT-URI → import the new
- *    posts via `getPostCreator().create`, skipping reposts. The XRPC fetch, the
- *    post creator, and media materialization are mocked.
+ *    post (AT-URI provenance, bsky.app web URL, reply parent, embed media and
+ *    link cards, richtext hashtags, langs, adult labels), with the actor-match
+ *    guard.
+ *  - `importAuthorFeed`: getAuthorFeed → the posts replied to and quoted first →
+ *    dedup on the AT-URI → import the new posts via `getPostCreator().create`,
+ *    and reposts as boosts. The XRPC fetch, the post creator, and media
+ *    materialization are mocked.
  *
  * The POSTS are real. Batch 7 moved the dedup query and the thread/quote
  * resolution to Postgres, so the `Post.find` mock — and the `select(fields)`
@@ -62,7 +64,9 @@ import {
   importPostViews,
   mapPostViewToNormalizedPost,
 } from '../../../connectors/atproto/post.mapper';
+import { findPostLinkPreviews } from '../../../db/posts/postLinkPreviewRepository';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
+import type { CreatePostParams } from '../../../services/PostCreationService';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
 
@@ -98,6 +102,32 @@ const ACTOR: NormalizedExternalActor = {
   instanceDomain: 'bsky.social',
   oxyUserId: 'oxy-alice',
 };
+
+/** The post creator, storing a REAL row so later links and cards resolve against it. */
+function storeCreatedPosts(): void {
+  mocks.create.mockImplementation(async (params: CreatePostParams) =>
+    seedPost(scope, {
+      oxyUserId: params.oxyUserId,
+      federation: {
+        activityId: params.federation.activityId,
+        actorUri: params.federation.actorUri,
+      },
+      parentPostId: params.parentPostId ?? null,
+      threadId: params.threadId ?? null,
+      quoteOf: params.quoteOf ?? null,
+      boostOf: params.boostOf ?? null,
+    }),
+  );
+}
+
+/** The local id of the stored post carrying `activityId`. */
+async function postIdOf(activityId: string): Promise<string | undefined> {
+  const [row] = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.federationActivityId, activityId));
+  return row?.id;
+}
 
 beforeEach(async () => {
   await clearFederationScope(scope);
@@ -184,20 +214,67 @@ describe('mapPostViewToNormalizedPost', () => {
     expect(post?.media?.[1].alt).toBeUndefined();
   });
 
-  it('extracts video playlist media from a video embed view', () => {
+  it('maps a video to its blob on the PDS with its alt, never the HLS manifest', () => {
+    const view = postView('vid', 'a video', {
+      embed: {
+        $type: 'app.bsky.embed.video#view',
+        cid: 'bafyvideo',
+        playlist: 'https://video.bsky.app/watch/x/playlist.m3u8',
+        thumbnail: 'https://video.bsky.app/watch/x/thumbnail.jpg',
+        alt: ' a cat \n on a box ',
+      },
+    });
+    const blob = `https://pds.example/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(DID)}&cid=bafyvideo`;
+
+    expect(mapPostViewToNormalizedPost(view, DID, new Map(), 'https://pds.example')?.media).toEqual(
+      [{ id: blob, type: 'video', remoteUrl: blob, alt: 'a cat on a box' }],
+    );
+    // No PDS, nothing playable: the poster is kept, as the image it is.
+    expect(mapPostViewToNormalizedPost(view, DID)?.media).toEqual([
+      {
+        id: 'https://video.bsky.app/watch/x/thumbnail.jpg',
+        type: 'image',
+        remoteUrl: 'https://video.bsky.app/watch/x/thumbnail.jpg',
+        alt: 'a cat on a box',
+      },
+    ]);
+  });
+
+  it('maps a GIF from the picker (an external embed) to an image with its alt', () => {
+    const gif = 'https://media.tenor.com/abc/cat.gif?hh=200&ww=400';
     const post = mapPostViewToNormalizedPost(
-      postView('vid', 'a video', {
+      postView('gif', '', {
         embed: {
-          $type: 'app.bsky.embed.video#view',
-          playlist: 'https://cdn/playlist.m3u8',
-          thumbnail: 'https://cdn/thumb.jpg',
+          $type: 'app.bsky.embed.external#view',
+          external: { uri: gif, title: 'Cat GIF', description: 'Alt: a dancing cat' },
         },
       }),
       DID,
     );
     expect(post?.media).toEqual([
-      { id: 'https://cdn/playlist.m3u8', type: 'video', remoteUrl: 'https://cdn/playlist.m3u8' },
+      {
+        id: gif,
+        type: 'image',
+        remoteUrl: gif,
+        alt: 'a dancing cat',
+        width: 400,
+        height: 200,
+        orientation: 'landscape',
+        aspectRatio: 2,
+      },
     ]);
+    expect(post?.linkPreview).toBeUndefined();
+  });
+
+  it('flips sensitive on an adult label from the author or Bluesky moderation, not another labeler', () => {
+    const labelled = (src: string) =>
+      mapPostViewToNormalizedPost(
+        { ...postView('lab', 'labelled'), labels: [{ src, val: 'porn' }] },
+        DID,
+      )?.sensitive;
+    expect(labelled('did:plc:ar7c4by46qjdydhdevvrndac')).toBe(true);
+    expect(labelled(DID)).toBe(true);
+    expect(labelled('did:plc:somelabeler0000000000000')).toBe(false);
   });
 
   it('replaces a #link facet display text with the full URL (byte-indexed)', () => {
@@ -355,13 +432,11 @@ describe('mapPostViewToNormalizedPost', () => {
 });
 
 describe('importAuthorFeed', () => {
-  it('imports new posts, dedups on the AT-URI, and skips reposts', async () => {
+  it('imports new posts and dedups on the AT-URI', async () => {
     mocks.xrpcGet.mockResolvedValue({
       cursor: 'next-cursor',
       feed: [
         { post: postView('a', 'fresh post') },
-        // A repost carries a `reason` — skipped in C2.
-        { post: postView('b', 'reposted'), reason: { $type: 'app.bsky.feed.defs#reasonRepost' } },
         // Already imported (returned by the dedup query) — skipped.
         { post: postView('c', 'already here') },
       ],
@@ -374,7 +449,7 @@ describe('importAuthorFeed', () => {
 
     expect(result.cursor).toBe('next-cursor');
     expect(result.posts.map((p) => p.activityId)).toEqual([atUri('a')]);
-    // Exactly one create (post 'a'); 'b' skipped (repost), 'c' skipped (dedup).
+    // Exactly one create (post 'a'); 'c' skipped (dedup).
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -499,6 +574,120 @@ describe('importAuthorFeed', () => {
     await importAuthorFeed(ACTOR);
 
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ quoteOf: quoted.id }));
+  });
+
+  it('imports the posts a reply answers and quotes first, so all three links resolve', async () => {
+    const OTHER = 'did:plc:other0000000000000000000';
+    const otherUri = (rkey: string) => `at://${OTHER}/app.bsky.feed.post/${rkey}`;
+    const rootRef = { uri: otherUri('root') };
+    mocks.fetchProfile.mockResolvedValue(makeActor(OTHER, 'o.bsky.social', 'oxy-other'));
+    storeCreatedPosts();
+    mocks.xrpcGet.mockResolvedValue({
+      feed: [
+        {
+          post: postView('reply', 'agreed', {
+            record: { reply: { root: rootRef, parent: { uri: otherUri('parent') } } },
+            embed: {
+              $type: 'app.bsky.embed.record#view',
+              record: {
+                $type: 'app.bsky.embed.record#viewRecord',
+                uri: otherUri('quoted'),
+                author: { did: OTHER, handle: 'o.bsky.social' },
+                value: { $type: 'app.bsky.feed.post', text: 'quoted' },
+              },
+            },
+          }),
+          reply: {
+            root: viewBy(OTHER, 'o.bsky.social', 'root', 'the root'),
+            parent: {
+              ...viewBy(OTHER, 'o.bsky.social', 'parent', 'the parent'),
+              record: {
+                $type: 'app.bsky.feed.post',
+                text: 'the parent',
+                reply: { root: rootRef, parent: rootRef },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    await importAuthorFeed(ACTOR);
+
+    const [rootId, parentId, quotedId] = await Promise.all(
+      ['root', 'parent', 'quoted'].map((rkey) => postIdOf(otherUri(rkey))),
+    );
+    expect([rootId, parentId, quotedId].every(Boolean)).toBe(true);
+    expect(mocks.create.mock.calls.at(-1)?.[0]).toMatchObject({
+      oxyUserId: 'oxy-alice',
+      parentPostId: parentId,
+      threadId: rootId,
+      quoteOf: quotedId,
+    });
+  });
+
+  it('imports a repost as a boost of the reposted original', async () => {
+    const OTHER = 'did:plc:other0000000000000000000';
+    const REPOST_URI = `at://${DID}/app.bsky.feed.repost/r1`;
+    mocks.fetchProfile.mockResolvedValue(makeActor(OTHER, 'o.bsky.social', 'oxy-other'));
+    storeCreatedPosts();
+    mocks.xrpcGet.mockResolvedValue({
+      feed: [
+        {
+          post: viewBy(OTHER, 'o.bsky.social', 'orig', 'worth sharing'),
+          reason: {
+            $type: 'app.bsky.feed.defs#reasonRepost',
+            by: { did: DID, handle: 'alice.bsky.social' },
+            uri: REPOST_URI,
+            indexedAt: '2024-02-01T00:00:00.000Z',
+          },
+        },
+      ],
+    });
+
+    await importAuthorFeed(ACTOR);
+
+    expect(mocks.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        oxyUserId: 'oxy-alice',
+        boostOf: await postIdOf(`at://${OTHER}/app.bsky.feed.post/orig`),
+        federation: expect.objectContaining({ activityId: REPOST_URI, actorUri: DID }),
+        createdAt: new Date('2024-02-01T00:00:00.000Z'),
+      }),
+    );
+  });
+
+  it("stores an external embed's link and card beside the imported post", async () => {
+    storeCreatedPosts();
+    mocks.xrpcGet.mockResolvedValue({
+      feed: [
+        {
+          post: postView('card', 'worth a read', {
+            embed: {
+              $type: 'app.bsky.embed.external#view',
+              external: {
+                uri: 'https://news.example/story',
+                title: 'A story',
+                description: 'What happened',
+                thumb: 'https://cdn.bsky.app/img/thumb.jpg',
+              },
+            },
+          }),
+        },
+      ],
+    });
+
+    await importAuthorFeed(ACTOR);
+
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({ linkUrl: 'https://news.example/story' }),
+      }),
+    );
+    const postId = (await postIdOf(atUri('card'))) as string;
+    expect((await findPostLinkPreviews([postId])).get(postId)).toEqual([
+      { url: 'https://news.example/story', title: 'A story', description: 'What happened' },
+    ]);
   });
 
   it('resolves a mention facet (via the synced FederatedActor) into a placeholder + post.mentions', async () => {

@@ -20,12 +20,14 @@ import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { importAuthorFeed } from './post.mapper';
 
 /**
- * The AT Protocol (Bluesky) network connector — READ / DISCOVERY only (C2/C3).
+ * The AT Protocol (Bluesky) network connector — it READS Bluesky.
  *
  * It resolves Bluesky handles/DIDs, mirrors profiles into `FederatedActor`
  * (`protocol:'atproto'`) + the shared Oxy identity bridge, and backfills an
- * actor's posts as native `Post` rows (deduped on the AT-URI) through the SAME
- * `getPostCreator().create` path ActivityPub uses.
+ * actor's author feed through the SAME `getPostCreator().create` path
+ * ActivityPub uses: their posts as native `Post` rows (deduped on the AT-URI,
+ * with the posts they reply to and quote), their pinned post, and their reposts
+ * as boosts, the way an ActivityPub `Announce` is stored.
  *
  * Outbound is intentionally minimal: `deliver({kind:'follow.add'})` records a
  * LOCAL subscription (no Follow is written to the atproto network) and triggers a
@@ -112,7 +114,7 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     }
   }
 
-  /** atproto has no inbound push transport in C2 — discovery is pull-only. */
+  /** There is no inbound atproto push transport — discovery is pull-only. */
   async receive(_payload: unknown, _ctx: ReceiveContext): Promise<void> {
     // No-op: there is no signed atproto inbox to process. Posts arrive via the
     // pull-based `fetchPosts` backfill, not an inbound delivery.
@@ -125,9 +127,9 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
 
   /**
    * Record a LOCAL subscription to an atproto actor and backfill its posts. No
-   * Follow is delivered to the atproto network in C2 (that is the C4 bridge); the
-   * subscription merges the actor's posts into the viewer's feed exactly like the
-   * ActivityPub `/federation/following` path.
+   * Follow record is written to the atproto network (Mention publishes nothing
+   * into a foreign PDS); the subscription merges the actor's posts into the
+   * viewer's feed exactly like the ActivityPub `/federation/following` path.
    */
   private async followActor(localOxyUserId: string, targetDid: string): Promise<void> {
     // Resolve the actor first so `targetDid` is canonical (a handle/AT-URI is

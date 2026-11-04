@@ -67,11 +67,15 @@ export class FeedGeneratorFeed implements FeedAPI {
       }
       if (!(await this.isAtprotoBacked())) return { ...EMPTY_RESPONSE };
 
-      const { posts, cursor } = await getFeed(this.generatorUri, {
+      const {
+        posts,
+        context: replyContext,
+        cursor,
+      } = await getFeed(this.generatorUri, {
         cursor: options.cursor,
         limit: options.limit,
       });
-      const ordered = await this.importAndLoad(posts);
+      const ordered = await this.importAndLoad(posts, replyContext);
 
       // The atproto cursor is the authoritative "more pages" signal; it is opaque
       // and advances every page, so paging can never loop even on an empty page.
@@ -121,14 +125,16 @@ export class FeedGeneratorFeed implements FeedAPI {
   }
 
   /**
-   * Import a page of remote `PostView`s as native posts and load the resulting
-   * `Post` documents back in the generator's ranking order. A URI whose import
-   * genuinely failed has no document and is dropped (never rendered blank).
+   * Import a page of remote `PostView`s (and the posts they reply to) as native
+   * posts and load the resulting `Post` documents back in the generator's ranking
+   * order. A URI whose import genuinely failed has no document and is dropped
+   * (never rendered blank).
    */
   private async importAndLoad(
     postViews: ReadonlyArray<AtprotoPostView>,
+    replyContext: ReadonlyArray<AtprotoPostView> = [],
   ): Promise<OrderedPostDoc[]> {
-    const uris = await importPostViews(postViews);
+    const uris = await importPostViews(postViews, replyContext);
     if (uris.length === 0) return [];
 
     const db = getDb();
