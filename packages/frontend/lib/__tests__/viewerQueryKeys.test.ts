@@ -93,6 +93,7 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.recommendationFilters(viewerId),
       viewerQueryKeys.recommendations(viewerId, 'agent'),
       viewerQueryKeys.infiniteRecommendations(viewerId, 'agent'),
+      viewerQueryKeys.newestUsers(viewerId),
       viewerQueryKeys.viewerFollowing(viewerId),
       viewerQueryKeys.postActivity(viewerId, 'profile-1'),
       viewerQueryKeys.mentionNode(viewerId),
