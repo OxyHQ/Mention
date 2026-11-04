@@ -1,0 +1,24 @@
+name: Oxy autobump
+
+# Keeps this repo on the newest @oxy.so/bloom, bloom-editor, services, core,
+# contracts, protocol and app-preset, including the root `catalog` and
+# `overrides` Dependabot cannot update. One PR (`autobump/oxy-packages`) that
+# auto-merges through the merge queue once CI is green.
+# OxyHQ/oxy .github/workflows/oxy-autobump.yml.
+
+on:
+  schedule:
+    - cron: '7 4 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  autobump:
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    uses: OxyHQ/oxy/.github/workflows/oxy-autobump.yml@main
+    with:
+      merge_queue: true
