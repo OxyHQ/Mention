@@ -1498,10 +1498,6 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
     'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
   ],
   [
-    'membership_billing_receipts.planId',
-    'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
-  ],
-  [
     'membership_billing_receipts.paymentIntentId',
     'Private membership or Peable evidence identity, never a public post or account; community/tier foreign keys cascade.',
   ],

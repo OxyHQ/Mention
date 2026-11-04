@@ -229,7 +229,6 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'appId',
       'offerId',
       'providerPriceId',
-      'planId',
       'paymentIntentId',
       'providerCustomerId',
     ] as const
