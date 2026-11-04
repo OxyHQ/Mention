@@ -16,6 +16,8 @@ import type { FeedType } from '@mention/shared-types';
 import { Badge } from '@oxy.so/bloom/badge';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiFlowerLine } from '@oxy.so/bloom/icons/RiFlowerLine';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { isMentionCommunity } from '@mention/shared-types/profileUrls';
 import { CommunityPanel } from '@/components/Community/CommunityPanel';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
@@ -547,6 +549,28 @@ export function usePersonProfileView({
             />
           )}
           {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}
+          {/* What a federated account's origin says about it: kept in memory of
+              someone who died, or approving each follower. */}
+          {(profileData.memorial || profileData.locked) && (
+            <View className="flex-row flex-wrap gap-2 mb-3">
+              {profileData.memorial && (
+                <Badge
+                  content={t('profile.memorial')}
+                  icon={RiFlowerLine}
+                  size="label-small"
+                  variant="subtle"
+                />
+              )}
+              {profileData.locked && (
+                <Badge
+                  content={t('profile.locked')}
+                  icon={RiLockLine}
+                  size="label-small"
+                  variant="subtle"
+                />
+              )}
+            </View>
+          )}
           {isPrivate && (
             <View className="flex-row items-center gap-2 flex-wrap">
               <PrivateBadge privacySettings={profileData.privacy} />

@@ -213,9 +213,13 @@ storage when the cache-write feature is enabled.
 A federated account's banner is Mention's own (`user_settings.profile_header_image`),
 not part of the Oxy identity, so Mention mirrors it into Oxy itself.
 
-- **Recording.** Every actor resolve records the banner URL its source
-  advertises in `federated_banner_mirrors` (one row per Oxy user). It writes
-  only when the URL is new or changed, and never waits or fails the resolve.
+- **Recording.** Every actor upsert (the ActivityPub actor store, the atproto
+  profile upsert) syncs the banner its source advertises
+  (`syncFederatedBannerInBackground`): a URL is recorded in
+  `federated_banner_mirrors` (one row per Oxy user), written only when it is new
+  or changed; no URL means the account removed its banner, so the row is dropped,
+  `profile_header_image` cleared and the mirrored file queued for deletion. It
+  never waits or fails the upsert.
 - **Mirroring.** A periodic sweep (`runFederatedBannerMirrors`, every 2 minutes,
   at most 50 banners, 4 at a time, only while media writes are on) mirrors due
   rows through `mirrorFederatedBanner`. A replaced banner file is queued for
@@ -265,6 +269,19 @@ not part of the Oxy identity, so Mention mirrors it into Oxy itself.
   use those options. The report goes to the step summary and the
   `banner-mirror-recovery` artifact. The full log goes to CloudWatch log group
   `/oxy/ecs`, stream `mention/<container>/<task id>`.
+
+### Remote profile facts
+
+A federated profile's Oxy account is a mirror minted the day Mention discovered
+the actor, so what the page says about the account comes from the origin, off the
+actor row: `remote` on the profile-design DTO (`services/federation/remoteProfileStats.ts`,
+`RemoteProfileStats` in shared-types). It carries the follower, following and post
+totals, the join date (AP `published`, atproto `createdAt`), `locked`
+(`manuallyApprovesFollowers`), `memorial`, the metadata table
+(`federated_actor_fields`, each value reduced to plain text by `htmlToInlineLabel`,
+links to their URLs) and `movedTo`. Anything the origin did not report is absent,
+never `0`. `movedTo` is learned only from an inbound `Move`: `@oxy.so/federation`'s
+actor resolver does not parse an actor's `movedTo` on refresh.
 
 ## Identity and safety on federated surfaces
 

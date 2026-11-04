@@ -1,10 +1,10 @@
 import { memo } from 'react';
-import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
-import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { View, Text, type LayoutChangeEvent } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
+import { ProfileFields } from './ProfileFields';
 import { LinkSummary } from './LinkSummary';
 import { ProfileMedia } from './ProfileMedia';
 import { FollowedByRow } from './FollowedByRow';
@@ -17,21 +17,6 @@ import { useExpandableText } from '@/hooks/useExpandableText';
 
 /** Profile bio collapse threshold (chars) — fixed, not user-configurable; only the on/off toggle is (`collapseLongBio`). */
 const BIO_COLLAPSE_CHARS = 200;
-
-/**
- * A federated profile field arrives as HTML and is shown as plain text. Strip
- * tags until nothing changes, so a tag split around another one (`<scr<b>ipt>`)
- * cannot survive a single pass.
- */
-function fieldPlainText(value: string | null | undefined): string {
-  let text = value ?? '';
-  let previous: string;
-  do {
-    previous = text;
-    text = text.replace(/<[^>]*>/g, '');
-  } while (text !== previous);
-  return text;
-}
 
 /**
  * Everything on a profile page between the identity block and the tab strip.
@@ -111,32 +96,7 @@ export const ProfileContent = memo(function ProfileContent({
         />
       )}
 
-      {/* Profile fields (federated profiles) */}
-      {profileData.isFederated && profileData.fields && profileData.fields.length > 0 && (
-        <View className="mb-3" style={{ gap: 1 }}>
-          {profileData.fields.map((field, i) => (
-            <View
-              key={i}
-              className="flex-row items-center py-1.5 border-b border-border gap-2"
-              style={{ borderBottomWidth: StyleSheet.hairlineWidth }}
-            >
-              <Text
-                className="text-muted-foreground text-[13px] font-semibold"
-                style={{ width: 100 }}
-                numberOfLines={1}
-              >
-                {field.name}
-              </Text>
-              <LinkifiedText
-                text={fieldPlainText(field.value)}
-                className="text-foreground"
-                style={{ fontSize: 14, flex: 1 }}
-              />
-              {field.verifiedAt && <RiCheckboxCircleFill width={14} fill="#2ecc71" />}
-            </View>
-          ))}
-        </View>
-      )}
+      <ProfileFields fields={profileData.fields} />
 
       {/* Meta info (location, join date) */}
       <ProfileMeta

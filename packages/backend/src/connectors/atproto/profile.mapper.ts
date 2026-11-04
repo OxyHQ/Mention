@@ -4,8 +4,9 @@ import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { upsertActor } from '../../db/federation/actorRepository';
 import { resolveOxyIdentity } from '../oxyIdentity';
-import { recordFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
+import { syncFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
+import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
 import {
   BSKY_NETWORK_DOMAIN,
   blueskyUsernameFromHandle,
@@ -44,6 +45,8 @@ export interface AtprotoProfileView {
   followersCount?: number;
   followsCount?: number;
   postsCount?: number;
+  /** ISO 8601 — when the account was created. */
+  createdAt?: string;
 }
 
 /**
@@ -189,6 +192,7 @@ export function mapProfileToNormalizedActor(
  */
 export async function upsertAtprotoActor(
   actor: NormalizedExternalActor,
+  profileFacts: { remoteCreatedAt?: Date } = {},
 ): Promise<NormalizedExternalActor> {
   const did = actor.externalId;
   // Substituted again (idempotent) rather than trusted, for the same reason the
@@ -244,6 +248,7 @@ export async function upsertAtprotoActor(
         followersCount: actor.followersCount ?? null,
         followingCount: actor.followingCount ?? null,
         postsCount: actor.postsCount ?? null,
+        remoteCreatedAt: profileFacts.remoteCreatedAt,
         lastFetchedAt: new Date(),
       },
       [],
@@ -290,9 +295,9 @@ export async function upsertAtprotoActor(
     check: 'refresh',
   });
   if (projection.refusal) return { ...actor, oxyUserId: undefined };
-  // The banner is Mention's own (`user_settings.profile_header_image`): queue the
-  // source's URL for the banner sweep, as every other network's resolve does.
-  recordFederatedBannerInBackground({
+  // The banner is Mention's own (`user_settings.profile_header_image`): sync it
+  // with the profile just read — queued for the sweep, or cleared once removed.
+  syncFederatedBannerInBackground({
     oxyUserId: resolved.user.id,
     actorUri: did,
     bannerUrl: actor.bannerUrl,
@@ -332,5 +337,12 @@ export async function fetchAndUpsertAtprotoProfile(
     return null;
   }
 
-  return upsertAtprotoActor(normalized);
+  // The account's own creation date is the profile's "Joined", not the day
+  // Mention discovered it; the network-neutral actor has no field for it.
+  return upsertAtprotoActor(normalized, {
+    remoteCreatedAt:
+      typeof profile.createdAt === 'string'
+        ? trustedRemoteCreatedAt(new Date(profile.createdAt))
+        : undefined,
+  });
 }

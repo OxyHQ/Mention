@@ -102,14 +102,34 @@ export interface AppearanceSettings {
 export interface RemoteProfileStats {
   followersCount?: number;
   followingCount?: number;
+  /** The origin's post total (its outbox `totalItems`, or the atproto profile's count). */
+  postsCount?: number;
   /** ISO 8601 — when the account was created on its origin. */
   joinedAt?: string;
+  /** The account approves each follower (ActivityPub `manuallyApprovesFollowers`). */
+  locked?: true;
+  /** The account is kept in memory of someone who died (ActivityPub `memorial`). */
+  memorial?: true;
+  /**
+   * The profile's metadata table (ActivityPub `PropertyValue` attachments), in
+   * the order the profile lists them. Absent when it has none.
+   */
+  fields?: RemoteProfileField[];
   /**
    * Where the account moved, when it announced a verified `Move` to another
    * server. `handle` is the new account's `user@domain`, the handle its profile
    * route takes.
    */
   movedTo?: RemoteProfileMove;
+}
+
+/** One row of a remote profile's metadata table. */
+export interface RemoteProfileField {
+  name: string;
+  /** Plain text: the remote HTML reduced to its text, each link to its URL. */
+  value: string;
+  /** ISO 8601 — when the origin verified the link in `value` (`rel="me"`). */
+  verifiedAt?: string;
 }
 
 export interface RemoteProfileMove {

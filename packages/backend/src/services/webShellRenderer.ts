@@ -395,6 +395,11 @@ export function mapProfileOg(
   const followers = isFederated ? facts.remote?.followersCount : data._count?.followers;
   const following = isFederated ? facts.remote?.followingCount : data._count?.following;
   const createdAt = isFederated ? facts.remote?.joinedAt : data.createdAt;
+  // The origin's total, as the page's posts stat shows it; Mention's own count
+  // holds only the posts it imported.
+  const postsCount = isFederated
+    ? (facts.remote?.postsCount ?? facts.postsCount)
+    : facts.postsCount;
 
   // The origin actor is the same person on the network they post from.
   const actorUri = isFederated ? data.federation?.actorUri : undefined;
@@ -410,7 +415,7 @@ export function mapProfileOg(
 
   const interactionStatistic = interactionCounter('FollowAction', followers);
   const agentInteractionStatistic = [
-    ...interactionCounter('WriteAction', facts.postsCount),
+    ...interactionCounter('WriteAction', postsCount),
     ...interactionCounter('FollowAction', following),
   ];
 

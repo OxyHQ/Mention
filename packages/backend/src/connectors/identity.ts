@@ -16,7 +16,6 @@ import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
 import { createIdentityBridge, type ServiceRequest } from '@oxy.so/federation/node';
 import { resolveOxyIdentity } from './oxyIdentity';
-import { recordFederatedBannerInBackground } from '../db/federation/bannerMirrorRepository';
 
 /** Oxy owns discovery and profiles; this module exposes Mention's transport adapter. */
 
@@ -48,14 +47,8 @@ export async function resolveOxyExternalUser(
       protocol: actor.network,
     });
     await invalidateUserSummaryCache([resolved.user.id]);
-    // The banner is Mention's own (`user_settings.profile_header_image`), not
-    // Oxy's: record the URL the source advertises so the banner sweep mirrors
-    // it (a write only when it changed; never awaited, never fails the resolve).
-    recordFederatedBannerInBackground({
-      oxyUserId: resolved.user.id,
-      actorUri: actor.externalId,
-      bannerUrl: actor.bannerUrl,
-    });
+    // The banner is NOT handled here: each network's actor upsert syncs it
+    // (`syncFederatedBannerInBackground`) from the full profile it just read.
     return resolved.user.id;
   } catch (err) {
     logger.warn('[FedSync] Oxy identity resolution failed', { actor: actor.externalId, err });

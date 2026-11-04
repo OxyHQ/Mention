@@ -29,6 +29,7 @@ import { signedFetch, firstStringUrl, normalizeFederatedAcct, domainFromAcct } f
 import { reportFederatedActorGone } from '../identity';
 import { resolveOxyIdentity } from '../oxyIdentity';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
+import { syncFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
 import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
 
 /**
@@ -149,6 +150,13 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
       check: 'refresh',
     });
     if (projection.refusal) throw new Error('Source identity projection failed');
+    // Every ActivityPub actor write passes here, from a full fetch of the actor:
+    // its `image` (or the lack of one) is the banner the profile shows.
+    syncFederatedBannerInBackground({
+      oxyUserId: resolved.user.id,
+      actorUri: uri,
+      bannerUrl: columns.headerUrl,
+    });
     return withEngineId({ ...row, oxyUserId: resolved.user.id });
   },
   findActorByPublicKeyId: async (keyId) => withEngineId(await findActorByPublicKeyId(keyId)),
