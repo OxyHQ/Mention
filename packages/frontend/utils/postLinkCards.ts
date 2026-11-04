@@ -37,8 +37,12 @@ export function documentByline(document: ClarityDocument | undefined): string | 
 export interface PostLinkCard {
   /** Where the card leads: Clarity's canonical URL when it has a document. */
   url: string;
-  /** The link as the post's text has it; absent for a document outside the text. */
-  sourceUrl?: string;
+  /**
+   * Every link in the post's text this card shows, as the text has it: two links
+   * to one resource (a video and the same video at a timestamp) are one card.
+   * Empty for a document outside the text.
+   */
+  sourceUrls: string[];
   document?: ClarityDocument;
 }
 
@@ -65,19 +69,25 @@ export function postLinkCards(
     .slice(0, MAX_POST_DOCUMENTS)
     .filter((url) => ownProfileLinkHandle(url) === undefined && parseHomiioCaseUrl(url) === null);
 
-  const seen = new Set<string>();
-  const cards: PostLinkCard[] = [];
+  const cards = new Map<string, PostLinkCard>();
   const add = (link: string, sourceUrl: string | undefined) => {
     const document = byUrl.get(normalizedLinkUrl(link));
     const url = document?.canonicalUrl ?? link;
     const key = normalizedLinkUrl(url);
-    if (seen.has(key) || cards.length >= MAX_POST_DOCUMENTS) return;
-    seen.add(key);
-    cards.push({ url, ...(sourceUrl ? { sourceUrl } : {}), ...(document ? { document } : {}) });
+    const shown = cards.get(key);
+    if (shown) {
+      if (sourceUrl) shown.sourceUrls.push(sourceUrl);
+    } else {
+      cards.set(key, {
+        url,
+        sourceUrls: sourceUrl ? [sourceUrl] : [],
+        ...(document ? { document } : {}),
+      });
+    }
   };
   for (const sourceUrl of sourceUrls) add(sourceUrl, sourceUrl);
   for (const document of resolved) add(document.canonicalUrl, undefined);
-  return cards;
+  return [...cards.values()].slice(0, MAX_POST_DOCUMENTS);
 }
 
 /**
@@ -86,9 +96,7 @@ export function postLinkCards(
  * a sentence, or written as `[label](url)`, is the author's own words and stays.
  */
 export function withoutCardLinks(text: string, cards: readonly PostLinkCard[]): string {
-  const shown = new Set(
-    cards.flatMap((card) => (card.sourceUrl ? [normalizedLinkUrl(card.sourceUrl)] : [])),
-  );
+  const shown = new Set(cards.flatMap((card) => card.sourceUrls.map(normalizedLinkUrl)));
   if (shown.size === 0) return text;
   const removals: Array<[number, number]> = [];
   for (const entity of scanTextEntities(text, { kinds: ['url'] })) {
