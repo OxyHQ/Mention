@@ -3,8 +3,9 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { canRequestReadPost } from '../postReadAccess';
 import { isAccountErased } from '../accountErasure/erasedAccounts';
-import { callerOxyUser, createScopedOxyClient } from '../../utils/oxyHelpers';
-import { canViewProfileDesign } from '../../utils/privacyHelpers';
+import { createScopedOxyClient } from '../../utils/oxyHelpers';
+import { blockedEitherWay, canViewProfileDesign } from '../../utils/privacyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import type { CommerceMetricTarget } from './metrics';
 
 export async function canReadAccount(req: OxyAuthRequest, accountId: string): Promise<boolean> {
@@ -14,9 +15,9 @@ export async function canReadAccount(req: OxyAuthRequest, accountId: string): Pr
   ]);
   if (erased) return false;
   if (req.user?.id && req.user.id !== accountId) {
-    const caller = callerOxyUser(req);
-    // This caller-scoped relationship API checks blocks in both directions.
-    if (!caller || (await caller.privacy.isBlocked(accountId))) return false;
+    // A block in either direction hides the account. A failed check rejects,
+    // never read as "no block".
+    if ((await blockedEitherWay(safetyRequesterFor(req), [accountId])).has(accountId)) return false;
   }
   return canViewProfileDesign(
     accountId,
