@@ -63,12 +63,9 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
  * string — so honouring the default would let a deleted `collab.by` render " by "
  * anyway and pass. Ignoring it makes a missing key render the raw key and fail.
  */
-jest.mock('react-i18next', () => {
-  const strings: Record<string, string> = require('@/locales/en.json');
-  return {
-    useTranslation: () => ({ t: (key: string) => strings[key] ?? key }),
-  };
-});
+jest.mock('react-i18next', () =>
+  jest.requireActual('@/test-support/catalog').catalogTranslationMock(),
+);
 
 // `@oxy.so/core` is not transformed in this suite. Mocked with the REAL rule so
 // the federated `user@domain` handle path is genuinely exercised.

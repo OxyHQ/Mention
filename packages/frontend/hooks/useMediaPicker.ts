@@ -38,7 +38,7 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
             const isImage = file?.contentType?.startsWith?.('image/');
             const isVideo = file?.contentType?.startsWith?.('video/');
             if (!isImage && !isVideo) {
-              toast(t('Please select an image or video file'), { type: 'error' });
+              toast(t('compose.media.invalidType'), { type: 'error' });
               return;
             }
             try {
@@ -47,9 +47,13 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
                 file?.contentType,
               );
               onAdd([{ id: file.id, type: resolvedType }]);
-              toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
+              toast(t(isImage ? 'compose.media.imageAttached' : 'compose.media.videoAttached'), {
+                type: 'success',
+              });
             } catch (e: unknown) {
-              toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
+              toast(normalizeApiError(e).message || t('compose.media.attachFailed'), {
+                type: 'error',
+              });
             }
           },
           onConfirmSelection: async (files: FileMetadata[]) => {
@@ -58,7 +62,7 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
               return contentType.startsWith('image/') || contentType.startsWith('video/');
             });
             if (validFiles.length !== (files || []).length) {
-              toast(t('Please select only image or video files'), { type: 'error' });
+              toast(t('compose.media.invalidTypes'), { type: 'error' });
             }
             onAdd(
               validFiles.map((f) => ({

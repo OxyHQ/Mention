@@ -51,7 +51,7 @@ export function CheckoutPreviewControls({
         borderRadius: 16,
       }}
     >
-      <Text>{t('plus.merchantInstallments.decision')}</Text>
+      <Text>{t('plus.merchantInstallments.decision.title')}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {(['available', 'pending', 'rejected', 'unavailable'] as const).map((value) => (
           <Button

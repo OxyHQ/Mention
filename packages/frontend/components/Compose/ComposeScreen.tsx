@@ -1250,7 +1250,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         }
       } catch (e) {
         logger.error('Failed to load post for editing', e);
-        toast(t('Failed to load post for editing'), { type: 'error' });
+        toast(t('compose.edit.loadForEditFailed'), { type: 'error' });
       } finally {
         if (!cancelled) setEditLoading(false);
       }
@@ -1273,12 +1273,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           setReplyToPost(post);
         } else {
           logger.error(`Parent post not found: ${replyToPostId}`);
-          toast(t('Post not found'), { type: 'error' });
+          toast(t('compose.edit.notFound'), { type: 'error' });
         }
       } catch (e) {
         if (!cancelled) {
           logger.error('Failed to load parent post', e);
-          toast(t('Failed to load post'), { type: 'error' });
+          toast(t('compose.edit.loadFailed'), { type: 'error' });
         }
       } finally {
         if (!cancelled) setReplyLoading(false);
@@ -1431,7 +1431,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     const scheduledAtValue = publishNow ? null : scheduledAt;
     const wasScheduled = Boolean(scheduledAtValue) || publishNow;
     if (!hasPublishableContent(composeContent)) {
-      toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
+      toast(t('compose.emptyHint'), { type: 'error' });
       return;
     }
 
@@ -1743,19 +1743,19 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       }
 
       const successMessage = replyToPostId
-        ? t('Your reply has been posted!')
+        ? t('compose.replyPublished')
         : isEditMode
           ? editingServerDraft
             ? t('compose.serverDrafts.saved', { defaultValue: 'Draft saved' })
             : publishNow
               ? t('compose.scheduled.published', { defaultValue: 'Post published' })
-              : t('Post updated successfully')
+              : t('compose.updated')
           : wasScheduled && scheduledAtValue
             ? t('compose.schedule.success', {
                 defaultValue: 'Post scheduled for {{time}}',
                 time: formatScheduledLabel(scheduledAtValue),
               })
-            : t('Post published successfully');
+            : t('compose.published');
       haptic('light');
       toast(successMessage, { type: 'success' });
 
@@ -1792,17 +1792,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // failure. For validation/server errors the backend's own message is the
       // most useful, so prefer it when present.
       const reasonToToast: Record<ApiErrorReason, string> = {
-        validation: t('Your post could not be published. {{detail}}', {
+        validation: t('compose.errors.publishFailedDetail', {
           defaultValue: 'Your post could not be published. {{detail}}',
           detail: normalized.message,
         }),
-        rateLimited: t("You're posting too fast. Please wait a moment and try again.", {
+        rateLimited: t('compose.errors.rateLimited', {
           defaultValue: "You're posting too fast. Please wait a moment and try again.",
         }),
-        network: t('No connection. Check your network and try again.', {
+        network: t('common.errors.offline', {
           defaultValue: 'No connection. Check your network and try again.',
         }),
-        server: t('Something went wrong publishing your post. Please try again.', {
+        server: t('compose.errors.publishFailed', {
           defaultValue: 'Something went wrong publishing your post. Please try again.',
         }),
       };
@@ -1865,7 +1865,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             const isImage = file?.contentType?.startsWith?.('image/');
             const isVideo = file?.contentType?.startsWith?.('video/');
             if (!isImage && !isVideo) {
-              toast(t('Please select an image or video file'), { type: 'error' });
+              toast(t('compose.media.invalidType'), { type: 'error' });
               return;
             }
             try {
@@ -1875,9 +1875,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               );
               const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
               addThreadMedia(threadId, mediaItem);
-              toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
+              toast(t(isImage ? 'compose.media.imageAttached' : 'compose.media.videoAttached'), {
+                type: 'success',
+              });
             } catch (e: unknown) {
-              toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
+              toast(normalizeApiError(e).message || t('compose.media.attachFailed'), {
+                type: 'error',
+              });
             }
           },
           onConfirmSelection: async (files: FileMetadata[]) => {
@@ -1886,7 +1890,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               return contentType.startsWith('image/') || contentType.startsWith('video/');
             });
             if (validFiles.length !== (files || []).length) {
-              toast(t('Please select only image or video files'), { type: 'error' });
+              toast(t('compose.media.invalidTypes'), { type: 'error' });
             }
             const mediaItems = validFiles.map((f) => ({
               id: f.id,
@@ -1910,7 +1914,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // Request permissions
         const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          toast(t('Location permission denied'), { type: 'error' });
+          toast(t('compose.location.permissionDenied'), { type: 'error' });
           return;
         }
 
@@ -1935,9 +1939,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         };
 
         setThreadLocation(threadId, locationData);
-        toast(t('Location added'), { type: 'success' });
+        toast(t('compose.location.added'), { type: 'success' });
       } catch {
-        toast(t('Failed to get location'), { type: 'error' });
+        toast(t('compose.location.failed'), { type: 'error' });
       }
     },
     [setThreadLocation, t],
@@ -1974,9 +1978,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               try {
                 const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
                 addThreadMedia(threadId, mediaItem);
-                toast(t('GIF attached'), { type: 'success' });
+                toast(t('compose.gif.attached'), { type: 'success' });
               } catch (error: unknown) {
-                toast(normalizeApiError(error).message || t('Failed to attach GIF'), {
+                toast(normalizeApiError(error).message || t('compose.gif.attachFailed'), {
                   type: 'error',
                 });
               }
@@ -2234,7 +2238,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [replyPermission, quotesDisabled],
   );
   const interactionLabel = useMemo(
-    () => (anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited')),
+    () =>
+      anyoneCanInteract
+        ? t('compose.replySettings.anyoneCanInteract')
+        : t('compose.replySettings.limited'),
     [anyoneCanInteract, t],
   );
   const InteractionIcon = anyoneCanInteract ? RiEarthLine : RiGroupLine;
@@ -2397,9 +2404,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               setMediaIds((prev) =>
                 prev.some((m) => m.id === gifId) ? prev : [...prev, mediaItem],
               );
-              toast(t('GIF attached'), { type: 'success' });
+              toast(t('compose.gif.attached'), { type: 'success' });
             } catch (error: unknown) {
-              const message = error instanceof Error ? error.message : t('Failed to attach GIF');
+              const message =
+                error instanceof Error ? error.message : t('compose.gif.attachFailed');
               toast(message, { type: 'error' });
             }
           }}
@@ -2712,7 +2720,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             onClose={() => surface.dismiss()}
             onSelectGif={async (_gifUrl: string, gifId: string) => {
               appendVariantMedia(tag, itemId, [{ id: gifId, type: 'gif' }]);
-              toast(t('GIF attached'), { type: 'success' });
+              toast(t('compose.gif.attached'), { type: 'success' });
             }}
           />
         </Suspense>
@@ -3025,7 +3033,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 className="text-foreground"
                 style={[styles.headerTitle, { pointerEvents: 'none' }]}
               >
-                {isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}
+                {isEditMode
+                  ? t('compose.edit.title')
+                  : replyToPostId
+                    ? t('common.reply')
+                    : t('compose.newPost')}
               </Text>
               <View style={styles.headerIcons}>
                 <Button
@@ -3155,7 +3167,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               <View className="px-4 py-2 bg-muted border-b border-border">
                 <Text className="text-primary text-[13px] font-semibold">
                   {editLoading
-                    ? t('Loading post...')
+                    ? t('compose.edit.loading')
                     : editingScheduledPost
                       ? t('compose.scheduled.editingNotice', {
                           defaultValue:
@@ -3192,10 +3204,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       className={postingMode === 'thread' ? 'text-primary' : 'text-foreground'}
                       style={styles.modeLabel}
                     >
-                      {t('Thread')}
+                      {t('compose.thread.title')}
                     </Text>
                     <Text className="text-muted-foreground" style={styles.modeDescription}>
-                      {t('Post as linked thread')}
+                      {t('compose.thread.postAsLinked')}
                     </Text>
                   </View>
                   <View style={styles.modeToggle}>
@@ -3205,7 +3217,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         haptic('light');
                         setPostingMode(value ? 'beast' : 'thread');
                       }}
-                      accessibilityLabel={t('Beast')}
+                      accessibilityLabel={t('compose.thread.beastMode')}
                     />
                   </View>
                   <View style={styles.modeOption}>
@@ -3213,10 +3225,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       className={postingMode === 'beast' ? 'text-primary' : 'text-foreground'}
                       style={styles.modeLabel}
                     >
-                      {t('Beast')}
+                      {t('compose.thread.beastMode')}
                     </Text>
                     <Text className="text-muted-foreground" style={styles.modeDescription}>
-                      {t('Post all at once')}
+                      {t('compose.thread.postAllAtOnce')}
                     </Text>
                   </View>
                 </View>
@@ -3991,7 +4003,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         <Text
                           style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}
                         >
-                          {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
+                          {postingMode === 'thread'
+                            ? t('compose.thread.addToThread')
+                            : t('compose.thread.addPost')}
                         </Text>
                       </View>
                     </View>
@@ -4161,12 +4175,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   {isEditMode
                     ? editingScheduledPost && !scheduledAt
                       ? t('compose.scheduled.publishNow', { defaultValue: 'Post now' })
-                      : t('Save')
+                      : t('common.save')
                     : scheduledAt
                       ? t('compose.schedule.apply', { defaultValue: 'Schedule' })
                       : replyToPostId
-                        ? t('Reply')
-                        : t('Post')}
+                        ? t('common.reply')
+                        : t('compose.submit')}
                 </Button>
               </View>
             </View>
@@ -4408,7 +4422,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
     return (
       <View className="flex-1">
         <PageHeader
-          title={t('New post')}
+          title={t('compose.newPost')}
           onBack={presentation === 'pushed' ? () => dismiss() : undefined}
           backLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
         />

@@ -360,7 +360,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
               // reply's own text invisible against the dark background.
               className="text-foreground"
               style={styles.threadTextInput}
-              placeholder={t('Say more...')}
+              placeholder={t('compose.thread.placeholder')}
               value={item.text}
               mentions={item.mentions}
               onValueChange={handleMentionValueChange}

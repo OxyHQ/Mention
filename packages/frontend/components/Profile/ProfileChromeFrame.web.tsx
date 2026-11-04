@@ -170,7 +170,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
               <ConnectionsHeader username={routedUsername} profileData={view.accountProfile} />
             ) : pathname?.endsWith('/about') && canShowSupervisedHeader ? (
               <PageHeader
-                title={t('About', { defaultValue: 'About' })}
+                title={t('profile.about.title', { defaultValue: 'About' })}
                 backLabel={t('common.back', { defaultValue: 'Back' })}
               />
             ) : pathname?.endsWith('/settings') && canShowCommunityHeader ? (

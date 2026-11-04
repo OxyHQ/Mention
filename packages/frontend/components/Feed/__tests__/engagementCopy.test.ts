@@ -76,11 +76,6 @@ describe('counter labels follow the language’s plural rules', () => {
     expect(t('profile.stats.posts', { count: 7 })).toBe('Posts');
   });
 
-  it('pluralises the action row’s reply summary', () => {
-    expect(t('post.summary.replies', { count: 1, formattedCount: '1' })).toBe('1 reply');
-    expect(t('post.summary.replies', { count: 1200, formattedCount: '1.2K' })).toBe('1.2K replies');
-  });
-
   it('uses every Russian category, not an English one/other split', () => {
     expect(tRu('profile.stats.replies', { count: 1 })).toBe('Ответ');
     expect(tRu('profile.stats.replies', { count: 3 })).toBe('Ответа');

@@ -21,11 +21,11 @@ import { SEO } from '@/components/SEO';
 
 /** Every tab, once: its id, its label key and its route. */
 const TABS = [
-  { id: 'all', label: 'All', href: '/explore' },
-  { id: 'media', label: 'Media', href: '/explore/media' },
-  { id: 'trending', label: 'Trending', href: '/explore/trending' },
-  { id: 'people', label: 'Who to follow', href: '/explore/who-to-follow' },
-  { id: 'starter-packs', label: 'Starter Packs', href: '/explore/starter-packs' },
+  { id: 'all', label: 'explore.tabs.all', href: '/explore' },
+  { id: 'media', label: 'explore.tabs.media', href: '/explore/media' },
+  { id: 'trending', label: 'discovery.trending', href: '/explore/trending' },
+  { id: 'people', label: 'discovery.whoToFollow', href: '/explore/who-to-follow' },
+  { id: 'starter-packs', label: 'explore.tabs.starterPacks', href: '/explore/starter-packs' },
 ] as const satisfies readonly { id: string; label: string; href: Href }[];
 
 export default function ExploreLayout() {
@@ -47,7 +47,7 @@ export default function ExploreLayout() {
       scroll="auto"
       header={
         <PageHeader
-          title={t('Explore')}
+          title={t('explore.title')}
           presentation="floating"
           actions={
             <Button
@@ -56,7 +56,7 @@ export default function ExploreLayout() {
               iconOnly
               icon={RiSearchLine}
               onPress={() => router.push('/search')}
-              accessibilityLabel={t('Search')}
+              accessibilityLabel={t('common.search')}
             />
           }
         />

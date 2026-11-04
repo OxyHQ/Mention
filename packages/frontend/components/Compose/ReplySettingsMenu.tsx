@@ -44,20 +44,20 @@ export function ReplySettingsMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild label={t('Post interaction settings')}>
+      <DropdownMenuTrigger asChild label={t('compose.replySettings.title')}>
         {children}
       </DropdownMenuTrigger>
-      <DropdownMenuContent label={t('Post interaction settings')}>
-        <DropdownMenuLabel>{t('Who can reply')}</DropdownMenuLabel>
+      <DropdownMenuContent label={t('compose.replySettings.title')}>
+        <DropdownMenuLabel>{t('compose.replySettings.whoCanReply')}</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={isAnyone ? 'anyone' : isNobody ? 'nobody' : undefined}
           onValueChange={(value) => onReplyPermissionChange([value as 'anyone' | 'nobody'])}
         >
           <DropdownMenuRadioItem value="anyone" keepOpen>
-            {t('Anyone')}
+            {t('compose.replySettings.anyone')}
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="nobody" keepOpen>
-            {t('Nobody')}
+            {t('compose.replySettings.nobody')}
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
@@ -79,7 +79,7 @@ export function ReplySettingsMenu({
           onCheckedChange={(allowed) => onQuotesDisabledChange(!allowed)}
           keepOpen
         >
-          {t('Allow quote posts')}
+          {t('compose.replySettings.allowQuotes')}
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>

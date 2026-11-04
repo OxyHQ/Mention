@@ -50,11 +50,11 @@ export function MentionHomeHeader() {
               testID="sidebar-menu-button"
             />
           )}
-          <ButtonGroup accessibilityLabel={t('Search')}>
+          <ButtonGroup accessibilityLabel={t('common.search')}>
             <ButtonGroupItem
               iconOnly
               leadingIcon={RiSearchLine}
-              accessibilityLabel={t('Search')}
+              accessibilityLabel={t('common.search')}
               onPress={() => router.push('/search')}
             />
           </ButtonGroup>
@@ -68,7 +68,7 @@ export function MentionHomeHeader() {
           <ButtonGroupItem
             iconOnly
             leadingIcon={RiNotification3Line}
-            accessibilityLabel={t('Notifications')}
+            accessibilityLabel={t('notifications.title')}
             onPress={() => router.push('/notifications')}
           />
         </ButtonGroup>

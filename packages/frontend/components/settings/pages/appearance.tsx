@@ -115,7 +115,7 @@ export default function AppearanceSettingsScreen() {
       sections={[
         {
           key: 'theme',
-          label: t('settings.theme', 'Color mode'),
+          label: t('settings.theme.title', 'Color mode'),
           rows: [
             {
               key: 'sync',
@@ -137,10 +137,10 @@ export default function AppearanceSettingsScreen() {
             },
             {
               key: 'mode',
-              label: t('settings.theme', 'Color mode'),
+              label: t('settings.theme.title', 'Color mode'),
               control: (
                 <SettingsSelect
-                  label={t('settings.theme', 'Color mode')}
+                  label={t('settings.theme.title', 'Color mode')}
                   value={themeMode}
                   onChange={onThemeModeChange}
                   items={[
@@ -161,15 +161,15 @@ export default function AppearanceSettingsScreen() {
         },
         {
           key: 'reading',
-          label: t('settings.appearance', 'Appearance'),
+          label: t('settings.appearance.title', 'Appearance'),
           action: settingsSaving ? <Loading size="sm" /> : undefined,
           rows: [
             {
               key: 'length',
-              label: t('settings.appearance.postTextLength', 'Post text length'),
+              label: t('settings.appearance.postTextLength.title', 'Post text length'),
               control: (
                 <SettingsSelect
-                  label={t('settings.appearance.postTextLength', 'Post text length')}
+                  label={t('settings.appearance.postTextLength.title', 'Post text length')}
                   value={postTextExpand}
                   onChange={onPostTextExpandChange}
                   items={[
@@ -195,10 +195,10 @@ export default function AppearanceSettingsScreen() {
             },
             {
               key: 'read-more',
-              label: t('settings.appearance.readMoreAction', 'On "Read more" tap'),
+              label: t('settings.appearance.readMoreAction.title', 'On "Read more" tap'),
               control: (
                 <SettingsSelect
-                  label={t('settings.appearance.readMoreAction', 'On "Read more" tap')}
+                  label={t('settings.appearance.readMoreAction.title', 'On "Read more" tap')}
                   value={postReadMoreAction}
                   onChange={onPostReadMoreActionChange}
                   items={[
@@ -216,10 +216,10 @@ export default function AppearanceSettingsScreen() {
             },
             {
               key: 'bio',
-              label: t('settings.appearance.collapseBio', 'Profile bios'),
+              label: t('settings.appearance.collapseBio.title', 'Profile bios'),
               control: (
                 <SettingsSelect
-                  label={t('settings.appearance.collapseBio', 'Profile bios')}
+                  label={t('settings.appearance.collapseBio.title', 'Profile bios')}
                   value={collapseLongBio ? 'collapse' : 'full'}
                   onChange={onCollapseLongBioChange}
                   items={[

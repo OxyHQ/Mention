@@ -494,7 +494,7 @@ function ConnectionsContent({
     if (activeError && !activeLoading) {
       return (
         <ErrorComponent
-          title={t('Error', { defaultValue: 'Error' })}
+          title={t('common.error', { defaultValue: 'Error' })}
           message={activeError}
           onRetry={refreshCurrent}
           hideBackButton={true}

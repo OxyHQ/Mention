@@ -520,7 +520,7 @@ const FeedsScreen: React.FC = () => {
         reselect={{ refresh: onRefresh }}
         header={
           <PageHeader
-            title={t('Feeds')}
+            title={t('feeds.title')}
             actions={
               <Button
                 appearance="subtle"

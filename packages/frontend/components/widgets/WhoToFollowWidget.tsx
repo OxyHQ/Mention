@@ -37,7 +37,7 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
 
   if (loading) {
     return (
-      <BaseWidget title={t('Who to follow')} divider={divider}>
+      <BaseWidget title={t('discovery.whoToFollow')} divider={divider}>
         {/* The loaded widget's shape — as many rows as it shows, at the same
             inset, and the "Show more" button — so the rail below it (the
             footer) stays put when the suggestions land (#1216). */}
@@ -63,7 +63,7 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   }
 
   return (
-    <BaseWidget title={t('Who to follow')} divider={divider}>
+    <BaseWidget title={t('discovery.whoToFollow')} divider={divider}>
       <View className="gap-2">
         {/* Compact Bloom rows align directly with the widget heading. */}
         <View>
@@ -77,7 +77,7 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
           onPress={handleShowMore}
           style={{ alignSelf: 'flex-start' }}
         >
-          {t('Show more')}
+          {t('common.showMore')}
         </Button>
       </View>
     </BaseWidget>

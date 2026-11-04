@@ -59,7 +59,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
       <View className="flex-row justify-between items-center mb-2.5">
         <View className="flex-row items-center gap-1.5">
           <RiBarChartHorizontalLine width={18} height={18} fill={theme.colors.primary} />
-          <Text className="text-[15px] font-bold text-foreground">{t('Create a poll')}</Text>
+          <Text className="text-[15px] font-bold text-foreground">{t('compose.poll.create')}</Text>
         </View>
         <TouchableOpacity onPress={onRemove} className="p-1" hitSlop={tokens.hitSlop.md}>
           <RiCloseLine width={18} height={18} fill={theme.colors.textSecondary} />
@@ -68,8 +68,8 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
 
       <Textarea
         inputRef={pollTitleInputRef}
-        accessibilityLabel={t('Poll question')}
-        placeholder={t('Poll question')}
+        accessibilityLabel={t('compose.poll.question')}
+        placeholder={t('compose.poll.question')}
         value={pollTitle}
         onChangeText={onTitleChange}
         maxLength={200}
@@ -120,12 +120,12 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
           <View className="w-6 h-6 rounded-full items-center justify-center bg-muted">
             <RiAddLine width={16} height={16} fill={theme.colors.primary} />
           </View>
-          <Text className="text-sm font-semibold text-primary">{t('Add option')}</Text>
+          <Text className="text-sm font-semibold text-primary">{t('compose.poll.addOption')}</Text>
         </TouchableOpacity>
       )}
 
       <Text style={{ fontSize: 11, marginTop: 2, marginLeft: 2, color: theme.colors.textTertiary }}>
-        {pollOptions.length === 2 ? t('Add up to 2 more options') : t('Minimum 2 options required')}
+        {pollOptions.length === 2 ? t('compose.poll.addMoreOptions') : t('compose.poll.minOptions')}
       </Text>
     </Card>
   );

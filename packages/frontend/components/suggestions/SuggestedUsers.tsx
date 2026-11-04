@@ -107,7 +107,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   return (
     <View className="pt-3">
       <Text className="text-foreground text-[15px] font-bold px-4 mb-1">
-        {title || t('Suggested for you')}
+        {title || t('suggestions.title')}
       </Text>
       {displayedUsers.map((suggested) => (
         <SuggestedUserCard

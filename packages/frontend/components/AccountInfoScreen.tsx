@@ -101,7 +101,7 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
         colorPreset={color?.colorPreset}
         header={
           <PageHeader
-            title={t('About', { defaultValue: 'About' })}
+            title={t('profile.about.title', { defaultValue: 'About' })}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         }
@@ -279,11 +279,11 @@ function AccountInfoContent({
 
       {/* Account details — dates, location, activity */}
       {hasAccountDetails && (
-        <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
+        <SettingsListGroup title={t('profile.about.details', { defaultValue: 'Account details' })}>
           {joinDate && (
             <SettingsListItem
               icon={<RiCalendar2Line width={20} height={20} fill={theme.colors.textSecondary} />}
-              title={t('Date joined', { defaultValue: 'Date joined' })}
+              title={t('profile.about.dateJoined', { defaultValue: 'Date joined' })}
               value={joinDate}
             />
           )}
@@ -291,7 +291,7 @@ function AccountInfoContent({
           {profileData.primaryLocation && (
             <SettingsListItem
               icon={<RowIcon icon={RiMapPinLine} />}
-              title={t('Account based in', { defaultValue: 'Account based in' })}
+              title={t('profile.about.basedIn', { defaultValue: 'Account based in' })}
               value={profileData.primaryLocation}
             />
           )}
@@ -299,7 +299,7 @@ function AccountInfoContent({
           {websiteUrl && (
             <SettingsListItem
               icon={<RowIcon icon={RiLinkM} />}
-              title={t('Website', { defaultValue: 'Website' })}
+              title={t('profile.about.website', { defaultValue: 'Website' })}
               value={website?.replace(/^https?:\/\//i, '')}
               onPress={() => openExternalLink(websiteUrl)}
             />
@@ -308,7 +308,7 @@ function AccountInfoContent({
           {hasUsernameChanges && (
             <SettingsListItem
               icon={<RowIcon icon={RiAtLine} />}
-              title={t('Username changes', { defaultValue: 'Username changes' })}
+              title={t('profile.about.usernameChanges', { defaultValue: 'Username changes' })}
               value={String(profileData.usernameChangeCount)}
             />
           )}
@@ -316,7 +316,7 @@ function AccountInfoContent({
           {profileData.connectedVia && (
             <SettingsListItem
               icon={<RowIcon icon={RiEarthLine} />}
-              title={t('Connected via', { defaultValue: 'Connected via' })}
+              title={t('profile.about.connectedVia', { defaultValue: 'Connected via' })}
               value={profileData.connectedVia}
             />
           )}
@@ -326,14 +326,19 @@ function AccountInfoContent({
       {/* Verification — its own section, matching the profile's emphasis on the
             verified badge */}
       {profileData.verified && (
-        <SettingsListGroup title={t('Verification', { defaultValue: 'Verification' })}>
+        <SettingsListGroup
+          title={t('profile.about.verification', { defaultValue: 'Verification' })}
+        >
           <SettingsListItem
             icon={<RiVerifiedBadgeFill width={20} height={20} fill={VERIFIED_BADGE_COLOR} />}
-            title={t('Verified', { defaultValue: 'Verified' })}
+            title={t('profile.fields.verified', { defaultValue: 'Verified' })}
             value={
               verifiedDate
-                ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })
-                : t('Verified account', { defaultValue: 'Verified account' })
+                ? t('profile.about.since', {
+                    date: verifiedDate,
+                    defaultValue: `Since ${verifiedDate}`,
+                  })
+                : t('profile.about.verifiedAccount', { defaultValue: 'Verified account' })
             }
           />
         </SettingsListGroup>

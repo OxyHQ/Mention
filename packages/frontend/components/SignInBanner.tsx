@@ -21,11 +21,11 @@ export const SignInBanner = memo(function SignInBanner() {
       <Card appearance="solid" tone="accent">
         <CardBody style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
           <View className="flex-1">
-            <CardTitle>{t('Don’t miss what’s happening')}</CardTitle>
-            <CardDescription>{t('People on Mention are the first to know.')}</CardDescription>
+            <CardTitle>{t('auth.banner.title')}</CardTitle>
+            <CardDescription>{t('auth.banner.subtitle')}</CardDescription>
           </View>
           <InverseButton size="sm" onPress={() => signIn().catch(() => {})}>
-            {t('Sign In')}
+            {t('auth.banner.signIn')}
           </InverseButton>
         </CardBody>
       </Card>

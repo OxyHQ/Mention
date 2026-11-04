@@ -23,7 +23,7 @@ const InsightsScreen: React.FC = () => {
         scroll="auto"
         header={
           <PageHeader
-            title={t('Insights')}
+            title={t('insights.title')}
             presentation="floating"
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
