@@ -82,20 +82,28 @@ export function otherTransportsIn(
  * kilogram (Instagram-bridge) actor also gets its history from the Graph API:
  * the bridge only pushes what is posted after the follow, and the Instagram
  * connector backfills its own follows inside `deliver`.
+ *
+ * `durable` is for a caller that exits right after (a one-shot): the follow is
+ * in the connector's delivery queue before this resolves, where the connector
+ * offers that (`deliverDurably`). A request leaves delivery to the background.
  */
 export async function followTransport(
   follower: LocalFollower,
   actorUri: string,
   connector?: NetworkConnector<PostContent>,
+  options: { durable?: boolean } = {},
 ): Promise<void> {
   const owner = connector ?? (await resolveTargetConnector(actorUri));
   if (!owner) throw new Error('No connector owns this follow target');
-  await owner.deliver({
-    kind: 'follow.add',
+  const event = {
+    kind: 'follow.add' as const,
     localOxyUserId: follower.oxyUserId,
     localUsername: follower.username,
     targetActorUri: actorUri,
-  });
+  };
+  const durable = (owner as { deliverDurably?: NetworkConnector<PostContent>['deliver'] })
+    .deliverDurably;
+  await (options.durable && durable ? durable.call(owner, event) : owner.deliver(event));
 }
 
 /** Start the Graph history backfill a followed kilogram actor needs (see {@link followTransport}). */

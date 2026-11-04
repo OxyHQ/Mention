@@ -202,6 +202,14 @@ describe('ActivityPubConnector follow delivery', () => {
     expect(mocks.sendFollow).toHaveBeenCalledWith('local-1', 'mention', ACTOR_URI);
   });
 
+  it('queues a durable Follow before resolving, for a caller that exits right after', async () => {
+    await activityPubConnector.deliverDurably(follow(ACTOR_URI));
+
+    expect(mocks.sendFollow).toHaveBeenCalledWith('local-1', 'mention', ACTOR_URI, {
+      durable: true,
+    });
+  });
+
   it('rejects a handle that does not resolve, sending nothing', async () => {
     mocks.resolveWebFinger.mockResolvedValue(null);
 
