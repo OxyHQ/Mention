@@ -207,31 +207,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const results: { posts: unknown[]; hasMore?: boolean; nextCursor?: string } = { posts: [] };
 
     if (type === 'all' || type === 'posts') {
-      // The viewer's safety rules. Search is a DISCOVERY surface, so it is subject to
-      // the same two per-user gates every feed applies — the sensitive/NSFW opt-in and
-      // the viewer's muted words. Both loaders short-circuit for an anonymous viewer
-      // (no opt-in, no mutes) and soft-fail to their safe default.
-      const [showSensitiveContent, muteWords] = await Promise.all([
-        loadShowSensitiveContent(currentUserId),
-        loadMuteWords(currentUserId),
-      ]);
-      const compiledMuteWords = compileMuteWords(muteWords);
-
       // Parse search operators from query string
       const rawQuery = typeof query === 'string' ? query.trim() : '';
       const operators = parseSearchOperators(rawQuery);
-
-      // Build query with filters
-      const conditions: SQL[] = [
-        eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
-        notCollapsedCrosspostSql(),
-      ];
-      // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
-      // viewer's page is filled with results they can actually see. Same clause the
-      // ranked/discovery feeds use — `mtn/feed/feedSafety` is the one definition of
-      // "sensitive", never re-implemented here.
-      if (!showSensitiveContent) conditions.push(discoverySafeSql());
 
       /**
        * A PASTED URL IS NOT A TEXT QUERY, and the reason matters to whoever
@@ -288,11 +266,36 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // renditions, bounded by time windows newest first — is applied by
       // `findPostSearchPage` below. See `services/search/postSearch.ts`.
 
+      // The viewer's safety rules. Search is a DISCOVERY surface, so it is subject to
+      // the same two per-user gates every feed applies — the sensitive/NSFW opt-in and
+      // the viewer's muted words. Both loaders short-circuit for an anonymous viewer
+      // (no opt-in, no mutes) and soft-fail to their safe default.
+      // The `from:`/`to:` operator lookups need nothing from the rules, so all
+      // four reads share one round trip.
+      const [showSensitiveContent, muteWords, authorId, mentionedId] = await Promise.all([
+        loadShowSensitiveContent(currentUserId),
+        loadMuteWords(currentUserId),
+        operators.from ? resolveOperatorUserId(operators.from, currentUserId) : undefined,
+        operators.to ? resolveOperatorUserId(operators.to, currentUserId) : undefined,
+      ]);
+      const compiledMuteWords = compileMuteWords(muteWords);
+
+      // Build query with filters
+      const conditions: SQL[] = [
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
+      ];
+      // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
+      // viewer's page is filled with results they can actually see. Same clause the
+      // ranked/discovery feeds use — `mtn/feed/feedSafety` is the one definition of
+      // "sensitive", never re-implemented here.
+      if (!showSensitiveContent) conditions.push(discoverySafeSql());
+
       // --- Operator-based filters ---
 
       // from:username — posts AUTHORED by that user (`from:me` = the viewer).
       if (operators.from) {
-        const authorId = await resolveOperatorUserId(operators.from, currentUserId);
         if (!authorId) {
           // Nobody to search for (unknown username, or `me` with no session).
           res.json({ posts: [], hasMore: false });
@@ -320,7 +323,6 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // containment is an index lookup rather than a scan. The scalar matches any
       // post mentioning them.
       if (operators.to) {
-        const mentionedId = await resolveOperatorUserId(operators.to, currentUserId);
         if (!mentionedId) {
           res.json({ posts: [], hasMore: false });
           return;
@@ -463,24 +465,31 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // `post.metadata?.hashtags`, which `includeFullMetadata: false` would drop
       // entirely, silently disabling muted-hashtag filtering in search.
       const scopedOxyClient = createScopedOxyClient(req);
-      const followedAuthorIds = compiledMuteWords?.needsFollowState
-        ? await loadFollowedAuthorIds(currentUserId, scopedOxyClient)
-        : NO_FOLLOWED_AUTHORS;
-      const hydrate = async (rows: SearchRow[]) =>
-        (
-          await postHydrationService.hydratePosts(rows, {
+      // Only `hydrate` reads the follow graph (for an `exclude-following` rule),
+      // so it loads beside the first search page rather than ahead of it.
+      // `loadFollowedAuthorIds` is fail-soft; the guard only keeps a request that
+      // fails before `hydrate` from leaving a rejection unhandled.
+      const followedAuthors = compiledMuteWords?.needsFollowState
+        ? loadFollowedAuthorIds(currentUserId, scopedOxyClient)
+        : Promise.resolve(NO_FOLLOWED_AUTHORS);
+      followedAuthors.catch(() => undefined);
+      const hydrate = async (rows: SearchRow[]) => {
+        const [hydrated, followedAuthorIds] = await Promise.all([
+          postHydrationService.hydratePosts(rows, {
             viewerId: currentUserId,
             safetyRequester: safetyRequesterFor(req),
             oxyClient: scopedOxyClient,
             maxDepth: 1,
             includeLinkMetadata: true,
             includeFullArticleBody: false,
-          })
-        ).filter(
-          // Muted words are matched on the HYDRATED post — the rendition and
-          // canonical hashtags the viewer would actually be shown — which is
-          // exactly what the feed tuner matches, so a muted word means the same
-          // thing on both surfaces.
+          }),
+          followedAuthors,
+        ]);
+        // Muted words are matched on the HYDRATED post — the rendition and
+        // canonical hashtags the viewer would actually be shown — which is
+        // exactly what the feed tuner matches, so a muted word means the same
+        // thing on both surfaces.
+        return hydrated.filter(
           (post) =>
             !isMutedSubject(
               compiledMuteWords,
@@ -492,6 +501,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
               followedAuthorIds,
             ),
         );
+      };
 
       // The page, `hasMore` and the cursor describe READABLE posts only — see
       // `services/readablePage.ts`. Taken from the raw rows, they answered

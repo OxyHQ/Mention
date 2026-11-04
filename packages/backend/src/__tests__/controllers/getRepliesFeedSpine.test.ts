@@ -63,6 +63,7 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import { feedController } from '../../controllers/feed.controller';
+import { postHydrationService } from '../../services/PostHydrationService';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = postScope('replies-spine');
@@ -292,6 +293,25 @@ describe('getRepliesFeed — self-thread spine expansion', () => {
     privacyMocks.loadPrivacyState.mockResolvedValueOnce({ excludedUserIds: new Set([OTHER]) });
     const body = await fetchReplies(root.id, { includeNestedReplies: '1' });
     expect(body.items).toEqual([]);
+  });
+
+  it('hydrates parents and children once, previewing only under a parent that survived', async () => {
+    const root = await seedPost(scope, { oxyUserId: OP });
+    const parent = await seedPost(scope, {
+      oxyUserId: OTHER,
+      parentPostId: root.id,
+      isReply: true,
+    });
+    await seedPost(scope, { oxyUserId: OP, parentPostId: parent.id, isReply: true });
+    const hydrate = vi.mocked(postHydrationService.hydratePosts);
+    hydrate.mockImplementationOnce(async (records) =>
+      (records as Array<{ id: string; oxyUserId: string }>)
+        .filter((record) => record.id !== parent.id)
+        .map((record) => ({ ...record, user: { id: record.oxyUserId } }) as never),
+    );
+    const body = await fetchReplies(root.id, { includeNestedReplies: '1' });
+    expect(body.items).toEqual([]);
+    expect(hydrate).toHaveBeenCalledTimes(1);
   });
 
   it('answers an unknown or unreadable parent with 404, listing nothing', async () => {

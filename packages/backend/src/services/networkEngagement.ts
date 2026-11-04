@@ -49,42 +49,44 @@ export async function getNetworkEngagerCounts(
   };
 
   try {
-    // Postgres `likes`, where the engagement command service writes.
+    // Postgres `likes`, where the engagement command service writes, and
+    // boosts — native `type:'boost'` posts referencing the original via
+    // `boostOf`. Independent reads, so one round trip.
     //
     // No id-shape filter: `posts.id` is `text` holding ObjectId hex AND uuid v7,
     // so an ObjectId-only filter would discard every uuid-keyed post before the
     // query even ran. Ids are bound parameters here, so no shape check is owed.
-    const likeRows = await getDb()
-      .select({ postId: likes.postId, userId: likes.userId })
-      .from(likes)
-      .where(
-        and(
-          inArray(likes.postId, boundedPostIds),
-          inArray(likes.userId, boundedEngagers),
-          publicPositiveLikeSql(),
-          window ? gte(likes.createdAt, window.since) : undefined,
-          window ? lte(likes.createdAt, window.asOf) : undefined,
+    const [likeRows, boosts] = await Promise.all([
+      getDb()
+        .select({ postId: likes.postId, userId: likes.userId })
+        .from(likes)
+        .where(
+          and(
+            inArray(likes.postId, boundedPostIds),
+            inArray(likes.userId, boundedEngagers),
+            publicPositiveLikeSql(),
+            window ? gte(likes.createdAt, window.since) : undefined,
+            window ? lte(likes.createdAt, window.asOf) : undefined,
+          ),
         ),
-      );
+      getDb()
+        .select({ boostOf: posts.boostOf, oxyUserId: posts.oxyUserId })
+        .from(posts)
+        .where(
+          and(
+            eq(posts.type, 'boost'),
+            eq(posts.status, 'published'),
+            eq(posts.visibility, 'public'),
+            window ? gte(posts.createdAt, window.since) : undefined,
+            window ? lte(posts.createdAt, window.asOf) : undefined,
+            inArray(posts.boostOf, boundedPostIds),
+            inArray(posts.oxyUserId, boundedEngagers),
+          ),
+        ),
+    ]);
     for (const like of likeRows) {
       add(like.postId, like.userId);
     }
-
-    // Boosts are native `type:'boost'` posts referencing the original via `boostOf`.
-    const boosts = await getDb()
-      .select({ boostOf: posts.boostOf, oxyUserId: posts.oxyUserId })
-      .from(posts)
-      .where(
-        and(
-          eq(posts.type, 'boost'),
-          eq(posts.status, 'published'),
-          eq(posts.visibility, 'public'),
-          window ? gte(posts.createdAt, window.since) : undefined,
-          window ? lte(posts.createdAt, window.asOf) : undefined,
-          inArray(posts.boostOf, boundedPostIds),
-          inArray(posts.oxyUserId, boundedEngagers),
-        ),
-      );
     for (const boost of boosts) {
       if (boost.boostOf && boost.oxyUserId) {
         add(boost.boostOf, boost.oxyUserId);

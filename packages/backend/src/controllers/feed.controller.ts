@@ -1051,49 +1051,52 @@ class FeedController {
       const slicedPosts = hasMore ? page.slice(0, limit) : page;
       const filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
 
+      // A bounded, one-level preview for the tree view. Page/cursor ownership
+      // stays with the top-level replies, so expanding a branch cannot skip or
+      // duplicate the next page. The children are read from the raw page so the
+      // parents and their children hydrate in ONE pass; a child is kept below
+      // only when its parent survived hydration (only descend from parents the
+      // viewer can read).
+      const children =
+        queryString(req.query.includeNestedReplies) === '1' && filteredPosts.length > 0
+          ? this.filterBlockedAndMutedPosts(
+              await findPostRecords(
+                and(
+                  inArray(
+                    postsTable.parentPostId,
+                    filteredPosts.map((post) => post.id),
+                  ),
+                  threadReplyVisibilitySql(
+                    currentUserId,
+                    viewerRelations?.viewerGraph.followingIds,
+                  ),
+                  eq(postsTable.status, 'published'),
+                ),
+                { orderBy, limit: Math.min(limit * 2, 60) },
+              ),
+              blockedAndMutedIds,
+            )
+          : [];
+
       // Hydrate replies at maxDepth 1 so quoted/embedded context (e.g. a reply
       // that is also a quote, or a boosted reply) renders, matching peer
       // endpoints. transformPostsWithProfiles is pinned to maxDepth 0 for feed
       // performance, so hydrate directly here.
-      const hydratedReplies = await postHydrationService.hydratePosts(filteredPosts, {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: requestOxyClient,
-        maxDepth: 1,
-        includeLinkMetadata: true,
-        viewerPrivacy: viewerRelations?.viewerPrivacy,
-        viewerGraph: viewerRelations?.viewerGraph,
-      });
-      const items = hydratedReplies.filter((post) => post?.id && post.user?.id);
-      // A bounded, one-level preview for the tree view. Page/cursor ownership
-      // stays with the top-level replies, so expanding a branch cannot skip or
-      // duplicate the next page. Only descend from parents the viewer can read.
-      if (queryString(req.query.includeNestedReplies) === '1' && items.length > 0) {
-        const children = await findPostRecords(
-          and(
-            inArray(
-              postsTable.parentPostId,
-              items.map((post) => post.id),
-            ),
-            threadReplyVisibilitySql(currentUserId, viewerRelations?.viewerGraph.followingIds),
-            eq(postsTable.status, 'published'),
-          ),
-          { orderBy, limit: Math.min(limit * 2, 60) },
-        );
-        const hydratedChildren = await postHydrationService.hydratePosts(
-          this.filterBlockedAndMutedPosts(children, blockedAndMutedIds),
-          {
-            viewerId: currentUserId,
-            safetyRequester: safetyRequesterFor(req),
-            oxyClient: requestOxyClient,
-            maxDepth: 1,
-            includeLinkMetadata: true,
-            viewerPrivacy: viewerRelations?.viewerPrivacy,
-            viewerGraph: viewerRelations?.viewerGraph,
-          },
-        );
-        items.push(...hydratedChildren.filter((post) => post?.id && post.user?.id));
-      }
+      const hydrated = (
+        await postHydrationService.hydratePosts([...filteredPosts, ...children], {
+          viewerId: currentUserId,
+          safetyRequester: safetyRequesterFor(req),
+          oxyClient: requestOxyClient,
+          maxDepth: 1,
+          includeLinkMetadata: true,
+          viewerPrivacy: viewerRelations?.viewerPrivacy,
+          viewerGraph: viewerRelations?.viewerGraph,
+        })
+      ).filter((post) => post?.id && post.user?.id);
+      const childParent = new Map(children.map((child) => [child.id, child.parentPostId]));
+      const items = hydrated.filter((post) => !childParent.has(post.id));
+      const shownParentIds = new Set(items.map((post) => post.id));
+      items.push(...hydrated.filter((post) => shownParentIds.has(childParent.get(post.id) ?? '')));
       const anchor = hasMore ? slicedPosts[slicedPosts.length - 1] : undefined;
       const nextCursor = anchor
         ? sort === 'best'
