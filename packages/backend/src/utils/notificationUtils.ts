@@ -18,9 +18,9 @@ import {
   type PushLookups,
 } from './push';
 import { logger } from './logger';
-import type { PostAuthorshipEntry } from '@mention/shared-types';
+import type { PostAuthorshipEntry, PostUser } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
-import { toPopulatedActor, type NotificationActorProfile } from './notificationActor';
+import { resolveActorProfiles, toPopulatedActor } from './notificationActor';
 import { mapWithConcurrency } from './concurrency';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 
@@ -286,35 +286,22 @@ async function refreshRepeatedNotifications(
   }
 }
 
-const SYSTEM_ACTOR: NotificationActorProfile = {
-  id: SYSTEM_NOTIFICATION_ACTOR_ID,
-  username: 'system',
-  displayName: 'System',
-};
-
 /**
- * The actor lookups for ONE fan-out, memoized. Every notification of a
- * fan-out is about the same actor (and usually the same post), and the socket
- * payload and the push body both need the actor: without the memo, a post to 200
- * subscribers asked Oxy for its author 400 times. A failure resolves to `null`
- * — both consumers already degrade to a neutral name.
+ * The actor lookups for ONE fan-out: every actor of the batch in one read of
+ * the shared user-summary cache ({@link resolveActorProfiles}), made on first
+ * use. A fan-out is about one actor (and usually one post), and the socket
+ * payload and the push body both need it: without the batch, a post to 200
+ * subscribers asked Oxy for its author 400 times. An unresolved actor is
+ * `null` — both consumers already degrade to a neutral name.
  */
-function createDeliveryLookups(): PushLookups & {
-  actor(actorId: string): Promise<NotificationActorProfile | null>;
+function createDeliveryLookups(actorIds: readonly string[]): PushLookups & {
+  actor(actorId: string): Promise<PostUser | null>;
 } {
-  const actors = new Map<string, Promise<NotificationActorProfile | null>>();
+  let profiles: Promise<Map<string, PostUser>> | undefined;
   return {
-    actor(actorId) {
-      if (actorId === SYSTEM_NOTIFICATION_ACTOR_ID) return Promise.resolve(SYSTEM_ACTOR);
-      let pending = actors.get(actorId);
-      if (!pending) {
-        pending = getServiceOxyClient()
-          .users.get(actorId)
-          .then((user): NotificationActorProfile | null => user ?? null)
-          .catch(() => null);
-        actors.set(actorId, pending);
-      }
-      return pending;
+    async actor(actorId) {
+      profiles ??= resolveActorProfiles(actorIds);
+      return (await profiles).get(actorId) ?? null;
     },
   };
 }
@@ -332,7 +319,7 @@ async function deliverNotifications(
   emitEvent: boolean,
 ): Promise<void> {
   if (rows.length === 0) return;
-  const lookups = createDeliveryLookups();
+  const lookups = createDeliveryLookups(rows.map((row) => row.actorId));
 
   const io = emitEvent ? getRuntimeSocketServer() : undefined;
   if (io) {

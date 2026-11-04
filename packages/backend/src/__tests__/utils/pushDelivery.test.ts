@@ -19,7 +19,6 @@ import { eq, inArray } from 'drizzle-orm';
 const mocks = vi.hoisted(() => ({
   sendEachForMulticast: vi.fn(),
   initializeApp: vi.fn(),
-  getUserById: vi.fn(),
 }));
 
 // firebase-admin 14 dropped the `admin.*` namespace, so the stub follows the
@@ -42,10 +41,6 @@ vi.mock('../../config', async (importOriginal) => ({
     serviceAccountBase64: Buffer.from('{"project_id":"test"}').toString('base64'),
     projectId: 'test',
   }),
-}));
-
-vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { get: mocks.getUserById } }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
@@ -80,7 +75,6 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.sendEachForMulticast.mockResolvedValue({ responses: [] });
-  mocks.getUserById.mockResolvedValue({ id: 'actor-1', name: { displayName: 'Ada' } });
 });
 
 afterEach(async () => {
@@ -171,6 +165,8 @@ describe('sendPushToUser', () => {
 });
 
 describe('formatPushForNotification', () => {
+  const ada = { actor: vi.fn(async () => ({ name: { displayName: 'Ada' } })) };
+
   it('never puts post text in an out-of-band push preview', async () => {
     const push = await formatPushForNotification(
       {
@@ -180,20 +176,23 @@ describe('formatPushForNotification', () => {
         entityType: 'post',
         actorId: 'actor-1',
       },
-      { actor: async () => ({ name: { displayName: 'Ada' } }) },
+      ada,
     );
     expect(push.body).toBe('Ada posted a new update');
     expect(push.data).not.toHaveProperty('preview');
   });
 
   it('carries the row id as notificationId — the field that used to read _id', async () => {
-    const push = await formatPushForNotification({
-      id: 'notification-1',
-      type: 'like',
-      entityId: 'post-1',
-      entityType: 'post',
-      actorId: 'actor-1',
-    });
+    const push = await formatPushForNotification(
+      {
+        id: 'notification-1',
+        type: 'like',
+        entityId: 'post-1',
+        entityType: 'post',
+        actorId: 'actor-1',
+      },
+      ada,
+    );
 
     expect(push.data).toMatchObject({
       notificationId: 'notification-1',
@@ -206,27 +205,32 @@ describe('formatPushForNotification', () => {
   });
 
   it('falls back to a neutral actor name when Oxy cannot resolve one', async () => {
-    mocks.getUserById.mockRejectedValue(new Error('oxy unavailable'));
-    const push = await formatPushForNotification({
-      id: 'notification-1',
-      type: 'follow',
-      entityId: 'oxy-actor-1',
-      entityType: 'profile',
-      actorId: 'actor-1',
-    });
+    const push = await formatPushForNotification(
+      {
+        id: 'notification-1',
+        type: 'follow',
+        entityId: 'oxy-actor-1',
+        entityType: 'profile',
+        actorId: 'actor-1',
+      },
+      { actor: async () => Promise.reject(new Error('oxy unavailable')) },
+    );
     expect(push.body).toBe('Someone followed you');
   });
 
   it('names the system actor for a welcome notification', async () => {
-    const push = await formatPushForNotification({
-      id: 'notification-1',
-      type: 'welcome',
-      entityId: 'oxy-user-1',
-      entityType: 'profile',
-      actorId: 'system',
-    });
+    const push = await formatPushForNotification(
+      {
+        id: 'notification-1',
+        type: 'welcome',
+        entityId: 'oxy-user-1',
+        entityType: 'profile',
+        actorId: 'system',
+      },
+      ada,
+    );
     expect(push).toMatchObject({ title: 'Welcome to Mention' });
-    expect(mocks.getUserById).not.toHaveBeenCalled();
+    expect(ada.actor).not.toHaveBeenCalled();
   });
 });
 

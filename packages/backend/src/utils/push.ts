@@ -7,7 +7,6 @@ import { getFirebaseConfig } from '../config';
 import { getDb } from '../db/postgres';
 import { pushTokens, type NOTIFICATION_TYPES } from '../db/schema/discovery';
 import { userSettings } from '../db/schema/userProfile';
-import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 import { chunk } from '@oxy.so/utils/text';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
@@ -223,22 +222,15 @@ export interface PushNotificationSource {
 }
 
 /**
- * What {@link formatPushForNotification} reads besides the row. A fan-out passes
- * memoized lookups so the actor is resolved ONCE for every
+ * What {@link formatPushForNotification} reads besides the row. The fan-out
+ * passes batched lookups so the actor is resolved ONCE for every
  * recipient — the actor of a 200-subscriber post is the same person 200 times.
  */
 export interface PushLookups {
   actor(actorId: string): Promise<{ name?: { displayName?: string | null } | null } | null>;
 }
 
-const directPushLookups: PushLookups = {
-  actor: (actorId) => getServiceOxyClient().users.get(actorId),
-};
-
-export async function formatPushForNotification(
-  n: PushNotificationSource,
-  lookups: PushLookups = directPushLookups,
-) {
+export async function formatPushForNotification(n: PushNotificationSource, lookups: PushLookups) {
   // Best-effort: hydrate actor for title/body
   let actorName = 'Someone';
   try {
