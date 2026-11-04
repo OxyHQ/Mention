@@ -462,10 +462,19 @@ jobs:
       # stops a pull request lowering the recorded baseline in the same commit
       # that removes the tests; the script REFUSES an unresolvable base rather
       # than skipping, so a shallow clone fails loudly instead of vacuously.
+      #
+      # The ratchet counts UNCOVERED items, which compose: changes that each add
+      # none add none together, so the queue's main + A + B tree is judged the
+      # way A and B were. The one check that does not compose is "the baseline
+      # is stale" (more than the allowance BELOW the recorded counts): two queued
+      # changes that each add tests can bank more together than either did, and
+      # that is no reason to eject one. It fails on a pull request, where the
+      # author can re-record, and only warns everywhere else.
       - name: Enforce the frontend coverage policy
         if: always() && steps.scope.outputs.frontend == 'true'
         env:
           COVERAGE_POLICY_BASE: ${{ env.CI_BASE_REVISION }}
+          COVERAGE_POLICY_STALE_BASELINE: ${{ github.event_name == 'pull_request' && 'fail' || 'warn' }}
         run: bun run --cwd packages/frontend coverage:check -- --coverage-dir "$RUNNER_TEMP/frontend-coverage"
       - name: Upload coverage summary
         if: always() && matrix.coverage && steps.scope.outputs.run == 'true'

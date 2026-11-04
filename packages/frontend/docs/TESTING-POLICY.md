@@ -16,14 +16,22 @@ CI runs exactly these, in that order, in the `Test frontend` leg. Every failure
 message ends with the pair above, so a red check is reproducible without reading
 the workflow.
 
-When you have legitimately raised coverage:
+When the gate asks for it:
 
 ```bash
-bun run --cwd packages/frontend coverage:record  # rewrites coverage-baseline.json
+bun run --cwd packages/frontend coverage:record               # pin new logic files
+bun run --cwd packages/frontend coverage:record -- --refresh  # re-anchor every number
 ```
 
-Commit the baseline in the same change. `coverage:record` never lowers anything
-past the base revision — that is the check the ratchet rests on.
+Plain `coverage:record` only adds pins for newly classified files and drops
+pins for files that left the domains; every other number stays byte-identical,
+so two changes that each add a file do not conflict in the merge queue.
+`--refresh` re-anchors the totals, pins and file sizes at the current
+measurement; the check asks for it when the baseline has gone stale. A change
+that only deletes code or only adds tests usually needs neither. Commit the
+baseline in the same change. Whatever is written is checked against the base
+revision's baseline, and a looser one fails — that is the check the ratchet
+rests on.
 
 ## Published Bloom source in Jest
 
@@ -74,13 +82,14 @@ A file in neither **fails**. This is what a hand-maintained list cannot do — a
 new service is inside the gate the moment it is written, rather than whenever
 somebody remembers to add it.
 
-**3. Per-file pins.** Each classified file carries its measured coverage,
-floored to whole points. Pins fire downwards only, so they cost nothing to carry
-and catch the one thing an aggregate hides: a single critical file losing its
-tests while the total is held up elsewhere. Deleting
-`services/__tests__/followGraph.test.ts` moves the global number by 0.02 points
-— under every global floor, past every jest threshold — and trips the pin by
-100.
+**3. Per-file pins.** Each classified file carries its measured covered/total
+**counts**, held to the rule in 5 from its own anchor. So a pin catches the one
+thing an aggregate hides: a single critical file losing its tests while the
+total is held up elsewhere. Deleting `services/__tests__/followGraph.test.ts`
+moves the global number by 0.02 points — under every global floor, past every
+jest threshold — and turns every statement in the file uncovered with nothing
+added, which its pin refuses. Deleting code from a pinned file never trips it;
+code added to it must be covered at least as well as the file already was.
 
 **4. The critical-path bar: 80% statements, 65% branches.** Applied to the seven
 areas issue #700 names:
@@ -106,21 +115,92 @@ everything passes. It carries an **exact** count, not a maximum, so it cannot
 grow one defensible line at a time; and an entry that starts clearing the bar is
 reported as a failure until it is deleted.
 
-**5. The ratchet.** Overall coverage below the recorded baseline fails. More
-than 0.75 points **above** it also fails, asking you to re-record — without
-that, the baseline never refreshes and a suite that reached 40% could fall all
-the way back to 28% unnoticed.
+**5. The ratchet: added code at the average, nothing covered lost.** Per metric
+(statements, branches, functions, lines), from a recorded anchor of C covered
+out of T items (U = T − C uncovered), with G items **added** since, the code may
+now have at most U + G·U/T uncovered items:
 
-**6. The baseline may not decrease against the base revision.** Every other
-check reads the committed baseline, so without this one a pull request could
-lower the baseline in the same commit that removes the tests and pass all of
-them. A genuine decrease — code that legitimately shrank — needs a dated,
-path-and-metric-named entry in `allowedBaselineDecreases`. Only entries the
-change itself **adds** (absent from the base revision's policy) excuse a drop,
-and an added entry with no matching drop fails, so the list cannot become a
-standing permission slip. An entry that merged earlier is inherited: it excuses
-nothing and is checked for nothing, so the next pull request in the queue does
-not fail on it and nobody has to come back and delete it.
+- code added since may be uncovered at the anchor's own rate — new code must be
+  covered at least as well as the average, the rule this gate has always had;
+- nothing that was covered may become uncovered;
+- deleting code adds nothing, so deleting tested code can never fail.
+
+It is compared exactly, as integers: uncovered·T ≤ U·T + G·U. Nothing rounds.
+For a pin, G is that file's growth. For the whole report, G is the sum of each
+file's growth — max(0, now − anchor) per file, from the `sizes` the baseline
+records — never the net change of the total (see below for why).
+
+Falling more than `uncoveredSlackAllowance` items inside the limit (about 0.75
+points of each metric, the percentage allowance it replaced) also fails, asking
+for `coverage:record -- --refresh` — without that, the baseline never refreshes
+and tests added today could be deleted next month unnoticed. Inside the
+allowance, a change that adds tests passes without touching the baseline.
+
+**6. The baseline may not relax against the base revision.** Every other check
+reads the committed baseline, so without this one a pull request could record a
+looser baseline in the same commit that removes the tests and pass all of them.
+The committed numbers are held to the same rule as a measurement: they must be
+reachable from the base revision's by adding code at its rate and deleting code.
+Re-anchoring a tree that passes the check therefore always passes here. Anything
+looser needs a dated, path-and-metric-named entry in `allowedBaselineRelaxations`
+(`path` is a pinned file or `total`). Only entries the change itself **adds**
+(absent from the base revision's policy) excuse a relaxation, and an added entry
+with no matching relaxation fails, so the list cannot become a standing
+permission slip. An entry that merged earlier is inherited: it excuses nothing
+and is checked for nothing, so the next pull request in the queue does not fail
+on it and nobody has to come back and delete it. Deleting code never needs an
+entry.
+
+## Why counts, and why growth is summed per file
+
+Until schema 2 of `coverage-baseline.json` the ratchet and the pins compared
+percentages — the totals at two decimals with zero allowed drop, the pins floored
+to whole points — and both failed good changes:
+
+- **Deleting tested code lowered every ratio under 100%** though nothing became
+  less tested. #1814 removed one tested function and failed with "functions
+  coverage fell to 50.87% from 50.88%"; 23 `allowedBaselineDecreases` entries in
+  three days were almost all this, written to excuse deletions.
+- **The merge queue failed changes at random.** Two changes that each passed
+  alone could cross a 0.01 step together, and whichever crossed it was ejected.
+- **Every re-record rewrote the whole `total` block**, so any two queued changes
+  that re-recorded conflicted, and one was ejected.
+
+The rule above keeps what the percentage meant for added code and drops what it
+did to deleted code, and it is exact, so nothing crosses a rounding step.
+
+Growth is summed per file because a net-growth rule — G = max(0, T_now − T) for
+the whole report — lets a deletion in one file cancel the allowance an addition
+in another earned. Measured against this repository's functions baseline: one
+merged change adds 20 functions at 55% covered (above the 50.9% average) and
+passes; the next change only deletes 5 tested functions, and a net rule fails it.
+In the queue, a change deleting 10 tested functions and a change adding 10 at
+60% each pass alone and fail together under a net rule. Summed per file, both
+pass; `coverage:policy-selftest` holds each case, and replacing the per-file sum
+with the net change turns exactly those two red.
+
+What still does not compose:
+
+- **Two queued changes to the same file**, one deleting and one adding, net
+  inside that file. Rare, and visible in the file list.
+- **Banked slack.** A change whose additions are covered worse than the average
+  passes only while earlier changes left room inside the limit, and two such
+  changes queued together can overspend it. A change whose additions are
+  covered at least as well as the average cannot be failed by what else is in
+  the queue.
+- **The stale-baseline check.** Two queued changes that each add tests can bank
+  more than the allowance together, so it fails on a pull request and only warns
+  in the merge queue and on `main` (`COVERAGE_POLICY_STALE_BASELINE=warn` in
+  `ci.yml`).
+
+The critical-path bar (rule 4) stays a percentage on purpose: it is a fixed
+floor, not a ratchet, and "80% of this file is tested" is the claim it makes.
+
+The migration from schema 1 is checked, not trusted: a base revision whose
+baseline predates schema 2 has its exact totals used as the anchor (growth
+falling back to the net change, since it recorded no sizes), and each percentage
+pin becomes the minimum covered count it required at the current size, so the
+converting change could not record a looser gate than the one it replaced.
 
 **7. The pre-existing jest thresholds stay.** `lib/viewerQueryKeys.ts` at 100%
 and `components/providers/AccountSwitchReset.tsx` remain enforced by
@@ -143,7 +223,8 @@ loads `X.web.tsx`. Measured on this repository:
   imports by name — left `test:coverage` at **exit 0**, 165/165 suites passing.
   jest printed `Failed to collect coverage from …` into the log and carried on.
   The file dropped out of the denominator, so overall statements went **up**,
-  28.34% → 28.35%. Every percentage-based check reads that as an improvement.
+  28.34% → 28.35%, and its uncovered statements left the overall count. Every
+  number-based check reads that as an improvement.
 - The same mutation in `lib/webTelemetry.web.ts`, which `__tests__/webTelemetry.test.ts`
   imports as `@/lib/webTelemetry.web`, failed the suite immediately.
 
@@ -155,34 +236,37 @@ their real gates.
 
 The signal that does not lie is the file's **absence from the report**, so the
 policy asserts that every domain file appears in it. That is the check that
-catches an unparseable fork, and it is the only one that can: the percentages
-all move the reassuring way.
+catches an unparseable fork, and it is the only one that can: the numbers all
+move the reassuring way.
 
 ## When the gate stops you
 
-| message                                               | what to do                                                                                                                           |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `classified nowhere`                                  | New logic file. Run `coverage:record`, or list it in `unenforceable` with a reason and bump `expectedCounts`.                        |
-| `lost coverage they had at the recorded baseline`     | A test stopped exercising something. Add the assertion back — do not re-record.                                                      |
-| `critical-path file(s) are under the bar`             | Raise the coverage. An exemption needs a reason, a date and a bumped exact count, and should be argued in review.                    |
-| `Overall … fell to X%`                                | The change added code nothing covers. Cover it.                                                                                      |
-| `Overall … rose to X% but the baseline still says Y%` | Good news. `coverage:record` and commit the baseline.                                                                                |
-| `lower than <base>'s`                                 | You (or `coverage:record`) lowered the committed baseline. If the code legitimately shrank, add an `allowedBaselineDecreases` entry. |
-| `missing from the coverage report`                    | A file failed to parse. Search the run's output for `Failed to collect coverage from`.                                               |
+| message                                            | what to do                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `classified nowhere`                               | New logic file. Run `coverage:record`, or list it in `unenforceable` with a reason and bump `expectedCounts`.                    |
+| `more uncovered code than their pin allows`        | A test stopped exercising the file, or code added to it is covered worse than the file already was. Cover it — do not re-record. |
+| `critical-path file(s) are under the bar`          | Raise the coverage. An exemption needs a reason, a date and a bumped exact count, and should be argued in review.                |
+| `Overall <metric>: N uncovered, at most M allowed` | The change added code covered worse than the average, or lost a test. Cover it.                                                  |
+| `Overall <metric>: N uncovered, K fewer than …`    | Good news. `coverage:record -- --refresh` and commit the baseline.                                                               |
+| `looser than <base>'s`                             | The committed baseline allows more than the base revision's. If that is deliberate, add an `allowedBaselineRelaxations` entry.   |
+| `this script reads schema 2`                       | The baseline predates counts. `test:coverage`, then `coverage:record`.                                                           |
+| `missing from the coverage report`                 | A file failed to parse. Search the run's output for `Failed to collect coverage from`.                                           |
 
 ## What this policy does NOT do
 
-- **It does not require new logic to be tested** — only that its absence is
+- **A new file is not required to be tested** — only that its absence is
   recorded. A new file at 0% passes once pinned; what it cannot do is pass
-  silently, and it cannot later get worse. Only files on the critical list face
-  a real floor.
-- **A pin at 0% is a pin that cannot fail.** Its value is the exact count around
-  it, not the number itself. Sixteen critical-path files are in that position
-  today and each one is named above.
+  silently, and it cannot later get worse. It still counts toward the overall
+  rule, so it must be paid for by covering something else, absorbed by banked
+  slack, or accepted in `allowedBaselineRelaxations`.
+- **A pin at 0% is a pin that cannot fail.** Its own rate lets added code be
+  uncovered too; its value is the exact count around it and the overall rule.
+  The critical-path files in that position are each named in
+  `belowBarExemptions`.
 - **Diff coverage is not measured.** "This pull request's changed lines are N%
   covered" needs per-line data joined to the diff, which is a different report
-  than the one CI keeps. The global ratchet is the approximation: new code must
-  be covered at least as well as the current average.
+  than the one CI keeps. The global ratchet is the approximation: code added
+  must be covered at least as well as the recorded average.
 - **The bar is not per-domain.** Every critical path is held to one pair of
   numbers rather than a threshold tuned per area.
 

@@ -1,2001 +1,1227 @@
 {
-  "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
-  "total": {
-    "statements": {
-      "pct": 56.52,
-      "covered": 16930,
-      "total": 29950
-    },
-    "branches": {
-      "pct": 53.16,
-      "covered": 12336,
-      "total": 23202
-    },
-    "functions": {
-      "pct": 51.06,
-      "covered": 3981,
-      "total": 7796
-    },
-    "lines": {
-      "pct": 57.44,
-      "covered": 15277,
-      "total": 26595
-    }
-  },
+  "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Counts, never percentages: `total` and each pin are [covered, total] per metric, and `sizes` are every reported file's [statements, branches, functions, lines] totals, from which the check works out how much code was ADDED since. Added code may be uncovered at the recorded rate; nothing covered may become uncovered. Do not hand-edit: a looser number here is a looser gate, and the base-revision check refuses one that is not listed in allowedBaselineRelaxations.",
+  "schemaVersion": 2,
+  "total": {"statements":[16934,29954],"branches":[12343,23208],"functions":[3983,7798],"lines":[15280,26598]},
   "pins": {
-    "components/Feed/PostInteractionsBinder.tsx": {
-      "statements": 96,
-      "branches": 100,
-      "functions": 91,
-      "lines": 100
-    },
-    "components/Feed/PostMenuContent.tsx": {
-      "statements": 96,
-      "branches": 88,
-      "functions": 83,
-      "lines": 96
-    },
-    "components/Feed/postInteractions.tsx": {
-      "statements": 98,
-      "branches": 84,
-      "functions": 100,
-      "lines": 97
-    },
-    "components/Feed/postMenuActions.tsx": {
-      "statements": 89,
-      "branches": 84,
-      "functions": 66,
-      "lines": 94
-    },
-    "components/providers/AccountSwitchReset.tsx": {
-      "statements": 98,
-      "branches": 96,
-      "functions": 100,
-      "lines": 100
-    },
-    "components/providers/AppProviders.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "components/providers/AppShellProviders.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "components/providers/AuthRouter.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "components/providers/CommunityNoteProvider.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "components/providers/LiveFeatureProviders.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "components/providers/LiveFeatureRuntime.tsx": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "components/providers/LivePresencePoller.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "components/providers/constants.ts": {
-      "statements": 33,
-      "branches": 0,
-      "functions": 50,
-      "lines": 33
-    },
-    "components/providers/handleLanguageError.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "db/cacheLifecycle.ts": {
-      "statements": 89,
-      "branches": 61,
-      "functions": 100,
-      "lines": 89
-    },
-    "db/database.native.ts": {
-      "statements": 13,
-      "branches": 0,
-      "functions": 25,
-      "lines": 14
-    },
-    "db/database.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "db/database.web.ts": {
-      "statements": 50,
-      "branches": 100,
-      "functions": 50,
-      "lines": 50
-    },
-    "db/feedItem.ts": {
-      "statements": 100,
-      "branches": 94,
-      "functions": 100,
-      "lines": 100
-    },
-    "db/feedQueries.ts": {
-      "statements": 48,
-      "branches": 36,
-      "functions": 46,
-      "lines": 53
-    },
-    "db/index.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "db/linkQueries.ts": {
-      "statements": 1,
-      "branches": 0,
-      "functions": 0,
-      "lines": 1
-    },
-    "db/memoryStore.ts": {
-      "statements": 67,
-      "branches": 55,
-      "functions": 72,
-      "lines": 78
-    },
-    "db/migrations.ts": {
-      "statements": 93,
-      "branches": 66,
-      "functions": 100,
-      "lines": 93
-    },
-    "db/postObservers.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "db/postQueries.ts": {
-      "statements": 56,
-      "branches": 43,
-      "functions": 80,
-      "lines": 60
-    },
-    "db/schema.ts": {
-      "statements": 79,
-      "branches": 64,
-      "functions": 84,
-      "lines": 82
-    },
-    "hooks/useAccountCategoryLabel.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useAccountTheme.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useAppLanguage.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useArticleManager.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useAttachmentOrder.ts": {
-      "statements": 85,
-      "branches": 60,
-      "functions": 90,
-      "lines": 88
-    },
-    "hooks/useCachedUser.ts": {
-      "statements": 50,
-      "branches": 16,
-      "functions": 50,
-      "lines": 50
-    },
-    "hooks/useCheckoutConfiguration.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useCheckoutFeedback.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useCommerceStorefront.ts": {
-      "statements": 100,
-      "branches": 75,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useCommunities.ts": {
-      "statements": 100,
-      "branches": 88,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useCommunitiesPreview.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useCommunityNotes.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useComposeValidation.ts": {
-      "statements": 100,
-      "branches": 88,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useComposeVariants.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useDeepCompare.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useDismissKeyboardOnBlur.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useDraftManager.ts": {
-      "statements": 100,
-      "branches": 83,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useDrafts.ts": {
-      "statements": 89,
-      "branches": 84,
-      "functions": 87,
-      "lines": 92
-    },
-    "hooks/useDraftsList.ts": {
-      "statements": 56,
-      "branches": 57,
-      "functions": 70,
-      "lines": 56
-    },
-    "hooks/useEventManager.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useExpandableText.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useExternalActorResolve.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useFeedModules.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useFeedPreferences.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useFeedQuery.ts": {
-      "statements": 100,
-      "branches": 99,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useFeedRankingStaleness.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useFeedSettings.ts": {
-      "statements": 91,
-      "branches": 68,
-      "functions": 100,
-      "lines": 97
-    },
-    "hooks/useFeedState.ts": {
-      "statements": 96,
-      "branches": 92,
-      "functions": 100,
-      "lines": 97
-    },
-    "hooks/useFeedVisibility.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useFollowEntity.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useForYouTuning.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useInfiniteCatalogSearch.tsx": {
-      "statements": 86,
-      "branches": 66,
-      "functions": 90,
-      "lines": 85
-    },
-    "hooks/useJobAttachmentManager.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useKeyboardShortcuts.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useKnownLikers.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useLatchedState.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useLinkDetection.ts": {
-      "statements": 95,
-      "branches": 83,
-      "functions": 100,
-      "lines": 95
-    },
-    "hooks/useLocationManager.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useMediaManager.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useMediaPicker.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useMediaSessionTransport.ts": {
-      "statements": 100,
-      "branches": 93,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useMentionColorViewer.ts": {
-      "statements": 96,
-      "branches": 96,
-      "functions": 100,
-      "lines": 95
-    },
-    "hooks/useMentionSearchResults.ts": {
-      "statements": 100,
-      "branches": 92,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useMutualFollowers.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useNotificationFilter.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useOpenInAllo.tsx": {
-      "statements": 72,
-      "branches": 100,
-      "functions": 66,
-      "lines": 72
-    },
-    "hooks/useOptimizedMediaQuery.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useOwnedNotificationSurfaces.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePendingNotificationOperations.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePipAspectRatio.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePipTransportActions.ts": {
-      "statements": 96,
-      "branches": 100,
-      "functions": 90,
-      "lines": 96
-    },
-    "hooks/usePlusOffer.ts": {
-      "statements": 94,
-      "branches": 97,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePodcastManager.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePodcastSave.ts": {
-      "statements": 94,
-      "branches": 76,
-      "functions": 90,
-      "lines": 100
-    },
-    "hooks/usePollManager.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePostActivity.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePostLanguage.ts": {
-      "statements": 100,
-      "branches": 91,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePostLanguagePicker.tsx": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePostReadAccess.ts": {
-      "statements": 90,
-      "branches": 92,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePostShare.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePresence.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePrivacyControls.ts": {
-      "statements": 100,
-      "branches": 95,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePrivacySettings.ts": {
-      "statements": 27,
-      "branches": 16,
-      "functions": 40,
-      "lines": 29
-    },
-    "hooks/usePrivateMediaUrls.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useProfileData.ts": {
-      "statements": 92,
-      "branches": 87,
-      "functions": 90,
-      "lines": 93
-    },
-    "hooks/useProfileLinkMentions.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useProfileSEOPolicy.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useProfileSongPreview.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePublicationContinuation.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/usePublisherLanes.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useQuoteManager.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useRealtimeNotifications.ts": {
-      "statements": 85,
-      "branches": 66,
-      "functions": 86,
-      "lines": 87
-    },
-    "hooks/useRealtimePosts.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useRecommendations.ts": {
-      "statements": 64,
-      "branches": 53,
-      "functions": 43,
-      "lines": 64
-    },
-    "hooks/useReelChrome.ts": {
-      "statements": 66,
-      "branches": 62,
-      "functions": 55,
-      "lines": 67
-    },
-    "hooks/useReelImpressions.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useRefSync.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useReloadOnFeedRuleChange.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useReselectReloadKey.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useRevealOwnNewPost.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useRoomManager.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useRoomUsers.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useScheduleManager.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useScheduledPosts.ts": {
-      "statements": 78,
-      "branches": 100,
-      "functions": 58,
-      "lines": 80
-    },
-    "hooks/useSearchAllSources.ts": {
-      "statements": 68,
-      "branches": 78,
-      "functions": 70,
-      "lines": 75
-    },
-    "hooks/useServerAppearanceSync.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useServerDrafts.ts": {
-      "statements": 96,
-      "branches": 90,
-      "functions": 92,
-      "lines": 96
-    },
-    "hooks/useSourcesManager.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useSupervisionState.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useThreadManager.ts": {
-      "statements": 26,
-      "branches": 9,
-      "functions": 3,
-      "lines": 30
-    },
-    "hooks/useThreadPreferences.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useTimeAgo.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useTopicFollows.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useTrendItemMenu.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useTrendNavigation.ts": {
-      "statements": 80,
-      "branches": 46,
-      "functions": 75,
-      "lines": 88
-    },
-    "hooks/useUnreadCount.ts": {
-      "statements": 82,
-      "branches": 62,
-      "functions": 83,
-      "lines": 85
-    },
-    "hooks/useVideoFeed.ts": {
-      "statements": 99,
-      "branches": 86,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useVideoPipSession.ts": {
-      "statements": 96,
-      "branches": 95,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useViewerFollowing.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useVisibleReference.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useVoteStyle.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useWelcome.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/actorCache.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/appInitializer.ts": {
-      "statements": 69,
-      "branches": 66,
-      "functions": 75,
-      "lines": 68
-    },
-    "lib/bootFeedRead.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 0,
-      "lines": 100
-    },
-    "lib/bootFeedRead.web.ts": {
-      "statements": 87,
-      "branches": 94,
-      "functions": 77,
-      "lines": 92
-    },
-    "lib/chunkReload.native.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 0,
-      "lines": 100
-    },
-    "lib/chunkReload.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/chunkReload.web.ts": {
-      "statements": 82,
-      "branches": 82,
-      "functions": 90,
-      "lines": 83
-    },
-    "lib/colorEntitlement.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/constants.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/documentBootstrap.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/documentBootstrap.web.ts": {
-      "statements": 95,
-      "branches": 86,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/hlsPlayback.native.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/hlsPlayback.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/hlsPlayback.web.ts": {
-      "statements": 97,
-      "branches": 88,
-      "functions": 93,
-      "lines": 98
-    },
-    "lib/i18n.ts": {
-      "statements": 58,
-      "branches": 69,
-      "functions": 33,
-      "lines": 56
-    },
-    "lib/jobPagination.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/keyedAsyncQueue.ts": {
-      "statements": 92,
-      "branches": 100,
-      "functions": 83,
-      "lines": 100
-    },
-    "lib/liveConfig.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/livekit.native.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/livekit.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/livekit.web.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 0,
-      "lines": 100
-    },
-    "lib/logging/index.ts": {
-      "statements": 44,
-      "branches": 37,
-      "functions": 50,
-      "lines": 66
-    },
-    "lib/logging/sanitize.ts": {
-      "statements": 90,
-      "branches": 71,
-      "functions": 86,
-      "lines": 91
-    },
-    "lib/lottieWeb.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/mentionSocketSession.ts": {
-      "statements": 92,
-      "branches": 70,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/notificationPagination.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/operatedAccounts.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/oxyServices.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/checkoutConfiguration.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/checkoutFeedback.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/checkoutPreview.ts": {
-      "statements": 100,
-      "branches": 80,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/checkoutReview.ts": {
-      "statements": 85,
-      "branches": 90,
-      "functions": 100,
-      "lines": 85
-    },
-    "lib/payments/embeddedCheckout.ts": {
-      "statements": 92,
-      "branches": 96,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/localProviderTest.ts": {
-      "statements": 100,
-      "branches": 91,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/merchantInstallmentPreview.ts": {
-      "statements": 94,
-      "branches": 97,
-      "functions": 100,
-      "lines": 93
-    },
-    "lib/payments/peableWire.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/plusCheckout.ts": {
-      "statements": 100,
-      "branches": 98,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/payments/plusCheckoutStorage.ts": {
-      "statements": 92,
-      "branches": 80,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/precacheActorsFromPosts.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/queryClient.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/recommendationFilters.ts": {
-      "statements": 84,
-      "branches": 47,
-      "functions": 83,
-      "lines": 94
-    },
-    "lib/recommendations.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/references/VisibleReferenceStore.ts": {
-      "statements": 98,
-      "branches": 92,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/references/commerceCards.ts": {
-      "statements": 100,
-      "branches": 91,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/references/homiioCases.ts": {
-      "statements": 33,
-      "branches": 100,
-      "functions": 0,
-      "lines": 33
-    },
-    "lib/references/syraPodcastCards.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/seoHandoff.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/shareIntent.native.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/shareIntent.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/socketBfcache.native.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "lib/socketBfcache.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/stickers.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/syraApi.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/syraPodcasts.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/themePersistence.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 100,
-      "lines": 0
-    },
-    "lib/utils.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/viewerQueryKeys.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/webTelemetry.native.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 25,
-      "lines": 0
-    },
-    "lib/webTelemetry.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/webTelemetry.web.ts": {
-      "statements": 80,
-      "branches": 73,
-      "functions": 75,
-      "lines": 89
-    },
-    "services/articleService.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/channelAccountService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/channelDeletionService.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/channelWritersService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/commerceService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/communityNotesService.ts": {
-      "statements": 100,
-      "branches": 83,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/communityService.ts": {
-      "statements": 100,
-      "branches": 62,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/customFeedsService.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/draftsService.ts": {
-      "statements": 100,
-      "branches": 50,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/echoGuard.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/engagementQueuePersistence.ts": {
-      "statements": 94,
-      "branches": 87,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/entityFollowService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/eventsService.ts": {
-      "statements": 93,
-      "branches": 62,
-      "functions": 85,
-      "lines": 92
-    },
-    "services/experienceService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/feedPageRead.ts": {
-      "statements": 95,
-      "branches": 91,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/feedPreferencesService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/feedService.ts": {
-      "statements": 58,
-      "branches": 61,
-      "functions": 54,
-      "lines": 60
-    },
-    "services/feedTuningService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/followGraph.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/insightsService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/jobApplicationsService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/jobsService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/labelerService.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/lanesService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/listMutations.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/listsService.ts": {
-      "statements": 55,
-      "branches": 66,
-      "functions": 50,
-      "lines": 47
-    },
-    "services/membershipsService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/muteService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/muteWordsService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/notificationService.ts": {
-      "statements": 69,
-      "branches": 75,
-      "functions": 88,
-      "lines": 69
-    },
-    "services/pokeService.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/pollService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/privacyService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/publicRealtimeService.ts": {
-      "statements": 87,
-      "branches": 64,
-      "functions": 75,
-      "lines": 94
-    },
-    "services/reportService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/savedPostsRequest.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "services/searchService.ts": {
-      "statements": 74,
-      "branches": 59,
-      "functions": 80,
-      "lines": 78
-    },
-    "services/socketService.ts": {
-      "statements": 77,
-      "branches": 61,
-      "functions": 82,
-      "lines": 81
-    },
-    "services/starterPacksService.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/subscriptionService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/topicService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "services/trendingService.ts": {
-      "statements": 6,
-      "branches": 0,
-      "functions": 0,
-      "lines": 6
-    },
-    "stores/appearanceStore.ts": {
-      "statements": 70,
-      "branches": 60,
-      "functions": 83,
-      "lines": 69
-    },
-    "stores/bylineInvalidation.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/engagementInvalidation.ts": {
-      "statements": 95,
-      "branches": 92,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/entityFollowStore.ts": {
-      "statements": 68,
-      "branches": 56,
-      "functions": 76,
-      "lines": 74
-    },
-    "stores/externalEmbedsStore.ts": {
-      "statements": 54,
-      "branches": 50,
-      "functions": 43,
-      "lines": 59
-    },
-    "stores/feedQueryCache.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/feedRankingInvalidation.ts": {
-      "statements": 95,
-      "branches": 95,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/feedRuleSignal.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/feedScrollStore.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/feedStaleness.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/identityUpdates.ts": {
-      "statements": 99,
-      "branches": 98,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/laneInvalidation.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/linksStore.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "stores/livePresenceStore.ts": {
-      "statements": 100,
-      "branches": 88,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/liveRoomsStore.ts": {
-      "statements": 83,
-      "branches": 74,
-      "functions": 90,
-      "lines": 93
-    },
-    "stores/pendingDocuments.ts": {
-      "statements": 97,
-      "branches": 89,
-      "functions": 100,
-      "lines": 98
-    },
-    "stores/postsStore.ts": {
-      "statements": 79,
-      "branches": 62,
-      "functions": 72,
-      "lines": 85
-    },
-    "stores/profileCountsInvalidation.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/readerLanguageInvalidation.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/safetyInvalidation.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/threadHoverStore.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "stores/trendsStore.ts": {
-      "statements": 95,
-      "branches": 93,
-      "functions": 94,
-      "lines": 100
-    },
-    "stores/videoMuteStore.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "stores/videoPlayerRegistry.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/accountCategories.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/alerts.ts": {
-      "statements": 50,
-      "branches": 28,
-      "functions": 33,
-      "lines": 50
-    },
-    "utils/api.ts": {
-      "statements": 50,
-      "branches": 50,
-      "functions": 46,
-      "lines": 50
-    },
-    "utils/apiError.ts": {
-      "statements": 98,
-      "branches": 94,
-      "functions": 100,
-      "lines": 98
-    },
-    "utils/attachmentsUtils.ts": {
-      "statements": 98,
-      "branches": 88,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/authErrors.ts": {
-      "statements": 14,
-      "branches": 0,
-      "functions": 0,
-      "lines": 18
-    },
-    "utils/commerceReferences.ts": {
-      "statements": 90,
-      "branches": 75,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/composeContent.ts": {
-      "statements": 97,
-      "branches": 95,
-      "functions": 95,
-      "lines": 96
-    },
-    "utils/composeIntent.ts": {
-      "statements": 97,
-      "branches": 91,
-      "functions": 100,
-      "lines": 99
-    },
-    "utils/composeUtils.ts": {
-      "statements": 72,
-      "branches": 71,
-      "functions": 50,
-      "lines": 77
-    },
-    "utils/composeVariants.ts": {
-      "statements": 86,
-      "branches": 69,
-      "functions": 88,
-      "lines": 93
-    },
-    "utils/composerProfileLinks.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/dateUtils.ts": {
-      "statements": 92,
-      "branches": 95,
-      "functions": 80,
-      "lines": 93
-    },
-    "utils/displayName.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/draftMutationQueue.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/draftPreview.ts": {
-      "statements": 100,
-      "branches": 95,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/draftSession.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/embedPlayer.ts": {
-      "statements": 57,
-      "branches": 53,
-      "functions": 100,
-      "lines": 57
-    },
-    "utils/emojiData.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 100,
-      "lines": 0
-    },
-    "utils/expandableText.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/externalActor.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/extractUrls.ts": {
-      "statements": 95,
-      "branches": 81,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/federationInfo.ts": {
-      "statements": 100,
-      "branches": 92,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/feedMemoryMode.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/feedRetry.ts": {
-      "statements": 97,
-      "branches": 96,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/feedTelemetry.ts": {
-      "statements": 96,
-      "branches": 92,
-      "functions": 96,
-      "lines": 98
-    },
-    "utils/feedUtils.ts": {
-      "statements": 92,
-      "branches": 85,
-      "functions": 100,
-      "lines": 95
-    },
-    "utils/forYouTuning.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/formatDuration.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/formatNumber.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/gallerySharePermalink.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/groupNotifications.ts": {
-      "statements": 98,
-      "branches": 79,
-      "functions": 100,
-      "lines": 98
-    },
-    "utils/hlsSource.ts": {
-      "statements": 90,
-      "branches": 100,
-      "functions": 100,
-      "lines": 87
-    },
-    "utils/isHostOf.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/jobVocabulary.ts": {
-      "statements": 91,
-      "branches": 91,
-      "functions": 92,
-      "lines": 90
-    },
-    "utils/linkPreviewImage.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/linkifyPattern.ts": {
-      "statements": 92,
-      "branches": 87,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/mediaTypes.ts": {
-      "statements": 66,
-      "branches": 62,
-      "functions": 57,
-      "lines": 66
-    },
-    "utils/mediaUrls.ts": {
-      "statements": 94,
-      "branches": 95,
-      "functions": 100,
-      "lines": 97
-    },
-    "utils/mentionSearch.ts": {
-      "statements": 100,
-      "branches": 98,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/mentions.ts": {
-      "statements": 98,
-      "branches": 90,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/mergeBioAndProfileLinks.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/notificationCache.ts": {
-      "statements": 85,
-      "branches": 61,
-      "functions": 100,
-      "lines": 92
-    },
-    "utils/notificationOptimism.ts": {
-      "statements": 95,
-      "branches": 95,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/notificationReconciliation.ts": {
-      "statements": 88,
-      "branches": 74,
-      "functions": 100,
-      "lines": 97
-    },
-    "utils/notificationRoute.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/notificationSurfaceOwner.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/notifications.ts": {
-      "statements": 48,
-      "branches": 36,
-      "functions": 33,
-      "lines": 51
-    },
-    "utils/openExternalLink.ts": {
-      "statements": 9,
-      "branches": 0,
-      "functions": 0,
-      "lines": 9
-    },
-    "utils/ownProfileLinks.ts": {
-      "statements": 80,
-      "branches": 100,
-      "functions": 100,
-      "lines": 80
-    },
-    "utils/pendingShareMedia.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/podcastReference.ts": {
-      "statements": 100,
-      "branches": 81,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/postBuilder.ts": {
-      "statements": 91,
-      "branches": 66,
-      "functions": 76,
-      "lines": 91
-    },
-    "utils/postInlineMarkdown.ts": {
-      "statements": 100,
-      "branches": 92,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/postLanguages.ts": {
-      "statements": 97,
-      "branches": 91,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/postLinkCards.ts": {
-      "statements": 95,
-      "branches": 95,
-      "functions": 100,
-      "lines": 97
-    },
-    "utils/postPermalink.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/postReplies.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/postSchedule.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/prepareDraftSwitch.ts": {
-      "statements": 95,
-      "branches": 95,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/prettifyUrl.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/profileAccountFacts.ts": {
-      "statements": 100,
-      "branches": 90,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/publicProfileHandle.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/replyContextRow.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/resolveMention.ts": {
-      "statements": 91,
-      "branches": 88,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/searchSuggestions.ts": {
-      "statements": 100,
-      "branches": 97,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/shareLink.ts": {
-      "statements": 52,
-      "branches": 50,
-      "functions": 100,
-      "lines": 52
-    },
-    "utils/sheet.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/storage.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/trendGraphTree.ts": {
-      "statements": 96,
-      "branches": 87,
-      "functions": 80,
-      "lines": 96
-    },
-    "utils/userEnrichment.ts": {
-      "statements": 33,
-      "branches": 30,
-      "functions": 45,
-      "lines": 38
-    },
-    "utils/userPlaceholderColor.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/video-feed-pagination.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "utils/videoSource.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    }
+    "components/Feed/PostInteractionsBinder.tsx": {"statements":[31,32],"branches":[12,12],"functions":[11,12],"lines":[28,28]},
+    "components/Feed/PostMenuContent.tsx": {"statements":[24,25],"branches":[22,25],"functions":[5,6],"lines":[24,25]},
+    "components/Feed/postInteractions.tsx": {"statements":[51,52],"branches":[27,32],"functions":[21,21],"lines":[47,48]},
+    "components/Feed/postMenuActions.tsx": {"statements":[150,168],"branches":[103,122],"functions":[20,30],"lines":[146,155]},
+    "components/providers/AccountSwitchReset.tsx": {"statements":[72,73],"branches":[60,62],"functions":[10,10],"lines":[68,68]},
+    "components/providers/AppProviders.tsx": {"statements":[5,5],"branches":[0,0],"functions":[2,2],"lines":[4,4]},
+    "components/providers/AppShellProviders.tsx": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[2,2]},
+    "components/providers/AuthRouter.tsx": {"statements":[17,17],"branches":[8,8],"functions":[2,2],"lines":[17,17]},
+    "components/providers/CommunityNoteProvider.tsx": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[2,2]},
+    "components/providers/LiveFeatureProviders.tsx": {"statements":[0,21],"branches":[0,7],"functions":[0,9],"lines":[0,18]},
+    "components/providers/LiveFeatureRuntime.tsx": {"statements":[0,7],"branches":[0,0],"functions":[0,4],"lines":[0,6]},
+    "components/providers/LivePresencePoller.tsx": {"statements":[6,6],"branches":[0,0],"functions":[2,2],"lines":[6,6]},
+    "components/providers/constants.ts": {"statements":[2,6],"branches":[0,5],"functions":[1,2],"lines":[2,6]},
+    "components/providers/handleLanguageError.ts": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[2,2]},
+    "db/cacheLifecycle.ts": {"statements":[61,68],"branches":[16,26],"functions":[8,8],"lines":[59,66]},
+    "db/database.native.ts": {"statements":[6,44],"branches":[0,14],"functions":[1,4],"lines":[6,41]},
+    "db/database.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
+    "db/database.web.ts": {"statements":[1,2],"branches":[0,0],"functions":[2,4],"lines":[1,2]},
+    "db/feedItem.ts": {"statements":[12,12],"branches":[18,19],"functions":[2,2],"lines":[11,11]},
+    "db/feedQueries.ts": {"statements":[86,176],"branches":[45,124],"functions":[7,15],"lines":[79,147]},
+    "db/index.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
+    "db/linkQueries.ts": {"statements":[1,66],"branches":[0,42],"functions":[0,7],"lines":[1,51]},
+    "db/memoryStore.ts": {"statements":[82,122],"branches":[50,90],"functions":[18,25],"lines":[76,97]},
+    "db/migrations.ts": {"statements":[30,32],"branches":[4,6],"functions":[3,3],"lines":[30,32]},
+    "db/postObservers.ts": {"statements":[9,9],"branches":[4,4],"functions":[3,3],"lines":[8,8]},
+    "db/postQueries.ts": {"statements":[83,146],"branches":[32,73],"functions":[8,10],"lines":[73,120]},
+    "db/schema.ts": {"statements":[27,34],"branches":[74,114],"functions":[11,13],"lines":[23,28]},
+    "hooks/useAccountCategoryLabel.ts": {"statements":[5,5],"branches":[0,0],"functions":[2,2],"lines":[5,5]},
+    "hooks/useAccountTheme.ts": {"statements":[23,23],"branches":[15,15],"functions":[5,5],"lines":[21,21]},
+    "hooks/useAppLanguage.ts": {"statements":[7,7],"branches":[2,2],"functions":[4,4],"lines":[7,7]},
+    "hooks/useArticleManager.ts": {"statements":[0,30],"branches":[0,8],"functions":[0,7],"lines":[0,30]},
+    "hooks/useAttachmentOrder.ts": {"statements":[41,48],"branches":[12,20],"functions":[10,11],"lines":[40,45]},
+    "hooks/useCachedUser.ts": {"statements":[2,4],"branches":[1,6],"functions":[1,2],"lines":[2,4]},
+    "hooks/useCheckoutConfiguration.ts": {"statements":[6,6],"branches":[7,7],"functions":[4,4],"lines":[6,6]},
+    "hooks/useCheckoutFeedback.ts": {"statements":[0,15],"branches":[0,4],"functions":[0,7],"lines":[0,12]},
+    "hooks/useCommerceStorefront.ts": {"statements":[4,4],"branches":[3,4],"functions":[2,2],"lines":[4,4]},
+    "hooks/useCommunities.ts": {"statements":[14,14],"branches":[8,9],"functions":[6,6],"lines":[13,13]},
+    "hooks/useCommunitiesPreview.tsx": {"statements":[3,3],"branches":[2,2],"functions":[2,2],"lines":[3,3]},
+    "hooks/useCommunityNotes.ts": {"statements":[41,41],"branches":[24,24],"functions":[12,12],"lines":[40,40]},
+    "hooks/useComposeValidation.ts": {"statements":[15,15],"branches":[8,9],"functions":[10,10],"lines":[11,11]},
+    "hooks/useComposeVariants.ts": {"statements":[0,38],"branches":[0,0],"functions":[0,19],"lines":[0,36]},
+    "hooks/useDeepCompare.ts": {"statements":[12,12],"branches":[4,4],"functions":[2,2],"lines":[12,12]},
+    "hooks/useDismissKeyboardOnBlur.ts": {"statements":[3,3],"branches":[0,0],"functions":[3,3],"lines":[1,1]},
+    "hooks/useDraftManager.ts": {"statements":[232,232],"branches":[160,191],"functions":[47,47],"lines":[202,202]},
+    "hooks/useDrafts.ts": {"statements":[152,169],"branches":[86,102],"functions":[27,31],"lines":[136,147]},
+    "hooks/useDraftsList.ts": {"statements":[9,16],"branches":[4,7],"functions":[7,10],"lines":[9,16]},
+    "hooks/useEventManager.ts": {"statements":[0,40],"branches":[0,20],"functions":[0,7],"lines":[0,40]},
+    "hooks/useExpandableText.ts": {"statements":[14,14],"branches":[6,6],"functions":[4,4],"lines":[12,12]},
+    "hooks/useExternalActorResolve.ts": {"statements":[17,17],"branches":[8,8],"functions":[7,7],"lines":[14,14]},
+    "hooks/useFeedModules.ts": {"statements":[4,4],"branches":[0,0],"functions":[2,2],"lines":[4,4]},
+    "hooks/useFeedPreferences.ts": {"statements":[0,55],"branches":[0,28],"functions":[0,28],"lines":[0,43]},
+    "hooks/useFeedQuery.ts": {"statements":[122,122],"branches":[118,119],"functions":[27,27],"lines":[103,103]},
+    "hooks/useFeedRankingStaleness.ts": {"statements":[6,6],"branches":[4,4],"functions":[4,4],"lines":[6,6]},
+    "hooks/useFeedSettings.ts": {"statements":[34,37],"branches":[11,16],"functions":[11,11],"lines":[33,34]},
+    "hooks/useFeedState.ts": {"statements":[188,195],"branches":[115,125],"functions":[26,26],"lines":[175,180]},
+    "hooks/useFeedVisibility.ts": {"statements":[6,6],"branches":[3,3],"functions":[3,3],"lines":[5,5]},
+    "hooks/useFollowEntity.ts": {"statements":[0,11],"branches":[0,8],"functions":[0,5],"lines":[0,9]},
+    "hooks/useForYouTuning.ts": {"statements":[0,24],"branches":[0,8],"functions":[0,10],"lines":[0,21]},
+    "hooks/useInfiniteCatalogSearch.tsx": {"statements":[26,30],"branches":[14,21],"functions":[10,11],"lines":[23,27]},
+    "hooks/useJobAttachmentManager.ts": {"statements":[9,9],"branches":[0,0],"functions":[4,4],"lines":[9,9]},
+    "hooks/useKeyboardShortcuts.ts": {"statements":[0,67],"branches":[0,49],"functions":[0,7],"lines":[0,64]},
+    "hooks/useKnownLikers.ts": {"statements":[0,16],"branches":[0,12],"functions":[0,3],"lines":[0,15]},
+    "hooks/useLatchedState.ts": {"statements":[8,8],"branches":[0,0],"functions":[3,3],"lines":[7,7]},
+    "hooks/useLinkDetection.ts": {"statements":[65,68],"branches":[25,30],"functions":[10,10],"lines":[59,62]},
+    "hooks/useLocationManager.ts": {"statements":[0,24],"branches":[0,9],"functions":[0,3],"lines":[0,24]},
+    "hooks/useMediaManager.ts": {"statements":[0,56],"branches":[0,36],"functions":[0,20],"lines":[0,46]},
+    "hooks/useMediaPicker.ts": {"statements":[0,21],"branches":[0,22],"functions":[0,6],"lines":[0,21]},
+    "hooks/useMediaSessionTransport.ts": {"statements":[29,29],"branches":[15,16],"functions":[9,9],"lines":[26,26]},
+    "hooks/useMentionColorViewer.ts": {"statements":[27,28],"branches":[24,25],"functions":[7,7],"lines":[22,23]},
+    "hooks/useMentionSearchResults.ts": {"statements":[24,24],"branches":[13,14],"functions":[4,4],"lines":[19,19]},
+    "hooks/useMutualFollowers.ts": {"statements":[0,17],"branches":[0,13],"functions":[0,3],"lines":[0,16]},
+    "hooks/useNotificationFilter.ts": {"statements":[8,8],"branches":[12,12],"functions":[3,3],"lines":[7,7]},
+    "hooks/useOpenInAllo.tsx": {"statements":[8,11],"branches":[0,0],"functions":[6,9],"lines":[8,11]},
+    "hooks/useOptimizedMediaQuery.ts": {"statements":[0,2],"branches":[0,0],"functions":[0,2],"lines":[0,2]},
+    "hooks/useOwnedNotificationSurfaces.ts": {"statements":[14,14],"branches":[4,4],"functions":[5,5],"lines":[10,10]},
+    "hooks/usePendingNotificationOperations.ts": {"statements":[12,12],"branches":[3,3],"functions":[6,6],"lines":[11,11]},
+    "hooks/usePipAspectRatio.ts": {"statements":[15,15],"branches":[8,8],"functions":[7,7],"lines":[14,14]},
+    "hooks/usePipTransportActions.ts": {"statements":[30,31],"branches":[10,10],"functions":[10,11],"lines":[24,25]},
+    "hooks/usePlusOffer.ts": {"statements":[17,18],"branches":[36,37],"functions":[3,3],"lines":[16,16]},
+    "hooks/usePodcastManager.ts": {"statements":[0,11],"branches":[0,0],"functions":[0,5],"lines":[0,11]},
+    "hooks/usePodcastSave.ts": {"statements":[36,38],"branches":[16,21],"functions":[10,11],"lines":[33,33]},
+    "hooks/usePollManager.ts": {"statements":[0,34],"branches":[0,6],"functions":[0,14],"lines":[0,29]},
+    "hooks/usePostActivity.ts": {"statements":[0,7],"branches":[0,4],"functions":[0,2],"lines":[0,7]},
+    "hooks/usePostLanguage.ts": {"statements":[56,56],"branches":[31,34],"functions":[11,11],"lines":[49,49]},
+    "hooks/usePostLanguagePicker.tsx": {"statements":[5,5],"branches":[0,0],"functions":[4,4],"lines":[5,5]},
+    "hooks/usePostReadAccess.ts": {"statements":[10,11],"branches":[13,14],"functions":[3,3],"lines":[9,9]},
+    "hooks/usePostShare.ts": {"statements":[0,27],"branches":[0,36],"functions":[0,3],"lines":[0,25]},
+    "hooks/usePresence.ts": {"statements":[0,18],"branches":[0,8],"functions":[0,6],"lines":[0,15]},
+    "hooks/usePrivacyControls.ts": {"statements":[26,26],"branches":[20,21],"functions":[9,9],"lines":[24,24]},
+    "hooks/usePrivacySettings.ts": {"statements":[37,136],"branches":[13,81],"functions":[10,25],"lines":[37,125]},
+    "hooks/usePrivateMediaUrls.ts": {"statements":[16,16],"branches":[13,13],"functions":[7,7],"lines":[14,14]},
+    "hooks/useProfileData.ts": {"statements":[66,71],"branches":[139,159],"functions":[10,11],"lines":[62,66]},
+    "hooks/useProfileLinkMentions.ts": {"statements":[21,21],"branches":[8,8],"functions":[7,7],"lines":[17,17]},
+    "hooks/useProfileSEOPolicy.ts": {"statements":[5,5],"branches":[8,8],"functions":[2,2],"lines":[5,5]},
+    "hooks/useProfileSongPreview.ts": {"statements":[0,63],"branches":[0,20],"functions":[0,11],"lines":[0,63]},
+    "hooks/usePublicationContinuation.ts": {"statements":[16,16],"branches":[10,10],"functions":[6,6],"lines":[14,14]},
+    "hooks/usePublisherLanes.ts": {"statements":[7,7],"branches":[12,12],"functions":[2,2],"lines":[6,6]},
+    "hooks/useQuoteManager.ts": {"statements":[0,40],"branches":[0,28],"functions":[0,7],"lines":[0,36]},
+    "hooks/useRealtimeNotifications.ts": {"statements":[83,97],"branches":[39,59],"functions":[19,22],"lines":[80,91]},
+    "hooks/useRealtimePosts.ts": {"statements":[9,9],"branches":[4,4],"functions":[4,4],"lines":[6,6]},
+    "hooks/useRecommendations.ts": {"statements":[38,59],"branches":[15,28],"functions":[10,23],"lines":[37,57]},
+    "hooks/useReelChrome.ts": {"statements":[127,192],"branches":[73,116],"functions":[22,40],"lines":[120,179]},
+    "hooks/useReelImpressions.ts": {"statements":[10,10],"branches":[8,8],"functions":[3,3],"lines":[8,8]},
+    "hooks/useRefSync.ts": {"statements":[5,5],"branches":[0,0],"functions":[2,2],"lines":[5,5]},
+    "hooks/useReloadOnFeedRuleChange.ts": {"statements":[14,14],"branches":[4,4],"functions":[5,5],"lines":[13,13]},
+    "hooks/useReselectReloadKey.ts": {"statements":[6,6],"branches":[0,0],"functions":[3,3],"lines":[5,5]},
+    "hooks/useRevealOwnNewPost.ts": {"statements":[13,13],"branches":[8,8],"functions":[5,5],"lines":[10,10]},
+    "hooks/useRoomManager.ts": {"statements":[0,10],"branches":[0,0],"functions":[0,5],"lines":[0,10]},
+    "hooks/useRoomUsers.ts": {"statements":[0,15],"branches":[0,12],"functions":[0,6],"lines":[0,12]},
+    "hooks/useScheduleManager.ts": {"statements":[28,28],"branches":[4,4],"functions":[9,9],"lines":[28,28]},
+    "hooks/useScheduledPosts.ts": {"statements":[22,28],"branches":[11,11],"functions":[7,12],"lines":[21,26]},
+    "hooks/useSearchAllSources.ts": {"statements":[11,16],"branches":[11,14],"functions":[7,10],"lines":[9,12]},
+    "hooks/useServerAppearanceSync.ts": {"statements":[0,7],"branches":[0,2],"functions":[0,3],"lines":[0,5]},
+    "hooks/useServerDrafts.ts": {"statements":[32,33],"branches":[10,11],"functions":[12,13],"lines":[31,32]},
+    "hooks/useSourcesManager.ts": {"statements":[0,25],"branches":[0,6],"functions":[0,13],"lines":[0,21]},
+    "hooks/useSupervisionState.ts": {"statements":[4,4],"branches":[9,9],"functions":[1,1],"lines":[4,4]},
+    "hooks/useThreadManager.ts": {"statements":[49,187],"branches":[11,111],"functions":[5,128],"lines":[48,159]},
+    "hooks/useThreadPreferences.ts": {"statements":[0,21],"branches":[0,10],"functions":[0,9],"lines":[0,17]},
+    "hooks/useTimeAgo.ts": {"statements":[32,32],"branches":[20,20],"functions":[9,9],"lines":[28,28]},
+    "hooks/useTopicFollows.ts": {"statements":[0,24],"branches":[0,25],"functions":[0,4],"lines":[0,22]},
+    "hooks/useTrendItemMenu.ts": {"statements":[0,9],"branches":[0,4],"functions":[0,5],"lines":[0,8]},
+    "hooks/useTrendNavigation.ts": {"statements":[8,10],"branches":[6,13],"functions":[3,4],"lines":[8,9]},
+    "hooks/useUnreadCount.ts": {"statements":[14,17],"branches":[5,8],"functions":[5,6],"lines":[12,14]},
+    "hooks/useVideoFeed.ts": {"statements":[114,115],"branches":[68,79],"functions":[35,35],"lines":[91,91]},
+    "hooks/useVideoPipSession.ts": {"statements":[28,29],"branches":[20,21],"functions":[9,9],"lines":[22,22]},
+    "hooks/useViewerFollowing.ts": {"statements":[0,15],"branches":[0,8],"functions":[0,3],"lines":[0,14]},
+    "hooks/useVisibleReference.ts": {"statements":[7,7],"branches":[2,2],"functions":[5,5],"lines":[5,5]},
+    "hooks/useVoteStyle.ts": {"statements":[0,2],"branches":[0,0],"functions":[0,2],"lines":[0,1]},
+    "hooks/useWelcome.ts": {"statements":[12,12],"branches":[4,4],"functions":[6,6],"lines":[12,12]},
+    "lib/actorCache.ts": {"statements":[14,14],"branches":[8,8],"functions":[4,4],"lines":[11,11]},
+    "lib/appInitializer.ts": {"statements":[18,26],"branches":[4,6],"functions":[6,8],"lines":[17,25]},
+    "lib/bootFeedRead.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,1],"lines":[0,0]},
+    "lib/bootFeedRead.web.ts": {"statements":[29,33],"branches":[17,18],"functions":[7,9],"lines":[25,27]},
+    "lib/chunkReload.native.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,2],"lines":[0,0]},
+    "lib/chunkReload.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
+    "lib/chunkReload.web.ts": {"statements":[37,45],"branches":[29,35],"functions":[9,10],"lines":[35,42]},
+    "lib/colorEntitlement.ts": {"statements":[11,11],"branches":[9,9],"functions":[6,6],"lines":[11,11]},
+    "lib/constants.ts": {"statements":[4,4],"branches":[0,0],"functions":[0,0],"lines":[4,4]},
+    "lib/documentBootstrap.ts": {"statements":[1,1],"branches":[0,0],"functions":[1,1],"lines":[1,1]},
+    "lib/documentBootstrap.web.ts": {"statements":[23,24],"branches":[20,23],"functions":[3,3],"lines":[19,19]},
+    "lib/hlsPlayback.native.ts": {"statements":[0,4],"branches":[0,0],"functions":[0,3],"lines":[0,4]},
+    "lib/hlsPlayback.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
+    "lib/hlsPlayback.web.ts": {"statements":[66,68],"branches":[31,35],"functions":[15,16],"lines":[55,56]},
+    "lib/i18n.ts": {"statements":[34,58],"branches":[16,23],"functions":[7,21],"lines":[31,55]},
+    "lib/jobPagination.ts": {"statements":[2,2],"branches":[2,2],"functions":[2,2],"lines":[2,2]},
+    "lib/keyedAsyncQueue.ts": {"statements":[12,13],"branches":[4,4],"functions":[5,6],"lines":[12,12]},
+    "lib/liveConfig.tsx": {"statements":[0,42],"branches":[0,31],"functions":[0,16],"lines":[0,36]},
+    "lib/livekit.native.ts": {"statements":[0,1],"branches":[0,0],"functions":[0,1],"lines":[0,1]},
+    "lib/livekit.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
+    "lib/livekit.web.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,1],"lines":[0,0]},
+    "lib/logging/index.ts": {"statements":[8,18],"branches":[6,16],"functions":[3,6],"lines":[8,12]},
+    "lib/logging/sanitize.ts": {"statements":[104,115],"branches":[65,91],"functions":[13,15],"lines":[93,102]},
+    "lib/lottieWeb.ts": {"statements":[0,0],"branches":[0,0],"functions":[1,1],"lines":[0,0]},
+    "lib/mentionSocketSession.ts": {"statements":[23,25],"branches":[7,10],"functions":[7,7],"lines":[20,20]},
+    "lib/notificationPagination.ts": {"statements":[1,1],"branches":[2,2],"functions":[1,1],"lines":[1,1]},
+    "lib/operatedAccounts.ts": {"statements":[11,11],"branches":[14,14],"functions":[3,3],"lines":[7,7]},
+    "lib/oxyServices.ts": {"statements":[1,1],"branches":[0,0],"functions":[0,0],"lines":[1,1]},
+    "lib/payments/checkoutConfiguration.ts": {"statements":[23,23],"branches":[46,46],"functions":[6,6],"lines":[21,21]},
+    "lib/payments/checkoutFeedback.ts": {"statements":[21,21],"branches":[6,6],"functions":[3,3],"lines":[18,18]},
+    "lib/payments/checkoutPreview.ts": {"statements":[1,1],"branches":[4,5],"functions":[1,1],"lines":[1,1]},
+    "lib/payments/checkoutReview.ts": {"statements":[6,7],"branches":[18,20],"functions":[2,2],"lines":[6,7]},
+    "lib/payments/embeddedCheckout.ts": {"statements":[26,28],"branches":[55,57],"functions":[5,5],"lines":[23,23]},
+    "lib/payments/localProviderTest.ts": {"statements":[40,40],"branches":[65,71],"functions":[4,4],"lines":[35,35]},
+    "lib/payments/merchantInstallmentPreview.ts": {"statements":[16,17],"branches":[34,35],"functions":[7,7],"lines":[15,16]},
+    "lib/payments/peableWire.ts": {"statements":[13,13],"branches":[26,26],"functions":[3,3],"lines":[12,12]},
+    "lib/payments/plusCheckout.ts": {"statements":[36,36],"branches":[58,59],"functions":[10,10],"lines":[32,32]},
+    "lib/payments/plusCheckoutStorage.ts": {"statements":[23,25],"branches":[8,10],"functions":[7,7],"lines":[19,19]},
+    "lib/precacheActorsFromPosts.ts": {"statements":[15,15],"branches":[17,17],"functions":[1,1],"lines":[10,10]},
+    "lib/queryClient.ts": {"statements":[1,1],"branches":[0,0],"functions":[0,0],"lines":[1,1]},
+    "lib/recommendationFilters.ts": {"statements":[33,39],"branches":[9,19],"functions":[10,12],"lines":[33,35]},
+    "lib/recommendations.ts": {"statements":[0,28],"branches":[0,26],"functions":[0,5],"lines":[0,19]},
+    "lib/references/VisibleReferenceStore.ts": {"statements":[82,83],"branches":[37,40],"functions":[16,16],"lines":[70,70]},
+    "lib/references/commerceCards.ts": {"statements":[26,26],"branches":[11,12],"functions":[5,5],"lines":[23,23]},
+    "lib/references/homiioCases.ts": {"statements":[1,3],"branches":[0,0],"functions":[0,1],"lines":[1,3]},
+    "lib/references/syraPodcastCards.ts": {"statements":[0,7],"branches":[0,0],"functions":[0,4],"lines":[0,7]},
+    "lib/seoHandoff.ts": {"statements":[48,48],"branches":[41,41],"functions":[11,11],"lines":[45,45]},
+    "lib/shareIntent.native.ts": {"statements":[0,40],"branches":[0,31],"functions":[0,5],"lines":[0,37]},
+    "lib/shareIntent.ts": {"statements":[0,1],"branches":[0,0],"functions":[0,1],"lines":[0,1]},
+    "lib/socketBfcache.native.ts": {"statements":[0,2],"branches":[0,0],"functions":[0,2],"lines":[0,1]},
+    "lib/socketBfcache.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
+    "lib/stickers.ts": {"statements":[16,16],"branches":[0,0],"functions":[0,0],"lines":[16,16]},
+    "lib/syraApi.ts": {"statements":[43,43],"branches":[40,40],"functions":[15,15],"lines":[41,41]},
+    "lib/syraPodcasts.ts": {"statements":[4,4],"branches":[0,0],"functions":[2,2],"lines":[4,4]},
+    "lib/themePersistence.ts": {"statements":[0,2],"branches":[0,4],"functions":[0,0],"lines":[0,2]},
+    "lib/utils.ts": {"statements":[1,1],"branches":[0,0],"functions":[1,1],"lines":[1,1]},
+    "lib/viewerQueryKeys.ts": {"statements":[161,161],"branches":[85,85],"functions":[148,148],"lines":[161,161]},
+    "lib/webTelemetry.native.ts": {"statements":[0,2],"branches":[0,0],"functions":[1,4],"lines":[0,1]},
+    "lib/webTelemetry.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
+    "lib/webTelemetry.web.ts": {"statements":[131,162],"branches":[75,102],"functions":[18,24],"lines":[116,130]},
+    "services/articleService.ts": {"statements":[0,3],"branches":[0,0],"functions":[0,1],"lines":[0,3]},
+    "services/channelAccountService.ts": {"statements":[7,7],"branches":[2,2],"functions":[2,2],"lines":[7,7]},
+    "services/channelDeletionService.ts": {"statements":[0,6],"branches":[0,0],"functions":[0,2],"lines":[0,6]},
+    "services/channelWritersService.ts": {"statements":[7,7],"branches":[2,2],"functions":[1,1],"lines":[6,6]},
+    "services/commerceService.ts": {"statements":[12,12],"branches":[2,2],"functions":[11,11],"lines":[12,12]},
+    "services/communityNotesService.ts": {"statements":[14,14],"branches":[5,6],"functions":[7,7],"lines":[14,14]},
+    "services/communityService.ts": {"statements":[9,9],"branches":[5,8],"functions":[5,5],"lines":[9,9]},
+    "services/customFeedsService.ts": {"statements":[0,51],"branches":[0,0],"functions":[0,31],"lines":[0,51]},
+    "services/draftsService.ts": {"statements":[6,6],"branches":[1,2],"functions":[3,3],"lines":[6,6]},
+    "services/echoGuard.ts": {"statements":[36,36],"branches":[17,17],"functions":[6,6],"lines":[32,32]},
+    "services/engagementQueuePersistence.ts": {"statements":[16,17],"branches":[14,16],"functions":[3,3],"lines":[16,16]},
+    "services/entityFollowService.ts": {"statements":[0,12],"branches":[0,11],"functions":[0,4],"lines":[0,10]},
+    "services/eventsService.ts": {"statements":[14,15],"branches":[5,8],"functions":[6,7],"lines":[12,13]},
+    "services/experienceService.ts": {"statements":[8,8],"branches":[3,3],"functions":[4,4],"lines":[8,8]},
+    "services/feedPageRead.ts": {"statements":[20,21],"branches":[21,23],"functions":[5,5],"lines":[18,18]},
+    "services/feedPreferencesService.ts": {"statements":[0,12],"branches":[0,6],"functions":[0,5],"lines":[0,12]},
+    "services/feedService.ts": {"statements":[165,280],"branches":[145,234],"functions":[32,59],"lines":[152,251]},
+    "services/feedTuningService.ts": {"statements":[0,12],"branches":[0,4],"functions":[0,5],"lines":[0,12]},
+    "services/followGraph.ts": {"statements":[3,3],"branches":[0,0],"functions":[1,1],"lines":[3,3]},
+    "services/insightsService.ts": {"statements":[0,17],"branches":[0,7],"functions":[0,7],"lines":[0,17]},
+    "services/jobApplicationsService.ts": {"statements":[17,17],"branches":[0,0],"functions":[8,8],"lines":[16,16]},
+    "services/jobsService.ts": {"statements":[32,32],"branches":[0,0],"functions":[19,19],"lines":[32,32]},
+    "services/labelerService.ts": {"statements":[0,19],"branches":[0,0],"functions":[0,9],"lines":[0,19]},
+    "services/lanesService.ts": {"statements":[17,17],"branches":[10,10],"functions":[9,9],"lines":[17,17]},
+    "services/listMutations.ts": {"statements":[0,11],"branches":[0,4],"functions":[0,5],"lines":[0,11]},
+    "services/listsService.ts": {"statements":[22,40],"branches":[6,9],"functions":[6,12],"lines":[16,34]},
+    "services/membershipsService.ts": {"statements":[27,27],"branches":[0,0],"functions":[24,24],"lines":[27,27]},
+    "services/muteService.ts": {"statements":[30,30],"branches":[10,10],"functions":[6,6],"lines":[28,28]},
+    "services/muteWordsService.ts": {"statements":[0,15],"branches":[0,8],"functions":[0,5],"lines":[0,15]},
+    "services/notificationService.ts": {"statements":[25,36],"branches":[18,24],"functions":[8,9],"lines":[25,36]},
+    "services/pokeService.ts": {"statements":[0,13],"branches":[0,0],"functions":[0,6],"lines":[0,13]},
+    "services/pollService.ts": {"statements":[0,29],"branches":[0,27],"functions":[0,10],"lines":[0,27]},
+    "services/privacyService.ts": {"statements":[4,4],"branches":[0,0],"functions":[1,1],"lines":[4,4]},
+    "services/publicRealtimeService.ts": {"statements":[35,40],"branches":[9,14],"functions":[6,8],"lines":[32,34]},
+    "services/reportService.ts": {"statements":[0,34],"branches":[0,8],"functions":[0,4],"lines":[0,34]},
+    "services/savedPostsRequest.ts": {"statements":[8,8],"branches":[10,10],"functions":[2,2],"lines":[8,8]},
+    "services/searchService.ts": {"statements":[147,197],"branches":[113,190],"functions":[33,41],"lines":[133,169]},
+    "services/socketService.ts": {"statements":[444,574],"branches":[194,314],"functions":[70,85],"lines":[405,497]},
+    "services/starterPacksService.ts": {"statements":[0,18],"branches":[0,0],"functions":[0,8],"lines":[0,18]},
+    "services/subscriptionService.ts": {"statements":[0,14],"branches":[0,4],"functions":[0,4],"lines":[0,12]},
+    "services/topicService.ts": {"statements":[0,21],"branches":[0,7],"functions":[0,4],"lines":[0,21]},
+    "services/trendingService.ts": {"statements":[1,16],"branches":[0,5],"functions":[0,4],"lines":[1,16]},
+    "stores/appearanceStore.ts": {"statements":[56,80],"branches":[35,58],"functions":[10,12],"lines":[50,72]},
+    "stores/bylineInvalidation.ts": {"statements":[7,7],"branches":[2,2],"functions":[5,5],"lines":[7,7]},
+    "stores/engagementInvalidation.ts": {"statements":[19,20],"branches":[13,14],"functions":[5,5],"lines":[16,16]},
+    "stores/entityFollowStore.ts": {"statements":[31,45],"branches":[9,16],"functions":[10,13],"lines":[23,31]},
+    "stores/externalEmbedsStore.ts": {"statements":[46,84],"branches":[21,42],"functions":[7,16],"lines":[44,74]},
+    "stores/feedQueryCache.ts": {"statements":[69,69],"branches":[48,48],"functions":[33,33],"lines":[56,56]},
+    "stores/feedRankingInvalidation.ts": {"statements":[19,20],"branches":[19,20],"functions":[7,7],"lines":[18,18]},
+    "stores/feedRuleSignal.ts": {"statements":[11,11],"branches":[0,0],"functions":[6,6],"lines":[10,10]},
+    "stores/feedScrollStore.ts": {"statements":[13,13],"branches":[2,2],"functions":[7,7],"lines":[13,13]},
+    "stores/feedStaleness.ts": {"statements":[1,1],"branches":[6,6],"functions":[1,1],"lines":[1,1]},
+    "stores/identityUpdates.ts": {"statements":[145,146],"branches":[95,96],"functions":[25,25],"lines":[113,113]},
+    "stores/laneInvalidation.ts": {"statements":[11,11],"branches":[7,7],"functions":[4,4],"lines":[9,9]},
+    "stores/linksStore.ts": {"statements":[0,21],"branches":[0,10],"functions":[0,9],"lines":[0,14]},
+    "stores/livePresenceStore.ts": {"statements":[57,57],"branches":[23,26],"functions":[15,15],"lines":[44,44]},
+    "stores/liveRoomsStore.ts": {"statements":[65,78],"branches":[37,50],"functions":[9,10],"lines":[55,59]},
+    "stores/pendingDocuments.ts": {"statements":[83,85],"branches":[52,58],"functions":[15,15],"lines":[72,73]},
+    "stores/postsStore.ts": {"statements":[769,965],"branches":[371,595],"functions":[104,144],"lines":[695,810]},
+    "stores/profileCountsInvalidation.ts": {"statements":[2,2],"branches":[4,4],"functions":[2,2],"lines":[2,2]},
+    "stores/readerLanguageInvalidation.ts": {"statements":[16,16],"branches":[7,7],"functions":[5,5],"lines":[14,14]},
+    "stores/safetyInvalidation.ts": {"statements":[7,7],"branches":[2,2],"functions":[5,5],"lines":[7,7]},
+    "stores/threadHoverStore.ts": {"statements":[5,5],"branches":[4,4],"functions":[4,4],"lines":[4,4]},
+    "stores/trendsStore.ts": {"statements":[115,120],"branches":[140,149],"functions":[18,19],"lines":[102,102]},
+    "stores/videoMuteStore.ts": {"statements":[0,17],"branches":[0,2],"functions":[0,5],"lines":[0,16]},
+    "stores/videoPlayerRegistry.ts": {"statements":[68,68],"branches":[26,26],"functions":[20,20],"lines":[56,56]},
+    "utils/accountCategories.ts": {"statements":[5,5],"branches":[6,6],"functions":[3,3],"lines":[5,5]},
+    "utils/alerts.ts": {"statements":[3,6],"branches":[2,7],"functions":[1,3],"lines":[3,6]},
+    "utils/api.ts": {"statements":[22,44],"branches":[6,12],"functions":[7,15],"lines":[22,44]},
+    "utils/apiError.ts": {"statements":[59,60],"branches":[85,90],"functions":[11,11],"lines":[54,55]},
+    "utils/attachmentsUtils.ts": {"statements":[107,109],"branches":[60,68],"functions":[15,15],"lines":[83,83]},
+    "utils/authErrors.ts": {"statements":[2,14],"branches":[0,14],"functions":[0,2],"lines":[2,11]},
+    "utils/commerceReferences.ts": {"statements":[9,10],"branches":[6,8],"functions":[1,1],"lines":[8,8]},
+    "utils/composeContent.ts": {"statements":[37,38],"branches":[43,45],"functions":[20,21],"lines":[30,31]},
+    "utils/composeIntent.ts": {"statements":[251,258],"branches":[184,202],"functions":[30,30],"lines":[220,222]},
+    "utils/composeUtils.ts": {"statements":[52,72],"branches":[27,38],"functions":[7,14],"lines":[45,58]},
+    "utils/composeVariants.ts": {"statements":[211,245],"branches":[184,265],"functions":[47,53],"lines":[189,202]},
+    "utils/composerProfileLinks.ts": {"statements":[17,17],"branches":[8,8],"functions":[1,1],"lines":[13,13]},
+    "utils/dateUtils.ts": {"statements":[73,79],"branches":[63,66],"functions":[8,10],"lines":[70,75]},
+    "utils/displayName.ts": {"statements":[1,1],"branches":[2,2],"functions":[1,1],"lines":[1,1]},
+    "utils/draftMutationQueue.ts": {"statements":[21,21],"branches":[10,10],"functions":[8,8],"lines":[19,19]},
+    "utils/draftPreview.ts": {"statements":[14,14],"branches":[19,20],"functions":[4,4],"lines":[11,11]},
+    "utils/draftSession.ts": {"statements":[9,9],"branches":[7,7],"functions":[3,3],"lines":[7,7]},
+    "utils/embedPlayer.ts": {"statements":[76,132],"branches":[91,170],"functions":[3,3],"lines":[75,131]},
+    "utils/emojiData.ts": {"statements":[0,2],"branches":[0,0],"functions":[0,0],"lines":[0,2]},
+    "utils/expandableText.ts": {"statements":[23,23],"branches":[8,8],"functions":[2,2],"lines":[23,23]},
+    "utils/externalActor.ts": {"statements":[28,28],"branches":[25,25],"functions":[4,4],"lines":[21,21]},
+    "utils/extractUrls.ts": {"statements":[20,21],"branches":[9,11],"functions":[4,4],"lines":[17,17]},
+    "utils/federationInfo.ts": {"statements":[22,22],"branches":[35,38],"functions":[1,1],"lines":[21,21]},
+    "utils/feedMemoryMode.ts": {"statements":[1,1],"branches":[2,2],"functions":[1,1],"lines":[1,1]},
+    "utils/feedRetry.ts": {"statements":[37,38],"branches":[32,33],"functions":[9,9],"lines":[32,32]},
+    "utils/feedTelemetry.ts": {"statements":[184,191],"branches":[118,127],"functions":[30,31],"lines":[155,157]},
+    "utils/feedUtils.ts": {"statements":[144,155],"branches":[149,174],"functions":[17,17],"lines":[115,120]},
+    "utils/forYouTuning.ts": {"statements":[19,19],"branches":[28,28],"functions":[2,2],"lines":[19,19]},
+    "utils/formatDuration.ts": {"statements":[8,8],"branches":[7,7],"functions":[1,1],"lines":[8,8]},
+    "utils/formatNumber.ts": {"statements":[14,14],"branches":[14,14],"functions":[2,2],"lines":[14,14]},
+    "utils/gallerySharePermalink.ts": {"statements":[12,12],"branches":[4,4],"functions":[2,2],"lines":[10,10]},
+    "utils/groupNotifications.ts": {"statements":[58,59],"branches":[34,43],"functions":[10,10],"lines":[55,56]},
+    "utils/hlsSource.ts": {"statements":[18,20],"branches":[8,8],"functions":[2,2],"lines":[14,16]},
+    "utils/isHostOf.ts": {"statements":[1,1],"branches":[2,2],"functions":[1,1],"lines":[1,1]},
+    "utils/jobVocabulary.ts": {"statements":[31,34],"branches":[22,24],"functions":[13,14],"lines":[28,31]},
+    "utils/linkPreviewImage.ts": {"statements":[1,1],"branches":[2,2],"functions":[1,1],"lines":[1,1]},
+    "utils/linkifyPattern.ts": {"statements":[13,14],"branches":[7,8],"functions":[2,2],"lines":[10,10]},
+    "utils/mediaTypes.ts": {"statements":[12,18],"branches":[18,29],"functions":[4,7],"lines":[10,15]},
+    "utils/mediaUrls.ts": {"statements":[35,37],"branches":[23,24],"functions":[3,3],"lines":[33,34]},
+    "utils/mentionSearch.ts": {"statements":[79,79],"branches":[59,60],"functions":[12,12],"lines":[63,63]},
+    "utils/mentions.ts": {"statements":[68,69],"branches":[40,44],"functions":[17,17],"lines":[62,62]},
+    "utils/mergeBioAndProfileLinks.ts": {"statements":[16,16],"branches":[4,4],"functions":[3,3],"lines":[13,13]},
+    "utils/notificationCache.ts": {"statements":[41,48],"branches":[21,34],"functions":[21,21],"lines":[35,38]},
+    "utils/notificationOptimism.ts": {"statements":[47,49],"branches":[43,45],"functions":[4,4],"lines":[38,38]},
+    "utils/notificationReconciliation.ts": {"statements":[48,54],"branches":[35,47],"functions":[3,3],"lines":[41,42]},
+    "utils/notificationRoute.ts": {"statements":[7,7],"branches":[10,10],"functions":[1,1],"lines":[4,4]},
+    "utils/notificationSurfaceOwner.ts": {"statements":[41,41],"branches":[27,27],"functions":[9,9],"lines":[33,33]},
+    "utils/notifications.ts": {"statements":[33,68],"branches":[17,47],"functions":[4,12],"lines":[29,56]},
+    "utils/openExternalLink.ts": {"statements":[3,31],"branches":[0,13],"functions":[0,2],"lines":[3,31]},
+    "utils/ownProfileLinks.ts": {"statements":[4,5],"branches":[0,0],"functions":[2,2],"lines":[4,5]},
+    "utils/pendingShareMedia.ts": {"statements":[7,7],"branches":[0,0],"functions":[2,2],"lines":[7,7]},
+    "utils/podcastReference.ts": {"statements":[4,4],"branches":[9,11],"functions":[1,1],"lines":[3,3]},
+    "utils/postBuilder.ts": {"statements":[43,47],"branches":[99,149],"functions":[13,17],"lines":[41,45]},
+    "utils/postInlineMarkdown.ts": {"statements":[12,12],"branches":[13,14],"functions":[6,6],"lines":[10,10]},
+    "utils/postLanguages.ts": {"statements":[48,49],"branches":[41,45],"functions":[14,14],"lines":[36,36]},
+    "utils/postLinkCards.ts": {"statements":[57,60],"branches":[43,45],"functions":[9,9],"lines":[47,48]},
+    "utils/postPermalink.ts": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[1,1]},
+    "utils/postReplies.ts": {"statements":[4,4],"branches":[2,2],"functions":[2,2],"lines":[3,3]},
+    "utils/postSchedule.ts": {"statements":[7,7],"branches":[7,7],"functions":[2,2],"lines":[6,6]},
+    "utils/prepareDraftSwitch.ts": {"statements":[21,22],"branches":[20,21],"functions":[5,5],"lines":[19,19]},
+    "utils/prettifyUrl.ts": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[2,2]},
+    "utils/profileAccountFacts.ts": {"statements":[3,3],"branches":[9,10],"functions":[1,1],"lines":[3,3]},
+    "utils/publicProfileHandle.ts": {"statements":[19,19],"branches":[15,15],"functions":[5,5],"lines":[14,14]},
+    "utils/replyContextRow.ts": {"statements":[8,8],"branches":[12,12],"functions":[1,1],"lines":[6,6]},
+    "utils/resolveMention.ts": {"statements":[11,12],"branches":[15,17],"functions":[1,1],"lines":[9,9]},
+    "utils/searchSuggestions.ts": {"statements":[59,59],"branches":[34,35],"functions":[7,7],"lines":[49,49]},
+    "utils/shareLink.ts": {"statements":[9,17],"branches":[7,14],"functions":[1,1],"lines":[9,17]},
+    "utils/sheet.ts": {"statements":[3,3],"branches":[2,2],"functions":[3,3],"lines":[3,3]},
+    "utils/storage.ts": {"statements":[17,17],"branches":[4,4],"functions":[4,4],"lines":[17,17]},
+    "utils/trendGraphTree.ts": {"statements":[32,33],"branches":[21,24],"functions":[4,5],"lines":[27,28]},
+    "utils/userEnrichment.ts": {"statements":[7,21],"branches":[3,10],"functions":[5,11],"lines":[7,18]},
+    "utils/userPlaceholderColor.ts": {"statements":[2,2],"branches":[4,4],"functions":[1,1],"lines":[2,2]},
+    "utils/video-feed-pagination.ts": {"statements":[12,12],"branches":[10,10],"functions":[1,1],"lines":[8,8]},
+    "utils/videoSource.ts": {"statements":[13,13],"branches":[8,8],"functions":[1,1],"lines":[11,11]}
+  },
+  "sizes": {
+    "__fixtures__/scheduledPost.ts": [2,7,1,2],
+    "app/(app)/(tabs)/_layout.tsx": [0,0,0,0],
+    "app/(app)/(tabs)/camera.tsx": [67,34,7,57],
+    "app/(app)/(tabs)/camera.web.tsx": [1,0,1,1],
+    "app/(app)/(tabs)/index.tsx": [52,43,19,43],
+    "app/(app)/(tabs)/notifications.tsx": [290,211,64,249],
+    "app/(app)/(tabs)/videos.tsx": [431,358,111,376],
+    "app/(app)/(tabs)/write.tsx": [1,0,1,1],
+    "app/(app)/(tabs)/you.tsx": [7,6,1,7],
+    "app/(app)/(tabs)/you.web.tsx": [7,6,1,7],
+    "app/(app)/+not-found.tsx": [0,0,0,0],
+    "app/(app)/[username]/_layout.tsx": [5,4,1,5],
+    "app/(app)/[username]/about.tsx": [1,0,1,1],
+    "app/(app)/[username]/boosts.tsx": [2,0,1,2],
+    "app/(app)/[username]/connections.tsx": [126,122,19,119],
+    "app/(app)/[username]/experience.tsx": [2,0,1,2],
+    "app/(app)/[username]/feeds.tsx": [2,0,1,2],
+    "app/(app)/[username]/followers.tsx": [0,0,0,0],
+    "app/(app)/[username]/following.tsx": [0,0,0,0],
+    "app/(app)/[username]/in-common.tsx": [0,0,0,0],
+    "app/(app)/[username]/index.tsx": [2,0,1,2],
+    "app/(app)/[username]/jobs.tsx": [2,0,1,2],
+    "app/(app)/[username]/lane/[laneId].tsx": [3,2,1,3],
+    "app/(app)/[username]/lane/_layout.tsx": [2,0,1,1],
+    "app/(app)/[username]/likes.tsx": [2,0,1,2],
+    "app/(app)/[username]/lists.tsx": [2,0,1,2],
+    "app/(app)/[username]/media.tsx": [2,0,1,2],
+    "app/(app)/[username]/mentions.tsx": [2,0,1,2],
+    "app/(app)/[username]/replies.tsx": [2,0,1,2],
+    "app/(app)/[username]/settings.tsx": [3,0,2,3],
+    "app/(app)/[username]/shop.tsx": [2,0,1,2],
+    "app/(app)/[username]/starter_packs.tsx": [2,0,1,2],
+    "app/(app)/[username]/videos.tsx": [2,0,1,2],
+    "app/(app)/[username]/who-may-know.tsx": [0,0,0,0],
+    "app/(app)/_layout.tsx": [52,73,20,43],
+    "app/(app)/c/[username].tsx": [1,0,1,1],
+    "app/(app)/c/[username]/about.tsx": [1,0,1,1],
+    "app/(app)/c/[username]/insights.tsx": [20,20,4,20],
+    "app/(app)/c/[username]/settings.tsx": [2,0,1,2],
+    "app/(app)/c/[username]/shop.tsx": [3,4,1,3],
+    "app/(app)/channels.tsx": [2,0,1,2],
+    "app/(app)/checkout-playground.tsx": [2,4,1,2],
+    "app/(app)/communities/[id]/bans.tsx": [20,19,8,20],
+    "app/(app)/communities/index.tsx": [3,0,2,3],
+    "app/(app)/community-notes.tsx": [3,0,1,3],
+    "app/(app)/compose.tsx": [1,0,1,1],
+    "app/(app)/deck.tsx": [1,0,1,1],
+    "app/(app)/deck.web.tsx": [5,2,2,4],
+    "app/(app)/edit-profile.tsx": [0,0,0,0],
+    "app/(app)/events/[id].tsx": [58,92,29,54],
+    "app/(app)/explore/_layout.tsx": [15,7,7,12],
+    "app/(app)/explore/index.tsx": [4,0,2,3],
+    "app/(app)/explore/media.tsx": [4,0,2,3],
+    "app/(app)/explore/starter-packs.tsx": [1,0,1,1],
+    "app/(app)/explore/trending.tsx": [108,81,37,89],
+    "app/(app)/explore/who-to-follow/index.tsx": [1,0,1,1],
+    "app/(app)/explore/who-to-follow/new.tsx": [1,0,1,1],
+    "app/(app)/feeds.tsx": [109,94,43,97],
+    "app/(app)/feeds/[id].tsx": [158,123,48,148],
+    "app/(app)/feeds/[id]/edit.tsx": [15,14,3,15],
+    "app/(app)/feeds/marketplace.tsx": [119,101,41,103],
+    "app/(app)/feeds/new.tsx": [2,0,2,2],
+    "app/(app)/feeds/view.tsx": [22,18,5,21],
+    "app/(app)/hashtag/[tag].tsx": [13,16,4,12],
+    "app/(app)/insights.tsx": [3,0,1,3],
+    "app/(app)/insights/weekly_recap.tsx": [16,12,8,14],
+    "app/(app)/jobs/[id].tsx": [64,54,18,56],
+    "app/(app)/jobs/[id]/applications.tsx": [42,30,18,40],
+    "app/(app)/jobs/[id]/apply.tsx": [71,52,22,65],
+    "app/(app)/jobs/[id]/edit.tsx": [40,34,9,38],
+    "app/(app)/jobs/create.tsx": [51,49,17,48],
+    "app/(app)/jobs/index.tsx": [124,61,39,116],
+    "app/(app)/jobs/mine.tsx": [71,36,32,68],
+    "app/(app)/lanes.tsx": [89,47,33,83],
+    "app/(app)/lists.tsx": [41,47,17,38],
+    "app/(app)/lists/[id].tsx": [89,99,23,83],
+    "app/(app)/lists/[id]/edit.tsx": [113,46,29,100],
+    "app/(app)/lists/create.tsx": [55,24,19,46],
+    "app/(app)/live-rooms/[id].tsx": [108,103,23,100],
+    "app/(app)/live-rooms/_layout.tsx": [2,0,1,2],
+    "app/(app)/live-rooms/create.tsx": [1,0,1,1],
+    "app/(app)/live-rooms/index.tsx": [49,20,13,46],
+    "app/(app)/live-rooms/live/[id].tsx": [8,2,2,8],
+    "app/(app)/memberships/[id].tsx": [82,138,44,80],
+    "app/(app)/memberships/create.tsx": [26,25,11,24],
+    "app/(app)/memberships/index.tsx": [16,18,8,16],
+    "app/(app)/mention.tsx": [12,13,3,11],
+    "app/(app)/moderation/labelers.tsx": [59,41,21,56],
+    "app/(app)/moderation/labelers/[id].tsx": [99,82,20,90],
+    "app/(app)/notifications/pokes.tsx": [69,62,24,67],
+    "app/(app)/p/[id].tsx": [3,2,1,3],
+    "app/(app)/p/[id]/boost.tsx": [1,0,1,1],
+    "app/(app)/p/[id]/corrections.tsx": [17,22,6,17],
+    "app/(app)/p/[id]/quotes.tsx": [6,0,2,5],
+    "app/(app)/plus.tsx": [57,88,13,51],
+    "app/(app)/saved.tsx": [117,62,39,108],
+    "app/(app)/search/[query].tsx": [6,2,2,6],
+    "app/(app)/search/index.tsx": [405,307,95,354],
+    "app/(app)/settings/about.tsx": [0,0,0,0],
+    "app/(app)/settings/accessibility.tsx": [0,0,0,0],
+    "app/(app)/settings/appearance.tsx": [0,0,0,0],
+    "app/(app)/settings/commerce.tsx": [0,0,0,0],
+    "app/(app)/settings/connected-ai.tsx": [0,0,0,0],
+    "app/(app)/settings/deck.tsx": [0,0,0,0],
+    "app/(app)/settings/external-media.tsx": [0,0,0,0],
+    "app/(app)/settings/fediverse/index.tsx": [0,0,0,0],
+    "app/(app)/settings/fediverse/transparency.tsx": [0,0,0,0],
+    "app/(app)/settings/feed.tsx": [0,0,0,0],
+    "app/(app)/settings/for-you.tsx": [0,0,0,0],
+    "app/(app)/settings/index.tsx": [0,0,0,0],
+    "app/(app)/settings/interests.tsx": [0,0,0,0],
+    "app/(app)/settings/language.tsx": [0,0,0,0],
+    "app/(app)/settings/live-presence.tsx": [0,0,0,0],
+    "app/(app)/settings/notifications.tsx": [0,0,0,0],
+    "app/(app)/settings/notifications/subscriptions.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/blocked.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/hidden-words.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/hide-counts.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/muted-lanes.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/online-status.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/profile-visibility.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/restricted.tsx": [0,0,0,0],
+    "app/(app)/settings/privacy/tags-mentions.tsx": [0,0,0,0],
+    "app/(app)/settings/thread-preferences.tsx": [0,0,0,0],
+    "app/(app)/starter-packs/[id].tsx": [43,34,12,39],
+    "app/(app)/starter-packs/[id]/edit.tsx": [147,82,29,132],
+    "app/(app)/starter-packs/create.tsx": [57,26,18,47],
+    "app/(app)/starter-packs/index.tsx": [23,14,8,22],
+    "app/(app)/t/[name].tsx": [17,13,6,14],
+    "app/(app)/trend-graph.tsx": [47,53,18,41],
+    "app/(app)/welcome.tsx": [1,0,1,1],
+    "app/(auth)/_layout.tsx": [1,0,1,1],
+    "app/(auth)/index.tsx": [7,0,5,7],
+    "app/+native-intent.tsx": [11,12,2,8],
+    "app/_layout.tsx": [39,22,13,34],
+    "assets/illustrations/NoUpdates.tsx": [10,8,3,8],
+    "assets/logo.tsx": [1,1,1,1],
+    "components/AccountBadge.tsx": [15,11,4,14],
+    "components/AccountInfoScreen.tsx": [47,85,12,41],
+    "components/AddToStarterPackSheet.tsx": [65,49,19,59],
+    "components/AppErrorBoundary.tsx": [14,2,6,14],
+    "components/AppSplashScreen.tsx": [41,24,12,32],
+    "components/BoostScreen.tsx": [52,34,8,47],
+    "components/BootMilestone.tsx": [3,0,2,3],
+    "components/Camera/CameraCapture.tsx": [135,96,41,119],
+    "components/Camera/CameraCapture.web.tsx": [1,0,1,1],
+    "components/Camera/CaptureReview.tsx": [16,30,4,14],
+    "components/Camera/constants.ts": [20,10,7,18],
+    "components/Camera/useCaptureUpload.ts": [60,31,8,54],
+    "components/Camera/useVideoRecorder.ts": [96,59,12,88],
+    "components/ChannelScreen.tsx": [76,62,18,69],
+    "components/Channels/ChannelInfoDialog.tsx": [38,12,14,35],
+    "components/Commerce/FeaturedCollectionObserver.tsx": [15,2,7,13],
+    "components/Commerce/ProfileShop.tsx": [132,114,35,113],
+    "components/Commerce/StorefrontSettings.tsx": [18,14,7,17],
+    "components/Community/CommunityPanel.tsx": [25,19,7,21],
+    "components/CommunityNotes/AboutNoteSheet.tsx": [2,0,1,2],
+    "components/CommunityNotes/CommunityNoteCard.tsx": [15,28,8,14],
+    "components/CommunityNotes/CommunityNotesScreen.tsx": [25,18,11,22],
+    "components/CommunityNotes/NoteSheetHeader.tsx": [2,2,1,2],
+    "components/CommunityNotes/NoteSubmittedSheet.tsx": [2,0,1,2],
+    "components/CommunityNotes/NoteTipList.tsx": [3,4,2,3],
+    "components/CommunityNotes/RateNoteSheet.tsx": [14,10,7,13],
+    "components/CommunityNotes/WriteNoteSheet.tsx": [10,6,3,9],
+    "components/CommunityNotes/WritingTipsSheet.tsx": [2,0,1,2],
+    "components/CommunityNotes/useCommunityNoteSheets.tsx": [63,6,39,53],
+    "components/Compose/AltTextSheet.tsx": [32,20,8,29],
+    "components/Compose/ArticleEditor.tsx": [5,0,1,5],
+    "components/Compose/AttachmentCarouselItem.tsx": [9,6,4,9],
+    "components/Compose/CollabAcceptSheet.tsx": [12,2,3,11],
+    "components/Compose/CollaboratorPicker.tsx": [60,39,17,50],
+    "components/Compose/CommercePickerSheet.tsx": [31,28,17,28],
+    "components/Compose/CommunityPickerSheet.tsx": [19,13,7,18],
+    "components/Compose/ComposeAltButton.tsx": [2,6,1,2],
+    "components/Compose/ComposeIdentityHeader.tsx": [10,13,3,9],
+    "components/Compose/ComposeLanguageSheet.tsx": [17,14,6,17],
+    "components/Compose/ComposeMediaPreview.tsx": [2,2,1,2],
+    "components/Compose/ComposeMentionSummary.tsx": [17,6,3,15],
+    "components/Compose/ComposeScheduleIndicator.tsx": [7,7,2,7],
+    "components/Compose/ComposeScreen.styles.ts": [1,0,0,1],
+    "components/Compose/ComposeScreen.tsx": [1187,833,322,1093],
+    "components/Compose/ComposeThreadItem.tsx": [91,68,45,76],
+    "components/Compose/DraftPreview.tsx": [14,10,8,12],
+    "components/Compose/DraftsList.tsx": [103,116,13,101],
+    "components/Compose/EmojiPickerSheet.tsx": [55,14,20,53],
+    "components/Compose/EventEditor.tsx": [42,35,6,38],
+    "components/Compose/GifPickerSheet.tsx": [47,36,11,43],
+    "components/Compose/InteractionSettingsPills.tsx": [15,14,4,15],
+    "components/Compose/JobPickerSheet.tsx": [17,8,8,16],
+    "components/Compose/LanePickerSheet.tsx": [17,12,7,16],
+    "components/Compose/LanguagePickerSheet.tsx": [27,23,10,25],
+    "components/Compose/LazyComposeScreen.tsx": [3,0,2,2],
+    "components/Compose/LocationDisplay.tsx": [7,7,1,6],
+    "components/Compose/PodcastPickerSheet.tsx": [17,10,7,17],
+    "components/Compose/PollCreator.tsx": [13,9,6,13],
+    "components/Compose/PostPreviewSurface.tsx": [3,0,1,3],
+    "components/Compose/PublishAsDialog.tsx": [21,26,9,20],
+    "components/Compose/QuoteCard.tsx": [20,18,4,15],
+    "components/Compose/ReplySettingsMenu.tsx": [2,0,1,2],
+    "components/Compose/ReplySettingsMenuItems.tsx": [9,8,5,9],
+    "components/Compose/ScheduleSheet.tsx": [44,18,14,38],
+    "components/Compose/ScheduledPostPreview.tsx": [29,12,3,28],
+    "components/Compose/ScheduledPostsList.tsx": [55,51,9,55],
+    "components/Compose/ServerDraftPreview.tsx": [20,8,3,18],
+    "components/Compose/SourcesSheet.tsx": [16,23,9,15],
+    "components/Compose/UnpublishedSheet.tsx": [67,35,19,57],
+    "components/Compose/VariantEditor.tsx": [26,37,11,21],
+    "components/Compose/VideoPreview.tsx": [16,8,5,16],
+    "components/Compose/composeLayout.ts": [9,0,0,9],
+    "components/Compose/publishPost.ts": [7,4,1,7],
+    "components/Compose/replyPermission.ts": [6,7,3,6],
+    "components/Compose/serverDraftActions.ts": [28,9,5,26],
+    "components/Compose/useComposeExit.ts": [12,4,4,9],
+    "components/Compose/usePendingShareMedia.ts": [8,4,2,7],
+    "components/ComposeToolbar.tsx": [34,59,19,34],
+    "components/EntityFollowButton.tsx": [5,5,2,5],
+    "components/Error.tsx": [10,13,3,10],
+    "components/Fediverse/FediverseInfoDialog.tsx": [45,19,14,42],
+    "components/Feed/Feed.native.tsx": [164,97,30,145],
+    "components/Feed/Feed.tsx": [0,0,0,0],
+    "components/Feed/Feed.web.tsx": [50,19,9,45],
+    "components/Feed/FeedEmptyState.tsx": [38,45,3,38],
+    "components/Feed/FeedFooter.tsx": [14,11,3,12],
+    "components/Feed/FeedHeader.tsx": [16,15,4,14],
+    "components/Feed/FeedUpdatePolicy.tsx": [48,32,9,41],
+    "components/Feed/PostErrorBoundary.tsx": [16,13,6,16],
+    "components/Feed/PostInteractionsBinder.tsx": [32,12,12,28],
+    "components/Feed/PostItem.tsx": [291,503,68,249],
+    "components/Feed/PostMenuContent.tsx": [25,25,6,25],
+    "components/Feed/PostMenuSubmenus.tsx": [32,16,12,29],
+    "components/Feed/ThreadHoverOverlay.tsx": [6,3,4,3],
+    "components/Feed/feedPaging.ts": [4,7,2,3],
+    "components/Feed/feedRows.tsx": [188,185,30,157],
+    "components/Feed/holdForLeading.ts": [4,7,1,3],
+    "components/Feed/index.ts": [0,0,0,0],
+    "components/Feed/interstitials/DismissButton.tsx": [3,3,1,3],
+    "components/Feed/interstitials/FeedInterstitial.tsx": [6,5,1,6],
+    "components/Feed/interstitials/InterstitialShell.tsx": [17,13,6,17],
+    "components/Feed/interstitials/PersonSuggestionItem.tsx": [11,10,4,10],
+    "components/Feed/interstitials/SimilarAccountsInterstitial.tsx": [42,18,15,36],
+    "components/Feed/interstitials/SuggestedFeedsInterstitial.tsx": [50,20,19,45],
+    "components/Feed/interstitials/SuggestedStarterPacksInterstitial.tsx": [42,10,15,38],
+    "components/Feed/interstitials/SuggestedUsersInterstitial.tsx": [23,4,9,20],
+    "components/Feed/interstitials/TrendingTopicsInterstitial.tsx": [45,8,17,35],
+    "components/Feed/interstitials/interstitialLayout.ts": [23,6,4,20],
+    "components/Feed/interstitials/interstitialTelemetry.ts": [36,20,10,29],
+    "components/Feed/postInteractions.tsx": [52,32,21,48],
+    "components/Feed/postMenuActions.tsx": [168,122,30,155],
+    "components/Feed/postSettings.ts": [14,2,4,12],
+    "components/Feed/showRepostMenu.tsx": [1,4,1,1],
+    "components/Feed/useFeedCore.tsx": [65,46,14,64],
+    "components/FeedCard.tsx": [33,69,8,30],
+    "components/FeedSubscribeButton.tsx": [3,0,1,3],
+    "components/FollowButton.tsx": [23,18,7,15],
+    "components/Jobs/CodePickerDialog.tsx": [17,12,8,16],
+    "components/Jobs/JobApplicationDetailSheet.tsx": [36,30,16,34],
+    "components/Jobs/JobCurrencyField.tsx": [14,2,6,13],
+    "components/Jobs/JobDiscoveryResultCard.tsx": [57,54,14,54],
+    "components/Jobs/JobFormFields.tsx": [47,43,11,46],
+    "components/Jobs/JobLocationField.tsx": [75,75,23,67],
+    "components/Jobs/OrganizationJobRow.tsx": [25,28,5,23],
+    "components/KeyboardShortcutsModal.tsx": [11,11,5,10],
+    "components/LabelBadge.tsx": [13,12,1,13],
+    "components/ListCard.tsx": [10,35,2,10],
+    "components/Lists/AddToListSheet.tsx": [56,31,19,50],
+    "components/Memberships/MembershipComposer.tsx": [68,60,21,63],
+    "components/Memberships/MembershipContentCard.tsx": [33,37,16,32],
+    "components/Memberships/MembershipDirectory.tsx": [10,8,4,9],
+    "components/Memberships/MembershipTierEditor.tsx": [27,32,9,27],
+    "components/Memberships/membershipQueries.ts": [17,16,2,10],
+    "components/MentionPicker.tsx": [8,6,4,6],
+    "components/MentionTextInput.tsx": [139,71,25,132],
+    "components/NativeSplashRelease.tsx": [9,2,3,7],
+    "components/NotFoundScreen.tsx": [4,0,2,4],
+    "components/NotificationPermissionGate.tsx": [38,23,9,31],
+    "components/NotificationPermissionSheet.tsx": [3,0,1,3],
+    "components/NotificationsList.native.tsx": [13,10,5,12],
+    "components/NotificationsList.tsx": [0,0,0,0],
+    "components/NotificationsList.web.tsx": [8,4,3,7],
+    "components/OperatedAccounts/ChannelBylineSettings.tsx": [17,2,6,17],
+    "components/OperatedAccounts/CommunityModerationSettings.tsx": [6,0,2,6],
+    "components/OperatedAccounts/OperatedAccountSettingsScreen.tsx": [27,26,7,27],
+    "components/OperatedAccounts/OperatedAccountsScreen.tsx": [37,29,10,35],
+    "components/OperatedAccounts/useOperatedAccountArchive.ts": [17,10,7,16],
+    "components/Podcast/PodcastCard.tsx": [40,78,6,34],
+    "components/Podcast/PodcastSaveButton.tsx": [5,4,1,5],
+    "components/Podcast/PostPodcastAttachment.tsx": [6,10,1,6],
+    "components/Podcast/useArtworkAccent.ts": [76,37,12,64],
+    "components/Post/Attachments/CommerceCard.tsx": [13,32,3,12],
+    "components/Post/Attachments/EmbedConsentDialog.tsx": [22,0,6,20],
+    "components/Post/Attachments/ExternalEmbedPlayer.native.tsx": [41,16,10,35],
+    "components/Post/Attachments/ExternalEmbedPlayer.tsx": [0,0,0,0],
+    "components/Post/Attachments/ExternalEmbedPlayer.web.tsx": [5,2,3,5],
+    "components/Post/Attachments/ExternalEmbedPoster.tsx": [12,14,4,10],
+    "components/Post/Attachments/HomiioCaseCard.tsx": [8,8,2,8],
+    "components/Post/Attachments/PostAttachmentArticle.tsx": [4,4,1,4],
+    "components/Post/Attachments/PostAttachmentEvent.tsx": [13,22,2,12],
+    "components/Post/Attachments/PostAttachmentExternalEmbed.tsx": [27,12,7,23],
+    "components/Post/Attachments/PostAttachmentLink.tsx": [6,4,3,5],
+    "components/Post/Attachments/PostAttachmentMedia.tsx": [95,72,19,87],
+    "components/Post/Attachments/PostAttachmentNested.tsx": [3,0,1,3],
+    "components/Post/Attachments/PostAttachmentPoll.tsx": [6,9,2,6],
+    "components/Post/Attachments/PostAttachmentRoom.tsx": [2,4,1,2],
+    "components/Post/Attachments/index.ts": [0,0,0,0],
+    "components/Post/CollaboratorsList.tsx": [13,4,5,13],
+    "components/Post/ContentWarning.tsx": [9,8,1,9],
+    "components/Post/EngagementList.tsx": [46,27,10,44],
+    "components/Post/JobCard.tsx": [28,21,6,27],
+    "components/Post/KnownLikersRow.tsx": [21,17,5,20],
+    "components/Post/PollCard.tsx": [50,39,10,43],
+    "components/Post/PostActions.tsx": [8,20,2,7],
+    "components/Post/PostArticleModal.tsx": [58,35,15,52],
+    "components/Post/PostArticlePreview.tsx": [4,4,1,4],
+    "components/Post/PostAttachmentsRow.tsx": [424,442,76,358],
+    "components/Post/PostCommunityRow.tsx": [5,2,2,5],
+    "components/Post/PostContentText.tsx": [27,33,9,23],
+    "components/Post/PostCorrectionNotice.tsx": [11,0,2,11],
+    "components/Post/PostCrosspostRow.tsx": [11,8,4,10],
+    "components/Post/PostDetailScreen.tsx": [229,206,41,193],
+    "components/Post/PostDetailStats.tsx": [27,27,4,24],
+    "components/Post/PostHeader.tsx": [52,125,13,49],
+    "components/Post/PostInsightsSheet.tsx": [18,23,4,18],
+    "components/Post/PostLaneChip.tsx": [14,6,2,13],
+    "components/Post/PostLanguageSheet.tsx": [8,4,5,8],
+    "components/Post/PostLocation.tsx": [10,11,1,10],
+    "components/Post/postContextRowLayout.ts": [2,0,0,2],
+    "components/PresenceIndicator.tsx": [9,10,1,9],
+    "components/Profile/AccountCategoryLine.tsx": [6,4,1,5],
+    "components/Profile/ChannelHeader.tsx": [9,6,2,8],
+    "components/Profile/ConnectionsHeader.tsx": [14,11,4,13],
+    "components/Profile/EditProfile/BannerSection.tsx": [22,8,8,18],
+    "components/Profile/EditProfile/PinnedMediaSection.tsx": [10,6,3,9],
+    "components/Profile/ExperienceEditor.tsx": [62,102,27,52],
+    "components/Profile/ExperienceEmployerField.tsx": [65,89,25,56],
+    "components/Profile/FollowedByRow.tsx": [18,13,4,17],
+    "components/Profile/LinkSummary.tsx": [18,10,8,18],
+    "components/Profile/LiveVideoPosterCell.tsx": [5,2,1,5],
+    "components/Profile/MediaGrid.tsx": [58,58,9,53],
+    "components/Profile/MediaPickerSheet.tsx": [99,102,31,95],
+    "components/Profile/PrivateBadge.tsx": [5,2,1,5],
+    "components/Profile/ProfileChromeFrame.tsx": [1,0,1,1],
+    "components/Profile/ProfileChromeFrame.web.tsx": [21,21,6,20],
+    "components/Profile/ProfileCommunities.tsx": [13,14,4,13],
+    "components/Profile/ProfileContent.tsx": [10,36,3,9],
+    "components/Profile/ProfileExperience.tsx": [46,107,22,43],
+    "components/Profile/ProfileFields.tsx": [6,6,2,5],
+    "components/Profile/ProfileGridList.tsx": [40,27,10,37],
+    "components/Profile/ProfileGridList.types.ts": [0,0,0,0],
+    "components/Profile/ProfileGridList.web.tsx": [34,8,10,27],
+    "components/Profile/ProfileHeader.tsx": [22,26,6,19],
+    "components/Profile/ProfileMedia.tsx": [8,4,2,8],
+    "components/Profile/ProfileMeta.tsx": [14,12,3,13],
+    "components/Profile/ProfileMoreMenu.tsx": [39,15,13,37],
+    "components/Profile/ProfileMovedNotice.tsx": [7,0,2,7],
+    "components/Profile/ProfilePageHeader.tsx": [5,3,2,5],
+    "components/Profile/ProfileShell.tsx": [16,70,5,16],
+    "components/Profile/ProfileSkeleton.tsx": [18,8,5,18],
+    "components/Profile/ProfileSong.tsx": [5,8,1,5],
+    "components/Profile/ProfileStats.tsx": [11,29,3,9],
+    "components/Profile/ProfileTabBarRow.tsx": [2,0,1,2],
+    "components/Profile/ProfileTabs.tsx": [121,155,28,117],
+    "components/Profile/ProfileUnavailable.tsx": [6,4,2,6],
+    "components/Profile/ProfileWriters.tsx": [9,8,2,9],
+    "components/Profile/SongPreviewButton.tsx": [5,7,1,5],
+    "components/Profile/VideosGrid.tsx": [42,34,8,36],
+    "components/Profile/experiencePresentation.ts": [19,30,5,19],
+    "components/Profile/hooks/useChannelWriters.ts": [13,8,6,11],
+    "components/Profile/hooks/useDeferredToggle.ts": [62,27,5,57],
+    "components/Profile/hooks/useFederatedFollowSync.ts": [26,17,4,24],
+    "components/Profile/hooks/useJustFollowed.ts": [20,12,1,19],
+    "components/Profile/hooks/useOperatesAccount.ts": [5,7,2,5],
+    "components/Profile/hooks/usePersonProfileView.tsx": [97,150,21,86],
+    "components/Profile/hooks/usePoke.ts": [24,11,5,21],
+    "components/Profile/hooks/useProfileAccount.ts": [7,8,3,7],
+    "components/Profile/hooks/useProfileChrome.ts": [3,0,1,3],
+    "components/Profile/hooks/useProfileDocumentPaging.ts": [0,0,1,0],
+    "components/Profile/hooks/useProfileDocumentPaging.web.ts": [14,10,4,13],
+    "components/Profile/hooks/useProfileScroll.ts": [21,17,4,17],
+    "components/Profile/hooks/useRoutedProfileUsername.ts": [4,4,1,3],
+    "components/Profile/hooks/useSubscription.ts": [30,13,6,27],
+    "components/Profile/index.ts": [0,0,0,0],
+    "components/Profile/openProfileMediaPicker.tsx": [8,0,6,7],
+    "components/Profile/pinnedPostQuery.ts": [2,0,2,2],
+    "components/Profile/profileRoute.ts": [13,16,4,10],
+    "components/Profile/profileTabRoute.ts": [23,31,3,19],
+    "components/Profile/profileViewer.ts": [9,10,2,6],
+    "components/Profile/types.ts": [41,41,11,33],
+    "components/Profile/useProfileMediaFeed.ts": [32,49,6,28],
+    "components/ProfileCard.tsx": [18,50,7,18],
+    "components/ProfileHoverCard/index.tsx": [1,0,1,1],
+    "components/ProfileHoverCard/index.web.tsx": [25,39,6,22],
+    "components/ProfileHoverCard/types.ts": [0,0,0,0],
+    "components/ProfileScreen.tsx": [19,14,6,17],
+    "components/ProfileScreen.web.tsx": [8,3,1,8],
+    "components/PublicRealtimeBridge.tsx": [5,0,3,4],
+    "components/PushNotificationOpener.tsx": [23,18,7,21],
+    "components/PwaHead.tsx": [21,12,2,18],
+    "components/RealtimeNotificationsBridge.tsx": [2,0,1,2],
+    "components/RealtimePostsBridge.tsx": [2,0,1,2],
+    "components/RegisterPushToken.tsx": [32,24,4,26],
+    "components/ReplyPreferencesSheet.tsx": [8,0,5,6],
+    "components/RightBar.tsx": [19,14,9,18],
+    "components/RoomCard.tsx": [7,21,1,7],
+    "components/SEO.tsx": [53,62,9,47],
+    "components/SEOHandoff.tsx": [10,10,3,9],
+    "components/SearchBar.tsx": [10,2,3,10],
+    "components/SignInBanner.tsx": [5,0,3,5],
+    "components/StarterPackCard.tsx": [31,61,11,30],
+    "components/StarterPacksTab.tsx": [32,14,9,32],
+    "components/SuggestedProfileCard.tsx": [9,10,2,9],
+    "components/SupervisedFeatureGate.tsx": [10,9,2,9],
+    "components/UserName.tsx": [36,54,3,35],
+    "components/WelcomeModal.tsx": [29,23,10,28],
+    "components/WelcomeModalGate.tsx": [27,11,6,26],
+    "components/WelcomeRedirectGate.tsx": [5,6,1,4],
+    "components/WhoToFollowTab.tsx": [55,55,11,54],
+    "components/ZoomableAvatar.tsx": [58,72,12,47],
+    "components/common/ActionMenu.tsx": [29,12,11,23],
+    "components/common/EmptyState.tsx": [17,23,2,15],
+    "components/common/EmptyStateSticker.tsx": [6,2,1,5],
+    "components/common/LazyZoomableGallery.tsx": [17,8,4,16],
+    "components/common/LinkifiedText.tsx": [49,43,7,46],
+    "components/common/OwnedSurfaceContent.tsx": [8,2,4,6],
+    "components/common/PlaybackVideoView.tsx": [43,24,9,39],
+    "components/common/SignInRequired.tsx": [6,6,1,6],
+    "components/common/VideoPlayer.tsx": [176,159,34,161],
+    "components/common/VideoPosterCell.tsx": [21,22,3,20],
+    "components/common/actionMenuGroups.ts": [9,4,5,6],
+    "components/common/videoElementSize.ts": [9,10,2,7],
+    "components/deck/DeckAddPanel.tsx": [11,0,6,10],
+    "components/deck/DeckColumn.tsx": [41,22,21,36],
+    "components/deck/DeckHomeEntry.tsx": [6,4,2,5],
+    "components/deck/deckEntry.ts": [7,22,1,6],
+    "components/deck/deckPersistence.ts": [26,32,5,19],
+    "components/deck/deckRouteRegistry.ts": [40,19,10,34],
+    "components/deck/deckRoutes.ts": [2,0,1,2],
+    "components/deck/deckRoutes.web.ts": [4,0,0,4],
+    "components/deck/deckSettings.ts": [89,75,44,71],
+    "components/deck/deckSync.ts": [79,80,11,68],
+    "components/deck/deckValidation.ts": [83,125,19,73],
+    "components/deck/useDeckAvailable.ts": [2,2,1,2],
+    "components/deck/useDeckHome.ts": [5,6,2,5],
+    "components/deck/useDeckSync.ts": [17,11,7,14],
+    "components/feeds/FeedBuilder.tsx": [321,226,101,279],
+    "components/feeds/LazyFeedBuilder.tsx": [6,2,4,5],
+    "components/insights/InsightsDashboard.tsx": [59,44,27,53],
+    "components/insights/InsightsView.tsx": [30,26,10,27],
+    "components/insights/LazyInsightsView.tsx": [3,0,2,2],
+    "components/insights/WeeklyRecapContent.tsx": [27,32,14,24],
+    "components/insights/insightsSeries.ts": [51,22,7,45],
+    "components/interests/TopicPicker.tsx": [31,37,6,29],
+    "components/loading/ContentSkeleton.tsx": [18,11,18,18],
+    "components/navigation/MentionHomeHeader.tsx": [11,4,5,11],
+    "components/navigation/MentionNavigation.tsx": [18,17,6,18],
+    "components/navigation/useMentionSidebar.tsx": [25,4,11,24],
+    "components/notifications/NotificationItem.tsx": [247,281,44,204],
+    "components/notifications/NotificationSkeleton.tsx": [7,1,3,7],
+    "components/notifications/notificationDescriptors.ts": [18,2,16,18],
+    "components/payments/CheckoutFixtureSheet.tsx": [5,17,1,4],
+    "components/payments/CheckoutPlaygroundScreen.tsx": [13,4,3,12],
+    "components/payments/CheckoutPreviewBadge.tsx": [3,3,1,3],
+    "components/payments/CheckoutPreviewControls.tsx": [13,12,11,13],
+    "components/payments/LocalCheckoutCardEntry.tsx": [17,9,4,14],
+    "components/payments/LocalCheckoutPreview.tsx": [239,320,58,217],
+    "components/payments/LocalOrderPreview.tsx": [27,44,5,26],
+    "components/payments/MerchantInstallmentSettings.tsx": [35,14,20,33],
+    "components/payments/PeableEmbeddedCheckout.tsx": [215,227,32,188],
+    "components/payments/PlusDisplayEstimate.tsx": [5,4,1,4],
+    "components/payments/PlusPaymentSheet.tsx": [110,130,15,97],
+    "components/payments/PreparedPlusCheckout.tsx": [39,25,8,33],
+    "components/providers/AccountSwitchReset.tsx": [73,62,10,68],
+    "components/providers/AppProviders.tsx": [5,0,2,4],
+    "components/providers/AppShellProviders.tsx": [2,0,1,2],
+    "components/providers/AuthRouter.tsx": [17,8,2,17],
+    "components/providers/CommunityNoteProvider.tsx": [2,0,1,2],
+    "components/providers/LiveFeatureProviders.tsx": [21,7,9,18],
+    "components/providers/LiveFeatureRuntime.tsx": [7,0,4,6],
+    "components/providers/LivePresencePoller.tsx": [6,0,2,6],
+    "components/providers/constants.ts": [6,5,2,6],
+    "components/providers/handleLanguageError.ts": [2,0,1,2],
+    "components/report/ReportModal.tsx": [26,16,8,24],
+    "components/rooms/CreateRoomSheet.tsx": [1,0,0,1],
+    "components/rooms/RoomsListSkeleton.tsx": [12,2,6,12],
+    "components/rooms/createRoomTypes.ts": [0,0,0,0],
+    "components/saved/SavedPostsList.native.tsx": [8,0,5,5],
+    "components/saved/SavedPostsList.tsx": [0,0,0,0],
+    "components/saved/SavedPostsList.types.ts": [0,0,0,0],
+    "components/saved/SavedPostsList.web.tsx": [9,2,4,7],
+    "components/search/ExternalActorFollowButton.tsx": [30,16,5,28],
+    "components/settings/MentionSettingsModal.tsx": [6,2,2,5],
+    "components/settings/MentionSettingsProvider.tsx": [40,12,11,34],
+    "components/settings/RowIcon.tsx": [4,2,1,4],
+    "components/settings/SettingsRoute.tsx": [13,6,3,11],
+    "components/settings/ThreadSortGroup.tsx": [7,0,4,5],
+    "components/settings/pages/about.tsx": [27,26,10,25],
+    "components/settings/pages/accessibility.tsx": [4,0,1,4],
+    "components/settings/pages/account.tsx": [29,15,7,27],
+    "components/settings/pages/appearance.tsx": [36,28,11,34],
+    "components/settings/pages/commerce.tsx": [2,4,1,2],
+    "components/settings/pages/connected-ai.tsx": [32,27,11,30],
+    "components/settings/pages/deck.tsx": [14,10,6,9],
+    "components/settings/pages/edit-profile.tsx": [20,2,8,17],
+    "components/settings/pages/external-media.tsx": [13,8,5,11],
+    "components/settings/pages/fediverse/index.tsx": [37,12,7,36],
+    "components/settings/pages/fediverse/transparency.tsx": [23,19,8,23],
+    "components/settings/pages/feed.tsx": [39,10,23,39],
+    "components/settings/pages/for-you.tsx": [29,21,11,26],
+    "components/settings/pages/interests.tsx": [9,4,2,9],
+    "components/settings/pages/language.tsx": [11,2,4,10],
+    "components/settings/pages/live-presence.tsx": [26,14,6,25],
+    "components/settings/pages/notifications.tsx": [48,14,12,48],
+    "components/settings/pages/notifications/subscriptions.tsx": [68,42,22,63],
+    "components/settings/pages/privacy.tsx": [71,34,20,68],
+    "components/settings/pages/privacy/blocked.tsx": [164,77,37,139],
+    "components/settings/pages/privacy/hidden-words.tsx": [40,21,15,37],
+    "components/settings/pages/privacy/hide-counts.tsx": [79,34,10,75],
+    "components/settings/pages/privacy/muted-lanes.tsx": [21,13,8,21],
+    "components/settings/pages/privacy/online-status.tsx": [39,12,5,39],
+    "components/settings/pages/privacy/profile-visibility.tsx": [57,24,9,56],
+    "components/settings/pages/privacy/restricted.tsx": [197,95,43,170],
+    "components/settings/pages/privacy/tags-mentions.tsx": [46,20,6,44],
+    "components/settings/pages/thread-preferences.tsx": [6,0,3,6],
+    "components/settings/settingsPages.tsx": [4,0,1,4],
+    "components/settings/settingsRoutes.ts": [30,18,5,24],
+    "components/settings/useOxyIdentityRows.tsx": [13,16,4,12],
+    "components/shell/bottomBarRoutes.ts": [10,10,3,6],
+    "components/shell/panelSurface.ts": [8,6,4,7],
+    "components/suggestions/SuggestedUserCard.tsx": [7,9,2,7],
+    "components/suggestions/SuggestedUsers.tsx": [43,35,8,38],
+    "components/trending/TrendItemRow.tsx": [25,71,6,25],
+    "components/trending/trendBadge.ts": [21,19,1,18],
+    "components/ui/AccountAvatar.tsx": [5,5,2,5],
+    "components/ui/AccountAvatarGroup.tsx": [5,4,2,5],
+    "components/ui/LiveAvatar.tsx": [11,13,2,11],
+    "components/ui/use-account-avatar-motion.ts": [8,5,2,7],
+    "components/videos/InlineReplyComposer.tsx": [54,32,6,48],
+    "components/videos/LazyVideoReplies.tsx": [4,0,3,3],
+    "components/videos/VideoReplies.tsx": [3,4,1,3],
+    "components/welcome/WelcomeScreen.tsx": [16,14,8,16],
+    "components/welcome/WelcomeStarterPacks.tsx": [17,10,7,16],
+    "components/widgets/BaseWidget.tsx": [1,6,1,1],
+    "components/widgets/LiveRoomsWidget.tsx": [42,21,16,36],
+    "components/widgets/TrendsWidget.tsx": [33,17,11,30],
+    "components/widgets/WhoToFollowWidget.tsx": [20,12,5,20],
+    "components/widgets/WidgetItemMenu.tsx": [4,0,1,4],
+    "components/widgets/WidgetManager.tsx": [25,15,7,25],
+    "config.ts": [31,50,0,31],
+    "constants/contentLanguages.ts": [21,10,4,15],
+    "constants/realtimeEvents.ts": [2,0,0,2],
+    "context/CommunityNoteHandlersContext.tsx": [3,0,2,3],
+    "context/LiveRoomContext.tsx": [54,15,14,49],
+    "context/MentionAskProvider.tsx": [10,2,4,9],
+    "context/MentionSearchContext.tsx": [10,2,4,10],
+    "context/MentionSettingsContext.tsx": [11,4,5,10],
+    "context/VideosRailContext.tsx": [14,0,8,12],
+    "db/cacheLifecycle.ts": [68,26,8,66],
+    "db/database.native.ts": [44,14,4,41],
+    "db/database.ts": [0,0,0,0],
+    "db/database.web.ts": [2,0,4,2],
+    "db/feedItem.ts": [12,19,2,11],
+    "db/feedQueries.ts": [176,124,15,147],
+    "db/index.ts": [0,0,0,0],
+    "db/linkQueries.ts": [66,42,7,51],
+    "db/memoryStore.ts": [122,90,25,97],
+    "db/migrations.ts": [32,6,3,32],
+    "db/postObservers.ts": [9,4,3,8],
+    "db/postQueries.ts": [146,73,10,120],
+    "db/schema.ts": [34,114,13,28],
+    "hooks/useAccountCategoryLabel.ts": [5,0,2,5],
+    "hooks/useAccountTheme.ts": [23,15,5,21],
+    "hooks/useAppLanguage.ts": [7,2,4,7],
+    "hooks/useArticleManager.ts": [30,8,7,30],
+    "hooks/useAttachmentOrder.ts": [48,20,11,45],
+    "hooks/useCachedUser.ts": [4,6,2,4],
+    "hooks/useCheckoutConfiguration.ts": [6,7,4,6],
+    "hooks/useCheckoutFeedback.ts": [15,4,7,12],
+    "hooks/useCommerceStorefront.ts": [4,4,2,4],
+    "hooks/useCommunities.ts": [14,9,6,13],
+    "hooks/useCommunitiesPreview.tsx": [3,2,2,3],
+    "hooks/useCommunityNotes.ts": [41,24,12,40],
+    "hooks/useComposeValidation.ts": [15,9,10,11],
+    "hooks/useComposeVariants.ts": [38,0,19,36],
+    "hooks/useDeepCompare.ts": [12,4,2,12],
+    "hooks/useDismissKeyboardOnBlur.ts": [3,0,3,1],
+    "hooks/useDraftManager.ts": [232,191,47,202],
+    "hooks/useDrafts.ts": [169,102,31,147],
+    "hooks/useDraftsList.ts": [16,7,10,16],
+    "hooks/useEventManager.ts": [40,20,7,40],
+    "hooks/useExpandableText.ts": [14,6,4,12],
+    "hooks/useExternalActorResolve.ts": [17,8,7,14],
+    "hooks/useFeedModules.ts": [4,0,2,4],
+    "hooks/useFeedPreferences.ts": [55,28,28,43],
+    "hooks/useFeedQuery.ts": [122,119,27,103],
+    "hooks/useFeedRankingStaleness.ts": [6,4,4,6],
+    "hooks/useFeedSettings.ts": [37,16,11,34],
+    "hooks/useFeedState.ts": [195,125,26,180],
+    "hooks/useFeedVisibility.ts": [6,3,3,5],
+    "hooks/useFollowEntity.ts": [11,8,5,9],
+    "hooks/useForYouTuning.ts": [24,8,10,21],
+    "hooks/useInfiniteCatalogSearch.tsx": [30,21,11,27],
+    "hooks/useJobAttachmentManager.ts": [9,0,4,9],
+    "hooks/useKeyboardShortcuts.ts": [67,49,7,64],
+    "hooks/useKnownLikers.ts": [16,12,3,15],
+    "hooks/useLatchedState.ts": [8,0,3,7],
+    "hooks/useLinkDetection.ts": [68,30,10,62],
+    "hooks/useLocationManager.ts": [24,9,3,24],
+    "hooks/useMediaManager.ts": [56,36,20,46],
+    "hooks/useMediaPicker.ts": [21,22,6,21],
+    "hooks/useMediaSessionTransport.ts": [29,16,9,26],
+    "hooks/useMentionColorViewer.ts": [28,25,7,23],
+    "hooks/useMentionSearchResults.ts": [24,14,4,19],
+    "hooks/useMutualFollowers.ts": [17,13,3,16],
+    "hooks/useNotificationFilter.ts": [8,12,3,7],
+    "hooks/useOpenInAllo.tsx": [11,0,9,11],
+    "hooks/useOptimizedMediaQuery.ts": [2,0,2,2],
+    "hooks/useOwnedNotificationSurfaces.ts": [14,4,5,10],
+    "hooks/usePendingNotificationOperations.ts": [12,3,6,11],
+    "hooks/usePipAspectRatio.ts": [15,8,7,14],
+    "hooks/usePipTransportActions.ts": [31,10,11,25],
+    "hooks/usePlusOffer.ts": [18,37,3,16],
+    "hooks/usePodcastManager.ts": [11,0,5,11],
+    "hooks/usePodcastSave.ts": [38,21,11,33],
+    "hooks/usePollManager.ts": [34,6,14,29],
+    "hooks/usePostActivity.ts": [7,4,2,7],
+    "hooks/usePostLanguage.ts": [56,34,11,49],
+    "hooks/usePostLanguagePicker.tsx": [5,0,4,5],
+    "hooks/usePostReadAccess.ts": [11,14,3,9],
+    "hooks/usePostShare.ts": [27,36,3,25],
+    "hooks/usePresence.ts": [18,8,6,15],
+    "hooks/usePrivacyControls.ts": [26,21,9,24],
+    "hooks/usePrivacySettings.ts": [136,81,25,125],
+    "hooks/usePrivateMediaUrls.ts": [16,13,7,14],
+    "hooks/useProfileData.ts": [71,159,11,66],
+    "hooks/useProfileLinkMentions.ts": [21,8,7,17],
+    "hooks/useProfileSEOPolicy.ts": [5,8,2,5],
+    "hooks/useProfileSongPreview.ts": [63,20,11,63],
+    "hooks/usePublicationContinuation.ts": [16,10,6,14],
+    "hooks/usePublisherLanes.ts": [7,12,2,6],
+    "hooks/useQuoteManager.ts": [40,28,7,36],
+    "hooks/useRealtimeNotifications.ts": [97,59,22,91],
+    "hooks/useRealtimePosts.ts": [9,4,4,6],
+    "hooks/useRecommendations.ts": [59,28,23,57],
+    "hooks/useReelChrome.ts": [192,116,40,179],
+    "hooks/useReelImpressions.ts": [10,8,3,8],
+    "hooks/useRefSync.ts": [5,0,2,5],
+    "hooks/useReloadOnFeedRuleChange.ts": [14,4,5,13],
+    "hooks/useReselectReloadKey.ts": [6,0,3,5],
+    "hooks/useRevealOwnNewPost.ts": [13,8,5,10],
+    "hooks/useRoomManager.ts": [10,0,5,10],
+    "hooks/useRoomUsers.ts": [15,12,6,12],
+    "hooks/useScheduleManager.ts": [28,4,9,28],
+    "hooks/useScheduledPosts.ts": [28,11,12,26],
+    "hooks/useSearchAllSources.ts": [16,14,10,12],
+    "hooks/useServerAppearanceSync.ts": [7,2,3,5],
+    "hooks/useServerDrafts.ts": [33,11,13,32],
+    "hooks/useSourcesManager.ts": [25,6,13,21],
+    "hooks/useSupervisionState.ts": [4,9,1,4],
+    "hooks/useThreadManager.ts": [187,111,128,159],
+    "hooks/useThreadPreferences.ts": [21,10,9,17],
+    "hooks/useTimeAgo.ts": [32,20,9,28],
+    "hooks/useTopicFollows.ts": [24,25,4,22],
+    "hooks/useTrendItemMenu.ts": [9,4,5,8],
+    "hooks/useTrendNavigation.ts": [10,13,4,9],
+    "hooks/useUnreadCount.ts": [17,8,6,14],
+    "hooks/useVideoFeed.ts": [115,79,35,91],
+    "hooks/useVideoPipSession.ts": [29,21,9,22],
+    "hooks/useViewerFollowing.ts": [15,8,3,14],
+    "hooks/useVisibleReference.ts": [7,2,5,5],
+    "hooks/useVoteStyle.ts": [2,0,2,1],
+    "hooks/useWelcome.ts": [12,4,6,12],
+    "interfaces/Trend.ts": [0,0,0,0],
+    "lib/actorCache.ts": [14,8,4,11],
+    "lib/appInitializer.ts": [26,6,8,25],
+    "lib/bootFeedRead.ts": [0,0,1,0],
+    "lib/bootFeedRead.web.ts": [33,18,9,27],
+    "lib/chunkReload.native.ts": [0,0,2,0],
+    "lib/chunkReload.ts": [0,0,0,0],
+    "lib/chunkReload.web.ts": [45,35,10,42],
+    "lib/colorEntitlement.ts": [11,9,6,11],
+    "lib/constants.ts": [4,0,0,4],
+    "lib/documentBootstrap.ts": [1,0,1,1],
+    "lib/documentBootstrap.web.ts": [24,23,3,19],
+    "lib/hlsPlayback.native.ts": [4,0,3,4],
+    "lib/hlsPlayback.ts": [0,0,0,0],
+    "lib/hlsPlayback.web.ts": [68,35,16,56],
+    "lib/i18n.ts": [58,23,21,55],
+    "lib/jobPagination.ts": [2,2,2,2],
+    "lib/keyedAsyncQueue.ts": [13,4,6,12],
+    "lib/liveConfig.tsx": [42,31,16,36],
+    "lib/livekit.native.ts": [1,0,1,1],
+    "lib/livekit.ts": [0,0,0,0],
+    "lib/livekit.web.ts": [0,0,1,0],
+    "lib/logging/index.ts": [18,16,6,12],
+    "lib/logging/sanitize.ts": [115,91,15,102],
+    "lib/lottieWeb.ts": [0,0,1,0],
+    "lib/lottieWeb.web.ts": [6,2,1,5],
+    "lib/mentionSocketSession.ts": [25,10,7,20],
+    "lib/navigation/router.ts": [0,0,0,0],
+    "lib/navigation/router.web.ts": [0,0,0,0],
+    "lib/notificationPagination.ts": [1,2,1,1],
+    "lib/notificationValidation.ts": [3,0,1,3],
+    "lib/operatedAccounts.ts": [11,14,3,7],
+    "lib/oxyServices.ts": [1,0,0,1],
+    "lib/payments/checkoutConfiguration.ts": [23,46,6,21],
+    "lib/payments/checkoutFeedback.ts": [21,6,3,18],
+    "lib/payments/checkoutPreview.ts": [1,5,1,1],
+    "lib/payments/checkoutReview.ts": [7,20,2,7],
+    "lib/payments/embeddedCheckout.ts": [28,57,5,23],
+    "lib/payments/localProviderTest.ts": [40,71,4,35],
+    "lib/payments/merchantInstallmentPreview.ts": [17,35,7,16],
+    "lib/payments/peableWire.ts": [13,26,3,12],
+    "lib/payments/plusCheckout.ts": [36,59,10,32],
+    "lib/payments/plusCheckoutStorage.ts": [25,10,7,19],
+    "lib/precacheActorsFromPosts.ts": [15,17,1,10],
+    "lib/queryClient.ts": [1,0,0,1],
+    "lib/recommendationFilters.ts": [39,19,12,35],
+    "lib/recommendations.ts": [28,26,5,19],
+    "lib/references/VisibleReferenceStore.ts": [83,40,16,70],
+    "lib/references/commerceCards.ts": [26,12,5,23],
+    "lib/references/homiioCases.ts": [3,0,1,3],
+    "lib/references/syraPodcastCards.ts": [7,0,4,7],
+    "lib/seoHandoff.ts": [48,41,11,45],
+    "lib/shareIntent.native.ts": [40,31,5,37],
+    "lib/shareIntent.ts": [1,0,1,1],
+    "lib/socketBfcache.native.ts": [2,0,2,1],
+    "lib/socketBfcache.ts": [0,0,0,0],
+    "lib/socketBfcache.web.ts": [15,4,4,13],
+    "lib/stickers.ts": [16,0,0,16],
+    "lib/syraApi.ts": [43,40,15,41],
+    "lib/syraPodcasts.ts": [4,0,2,4],
+    "lib/themePersistence.ts": [2,4,0,2],
+    "lib/utils.ts": [1,0,1,1],
+    "lib/viewerQueryKeys.ts": [161,85,148,161],
+    "lib/webTelemetry.native.ts": [2,0,4,1],
+    "lib/webTelemetry.ts": [0,0,0,0],
+    "lib/webTelemetry.web.ts": [162,102,24,130],
+    "modules/mention-widgets/feedWidgetSync.ts": [42,49,8,33],
+    "modules/mention-widgets/index.ts": [7,10,5,7],
+    "modules/mention-widgets/trendsWidgetSync.ts": [16,13,3,13],
+    "modules/pip-transport/index.ts": [7,10,5,7],
+    "services/articleService.ts": [3,0,1,3],
+    "services/channelAccountService.ts": [7,2,2,7],
+    "services/channelDeletionService.ts": [6,0,2,6],
+    "services/channelWritersService.ts": [7,2,1,6],
+    "services/commerceService.ts": [12,2,11,12],
+    "services/communityNotesService.ts": [14,6,7,14],
+    "services/communityService.ts": [9,8,5,9],
+    "services/customFeedsService.ts": [51,0,31,51],
+    "services/draftsService.ts": [6,2,3,6],
+    "services/echoGuard.ts": [36,17,6,32],
+    "services/engagementQueuePersistence.ts": [17,16,3,16],
+    "services/entityFollowService.ts": [12,11,4,10],
+    "services/eventsService.ts": [15,8,7,13],
+    "services/experienceService.ts": [8,3,4,8],
+    "services/feedPageRead.ts": [21,23,5,18],
+    "services/feedPreferencesService.ts": [12,6,5,12],
+    "services/feedService.ts": [280,234,59,251],
+    "services/feedTuningService.ts": [12,4,5,12],
+    "services/followGraph.ts": [3,0,1,3],
+    "services/insightsService.ts": [17,7,7,17],
+    "services/jobApplicationsService.ts": [17,0,8,16],
+    "services/jobsService.ts": [32,0,19,32],
+    "services/labelerService.ts": [19,0,9,19],
+    "services/lanesService.ts": [17,10,9,17],
+    "services/listMutations.ts": [11,4,5,11],
+    "services/listsService.ts": [40,9,12,34],
+    "services/membershipsService.ts": [27,0,24,27],
+    "services/muteService.ts": [30,10,6,28],
+    "services/muteWordsService.ts": [15,8,5,15],
+    "services/notificationService.ts": [36,24,9,36],
+    "services/pokeService.ts": [13,0,6,13],
+    "services/pollService.ts": [29,27,10,27],
+    "services/privacyService.ts": [4,0,1,4],
+    "services/publicRealtimeService.ts": [40,14,8,34],
+    "services/reportService.ts": [34,8,4,34],
+    "services/savedPostsRequest.ts": [8,10,2,8],
+    "services/searchService.ts": [197,190,41,169],
+    "services/socketService.ts": [574,314,85,497],
+    "services/starterPacksService.ts": [18,0,8,18],
+    "services/subscriptionService.ts": [14,4,4,12],
+    "services/topicService.ts": [21,7,4,21],
+    "services/trendingService.ts": [16,5,4,16],
+    "stores/appearanceStore.ts": [80,58,12,72],
+    "stores/bylineInvalidation.ts": [7,2,5,7],
+    "stores/engagementInvalidation.ts": [20,14,5,16],
+    "stores/entityFollowStore.ts": [45,16,13,31],
+    "stores/externalEmbedsStore.ts": [84,42,16,74],
+    "stores/feedQueryCache.ts": [69,48,33,56],
+    "stores/feedRankingInvalidation.ts": [20,20,7,18],
+    "stores/feedRuleSignal.ts": [11,0,6,10],
+    "stores/feedScrollStore.ts": [13,2,7,13],
+    "stores/feedStaleness.ts": [1,6,1,1],
+    "stores/identityUpdates.ts": [146,96,25,113],
+    "stores/laneInvalidation.ts": [11,7,4,9],
+    "stores/linksStore.ts": [21,10,9,14],
+    "stores/livePresenceStore.ts": [57,26,15,44],
+    "stores/liveRoomsStore.ts": [78,50,10,59],
+    "stores/pendingDocuments.ts": [85,58,15,73],
+    "stores/postsStore.ts": [965,595,144,810],
+    "stores/profileCountsInvalidation.ts": [2,4,2,2],
+    "stores/readerLanguageInvalidation.ts": [16,7,5,14],
+    "stores/safetyInvalidation.ts": [7,2,5,7],
+    "stores/threadHoverStore.ts": [5,4,4,4],
+    "stores/trendsStore.ts": [120,149,19,102],
+    "stores/videoMuteStore.ts": [17,2,5,16],
+    "stores/videoPlayerRegistry.ts": [68,26,20,56],
+    "styles/colors.ts": [3,0,0,3],
+    "styles/shared.ts": [6,0,0,6],
+    "styles/typography.ts": [1,0,0,1],
+    "test-support/catalog.ts": [15,15,8,13],
+    "test-support/waitUntil.ts": [10,2,3,7],
+    "types/notificationIntent.ts": [0,0,0,0],
+    "types/validation.ts": [23,6,3,22],
+    "types/webStyles.ts": [4,0,2,2],
+    "utils/accountCategories.ts": [5,6,3,5],
+    "utils/alerts.ts": [6,7,3,6],
+    "utils/api.ts": [44,12,15,44],
+    "utils/apiError.ts": [60,90,11,55],
+    "utils/attachmentsUtils.ts": [109,68,15,83],
+    "utils/authErrors.ts": [14,14,2,11],
+    "utils/commerceReferences.ts": [10,8,1,8],
+    "utils/composeContent.ts": [38,45,21,31],
+    "utils/composeIntent.ts": [258,202,30,222],
+    "utils/composeUtils.ts": [72,38,14,58],
+    "utils/composeVariants.ts": [245,265,53,202],
+    "utils/composerProfileLinks.ts": [17,8,1,13],
+    "utils/dateUtils.ts": [79,66,10,75],
+    "utils/displayName.ts": [1,2,1,1],
+    "utils/draftMutationQueue.ts": [21,10,8,19],
+    "utils/draftPreview.ts": [14,20,4,11],
+    "utils/draftSession.ts": [9,7,3,7],
+    "utils/embedPlayer.ts": [132,170,3,131],
+    "utils/emojiData.ts": [2,0,0,2],
+    "utils/expandableText.ts": [23,8,2,23],
+    "utils/externalActor.ts": [28,25,4,21],
+    "utils/extractUrls.ts": [21,11,4,17],
+    "utils/federationInfo.ts": [22,38,1,21],
+    "utils/feedMemoryMode.ts": [1,2,1,1],
+    "utils/feedRetry.ts": [38,33,9,32],
+    "utils/feedTelemetry.ts": [191,127,31,157],
+    "utils/feedUtils.ts": [155,174,17,120],
+    "utils/forYouTuning.ts": [19,28,2,19],
+    "utils/formatDuration.ts": [8,7,1,8],
+    "utils/formatNumber.ts": [14,14,2,14],
+    "utils/gallerySharePermalink.ts": [12,4,2,10],
+    "utils/groupNotifications.ts": [59,43,10,56],
+    "utils/hlsSource.ts": [20,8,2,16],
+    "utils/isHostOf.ts": [1,2,1,1],
+    "utils/jobVocabulary.ts": [34,24,14,31],
+    "utils/linkPreviewImage.ts": [1,2,1,1],
+    "utils/linkifyPattern.ts": [14,8,2,10],
+    "utils/mediaTypes.ts": [18,29,7,15],
+    "utils/mediaUrls.ts": [37,24,3,34],
+    "utils/mentionSearch.ts": [79,60,12,63],
+    "utils/mentions.ts": [69,44,17,62],
+    "utils/mergeBioAndProfileLinks.ts": [16,4,3,13],
+    "utils/notificationCache.ts": [48,34,21,38],
+    "utils/notificationOptimism.ts": [49,45,4,38],
+    "utils/notificationReconciliation.ts": [54,47,3,42],
+    "utils/notificationRoute.ts": [7,10,1,4],
+    "utils/notificationSurfaceOwner.ts": [41,27,9,33],
+    "utils/notifications.ts": [68,47,12,56],
+    "utils/openExternalLink.ts": [31,13,2,31],
+    "utils/ownProfileLinks.ts": [5,0,2,5],
+    "utils/pendingShareMedia.ts": [7,0,2,7],
+    "utils/podcastReference.ts": [4,11,1,3],
+    "utils/postBuilder.ts": [47,149,17,45],
+    "utils/postInlineMarkdown.ts": [12,14,6,10],
+    "utils/postLanguages.ts": [49,45,14,36],
+    "utils/postLinkCards.ts": [60,45,9,48],
+    "utils/postPermalink.ts": [2,0,1,1],
+    "utils/postReplies.ts": [4,2,2,3],
+    "utils/postSchedule.ts": [7,7,2,6],
+    "utils/prepareDraftSwitch.ts": [22,21,5,19],
+    "utils/prettifyUrl.ts": [2,0,1,2],
+    "utils/profileAccountFacts.ts": [3,10,1,3],
+    "utils/publicProfileHandle.ts": [19,15,5,14],
+    "utils/replyContextRow.ts": [8,12,1,6],
+    "utils/resolveMention.ts": [12,17,1,9],
+    "utils/searchSuggestions.ts": [59,35,7,49],
+    "utils/shareLink.ts": [17,14,1,17],
+    "utils/sheet.ts": [3,2,3,3],
+    "utils/storage.ts": [17,4,4,17],
+    "utils/trendGraphTree.ts": [33,24,5,28],
+    "utils/userEnrichment.ts": [21,10,11,18],
+    "utils/userPlaceholderColor.ts": [2,4,1,2],
+    "utils/video-feed-pagination.ts": [12,10,1,8],
+    "utils/videoSource.ts": [13,8,1,11]
   }
 }

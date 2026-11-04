@@ -19,21 +19,46 @@
  *      must be classified — pinned, or written down as unenforceable with a
  *      reason. A file in neither FAILS. That is the half a hand-maintained list
  *      cannot do: a new service lands already inside the gate.
- *   2. PINS are the measured per-file coverage of every classified file, floored
- *      to whole points. They only fire downwards, so they cost nothing to carry
- *      and catch the one thing a global number hides — a single critical file
- *      losing its tests while the aggregate is propped up elsewhere.
+ *   2. PINS are the measured covered/total counts of every classified file. A
+ *      pin holds its file to the RULE below, so it catches the one thing a
+ *      global number hides — a single critical file losing its tests while the
+ *      aggregate is propped up elsewhere — and never fires on deleted code.
  *   3. The CRITICAL-PATH BAR applies to the seven areas issue #700 names. A file
  *      there must clear the bar or appear in `belowBarExemptions` with a reason.
  *      The exemption list carries an EXACT count, so it cannot grow one
  *      defensible line at a time.
- *   4. The RATCHET compares the whole-report totals against the recorded
- *      baseline. Below it fails. More than `globalDriftAllowancePoints` above it
- *      also fails, telling you to re-record — without that, coverage can climb
- *      to 40% and silently fall back to the day the baseline was written.
- *   5. The baseline file itself may not DECREASE against the base revision. This
- *      is what stops the obvious escape: re-recording a lower baseline in the
- *      same pull request that removed the tests.
+ *   4. The RATCHET holds the whole report to the RULE against the recorded
+ *      baseline. Falling more than `uncoveredSlackAllowance` items inside it
+ *      also fails, telling you to re-anchor — without that, tests added today
+ *      could be deleted next month unnoticed.
+ *   5. The baseline file itself may not RELAX against the base revision. This is
+ *      what stops the obvious escape: re-recording a looser baseline in the same
+ *      pull request that removed the tests.
+ *
+ * THE RULE, PER METRIC, IN EXACT COUNTS
+ *
+ * From an anchor of C covered out of T items (U = T - C uncovered), with G items
+ * ADDED since: the code may now have at most U + G * U / T uncovered items.
+ * Added code may be uncovered at the anchor's own rate — new code must be
+ * covered at least as well as the average, as before — and nothing that was
+ * covered may become uncovered. Deleting code removes items without adding any,
+ * so deleting tested code can never fail. It is compared as integers,
+ * uncovered * T <= U * T + G * U, so nothing rounds.
+ *
+ * For a pin, G is that file's growth. For the whole report, G is the sum of
+ * every file's growth, max(0, now - anchor), never the net change of the total:
+ * a net total would let a deletion in one file cancel the allowance an addition
+ * in another earned, so deleting tested code would fail beside any addition,
+ * and two queued changes — one deleting, one adding at the average — would each
+ * pass alone and fail together.
+ *
+ * WHY NOT PERCENTAGES
+ *
+ * A ratio below 100% falls whenever covered code is deleted, though nothing
+ * became less tested: removing one tested function took functions from 50.88%
+ * to 50.87% and failed a two-decimal ratchet with zero allowed drop. Rounding
+ * also made two changes that each passed alone fail together in the merge
+ * queue, at random, whenever their sum crossed a 0.01 step.
  *
  * Every check below is paired with the question "what would this report if the
  * thing it measures were absent?" — `scripts/test-coverage-policy.mjs` mutates
@@ -41,7 +66,12 @@
  *
  * Usage:
  *   node scripts/coverage-policy.mjs [--coverage-dir <dir>] [--base <git-rev>]
- *   node scripts/coverage-policy.mjs --record [--coverage-dir <dir>]
+ *   node scripts/coverage-policy.mjs --record [--refresh] [--coverage-dir <dir>]
+ *
+ * `--record` only adds pins for newly classified files and drops pins for files
+ * that left the domains; every other recorded number stays byte-identical, so
+ * two changes that each add a file do not conflict in the merge queue.
+ * `--record --refresh` re-anchors everything at the current measurement.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -56,6 +86,12 @@ const packageRoot = process.env.COVERAGE_POLICY_ROOT
 const POLICY_PATH = join(packageRoot, 'coverage-policy.json');
 const BASELINE_PATH = join(packageRoot, 'coverage-baseline.json');
 const METRICS = ['statements', 'branches', 'functions', 'lines'];
+/**
+ * The baseline's format. 1 (no `schemaVersion` key) held floored percentages;
+ * 2 holds uncovered-item counts. Bump it whenever the meaning of a number in
+ * coverage-baseline.json changes, so an old file can never be read as a new one.
+ */
+const BASELINE_SCHEMA_VERSION = 2;
 
 /** How to get back here from a laptop. Printed with every failure. */
 const REPRO =
@@ -64,10 +100,11 @@ const REPRO =
   '    bun run --cwd packages/frontend coverage:check';
 
 function parseArguments(argv) {
-  const options = { record: false, coverageDir: 'coverage', base: null };
+  const options = { record: false, refresh: false, coverageDir: 'coverage', base: null };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--record') options.record = true;
+    else if (argument === '--refresh') options.refresh = true;
     else if (argument === '--coverage-dir') options.coverageDir = argv[++index];
     else if (argument === '--base') options.base = argv[++index];
     else throw new Error(`unrecognised argument: ${argument}`);
@@ -146,11 +183,105 @@ function percentagesFor(report, relativePath) {
   return percentages;
 }
 
-function pinFrom(percentages) {
-  const pin = {};
-  for (const metric of METRICS) pin[metric] = Math.floor(percentages[metric]);
-  return pin;
+/** `{ metric: [covered, total] }` for one report entry (a file, or `total`). */
+function countsOf(entry) {
+  const counts = {};
+  for (const metric of METRICS) counts[metric] = [entry[metric].covered, entry[metric].total];
+  return counts;
 }
+
+/** `{ path: [statements, branches, functions, lines] }` item totals per file. */
+function sizesOf(report) {
+  const sizes = {};
+  for (const key of Object.keys(report).sort()) {
+    if (key === 'total') continue;
+    sizes[relative(packageRoot, key)] = METRICS.map((metric) => report[key][metric].total);
+  }
+  return sizes;
+}
+
+/**
+ * Items ADDED to the code between two size maps: each file's growth, never its
+ * shrinkage, summed. A file absent from `before` grew from nothing.
+ */
+function growthBetween(before, after, metricIndex) {
+  let growth = 0;
+  for (const [path, size] of Object.entries(after)) {
+    growth += Math.max(0, size[metricIndex] - (before[path]?.[metricIndex] ?? 0));
+  }
+  return growth;
+}
+
+/**
+ * THE RULE (see the header): from an anchor of [covered, total] with `growth`
+ * items added since, may `uncovered` items be uncovered now? Integers only:
+ * uncovered * T <= U * T + growth * U. An anchor of no items has no rate to
+ * extend, so it allows nothing uncovered (a file that was empty at 100%).
+ * `allowed` and `slack` are for messages, never for the decision.
+ */
+function judge([covered, total], growth, uncovered) {
+  const anchorUncovered = total - covered;
+  if (total === 0) return { ok: uncovered <= 0, allowed: 0, slack: -uncovered };
+  const limit = anchorUncovered * total + growth * anchorUncovered;
+  return {
+    ok: uncovered * total <= limit,
+    allowed: Math.floor(limit / total),
+    slack: (limit - uncovered * total) / total,
+  };
+}
+
+/** One baseline as the JSON `--record` writes: one line per file, so a diff is per file. */
+function serialiseBaseline(baselineFile) {
+  const lines = (map) =>
+    Object.entries(map)
+      .map(([path, value]) => `    ${JSON.stringify(path)}: ${JSON.stringify(value)}`)
+      .join(',\n');
+  return (
+    '{\n' +
+    `  "$comment": ${JSON.stringify(baselineFile.$comment)},\n` +
+    `  "schemaVersion": ${baselineFile.schemaVersion},\n` +
+    `  "total": ${JSON.stringify(baselineFile.total)},\n` +
+    `  "pins": {\n${lines(baselineFile.pins)}\n  },\n` +
+    `  "sizes": {\n${lines(baselineFile.sizes)}\n  }\n` +
+    '}\n'
+  );
+}
+
+/**
+ * Translate a schema-1 baseline (percentages) for the base-revision comparison.
+ * Its totals were exact counts, so they anchor as they are; it held no sizes,
+ * so growth falls back to the net change of the total. Its pins were floors of
+ * p% that passed while the report's two-decimal pct was at least p, i.e. while
+ * C/T >= (p - 0.005)/100: such a pin becomes an anchor of the CURRENT pin's own
+ * size, so the converted file is held to exactly what the percentage allowed.
+ * Used only while a base revision predates schema 2; dead after that.
+ */
+function fromPercentageBaseline(old, current) {
+  const total = {};
+  for (const metric of METRICS)
+    total[metric] = [old.total[metric].covered, old.total[metric].total];
+  const pins = {};
+  for (const [path, pin] of Object.entries(old.pins)) {
+    pins[path] = {};
+    const now = current.pins[path];
+    if (!now) continue; // Left empty: the unpinned-while-it-exists check still sees it.
+    for (const metric of METRICS) {
+      const size = now[metric][1];
+      const minimumCovered = Math.ceil(((pin[metric] - 0.005) * size) / 100 - 1e-9);
+      pins[path][metric] = [Math.max(0, minimumCovered), size];
+    }
+  }
+  return { schemaVersion: BASELINE_SCHEMA_VERSION, total, pins, sizes: null };
+}
+
+const BASELINE_COMMENT =
+  'Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Counts, ' +
+  'never percentages: `total` and each pin are [covered, total] per metric, and ' +
+  "`sizes` are every reported file's [statements, branches, functions, lines] totals, " +
+  'from which the check works out how much code was ADDED since. Added code may be ' +
+  'uncovered at the recorded rate; nothing covered may become uncovered. Do not ' +
+  'hand-edit: a looser number here is a looser gate, and the base-revision check ' +
+  'refuses one that is not listed in allowedBaselineRelaxations.';
 
 /* ------------------------------------------------------------------ */
 /* Load                                                                */
@@ -197,16 +328,16 @@ const domainFiles = [...domainOf.keys()].sort();
 /* ------------------------------------------------------------------ */
 
 if (options.record) {
-  const pins = {};
+  const measuredPins = {};
   const missing = [];
   for (const path of domainFiles) {
     if (policy.unenforceable[path]) continue;
-    const percentages = percentagesFor(report, path);
-    if (!percentages) {
+    const entry = report[join(packageRoot, path)];
+    if (!entry) {
       missing.push(path);
       continue;
     }
-    pins[path] = pinFrom(percentages);
+    measuredPins[path] = countsOf(entry);
   }
   if (missing.length > 0) {
     console.error(
@@ -216,33 +347,35 @@ if (options.record) {
     );
     process.exit(1);
   }
-  const total = {};
-  for (const metric of METRICS) {
-    total[metric] = {
-      pct: report.total[metric].pct,
-      covered: report.total[metric].covered,
-      total: report.total[metric].total,
-    };
+  const previous = existsSync(BASELINE_PATH) ? readJson(BASELINE_PATH) : null;
+  const refresh = options.refresh || previous?.schemaVersion !== BASELINE_SCHEMA_VERSION;
+  // Without --refresh only the SET of pins changes: a new file is anchored at its
+  // measurement, a file that left the domains loses its pin, and every other
+  // number stays byte-identical. Re-anchoring the totals is what made any two
+  // recording changes conflict in the merge queue, so it happens only on request.
+  const pins = {};
+  for (const [path, measured] of Object.entries(measuredPins)) {
+    pins[path] = !refresh && previous.pins[path] ? previous.pins[path] : measured;
   }
-  writeFileSync(
-    BASELINE_PATH,
-    `${JSON.stringify(
-      {
-        $comment:
-          'Machine-recorded by `bun run --cwd packages/frontend coverage:record`. ' +
-          'Do not hand-edit: a lowered number here is a lowered gate, and ' +
-          "coverage-policy.json's base-revision check refuses one that is not " +
-          'listed in allowedBaselineDecreases.',
-        total,
-        pins,
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  const next = {
+    $comment: BASELINE_COMMENT,
+    schemaVersion: BASELINE_SCHEMA_VERSION,
+    total: refresh ? countsOf(report.total) : previous.total,
+    pins,
+    sizes: refresh ? sizesOf(report) : previous.sizes,
+  };
+  writeFileSync(BASELINE_PATH, serialiseBaseline(next));
+  const added = Object.keys(pins).filter((path) => !previous?.pins?.[path]).length;
+  const dropped = Object.keys(previous?.pins ?? {}).filter((path) => !pins[path]).length;
   console.log(
-    `Coverage baseline recorded: ${Object.keys(pins).length} pinned files, ` +
-      `${total.statements.pct}% statements overall.`,
+    refresh
+      ? `Coverage baseline re-anchored at the current measurement: ${Object.keys(pins).length} pinned files, ` +
+          METRICS.map(
+            (metric) => `${next.total[metric][0]}/${next.total[metric][1]} ${metric}`,
+          ).join(', ') +
+          ' covered.'
+      : `Coverage baseline recorded: ${added} pin(s) added, ${dropped} dropped, everything else ` +
+          'unchanged. (`coverage:record -- --refresh` re-anchors every number.)',
   );
   process.exit(0);
 }
@@ -253,7 +386,26 @@ if (options.record) {
 
 const baseline = readJson(BASELINE_PATH);
 const failures = [];
+const warnings = [];
 const fail = (headline, detail) => failures.push(`${headline}\n${detail}`);
+
+/*
+ * 0. The baseline has to be in the format this script reads.
+ *
+ * Absent-check: a schema-1 baseline holds percentages; read as uncovered counts,
+ * a pin of 96 would allow 96 uncovered statements in a file that has three.
+ */
+if (baseline.schemaVersion !== BASELINE_SCHEMA_VERSION) {
+  console.error(
+    `Frontend coverage policy FAILED\n\n  coverage-baseline.json is schema ${
+      baseline.schemaVersion ?? 1
+    }; this script reads schema ${BASELINE_SCHEMA_VERSION} (uncovered counts).\n` +
+      '  Re-record it from a full run:\n' +
+      '    bun run --cwd packages/frontend test:coverage\n' +
+      '    bun run --cwd packages/frontend coverage:record',
+  );
+  process.exit(1);
+}
 
 /*
  * 1. The report has to be a real one.
@@ -380,30 +532,38 @@ for (const [name, expected] of Object.entries(policy.expectedCounts)) {
  * 5. Per-file pins.
  *
  * Absent-check: the global percentage moves by ~0.1 point when one store loses
- * every test, so nothing aggregate can see it.
+ * every test, so nothing aggregate can see it. A pin holds its file to the rule
+ * from its own anchor: deleting code from it never trips it, losing a test
+ * always does, and code added to it must be covered at least as well as the
+ * file already was.
  */
 const pinFailures = [];
 for (const [path, pin] of Object.entries(baseline.pins)) {
-  const percentages = percentagesFor(report, path);
-  if (!percentages) {
+  const entry = report[join(packageRoot, path)];
+  if (!entry) {
     pinFailures.push(`${path}: absent from the coverage report entirely`);
     continue;
   }
+  const measured = countsOf(entry);
   for (const metric of METRICS) {
-    if (percentages[metric] < pin[metric]) {
+    const [covered, total] = measured[metric];
+    const growth = Math.max(0, total - pin[metric][1]);
+    const verdict = judge(pin[metric], growth, total - covered);
+    if (!verdict.ok) {
       pinFailures.push(
-        `${path}: ${metric} ${percentages[metric]}% is below its pinned ${pin[metric]}%`,
+        `${path}: ${total - covered} uncovered ${metric}, at most ${verdict.allowed} allowed ` +
+          `(pinned at ${pin[metric][0]}/${pin[metric][1]} covered, ${growth} added since)`,
       );
     }
   }
 }
 if (pinFailures.length > 0) {
   fail(
-    `${pinFailures.length} file(s) lost coverage they had at the recorded baseline:`,
+    `${pinFailures.length} file(s) have more uncovered code than their pin allows:`,
     `${pinFailures.map((entry) => `    ${entry}`).join('\n')}\n` +
-      '  Pins only ever fire downwards. Add the assertion back rather than\n' +
-      '  re-recording — `coverage:record` cannot lower a pin past the base\n' +
-      '  revision without an entry in `allowedBaselineDecreases`.\n' +
+      '  A test stopped exercising the file, or code was added to it that is\n' +
+      '  covered worse than the file already was. Cover it rather than\n' +
+      '  re-recording — a looser pin needs an entry in `allowedBaselineRelaxations`.\n' +
       `  ${REPRO}`,
   );
 }
@@ -520,49 +680,70 @@ if (webForkFailures.length > 0) {
  * Absent-check downward: a pull request could delete a whole domain's tests and
  * land under the old package.json floor, which sat 13.5 points below the
  * measurement. Absent-check upward: without it the baseline never refreshes,
- * and a suite that reached 40% could fall back to the recorded 28% unnoticed.
+ * and tests added today could be deleted next month against a baseline that
+ * still allows their absence.
+ *
+ * The stale-baseline half (more than the allowance INSIDE the rule) is advisory
+ * outside a pull request (COVERAGE_POLICY_STALE_BASELINE=warn): in the merge
+ * queue two changes that each bank less than the allowance can bank more
+ * together, and that is no reason to eject either. The next pull request is
+ * asked to re-anchor instead.
  */
-const drift = policy.globalDriftAllowancePoints;
-for (const metric of METRICS) {
-  const current = report.total[metric].pct;
-  const recorded = baseline.total[metric].pct;
-  if (current < recorded) {
+const staleIsWarning = process.env.COVERAGE_POLICY_STALE_BASELINE === 'warn';
+const measuredSizes = sizesOf(report);
+for (const [index, metric] of METRICS.entries()) {
+  const covered = report.total[metric].covered;
+  const total = report.total[metric].total;
+  const uncovered = total - covered;
+  const [anchorCovered, anchorTotal] = baseline.total[metric];
+  const growth = growthBetween(baseline.sizes, measuredSizes, index);
+  const verdict = judge(baseline.total[metric], growth, uncovered);
+  const anchorRate =
+    anchorTotal === 0 ? 100 : Math.round((anchorCovered / anchorTotal) * 10000) / 100;
+  const counts =
+    `${covered}/${total} covered now (${report.total[metric].pct}%); the baseline holds ` +
+    `${anchorCovered}/${anchorTotal} (${anchorRate}%), and ${growth} ${metric} were added since`;
+  if (!verdict.ok) {
     fail(
-      `Overall ${metric} coverage fell to ${current}% from the recorded ${recorded}%.`,
-      `  ${report.total[metric].covered}/${report.total[metric].total} against a ` +
-        `baseline of ${baseline.total[metric].covered}/${baseline.total[metric].total}.\n` +
-        '  Cover what the change added, or explain the drop in\n' +
-        '  `allowedBaselineDecreases` and re-record.\n' +
+      `Overall ${metric}: ${uncovered} uncovered, at most ${verdict.allowed} allowed.`,
+      `  ${counts}.\n` +
+        `  Added code may be uncovered at the baseline's rate (${Math.round((100 - anchorRate) * 100) / 100}%);\n` +
+        '  nothing that was covered may become uncovered. This change added code\n' +
+        '  covered worse than that, or a test stopped running something. Deleting\n' +
+        '  code never trips this. Accepting it on purpose takes an\n' +
+        '  `allowedBaselineRelaxations` entry and `coverage:record -- --refresh`.\n' +
         `  ${REPRO}`,
     );
-  } else if (current > recorded + drift) {
-    fail(
-      `Overall ${metric} coverage rose to ${current}% but the baseline still says ${recorded}%.`,
-      `  A stale baseline is a ratchet that stopped turning: it would let the suite\n` +
-        `  fall all the way back to ${recorded}% later without a word. Re-record it in\n` +
-        '  this change:\n' +
-        '    bun run --cwd packages/frontend coverage:record\n' +
-        `  (the allowance before this fires is ${drift} percentage points).`,
-    );
+  } else if (verdict.slack > policy.uncoveredSlackAllowance[metric]) {
+    const headline = `Overall ${metric}: ${uncovered} uncovered, ${Math.floor(verdict.slack)} fewer than the ${verdict.allowed} allowed.`;
+    const detail =
+      `  ${counts}.\n` +
+      '  A stale baseline is a ratchet that stopped turning: those items could\n' +
+      '  become uncovered again later without a word. Re-anchor it in\n' +
+      '  this change:\n' +
+      '    bun run --cwd packages/frontend coverage:record -- --refresh\n' +
+      `  (the allowance before this fires is ${policy.uncoveredSlackAllowance[metric]} uncovered ${metric}).`;
+    if (staleIsWarning) warnings.push(`${headline}\n${detail}`);
+    else fail(headline, detail);
   }
 }
 
 /*
- * 10. The baseline may not decrease against the base revision.
+ * 10. The baseline may not relax against the base revision.
  *
  * Absent-check: every check above reads the committed baseline, so a pull
- * request that lowers the baseline in the same commit that removes the tests
- * passes all of them. This is the only check that makes the ratchet a ratchet
- * rather than a self-service dial.
+ * request that raises the recorded uncovered counts in the same commit that
+ * removes the tests passes all of them. This is the only check that makes the
+ * ratchet a ratchet rather than a self-service dial.
  *
- * An `allowedBaselineDecreases` entry belongs to the change that ADDS it: only
- * an entry absent from the base revision's policy excuses a decrease. One that
+ * An `allowedBaselineRelaxations` entry belongs to the change that ADDS it: only
+ * an entry absent from the base revision's policy excuses a relaxation. One that
  * merged earlier is inherited history. It excuses nothing and is checked for
  * nothing, so the next change in the merge queue neither trips over it nor
  * gets to lean on it, and nobody has to come back to delete it.
  */
-const declaredDecreases = new Set();
-const observedDecreases = new Set();
+const declaredRelaxations = new Set();
+const observedRelaxations = new Set();
 // `||`, not `??`: on a workflow_dispatch run GitHub supplies an EMPTY string for
 // both `base_ref` and `event.before`, and an empty base resolves to nothing, so
 // the check would fail every manual run rather than compare against main.
@@ -582,7 +763,7 @@ if (repositoryRoot === null) {
   fail(
     "Cannot resolve a git repository, so the baseline's own direction is unchecked.",
     '  Every other check reads the committed baseline; without this one a change\n' +
-      '  may lower the baseline and remove the tests in a single commit.\n' +
+      '  may loosen the baseline and remove the tests in a single commit.\n' +
       '  Run this from a checkout, and pass `--base <rev>` in CI.',
   );
 } else {
@@ -623,28 +804,45 @@ if (repositoryRoot === null) {
     );
   } else {
     baseBaseline = readAtBase(BASELINE_PATH);
+    if (baseBaseline && baseBaseline.schemaVersion === undefined) {
+      baseBaseline = fromPercentageBaseline(baseBaseline, baseline);
+    } else if (baseBaseline && baseBaseline.schemaVersion !== BASELINE_SCHEMA_VERSION) {
+      fail(
+        `\`${baseRevision}\`'s coverage-baseline.json is schema ${baseBaseline.schemaVersion}, which this script cannot read.`,
+        '  Rebase onto the base branch so both sides share a format.',
+      );
+      baseBaseline = null;
+    }
     const inherited = new Set(
-      (readAtBase(POLICY_PATH)?.allowedBaselineDecreases ?? []).map((entry) =>
+      (readAtBase(POLICY_PATH)?.allowedBaselineRelaxations ?? []).map((entry) =>
         JSON.stringify(entry),
       ),
     );
-    for (const entry of policy.allowedBaselineDecreases) {
+    for (const entry of policy.allowedBaselineRelaxations) {
       if (!inherited.has(JSON.stringify(entry))) {
-        declaredDecreases.add(`${entry.path}:${entry.metric}`);
+        declaredRelaxations.add(`${entry.path}:${entry.metric}`);
       }
     }
   }
 
   if (baseBaseline) {
+    // The committed baseline is held to the same rule as a measurement: whatever
+    // the base revision recorded, the new numbers must be reachable from it by
+    // adding code at its rate and deleting code. Re-anchoring a tree that passes
+    // the check therefore always passes here, and nothing looser does.
     const regressions = [];
-    for (const metric of METRICS) {
+    for (const [index, metric] of METRICS.entries()) {
       const key = `total:${metric}`;
-      if (baseline.total[metric].pct < baseBaseline.total[metric].pct) {
-        observedDecreases.add(key);
-        if (!declaredDecreases.has(key)) {
+      const [covered, total] = baseline.total[metric];
+      const growth = baseBaseline.sizes
+        ? growthBetween(baseBaseline.sizes, baseline.sizes, index)
+        : Math.max(0, total - baseBaseline.total[metric][1]);
+      if (!judge(baseBaseline.total[metric], growth, total - covered).ok) {
+        observedRelaxations.add(key);
+        if (!declaredRelaxations.has(key)) {
           regressions.push(
-            `total ${metric}: baseline lowered from ${baseBaseline.total[metric].pct}% ` +
-              `to ${baseline.total[metric].pct}%`,
+            `total ${metric}: recorded ${covered}/${total} covered, which ` +
+              `${baseBaseline.total[metric][0]}/${baseBaseline.total[metric][1]} does not allow`,
           );
         }
       }
@@ -660,12 +858,15 @@ if (repositoryRoot === null) {
         continue;
       }
       for (const metric of METRICS) {
-        if (pin[metric] < basePin[metric]) {
+        const [covered, total] = pin[metric];
+        const growth = Math.max(0, total - basePin[metric][1]);
+        if (!judge(basePin[metric], growth, total - covered).ok) {
           const key = `${path}:${metric}`;
-          observedDecreases.add(key);
-          if (!declaredDecreases.has(key)) {
+          observedRelaxations.add(key);
+          if (!declaredRelaxations.has(key)) {
             regressions.push(
-              `${path}: ${metric} pin lowered from ${basePin[metric]}% to ${pin[metric]}%`,
+              `${path}: ${metric} pin recorded at ${covered}/${total} covered, which ` +
+                `${basePin[metric][0]}/${basePin[metric][1]} does not allow`,
             );
           }
         }
@@ -673,29 +874,30 @@ if (repositoryRoot === null) {
     }
     if (regressions.length > 0) {
       fail(
-        `The recorded baseline is lower than \`${baseRevision}\`'s in ${regressions.length} place(s):`,
+        `The recorded baseline is looser than \`${baseRevision}\`'s in ${regressions.length} place(s):`,
         `${regressions.map((entry) => `    ${entry}`).join('\n')}\n` +
-          '  Re-recording a lower baseline is how a coverage gate is switched off, so\n' +
-          '  each drop needs an entry in `allowedBaselineDecreases` giving the path,\n' +
-          '  the metric, the date and why the code legitimately shrank.',
+          '  Re-recording a looser baseline is how a coverage gate is switched off, so\n' +
+          '  each relaxation needs an entry in `allowedBaselineRelaxations` giving the\n' +
+          '  path (or `total`), the metric, the date and why more uncovered code is\n' +
+          '  being accepted on purpose. Deleting code never needs one.',
       );
     }
   }
 }
 
 /*
- * 11. An entry this change adds must excuse a decrease this change records.
+ * 11. An entry this change adds must excuse a relaxation this change records.
  *
  * Absent-check: otherwise an entry could land ahead of the drop it names and
- * excuse a later one. Inherited entries never reach `declaredDecreases`, so
+ * excuse a later one. Inherited entries never reach `declaredRelaxations`, so
  * this cannot fire on an allowance that merged before the change was written.
  */
-const unusedDecreases = [...declaredDecreases].filter((key) => !observedDecreases.has(key));
-if (unusedDecreases.length > 0) {
+const unusedRelaxations = [...declaredRelaxations].filter((key) => !observedRelaxations.has(key));
+if (unusedRelaxations.length > 0) {
   fail(
-    `${unusedDecreases.length} entr(ies) this change adds to \`allowedBaselineDecreases\` excuse a decrease that is not happening:`,
-    `${unusedDecreases.map((key) => `    ${key}`).join('\n')}\n` +
-      '  Remove them; an allowance excuses only the drop recorded in the same change.',
+    `${unusedRelaxations.length} entr(ies) this change adds to \`allowedBaselineRelaxations\` excuse a relaxation that is not happening:`,
+    `${unusedRelaxations.map((key) => `    ${key}`).join('\n')}\n` +
+      '  Remove them; an allowance excuses only the relaxation recorded in the same change.',
   );
 }
 
@@ -759,6 +961,9 @@ if (snapshotUsers.length !== policy.expectedCounts.snapshotAssertions) {
 /* Report                                                              */
 /* ------------------------------------------------------------------ */
 
+for (const warning of warnings)
+  console.warn(`Coverage policy warning (advisory here):\n  ${warning}\n`);
+
 if (failures.length > 0) {
   console.error('Frontend coverage policy FAILED\n');
   for (const failure of failures) console.error(`  ${failure}\n`);
@@ -778,6 +983,7 @@ console.log(
     `  ${criticalPaths.size} critical-path files at >= ${policy.criticalPathBar.statements}% statements / ` +
     `${policy.criticalPathBar.branches}% branches, ` +
     `${Object.keys(policy.belowBarExemptions).length} exempted.\n` +
-    `  Overall ${report.total.statements.pct}% statements against a recorded ` +
-    `${baseline.total.statements.pct}%, over ${reportedFiles.length} files.`,
+    `  Overall ${report.total.statements.covered}/${report.total.statements.total} statements covered ` +
+    `(${report.total.statements.pct}%) against a baseline of ` +
+    `${baseline.total.statements[0]}/${baseline.total.statements[1]}, over ${reportedFiles.length} files.`,
 );
