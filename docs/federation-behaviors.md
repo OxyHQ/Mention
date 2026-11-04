@@ -57,6 +57,49 @@ has moved to @handle" (`ProfileMovedNotice`). The actor resolver cannot see
 `movedTo`, so a profile refresh leaves the recorded move in place. Local follows
 are not moved; that is OxyHQ/oxy#1502.
 
+## A remote account that deleted itself
+
+Mastodon announces an account deletion as `Delete { actor: X, object: X }`.
+`handleDelete` (`inbox.service.ts`) tombstones the actor at once through the same
+`tombstoneGoneActor` a `410` on its next fetch would reach: the row is suspended
+and Oxy archives the linked identity. Only the verified signer can name itself, so
+a `Delete` whose object is some other actor matches nothing.
+
+## A remote account's pinned post, live
+
+A Mastodon pin is `Add { object: <status>, target: <featured> }` and an unpin is
+`Remove`. When the target is the signer's own stored `featuredUrl`,
+`handleFeaturedChange` re-reads that collection through `syncFeaturedPost`, so an
+unpin falls back to the account's previous pin exactly as its profile shows it.
+Any other collection (a Lemmy community's moderators or featured posts) is
+ignored. The engine hands `Add`/`Remove` to the app from `@oxy.so/federation`
+2.14.0; before that they are dropped as unhandled and the pin changes on the next
+profile sync.
+
+## A remote poll
+
+A `Question` (Mastodon, Pleroma, Misskey, GoToSocial) is stored as a post that
+carries a Mention poll, on every ingest road (`AP_POST_OBJECT_TYPES`). The shared
+builder reads the choices (`oneOf`, or `anyOf` for several), each choice's
+`replies.totalItems`, and the deadline (`closed`, else `endTime`; a poll with
+neither never ends) in `apPoll.ts`; `syncFederatedPoll` (`pollRepository.ts`) is
+the one writer. The origin's tally lives in `poll_options.federated_vote_count`
+(NULL on a local poll, whose tally is its `poll_votes` rows) and is what readers
+see. `votersCount` is not stored: a Mention poll shows per-option counts only.
+
+- **Tally refresh.** An `Update(Question)` without `updated` (Mastodon stamps it
+  only on an edit) overwrites the tallies and deadline and leaves the post as it
+  was. One with `updated` is an edit: the body is re-applied, and a poll whose
+  choices changed is replaced along with its ballots, as the origin resets them.
+- **A local vote** is recorded as a ballot, counted into the origin's tally until
+  the next refresh, and delivered to the poll's author as Mastodon's vote: a
+  `Create(Note)` whose `name` is the option and whose `inReplyTo` is the
+  `Question` (`federatePollVote`). The delivery policy accepts that shape only
+  for one of a mirrored remote poll's own options, so a vote cannot carry free
+  text. Best-effort, like a Like.
+- **A vote from elsewhere** on a remote poll we mirror is the origin's to count,
+  and is dropped.
+
 ## A federated post's own link card (FEP-8967)
 
 A server implementing FEP-8967 attaches each previewed link as `{ type: 'Link',

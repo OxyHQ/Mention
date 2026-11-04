@@ -757,6 +757,13 @@
       "when": 1793732633725,
       "tag": "0107_post_translated_languages_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1793750826771,
+      "tag": "0108_federated_poll_tallies",
+      "breakpoints": true
     }
   ]
 }

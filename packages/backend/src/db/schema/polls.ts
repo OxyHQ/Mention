@@ -64,9 +64,21 @@ export const pollOptions = pgTable(
     /** Preserves the order the author wrote the options in. */
     position: integer().notNull(),
     text: text().notNull(),
+    /**
+     * The origin's tally for an option of a FEDERATED poll (an ActivityPub
+     * `Question`'s `replies.totalItems`), refreshed by each `Update(Question)`.
+     * NULL on a local poll, whose tally is its `poll_votes` rows. A remote poll's
+     * voters live on their own servers, so its rows here are only local voters'
+     * ballots — which the origin counts too once their votes arrive there.
+     */
+    federatedVoteCount: integer(),
   },
   (t) => [
     check('poll_options_position_check', sql`${t.position} >= 0`),
+    check(
+      'poll_options_federated_vote_count_check',
+      sql`${t.federatedVoteCount} is null or ${t.federatedVoteCount} >= 0`,
+    ),
     unique('poll_options_poll_id_position_key').on(t.pollId, t.position),
   ],
 );

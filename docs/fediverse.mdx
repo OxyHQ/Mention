@@ -111,9 +111,10 @@ inbox request
   -> native model / Oxy graph update
 ```
 
-Follow, Accept, Reject, Undo, Create, Update, Delete, Like, and Announce
-activities are dispatched by the shared federation engine and the Mention
-content handlers. An inbound follow creates the Oxy graph edge before Mention
+Follow, Accept, Reject, Undo, Create, Update, Delete, Like, Announce, Add, and
+Remove activities are dispatched by the shared federation engine and the Mention
+content handlers. Remote polls, account self-deletion and live pin changes are in
+[federation behaviors](./federation-behaviors.md#a-remote-poll). An inbound follow creates the Oxy graph edge before Mention
 sends Accept; the protocol-side follow record is not the app's graph authority.
 
 Remote outbox discovery uses the actor's advertised outbox URL —

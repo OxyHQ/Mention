@@ -9,6 +9,7 @@ import {
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { loadPostRecord } from '../../db/posts/postRepository';
+import type { PostRecord } from '../../db/posts/postRecord';
 import { asc, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
@@ -1171,8 +1172,12 @@ export class FollowService {
    */
   private async resolveFederationTarget(originalPostId: string): Promise<FederationTarget | null> {
     const original = await loadPostRecord(originalPostId);
-    if (!original) return null;
+    return original ? this.federationTargetOf(original) : null;
+  }
 
+  /** {@link resolveFederationTarget} for a post already loaded. */
+  private async federationTargetOf(original: PostRecord): Promise<FederationTarget | null> {
+    const originalPostId = original.id;
     const activityId = original.federation?.activityId;
     if (activityId && isInstagramSourceActivityId(activityId)) {
       // Imported from Meta's Graph API: there is no ActivityPub object and no
@@ -1544,6 +1549,72 @@ export class FollowService {
       actor,
       object: objectUri,
     };
+  }
+
+  /**
+   * Build a poll vote as Mastodon sends one: a `Create` of a `Note` whose `name`
+   * is the chosen option and whose `inReplyTo` is the poll's `Question`,
+   * addressed to the poll's author only. The id is minted from the option, so a
+   * re-sent vote for the same choice is the same object.
+   */
+  buildPollVoteActivity(
+    voterUsername: string,
+    optionId: string,
+    optionText: string,
+    questionUri: string,
+    pollAuthorActorUri: string,
+  ): Record<string, unknown> {
+    const actor = actorUrl(voterUsername);
+    const voteId = `${actor}#votes/${optionId}`;
+    return {
+      '@context': AP_CONTEXT,
+      id: `${voteId}/activity`,
+      type: 'Create',
+      actor,
+      to: [pollAuthorActorUri],
+      object: {
+        id: voteId,
+        type: 'Note',
+        name: optionText,
+        attributedTo: actor,
+        to: [pollAuthorActorUri],
+        inReplyTo: questionUri,
+      },
+    };
+  }
+
+  /**
+   * Federate a local user's vote on a REMOTE poll to the poll's author, whose
+   * server counts it and publishes the new tally in its next `Update(Question)`.
+   * A vote on a local poll has nothing to deliver. Best-effort, like
+   * {@link federateLike}: the vote is already recorded here.
+   */
+  async federatePollVote(
+    pollPostId: string,
+    option: { id: string; text: string },
+    voterOxyUserId: string,
+  ): Promise<void> {
+    try {
+      if (!FEDERATION_ENABLED) return;
+      const post = await loadPostRecord(pollPostId);
+      if (!post?.federation?.actorUri) return;
+      if (!(await isFediverseSharingEnabled(voterOxyUserId))) return;
+      const target = await this.federationTargetOf(post);
+      if (!target?.authorInbox || !target.authorActorUri) return;
+      const voter = await getServiceOxyClient().users.get(voterOxyUserId);
+      const voterUsername = voter.username?.trim();
+      if (!voterUsername) return;
+      const activity = this.buildPollVoteActivity(
+        voterUsername,
+        option.id,
+        option.text,
+        target.objectUri,
+        target.authorActorUri,
+      );
+      await deliveryService.queueDelivery(activity, target.authorInbox, voterOxyUserId);
+    } catch (err) {
+      logger.error('Failed to federate poll vote:', err);
+    }
   }
 
   /** Build the matching `Undo(Like)` — re-mints the SAME Like id + object. */

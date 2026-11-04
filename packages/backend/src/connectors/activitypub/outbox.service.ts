@@ -21,6 +21,7 @@ import {
   replacePostContent,
   setFederatedAuthorPinnedPost,
 } from '../../db/posts/postRepository';
+import { syncFederatedPoll, type FederatedPollInput } from '../../db/polls/pollRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecordInput } from '../../db/posts/postRecord';
 import { extractActorUriFromActivityId } from '@oxy.so/federation';
 import {
@@ -902,6 +903,7 @@ export class OutboxSyncService {
       // back.
       const newDocs: PostRecordInput[] = [];
       const linkPreviewsByPostId = new Map<string, RemoteLinkPreview[]>();
+      const pollsByPostId = new Map<string, { poll: FederatedPollInput; author: string }>();
       // Federated replies inserted in this batch, to be linked into their threads
       // AFTER the raw insert (so a self-thread whose root + replies arrive in the
       // same batch resolve against the now-inserted parents). Captured separately
@@ -1090,6 +1092,7 @@ export class OutboxSyncService {
 
         const postId = uuidv7();
         if (linkPreviews.length > 0) linkPreviewsByPostId.set(postId, linkPreviews);
+        if (built.poll) pollsByPostId.set(postId, { poll: built.poll, author: resolvedOxyUserId });
         newDocs.push({
           // Assigned here rather than read back afterwards so the post-insert
           // metadata-enrich pass below can address each row directly.
@@ -1244,11 +1247,13 @@ export class OutboxSyncService {
         // the generated id lives.
         enrichIngestedPosts(inserted);
 
-        // FEP-8967 cards, for the INSERTED posts only — a row that lost the
-        // unique race belongs to whichever task stored it.
+        // FEP-8967 cards and polls, for the INSERTED posts only — a row that
+        // lost the unique race belongs to whichever task stored it.
         for (const post of inserted) {
           const previews = linkPreviewsByPostId.get(post.id);
           if (previews) await storeRemoteLinkPreviews(post.id, previews);
+          const poll = pollsByPostId.get(post.id);
+          if (poll) await syncFederatedPoll(post.id, poll.author, poll.poll);
         }
       }
 
@@ -1962,6 +1967,7 @@ export class OutboxSyncService {
         skipFederationDelivery: true,
         ...(published ? { createdAt: published, updatedAt: published } : {}),
       });
+      if (built.poll) await syncFederatedPoll(created.id, authorOxyUserId, built.poll);
       return created.id;
     } catch (err) {
       // Concurrent import may have created it — re-read to return the id.

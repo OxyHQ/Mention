@@ -1,6 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { asc, eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { pollOptions, polls } from '../../../db/schema/polls';
+import { loadPostRecord } from '../../../db/posts/postRepository';
 import {
   clearFederationScope,
   federationScope,
@@ -288,6 +291,104 @@ describe('handlePollVote — non-vote Creates fall through unchanged', () => {
     await inboxProcessingService.processInboxActivity(voteActivity('Blue'), ACTOR_URI);
 
     expect(mocks.recordVoteByOptionText).not.toHaveBeenCalled();
+  });
+});
+
+describe('a remote poll (an AP Question)', () => {
+  const QUESTION_URI = `${ACTOR_URI}/statuses/700`;
+  const ENDS = '2099-01-01T00:00:00.000Z';
+  const CLOSED = '2026-01-01T00:00:00.000Z';
+  const choices = (tabs: number, spaces: number) => [
+    { type: 'Note', name: 'Tabs', replies: { type: 'Collection', totalItems: tabs } },
+    { type: 'Note', name: 'Spaces', replies: { type: 'Collection', totalItems: spaces } },
+  ];
+  const question = (extra: Record<string, unknown>) => ({
+    id: QUESTION_URI,
+    type: 'Question',
+    attributedTo: ACTOR_URI,
+    content: '<p>Tabs or spaces?</p>',
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    ...extra,
+  });
+
+  async function storedPoll(postId: string) {
+    const pollId = (await loadPostRecord(postId))?.content.pollId;
+    if (!pollId) return null;
+    const [header] = await getDb().select().from(polls).where(eq(polls.id, pollId));
+    const options = await getDb()
+      .select({ text: pollOptions.text, votes: pollOptions.federatedVoteCount })
+      .from(pollOptions)
+      .where(eq(pollOptions.pollId, pollId))
+      .orderBy(asc(pollOptions.position));
+    return { endsAt: header?.endsAt.toISOString(), options };
+  }
+
+  it('imports its choices and tallies, and refreshes them from an Update(Question)', async () => {
+    await seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId: VOTER_OXY_ID });
+    await seedFollow(scope, {
+      remoteActorUri: ACTOR_URI,
+      direction: 'outbound',
+      status: 'accepted',
+    });
+    mocks.getOrFetchActor.mockResolvedValue({ uri: ACTOR_URI, oxyUserId: VOTER_OXY_ID });
+    mocks.postCreatorCreate.mockImplementation(() =>
+      seedPost(scope, {
+        oxyUserId: VOTER_OXY_ID,
+        federation: { activityId: QUESTION_URI, actorUri: ACTOR_URI },
+      }),
+    );
+
+    await inboxProcessingService.processInboxActivity(
+      {
+        id: `${QUESTION_URI}/activity`,
+        type: 'Create',
+        actor: ACTOR_URI,
+        object: question({ oneOf: choices(3, 5), endTime: ENDS, votersCount: 8 }),
+      },
+      ACTOR_URI,
+    );
+    const post = await mocks.postCreatorCreate.mock.results[0]?.value;
+    expect(await storedPoll(post.id)).toEqual({
+      endsAt: ENDS,
+      options: [
+        { text: 'Tabs', votes: 3 },
+        { text: 'Spaces', votes: 5 },
+      ],
+    });
+
+    // The origin's tally refresh: no `updated`, so the post itself is not edited.
+    await inboxProcessingService.processInboxActivity(
+      {
+        id: `${QUESTION_URI}#updates/1`,
+        type: 'Update',
+        actor: ACTOR_URI,
+        object: question({ oneOf: choices(4, 9), closed: CLOSED, votersCount: 13 }),
+      },
+      ACTOR_URI,
+    );
+    expect(await storedPoll(post.id)).toEqual({
+      endsAt: CLOSED,
+      options: [
+        { text: 'Tabs', votes: 4 },
+        { text: 'Spaces', votes: 9 },
+      ],
+    });
+    expect((await loadPostRecord(post.id))?.isEdited).toBeFalsy();
+  });
+
+  it("leaves a vote on a mirrored remote poll to the poll's origin", async () => {
+    await seedPost(scope, {
+      oxyUserId: OWNER_OXY_ID,
+      federation: { activityId: QUESTION_URI, actorUri: `${scope.origin}/users/carol` },
+      content: { variants: [{ source: 'author', text: 'Tabs or spaces?' }], pollId: POLL_ID },
+    });
+    const vote = voteActivity('Tabs');
+    vote.object.inReplyTo = QUESTION_URI;
+
+    await inboxProcessingService.processInboxActivity(vote, ACTOR_URI);
+
+    expect(mocks.recordVoteByOptionText).not.toHaveBeenCalled();
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
   });
 });
 

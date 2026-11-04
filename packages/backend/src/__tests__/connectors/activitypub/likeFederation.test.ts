@@ -65,7 +65,11 @@ vi.mock('../../../utils/mediaResolver', () => ({
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ safety: adultSafetyFixture(), getUserById }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUserById,
+    users: { get: getUserById },
+  }),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
@@ -77,6 +81,7 @@ import {
   seedPost,
 } from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
+import { syncFederatedPoll } from '../../../db/polls/pollRepository';
 
 const ALICE_ACTOR = 'https://mention.earth/ap/users/alice';
 const scope = federationScope('like-federation');
@@ -249,5 +254,47 @@ describe('federateUndoLike — Undo(Like) to origin', () => {
     await expect(
       followService.federateUndoLikeStrict({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice'),
     ).rejects.toThrow('undo queue unavailable');
+  });
+});
+
+describe('federatePollVote — a vote on a remote poll', () => {
+  it("sends Mastodon's vote shape to the poll author only; never free text or a local poll", async () => {
+    const remotePoll = await seedFederatedTarget();
+    await syncFederatedPoll(remotePoll, scope.user('orig-owner'), {
+      question: 'Red or blue?',
+      options: [
+        { text: 'Red', votes: 1 },
+        { text: 'Blue', votes: 2 },
+      ],
+      isMultipleChoice: false,
+      endsAt: new Date('2099-01-01T00:00:00.000Z'),
+    });
+
+    await followService.federatePollVote(remotePoll, { id: 'opt1', text: 'Blue' }, USER_LIKER_OXY);
+
+    expect(deliveredInboxes()).toEqual([ORIGIN_INBOX]);
+    const voter = 'https://mention.earth/ap/users/bob';
+    expect(deliveredActivity()).toMatchObject({
+      type: 'Create',
+      actor: voter,
+      to: [ORIGIN_ACTOR],
+      object: {
+        id: `${voter}#votes/opt1`,
+        type: 'Note',
+        name: 'Blue',
+        attributedTo: voter,
+        inReplyTo: ORIGIN_NOTE,
+      },
+    });
+
+    enqueueDelivery.mockClear();
+    // The delivery policy refuses a `name` that is not one of the poll's options.
+    await followService.federatePollVote(remotePoll, { id: 'opt3', text: 'Green' }, USER_LIKER_OXY);
+    await followService.federatePollVote(
+      await seedLocalTarget(),
+      { id: 'opt1', text: 'Blue' },
+      USER_LIKER_OXY,
+    );
+    expect(enqueueDelivery).not.toHaveBeenCalled();
   });
 });

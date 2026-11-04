@@ -11,6 +11,8 @@ import { loadPostSafetyDecisions } from '../postSafetyAccess';
 import { COMMUNITY_MODERATION_REASON_MAX_LENGTH } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
+import { pollOptions } from '../../db/schema/polls';
+import { and, eq } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../../connectors/shared/instagramSourceKey';
 import { resolveMentionCommunity } from '../publishAsAccount';
 
@@ -114,6 +116,28 @@ const communityBlock = z
   })
   .strict();
 
+/**
+ * A local user's vote on a REMOTE poll, in Mastodon's shape: a `Create` of a
+ * `Note` in reply to the poll whose only text is the chosen option's `name` —
+ * no `content`, media or tags. See {@link authorizePollVote}.
+ */
+const pollVote = z
+  .object({
+    ...controlFields,
+    type: z.literal('Create'),
+    object: z
+      .object({
+        id: iri,
+        type: z.literal('Note'),
+        name: z.string().min(1),
+        attributedTo: iri,
+        to: addressing,
+        inReplyTo: iri,
+      })
+      .strict(),
+  })
+  .strict();
+
 /** The actor URL a local account is minted with — the engine's builder, bound to our domains. */
 const { actor: actorUrl } = createUrlBuilders(
   config.federation.domain,
@@ -167,6 +191,24 @@ async function authorizeCommunityRelay(
   return (await filterFederatablePosts([post])).length === 1;
 }
 
+/**
+ * A vote publishes nothing of its author's but the option they chose, so it is
+ * authorized when it answers a mirrored REMOTE poll with one of that poll's own
+ * options — never as free text, and never toward a local post.
+ */
+async function authorizePollVote(vote: z.infer<typeof pollVote>): Promise<boolean> {
+  if (vote.object.attributedTo !== vote.actor) return false;
+  const poll = await postForObjectId(vote.object.inReplyTo);
+  const pollId = poll?.federation != null ? poll.content.pollId : undefined;
+  if (!pollId) return false;
+  const [option] = await getDb()
+    .select({ id: pollOptions.id })
+    .from(pollOptions)
+    .where(and(eq(pollOptions.pollId, pollId), eq(pollOptions.text, vote.object.name)))
+    .limit(1);
+  return option !== undefined;
+}
+
 /** The sender comes from the app's durable job, never from the activity's actor URL. */
 export async function authorizeFederationDelivery({
   activity,
@@ -188,6 +230,10 @@ export async function authorizeFederationDelivery({
       activity.target === activity.actor &&
       communityBlock.safeParse(activity).success
     );
+  }
+  if (activity.type === 'Create') {
+    const vote = pollVote.safeParse(activity);
+    if (vote.success) return authorizePollVote(vote.data);
   }
   const object = activity.object;
   if (

@@ -2097,7 +2097,12 @@ export class PostHydrationService {
           .from(pollsTable)
           .where(inArray(pollsTable.id, pollIds)),
         db
-          .select({ id: pollOptions.id, pollId: pollOptions.pollId, text: pollOptions.text })
+          .select({
+            id: pollOptions.id,
+            pollId: pollOptions.pollId,
+            text: pollOptions.text,
+            federatedVoteCount: pollOptions.federatedVoteCount,
+          })
           .from(pollOptions)
           .where(inArray(pollOptions.pollId, pollIds))
           .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
@@ -2117,11 +2122,11 @@ export class PostHydrationService {
           .groupBy(pollVotes.pollId, pollVotes.optionId),
       ]);
 
-      const optionsByPoll = new Map<string, Array<{ id: string; text: string }>>();
+      const optionsByPoll = new Map<string, typeof optionRows>();
       for (const option of optionRows) {
         const existing = optionsByPoll.get(option.pollId);
-        if (existing) existing.push({ id: option.id, text: option.text });
-        else optionsByPoll.set(option.pollId, [{ id: option.id, text: option.text }]);
+        if (existing) existing.push(option);
+        else optionsByPoll.set(option.pollId, [option]);
       }
 
       const votesByOption = new Map(voteRows.map((row) => [row.optionId, row]));
@@ -2132,7 +2137,9 @@ export class PostHydrationService {
         const userVotes: Record<string, string> = {};
         for (const [index, option] of options.entries()) {
           const tally = votesByOption.get(option.id);
-          votes[String(index)] = tally?.pollId === poll.id ? tally.voteCount : 0;
+          // A federated poll's tally is its origin's (`poll_options.federated_vote_count`).
+          votes[String(index)] =
+            option.federatedVoteCount ?? (tally?.pollId === poll.id ? tally.voteCount : 0);
           if (viewerId && tally?.pollId === poll.id && tally.viewerVoteCount > 0) {
             userVotes[viewerId] = String(index);
           }
