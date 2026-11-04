@@ -29,6 +29,8 @@ import {
   updatePostRecord,
 } from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
+import { refreshFederatedPostPoll, syncFederatedPoll } from '../../db/polls/pollRepository';
+import { extractApPoll } from './apPoll';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   extractLocalPostIdFromApUri,
@@ -135,7 +137,8 @@ function summarizeZodError(error: z.ZodError): string {
 
 /**
  * The CONTENT handlers for inbound ActivityPub activities (Create / Delete / Like
- * / Announce / Update, and a non-follow Undo) delivered to a local user's inbox.
+ * / Announce / Update / Add / Remove, and a non-follow Undo) delivered to a local
+ * user's inbox.
  *
  * The protocol DISPATCH + the follow lifecycle (Follow / Accept / Undo(Follow) /
  * Reject) now live in `@oxy.so/federation`'s inbound dispatcher (`inboundDispatcher`,
@@ -188,9 +191,32 @@ export class InboxProcessingService {
       case 'Undo':
         await this.handleUndoContent(activity.object, verifiedActorUri);
         break;
+      case 'Add':
+      case 'Remove':
+        await this.handleFeaturedChange(activity, verifiedActorUri);
+        break;
       default:
         logger.debug(`Unhandled content activity type: ${type}`);
     }
+  }
+
+  /**
+   * `Add` / `Remove` on the signer's own `featured` collection: Mastodon's pin
+   * and unpin, applied as they happen. The collection is re-read rather than
+   * the one status applied, so an unpin falls back to the author's previous pin
+   * exactly as their profile shows it. Any other collection (a Lemmy
+   * community's moderators or featured posts) is not modelled here.
+   */
+  private async handleFeaturedChange(
+    activity: Record<string, unknown>,
+    actorUri: string,
+  ): Promise<void> {
+    const target =
+      typeof activity.target === 'string' ? activity.target : asRecord(activity.target)?.id;
+    if (typeof target !== 'string') return;
+    const actor = await findActorByUri(actorUri);
+    if (!actor?.featuredUrl || actor.featuredUrl !== target) return;
+    await outboxSyncService.syncFeaturedPost(actor);
   }
 
   /**
@@ -501,7 +527,11 @@ export class InboxProcessingService {
     const pollId = post?.content.pollId;
     if (!pollId) return false; // reply to a non-poll post → let the normal path handle it
 
-    // Unambiguously a vote on our poll from here — consume it regardless of outcome.
+    // Unambiguously a vote from here — consume it regardless of outcome.
+
+    // A vote on a REMOTE poll we mirror is its origin's to count; the origin's
+    // next `Update(Question)` carries it in the tally.
+    if (post?.federation != null) return true;
 
     // The poll owner may have turned fediverse sharing off — drop it silently.
     if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
@@ -810,6 +840,7 @@ export class InboxProcessingService {
 
     // FEP-8967 cards: the fallback for a link Clarity has not described yet.
     if (linkPreviews.length > 0) await storeRemoteLinkPreviews(createdPost.id, linkPreviews);
+    if (built.poll) await syncFederatedPoll(createdPost.id, authorOxyUserId, built.poll);
 
     // The community relays the member's Create to its own followers.
     if (relayingCommunity) await relayToCommunityFollowers(relayingCommunity, activity);
@@ -870,6 +901,15 @@ export class InboxProcessingService {
     const objectId =
       typeof activity.object === 'string' ? activity.object : asRecord(activity.object)?.id;
     if (!objectId || typeof objectId !== 'string') return;
+
+    // An account deleting ITSELF (`Delete { actor: X, object: X }`): tombstoned
+    // now, as a 410 on the actor's next fetch would. Only the verified signer
+    // can name itself, so no other actor can delete an account.
+    if (objectId === actorUri) {
+      await actorService.tombstoneGoneActor(actorUri);
+      logger.debug('[Federation] tombstoned self-deleted actor');
+      return;
+    }
 
     // The object id is public and remote-controlled. Authorize directly against
     // the actor URI stamped when the post was ingested, using the actor whose
@@ -1106,6 +1146,14 @@ export class InboxProcessingService {
         await this.handleCreate(activity, actorUri, relayedBy);
         return;
       }
+      // A poll's tallies and close arrive as an `Update(Question)` that edits
+      // nothing else: it carries no `updated` (Mastodon stamps that only on an
+      // edit). It refreshes the poll and leaves the post as it was.
+      const pollChoices = object.updated === undefined ? extractApPoll(object) : null;
+      if (pollChoices && (await refreshFederatedPostPoll(existingPost.id, pollChoices))) {
+        logger.debug('[Federation] refreshed federated poll');
+        return;
+      }
       // Resolved unconditionally, and reused twice: the owner id, and the
       // re-classification's `actorType` (the RSS/bridge/bot-mirror spam signal —
       // leaving it undefined would score an edited bot mirror as ordinary prose).
@@ -1244,6 +1292,8 @@ export class InboxProcessingService {
       // The edit's cards replace the old ones — an edit that dropped a link, or
       // its card, takes the card with it.
       await storeRemoteLinkPreviews(existingPost.id, built.linkPreviews);
+      // An edit can add, change or remove the poll.
+      if (ownerOxyUserId) await syncFederatedPoll(existingPost.id, ownerOxyUserId, built.poll);
       // An edit can add links the original never had; warm their cards like any
       // newly-stored body, so the next reader is not the one who asks first.
       enrichIngestedPosts([

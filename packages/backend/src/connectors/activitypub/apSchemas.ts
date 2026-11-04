@@ -223,9 +223,10 @@ export const apNoteSchema = z.object(apContentObjectBase).loose();
  * One list, so a type cannot be accepted on one road and dropped on another.
  *
  * `Page` is what a community post is on Lemmy, PieFed and Mbin; its comments are
- * `Note`s. `Question` is not here: AP polls are not materialized.
+ * `Note`s. A `Question` is a poll: stored as a post carrying a Mention poll
+ * (`apPoll.ts`).
  */
-export const AP_POST_OBJECT_TYPES = ['Note', 'Article', 'Page'] as const;
+export const AP_POST_OBJECT_TYPES = ['Note', 'Article', 'Page', 'Question'] as const;
 
 /** Whether an AP `type` is one {@link AP_POST_OBJECT_TYPES} names. */
 export function isApPostObjectType(type: unknown): boolean {
@@ -435,6 +436,26 @@ export const apMoveSchema = z
   .loose();
 
 /**
+ * `Add` / `Remove` — `object` put into or taken out of the `target` collection.
+ * Mention reads one: a status pinned to or unpinned from its author's
+ * `featured` collection (Mastodon). The target is checked against the signer's
+ * own collection by the handler.
+ */
+const apCollectionTarget = z.union([z.string().min(1), z.object({ id: apId }).loose()]);
+
+export const apAddSchema = z
+  .object({
+    id: apId.optional(),
+    type: z.literal('Add'),
+    actor: z.union([z.string(), apLinkEntrySchema]).optional(),
+    object: apObjectOrIri,
+    target: apCollectionTarget,
+  })
+  .loose();
+
+export const apRemoveSchema = apAddSchema.extend({ type: z.literal('Remove') });
+
+/**
  * Discriminated-ish union of every inbound activity type the inbox dispatches
  * on. `type` is normalized to its primary string before discrimination because
  * remote servers may send `type` as an array; we therefore use a plain `union`
@@ -452,6 +473,8 @@ export const apInboundActivitySchema = z.union([
   apRejectSchema,
   apUndoSchema,
   apMoveSchema,
+  apAddSchema,
+  apRemoveSchema,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -542,7 +565,7 @@ function toResult<T>(parsed: z.ZodSafeParseResult<T>): ApParseResult<T> {
 
 /**
  * Validate an inbound inbox activity (Create/Update/Delete/Announce/Like/
- * Follow/Accept/Reject/Undo/Move). Returns a discriminated result and NEVER throws,
+ * Follow/Accept/Reject/Undo/Move/Add/Remove). Returns a discriminated result and NEVER throws,
  * because the input is arbitrary remote JSON.
  */
 export function parseInboundActivity(raw: unknown): ApParseResult<ApInboundActivity> {

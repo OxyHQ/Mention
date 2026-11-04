@@ -11,7 +11,13 @@ import { eq } from 'drizzle-orm';
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
-import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
+import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedPost,
+} from '../../helpers/federationFixtures';
 
 /** An actor's pinned posts arrive as its `featured` collection. */
 const scope = federationScope('featured-post-sync');
@@ -65,6 +71,43 @@ describe('OutboxSyncService.syncFeaturedPost', () => {
 
     mocks.signedFetch.mockResolvedValue(collection([]));
     await outboxSyncService.syncFeaturedPost(actor);
+    expect(await pinned(note.id)).toBe(false);
+  });
+});
+
+describe('an inbound Add / Remove on the featured collection', () => {
+  it("pins and unpins live from the signer's own collection, and ignores any other", async () => {
+    const author = scope.user('alice');
+    const featuredUrl = `${ACTOR}/collections/featured`;
+    await seedActor(scope, { username: 'alice', uri: ACTOR, featuredUrl, oxyUserId: author });
+    const note = await seedPost(scope, {
+      oxyUserId: author,
+      federation: { activityId: NOTE, actorUri: ACTOR },
+    });
+    vi.spyOn(
+      outboxSyncService as unknown as { ensureFederatedNote: () => Promise<string | null> },
+      'ensureFederatedNote',
+    ).mockResolvedValue(note.id);
+    const activity = (type: 'Add' | 'Remove', target: string) => ({
+      id: `${ACTOR}#${type}`,
+      type,
+      actor: ACTOR,
+      object: NOTE,
+      target,
+    });
+
+    mocks.signedFetch.mockResolvedValue(collection([NOTE]));
+    await inboxProcessingService.onContentActivity(
+      activity('Add', `${ACTOR}/collections/moderators`),
+      ACTOR,
+    );
+    expect(await pinned(note.id)).toBe(false);
+
+    await inboxProcessingService.onContentActivity(activity('Add', featuredUrl), ACTOR);
+    expect(await pinned(note.id)).toBe(true);
+
+    mocks.signedFetch.mockResolvedValue(collection([]));
+    await inboxProcessingService.onContentActivity(activity('Remove', featuredUrl), ACTOR);
     expect(await pinned(note.id)).toBe(false);
   });
 });

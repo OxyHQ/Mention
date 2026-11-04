@@ -28,7 +28,8 @@ vi.mock('../../../connectors/identity', () => ({
   resolveOxyExternalUser: vi.fn(),
 }));
 
-vi.mock('../../../connectors/activitypub/helpers', () => ({
+vi.mock('../../../connectors/activitypub/helpers', async (importActual) => ({
+  ...(await importActual<typeof import('../../../connectors/activitypub/helpers')>()),
   signedFetch: mocks.signedFetch,
   firstStringUrl: vi.fn(),
   normalizeFederatedAcct: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('../../../connectors/activitypub/helpers', () => ({
 }));
 
 import { actorService } from '../../../connectors/activitypub/actor.service';
+import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
 const ACTOR_URI = `${scope.origin}/users/ghost`;
 
@@ -120,5 +122,26 @@ describe('fetchRemoteActor 410 detection', () => {
 
     expect(tombstoneSpy).not.toHaveBeenCalled();
     tombstoneSpy.mockRestore();
+  });
+});
+
+describe('an inbound Delete of the actor itself', () => {
+  const deleteOf = (object: string) => ({
+    id: `${ACTOR_URI}#delete`,
+    type: 'Delete',
+    actor: ACTOR_URI,
+    object,
+  });
+
+  it('tombstones the signer that deletes itself, and no actor another one names', async () => {
+    await seedActor(scope, { username: 'ghost', uri: ACTOR_URI, oxyUserId: 'oxy-ghost' });
+    const other = `${scope.origin}/users/mallory`;
+
+    await inboxProcessingService.onContentActivity(deleteOf(ACTOR_URI), other);
+    expect((await readActor(ACTOR_URI))?.suspended).toBe(false);
+
+    await inboxProcessingService.onContentActivity(deleteOf(ACTOR_URI), ACTOR_URI);
+    expect((await readActor(ACTOR_URI))?.suspended).toBe(true);
+    expect(mocks.reportFederatedActorGone).toHaveBeenCalledWith('oxy-ghost');
   });
 });

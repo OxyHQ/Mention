@@ -19,6 +19,7 @@ import {
   type PollSummary,
 } from '../services/PollVoteService';
 import { postHydrationService } from '../services/PostHydrationService';
+import { followService } from '../connectors/activitypub/follow.service';
 import type { PollDetail, PollResultOption, PollResults } from '@mention/shared-types';
 
 /** Default poll lifetime when the client does not supply `endsAt`. */
@@ -414,6 +415,11 @@ class PollsController {
         userId,
       );
       if (result.ok) {
+        // A remote poll is counted by its origin: the vote goes there too.
+        const option = result.poll.options.find(({ id }) => id === parsedVote.data.optionId);
+        if (result.poll.postId && option) {
+          void followService.federatePollVote(result.poll.postId, option, userId);
+        }
         return res.json({ success: true, data: serializePoll(result.poll) });
       }
 

@@ -11,6 +11,8 @@ import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import type { PostRecordFederation } from '../../db/posts/postRecord';
+import type { FederatedPollInput } from '../../db/polls/pollRepository';
+import { extractApPoll } from './apPoll';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { isMediaLinkAttachment, type ApAttachment } from './apMedia';
@@ -118,6 +120,12 @@ export interface BuiltFederatedNoteContent {
    * inventing a tag for them from a detector's guess would federate a lie.
    */
   variants: PostContentVariant[];
+  /**
+   * The poll a `Question` carries ({@link extractApPoll}), its question being
+   * the primary body. Stored by every ingest path through `syncFederatedPoll`
+   * once the post exists.
+   */
+  poll: FederatedPollInput | null;
   /** Internal decision input; never persisted or exposed in a post DTO. */
   customEmojiRemoved: boolean;
 }
@@ -623,8 +631,10 @@ async function assembleFederatedNoteContent(
     buildApAuthorVariants(source, primaryTag, qualifiedText, media.length > 0, customEmojiNames),
   );
 
+  const primaryText = variants[0]?.text ?? '';
+  const pollChoices = extractApPoll(object);
   return {
-    text: variants[0]?.text ?? '',
+    text: primaryText,
     media,
     attachments,
     hashtags,
@@ -634,6 +644,7 @@ async function assembleFederatedNoteContent(
     linkPreviews: extractApLinkPreviews(object),
     sensitive,
     variants,
+    poll: pollChoices ? { ...pollChoices, question: primaryText } : null,
     customEmojiRemoved,
   };
 }
@@ -650,10 +661,9 @@ async function assembleFederatedNoteContent(
  * intentionally KEPT: the CW label is meaningful content the frontend renders. So
  * is a title-only `Page`: a Lemmy link post is a title and a link.
  *
- * Polls are not extracted from AP here (federation does not materialize AP
- * `Question` options into a Mention poll), so the guard does not consider them —
- * a poll note always carries its question in `content`, which the text check
- * already covers.
+ * A `Question`'s poll ({@link BuiltFederatedNoteContent.poll}) is not
+ * considered by the guard: it is stored after the post, and a poll note carries
+ * its question in `content`, which the text check already covers.
  */
 export async function buildFederatedNoteContent(
   object: Record<string, unknown>,

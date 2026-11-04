@@ -41,6 +41,8 @@ interface SeedPollOptions {
   isAnonymous?: boolean;
   endsAt?: Date;
   options?: string[];
+  /** A federated poll's origin tallies, aligned with `options`. */
+  federatedVoteCounts?: number[];
 }
 
 async function seedPoll(overrides: SeedPollOptions = {}) {
@@ -59,7 +61,14 @@ async function seedPoll(overrides: SeedPollOptions = {}) {
   const texts = overrides.options ?? ['Red', 'Blue'];
   const options = await db
     .insert(pollOptions)
-    .values(texts.map((text, position) => ({ pollId: poll.id, position, text })))
+    .values(
+      texts.map((text, position) => ({
+        pollId: poll.id,
+        position,
+        text,
+        federatedVoteCount: overrides.federatedVoteCounts?.[position] ?? null,
+      })),
+    )
     .returning();
   return { poll, options };
 }
@@ -206,6 +215,20 @@ describe('recordVoteByOptionId — the local HTTP vote route', () => {
         reason: 'poll_not_found',
       });
     }
+  });
+});
+
+describe('a federated poll', () => {
+  it("shows its origin's tally, counting a local ballot until the origin's next update", async () => {
+    const { poll, options } = await seedPoll({ federatedVoteCounts: [3, 5] });
+
+    const result = await pollVoteService.recordVoteByOptionId(
+      poll.id,
+      options[1].id,
+      `voter-${randomUUID()}`,
+    );
+
+    expect(result.ok && result.poll.options.map((option) => option.voteCount)).toEqual([3, 6]);
   });
 });
 

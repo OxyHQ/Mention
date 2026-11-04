@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, isNotNull, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { pollOptions, pollVotes, polls } from '../db/schema/polls';
 
@@ -72,13 +72,24 @@ export async function loadPollHeader(
   return header ?? null;
 }
 
+/** One option as stored: `federatedVoteCount` is the origin's tally of a federated poll. */
+interface StoredPollOption {
+  id: string;
+  text: string;
+  federatedVoteCount: number | null;
+}
+
 /** A poll's options in author order. Bounded by option count, never by vote count. */
 async function loadPollOptions(
   db: DatabaseOrTransaction,
   pollId: string,
-): Promise<Array<{ id: string; text: string }>> {
+): Promise<StoredPollOption[]> {
   return db
-    .select({ id: pollOptions.id, text: pollOptions.text })
+    .select({
+      id: pollOptions.id,
+      text: pollOptions.text,
+      federatedVoteCount: pollOptions.federatedVoteCount,
+    })
     .from(pollOptions)
     .where(eq(pollOptions.pollId, pollId))
     .orderBy(asc(pollOptions.position));
@@ -118,7 +129,7 @@ async function loadPollVoteSummary(
 /** Merge a header, its options and a vote summary into one {@link PollSummary}. No I/O. */
 function composePollSummary(
   header: PollHeader,
-  options: Array<{ id: string; text: string }>,
+  options: StoredPollOption[],
   counts: Map<string, number>,
   viewerOptionIds: string[],
 ): PollSummary {
@@ -127,7 +138,7 @@ function composePollSummary(
     options: options.map((option) => ({
       id: option.id,
       text: option.text,
-      voteCount: counts.get(option.id) ?? 0,
+      voteCount: option.federatedVoteCount ?? counts.get(option.id) ?? 0,
     })),
     viewerSelectedOptionIds: viewerOptionIds,
   };
@@ -153,7 +164,7 @@ export async function loadPollSummary(
 }
 
 /** Picks the option a caller meant out of a poll's ordered option list. */
-type OptionSelector = (options: Array<{ id: string; text: string }>) => { id: string } | undefined;
+type OptionSelector = (options: StoredPollOption[]) => { id: string } | undefined;
 
 /**
  * The SINGLE authority for recording a vote on a poll — shared by the local HTTP
@@ -256,9 +267,20 @@ class PollVoteService {
         pollId,
         userId: voterId,
       });
+      // A federated poll shows its origin's tally, which counts this ballot only
+      // once the vote reaches the origin; until its next `Update(Question)`
+      // overwrites the tally, the ballot is counted here (as Mastodon does).
+      const [counted] = await tx
+        .update(pollOptions)
+        .set({ federatedVoteCount: sql`${pollOptions.federatedVoteCount} + 1` })
+        .where(and(eq(pollOptions.id, option.id), isNotNull(pollOptions.federatedVoteCount)))
+        .returning({ federatedVoteCount: pollOptions.federatedVoteCount });
+      const tallied = counted
+        ? options.map((o) => (o.id === option.id ? { ...o, ...counted } : o))
+        : options;
 
       const { counts, viewerOptionIds } = await loadPollVoteSummary(tx, pollId, voterId);
-      return { ok: true, poll: composePollSummary(header, options, counts, viewerOptionIds) };
+      return { ok: true, poll: composePollSummary(header, tallied, counts, viewerOptionIds) };
     });
   }
 }
