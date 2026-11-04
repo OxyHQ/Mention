@@ -30,9 +30,10 @@ export function buildSavedPostsRequestConfig(request: SavedPostsRequest): {
   params: Record<string, unknown>;
   signal?: AbortSignal;
 } {
+  const limit = request.limit || 20;
   const params: Record<string, unknown> = request.cursor
-    ? { cursor: request.cursor, limit: request.limit || 20 }
-    : { page: request.page || 1, limit: request.limit || 20 };
+    ? { cursor: request.cursor, limit }
+    : { page: request.page || 1, limit };
 
   if (request.search) {
     params.search = request.search;
