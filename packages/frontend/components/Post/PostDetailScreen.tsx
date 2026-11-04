@@ -57,11 +57,6 @@ const postDetailLogger = createLogger('PostDetail');
 /** Breathing room (px) below the last reply, before the pinned composer / screen edge. */
 const FEED_BOTTOM_PADDING = 16;
 
-// Hard cap on how far up the reply chain we walk when building the ancestor
-// thread, guarding against a runaway/cyclic chain. Threads are short in practice
-// (a handful of hops); this is purely a safety ceiling.
-const MAX_ANCESTOR_DEPTH = 30;
-
 interface PostDetailScreenProps {
   postId: string;
   onBack?: () => void;
@@ -317,52 +312,18 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
         });
     };
 
-    // Walk the reply chain UP from the focused post to the root, building the
-    // ordered ancestor array (root first … immediate parent last). Each hop
-    // reads the shared cache first and only fetches on a miss, so a fully
-    // cached chain resolves in one tight pass. Resilient + bounded:
-    //   - a missing/deleted ancestor just stops the chain (render what loaded);
-    //   - a cycle (id already visited) breaks the walk;
-    //   - the walk is capped at MAX_ANCESTOR_DEPTH hops.
+    // The reply chain above the focused post, root first. The cached prefix is
+    // already on screen (initial state above); `loadPostAncestors` answers the
+    // rest in at most one request, and none when the cache reaches the root. An
+    // ancestor the viewer may not read ends the chain (render what loaded).
     // Boosts have no `parentPostId`, so they yield an empty chain — the boost
     // renders standalone with its original embedded (reply targets resolve to
     // the original via `boostOriginalId`, unchanged).
-    const loadAncestors = async (startParentId: string | undefined) => {
-      if (!startParentId) {
-        if (!cancelled) setAncestors([]);
-        return;
-      }
-      const chain: PostDetailEntity[] = []; // bottom-up: immediate parent first
-      const visited = new Set<string>([postId]);
-      let nextId: string | undefined = startParentId;
-      let depth = 0;
-
-      while (nextId && depth < MAX_ANCESTOR_DEPTH) {
-        if (visited.has(nextId)) break; // cycle guard
-        visited.add(nextId);
-
-        let ancestor: PostDetailEntity | null = requiresFreshReads
-          ? null
-          : usePostsStore.getState().getPostFromDb(nextId);
-        if (!ancestor) {
-          try {
-            ancestor = await (requiresFreshReads
-              ? revalidatePostById(nextId)
-              : getPostById(nextId));
-          } catch {
-            // Missing/deleted ancestor — stop and keep what we have.
-            break;
-          }
-        }
-        if (cancelled) return;
-        if (!ancestor) break;
-
-        chain.push(ancestor);
-        nextId = ancestor.parentPostId ? String(ancestor.parentPostId) : undefined;
-        depth++;
-      }
-
-      if (!cancelled) setAncestors(chain.reverse()); // root first
+    const loadAncestors = async (startParentId: string | null | undefined) => {
+      const chain = await usePostsStore
+        .getState()
+        .loadPostAncestors(postId, startParentId, { fresh: requiresFreshReads });
+      if (!cancelled) setAncestors(chain as PostDetailEntity[]);
     };
 
     const run = async () => {

@@ -18,6 +18,7 @@ import { usePostsStore } from '../postsStore';
 
 const mockPosts = new Map<string, FeedItem>();
 const mockGetPostById = jest.fn<Promise<FeedItem>, [string, AbortSignal | undefined]>();
+const mockGetPostsByIds = jest.fn<Promise<FeedItem[]>, [readonly string[]]>();
 
 jest.mock('@/db', () => ({
   upsertPost: (post: FeedItem) => {
@@ -27,6 +28,8 @@ jest.mock('@/db', () => ({
     for (const post of posts) if (post.id) mockPosts.set(post.id, post);
   },
   getPostById: (postId: string) => mockPosts.get(postId) ?? null,
+  getPostsByIds: (ids: string[]) =>
+    Object.fromEntries(ids.flatMap((id) => (mockPosts.has(id) ? [[id, mockPosts.get(id)]] : []))),
   getPostIdsReferencing: (ids: string[]) =>
     [...mockPosts.values()]
       .filter((post) =>
@@ -60,6 +63,7 @@ jest.mock('@/db', () => ({
 jest.mock('@/services/feedService', () => ({
   feedService: {
     getPostById: (postId: string, signal?: AbortSignal) => mockGetPostById(postId, signal),
+    getPostsByIds: (ids: readonly string[]) => mockGetPostsByIds(ids),
   },
 }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
@@ -236,5 +240,34 @@ describe('postsStore single-post reads', () => {
     expect(await beforeSwitch).toBeNull();
     expect(await readAgain).toMatchObject({ id: 'post-1' });
     expect(mockGetPostById).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('postsStore batch reads', () => {
+  beforeEach(() => {
+    mockPosts.clear();
+    mockGetPostsByIds.mockReset();
+    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+  });
+
+  it('reads only the uncached posts, in one request, and keeps the order asked for', async () => {
+    mockPosts.set('cached', makePost('cached'));
+    // `hidden` is refused by the server, so it is simply absent.
+    mockGetPostsByIds.mockResolvedValue([makePost('fresh')]);
+
+    const posts = await usePostsStore.getState().getPostsByIds(['fresh', 'cached', 'hidden']);
+
+    expect(mockGetPostsByIds).toHaveBeenCalledTimes(1);
+    expect(mockGetPostsByIds).toHaveBeenCalledWith(['fresh', 'hidden']);
+    expect(posts.map((post) => post.id)).toEqual(['fresh', 'cached']);
+    expect(mockPosts.has('fresh')).toBe(true);
+  });
+
+  it('asks nothing when every post is cached', async () => {
+    mockPosts.set('a', makePost('a'));
+    expect((await usePostsStore.getState().getPostsByIds(['a'])).map((post) => post.id)).toEqual([
+      'a',
+    ]);
+    expect(mockGetPostsByIds).not.toHaveBeenCalled();
   });
 });

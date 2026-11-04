@@ -7,13 +7,12 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
-import { useAuth } from '@oxy.so/services/ui/client';
 
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { SEO } from '@/components/SEO';
 import { feedService } from '@/services/feedService';
-import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { usePostSelector } from '@/stores/postsStore';
+import { publicQueryKeys } from '@/lib/viewerQueryKeys';
+import { useStorePost } from '@/hooks/useStorePost';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { EmptyState } from '@/components/common/EmptyState';
 
@@ -34,7 +33,6 @@ export default function PostCorrectionsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const postId = String(id);
   const { t } = useTranslation();
-  const { user } = useAuth();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: publicQueryKeys.postCorrections(postId),
@@ -42,19 +40,12 @@ export default function PostCorrectionsScreen() {
     enabled: Boolean(postId),
   });
 
-  // The live post supplies the newest version, and the shared post store is
-  // preferred over the query for it: an edit made in the composer writes the
-  // updated post straight back there (`cachePosts`) and nowhere else, so
-  // arriving here from a correction shows the text that was just saved. The
-  // query is only the loader for the case the store has nothing — a link
-  // opened cold — which is why it is disabled whenever the store answers.
-  const cachedPost = usePostSelector(postId);
-  const { data: fetchedPost } = useQuery({
-    queryKey: viewerQueryKeys.post(user?.id, postId),
-    queryFn: () => feedService.getPostById(postId),
-    enabled: Boolean(postId) && !cachedPost,
-  });
-  const currentText = (cachedPost ?? fetchedPost)?.content?.text ?? '';
+  // The live post supplies the newest version from the shared post store: an
+  // edit made in the composer writes the updated post straight back there
+  // (`cachePosts`), so arriving here from a correction shows the text that was
+  // just saved. A link opened cold loads the post into the same store.
+  const post = useStorePost(postId);
+  const currentText = post?.content?.text ?? '';
 
   const corrections = data?.corrections ?? [];
   // `total` counts corrections MADE and never goes down; retention bounds how

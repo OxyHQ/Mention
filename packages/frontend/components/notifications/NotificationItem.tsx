@@ -3,7 +3,7 @@ import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
@@ -14,7 +14,6 @@ import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { queryKeys as sdkQueryKeys } from '@oxy.so/services/ui/client';
-import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { notificationSubjectHref } from '@/utils/notificationRoute';
@@ -45,7 +44,7 @@ import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { useStorePost } from '@/hooks/useStorePost';
 
 const logger = createLogger('NotificationItem');
 
@@ -337,7 +336,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const theme = useTheme();
   const surfaceFill = useSurfaceFill();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
   // Accepting/declining an invite mutates the post's authorship, so the updated
   // post must be propagated here — updating only the React Query post-detail cache
@@ -407,14 +405,9 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     [item.actors, resolvedPrimary, queryClient, knownIdentities],
   );
 
-  // Collab invites carry no backend preview — fetch the invited post's text via
-  // React Query (replaces the old useEffect + useState load).
-  const { data: collabPost } = useQuery({
-    queryKey: viewerQueryKeys.post(user?.id, postId),
-    queryFn: () => feedService.getPostById(postId),
-    enabled: isCollabInvite && !!postId,
-    staleTime: 60_000,
-  });
+  // Collab invites carry no backend preview — read the invited post through the
+  // shared posts store, fresh, since the invite state may postdate a cached copy.
+  const collabPost = useStorePost(postId, { enabled: isCollabInvite, fresh: true });
 
   // Whether THIS viewer's invite is still actionable, read from the invited post's
   // authoritative `viewerState` (derived server-side from the post's authorship —
@@ -608,11 +601,9 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         if (!isCurrentIntent(intent)) return false;
         if (!result.success) throw new Error('Collaboration was not accepted');
         if (result.post) {
-          // Flip this row's own source of truth (drives the resolved state) AND
-          // propagate the newly-accepted co-authorship to every feed + the post
-          // detail via the shared posts store, so the collaboration shows
-          // everywhere without a manual refresh.
-          queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
+          // The shared posts store is this row's source of truth (drives the
+          // resolved state) and every feed's + the post detail's, so the
+          // collaboration shows everywhere without a manual refresh.
           cachePosts([result.post]);
         }
         onMarkAsRead(item.notificationIds, intent);
@@ -635,16 +626,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         setActionLoading(false);
       }
     },
-    [
-      postId,
-      queryClient,
-      cachePosts,
-      onMarkAsRead,
-      item.notificationIds,
-      t,
-      user?.id,
-      isCurrentIntent,
-    ],
+    [postId, cachePosts, onMarkAsRead, item.notificationIds, t, isCurrentIntent],
   );
 
   /** Resolves `true` once the invite is declined. */
@@ -660,7 +642,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
           // Flip this row to the resolved state and reflect the declined status on
           // any cached copy of the post (private posts return no post here, in which
           // case the actionable UI is simply dropped — the viewer lost view access).
-          queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
           cachePosts([result.post]);
         }
         onMarkAsRead(item.notificationIds, intent);
@@ -677,16 +658,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         setActionLoading(false);
       }
     },
-    [
-      postId,
-      queryClient,
-      cachePosts,
-      onMarkAsRead,
-      item.notificationIds,
-      t,
-      user?.id,
-      isCurrentIntent,
-    ],
+    [postId, cachePosts, onMarkAsRead, item.notificationIds, t, isCurrentIntent],
   );
 
   const openAcceptSheet = useCallback(() => {

@@ -1188,6 +1188,27 @@ export const MAX_POST_DOCUMENTS = 4;
 /** Most post ids one `POST /posts/documents` call accepts. */
 export const MAX_POST_DOCUMENTS_BATCH = 50;
 
+/**
+ * Most ancestors `GET /posts/:id/ancestors` walks up a reply chain: the
+ * post-detail thread's safety ceiling against a runaway or cyclic chain.
+ */
+export const MAX_POST_ANCESTORS = 30;
+
+/** Most post ids one `GET /posts/batch?ids=` read accepts. */
+export const MAX_POST_BATCH = 25;
+
+/**
+ * `GET /posts/:id/ancestors` and `GET /posts/batch` response.
+ *
+ * Ancestors are ordered root first, ending at the immediate parent, and stop at
+ * the first one this viewer may not read. A batch keeps the requested order and
+ * omits posts the viewer may not read or that do not exist — the two are not
+ * distinguishable, exactly as `GET /posts/:id` answers both with a 404.
+ */
+export interface PostListResponse {
+  items: HydratedPost[];
+}
+
 /** `POST /posts/documents` body: the posts whose cards were still pending. */
 export interface PostDocumentsRequest {
   ids: string[];

@@ -11,6 +11,9 @@ export function supervisedActionForRequest(
   if (method === 'GET' && /^\/articles\/[^/]+$/.test(path)) return 'content';
   if (path === '/posts') return 'content';
   if (method === 'GET' && /^\/posts\/[^/]+\/edit-source$/.test(path)) return 'content';
+  // A post's reply chain: the same hydration and ACL as reading each ancestor by
+  // `/posts/:id`, which the chain replaces.
+  if (method === 'GET' && /^\/posts\/[^/]+\/ancestors$/.test(path)) return 'content';
   if (method === 'POST' && path === '/posts/thread') return 'content';
   if (method === 'GET' && /^\/posts\/(hashtag|topic)\/[^/]+$/.test(path)) return 'content';
   // These handlers expose assembled posts; unreviewed helpers (corrections,

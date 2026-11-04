@@ -39,6 +39,7 @@ import {
   findPostRecords,
   insertPostRecord,
   insertPostRecords,
+  loadAncestorPostIds,
   loadPostRecord,
   loadPostRecords,
   replacePostAuthorship,
@@ -568,6 +569,24 @@ describe('reads the rest of the port depends on', () => {
     const second = await create();
     const records = await loadPostRecords([second.id, 'no-such-post', first.id]);
     expect(records.map((record) => record.id)).toEqual([second.id, first.id]);
+  });
+
+  it('walks a reply chain upwards in one query, bounded and cycle-safe', async () => {
+    const root = await create();
+    const middle = await create({ parentPostId: root.id });
+    const leaf = await create({ parentPostId: middle.id });
+
+    expect(await loadAncestorPostIds(leaf.id, 30)).toEqual([middle.id, root.id]);
+    expect(await loadAncestorPostIds(leaf.id, 1)).toEqual([middle.id]);
+    expect(await loadAncestorPostIds(root.id, 30)).toEqual([]);
+
+    // A chain that loops back on itself stops at the first repeat.
+    await db
+      .update(posts)
+      .set({ parentPostId: leaf.id, isReply: true })
+      .where(eq(posts.id, root.id));
+    expect(await loadAncestorPostIds(leaf.id, 30)).toEqual([middle.id, root.id]);
+    await db.update(posts).set({ parentPostId: null }).where(eq(posts.id, root.id));
   });
 
   it('counts quotes per post in one aggregate', async () => {

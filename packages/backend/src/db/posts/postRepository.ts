@@ -962,6 +962,45 @@ export async function loadPostRecord(
   return record ?? null;
 }
 
+/**
+ * The ids of the posts above `postId` in its reply chain, immediate parent first,
+ * at most `maxDepth` of them — ONE recursive query instead of a read per hop.
+ *
+ * Says nothing about who may read them: the caller hydrates the chain and cuts it
+ * at the first post the viewer may not read. The walk stops at a missing parent,
+ * at the depth ceiling, and at the first id it has already seen (a cyclic chain).
+ * The CTE spells its own columns rather than interpolating drizzle's (trap 1 in
+ * the module doc).
+ */
+export async function loadAncestorPostIds(
+  postId: string,
+  maxDepth: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<string[]> {
+  if (!postId || maxDepth <= 0) return [];
+  const rows = await db.execute<{ id: string }>(sql`
+    with recursive chain(id, parent_post_id, depth) as (
+      select a.id, a.parent_post_id, 1
+      from ${posts} a
+      where a.id = (select s.parent_post_id from ${posts} s where s.id = ${postId})
+      union all
+      select a.id, a.parent_post_id, c.depth + 1
+      from chain c
+      join ${posts} a on a.id = c.parent_post_id
+      where c.depth < ${maxDepth}
+    )
+    select id from chain order by depth
+  `);
+  const seen = new Set<string>([postId]);
+  const ids: string[] = [];
+  for (const row of rows) {
+    if (seen.has(row.id)) break;
+    seen.add(row.id);
+    ids.push(row.id);
+  }
+  return ids;
+}
+
 /** The unpublished states a claim can take a post out of. */
 export type ClaimablePostStatus = 'scheduled' | 'draft';
 

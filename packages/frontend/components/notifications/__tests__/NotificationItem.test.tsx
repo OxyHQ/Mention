@@ -18,7 +18,6 @@ import {
 } from '@mention/shared-types/post';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { TRawNotification } from '@/types/validation';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { NotificationItem } from '../NotificationItem';
 
@@ -50,21 +49,40 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 
 const mockAccept = jest.fn();
 const mockDecline = jest.fn();
-const mockGetPostById = jest.fn();
 jest.mock('@/services/feedService', () => ({
   feedService: {
     acceptCollabInvite: (...args: unknown[]) => mockAccept(...args),
     declineCollabInvite: (...args: unknown[]) => mockDecline(...args),
-    getPostById: (...args: unknown[]) => mockGetPostById(...args),
   },
 }));
 
-/** The shared post cache every feed + the post detail read from (Bug B path). */
-const mockCachePosts = jest.fn();
+/**
+ * The shared post cache every feed + the post detail read from (Bug B path),
+ * reduced to what the row touches: `cachePosts` writes, `useStorePost` reads.
+ */
+const mockStorePosts = new Map<string, unknown>();
+const mockStoreListeners = new Set<() => void>();
+const mockCachePosts = jest.fn((posts: { id: string }[]) => {
+  for (const post of posts) mockStorePosts.set(String(post.id), post);
+  for (const listener of mockStoreListeners) listener();
+});
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: { cachePosts: unknown }) => unknown) =>
     selector({ cachePosts: mockCachePosts }),
 }));
+jest.mock('@/hooks/useStorePost', () => {
+  const { useSyncExternalStore } = jest.requireActual<typeof import('react')>('react');
+  return {
+    useStorePost: (postId: string) =>
+      useSyncExternalStore(
+        (listener: () => void) => {
+          mockStoreListeners.add(listener);
+          return () => mockStoreListeners.delete(listener);
+        },
+        () => mockStorePosts.get(postId) ?? null,
+      ),
+  };
+});
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -285,6 +303,7 @@ afterEach(async () => {
   for (const queryClient of queryClients.splice(0)) {
     queryClient.clear();
   }
+  mockStorePosts.clear();
 });
 
 async function flush(): Promise<void> {
@@ -310,9 +329,8 @@ async function renderRow(
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
-  // Seed the post-detail query the row reads. With the row's 60s staleTime the
-  // seeded (fresh) data is served synchronously and `getPostById` is never hit.
-  queryClient.setQueryData(viewerQueryKeys.post(VIEWER_ID, POST_ID), collabPost(state));
+  // Seed the shared post store the row reads.
+  mockStorePosts.set(POST_ID, collabPost(state));
 
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
