@@ -106,12 +106,6 @@ export interface AtprotoProfileFacts {
  * The federated Oxy username is `<username>@bsky.social`
  * (`skylee1@bsky.social`, `mayor.nyc.gov@bsky.social`) — the exact form oxy-api's
  * `PUT /users/resolve` binds (username domain must equal `domain`).
- *
- * Exported so the re-derive repair scripts can DETECT a stored actor whose
- * re-derived `federatedUsername` no longer equals `${stored.username}@${stored.domain}`
- * without re-fetching the profile — a stored `.bsky.social` actor keeps the same
- * `domain` (`bsky.social`) but its `username` changes, so the scripts must compare
- * the full `local@domain`, not the domain alone.
  */
 export function splitHandle(handle: string): {
   username: string;

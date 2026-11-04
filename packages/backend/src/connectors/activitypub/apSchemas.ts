@@ -538,25 +538,8 @@ export const apOrderedCollectionSchema = z
 // Inferred TypeScript types
 // ---------------------------------------------------------------------------
 
-export type ApPublished = z.infer<typeof apPublished>;
-export type ApType = z.infer<typeof apType>;
-export type ApLinkEntry = z.infer<typeof apLinkEntrySchema>;
 export type ApAttachment = z.infer<typeof apAttachmentSchema>;
-export type ApTag = z.infer<typeof apTagSchema>;
-export type ApPublicKey = z.infer<typeof apPublicKeySchema>;
 export type ApNote = z.infer<typeof apNoteSchema>;
-export type ApTombstone = z.infer<typeof apTombstoneSchema>;
-export type ApActor = z.infer<typeof apActorSchema>;
-export type ApObjectOrIri = z.infer<typeof apObjectOrIri>;
-export type ApCreate = z.infer<typeof apCreateSchema>;
-export type ApUpdate = z.infer<typeof apUpdateSchema>;
-export type ApDelete = z.infer<typeof apDeleteSchema>;
-export type ApAnnounce = z.infer<typeof apAnnounceSchema>;
-export type ApLike = z.infer<typeof apLikeSchema>;
-export type ApFollow = z.infer<typeof apFollowSchema>;
-export type ApAccept = z.infer<typeof apAcceptSchema>;
-export type ApReject = z.infer<typeof apRejectSchema>;
-export type ApUndo = z.infer<typeof apUndoSchema>;
 export type ApInboundActivity = z.infer<typeof apInboundActivitySchema>;
 export type ApOrderedCollection = z.infer<typeof apOrderedCollectionSchema>;
 export type ApOrderedCollectionPage = z.infer<typeof apOrderedCollectionPageSchema>;
@@ -588,11 +571,6 @@ export function parseInboundActivity(raw: unknown): ApParseResult<ApInboundActiv
 /** Validate a content object (Note/Article/Question/Page). Never throws. */
 export function parseNote(raw: unknown): ApParseResult<ApNote> {
   return toResult(apNoteSchema.safeParse(raw));
-}
-
-/** Validate an AP actor (Person/Service/Application/Group/Organization). Never throws. */
-export function parseActor(raw: unknown): ApParseResult<ApActor> {
-  return toResult(apActorSchema.safeParse(raw));
 }
 
 /** Validate an outbox `OrderedCollection`/`Collection`. Never throws. */

@@ -23,7 +23,7 @@ import {
   findActorOxyUserIdsByAccts,
 } from '../db/federation/actorRepository';
 import { isBlockedDomain, resolveOxyUser } from '../connectors/activitypub/constants';
-import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
+import { isOwnDomain, OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import { normalizeFederatedAcct } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
 import { createCache } from '../utils/cache';
@@ -416,7 +416,7 @@ async function resolveHandleIdentities(
     } else {
       const at = entity.value.indexOf('@');
       const domain = entity.value.slice(at + 1).toLowerCase();
-      if (OWN_DOMAINS.some((own) => own.toLowerCase() === domain)) {
+      if (isOwnDomain(domain)) {
         username = entity.value.slice(0, at);
       } else if (!isBlockedDomain(domain)) {
         const acct = normalizeFederatedAcct(entity.value);

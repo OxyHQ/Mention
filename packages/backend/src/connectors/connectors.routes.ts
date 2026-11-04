@@ -50,6 +50,7 @@ import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { invalidateViewerRelations } from '../utils/privacyHelpers';
 import {
   followThroughConnection,
+  LOCAL_USERNAME_RE,
   parseLocalFollowRef,
   resolveLocalFollowTarget,
 } from './localFollow';
@@ -106,11 +107,15 @@ function isStoredActorUri(value: string): boolean {
 }
 
 /**
- * A bare local Oxy username (no `@host`, no scheme, no path). `classifyQuery`
- * routes these to a 404 ("not an external handle"); accepting the shape here
- * preserves that documented behavior instead of 400-ing a valid username.
+ * A bare local Oxy username (no `@host`, no scheme, no path), optionally
+ * `@`-prefixed. `classifyQuery` routes these to a 404 ("not an external
+ * handle"); accepting the shape here preserves that documented behavior instead
+ * of 400-ing a valid username. A dotted bare name is an atproto handle, admitted
+ * above as one.
  */
-const LOCAL_USERNAME_RE = /^@?[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,62}$/;
+function isLocalUsernameQuery(value: string): boolean {
+  return LOCAL_USERNAME_RE.test(value.replace(/^@/, ''));
+}
 
 /**
  * A `/resolve` query: an external identifier the connectors resolve (AP acct /
@@ -133,7 +138,7 @@ function isResolvableQuery(value: string): boolean {
     isDid(value) ||
     isAtUri(value) ||
     isAbsoluteHttpUrl(value) ||
-    LOCAL_USERNAME_RE.test(value)
+    isLocalUsernameQuery(value)
   );
 }
 

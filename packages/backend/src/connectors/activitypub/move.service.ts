@@ -34,7 +34,7 @@ import { reconcileActorIdentityProjection } from '../../services/ActorIdentityPr
 import { collapseImportedCopies } from '../../services/PostEquivalenceService';
 import { deliveryService } from './delivery.service';
 import { actorService } from './actor.service';
-import { OWN_DOMAINS } from './ownDomain';
+import { isOwnActorUri } from './ownDomain';
 import { findActorByUri, setActorMovedTo } from '../../db/federation/actorRepository';
 
 /** The fields of Oxy's `POST /federation/move` answer this reads. */
@@ -99,16 +99,6 @@ async function unfollowMovedActor(
   const failed = settled.find((result) => result.status === 'rejected');
   if (failed) throw failed.reason;
   return { unfollowed: resolved.length, unresolved: follows.length - resolved.length };
-}
-
-function isOwnActorUri(uri: string): boolean {
-  let host: string;
-  try {
-    host = new URL(uri).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  return OWN_DOMAINS.some((own) => own.toLowerCase() === host);
 }
 
 /** Why {@link recordRemoteMove} did or did not record the move. */

@@ -8,19 +8,7 @@ import {
 } from './helpers';
 import { primaryApType } from './apSchemas';
 import { isAbsoluteHttpUrl } from '../shared/url';
-import { isSameFederationHost } from '@oxy.so/federation';
-import { OWN_DOMAINS } from './ownDomain';
-
-/** Whether an actor URI is on one of our own hosts — one of our users. */
-function isOwnActorUri(uri: string): boolean {
-  let host: string;
-  try {
-    host = new URL(uri).hostname;
-  } catch {
-    return false;
-  }
-  return OWN_DOMAINS.some((domain) => isSameFederationHost(domain, host));
-}
+import { isOwnActorUri } from './ownDomain';
 
 /**
  * An `Announce` whose object is an ACTIVITY — how a community relays its members.

@@ -21,8 +21,7 @@ export async function countRows(table: PgTable, where: SQL): Promise<number> {
 
 /**
  * Count (dry run) or delete (live), returning the affected-row count either way.
- * The single chokepoint that keeps a dry run strictly read-only — mirrors
- * `scripts/purgeGoneFederatedActors.ts`.
+ * The single chokepoint that keeps a dry run strictly read-only.
  */
 export async function countOrDelete(table: PgTable, where: SQL, dryRun: boolean): Promise<number> {
   if (dryRun) return countRows(table, where);

@@ -302,12 +302,19 @@ export function signedFetch(
   );
 }
 
-/** Whether two URLs share scheme and host — the unit of trust in ActivityPub. */
+/**
+ * Whether two absolute http(s) URLs share an origin (scheme, host and port) —
+ * the unit of trust in ActivityPub. The WHATWG parser already lowercases the
+ * host. Deliberately stricter than `@oxy.so/federation`'s `isSameFederationHost`,
+ * which also forgives a leading `www.`: that answers "is this the same
+ * instance" for policy, while this answers "may this document speak for that
+ * one", where a sibling host is a different authority. Anything that is not an
+ * absolute http(s) URL shares no origin, so two opaque `foo:` URLs do not match.
+ */
 export function sameOrigin(left: string, right: string): boolean {
+  if (!isAbsoluteHttpUrl(left) || !isAbsoluteHttpUrl(right)) return false;
   try {
-    const a = new URL(left);
-    const b = new URL(right);
-    return a.protocol === b.protocol && a.host.toLowerCase() === b.host.toLowerCase();
+    return new URL(left).origin === new URL(right).origin;
   } catch {
     return false;
   }

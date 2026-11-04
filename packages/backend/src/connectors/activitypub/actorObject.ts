@@ -18,16 +18,6 @@ import { FEDERATION_DOMAIN, federationUrls } from './constants';
  * whether it was fetched or pushed.
  */
 
-/** Fields of the resolved Oxy user the actor document reads. */
-export interface ActorUserView {
-  _id?: string | null;
-  id?: string | null;
-  name?: { displayName?: string | null } | null;
-  bio?: string | null;
-  avatar?: string | null;
-  createdAt?: string | null;
-}
-
 /**
  * Mention's actor media adapter for the engine's actor builder. The avatar
  * (`icon`) resolves through the canonical `resolveAvatarUrl` (Oxy file id →
