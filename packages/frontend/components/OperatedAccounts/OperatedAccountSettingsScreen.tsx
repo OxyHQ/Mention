@@ -20,7 +20,7 @@ import { useOperatedAccountArchive } from './useOperatedAccountArchive';
 /** The member-operated account kinds (`isMemberOperatedKind`) Mention manages. */
 export type OperatedAccountKind = 'channel' | 'community';
 
-interface OperatedAccountSettingsScreenProps {
+export interface OperatedAccountSettingsScreenProps {
   kind: OperatedAccountKind;
   /** The account's handle, read by the route from its own segment. */
   handle: string;

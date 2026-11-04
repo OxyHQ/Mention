@@ -38,10 +38,8 @@ import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/hooks/useReselectReloadKey';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { pinnedPostQueryOptions } from './pinnedPostQuery';
+import { LazyProfileShop } from '@/components/sharedRouteScreens';
 
-const ProfileShop = lazy(() =>
-  import('@/components/Commerce/ProfileShop').then((module) => ({ default: module.ProfileShop })),
-);
 const ProfileExperience = lazy(() =>
   import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
 );
@@ -147,13 +145,11 @@ export const ProfileTabs = memo(function ProfileTabs({
   // the account is eligible.
   if (tab === 'shop' && profileId)
     return (
-      <Suspense fallback={<ListSkeleton />}>
-        <ProfileShop
-          accountId={profileId}
-          listContentHeaderComponent={listContentHeaderComponent}
-          listStickyHeaderComponent={listStickyHeaderComponent}
-        />
-      </Suspense>
+      <LazyProfileShop
+        accountId={profileId}
+        listContentHeaderComponent={listContentHeaderComponent}
+        listStickyHeaderComponent={listStickyHeaderComponent}
+      />
     );
   if (tab === 'jobs') {
     return (

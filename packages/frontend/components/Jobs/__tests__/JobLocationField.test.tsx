@@ -48,13 +48,14 @@ jest.mock('@oxy.so/bloom/segmented-control', () => ({
   SegmentedControlItemText: ({ children }: Props) => children,
 }));
 
-import JobLocationField, {
+import JobLocationField from '../JobLocationField';
+import {
   EMPTY_JOB_LOCATION,
   isJobLocationIncomplete,
   jobLocationDraftFrom,
   jobLocationInputFrom,
   type JobLocationDraft,
-} from '../JobLocationField';
+} from '../jobForm';
 import CodePickerDialog from '../CodePickerDialog';
 
 const BARCELONA = {

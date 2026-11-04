@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Chip } from '@oxy.so/bloom/chip';
@@ -12,8 +12,6 @@ import { TagField } from '@oxy.so/bloom/tag-field';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import type {
-  CurrencyCode,
-  MentionJobApplicationMode,
   MentionJobEmploymentType,
   MentionJobSalaryInterval,
   MentionJobWorkplaceType,
@@ -24,13 +22,8 @@ import {
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_WORKPLACE_TYPES,
 } from '@mention/shared-types/job';
-import type { jobsService } from '@/services/jobsService';
-import JobLocationField, {
-  EMPTY_JOB_LOCATION,
-  isJobLocationIncomplete,
-  jobLocationDraftFrom,
-  type JobLocationDraft,
-} from '@/components/Jobs/JobLocationField';
+import JobLocationField from '@/components/Jobs/JobLocationField';
+import type { JobForm } from '@/components/Jobs/jobForm';
 import JobCurrencyField from '@/components/Jobs/JobCurrencyField';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
@@ -55,97 +48,6 @@ const INTERVAL_LABELS: Record<MentionJobSalaryInterval, string> = {
   month: 'Month',
   year: 'Year',
 };
-
-type LoadedJob = Awaited<ReturnType<typeof jobsService.get>>['job'];
-
-/**
- * The editable listing fields shared by `jobs/create.tsx` and
- * `jobs/[id]/edit.tsx`. The screens own what differs — the employer picker,
- * the submit actions and the wire payload (create omits cleared fields, edit
- * sends an explicit `null` to clear them).
- */
-export function useJobForm() {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState<JobLocationDraft>(EMPTY_JOB_LOCATION);
-  const [workplaceType, setWorkplaceType] = useState<MentionJobWorkplaceType | ''>('');
-  const [employmentType, setEmploymentType] = useState<MentionJobEmploymentType | ''>('');
-  const [salaryMin, setSalaryMin] = useState('');
-  const [salaryMax, setSalaryMax] = useState('');
-  const [salaryCurrency, setSalaryCurrency] = useState<CurrencyCode>('USD');
-  const [salaryInterval, setSalaryInterval] = useState<MentionJobSalaryInterval>('year');
-  const [skills, setSkills] = useState<string[]>([]);
-  const [applicationMode, setApplicationMode] = useState<MentionJobApplicationMode>('mention');
-  const [externalApplyUrl, setExternalApplyUrl] = useState('');
-
-  const hydrate = useCallback((job: LoadedJob) => {
-    setTitle(job.title);
-    setDescription(job.description);
-    setLocation(jobLocationDraftFrom(job.location));
-    setWorkplaceType(job.workplaceType ?? '');
-    setEmploymentType(job.employmentType ?? '');
-    setSalaryMin(job.salary?.min !== undefined ? String(job.salary.min) : '');
-    setSalaryMax(job.salary?.max !== undefined ? String(job.salary.max) : '');
-    setSalaryCurrency(job.salary?.currency ?? 'USD');
-    setSalaryInterval(job.salary?.interval ?? 'year');
-    setSkills(job.skills ?? []);
-    setApplicationMode(job.applicationMode);
-    setExternalApplyUrl(job.externalApplyUrl ?? '');
-  }, []);
-
-  const hasSalary = salaryMin.trim().length > 0 || salaryMax.trim().length > 0;
-  const min = salaryMin.trim() ? Number(salaryMin) : undefined;
-  const max = salaryMax.trim() ? Number(salaryMax) : undefined;
-  const salary = hasSalary
-    ? {
-        min: Number.isFinite(min) ? min : undefined,
-        max: Number.isFinite(max) ? max : undefined,
-        currency: salaryCurrency,
-        interval: salaryInterval,
-      }
-    : undefined;
-
-  const isComplete = Boolean(
-    title.trim() && description.trim() && !isJobLocationIncomplete(location),
-  );
-  const isApplyReady = applicationMode !== 'external' || externalApplyUrl.trim().length > 0;
-
-  return {
-    title,
-    setTitle,
-    description,
-    setDescription,
-    location,
-    setLocation,
-    workplaceType,
-    setWorkplaceType,
-    employmentType,
-    setEmploymentType,
-    salaryMin,
-    setSalaryMin,
-    salaryMax,
-    setSalaryMax,
-    salaryCurrency,
-    setSalaryCurrency,
-    salaryInterval,
-    setSalaryInterval,
-    skills,
-    setSkills,
-    applicationMode,
-    setApplicationMode,
-    externalApplyUrl,
-    setExternalApplyUrl,
-    hydrate,
-    /** Wire-shaped salary, or `undefined` when neither bound is filled in. */
-    salary,
-    /** Title, description and location are valid (enough to save a draft). */
-    isComplete,
-    /** An external application mode has its URL (required to publish). */
-    isApplyReady,
-  };
-}
-
-export type JobForm = ReturnType<typeof useJobForm>;
 
 export function JobFormFields({ form }: { form: JobForm }) {
   const { t } = useTranslation();

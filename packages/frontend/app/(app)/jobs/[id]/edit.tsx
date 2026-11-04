@@ -13,8 +13,8 @@ import { logger } from '@oxy.so/core/logger';
 import type { UpdateMentionJobRequest } from '@mention/shared-types';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { JobFormFields, useJobForm } from '@/components/Jobs/JobFormFields';
-import { jobLocationInputFrom } from '@/components/Jobs/JobLocationField';
+import { jobLocationInputFrom, useJobForm } from '@/components/Jobs/jobForm';
+import { LazyJobFormFields } from '@/components/sharedRouteScreens';
 
 /**
  * Edit an existing Mention job listing. Same fields as `jobs/create.tsx`
@@ -178,7 +178,7 @@ export default function EditJobScreen() {
             </View>
           </View>
         ) : null}
-        <JobFormFields form={form} />
+        <LazyJobFormFields form={form} />
 
         <View className="mt-6">
           <Button

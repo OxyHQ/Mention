@@ -61,7 +61,7 @@ export interface OperatedAccountsCopy {
   createFailed: string;
 }
 
-interface OperatedAccountsScreenProps {
+export interface OperatedAccountsScreenProps {
   kind: OperatedAccountKind;
   copy: OperatedAccountsCopy;
 }

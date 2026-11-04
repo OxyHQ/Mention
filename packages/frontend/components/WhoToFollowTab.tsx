@@ -30,7 +30,7 @@ const APP_URL = 'https://mention.earth';
 /** Placeholder rows painted while the first page of recommendations loads. */
 const SKELETON_ROW_COUNT = 8;
 
-interface WhoToFollowTabProps {
+export interface WhoToFollowTabProps {
   /**
    * Optional header element rendered above the invite banner inside the list,
    * so it scrolls away with the content — identical to the Feed-backed tabs,

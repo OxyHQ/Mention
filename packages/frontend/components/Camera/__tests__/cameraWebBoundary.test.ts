@@ -11,9 +11,9 @@ import { join, resolve } from 'node:path';
  * 31KB `camera-*.js` chunk carrying the package, because expo-router puts EVERY
  * route file in the graph and a platform sibling does not remove its twin.
  *
- * What does work is a MODULE fork: Metro resolves `./CameraCapture` to
- * `CameraCapture.web.tsx` on web, so nothing on that side names the package at
- * all. Same mechanism as Bloom's tab pager and `react-native-pager-view`.
+ * What does work is a MODULE fork: the route re-exports `CameraPage`, and Metro
+ * resolves it to `CameraPage.web.tsx` on web, so nothing on that side names the
+ * capture surface or the package at all.
  *
  * So the boundary is "which module imports it", and that is what this pins.
  * Moving the import up into the route file type-checks, renders correctly on
@@ -46,40 +46,31 @@ describe('the camera stays out of the web bundle', () => {
     expect(allSources.length).toBeGreaterThan(200);
   });
 
-  it('is imported by exactly one module, and that module is web-forked', () => {
+  it('is imported by exactly one module, reached only through the forked page', () => {
     expect(importers.map((file) => file.replace(`${FRONTEND}/`, ''))).toEqual([
       'components/Camera/CameraCapture.tsx',
     ]);
-
-    for (const file of importers) {
-      // The fork is what a web bundler resolves INSTEAD. Without a sibling,
-      // `expo-camera` is simply what web gets.
-      expect(existsSync(file.replace(/\.tsx$/, '.web.tsx'))).toBe(true);
-    }
+    const captureImporters = allSources.filter((file) =>
+      /from\s+['"](?:@\/components\/Camera|\.)\/CameraCapture['"]/.test(readFileSync(file, 'utf8')),
+    );
+    expect(captureImporters.map((file) => file.replace(`${FRONTEND}/`, ''))).toEqual([
+      'components/Camera/CameraPage.tsx',
+    ]);
   });
 
-  it('and the web fork does not name it', () => {
-    // The failure this catches is a fork that re-exports the native file, or one
+  it('and the web fork of the page names neither', () => {
+    // The failure this catches is a fork that re-exports the native page, or one
     // that imports a type from it — either puts the package straight back.
-    const web = readFileSync(join(FRONTEND, 'components/Camera/CameraCapture.web.tsx'), 'utf8');
-    // The same import test used above, not a bare mention of the name: the fork
-    // documents WHY it exists, and a doc comment naming the package is the point
-    // rather than a violation.
-    expect(web).not.toMatch(/from\s+['"]expo-camera['"]|require\(['"]expo-camera['"]\)/);
+    const web = readFileSync(join(FRONTEND, 'components/Camera/CameraPage.web.tsx'), 'utf8');
+    expect(web).not.toMatch(/from\s+['"]expo-camera['"]|CameraCapture['"]|CameraPage['"]/);
   });
 
-  it('is never named by a route file, which expo-router bundles regardless', () => {
-    // The specific mistake: `camera.web.tsx` exists, so the route looks handled,
-    // and the native route file ships anyway.
-    const routeImporters = importers.filter((file) => file.includes(`${FRONTEND}/app/`));
-    expect(routeImporters).toEqual([]);
-  });
-});
-
-describe('the camera route itself', () => {
-  it('has a web fork, so nobody lands on a page that cannot exist there', () => {
-    // A separate concern from the bundle: this one is about what a reader who
-    // types `/camera` sees. Both are needed and neither implies the other.
-    expect(existsSync(join(FRONTEND, 'app/(app)/(tabs)/camera.web.tsx'))).toBe(true);
+  it('and the route file only re-exports the forked page', () => {
+    // The specific mistake: a `camera.web.tsx` route sibling looks handled, and
+    // the native route file ships anyway.
+    expect(existsSync(join(FRONTEND, 'app/(app)/(tabs)/camera.web.tsx'))).toBe(false);
+    expect(readFileSync(join(FRONTEND, 'app/(app)/(tabs)/camera.tsx'), 'utf8')).toMatch(
+      /export \{ default \} from '@\/components\/Camera\/CameraPage';/,
+    );
   });
 });

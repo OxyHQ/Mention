@@ -1,2 +1,2 @@
-// Re-export connections screen for following route
-export { default } from './connections';
+// The connections screen, for the following route.
+export { LazyConnectionsScreen as default } from '@/components/sharedRouteScreens';

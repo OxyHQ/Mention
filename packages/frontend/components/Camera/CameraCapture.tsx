@@ -108,18 +108,15 @@ interface CameraCaptureProps {
  * React commits it, so recording has to be armed and then started, and that
  * dance does not belong in a component already handling gestures and layout.
  *
- * IT IS ALSO THE WEB BUNDLE'S BOUNDARY, and that is why the `expo-camera` import
- * is HERE rather than in the route file. Expo-router puts every route file in
- * the graph — a `.web.tsx` route sibling does not keep its native twin out, and
- * `dist/` was shipping a 31KB `camera` chunk carrying `expo-camera`'s web build
- * to a platform that never renders it. A module fork does keep it out: Metro
- * resolves `./CameraCapture` to `CameraCapture.web.tsx` on web, so nothing on
- * that side ever names the package. Same mechanism as
- * Bloom's tab pager and `react-native-pager-view`, and
- * `components/Camera/__tests__/cameraWebBoundary.test.ts` is what keeps it true.
+ * IT IS NEVER IN A WEB BUNDLE. Its only importer is `CameraPage.tsx`, which is
+ * module-forked: Metro resolves `CameraPage` to `CameraPage.web.tsx` on web, so
+ * nothing on that side names this file or `expo-camera`. The `expo-camera`
+ * import must stay here, below that fork, and never move up into the route
+ * file — expo-router bundles every route file on every platform.
+ * `components/Camera/__tests__/cameraWebBoundary.test.ts` keeps it true.
  *
  * THE PREVIEW IS ONLY MOUNTED WHILE THE PAGE IS FOCUSED, and its owner enforces
- * that by not rendering this component otherwise (`(tabs)/camera.tsx`). A
+ * that by not rendering this component otherwise (`CameraPage.tsx`). A
  * `CameraView` left mounted holds the sensor: the OS indicator stays lit, the
  * battery drains, and on Android a second surface cannot open one. That is also
  * why the page declares `preload: false` — a camera mounted merely for being

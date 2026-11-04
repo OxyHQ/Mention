@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "budgets": {
-    "totalBytes": 21441096,
-    "javascriptBytes": 16507266,
-    "initialJavascriptBytes": 6236559,
-    "initialJavascriptGzipBytes": 1765382,
+    "totalBytes": 21418543,
+    "javascriptBytes": 16484713,
+    "initialJavascriptBytes": 6127401,
+    "initialJavascriptGzipBytes": 1726737,
     "fontBytes": 4194304,
     "largestFileBytes": 7864320
   },
@@ -14,6 +14,7 @@
   "deferredSources": {
     "The experience history and editor load only when the profile Experience tab opens": "/packages/frontend/components/Profile/(ProfileExperience|ExperienceEditor)\\.tsx$",
     "The composer loads when /compose or /write opens (LazyComposeScreen)": "/packages/frontend/components/Compose/ComposeScreen\\.tsx$",
+    "The composer's post builders load with the composer: the native camera page that shares them is a module fork, off web": "/packages/frontend/utils/postBuilder\\.ts$",
     "The feed builder loads only when creating or editing a feed": "/packages/frontend/components/feeds/FeedBuilder\\.tsx$",
     "The profile media picker loads only when editing pinned media": "/packages/frontend/components/Profile/MediaPickerSheet\\.tsx$",
     "The video replies panel loads when a video is open (LazyVideoReplies)": "/packages/frontend/components/videos/VideoReplies\\.tsx$",
@@ -22,6 +23,7 @@
     "LiveKit and the Syra rooms engine load with the first live-room request (LiveFeatureProviders)": "/node_modules/(livekit-client/|@syra\\.fm/sdk/lib/module/live/)",
     "Bloom's settings dialog loads with Mention's (screens outside it use settings-modal/rows)": "/node_modules/@oxy\\.so/bloom/lib/module/settings-modal/SettingsModalBase\\.js$",
     "zod loads with the notification validators (lib/notificationValidation), its one way in; @syra.fm/sdk 0.18+ checks responses without it": "^/node_modules/zod/",
-    "Alia's chat sheet loads with the first Ask Alia (@alia.onl/sdk/ask loads it lazily)": "/node_modules/@alia\\.onl/sdk/src/components/AliaChatSheet\\.tsx$"
+    "Alia's chat sheet loads with the first Ask Alia (@alia.onl/sdk/ask loads it lazily)": "/node_modules/@alia\\.onl/sdk/src/components/AliaChatSheet\\.tsx$",
+    "Screens two routes share load through one lazy boundary each (components/sharedRouteScreens), never with the page": "/packages/frontend/components/(AccountInfoScreen|WhoToFollowTab|Commerce/ProfileShop|Jobs/JobFormFields|Profile/ConnectionsScreen|OperatedAccounts/OperatedAccount(s|Settings)Screen)\\.tsx$"
   }
 }

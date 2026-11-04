@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
-import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAccountsScreen';
+import { LazyOperatedAccountsScreen } from '@/components/sharedRouteScreens';
 
 /**
  * The communities you moderate, and the one place to create another. A
@@ -11,7 +11,7 @@ import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAc
 function CommunitiesScreen() {
   const { t } = useTranslation();
   return (
-    <OperatedAccountsScreen
+    <LazyOperatedAccountsScreen
       kind="community"
       copy={{
         title: t('communities.title', { defaultValue: 'Communities' }),

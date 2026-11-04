@@ -1,5 +1,4 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { File } from 'expo-file-system';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +9,7 @@ import { Textarea } from '@oxy.so/bloom/textarea';
 import type { CreateMembershipContentRequest, MembershipTier } from '@mention/shared-types';
 import { membershipsService } from '@/services/membershipsService';
 import { getErrorMessage } from '@/utils/apiError';
+import { pickedDocumentFile } from './pickedDocumentFile';
 
 export function MembershipComposer({
   communityId,
@@ -88,7 +88,7 @@ export function MembershipComposer({
       if (result.canceled) return;
       const asset = result.assets[0];
       if (!asset) return;
-      const file = asset.file ?? new File(asset.uri);
+      const file = pickedDocumentFile(asset);
       if (file.size > 40 * 1024 * 1024) {
         setError(t('memberships.fileTooLarge', 'Files must be 40 MB or smaller.'));
         return;

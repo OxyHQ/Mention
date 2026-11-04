@@ -1,4 +1,4 @@
-import { OperatedAccountSettingsScreen } from '@/components/OperatedAccounts/OperatedAccountSettingsScreen';
+import { LazyOperatedAccountSettingsScreen } from '@/components/sharedRouteScreens';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 
 /**
@@ -7,5 +7,5 @@ import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedPr
  */
 export default function ChannelSettingsRoute() {
   const handle = useRoutedProfileUsername();
-  return <OperatedAccountSettingsScreen kind="channel" handle={handle} />;
+  return <LazyOperatedAccountSettingsScreen kind="channel" handle={handle} />;
 }

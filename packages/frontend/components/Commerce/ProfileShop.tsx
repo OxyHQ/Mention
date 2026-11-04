@@ -36,7 +36,7 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 type ShopRow =
   | { kind: 'content'; key: string; element: ReactElement }
   | { kind: 'card'; key: string; referenceId: string };
-interface ProfileShopProps {
+export interface ProfileShopProps {
   accountId: string;
   listContentHeaderComponent?: ReactElement | null;
   listStickyHeaderComponent?: ReactElement | null;
