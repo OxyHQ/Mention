@@ -280,15 +280,6 @@ describe('bound sheet commands', () => {
     return surface;
   };
 
-  it('opens sources in a sheet, ignores an empty list, and closes it', () => {
-    const commands = bound();
-    commands.openSources([]);
-    expect(presentSheetMock).not.toHaveBeenCalled();
-    commands.openSources([{ url: 'https://example.test' }]);
-    expect(presentSheetMock).toHaveBeenCalledTimes(1);
-    expect(closeShownSheet().dismiss).toHaveBeenCalled();
-  });
-
   it('opens insights in a sheet, and closes it', () => {
     bound().openInsights('p1');
     expect(presentSheetMock).toHaveBeenCalledTimes(1);

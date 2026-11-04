@@ -8,18 +8,20 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { isMentionCommunity } from '@mention/shared-types/profileUrls';
 import type { HydratedPost } from '@mention/shared-types';
-import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
 import { useOperatesAccount } from '@/components/Profile/hooks/useOperatesAccount';
 import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useRouter } from '@/lib/navigation/router';
-import { buildPostMenuActions } from './postMenuActions';
+import { buildPostMenuActions, isPostMenuSubmenu, type PostMenuEntry } from './postMenuActions';
 import { currentPost, usePostInteractions } from './postInteractions';
 
 interface PostMenuContentProps {
@@ -59,7 +61,6 @@ export function PostMenuContent({
   const { viewerState, community } = post;
   const permissions = post.permissions ?? {};
   const isOwner = viewerState?.isOwner ?? false;
-  const sources = post.attachments?.sources ?? [];
 
   // A moderator of the community hosted here the post is written in gets its
   // moderation actions. Who moderates is the account graph's answer (an active
@@ -79,11 +80,9 @@ export function PostMenuContent({
       canStopSharing: permissions.canStopSharing ?? false,
       isSaved: viewerState?.isSaved ?? false,
       hasArticle: Boolean(post.attachments?.article),
-      hasSources: sources.length > 0,
       moderatesCommunity,
       onSave: () => interactions.toggleSave(post, source),
       onOpenArticle,
-      onOpenSources: () => interactions.openSources(sources),
     },
     {
       theme,
@@ -110,7 +109,7 @@ export function PostMenuContent({
         ]
       : [];
 
-  const groups: ActionMenuAction[][] = [
+  const groups: PostMenuEntry[][] = [
     actions.insightsAction,
     actions.saveActionGroup,
     actions.stopSharingAction,
@@ -130,16 +129,27 @@ export function PostMenuContent({
         <Fragment key={group[0].label}>
           {index > 0 ? <DropdownMenuSeparator /> : null}
           <DropdownMenuGroup>
-            {group.map((action) => (
-              <DropdownMenuItem
-                key={action.label}
-                leading={action.icon}
-                variant={action.color ? 'destructive' : 'default'}
-                onPress={action.onPress}
-              >
-                {action.label}
-              </DropdownMenuItem>
-            ))}
+            {group.map((entry) =>
+              isPostMenuSubmenu(entry) ? (
+                <DropdownMenuSub key={entry.label}>
+                  <DropdownMenuSubTrigger leading={entry.icon}>
+                    {entry.label}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent label={entry.label}>
+                    {entry.submenu}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : (
+                <DropdownMenuItem
+                  key={entry.label}
+                  leading={entry.icon}
+                  variant={entry.color ? 'destructive' : 'default'}
+                  onPress={entry.onPress}
+                >
+                  {entry.label}
+                </DropdownMenuItem>
+              ),
+            )}
           </DropdownMenuGroup>
         </Fragment>
       ))}

@@ -13,7 +13,7 @@ import type { ArticleData } from '@/hooks/useArticleManager';
 import type { EventData } from '@/hooks/useEventManager';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
 import type { RoomAttachmentData } from '@/hooks/useRoomManager';
-import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
+import type { ReplyPermission } from '@/components/Compose/replyPermission';
 import type { AccountNode } from '@oxy.so/core';
 
 /**

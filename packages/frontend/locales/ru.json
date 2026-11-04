@@ -694,12 +694,7 @@
     "repostedBy": "Продвинул(а)",
     "sensitiveContent": "Деликатный контент",
     "sensitiveContentTap": "Нажмите, чтобы показать",
-    "sourcesSheet": {
-      "empty": "Для этого поста источников нет.",
-      "title": "Источники"
-    },
     "viewArticle": "Открыть статью",
-    "viewSources": "Показать источники",
     "editedIndicator": "Изменено",
     "editedToast": "Этот пост был изменён",
     "language": {
@@ -732,7 +727,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "в !{{handle}}"
+    "inCommunity": "в !{{handle}}",
+    "sources": "Источники"
   },
   "navigation": {
     "menu": "Меню навигации",
@@ -3104,7 +3100,7 @@
       "choose": "Выберите рубрику"
     },
     "postActions": {
-      "moveToLane": "Переместить в рубрику…",
+      "moveToLane": "Переместить в рубрику",
       "moveFailed": "Не удалось переместить этот пост",
       "muteLane": "Заглушить «{{lane}}» у @{{username}}",
       "muteLaneConfirm": "Посты рубрики «{{lane}}» перестанут появляться в ваших лентах. Вы остаётесь подписаны на @{{username}}, и всё остальное, что этот аккаунт публикует, по-прежнему до вас доходит.",

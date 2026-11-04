@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import type { useRouter } from '@/lib/navigation/router';
 import type { QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
@@ -15,7 +15,7 @@ import { presentSheet } from '@/utils/sheet';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { FeedItem } from '@/db';
-import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
@@ -40,6 +40,7 @@ import { communityService } from '@/services/communityService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { postPermalink } from '@/utils/postPermalink';
+import { PostLaneSubmenu, PostReplySettingsSubmenu, PostSourcesSubmenu } from './PostMenuSubmenus';
 
 /**
  * The post overflow menu, built when the reader PRESSES "⋯" — never per row.
@@ -52,7 +53,7 @@ import { postPermalink } from '@/utils/postPermalink';
  * once per press, against the post as the store holds it at that moment — so a
  * menu can no longer act on a stale captured copy either.
  *
- * The five sheets below are LAZY because the feed chunk imports this module.
+ * The sheets below are LAZY because the feed chunk imports this module.
  *
  * Every one of them is only ever mounted from an `onPress`, through
  * `presentSheet`. Imported statically they were pulled into
@@ -67,14 +68,12 @@ import { postPermalink } from '@/utils/postPermalink';
  * in the app, with nothing failing to say so.
  */
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
-const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 const ReportModal = lazy(() =>
   import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })),
 );
 const AddToListSheet = lazy(() =>
   import('@/components/Lists/AddToListSheet').then((m) => ({ default: m.AddToListSheet })),
 );
-const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
 
 const logger = createLogger('postMenuActions');
 
@@ -110,7 +109,6 @@ export interface PostMenuParams {
   canStopSharing: boolean;
   isSaved: boolean;
   hasArticle: boolean;
-  hasSources: boolean;
   /**
    * The viewer moderates the community hosted here the post is written in —
    * an active member of it, read off the account graph by the binder. The
@@ -119,17 +117,30 @@ export interface PostMenuParams {
   moderatesCommunity: boolean;
   onSave: () => Promise<void>;
   onOpenArticle: () => void;
-  onOpenSources: () => void;
+}
+
+/** A row that opens a submenu of its own rows instead of acting. */
+export interface PostMenuSubmenu {
+  icon: ReactNode;
+  label: string;
+  /** Bloom menu rows: a flyout on web, an inline disclosure on native. */
+  submenu: ReactNode;
+}
+
+export type PostMenuEntry = ActionMenuAction | PostMenuSubmenu;
+
+export function isPostMenuSubmenu(entry: PostMenuEntry): entry is PostMenuSubmenu {
+  return 'submenu' in entry;
 }
 
 export interface PostMenuActions {
   insightsAction: ActionMenuAction[];
-  saveActionGroup: ActionMenuAction[];
+  saveActionGroup: PostMenuEntry[];
   addToListAction: ActionMenuAction[];
   stopSharingAction: ActionMenuAction[];
   deleteAction: ActionMenuAction[];
   articleAction: ActionMenuAction[];
-  sourcesAction: ActionMenuAction[];
+  sourcesAction: PostMenuEntry[];
   muteReportAction: ActionMenuAction[];
   communityModerationAction: ActionMenuAction[];
   copyLinkAction: ActionMenuAction[];
@@ -144,11 +155,9 @@ export function buildPostMenuActions(
     canStopSharing,
     isSaved,
     hasArticle,
-    hasSources,
     moderatesCommunity,
     onSave,
     onOpenArticle,
-    onOpenSources,
   }: PostMenuParams,
   { theme, t, viewerId, canUsePrivateApi, router, back, queryClient }: PostMenuDeps,
 ): PostMenuActions {
@@ -216,7 +225,7 @@ export function buildPostMenuActions(
         ]
       : [];
 
-    const saveActionGroup: ActionMenuAction[] = [];
+    const saveActionGroup: PostMenuEntry[] = [];
 
     if (!canUsePrivateApi) {
       // Signed out: nothing below applies. Every row is a write on the
@@ -303,39 +312,8 @@ export function buildPostMenuActions(
     if (isOwner && !isReplyOrBoost) {
       saveActionGroup.push({
         icon: <RiNodeTree width={20} height={20} fill={theme.colors.textSecondary} />,
-        label: t('lanes.postActions.moveToLane', { defaultValue: 'Move to lane…' }),
-        onPress: () => {
-          void presentSheet((surface) => (
-            <Suspense fallback={null}>
-              <LanePickerSheet
-                selectedLaneId={viewPost?.lane?.id ?? null}
-                onSelect={async (nextLaneId) => {
-                  try {
-                    const lane = await lanesService.setPostLane(postId, nextLaneId);
-                    updatePostEverywhere(postId, (prev) => ({
-                      ...prev,
-                      lane: lane ?? undefined,
-                    }));
-                    // The chip flips instantly through the store
-                    // above; WHICH profile tab the post now sits
-                    // on is server-ordered and paged, so both
-                    // post-list caches have to be told.
-                    noteLaneListsChanged('assignment');
-                  } catch (e) {
-                    logger.error('Failed to move post to lane', e);
-                    toast(
-                      t('lanes.postActions.moveFailed', {
-                        defaultValue: 'Failed to move this post',
-                      }),
-                      { type: 'error' },
-                    );
-                  }
-                }}
-                onClose={() => surface.dismiss()}
-              />
-            </Suspense>
-          ));
-        },
+        label: t('lanes.postActions.moveToLane'),
+        submenu: <PostLaneSubmenu post={viewPost} />,
       });
     }
 
@@ -363,41 +341,9 @@ export function buildPostMenuActions(
 
     if (isOwner) {
       saveActionGroup.push({
-        icon: <RiArrowRightSLine width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: <RiChat3Line width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.replyOptions'),
-        onPress: () => {
-          void presentSheet((surface) => (
-            <Suspense fallback={null}>
-              <ReplySettingsSheet
-                replyPermission={viewPost?.metadata?.replyPermission ?? ['anyone']}
-                onReplyPermissionChange={async (permission) => {
-                  try {
-                    await feedService.updatePostSettings(postId, { replyPermission: permission });
-                    updatePostEverywhere(postId, (prev) => ({
-                      ...prev,
-                      metadata: { ...prev.metadata, replyPermission: permission },
-                    }));
-                  } catch {
-                    toast(t('postActions.failedToUpdateReplyPermissions'), { type: 'error' });
-                  }
-                }}
-                quotesDisabled={viewPost?.metadata?.quotesDisabled || false}
-                onQuotesDisabledChange={async (disabled) => {
-                  try {
-                    await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
-                    updatePostEverywhere(postId, (prev) => ({
-                      ...prev,
-                      metadata: { ...prev.metadata, quotesDisabled: disabled },
-                    }));
-                  } catch {
-                    toast(t('postActions.failedToUpdateQuoteSettings'), { type: 'error' });
-                  }
-                }}
-                onClose={() => surface.dismiss()}
-              />
-            </Suspense>
-          ));
-        },
+        submenu: <PostReplySettingsSubmenu post={viewPost} />,
       });
     }
 
@@ -464,17 +410,17 @@ export function buildPostMenuActions(
         ]
       : [];
 
-    const sourcesAction = hasSources
-      ? [
-          {
-            icon: <RiLinksLine width={20} height={20} fill={theme.colors.textSecondary} />,
-            label: t('post.viewSources', { defaultValue: 'View sources' }),
-            onPress: () => {
-              onOpenSources();
+    const sources = viewPost?.attachments?.sources ?? [];
+    const sourcesAction: PostMenuEntry[] =
+      sources.length > 0
+        ? [
+            {
+              icon: <RiLinksLine width={20} height={20} fill={theme.colors.textSecondary} />,
+              label: t('post.sources'),
+              submenu: <PostSourcesSubmenu sources={sources} />,
             },
-          },
-        ]
-      : [];
+          ]
+        : [];
 
     const handleMuteUser = async () => {
       const userId = viewPost?.user?.id;

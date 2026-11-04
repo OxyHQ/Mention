@@ -14,7 +14,6 @@ import { postPermalink } from '@/utils/postPermalink';
 import { alloShareLinks } from '@oxy.so/allo-sdk/links';
 import { usePostInteractionsBinding, type BoundPostCommands } from './postInteractions';
 
-const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 
 /**
@@ -50,15 +49,6 @@ export function PostInteractionsBinder() {
       return false;
     };
 
-    const openSources: BoundPostCommands['openSources'] = (sources) => {
-      if (sources.length === 0) return;
-      void presentSheet((surface) => (
-        <Suspense fallback={null}>
-          <PostSourcesSheet sources={sources} onClose={() => surface.dismiss()} />
-        </Suspense>
-      ));
-    };
-
     return {
       requireSession,
       sendInAllo: (postId) =>
@@ -69,7 +59,6 @@ export function PostInteractionsBinder() {
               'Allo is not installed. Get Allo to send this post, or continue on the web.',
           }),
         ),
-      openSources,
       prefetchProfile: (profileId) => {
         // Only for a resolved viewer: a read started while the session is
         // still landing would be cached under the wrong viewer's key.

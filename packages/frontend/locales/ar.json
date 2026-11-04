@@ -714,12 +714,7 @@
     "repostedBy": "أعاد نشره",
     "sensitiveContent": "محتوى حسّاس",
     "sensitiveContentTap": "اضغط للكشف",
-    "sourcesSheet": {
-      "empty": "لا توجد مصادر لهذا المنشور.",
-      "title": "المصادر"
-    },
     "viewArticle": "عرض المقال",
-    "viewSources": "عرض المصادر",
     "editedIndicator": "مُعدَّل",
     "editedToast": "تم تعديل هذا المنشور",
     "language": {
@@ -756,7 +751,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "في !{{handle}}"
+    "inCommunity": "في !{{handle}}",
+    "sources": "المصادر"
   },
   "navigation": {
     "menu": "قائمة التنقل",
@@ -3154,7 +3150,7 @@
       "choose": "اختر مسارًا"
     },
     "postActions": {
-      "moveToLane": "النقل إلى مسار…",
+      "moveToLane": "النقل إلى مسار",
       "moveFailed": "فشل نقل هذا المنشور",
       "muteLane": "كتم «{{lane}}» من @{{username}}",
       "muteLaneConfirm": "تتوقف منشورات «{{lane}}» عن الظهور في خلاصاتك. وتظل متابعًا لـ@{{username}}، ويظل كل ما ينشره غير ذلك يصل إليك.",

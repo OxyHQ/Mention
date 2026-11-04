@@ -28,4 +28,8 @@ module.exports = {
   DropdownMenuCheckboxItem: DropdownMenuItem,
   DropdownMenuRadioGroup: passthrough,
   DropdownMenuRadioItem: DropdownMenuItem,
+  DropdownMenuSub: passthrough,
+  DropdownMenuSubTrigger: DropdownMenuItem,
+  // Closed, as Bloom mounts a submenu's rows only once it is opened.
+  DropdownMenuSubContent: () => null,
 };

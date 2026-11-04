@@ -674,12 +674,7 @@
     "repostedBy": "রিপোস্ট করেছেন",
     "sensitiveContent": "সংবেদনশীল কনটেন্ট",
     "sensitiveContentTap": "দেখতে ট্যাপ করুন",
-    "sourcesSheet": {
-      "empty": "এই পোস্টের কোনো সূত্র নেই।",
-      "title": "সূত্র"
-    },
     "viewArticle": "নিবন্ধ দেখুন",
-    "viewSources": "সূত্র দেখুন",
     "editedIndicator": "সম্পাদিত",
     "editedToast": "এই পোস্টটি সম্পাদনা করা হয়েছে",
     "language": {
@@ -708,7 +703,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "!{{handle}}-এ"
+    "inCommunity": "!{{handle}}-এ",
+    "sources": "সূত্র"
   },
   "navigation": {
     "menu": "নেভিগেশন মেনু",
@@ -3054,7 +3050,7 @@
       "choose": "একটি লেন বেছে নিন"
     },
     "postActions": {
-      "moveToLane": "লেনে সরান…",
+      "moveToLane": "লেনে সরান",
       "moveFailed": "এই পোস্টটি সরানো যায়নি",
       "muteLane": "@{{username}}-এর «{{lane}}» মিউট করুন",
       "muteLaneConfirm": "«{{lane}}»-এর পোস্ট আর আপনার ফিডে দেখা যাবে না। আপনি @{{username}}-কে ফলো করতেই থাকবেন, এবং তাদের বাকি সব পোস্ট আপনার কাছে পৌঁছাবে।",

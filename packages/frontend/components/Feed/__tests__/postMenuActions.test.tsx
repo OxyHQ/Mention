@@ -1,7 +1,12 @@
 import { PostVisibility } from '@mention/shared-types';
 import type { HydratedPost } from '@mention/shared-types';
 
-import { buildPostMenuActions, type PostMenuDeps, type PostMenuParams } from '../postMenuActions';
+import {
+  buildPostMenuActions,
+  isPostMenuSubmenu,
+  type PostMenuDeps,
+  type PostMenuParams,
+} from '../postMenuActions';
 import { presentSheet } from '@/utils/sheet';
 
 /**
@@ -66,6 +71,12 @@ jest.mock('@/services/communityService', () => ({
   },
 }));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
+// The submenus' rows have their own suite; here only which entries are submenus.
+jest.mock('../PostMenuSubmenus', () => ({
+  PostLaneSubmenu: 'PostLaneSubmenu',
+  PostReplySettingsSubmenu: 'PostReplySettingsSubmenu',
+  PostSourcesSubmenu: 'PostSourcesSubmenu',
+}));
 const mockInvalidateCounts = jest.fn();
 jest.mock('@/stores/profileCountsInvalidation', () => ({
   invalidateProfileCounts: (...args: unknown[]) => mockInvalidateCounts(...args),
@@ -123,6 +134,11 @@ const deps = {
   queryClient,
 } as unknown as PostMenuDeps;
 
+const withSources = (post: HydratedPost): HydratedPost => ({
+  ...post,
+  attachments: { ...post.attachments, sources: [{ url: 'https://example.test/a' }] },
+});
+
 function build(
   params: Partial<PostMenuParams> & { viewPost: HydratedPost },
   depOverrides: Partial<PostMenuDeps> = {},
@@ -135,11 +151,9 @@ function build(
       canStopSharing: false,
       isSaved: false,
       hasArticle: false,
-      hasSources: false,
       moderatesCommunity: false,
       onSave: jest.fn(async () => undefined),
       onOpenArticle: jest.fn(),
-      onOpenSources: jest.fn(),
       ...params,
     },
     { ...deps, ...depOverrides },
@@ -182,10 +196,10 @@ describe('who gets which actions', () => {
   it('offers a signed-out reader only what needs no session', () => {
     const signedOut = { viewerId: undefined, canUsePrivateApi: false };
     const onLane = makePost({ lane: { id: 'l1', name: 'Dev notes' } as HydratedPost['lane'] });
-    const actions = build({ viewPost: onLane, hasArticle: true, hasSources: true }, signedOut);
+    const actions = build({ viewPost: withSources(onLane), hasArticle: true }, signedOut);
 
     expect(labels(actions).sort()).toEqual(
-      ['post.viewArticle', 'post.viewSources', 'postActions.copyLink'].sort(),
+      ['post.viewArticle', 'post.sources', 'postActions.copyLink'].sort(),
     );
     expect(actions.saveActionGroup).toEqual([]);
     expect(actions.addToListAction).toEqual([]);
@@ -264,12 +278,11 @@ describe('who gets which actions', () => {
 
   it('offers unsave on a saved post, insights and stop-sharing only when permitted, and article/sources when present', () => {
     const actions = build({
-      viewPost: makePost(),
+      viewPost: withSources(makePost()),
       isSaved: true,
       canViewInsights: true,
       canStopSharing: true,
       hasArticle: true,
-      hasSources: true,
     });
     expect(labels(actions)).toEqual(
       expect.arrayContaining([
@@ -277,7 +290,7 @@ describe('who gets which actions', () => {
         'postActions.insights',
         'collab.stopSharing',
         'post.viewArticle',
-        'post.viewSources',
+        'post.sources',
       ]),
     );
   });
@@ -288,7 +301,7 @@ describe('what the actions do', () => {
     const action = Object.values(actions)
       .flat()
       .find((a) => a.label === label);
-    if (!action) throw new Error(`no action ${label}`);
+    if (!action || isPostMenuSubmenu(action)) throw new Error(`no action ${label}`);
     return action;
   };
 
@@ -357,11 +370,7 @@ describe('what the actions do', () => {
       isOwner: true,
       canViewInsights: true,
     });
-    for (const label of [
-      'postActions.insights',
-      'lanes.postActions.moveToLane',
-      'postActions.replyOptions',
-    ]) {
+    for (const label of ['postActions.insights']) {
       presentSheetMock.mockClear();
       find(actions, label).onPress();
       expect(presentSheetMock).toHaveBeenCalledTimes(1);
@@ -409,24 +418,14 @@ describe('what the actions do', () => {
     expect(mockClipboard.setStringAsync).toHaveBeenCalledWith('https://mention.earth/p/p1');
   });
 
-  it('hands save, article and sources to the caller', () => {
+  it('hands save and the article to the caller', () => {
     const onSave = jest.fn(async () => undefined);
     const onOpenArticle = jest.fn();
-    const onOpenSources = jest.fn();
-    const actions = build({
-      viewPost: makePost(),
-      hasArticle: true,
-      hasSources: true,
-      onSave,
-      onOpenArticle,
-      onOpenSources,
-    });
+    const actions = build({ viewPost: makePost(), hasArticle: true, onSave, onOpenArticle });
     find(actions, 'postActions.save').onPress();
     find(actions, 'post.viewArticle').onPress();
-    find(actions, 'post.viewSources').onPress();
     expect(onSave).toHaveBeenCalled();
     expect(onOpenArticle).toHaveBeenCalled();
-    expect(onOpenSources).toHaveBeenCalled();
   });
 
   /** The element a sheet action presented, unwrapped from its Suspense. */
@@ -440,43 +439,18 @@ describe('what the actions do', () => {
     return suspense.props.children.props;
   }
 
-  it('moves the post to the lane picked in the sheet, and toasts a failure', async () => {
-    const actions = build({ viewPost: makePost(), isOwner: true });
-    const picker = sheetProps<{
-      onSelect: (laneId: string | null) => Promise<void>;
-      onClose: () => void;
-    }>('lanes.postActions.moveToLane', actions);
-    await picker.onSelect('l2');
-    expect(mockLanes.setPostLane).toHaveBeenCalledWith('p1', 'l2');
-    expect(mockStore.updatePostEverywhere).toHaveBeenCalled();
-    mockLanes.setPostLane.mockRejectedValueOnce(new Error('no'));
-    await picker.onSelect('l3');
-    expect(mockToast).toHaveBeenCalledWith('lanes.postActions.moveFailed', { type: 'error' });
-    picker.onClose();
-    expect(surface.dismiss).toHaveBeenCalled();
-  });
-
-  it('writes reply and quote settings chosen in the sheet', async () => {
-    const settings = sheetProps<{
-      onReplyPermissionChange: (p: string[]) => Promise<void>;
-      onQuotesDisabledChange: (d: boolean) => Promise<void>;
-    }>('postActions.replyOptions', build({ viewPost: makePost(), isOwner: true }));
-    await settings.onReplyPermissionChange(['followers']);
-    expect(mockFeedService.updatePostSettings).toHaveBeenCalledWith('p1', {
-      replyPermission: ['followers'],
-    });
-    await settings.onQuotesDisabledChange(true);
-    expect(mockFeedService.updatePostSettings).toHaveBeenCalledWith('p1', { quotesDisabled: true });
-    mockFeedService.updatePostSettings.mockRejectedValueOnce(new Error('x'));
-    await settings.onReplyPermissionChange(['anyone']);
-    expect(mockToast).toHaveBeenCalledWith('postActions.failedToUpdateReplyPermissions', {
-      type: 'error',
-    });
-    mockFeedService.updatePostSettings.mockRejectedValueOnce(new Error('x'));
-    await settings.onQuotesDisabledChange(false);
-    expect(mockToast).toHaveBeenCalledWith('postActions.failedToUpdateQuoteSettings', {
-      type: 'error',
-    });
+  it('opens sources, reply options and lanes as submenus', () => {
+    const actions = build({ viewPost: withSources(makePost()), isOwner: true });
+    for (const label of [
+      'post.sources',
+      'postActions.replyOptions',
+      'lanes.postActions.moveToLane',
+    ]) {
+      const entry = Object.values(actions)
+        .flat()
+        .find((a) => a.label === label);
+      expect(entry && isPostMenuSubmenu(entry)).toBe(true);
+    }
   });
 
   it('submits a report and thanks the reader, or says it failed', async () => {

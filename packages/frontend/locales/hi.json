@@ -674,12 +674,7 @@
     "repostedBy": "रीपोस्ट किया",
     "sensitiveContent": "संवेदनशील सामग्री",
     "sensitiveContentTap": "दिखाने के लिए टैप करें",
-    "sourcesSheet": {
-      "empty": "इस पोस्ट के लिए कोई स्रोत उपलब्ध नहीं।",
-      "title": "स्रोत"
-    },
     "viewArticle": "लेख देखें",
-    "viewSources": "स्रोत देखें",
     "editedIndicator": "संपादित",
     "editedToast": "यह पोस्ट संपादित की गई थी",
     "language": {
@@ -708,7 +703,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "!{{handle}} में"
+    "inCommunity": "!{{handle}} में",
+    "sources": "स्रोत"
   },
   "navigation": {
     "menu": "नेविगेशन मेन्यू",
@@ -3054,7 +3050,7 @@
       "choose": "कोई लेन चुनें"
     },
     "postActions": {
-      "moveToLane": "लेन में ले जाएँ…",
+      "moveToLane": "लेन में ले जाएँ",
       "moveFailed": "यह पोस्ट ले जाने में विफल",
       "muteLane": "@{{username}} की «{{lane}}» म्यूट करें",
       "muteLaneConfirm": "«{{lane}}» की पोस्ट आपकी फ़ीड में दिखना बंद हो जाएँगी। आप @{{username}} को फ़ॉलो करते रहेंगे, और उनकी बाक़ी सारी पोस्ट आप तक पहुँचती रहेंगी।",

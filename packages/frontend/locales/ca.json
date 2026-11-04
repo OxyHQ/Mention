@@ -684,12 +684,7 @@
     "repostedBy": "Impulsada per",
     "sensitiveContent": "Contingut sensible",
     "sensitiveContentTap": "Toca-ho per mostrar-lo",
-    "sourcesSheet": {
-      "empty": "No hi ha fonts disponibles per a aquesta publicació.",
-      "title": "Fonts"
-    },
     "viewArticle": "Mostra l'article",
-    "viewSources": "Mostra les fonts",
     "editedIndicator": "Editada",
     "editedToast": "Aquesta publicació s'ha editat",
     "language": {
@@ -720,7 +715,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "a !{{handle}}"
+    "inCommunity": "a !{{handle}}",
+    "sources": "Fonts"
   },
   "navigation": {
     "menu": "Menú de navegació",
@@ -3079,7 +3075,7 @@
       "choose": "Tria un carril"
     },
     "postActions": {
-      "moveToLane": "Mou a un carril…",
+      "moveToLane": "Mou a un carril",
       "moveFailed": "No s'ha pogut moure aquesta publicació",
       "muteLane": "Silencia «{{lane}}» de @{{username}}",
       "muteLaneConfirm": "Les publicacions de «{{lane}}» deixaran d'aparèixer als teus fluxos. Continues seguint @{{username}}, i la resta del que publiqui et continua arribant.",

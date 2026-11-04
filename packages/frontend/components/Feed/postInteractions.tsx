@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { createLogger } from '@oxy.so/core/logger';
-import type { CommunityNoteSummary, HydratedPost, PostSourceLink } from '@mention/shared-types';
+import type { CommunityNoteSummary, HydratedPost } from '@mention/shared-types';
 import { sharePost } from '@/hooks/usePostShare';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -37,7 +37,6 @@ export interface PostInteractions {
   share: (post: HydratedPost) => void;
   /** Send the post's permalink to someone in Allo (Mention has no chat of its own). */
   sendInAllo: (postId: string) => void;
-  openSources: (sources: PostSourceLink[]) => void;
   openInsights: (postId: string) => void;
   openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
   /**
@@ -56,12 +55,7 @@ export interface PostInteractions {
  */
 export type BoundPostCommands = Pick<
   PostInteractions,
-  | 'requireSession'
-  | 'sendInAllo'
-  | 'openSources'
-  | 'openInsights'
-  | 'openCommunityNoteAbout'
-  | 'prefetchProfile'
+  'requireSession' | 'sendInAllo' | 'openInsights' | 'openCommunityNoteAbout' | 'prefetchProfile'
 >;
 
 /** The canonical copy of a post right now, or the row's copy when the store has none. */
@@ -158,7 +152,6 @@ function createController(): Controller {
       void sharePost(currentPost(post));
     },
     sendInAllo: whenBound('sendInAllo'),
-    openSources: whenBound('openSources'),
     openInsights: whenBound('openInsights'),
     openCommunityNoteAbout: whenBound('openCommunityNoteAbout'),
     // A prefetch with nothing bound has nothing to warm; it is not a failure.

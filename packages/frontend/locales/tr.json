@@ -674,12 +674,7 @@
     "repostedBy": "Yeniden paylaşan",
     "sensitiveContent": "Hassas içerik",
     "sensitiveContentTap": "Görmek için dokun",
-    "sourcesSheet": {
-      "empty": "Bu gönderi için kaynak yok.",
-      "title": "Kaynaklar"
-    },
     "viewArticle": "Makaleyi gör",
-    "viewSources": "Kaynakları gör",
     "editedIndicator": "Düzenlendi",
     "editedToast": "Bu gönderi düzenlendi",
     "language": {
@@ -708,7 +703,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "!{{handle}} topluluğunda"
+    "inCommunity": "!{{handle}} topluluğunda",
+    "sources": "Kaynaklar"
   },
   "navigation": {
     "menu": "Gezinme menüsü",
@@ -3054,7 +3050,7 @@
       "choose": "Bir kulvar seç"
     },
     "postActions": {
-      "moveToLane": "Kulvara taşı…",
+      "moveToLane": "Kulvara taşı",
       "moveFailed": "Bu gönderi taşınamadı",
       "muteLane": "@{{username}} hesabının «{{lane}}» kulvarını sustur",
       "muteLaneConfirm": "«{{lane}}» kulvarındaki gönderiler akışlarında görünmez olur. @{{username}} hesabını takip etmeyi sürdürürsün ve paylaştığı diğer her şey sana ulaşmaya devam eder.",
