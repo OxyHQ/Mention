@@ -311,6 +311,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       '`parent_post_id` on continuations to convert a fan into a chain.',
   },
   {
+    path: 'src/__tests__/connectors/atproto/accountSync.test.ts',
+    jobEntryPoint: 'syncFollowedAtprotoAccounts',
+    reason:
+      'Selects every followed atproto actor that is due (and every unfinished history ' +
+      'backfill) across `federated_actors` and stamps `last_outbox_sync_at` / the ' +
+      "`outbox_backfill_*` columns of whatever it selected, another file's actors included.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillFederatedHandleQualificationRows.test.ts',
     jobEntryPoint: 'backfillFederatedHandleQualification',
     reason:

@@ -3,6 +3,7 @@ import { findErasedAccountUsernames } from '../db/accountErasures/accountErasure
 import { logger } from '../utils/logger';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { instagramGraphConnector } from '../connectors/instagram/InstagramGraphConnector';
+import { atprotoConnector } from '../connectors/atproto/AtprotoConnector';
 import {
   claimOutboxBackfill,
   findActorsWithOutboxByUris,
@@ -594,8 +595,10 @@ class FederationJobScheduler {
   }
 
   /**
-   * Pull new posts from the outbox of each remotely-followed actor.
-   * Catches up on posts that may have been missed by inbox push delivery.
+   * Pull new posts from each remotely-followed actor: the outbox of every
+   * followed ActivityPub actor (catching up on posts inbox push delivery missed),
+   * and the author feed of each followed Bluesky account that is due
+   * (`connectors/atproto/accountSync.ts`).
    *
    * Public so the BullMQ periodic worker can invoke it.
    */
@@ -606,35 +609,49 @@ class FederationJobScheduler {
     }
     this.isSyncFollowedActorsPostsRunning = true;
     try {
-      const followedActorUris = await distinctRemoteActorUris({
-        direction: 'outbound',
-        statuses: ['accepted'],
-      });
-
-      if (followedActorUris.length === 0) return;
-
-      // `{ outboxUrl: { $ne: null } }` becomes `outbox_url IS NOT NULL` — the
-      // total predicate. `<> null` would be NULL for every row and select none.
-      const actors = await findActorsWithOutboxByUris(followedActorUris);
-
-      if (actors.length === 0) return;
-
-      logger.info(`[FedSync] Syncing outbox posts for ${actors.length} followed actors`);
-
-      // Bounded concurrency to avoid overwhelming remote servers
-      const CONCURRENCY = 3;
-      for (let i = 0; i < actors.length; i += CONCURRENCY) {
-        const batch = actors.slice(i, i + CONCURRENCY);
-        await Promise.allSettled(
-          batch.map((actor) =>
-            activityPubConnector
-              .syncOutboxPosts(actor, 20, 'followed_outbox')
-              .catch((err) => logger.debug('[FedSync] outbox sync failed', err)),
-          ),
-        );
+      // One network's failure must not cost the other its sync.
+      const [activityPub, atproto] = await Promise.allSettled([
+        this.syncFollowedActivityPubOutboxes(),
+        atprotoConnector.syncFollowedAccounts(),
+      ]);
+      if (activityPub.status === 'rejected') {
+        logger.error('[FedSync] followed outbox sync failed:', activityPub.reason);
+      }
+      if (atproto.status === 'rejected') {
+        logger.error('[FedSync] followed Bluesky account sync failed:', atproto.reason);
       }
     } finally {
       this.isSyncFollowedActorsPostsRunning = false;
+    }
+  }
+
+  private async syncFollowedActivityPubOutboxes(): Promise<void> {
+    const followedActorUris = await distinctRemoteActorUris({
+      direction: 'outbound',
+      statuses: ['accepted'],
+    });
+
+    if (followedActorUris.length === 0) return;
+
+    // `{ outboxUrl: { $ne: null } }` becomes `outbox_url IS NOT NULL` — the
+    // total predicate. `<> null` would be NULL for every row and select none.
+    const actors = await findActorsWithOutboxByUris(followedActorUris);
+
+    if (actors.length === 0) return;
+
+    logger.info(`[FedSync] Syncing outbox posts for ${actors.length} followed actors`);
+
+    // Bounded concurrency to avoid overwhelming remote servers
+    const CONCURRENCY = 3;
+    for (let i = 0; i < actors.length; i += CONCURRENCY) {
+      const batch = actors.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        batch.map((actor) =>
+          activityPubConnector
+            .syncOutboxPosts(actor, 20, 'followed_outbox')
+            .catch((err) => logger.debug('[FedSync] outbox sync failed', err)),
+        ),
+      );
     }
   }
 
@@ -644,7 +661,9 @@ class FederationJobScheduler {
    * This is intentionally separate from `syncFollowedActorsPosts()`:
    * - the followed sync always checks the latest page for new content;
    * - this job advances an opaque ActivityPub cursor until the 100 most recent
-   *   importable activities have been inspected, then stops for that actor.
+   *   importable activities have been inspected, then stops for that actor;
+   * - the Bluesky half pages an account's author feed back to its own cap
+   *   (`advanceAtprotoHistoryBackfills`).
    *
    * Public so the BullMQ periodic worker can invoke it.
    */
@@ -656,21 +675,32 @@ class FederationJobScheduler {
 
     this.isSyncRecentOutboxBackfillsRunning = true;
     try {
-      const now = new Date();
-      const actors = await findOutboxBackfillCandidates(
-        now,
-        OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE,
-      );
-
-      if (actors.length === 0) return;
-
-      logger.info(`[FedSync] Advancing recent outbox backfill for ${actors.length} actors`);
-
-      for (const actor of actors) {
-        await this.runRecentOutboxBackfillForActor(actor);
+      // One network's failure must not cost the other its backfill.
+      const [activityPub, atproto] = await Promise.allSettled([
+        this.advanceActivityPubOutboxBackfills(),
+        atprotoConnector.advanceHistoryBackfills(),
+      ]);
+      if (activityPub.status === 'rejected') {
+        logger.error('[FedSync] recent outbox backfill failed:', activityPub.reason);
+      }
+      if (atproto.status === 'rejected') {
+        logger.error('[FedSync] Bluesky history backfill failed:', atproto.reason);
       }
     } finally {
       this.isSyncRecentOutboxBackfillsRunning = false;
+    }
+  }
+
+  private async advanceActivityPubOutboxBackfills(): Promise<void> {
+    const now = new Date();
+    const actors = await findOutboxBackfillCandidates(now, OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE);
+
+    if (actors.length === 0) return;
+
+    logger.info(`[FedSync] Advancing recent outbox backfill for ${actors.length} actors`);
+
+    for (const actor of actors) {
+      await this.runRecentOutboxBackfillForActor(actor);
     }
   }
 
