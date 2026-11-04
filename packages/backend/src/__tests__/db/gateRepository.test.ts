@@ -32,8 +32,8 @@ import { postgates, threadgateAllowRules, threadgates } from '../../db/schema/ga
 import {
   deletePostgate,
   deleteThreadgate,
-  loadPostgateByPostId,
-  loadThreadgateByPostId,
+  loadPostgateByPostUri,
+  loadThreadgateByPostUri,
   parseDetachedQuoteUris,
   parseThreadgateAllowRules,
   upsertPostgate,
@@ -50,7 +50,7 @@ function postId(): string {
   return `${NS}-${randomUUID()}`;
 }
 
-/** The MTN URI shape `routes/posts.ts` mints, which embeds the WRITER's id. */
+/** The MTN URI shape `services/postGates.ts` mints, which embeds the post AUTHOR's id. */
 function postUri(writer: string, id: string): string {
   return `mtn://${writer}/app.mention.feed.post/${id}`;
 }
@@ -84,7 +84,7 @@ async function storedRules(threadgateId: string) {
 }
 
 describe('threadgates', () => {
-  it('stores the allow rules in order and reads them back by post id', async () => {
+  it('stores the allow rules in order and reads them back by post uri', async () => {
     const id = postId();
     const written = await upsertThreadgate({
       postUri: postUri(AUTHOR, id),
@@ -93,7 +93,7 @@ describe('threadgates', () => {
       allow: [{ type: 'followingOnly' }, { type: 'listOnly', list: 'list-42' }],
     });
 
-    const read = await loadThreadgateByPostId(id);
+    const read = await loadThreadgateByPostUri(postUri(AUTHOR, id));
     expect(read?.id).toBe(written.id);
     expect(read?.allow).toEqual([{ type: 'followingOnly' }, { type: 'listOnly', list: 'list-42' }]);
     expect(read?.createdBy).toBe(AUTHOR);
@@ -151,25 +151,24 @@ describe('threadgates', () => {
     expect(after[0]).toMatchObject({ type: 'listOnly', listId: 'list-7' });
   });
 
-  it('returns the OLDEST gate when two writers gated the same post', async () => {
-    // `post_uri` embeds the writer, so two people gating one post produce two
-    // rows and `post_id` is not unique. The legacy store's `findOne` answered arbitrarily.
+  it("reads the gate under the post's own URI, never another writer's row", async () => {
+    // `post_id` is not unique, so a row another account wrote first for the same
+    // post must not become the author's answer.
     const id = postId();
-    const mine = await upsertThreadgate({
-      postUri: postUri(AUTHOR, id),
-      postId: id,
-      createdBy: AUTHOR,
-      allow: [{ type: 'followingOnly' }],
-    });
     await upsertThreadgate({
       postUri: postUri(OTHER_AUTHOR, id),
       postId: id,
       createdBy: OTHER_AUTHOR,
       allow: [{ type: 'followerOnly' }],
     });
+    const mine = await upsertThreadgate({
+      postUri: postUri(AUTHOR, id),
+      postId: id,
+      createdBy: AUTHOR,
+      allow: [{ type: 'followingOnly' }],
+    });
 
-    expect((await loadThreadgateByPostId(id))?.id).toBe(mine.id);
-    expect((await loadThreadgateByPostId(id))?.id).toBe(mine.id);
+    expect((await loadThreadgateByPostUri(postUri(AUTHOR, id)))?.id).toBe(mine.id);
   });
 
   it('takes its rules with it when deleted', async () => {
@@ -184,7 +183,7 @@ describe('threadgates', () => {
 
     await deleteThreadgate(gate.id);
 
-    expect(await loadThreadgateByPostId(id)).toBeNull();
+    expect(await loadThreadgateByPostUri(postUri(AUTHOR, id))).toBeNull();
     expect(await storedRules(gate.id)).toHaveLength(0);
   });
 
@@ -197,7 +196,7 @@ describe('threadgates', () => {
       allow: [],
     });
 
-    const read = await loadThreadgateByPostId(id);
+    const read = await loadThreadgateByPostUri(postUri(AUTHOR, id));
     expect(read).not.toBeNull();
     expect(read?.allow).toEqual([]);
   });
@@ -253,7 +252,7 @@ describe('postgates', () => {
       disableQuotes: true,
       detachedQuoteUris: ['mtn://a/app.mention.feed.post/1'],
     });
-    expect(await loadPostgateByPostId(id)).toMatchObject({
+    expect(await loadPostgateByPostUri(postUri(AUTHOR, id))).toMatchObject({
       disableQuotes: true,
       detachedQuoteUris: ['mtn://a/app.mention.feed.post/1'],
     });
@@ -267,7 +266,7 @@ describe('postgates', () => {
     });
 
     expect(second.id).toBe(first.id);
-    expect(await loadPostgateByPostId(id)).toMatchObject({
+    expect(await loadPostgateByPostUri(postUri(AUTHOR, id))).toMatchObject({
       disableQuotes: false,
       detachedQuoteUris: [],
     });
@@ -285,7 +284,7 @@ describe('postgates', () => {
 
     await deletePostgate(gate.id);
 
-    expect(await loadPostgateByPostId(id)).toBeNull();
+    expect(await loadPostgateByPostUri(postUri(AUTHOR, id))).toBeNull();
   });
 });
 
