@@ -408,6 +408,23 @@ describe('mapPostViewToNormalizedPost', () => {
     ]);
   });
 
+  it('keeps the quote of an unhydrated (blocked) post, never one its author detached', () => {
+    const QUOTED_URI = 'at://did:plc:q/app.bsky.feed.post/qk';
+    const quoting = (stub: string) =>
+      mapPostViewToNormalizedPost(
+        postView('qb', 'look', {
+          record: { embed: { $type: 'app.bsky.embed.record', record: { uri: QUOTED_URI } } },
+          embed: {
+            $type: 'app.bsky.embed.record#view',
+            record: { $type: stub, uri: QUOTED_URI },
+          },
+        }),
+        DID,
+      );
+    expect(quoting('app.bsky.embed.record#viewBlocked')?.quotedUri).toBe(QUOTED_URI);
+    expect(quoting('app.bsky.embed.record#viewDetached')?.quotedUri).toBeUndefined();
+  });
+
   it('rejects a non-feed-post record, a wrong author, and a non-AT-URI', () => {
     // Wrong collection (a like, not a post).
     expect(

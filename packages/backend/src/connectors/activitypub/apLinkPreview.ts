@@ -1,3 +1,4 @@
+import { apList } from '@oxy.so/federation';
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { linkPreviewKey, remoteLinkPreview, type RemoteLinkPreview } from '../shared/linkPreviews';
@@ -33,10 +34,9 @@ function plainText(value: unknown): string | undefined {
  * card and is skipped.
  */
 export function extractApLinkPreviews(object: { attachment?: unknown }): RemoteLinkPreview[] {
-  const entries = Array.isArray(object.attachment) ? object.attachment : [object.attachment];
   const previews: RemoteLinkPreview[] = [];
   const seen = new Set<string>();
-  for (const entry of entries) {
+  for (const entry of apList(object.attachment)) {
     if (previews.length >= MAX_POST_DOCUMENTS) break;
     const attachment = asRecord(entry);
     const preview = asRecord(attachment?.preview);

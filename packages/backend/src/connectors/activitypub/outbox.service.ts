@@ -38,6 +38,7 @@ import {
   buildFederatedNoteContent,
   buildFederatedNoteProvenance,
   buildFederatedNoteVariants,
+  apNoteUrl,
 } from './apPostContent';
 import { resolvePostCommunity } from './apCommunity';
 import { resolveAnnouncedActivity } from './apRelay';
@@ -1650,8 +1651,8 @@ export class OutboxSyncService {
       originalPostId,
       boosterOxyUserId,
       importReason,
-      actorUri: typeof announceActivity.actor === 'string' ? announceActivity.actor : undefined,
-      url: typeof announceActivity.url === 'string' ? announceActivity.url : announceId,
+      actorUri: extractActorUri(announceActivity.actor),
+      url: apNoteUrl(announceActivity.url) ?? announceId,
       createdAt: parseApPublished(announceActivity.published),
     });
   }
