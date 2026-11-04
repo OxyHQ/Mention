@@ -34,6 +34,7 @@ import {
   setActorOxyUserId,
   stampLastOutboxSyncAt,
 } from '../db/federation/actorRepository';
+import { createCache } from '../utils/cache';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import {
@@ -75,6 +76,45 @@ const ATPROTO_GRAPH_SYNC_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /** Expire abandoned graph-sync claims if a worker dies while the detached task runs. */
 const ATPROTO_GRAPH_SYNC_LOCK_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+/** What a viewed profile's Oxy account says about its federated identity. */
+interface OxyFederationIdentity {
+  actorUri?: string;
+  acctHint?: string;
+}
+
+/**
+ * Viewed profiles' Oxy identities, kept for the outbox cooldown. A profile with
+ * no actor row — every empty LOCAL profile — has no `lastOutboxSyncAt` to cool
+ * down on, so without this each view of it was an Oxy `users.get` that answered
+ * "not federated" again. A failed lookup is not cached (it rejects).
+ */
+const oxyIdentityCache = createCache({
+  name: 'FedSyncOxyIdentity',
+  ttlSeconds: OUTBOX_SYNC_MIN_INTERVAL_MS / 1000,
+});
+
+function resolveOxyFederationIdentity(oxyUserId: string): Promise<OxyFederationIdentity> {
+  return oxyIdentityCache.getOrCompute(`fedsync:oxy-identity:v1:${oxyUserId}`, async () => {
+    // Federated profile lookup is public — use the service client so it
+    // works for unauthenticated viewers and avoids per-request token setup.
+    const oxyUser: User = await getServiceOxyClient().users.get(oxyUserId);
+    const identity: OxyFederationIdentity = {
+      actorUri:
+        typeof oxyUser.federation?.actorUri === 'string' ? oxyUser.federation.actorUri : undefined,
+      acctHint:
+        typeof oxyUser.username === 'string' && oxyUser.username.includes('@')
+          ? oxyUser.username
+          : undefined,
+    };
+    logger.info('[FedSync] resolved federated identity', {
+      type: oxyUser.type,
+      hasActorUri: Boolean(identity.actorUri),
+      hasAccountHint: Boolean(identity.acctHint),
+    });
+    return identity;
+  });
+}
 
 class FederatedProfileSync {
   /**
@@ -152,6 +192,18 @@ class FederatedProfileSync {
         // Dispatch by the cached actor's network. atproto profiles backfill
         // through the atproto connector's pull-based author feed (no AP outbox
         // dance); the rest of this method is the ActivityPub outbox flow.
+        // A cached actor whose posts were imported inside the cooldown has
+        // nothing new to fetch: no Oxy lookup, no actor document, no outbox or
+        // author feed, no banner sync. Every view of an empty profile used to
+        // do all of it — this is the cooldown applied BEFORE any network work.
+        if (
+          cachedActor &&
+          isWithinOutboxSyncCooldown(cachedActor.lastOutboxSyncAt, OUTBOX_SYNC_MIN_INTERVAL_MS)
+        ) {
+          logger.debug('[FedSync] profile sync skipped during cooldown');
+          return;
+        }
+
         if (cachedActor?.protocol === 'atproto') {
           if (cachedActor.uri) {
             const connector = connectorRegistry.connectorFor(cachedActor.uri);
@@ -190,29 +242,10 @@ class FederatedProfileSync {
 
         let actor: FederatedActorRecord | null = cachedActor ?? null;
         let refreshedActorForSync = false;
-        let oxyIdentity: { actorUri?: string; acctHint?: string } | undefined;
+        let oxyIdentity: OxyFederationIdentity | undefined;
 
-        const getOxyIdentity = async (): Promise<{ actorUri?: string; acctHint?: string }> => {
-          if (oxyIdentity) return oxyIdentity;
-          // Federated profile lookup is public — use the service client so it
-          // works for unauthenticated viewers and avoids per-request token setup.
-          const oxyLookupClient = getServiceOxyClient();
-          const oxyUser: User = await oxyLookupClient.users.get(syncUserId);
-          oxyIdentity = {
-            actorUri:
-              typeof oxyUser.federation?.actorUri === 'string'
-                ? oxyUser.federation.actorUri
-                : undefined,
-            acctHint:
-              typeof oxyUser.username === 'string' && oxyUser.username.includes('@')
-                ? oxyUser.username
-                : undefined,
-          };
-          logger.info('[FedSync] resolved federated identity', {
-            type: oxyUser.type,
-            hasActorUri: Boolean(oxyIdentity.actorUri),
-            hasAccountHint: Boolean(oxyIdentity.acctHint),
-          });
+        const getOxyIdentity = async (): Promise<OxyFederationIdentity> => {
+          oxyIdentity ??= await resolveOxyFederationIdentity(syncUserId);
           return oxyIdentity;
         };
 

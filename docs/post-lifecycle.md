@@ -86,7 +86,12 @@ post is classified and ranked once it exists.
 - Degraded author (Oxy resolve miss) = empty `username` + `'Unknown user'`;
   a degraded FEDERATED author is enriched from Mention's own
   `FederatedActor` record but never invents `displayName`, and is never
-  cached.
+  cached in Redis. A task answers a failed author with the placeholder for
+  5 s (`OXY_USER_FAILURE_TTL_MS`) before asking again, and a bulk
+  `users.getMany` that failed with 429/5xx/network/deadline is not retried
+  per id: that would spend the exhausted budget once per author. The app
+  re-reads page 1 of a feed showing a degraded author (`hooks/useFeedQuery`,
+  bounded backoff), so names come back once Oxy does.
 - Valid profile URLs: `/@username` and `/@username@domain`. A duplicate
   suffix (`/@user@domain@domain`) is a handle-normalization bug.
 

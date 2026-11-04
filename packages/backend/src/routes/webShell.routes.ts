@@ -40,6 +40,7 @@ import { loadNewestEligibleReplies } from '../services/PostRecentReplierService'
 import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
 import { mget as mgetUserSummaries } from '../services/userSummaryCache';
+import { cachedOxyAuthorVisibility } from '../services/oxyAuthorVisibilityCache';
 import { logger } from '../utils/logger';
 import {
   type OgData,
@@ -189,8 +190,18 @@ async function profileSeoFacts(oxyUserId: string | undefined): Promise<ProfileSe
 }
 
 /**
- * Whether Oxy serves this author's public profile, asked fresh on every
- * request: the profile read is the availability answer and is never cached.
+ * Whether Oxy serves this author's public profile. Read through
+ * {@link cachedOxyAuthorVisibility}: a public answer for a minute, a hidden one
+ * for five, a failure never, and evicted the moment Oxy broadcasts a change to
+ * the account — so a crawler's page views are not each an Oxy round trip.
+ */
+function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
+  return cachedOxyAuthorVisibility(oxyUserId, () => askOxyIfAuthorPublic(oxyUserId));
+}
+
+/**
+ * Ask Oxy whether it serves this author's public profile: the profile read is
+ * the availability answer.
  *
  * Only the author's HANDLE may come from a cache — the user summary hydration
  * keeps, which this page's card hydration reads for the same author a moment
@@ -200,7 +211,7 @@ async function profileSeoFacts(oxyUserId: string | undefined): Promise<ProfileSe
  * request used to. A cached handle saves the serial `users/by-ids` round trip
  * on every crawled post page by an author seen in the last few minutes.
  */
-async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
+async function askOxyIfAuthorPublic(oxyUserId: string): Promise<boolean> {
   const cachedHandle = (await mgetUserSummaries([oxyUserId])).get(oxyUserId)?.user?.username;
   let asked: { handle: string; found: boolean } | undefined;
   if (cachedHandle) {
@@ -217,7 +228,8 @@ async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
 
 /**
  * Whether a post's author may be shown to anyone — public on Mention AND on Oxy
- * — and whether search engines may index them, all read fresh for this request.
+ * — and whether search engines may index them. The Mention half is read fresh;
+ * the Oxy half is {@link isOxyAuthorPublic}'s short, invalidated cache.
  * The two reads are independent, so they run together rather than one
  * round-trip after the other.
  */
@@ -235,8 +247,8 @@ type AuthorPolicyReader = (oxyUserId: string) => Promise<MentionProfileSeoPolicy
 
 /**
  * {@link authorSeoPolicy} for ONE request: an author it asks about twice — a
- * post's author who also replied to it — is read once. Nothing outlives the
- * request; every request reads every author it shows afresh.
+ * post's author who also replied to it — is read once. Nothing here outlives
+ * the request.
  */
 function requestAuthorPolicies(): AuthorPolicyReader {
   const reads = new Map<string, Promise<MentionProfileSeoPolicy>>();

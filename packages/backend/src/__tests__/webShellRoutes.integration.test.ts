@@ -60,6 +60,24 @@ const { callOptions, byUsernameInScope } = vi.hoisted(() => ({
   }),
 }));
 
+const { authorVisibilityStore } = vi.hoisted(() => ({
+  authorVisibilityStore: new Map<string, unknown>(),
+}));
+
+// The suite has no Redis; the author-visibility cache gets a memory store so a
+// warm page is observable. Every other cache keeps its Redis-less behaviour.
+vi.mock('../utils/cache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/cache')>();
+  const { createMemoryCache } = await import('./helpers/memoryCache');
+  return {
+    ...actual,
+    createCache: (config: Parameters<typeof actual.createCache>[0]) =>
+      config.name === 'OxyAuthorVisibilityCache'
+        ? createMemoryCache(authorVisibilityStore)
+        : actual.createCache(config),
+  };
+});
+
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     users: { byUsername: getProfileByUsername, getMany: getUsersByIds },
@@ -76,6 +94,7 @@ import webShellRoutes from '../routes/webShell.routes';
 import { updatePostRecord } from '../db/posts/postRepository';
 import * as shellCache from '../services/webShellOgCache';
 import { mapPostOg } from '../services/webShellRenderer';
+import { invalidateOxyAuthorVisibility } from '../services/oxyAuthorVisibilityCache';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import type { HydratedPost } from '@mention/shared-types';
@@ -169,6 +188,10 @@ function mockHydrated(id: string, overrides: Partial<HydratedPost> = {}) {
 
 beforeAll(async () => {
   await connectPostgres();
+});
+
+beforeEach(() => {
+  authorVisibilityStore.clear();
 });
 
 afterEach(async () => {
@@ -1250,6 +1273,28 @@ describe('webShell post OG sensitivity gate', () => {
     } finally {
       cache.mockRestore();
     }
+  });
+
+  it('asks Oxy about an author once while the answer is cached, until Oxy says they changed', async () => {
+    const postId = await seedGatedPost(
+      { postClassification: { status: 'baseline' } },
+      'an ordinary post',
+    );
+    const oxyCalls = () => ({
+      users: getUsersByIds.mock.calls.length,
+      profiles: vi
+        .mocked(globalThis.fetch)
+        .mock.calls.filter(([url]) => String(url).includes('/profiles/username/')).length,
+    });
+
+    expect((await crawl(postId)).status).toBe(200);
+    expect(oxyCalls()).toEqual({ users: 1, profiles: 1 });
+    expect((await crawl(postId)).status).toBe(200);
+    expect(oxyCalls()).toEqual({ users: 1, profiles: 1 });
+
+    await invalidateOxyAuthorVisibility([AUTHOR]);
+    expect((await crawl(postId)).status).toBe(200);
+    expect(oxyCalls()).toEqual({ users: 2, profiles: 2 });
   });
 
   it('still unfurls an ordinary post with its image and text', async () => {

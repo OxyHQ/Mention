@@ -127,6 +127,12 @@ and that a profile renders one `<h1>` and anchors to its posts
 
 - Profiles must resolve through Oxy's public profile endpoint and have public
   Mention profile visibility.
+- A post page asks whether Oxy serves each author's public profile through a
+  short cache (`packages/backend/src/services/oxyAuthorVisibilityCache.ts`): a public answer for 60 s,
+  a hidden one for 5 min, a failure never (the page is a 503). Oxy's
+  user-invalidation broadcast and an erasure evict it at once, so an archived or
+  restricted author leaves crawled pages promptly; the TTLs only bound a lost
+  message. Asked fresh on every page view, crawler volume was Oxy volume.
 - An account can opt out of search engines (Settings → Privacy → "Show in
   search engines", `privacy.searchEngineIndexing`). Its profile and posts stay
   public to people — the pages render and unfurl as before — but are served

@@ -14,6 +14,7 @@ import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
   foldFeedPages,
+  hasUnresolvedAuthor,
   type FeedPage,
   type FeedPageParam,
   type FeedQueryData,
@@ -37,6 +38,15 @@ const logger = createLogger('useFeedQuery');
 // space out instead of hammering a still-syncing outbox. The number of entries
 // is the (bounded) poll budget, so we never poll indefinitely.
 export const FED_PENDING_POLL_DELAYS_MS = [1000, 2500, 5000] as const;
+
+/**
+ * Reads of page 1 again while it shows an author Oxy could not resolve — the
+ * "Unknown user" placeholder an Oxy outage leaves on every author it hydrated.
+ * The feed is otherwise kept for the session, so without these the placeholder
+ * stayed until a manual refresh. Bounded (a deleted or restricted author stays
+ * a placeholder for good) and spaced out, since what failed was Oxy.
+ */
+export const UNRESOLVED_AUTHOR_REREAD_DELAYS_MS = [15_000, 60_000, 300_000] as const;
 
 /**
  * Read one page of a feed, exactly as the feed's earlier local-state reader did:
@@ -123,7 +133,8 @@ function feedQueryOptions(feed: FeedReadIdentity) {
       lastPage.hasMore ? nextUnvisitedCursor(lastPage.nextCursor, pageParams) : undefined,
     // Staleness is decided by RULE, never by age: a remount renders the
     // cached pages and requests nothing, unless a write the feed cannot
-    // see has happened since its read (the mount effect below). Kept for
+    // see has happened since its read, or the read showed an author Oxy
+    // could not resolve (the mount and reread effects below). Kept for
     // the session, like the slice this replaced — an account switch
     // clears the whole client (`AccountSwitchReset`).
     staleTime: Infinity,
@@ -273,10 +284,13 @@ export function useFeedQuery({
     if (!active) return;
     const state = queryClient.getQueryState(queryKey);
     if (state?.data === undefined || state.fetchStatus !== 'idle') return;
+    const age = Date.now() - state.dataUpdatedAt;
     const stale =
-      feed.type === 'replies'
-        ? Date.now() - state.dataUpdatedAt > REPLIES_REREAD_AFTER_MS
-        : isFeedReadStale(feed, state.dataUpdatedAt);
+      (feed.type === 'replies'
+        ? age > REPLIES_REREAD_AFTER_MS
+        : isFeedReadStale(feed, state.dataUpdatedAt)) ||
+      (age > UNRESOLVED_AUTHOR_REREAD_DELAYS_MS[0] &&
+        state.data.pages.some((page) => hasUnresolvedAuthor(page.items)));
     if (stale) void reload();
   }, [active, queryClient, queryKey, feed, reload]);
 
@@ -291,24 +305,29 @@ export function useFeedQuery({
 
   useReloadOnFeedRuleChange(active, reload, feed);
 
-  // Federated profile still syncing: read page 1 again on the bounded backoff
-  // until posts arrive or the budget runs out. Every pending answer is a new
-  // read (`dataUpdatedAt`), which arms the next poll; a feed of its own starts
-  // with the whole budget.
+  // Page 1 read again on a bounded backoff, for one of two reasons:
+  //  - a federated profile still syncing (`pending`), until posts arrive;
+  //  - an author Oxy could not resolve, until Oxy answers. Only while the feed
+  //    holds that one page: a reread replaces every loaded page with page 1,
+  //    which would pull a reader who has scrolled on out of place. A deeper
+  //    feed is read again when it next mounts (the effect above).
+  // Every answer is a new read (`dataUpdatedAt`), which arms the next one; a
+  // feed of its own, or a new reason, starts with the whole budget.
   const pending = active && pages?.[0]?.pending === true;
-  const pendingPolls = useRef({ queryKey, count: 0 });
+  const unresolvedAuthor = active && pages?.length === 1 && hasUnresolvedAuthor(content.items);
+  const reread = pending ? 'pending' : unresolvedAuthor ? 'unresolved-author' : undefined;
+  const rereads = useRef({ queryKey, reread, count: 0 });
   useEffect(() => {
-    if (pendingPolls.current.queryKey !== queryKey) {
-      pendingPolls.current = { queryKey, count: 0 };
+    if (rereads.current.queryKey !== queryKey || rereads.current.reread !== reread) {
+      rereads.current = { queryKey, reread, count: 0 };
     }
-    const polls = pendingPolls.current;
-    if (!pending) {
-      polls.count = 0;
-      return;
-    }
-    const delay = FED_PENDING_POLL_DELAYS_MS[polls.count];
+    if (!reread) return;
+    const polls = rereads.current;
+    const delays =
+      reread === 'pending' ? FED_PENDING_POLL_DELAYS_MS : UNRESOLVED_AUTHOR_REREAD_DELAYS_MS;
+    const delay = delays[polls.count];
     if (delay === undefined) {
-      logger.debug('Pending poll budget exhausted, showing empty state');
+      logger.debug('Feed reread budget exhausted', { reason: reread });
       return;
     }
     const timer = setTimeout(() => {
@@ -316,7 +335,7 @@ export function useFeedQuery({
       void reload();
     }, delay);
     return () => clearTimeout(timer);
-  }, [pending, dataUpdatedAt, queryKey, reload]);
+  }, [reread, dataUpdatedAt, queryKey, reload]);
 
   const refresh = useCallback(async () => {
     if (active) await reload();

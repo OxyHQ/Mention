@@ -494,6 +494,13 @@ an HLS playlist URL 415s. The S3 activity cache is gated on
 `FEDERATION_MEDIA_CACHE_WRITE_ENABLED`, which is ON by default; setting it to
 `false` leaves the proxy working, it just never writes to S3.
 
+**Profile sync-on-view does no network work inside the cooldown.** A cached
+actor (ActivityPub or atproto) whose `lastOutboxSyncAt` is under 15 minutes old
+skips the Oxy lookup, the actor document, the outbox or author feed and the
+banner refresh altogether (`connectors/federatedProfileSync.ts`). A profile with
+no actor row (every empty local profile) has no stamp to cool down on, so its
+Oxy identity is cached for the same window (`FedSyncOxyIdentity`).
+
 **A bad or missing federation service credential fails signed fetch
 silently (0 posts imported)**, and the outbox-sync cooldown makes that
 empty first sync permanent until `lastOutboxSyncAt` is cleared. Invisible

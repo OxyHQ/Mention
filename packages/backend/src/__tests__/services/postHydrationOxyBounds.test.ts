@@ -47,6 +47,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
 
 import {
   OXY_USER_FALLBACK_CONCURRENCY,
+  OXY_USER_FAILURE_TTL_MS,
   OXY_USER_RESOLUTION_DEADLINE_MS,
   resolveUserSummaries,
 } from '../../services/PostHydrationService';
@@ -93,6 +94,29 @@ describe('resolveUserSummaries Oxy bounds', () => {
     expect(result.get('legacy-b')?.user.id).toBe('canonical');
     expect(getUserById).not.toHaveBeenCalled();
     expect(getUsersByIds).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fan out an overloaded bulk read, and answers its failures from memory briefly', async () => {
+    vi.useFakeTimers();
+    const ids = ['shed-a', 'shed-b', 'shed-c'];
+    getUsersByIds.mockRejectedValue(Object.assign(new Error('Too Many Requests'), { status: 429 }));
+
+    const first = await resolveUserSummaries(ids);
+    expect(getUsersByIds).toHaveBeenCalledTimes(1);
+    expect(getUserById).not.toHaveBeenCalled();
+    expect(first.get('shed-a')?.user.username).toBe('');
+
+    // The next renders inside the window do not ask Oxy again.
+    const again = await resolveUserSummaries(ids);
+    expect(getUsersByIds).toHaveBeenCalledTimes(1);
+    expect(again.get('shed-b')?.user.username).toBe('');
+    expect(cacheSet).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(OXY_USER_FAILURE_TTL_MS);
+    getUsersByIds.mockResolvedValue(ids.map(oxyUser));
+    const recovered = await resolveUserSummaries(ids);
+    expect(getUsersByIds).toHaveBeenCalledTimes(2);
+    expect(recovered.get('shed-c')?.user.username).toBe('user-shed-c');
   });
 
   it('limits the public per-id fallback to eight concurrent requests', async () => {
