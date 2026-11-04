@@ -16,11 +16,10 @@ import { config } from '../config';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
-import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
-import { chronoAfterSql } from '../mtn/feed/CursorBuilder';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
@@ -443,7 +442,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       const fetchAfter = (last: SearchRow | undefined, size: number) => {
         const anchor = last ?? requestCursor;
         return findPostSearchPage(
-          and(...conditions, ...(anchor ? [chronoAfterSql(anchor)] : [])),
+          and(...conditions, ...(anchor ? [chronoKeyset(posts, anchor)] : [])),
           size,
           operators.textQuery
             ? { query: operators.textQuery, newest: anchor?.createdAt }

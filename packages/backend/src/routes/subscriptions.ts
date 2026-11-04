@@ -1,5 +1,5 @@
 import { Router, type Response } from 'express';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
 import { getDb } from '../db/postgres';
@@ -7,6 +7,7 @@ import { postSubscriptions } from '../db/schema/engagement';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import { queryInt, queryString } from '../utils/queryParams';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -14,48 +15,6 @@ const router = Router();
 /** Page size for `GET /subscriptions`. */
 const DEFAULT_SUBSCRIPTION_PAGE_SIZE = 50;
 const MAX_SUBSCRIPTION_PAGE_SIZE = 100;
-
-/**
- * The keyset a subscription page resumes from.
- *
- * `createdAt` alone is NOT unique — two subscriptions made in the same
- * millisecond would straddle a page boundary and be skipped or repeated — so the
- * cursor carries the row id as the tie-break, matching the
- * `{ createdAt desc, id desc }` sort exactly.
- */
-interface SubscriptionCursor {
-  createdAt: Date;
-  id: string;
-}
-
-/** `<epochMillis>_<id>` — opaque to the client, cheap to parse here. */
-function encodeSubscriptionCursor(createdAt: Date, id: string): string {
-  return `${createdAt.getTime()}_${id}`;
-}
-
-/**
- * Parse a client-supplied cursor. A malformed token yields `undefined` (⇒ the
- * first page) rather than an error, exactly as before.
- *
- * The id half is taken VERBATIM, with no id-shape guard: a 24-hex test would
- * fail every legitimate uuid v7 cursor and the client would loop over page one
- * forever. An id that names no row simply matches nothing.
- */
-function parseSubscriptionCursor(raw: string | undefined): SubscriptionCursor | undefined {
-  if (!raw) return undefined;
-  const separator = raw.indexOf('_');
-  if (separator <= 0) return undefined;
-
-  const millis = Number.parseInt(raw.slice(0, separator), 10);
-  if (!Number.isFinite(millis)) return undefined;
-  const createdAt = new Date(millis);
-  if (Number.isNaN(createdAt.getTime())) return undefined;
-
-  const id = raw.slice(separator + 1);
-  if (!id) return undefined;
-
-  return { createdAt, id };
-}
 
 // Get subscription status for the current user to an author
 router.get('/:authorId/status', async (req: AuthRequest, res: Response) => {
@@ -167,24 +126,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       Math.max(queryInt(req.query.limit) || DEFAULT_SUBSCRIPTION_PAGE_SIZE, 1),
       MAX_SUBSCRIPTION_PAGE_SIZE,
     );
-    const cursor = parseSubscriptionCursor(queryString(req.query.cursor));
+    // A malformed token yields the first page rather than an error.
+    const cursor = decodeChronoCursor(queryString(req.query.cursor));
 
     const subscriberMatch = eq(postSubscriptions.subscriberId, userId);
-    // The compound keyset, spelled the same way the sort is: strictly older, OR
-    // the same instant and a strictly smaller id. Dropping the second disjunct
-    // (or the `id` tiebreak on the ORDER BY) loses every row that shares the
-    // boundary row's millisecond.
+    // `created_at` is not unique, so the page is the `(created_at, id)` pair —
+    // matching the ORDER BY below exactly.
     const pageWhere = cursor
-      ? and(
-          subscriberMatch,
-          or(
-            lt(postSubscriptions.createdAt, cursor.createdAt),
-            and(
-              eq(postSubscriptions.createdAt, cursor.createdAt),
-              lt(postSubscriptions.id, cursor.id),
-            ),
-          ),
-        )
+      ? and(subscriberMatch, chronoKeyset(postSubscriptions, cursor))
       : subscriberMatch;
 
     const rows = await getDb()
@@ -222,7 +171,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const last = page[page.length - 1];
     const body: PostSubscriptionListResponse = { subscriptions };
     if (hasMore && last) {
-      body.nextCursor = encodeSubscriptionCursor(last.createdAt, last.id);
+      body.nextCursor = encodeChronoCursor(last.createdAt, last.id);
     }
 
     return res.json(body);

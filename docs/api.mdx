@@ -296,8 +296,8 @@ lists.
 
 Searches only published, visible posts. It uses PostgreSQL full-text search — a
 generated `tsvector` column queried with `websearch_to_tsquery('english', …)` —
-a minimal projection, a bounded execution time, and an opaque, versioned cursor
-over `(createdAt, id)`.
+a minimal projection, a bounded execution time, and an opaque cursor over
+`(createdAt, id)`.
 
 Authenticated statistics routes:
 

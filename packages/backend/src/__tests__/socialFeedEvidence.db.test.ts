@@ -22,7 +22,7 @@ import {
   eligibleSocialPostIds,
 } from '../services/socialFeedEvidence';
 import { friendsEngagedSource } from '../mtn/feed/engine/sources/socialSources';
-import { ChronoCursor } from '../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../utils/chronoCursor';
 import { forYouDefinition, followingDefinition } from '../mtn/feed/definitions/presets';
 const scope = serviceScope('social-feed-evidence');
 const viewer = scope.user('viewer'),
@@ -130,7 +130,7 @@ describe('public social recommendation evidence', () => {
       seen.push(...rows.map((p) => p.id));
       const last = rows.at(-1);
       if (!last || rows.length < 2) break;
-      cursor = ChronoCursor.build(last.id, last.createdAt);
+      cursor = encodeChronoCursor(last.createdAt, last.id);
     }
     expect(seen).toEqual(wanted.map((p) => p.id));
     expect(new Set(seen).size).toBe(5);

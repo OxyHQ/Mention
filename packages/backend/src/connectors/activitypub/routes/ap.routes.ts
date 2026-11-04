@@ -27,7 +27,8 @@ import {
   featuredUrl,
   resolveOxyUser,
 } from '../constants';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../../mtn/feed/CursorBuilder';
+import { chronoCursorSql, chronoOrderBy } from '../../../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../../../utils/chronoCursor';
 import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSharing';
 import { isErasedActorHandle } from '../../../services/accountErasure/erasedAccounts';
 
@@ -252,7 +253,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
 
     if (hasNext) {
       const lastPost = overfetched[PAGE_SIZE - 1];
-      const nextCursor = ChronoCursor.build(lastPost.id, lastPost.createdAt);
+      const nextCursor = encodeChronoCursor(lastPost.createdAt, lastPost.id);
       pageResponse.next = `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(nextCursor)}`;
     }
 

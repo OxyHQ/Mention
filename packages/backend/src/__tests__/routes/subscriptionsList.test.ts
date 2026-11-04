@@ -238,7 +238,7 @@ describe('GET /subscriptions', () => {
 
     const app = buildApp(viewer);
     const first = await request(app).get('/subscriptions').query({ limit: 1 });
-    expect(first.body.nextCursor).toMatch(/^\d+_[0-9a-f]{8}-[0-9a-f]{4}-7/);
+    expect(first.body.nextCursor).toMatch(/^\d+:[0-9a-f]{8}-[0-9a-f]{4}-7/);
 
     const second = await request(app)
       .get('/subscriptions')
@@ -253,7 +253,7 @@ describe('GET /subscriptions', () => {
 
     const app = buildApp(viewer);
     const first = await request(app).get('/subscriptions').query({ limit: 1 });
-    expect(first.body.nextCursor).toBe('1783036800000_000000000000000000000002');
+    expect(first.body.nextCursor).toBe('1783036800000:000000000000000000000002');
 
     const second = await request(app)
       .get('/subscriptions')

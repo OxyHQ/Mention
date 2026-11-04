@@ -20,7 +20,8 @@ import {
   followedCommunitiesSql,
   notCollapsedCrosspostSql,
 } from '../../../../utils/feedQueryBuilder';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { parseChronoCursor } from '../../../../utils/chronoCursor';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { logger } from '../../../../utils/logger';
 import { canViewList, loadListVisibility } from '../../../../services/listAccess';
@@ -166,9 +167,9 @@ async function gatherFollowingTimeline(
 
   // A legacy id-only cursor carries no time to measure a window from; it is
   // read unbounded, as it always was.
-  const parsed = ChronoCursor.parse(ctx.cursor);
-  if (parsed && parsed.ts === undefined) return run(undefined);
-  return fetchWithRecencyFallback(cap, run, parsed?.ts ?? Date.now());
+  const parsed = parseChronoCursor(ctx.cursor);
+  if (parsed && !parsed.createdAt) return run(undefined);
+  return fetchWithRecencyFallback(cap, run, parsed?.createdAt?.getTime() ?? Date.now());
 }
 
 /**

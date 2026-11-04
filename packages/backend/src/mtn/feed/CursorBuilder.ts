@@ -24,7 +24,13 @@
 import { isLiveEntityId } from '@oxy.so/db';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema';
-import { and, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
+import {
+  type ChronoAnchor,
+  type ChronoDirection,
+  chronoKeyset,
+  parseChronoCursor,
+} from '../../utils/chronoCursor';
 
 /** Explore source ordering now includes explicit negative author/topic intent. */
 export const EXPLORE_RANKING_VERSION = 3;
@@ -218,33 +224,11 @@ export const ScoreCursor = {
   },
 };
 
-// --- Chronological cursor (for following, author, custom, list, hashtag, saved) ---
-
-export const ChronoCursor = {
-  build(id: string, createdAt?: Date | string): string {
-    if (createdAt) {
-      return `${new Date(createdAt).getTime()}:${id}`;
-    }
-    return id;
-  },
-
-  parse(cursor?: string): { id: string; ts?: number } | undefined {
-    if (!cursor) return undefined;
-
-    const parts = cursor.split(':');
-    if (parts.length === 2 && isLiveEntityId(parts[1])) {
-      const ts = Number(parts[0]);
-      if (!Number.isNaN(ts)) {
-        return { id: parts[1], ts };
-      }
-    }
-
-    if (isLiveEntityId(cursor)) {
-      return { id: cursor };
-    }
-    return undefined;
-  },
-};
+// --- Chronological keyset on `posts` (following, author, custom, list, hashtag, saved) ---
+//
+// The token and the comparison are `utils/chronoCursor.ts`'s, shared with every
+// other chronological list. What is posts-specific is recovering the instant a
+// legacy id-only cursor lacks, and the index-matched ORDER BY below.
 
 /**
  * The keyset predicate continuing a chronological page, matching the
@@ -276,20 +260,7 @@ export async function chronoCursorSql(
   direction: ChronoDirection = 'desc',
 ): Promise<SQL | undefined> {
   const boundary = await chronoCursorBoundary(cursor);
-  if (!boundary) return undefined;
-  return chronoAfterSql({ createdAt: boundary.at, id: boundary.id }, direction);
-}
-
-/** The keyset predicate continuing a chronological page after a known `(created_at, id)`. */
-export function chronoAfterSql(
-  anchor: { createdAt: Date; id: string },
-  direction: ChronoDirection = 'desc',
-): SQL {
-  const beyond = direction === 'asc' ? gt : lt;
-  return or(
-    beyond(posts.createdAt, anchor.createdAt),
-    and(eq(posts.createdAt, anchor.createdAt), beyond(posts.id, anchor.id)),
-  ) as SQL;
+  return boundary ? chronoKeyset(posts, boundary, direction) : undefined;
 }
 
 /**
@@ -297,28 +268,18 @@ export function chronoAfterSql(
  * id-only cursor's `created_at` recovered as {@link chronoCursorSql} describes.
  * `undefined` for no cursor, or one naming a post that no longer exists.
  */
-export async function chronoCursorBoundary(
-  cursor?: string,
-): Promise<{ at: Date; id: string } | undefined> {
-  const parsed = ChronoCursor.parse(cursor);
+export async function chronoCursorBoundary(cursor?: string): Promise<ChronoAnchor | undefined> {
+  const parsed = parseChronoCursor(cursor);
   if (!parsed) return undefined;
-  if (parsed.ts !== undefined) return { at: new Date(parsed.ts), id: parsed.id };
+  if (parsed.createdAt) return { createdAt: parsed.createdAt, id: parsed.id };
 
   const [anchor] = await getDb()
     .select({ createdAt: posts.createdAt })
     .from(posts)
     .where(eq(posts.id, parsed.id))
     .limit(1);
-  return anchor ? { at: anchor.createdAt, id: parsed.id } : undefined;
+  return anchor ? { createdAt: anchor.createdAt, id: parsed.id } : undefined;
 }
-
-/**
- * Which way a chronological page runs. Every feed reads newest-first; the
- * replies list is the one surface a reader can flip to oldest-first, and the
- * keyset has to flip WITH it — a descending bound behind an ascending sort
- * re-serves page one forever.
- */
-export type ChronoDirection = 'asc' | 'desc';
 
 /**
  * The chronological order every keyset above is paired with.

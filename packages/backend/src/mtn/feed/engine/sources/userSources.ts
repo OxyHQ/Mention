@@ -10,7 +10,6 @@ import {
   eq,
   inArray,
   isNull,
-  lt,
   notInArray,
   or,
   sql,
@@ -37,7 +36,12 @@ import {
   excludedDisplayModesForTab,
   loadExcludedLaneIds,
 } from '../../../../services/laneVisibility';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import {
+  chronoKeyset,
+  decodeChronoCursor,
+  encodeChronoCursor,
+} from '../../../../utils/chronoCursor';
 import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from '../../../../services/trending/termSpace';
 import { resolveTrendStory } from '../../../../services/trendStoryCache';
@@ -481,31 +485,11 @@ function buildViewerVisiblePostSql(ctx: FeedEngineContext): SQL {
 }
 
 /**
- * Keyset over a RELATIONSHIP table (likes, bookmarks) whose own
- * `(created_at, id)` is the feed's order.
- *
- * These sources page over the relationship, not the post, so their cursor
- * anchors a `likes`/`bookmarks` row. Filtering on `id` while sorting by
- * `created_at` would page on two different axes (`id` is `text`, see
- * `chronoOrderBy`), so this pages on the axis it actually sorts by.
- */
-function relationshipKeyset(
-  createdAtColumn: PgColumn,
-  idColumn: PgColumn,
-  cursor: string | undefined,
-): SQL | undefined {
-  const parsed = ChronoCursor.parse(cursor);
-  if (!parsed?.ts) return undefined;
-  const boundaryAt = new Date(parsed.ts);
-  return or(
-    lt(createdAtColumn, boundaryAt),
-    and(eq(createdAtColumn, boundaryAt), lt(idColumn, parsed.id)),
-  ) as SQL;
-}
-
-/**
- * The descending order {@link relationshipKeyset} pages against — written so an
- * index can actually serve it.
+ * The descending order a RELATIONSHIP keyset (likes, bookmarks) pages against.
+ * These sources page over the relationship row, not the post, so their cursor
+ * anchors a `likes`/`bookmarks` row and pages on that table's own
+ * `(created_at, id)` — the axis it actually sorts by. Written so an index can
+ * actually serve it.
  *
  * `nulls last` for the same reason `chronoOrderBy` spells it out: both columns
  * are NOT NULL so it changes no row, but drizzle emits `.desc()` in index DDL as
@@ -536,7 +520,8 @@ async function gatherAuthorLikes(
   const pageLimit = ctx.pageLimit ?? 30;
   const db = getDb();
 
-  const keyset = relationshipKeyset(likes.createdAt, likes.id, ctx.cursor);
+  const anchor = decodeChronoCursor(ctx.cursor);
+  const keyset = anchor ? chronoKeyset(likes, anchor) : undefined;
   const likeRows = await db
     .select({ id: likes.id, postId: likes.postId, createdAt: likes.createdAt })
     .from(likes)
@@ -569,7 +554,7 @@ async function gatherAuthorLikes(
 
   if (hasMore && ordered.length > 0) {
     const anchor = page[page.length - 1];
-    ordered[ordered.length - 1]._feedCursor = ChronoCursor.build(anchor.id, anchor.createdAt);
+    ordered[ordered.length - 1]._feedCursor = encodeChronoCursor(anchor.createdAt, anchor.id);
   }
   return ordered;
 }
@@ -733,7 +718,8 @@ export const savedSource: SourceModule = {
     const pageLimit = ctx.pageLimit ?? 30;
     const db = getDb();
 
-    const keyset = relationshipKeyset(bookmarks.createdAt, bookmarks.id, ctx.cursor);
+    const anchor = decodeChronoCursor(ctx.cursor);
+    const keyset = anchor ? chronoKeyset(bookmarks, anchor) : undefined;
     const bookmarkRows = await db
       .select({ id: bookmarks.id, postId: bookmarks.postId, createdAt: bookmarks.createdAt })
       .from(bookmarks)
@@ -760,7 +746,7 @@ export const savedSource: SourceModule = {
 
     if (hasMore && ordered.length > 0) {
       const anchor = page[page.length - 1];
-      ordered[ordered.length - 1]._feedCursor = ChronoCursor.build(anchor.id, anchor.createdAt);
+      ordered[ordered.length - 1]._feedCursor = encodeChronoCursor(anchor.createdAt, anchor.id);
     }
     return ordered;
   },

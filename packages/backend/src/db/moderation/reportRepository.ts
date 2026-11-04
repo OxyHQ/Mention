@@ -24,6 +24,7 @@
 
 import { and, asc, count, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
 import {
   type MODERATION_ENFORCEMENT_ACTIONS,
   type REPORTED_TYPES,
@@ -423,7 +424,7 @@ export async function findReporterReports(
   },
   db: DatabaseOrTransaction = getDb(),
 ): Promise<ReporterReportsPage> {
-  const after = decodeReportCursor(options.cursor);
+  const after = decodeChronoCursor(options.cursor);
 
   const rows = await db
     .select()
@@ -433,9 +434,7 @@ export async function findReporterReports(
         eq(reports.reporter, options.reporter),
         options.status ? eq(reports.status, options.status) : undefined,
         options.reportedType ? eq(reports.reportedType, options.reportedType) : undefined,
-        after
-          ? sql`(${reports.createdAt}, ${reports.id}) < (${after.createdAt}, ${after.id})`
-          : undefined,
+        after ? chronoKeyset(reports, after) : undefined,
       ),
     )
     .orderBy(desc(reports.createdAt), desc(reports.id))
@@ -448,21 +447,6 @@ export async function findReporterReports(
   return {
     reports: page.map(toRecord),
     hasMore,
-    nextCursor: hasMore && last ? encodeReportCursor(last.createdAt, last.id) : undefined,
+    nextCursor: hasMore && last ? encodeChronoCursor(last.createdAt, last.id) : undefined,
   };
-}
-
-/** `<createdAt ISO>|<id>`, opaque to the client. */
-export function encodeReportCursor(createdAt: Date, id: string): string {
-  return `${createdAt.toISOString()}|${id}`;
-}
-
-function decodeReportCursor(cursor?: string): { createdAt: Date; id: string } | undefined {
-  if (!cursor) return undefined;
-  const separator = cursor.indexOf('|');
-  if (separator <= 0) return undefined;
-  const createdAt = new Date(cursor.slice(0, separator));
-  const id = cursor.slice(separator + 1);
-  if (Number.isNaN(createdAt.getTime()) || id.length === 0) return undefined;
-  return { createdAt, id };
 }

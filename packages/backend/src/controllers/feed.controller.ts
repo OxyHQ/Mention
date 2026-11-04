@@ -51,12 +51,8 @@ import { logger } from '../utils/logger';
 import { enrichIngestedPosts } from '../services/postEnrichment';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
-import {
-  ChronoCursor,
-  chronoCursorSql,
-  chronoOrderBy,
-  ScoreCursor,
-} from '../mtn/feed/CursorBuilder';
+import { chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../utils/chronoCursor';
 import { rankingWeight } from '../utils/rankingWeight';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { hashtagsSchema, parseFailureMessage } from './posts/composeInput';
@@ -1098,7 +1094,7 @@ class FeedController {
       const nextCursor = anchor
         ? sort === 'best'
           ? ScoreCursor.build(replyEngagementScore(anchor), anchor.id)
-          : ChronoCursor.build(anchor.id, anchor.createdAt)
+          : encodeChronoCursor(anchor.createdAt, anchor.id)
         : undefined;
 
       return res.json({ items, hasMore, nextCursor });
@@ -1181,7 +1177,7 @@ class FeedController {
       });
       const items = hydrated.filter((post) => post?.id && post.user?.id);
       const anchor = hasMore ? slicedPosts[slicedPosts.length - 1] : undefined;
-      const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
+      const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
 
       return res.json({ items, hasMore, nextCursor });
     } catch (error) {

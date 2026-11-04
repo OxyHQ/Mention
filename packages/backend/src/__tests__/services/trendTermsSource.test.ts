@@ -24,7 +24,7 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { posts } from '../../db/schema/posts';
 import { trending, trendStoryPosts } from '../../db/schema/discovery';
 import { insertPostRecord } from '../../db/posts/postRepository';
-import { ChronoCursor } from '../../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../../utils/chronoCursor';
 import { trendTermsSource } from '../../mtn/feed/engine/sources/userSources';
 import type { FeedEngineContext } from '../../mtn/feed/engine/types';
 
@@ -112,7 +112,7 @@ describe('trendTermsSource', () => {
       .select({ id: posts.id, createdAt: posts.createdAt })
       .from(posts)
       .where(inArray(posts.id, [middle]));
-    const cursor = ChronoCursor.build(firstPost.id, firstPost.createdAt);
+    const cursor = encodeChronoCursor(firstPost.createdAt, firstPost.id);
     expect(await gather(name, 10, cursor)).toEqual([oldest]);
   });
 

@@ -39,7 +39,8 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { posts } from '../../db/schema/posts';
 import { deletePostRecord, findPostRecords, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
+import { chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../../utils/chronoCursor';
 import { discoverySafeSql, nsfwHashtagExcludeSql } from '../../mtn/feed/feedSafety';
 import { authorNotInSql, notABoostSql } from '../../utils/feedQueryBuilder';
 import { engagementScoreSql } from '../../mtn/feed/engine/sources/discoverySources';
@@ -319,7 +320,7 @@ describe('adjacent chronological pages neither overlap nor gap', () => {
     expect(first).toHaveLength(pageSize);
 
     const anchor = first[first.length - 1];
-    const keyset = await chronoCursorSql(ChronoCursor.build(anchor.id, anchor.createdAt));
+    const keyset = await chronoCursorSql(encodeChronoCursor(anchor.createdAt, anchor.id));
     expect(keyset).toBeDefined();
     if (!keyset) throw new Error('chronoCursorSql returned undefined for a freshly minted cursor');
 

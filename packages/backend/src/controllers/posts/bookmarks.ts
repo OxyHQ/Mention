@@ -36,8 +36,7 @@ import {
   visibleEngagementCounts,
 } from '../../services/engagementCountPrivacy';
 import { collectReadable, DEFAULT_SCAN_BUDGET } from '../../services/readablePage';
-import { chronoAfterSql } from '../../mtn/feed/CursorBuilder';
-import { decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
 import {
   BookmarkFolderInputError,
   type BookmarkFolderTarget,
@@ -244,7 +243,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       scanBudget: want + DEFAULT_SCAN_BUDGET,
       fetchAfter: (last, size) => {
         const anchor = last ?? cursor;
-        return findPostRecords(anchor ? and(where, chronoAfterSql(anchor)) : where, {
+        return findPostRecords(anchor ? and(where, chronoKeyset(postsTable, anchor)) : where, {
           orderBy: CHRONO_DESC,
           limit: size,
         });

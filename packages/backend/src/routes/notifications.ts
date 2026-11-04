@@ -1,9 +1,9 @@
 import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { and, count, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import {
   notifications,
   pushTokens,
@@ -217,16 +217,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
     const db = getDb();
     const recipientMatch = recipientScope(recipientIds);
     const pageWhere = decodedCursor
-      ? and(
-          recipientMatch,
-          or(
-            lt(notifications.createdAt, decodedCursor.createdAt),
-            and(
-              eq(notifications.createdAt, decodedCursor.createdAt),
-              lt(notifications.id, decodedCursor.id),
-            ),
-          ),
-        )
+      ? and(recipientMatch, chronoKeyset(notifications, decodedCursor))
       : recipientMatch;
 
     // Fetch limit + 1 to determine if there are more results.

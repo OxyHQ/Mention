@@ -4,7 +4,7 @@ import type {
 } from '@mention/shared-types';
 import { listPrivateMentionConversations } from '../db/posts/postAudience';
 import { loadPostRecords } from '../db/posts/postRepository';
-import type { ChronoCursorData } from '../utils/chronoCursor';
+import type { ChronoAnchor } from '../utils/chronoCursor';
 import { encodeChronoCursor } from '../utils/chronoCursor';
 import { type HydrationOptions, postHydrationService } from './PostHydrationService';
 
@@ -19,7 +19,7 @@ import { type HydrationOptions, postHydrationService } from './PostHydrationServ
  */
 export async function listPrivateMentionConversationsPage(
   viewerId: string,
-  page: { limit: number; cursor?: ChronoCursorData },
+  page: { limit: number; cursor?: ChronoAnchor },
   hydration: Omit<HydrationOptions, 'viewerId' | 'maxDepth'>,
 ): Promise<PrivateMentionConversationsResponse> {
   const rows = await listPrivateMentionConversations(viewerId, {

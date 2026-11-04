@@ -57,6 +57,7 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   callerAccountAccess: vi.fn(() => undefined),
 }));
 
+import { uuidv7 } from '@oxy.so/db';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { userSettings } from '../../db/schema/userProfile';
@@ -67,9 +68,11 @@ const scope = serviceScope('channel-writers');
 const CHANNEL = scope.user('channel');
 const OTHER_ACCOUNT = scope.user('other-account');
 const VIEWER = scope.user('viewer');
-const WRITER_A = scope.user('writer-a');
-const WRITER_B = scope.user('writer-b');
-const WRITER_C = scope.user('writer-c');
+// Writers are Oxy accounts, so their ids have the live shape the page cursor
+// carries (`utils/chronoCursor.ts`).
+const WRITER_A = uuidv7();
+const WRITER_B = uuidv7();
+const WRITER_C = uuidv7();
 const SCOPE_PREFIX = `oxy-${scope.name}-`;
 
 /** A summary map in the shape `resolveUserSummaries` answers with. */
