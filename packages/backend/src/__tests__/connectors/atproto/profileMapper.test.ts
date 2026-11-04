@@ -22,11 +22,11 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
   resolveOxyIdentity: vi.fn(),
-  recordFederatedBannerInBackground: vi.fn(),
+  syncFederatedBannerInBackground: vi.fn(),
 }));
 
 vi.mock('../../../db/federation/bannerMirrorRepository', () => ({
-  recordFederatedBannerInBackground: mocks.recordFederatedBannerInBackground,
+  syncFederatedBannerInBackground: mocks.syncFederatedBannerInBackground,
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
@@ -67,6 +67,7 @@ const PROFILE = {
   followersCount: 12,
   followsCount: 7,
   postsCount: 99,
+  createdAt: '2023-04-12T10:00:00.000Z',
 };
 
 beforeEach(async () => {
@@ -281,6 +282,8 @@ describe('fetchAndUpsertAtprotoProfile', () => {
       uri: DID,
       acct: 'alice.bsky.social',
       headerUrl: PROFILE.banner,
+      // The account's own creation date, not the day Mention discovered it.
+      remoteCreatedAt: new Date(PROFILE.createdAt),
     });
     // Oxy resolution is handed the canonical federated identity (`handle@domain`
     // username + instance domain) — the exact shape oxy-api's username↔domain
@@ -296,8 +299,8 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     // Oxy user resolved + stamped ON THE ROW (the upsert carried no prior one).
     expect((await readActor(DID))?.oxyUserId).toBe('oxy-alice');
     expect(actor?.oxyUserId).toBe('oxy-alice');
-    // The banner is queued for the sweep that mirrors it into the profile.
-    expect(mocks.recordFederatedBannerInBackground).toHaveBeenCalledWith({
+    // The banner is synced for the sweep that mirrors it into the profile.
+    expect(mocks.syncFederatedBannerInBackground).toHaveBeenCalledWith({
       oxyUserId: 'oxy-alice',
       actorUri: DID,
       bannerUrl: PROFILE.banner,

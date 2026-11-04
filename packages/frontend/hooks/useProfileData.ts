@@ -11,7 +11,7 @@ import {
 } from '@/stores/appearanceStore';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
-import type { RemoteProfileMove } from '@mention/shared-types/profile';
+import type { RemoteProfileField, RemoteProfileMove } from '@mention/shared-types/profile';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -91,11 +91,12 @@ export interface ProfileData {
   connectedVia?: string;
   links?: User['links'];
   linksMetadata?: User['linksMetadata'];
-  fields?: {
-    name?: string;
-    value?: string;
-    verifiedAt?: string;
-  }[];
+  /** A federated profile's metadata table, off the profile-design DTO's `remote`. */
+  fields?: RemoteProfileField[];
+  /** A federated account that approves each follower. */
+  locked?: boolean;
+  /** A federated account kept in memory of someone who died. */
+  memorial?: boolean;
   communities?: Community[];
   federation?: {
     actorUri?: string;
@@ -403,7 +404,10 @@ export function useProfileData(username?: string): {
       username: profile.username || '',
       avatar: profile.avatar ?? undefined,
       color: profile.color ?? undefined,
-      postsCount: appearance?.postsCount,
+      // A federated account's own total, when its origin reports one: Mention's
+      // count holds only the posts it imported.
+      postsCount:
+        (isFederatedProfile ? appearance?.remote?.postsCount : undefined) ?? appearance?.postsCount,
       boostsCount: appearance?.boostsCount,
       repliesCount: appearance?.repliesCount,
       // "Follows you" now rides the Oxy profile fetch: `relationship` is populated
@@ -426,6 +430,9 @@ export function useProfileData(username?: string): {
       followersCount,
       followingCount,
       movedTo: isFederatedProfile ? appearance?.remote?.movedTo : undefined,
+      fields: isFederatedProfile ? appearance?.remote?.fields : undefined,
+      locked: isFederatedProfile && appearance?.remote?.locked === true,
+      memorial: isFederatedProfile && appearance?.remote?.memorial === true,
       design,
       privacy: appearance?.privacy,
     };

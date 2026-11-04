@@ -102,7 +102,32 @@ describe('remoteProfileStats', () => {
         remoteCreatedAt: undefined,
       }),
     );
-    expect(stats).toEqual({ followersCount: 812, followingCount: 344 });
+    expect(stats).toEqual({ followersCount: 812, followingCount: 344, postsCount: 2048 });
+  });
+
+  it('states the profile facts the origin publishes, its fields reduced to plain text', () => {
+    const stats = remoteProfileStats(
+      actor({
+        outboxUrl: 'https://mastodonapp.uk/users/someone/outbox',
+        manuallyApprovesFollowers: true,
+        memorial: true,
+      }),
+      [
+        {
+          name: 'Site',
+          value:
+            '<a href="https://someone.example/" rel="me"><span class="invisible">https://</span>someone.example</a>',
+          verifiedAt: new Date('2026-01-02T00:00:00.000Z'),
+        },
+        { name: 'Pronouns', value: 'they/them' },
+        { name: 'Empty', value: '<span></span>' },
+      ],
+    );
+    expect(stats).toMatchObject({ postsCount: 2048, locked: true, memorial: true });
+    expect(stats.fields).toEqual([
+      { name: 'Site', value: 'https://someone.example/', verifiedAt: '2026-01-02T00:00:00.000Z' },
+      { name: 'Pronouns', value: 'they/them' },
+    ]);
   });
 
   it('omits the join date when the actor published none', () => {
@@ -126,6 +151,10 @@ describe('trustedRemoteCreatedAt', () => {
 
   it('rejects a creation date in the future', () => {
     expect(trustedRemoteCreatedAt(new Date('2027-01-01T00:00:00.000Z'), now)).toBeUndefined();
+  });
+
+  it('rejects a placeholder epoch', () => {
+    expect(trustedRemoteCreatedAt(new Date('0001-01-01T00:00:00.000Z'), now)).toBeUndefined();
   });
 
   it('treats a missing date as unknown', () => {

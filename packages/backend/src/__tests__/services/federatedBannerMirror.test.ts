@@ -1,7 +1,8 @@
 /**
  * Federated banners are mirrored durably — against REAL rows.
  *
- * An actor resolve records the banner its source advertises; a sweep mirrors
+ * An actor upsert records the banner its source advertises (and clears one the
+ * source removed); a sweep mirrors
  * due rows and retries every failure on a backoff (never terminal); a one-shot
  * script queues the accounts that have no banner. Only the mirror itself
  * (download + Oxy upload, covered in `mediaCacheDurableFailure.test.ts`) is
@@ -27,9 +28,16 @@ vi.mock('../../services/mediaCache/oxyMediaStore', async (importOriginal) => ({
 
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { federatedActors, federatedBannerMirrors } from '../../db/schema/federation';
+import {
+  federatedActors,
+  federatedBannerMirrors,
+  federatedMediaDeletions,
+} from '../../db/schema/federation';
 import { userSettings } from '../../db/schema/userProfile';
-import { recordFederatedBanner } from '../../db/federation/bannerMirrorRepository';
+import {
+  clearFederatedBanner,
+  recordFederatedBanner,
+} from '../../db/federation/bannerMirrorRepository';
 import {
   PERMANENT_RETRY_MS,
   TRANSIENT_BACKOFF_BASE_MS,
@@ -123,6 +131,35 @@ describe('recording the advertised banner', () => {
         bannerUrl: 'data:image/png;base64,AAA',
       }),
     ).toBe(false);
+  });
+});
+
+describe('clearing a removed banner', () => {
+  it('drops the row, unsets the header and queues the mirrored file for deletion', async () => {
+    const u = user();
+    const fileId = `banner-file-${u}`;
+    await recordFederatedBanner({
+      oxyUserId: u,
+      actorUri: 'https://a.example/users/u',
+      bannerUrl: 'https://a.example/h1.png',
+    });
+    await getDb().insert(userSettings).values({ oxyUserId: u, profileHeaderImage: fileId });
+
+    expect(await clearFederatedBanner(u)).toBe(true);
+
+    expect(await rowOf(u)).toBeUndefined();
+    const [settings] = await getDb()
+      .select({ banner: userSettings.profileHeaderImage })
+      .from(userSettings)
+      .where(eq(userSettings.oxyUserId, u));
+    expect(settings?.banner).toBeNull();
+    const queued = await getDb()
+      .select()
+      .from(federatedMediaDeletions)
+      .where(eq(federatedMediaDeletions.oxyFileId, fileId));
+    expect(queued).toHaveLength(1);
+    // Nothing left to clear on the next refresh.
+    expect(await clearFederatedBanner(u)).toBe(false);
   });
 });
 

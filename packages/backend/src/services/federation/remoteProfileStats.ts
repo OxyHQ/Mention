@@ -1,24 +1,31 @@
-import type { RemoteProfileStats } from '@mention/shared-types/profile';
-import type { FederatedActorRecord } from '../../db/federation/actorRecord';
-import { findActorByOxyUserId, findActorByUri } from '../../db/federation/actorRepository';
+import type { RemoteProfileField, RemoteProfileStats } from '@mention/shared-types/profile';
+import type { FederatedActorField, FederatedActorRecord } from '../../db/federation/actorRecord';
+import {
+  findActorByOxyUserId,
+  findActorByUri,
+  loadActorFields,
+} from '../../db/federation/actorRepository';
+import { htmlToInlineLabel } from '../../utils/federation/htmlToPlainText';
 
 /**
  * The origin figures for the account behind `oxyUserId`, or `undefined` for a
  * local account — one with no cached actor row, which costs one indexed miss.
- * A moved account costs one more lookup, for the new account's handle.
+ * Its metadata table is one more indexed read beside it, and a moved account's
+ * new handle another.
  */
 export async function loadRemoteProfileStats(
   oxyUserId: string,
 ): Promise<RemoteProfileStats | undefined> {
   const actor = await findActorByOxyUserId(oxyUserId);
   if (!actor) return undefined;
-  const stats = remoteProfileStats(actor);
-  if (actor.movedTo) {
+  const [fields, target] = await Promise.all([
+    loadActorFields(actor.id),
     // `recordRemoteMove` resolved the target before writing, so its row exists;
     // a target purged since then simply leaves the move unstated.
-    const target = await findActorByUri(actor.movedTo);
-    if (target) stats.movedTo = { handle: target.acct, actorUri: target.uri };
-  }
+    actor.movedTo ? findActorByUri(actor.movedTo) : null,
+  ]);
+  const stats = remoteProfileStats(actor, fields);
+  if (target) stats.movedTo = { handle: target.acct, actorUri: target.uri };
   return stats;
 }
 
@@ -45,10 +52,13 @@ export async function loadRemoteProfileStats(
  * - An ActivityPub actor that publishes no `followers`/`following` collection
  *   (rows written before the columns became nullable hold `0` for it).
  */
-export function remoteProfileStats(actor: FederatedActorRecord): RemoteProfileStats {
+export function remoteProfileStats(
+  actor: FederatedActorRecord,
+  fields: readonly FederatedActorField[] = [],
+): RemoteProfileStats {
   const stats: RemoteProfileStats = {};
   if (actor.lastFetchedAt) {
-    // An atproto profile reports both counts on every fetch; it has no
+    // An atproto profile reports every count on every fetch; it has no
     // collection URLs to gate on.
     const isActivityPub = actor.protocol === 'activitypub';
     if ((!isActivityPub || actor.followersUrl) && actor.followersCount !== null) {
@@ -57,19 +67,46 @@ export function remoteProfileStats(actor: FederatedActorRecord): RemoteProfileSt
     if ((!isActivityPub || actor.followingUrl) && actor.followingCount !== null) {
       stats.followingCount = actor.followingCount;
     }
+    if ((!isActivityPub || actor.outboxUrl) && actor.postsCount !== null) {
+      stats.postsCount = actor.postsCount;
+    }
   }
   const joinedAt = trustedRemoteCreatedAt(actor.remoteCreatedAt);
   if (joinedAt) stats.joinedAt = joinedAt.toISOString();
+  if (actor.manuallyApprovesFollowers) stats.locked = true;
+  if (actor.memorial) stats.memorial = true;
+  const shown = fields.flatMap(remoteProfileField);
+  if (shown.length > 0) stats.fields = shown;
   return stats;
 }
 
 /**
- * The actor's `published` date, when it can be one.
+ * A stored metadata row as the page shows it. The ingest kept only `a`/`span`
+ * markup in the value; this reduces it to text with the converter a remote bio
+ * goes through, so a link becomes its URL (re-linked by the client) and no
+ * remote markup reaches a renderer. A row left with no name or value is dropped.
+ */
+function remoteProfileField(field: FederatedActorField): RemoteProfileField[] {
+  const name = htmlToInlineLabel(field.name);
+  const value = htmlToInlineLabel(field.value);
+  if (!name || !value) return [];
+  return [{ name, value, ...(field.verifiedAt && { verifiedAt: field.verifiedAt.toISOString() }) }];
+}
+
+/**
+ * No account on a network Mention federates with predates this; an earlier
+ * date is a placeholder (the Unix epoch, year 1) rather than a join date.
+ */
+const EARLIEST_ACCOUNT_MS = Date.UTC(2000, 0, 1);
+
+/**
+ * The account's creation date (AP `published`, atproto `createdAt`), when it can be one.
  *
  * The resolver parses `published` with a bare `new Date(...)`, so an unparseable
  * value arrives as an Invalid Date — which the column write cannot serialize, and
  * which would fail the whole actor refresh over a cosmetic field. An account
- * cannot have been created after now either. Both read as unknown.
+ * cannot have been created after now, or before {@link EARLIEST_ACCOUNT_MS},
+ * either. All three read as unknown.
  */
 export function trustedRemoteCreatedAt(
   value: Date | undefined,
@@ -77,6 +114,6 @@ export function trustedRemoteCreatedAt(
 ): Date | undefined {
   if (!(value instanceof Date)) return undefined;
   const ms = value.getTime();
-  if (Number.isNaN(ms) || ms > now) return undefined;
+  if (Number.isNaN(ms) || ms > now || ms < EARLIEST_ACCOUNT_MS) return undefined;
   return value;
 }
