@@ -43,6 +43,7 @@ import {
 } from './activitypub/ActivityPubConnector';
 import { FEDERATION_ENABLED } from './activitypub/constants';
 import {
+  currentOutboxBackfillStatus,
   isWithinOutboxSyncCooldown,
   shouldForceUntrackedOutboxSync,
 } from './activitypub/outboxSyncCooldown';
@@ -345,22 +346,9 @@ class FederatedProfileSync {
 
         if (!actor.outboxUrl) return;
 
-        const outboxStatus = this.currentOutboxBackfillStatus(actor);
-        if (outboxStatus === 'unavailable') {
-          // The outbox will not answer again, but a Mastodon-compatible server
-          // may still list the account's public statuses. That discovery keeps
-          // its own per-actor and per-host throttle, since an unavailable outbox
-          // carries no cooldown stamp.
-          await stampActorOxyUserId();
-          const synced = await activityPubConnector.syncPublicStatuses(actor, {
-            limit: OUTBOX_SYNC_LIMIT,
-            importReason: 'requested_profile',
-          });
-          logger.info('[FedSync] outbox sync skipped because it is unavailable', {
-            publicStatusesSynced: synced,
-          });
-          return;
-        }
+        // An outbox already marked unavailable is not fetched again; the
+        // profile sync below still tries the account's public statuses.
+        const outboxStatus = currentOutboxBackfillStatus(actor);
 
         // Cooldown: skip the (expensive) outbox re-fetch+dedupe if we synced this
         // actor's outbox within the cooldown window. Profile views are frequent;
@@ -386,24 +374,32 @@ class FederatedProfileSync {
           actor.oxyUserId = syncUserId;
         }
 
-        const syncResult = await activityPubConnector.syncOutboxPostsDetailed(actor, {
+        const syncResult = await activityPubConnector.syncProfileOutbox(actor, {
           limit: OUTBOX_SYNC_LIMIT,
           importReason: 'requested_profile',
-          publicStatusesFallback: true,
         });
         const syncedCount = syncResult.syncedCount;
+        if (syncResult.reason === 'outbox-unavailable') {
+          // Nothing to stamp, and the featured collection is not re-read on
+          // every view of a profile whose outbox no longer answers.
+          logger.info('[FedSync] outbox unavailable; tried public statuses', {
+            count: syncedCount,
+          });
+          return;
+        }
         logger.info('[FedSync] completed outbox sync', {
           count: syncedCount,
         });
         // The pinned post may be older than the recent outbox page: mirror it on its own.
         await activityPubConnector.syncFeaturedPost(actor);
-        if (isPermanentlyUnavailableOutboxReason(syncResult.reason)) {
-          await activityPubConnector.markOutboxBackfillUnavailable(actor, syncResult.reason);
-        } else if (syncResult.shouldStampCooldown) {
+        // A permanently unavailable outbox was recorded by `syncProfileOutbox`,
+        // which clears the cooldown stamp; it is not stamped back here.
+        const outboxUnavailable = isPermanentlyUnavailableOutboxReason(syncResult.reason);
+        if (syncResult.shouldStampCooldown && !outboxUnavailable) {
           // Stamp the sync time so subsequent views honour the cooldown only
           // after a fetch that actually exposed an inspectable outbox.
           await stampLastOutboxSyncAt(actor.id);
-        } else {
+        } else if (!outboxUnavailable) {
           logger.info('[FedSync] did not stamp outbox cooldown', {
             result: syncResult.reason ?? 'unknown',
           });
@@ -540,12 +536,6 @@ class FederatedProfileSync {
     return Date.now() - fetchedAt > FEDERATED_ACTOR_PROFILE_STALE_MS;
   }
 
-  private currentOutboxBackfillStatus(actor: FederatedActorRecord): string | undefined {
-    if (!actor.outboxUrl) return undefined;
-    if (actor.outboxBackfill?.outboxUrl !== actor.outboxUrl) return undefined;
-    return actor.outboxBackfill?.status;
-  }
-
   /**
    * Whether an empty profile feed for this KNOWN federated actor is worth telling
    * the client to poll for. A finished (`complete`) or permanently unreachable
@@ -577,7 +567,7 @@ class FederatedProfileSync {
       return actor.lastOutboxSyncAt === undefined;
     }
 
-    const outboxStatus = this.currentOutboxBackfillStatus(actor);
+    const outboxStatus = currentOutboxBackfillStatus(actor);
     if (outboxStatus === 'unavailable' || outboxStatus === 'complete') return false;
     if (outboxStatus === 'pending') return true;
 

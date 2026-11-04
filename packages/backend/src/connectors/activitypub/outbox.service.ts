@@ -99,6 +99,7 @@ import {
 } from './apMentions';
 import { recordRecentReplierForPost } from '../../services/PostRecentReplierService';
 import { mastodonPublicStatusUris } from './mastodonPublicStatuses';
+import { isOutboxMarkedUnavailable } from './outboxSyncCooldown';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
@@ -159,7 +160,7 @@ const MAX_ANCESTOR_DEPTH = 30;
 
 /**
  * Outbox answers that showed nothing importable, after which a profile sync
- * asks the server's public statuses instead ({@link OutboxSyncOptions.publicStatusesFallback}):
+ * asks the server's public statuses instead ({@link OutboxSyncService.syncProfileOutbox}):
  * an empty or itemless collection, and an outbox refused to our signed fetch.
  */
 const PUBLIC_STATUSES_FALLBACK_REASONS: ReadonlySet<OutboxSyncFailureReason> = new Set([
@@ -220,6 +221,8 @@ export type OutboxSyncFailureReason =
   | 'pagination-failed'
   | 'invalid-collection'
   | 'exception'
+  /** The outbox was already marked unavailable, so a profile sync did not fetch it. */
+  | 'outbox-unavailable'
   | OutboxHttpFailureReason;
 
 /**
@@ -273,13 +276,6 @@ export interface OutboxSyncOptions {
   maxPages?: number;
   startPageUrl?: string;
   startItemOffset?: number;
-  /**
-   * When the outbox shows nothing importable, list the account's public
-   * statuses through its server's Mastodon API and import each through the
-   * verified note path ({@link OutboxSyncService.syncPublicStatuses}). For the
-   * profile-view syncs, which exist to fill an empty profile.
-   */
-  publicStatusesFallback?: boolean;
 }
 
 /** The actor fields an outbox sync reads. */
@@ -510,33 +506,53 @@ export class OutboxSyncService {
     });
   }
 
-  async syncOutboxPostsDetailed(
-    actor: OutboxSyncActor,
-    limitOrOptions: number | OutboxSyncOptions = 20,
+  /**
+   * The outbox sync of a profile view — the one decision both entry points
+   * (`federatedProfileSync` and `GET /federation/actor/posts`) take, since a
+   * profile sync exists to fill an empty profile:
+   *
+   *  - an outbox already marked unavailable is not fetched again, but the
+   *    account's public statuses are tried ({@link syncPublicStatuses}, which
+   *    keeps its own per-actor and per-host throttle — such an actor carries no
+   *    cooldown stamp);
+   *  - otherwise the outbox is synced, the public statuses are tried when it
+   *    showed nothing importable, and an outbox found permanently unavailable is
+   *    marked so. The outbox's own `reason` stands either way; a sync that found
+   *    posts cools down.
+   */
+  async syncProfileOutbox(
+    actor: OutboxSyncActor & Pick<FederatedActorRecord, 'id' | 'outboxBackfill'>,
+    options: { limit: number; importReason: FederationImportReason },
   ): Promise<OutboxSyncResult> {
-    const result = await this.syncOutbox(actor, limitOrOptions);
-    if (
-      typeof limitOrOptions === 'number' ||
-      !limitOrOptions.publicStatusesFallback ||
-      result.syncedCount > 0 ||
-      !result.reason ||
-      !PUBLIC_STATUSES_FALLBACK_REASONS.has(result.reason)
-    ) {
-      return result;
+    if (isOutboxMarkedUnavailable(actor)) {
+      const synced = await this.syncPublicStatuses(actor, options);
+      return {
+        syncedCount: synced,
+        publicStatusesSyncedCount: synced,
+        shouldStampCooldown: false,
+        reason: 'outbox-unavailable',
+      };
     }
-    const synced = await this.syncPublicStatuses(actor, {
-      limit: limitOrOptions.limit ?? 20,
-      importReason: limitOrOptions.importReason ?? 'unknown_outbox',
-    });
-    if (synced === 0) return result;
-    // The outbox's own verdict (`reason`) stands — a permanently unavailable
-    // outbox is still recorded as one — but the sync found posts, so it cools down.
-    return {
-      ...result,
-      syncedCount: synced,
-      publicStatusesSyncedCount: synced,
-      shouldStampCooldown: true,
-    };
+    let result = await this.syncOutboxPostsDetailed(actor, options);
+    if (
+      result.syncedCount === 0 &&
+      result.reason &&
+      PUBLIC_STATUSES_FALLBACK_REASONS.has(result.reason)
+    ) {
+      const synced = await this.syncPublicStatuses(actor, options);
+      if (synced > 0) {
+        result = {
+          ...result,
+          syncedCount: synced,
+          publicStatusesSyncedCount: synced,
+          shouldStampCooldown: true,
+        };
+      }
+    }
+    if (isPermanentlyUnavailableOutboxReason(result.reason)) {
+      await this.markOutboxBackfillUnavailable(actor, result.reason);
+    }
+    return result;
   }
 
   /**
@@ -573,9 +589,9 @@ export class OutboxSyncService {
     return synced;
   }
 
-  private async syncOutbox(
+  async syncOutboxPostsDetailed(
     actor: OutboxSyncActor,
-    limitOrOptions: number | OutboxSyncOptions,
+    limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     // Instance domain policy on the PULL path.
     //

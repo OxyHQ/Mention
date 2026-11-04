@@ -28,7 +28,7 @@ const scope = federationScope('federated-profile-sync');
 
 /** Resolves only when the test lets it — proves the request path never awaits it. */
 let releaseOutboxSync: (() => void) | undefined;
-const syncOutboxPostsDetailed = vi.fn(
+const syncProfileOutbox = vi.fn(
   () =>
     new Promise<{ syncedCount: number; shouldStampCooldown: boolean }>((resolve) => {
       releaseOutboxSync = () => resolve({ syncedCount: 0, shouldStampCooldown: true });
@@ -41,7 +41,7 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
   activityPubConnector: {
     fetchRemoteActor: (...a: unknown[]) => fetchRemoteActor(...(a as [])),
     refreshActorInBackground: (...a: unknown[]) => refreshActorInBackground(...(a as [])),
-    syncOutboxPostsDetailed: (...a: unknown[]) => syncOutboxPostsDetailed(...(a as [])),
+    syncProfileOutbox: (...a: unknown[]) => syncProfileOutbox(...(a as [])),
     markOutboxBackfillUnavailable: vi.fn(async () => undefined),
     syncFeaturedPost: vi.fn(async () => undefined),
   },
@@ -155,7 +155,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
 
     expect(pending).toBe(true);
     // The background task is detached, so let its microtasks run before asserting.
-    await vi.waitFor(() => expect(syncOutboxPostsDetailed).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(syncProfileOutbox).toHaveBeenCalledOnce());
     expect(refreshActorInBackground).toHaveBeenCalledOnce();
   });
 
@@ -187,7 +187,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     await expect(federatedProfileSync.syncOnProfileView('fed2')).resolves.toBe(false);
 
     await vi.waitFor(() => expect(fetchRemoteActor).toHaveBeenCalledOnce());
-    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+    expect(syncProfileOutbox).not.toHaveBeenCalled();
     expect(refreshActorInBackground).not.toHaveBeenCalled();
   });
 
@@ -200,7 +200,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
 
     expect(pending).toBe(false);
     await vi.waitFor(() => expect(getUserById).toHaveBeenCalledWith('local1'));
-    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+    expect(syncProfileOutbox).not.toHaveBeenCalled();
     expect(refreshActorInBackground).not.toHaveBeenCalled();
   });
 
@@ -239,7 +239,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     expect(getUserById).not.toHaveBeenCalled();
     expect(fetchRemoteActor).not.toHaveBeenCalled();
     expect(refreshActorInBackground).not.toHaveBeenCalled();
-    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+    expect(syncProfileOutbox).not.toHaveBeenCalled();
     expect(atprotoFetchPosts).not.toHaveBeenCalled();
   });
 
@@ -269,7 +269,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
 
     expect(pending).toBe(false);
     // The AP outbox path must never run for an atproto actor.
-    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+    expect(syncProfileOutbox).not.toHaveBeenCalled();
   });
 
   it('reports pending for an atproto actor with posts and no prior sync, then stamps the backfill', async () => {
@@ -289,7 +289,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     await vi.waitFor(async () =>
       expect((await readActor(AT_ACTOR_URI))?.lastOutboxSyncAt).toBeInstanceOf(Date),
     );
-    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+    expect(syncProfileOutbox).not.toHaveBeenCalled();
   });
 
   it('claims atproto graph syncs so concurrent profile views cannot duplicate expensive work', async () => {
@@ -347,7 +347,7 @@ describe('federatedProfileSync author backfill', () => {
 
   /** Let the detached background task reach the author backfill and finish it. */
   async function runSyncAndAwaitBackfill(oxyUserId: string, claimed: string): Promise<void> {
-    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
+    syncProfileOutbox.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
     await federatedProfileSync.syncOnProfileView(oxyUserId);
     // Wait on the ROW the backfill is supposed to write, not on a spy: the task
     // is detached, so there is no promise to await and no call to count.
@@ -402,7 +402,7 @@ describe('federatedProfileSync author backfill', () => {
     );
     const alicePost = await seedOrphan(`${AP_ACTOR_URI}/statuses/1`);
 
-    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
+    syncProfileOutbox.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
     await federatedProfileSync.syncOnProfileView('fed1');
     // The sync stamps the actor AFTER the claim would have run, so waiting on the
     // stamp proves the backfill finished rather than merely not having started.
