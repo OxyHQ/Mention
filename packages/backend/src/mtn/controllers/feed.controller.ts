@@ -662,7 +662,8 @@ class MtnFeedController {
 
       // Persist the freshly built anonymous page (fail-soft; no-op for
       // authenticated requests). Written after the tuner pipeline so the cached
-      // value is identical to what a live build returns.
+      // value is identical to what a live build returns, and not awaited: the
+      // reader already has the page, and a slow cache must not delay it.
       //
       // A `pending` page is NEVER cached: it is a transient "posts are still
       // importing" answer, and serving it from cache for the TTL would pin the
@@ -674,7 +675,9 @@ class MtnFeedController {
           unratedMaterialAllowed: hydrationRevisions?.unratedMaterialAllowed,
         };
         settleAnonBuild?.(entry);
-        await anonFeedCache.write(anonCacheKey, entry);
+        anonFeedCache.write(anonCacheKey, entry).catch((error) => {
+          logger.warn('[MtnFeedController] Anonymous feed cache write failed', error);
+        });
       }
 
       res.json({

@@ -14,11 +14,7 @@ import { loadPostRecords } from '../db/posts/postRepository';
 import type { Server } from 'socket.io';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
-import {
-  isFallbackUserSummary,
-  postHydrationService,
-  resolveUserSummaries,
-} from '../services/PostHydrationService';
+import { postHydrationService, type HydrationOptions } from '../services/PostHydrationService';
 import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { blockedEitherWay } from '../utils/privacyHelpers';
@@ -28,13 +24,9 @@ import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import { requireExpectedViewer } from '../middleware/requireExpectedViewer';
-import {
-  toPopulatedActor,
-  type NotificationActorProfile as ActorProfile,
-} from '../utils/notificationActor';
+import { resolveActorProfiles, toPopulatedActor } from '../utils/notificationActor';
 import { serializeNotification } from '../utils/notificationUtils';
 import {
-  SYSTEM_ACTOR,
   enrichNotificationActor,
   markAllNotificationsRead,
   markNotificationRead,
@@ -84,21 +76,30 @@ function countUnread(recipientMatch: SQL) {
 }
 
 /**
- * Public profiles for notification actors and channel recipients, through the
- * shared user-summary cache rather than a fresh Oxy batch on every page. An id
- * Oxy could not resolve is left out, so the row renders its neutral identity.
+ * Whether a row embeds its whole hydrated post (`post`) rather than only the
+ * ~200-character text `preview` every other post-referencing row carries.
  */
-async function resolveActorProfiles(ids: string[]): Promise<Map<string, ActorProfile>> {
-  const profiles = new Map<string, ActorProfile>();
-  if (ids.length === 0) return profiles;
-  try {
-    for (const [id, summary] of await resolveUserSummaries(ids)) {
-      if (!isFallbackUserSummary(summary.user)) profiles.set(id, summary.user);
-    }
-  } catch (e) {
-    logger.warn('[Notifications] Failed to bulk-resolve actor profiles:', e);
-  }
-  return profiles;
+function embedsPost(n: { type: string; entityType: string }): boolean {
+  return n.type === 'post' && n.entityType === 'post';
+}
+
+/**
+ * What hydration has to produce for a page's referenced posts. A `preview` row
+ * reads the text, the hashtags, the author and the viewer's ownership (the
+ * mute and sensitivity gates) — none of which the link cards, the community
+ * note or the optional `originalPostId` reference touch, so a page with no
+ * embedding row skips all three. Quotes and boost originals are collected
+ * regardless of depth, so the ACL drops exactly the same rows either way. A
+ * page that embeds a post hydrates the full post the row has always carried.
+ */
+function hydrationNeedsFor(rows: readonly { type: string; entityType: string }[]) {
+  return rows.some(embedsPost)
+    ? ({ maxDepth: 1, includeLinkMetadata: true } satisfies HydrationOptions)
+    : ({
+        maxDepth: 0,
+        includeLinkMetadata: false,
+        includeCommunityNotes: false,
+      } satisfies HydrationOptions);
 }
 
 /** Notification list page size (`GET /notifications`). */
@@ -273,9 +274,13 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
 
     const unreadCount = unreadRows[0]?.value ?? 0;
 
+    // The `+ 1` row only answers `hasMore`; nothing below resolves anything for it.
+    const hasMore = notificationsRaw.length > limit;
+    const notificationsToReturn = hasMore ? notificationsRaw.slice(0, limit) : notificationsRaw;
+
     // Resolve unique actor profiles from Oxy to enrich response
     const uniqueActorIds = Array.from(
-      new Set(notificationsRaw.map((n) => n.actorId).filter(Boolean)),
+      new Set(notificationsToReturn.map((n) => n.actorId).filter(Boolean)),
     );
 
     // Channels named as the RECIPIENT of a row on this page. A notification the
@@ -286,27 +291,22 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
     // below, and a channel is usually also the actor's target anyway.
     const channelRecipientIds = Array.from(
       new Set(
-        notificationsRaw.map((n) => n.recipientId).filter((id) => Boolean(id) && id !== userId),
+        notificationsToReturn
+          .map((n) => n.recipientId)
+          .filter((id) => Boolean(id) && id !== userId),
       ),
     );
 
-    // One batch for every real actor and channel, through the user-summary
-    // cache, and BESIDE the post hydration below rather than before it: the two
-    // share nothing. It never rejects, so nothing waits on it to fail.
-    const profileIdsToResolve = Array.from(
-      new Set(
-        [...uniqueActorIds, ...channelRecipientIds].filter(
-          (id) => id !== SYSTEM_NOTIFICATION_ACTOR_ID,
-        ),
-      ),
-    );
-    const profilesRead = resolveActorProfiles(profileIdsToResolve);
+    // One batch for every actor and channel, through the user-summary cache,
+    // and BESIDE the post hydration below rather than before it: the two share
+    // nothing. It never rejects, so nothing waits on it to fail.
+    const profilesRead = resolveActorProfiles([...uniqueActorIds, ...channelRecipientIds]);
     // A block in either direction hides the actor's rows, however old: Oxy's
     // two-way answer for this viewer, asked beside the reads below. A failure
     // reaches the outer handler — an unanswered check is never "no block".
     const blockedActorsRead = blockedEitherWay(
       safetyRequesterFor(req),
-      profileIdsToResolve.filter((id) => uniqueActorIds.includes(id) && id !== userId),
+      uniqueActorIds.filter((id) => id !== SYSTEM_NOTIFICATION_ACTOR_ID && id !== userId),
     );
     // Reads that fail before this is awaited must not leave it unhandled.
     blockedActorsRead.catch(() => undefined);
@@ -318,7 +318,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
     // other row that hydration correctly removes for this viewer.
     const referencedPostIds = Array.from(
       new Set(
-        notificationsRaw
+        notificationsToReturn
           .filter((n) => n.entityId && (n.entityType === 'post' || n.entityType === 'reply'))
           .map((n) => n.entityId),
       ),
@@ -330,6 +330,14 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
     /** Referenced posts the viewer muted — their notifications are dropped below. */
     const mutedPostIds = new Set<string>();
     if (referencedPostIds.length > 0) {
+      const scopedOxyClient = createScopedOxyClient(req);
+      // The follow graph an `exclude-following` muted word needs, read beside the
+      // post load and hydration rather than after them. It never rejects.
+      const compiledMuteWords = compileMuteWords(muteWords);
+      const followedAuthorsRead = compiledMuteWords?.needsFollowState
+        ? loadFollowedAuthorIds(userId, scopedOxyClient)
+        : Promise.resolve(NO_FOLLOWED_AUTHORS);
+
       // Whole records: `hydratePosts` reads `boostOf`/`quoteOf` (nested embeds),
       // `parentPostId`/`threadId`/`type` (thread + type flags) and
       // `visibility`/`status` (publication controls), and `requiresContentWarning`
@@ -343,8 +351,6 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
         posts.filter((post) => requiresContentWarning(post)).map((post) => post.id),
       );
 
-      const scopedOxyClient = createScopedOxyClient(req);
-
       // Deliberately let hydration/privacy failures reach the outer handler.
       // Returning a partially enriched page would otherwise make a transient
       // privacy-authority outage indistinguishable from authorization success.
@@ -352,8 +358,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
         viewerId: userId,
         safetyRequester: safetyRequesterFor(req),
         oxyClient: scopedOxyClient,
-        maxDepth: 1,
-        includeLinkMetadata: true,
+        ...hydrationNeedsFor(notificationsToReturn),
         // Already resolved above, for the recipient scope — so the ACL gets the
         // SAME answer the inbox query was built from, and gets it for free. The
         // rows come from `loadPostRecords`, which applies no status filter, so
@@ -366,10 +371,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
         operatedAccountIds: [...operatedChannelIds],
       });
 
-      const compiledMuteWords = compileMuteWords(muteWords);
-      const followedAuthorIds = compiledMuteWords?.needsFollowState
-        ? await loadFollowedAuthorIds(userId, scopedOxyClient)
-        : NO_FOLLOWED_AUTHORS;
+      const followedAuthorIds = await followedAuthorsRead;
 
       for (const post of hydratedPosts) {
         deniedPostIds.delete(post.id);
@@ -420,13 +422,6 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
 
     const profilesMap = await profilesRead;
     const blockedActorIds = await blockedActorsRead;
-    if (uniqueActorIds.includes(SYSTEM_NOTIFICATION_ACTOR_ID)) {
-      profilesMap.set(SYSTEM_NOTIFICATION_ACTOR_ID, SYSTEM_ACTOR);
-    }
-
-    // Check if there are more results
-    const hasMore = notificationsRaw.length > limit;
-    const notificationsToReturn = hasMore ? notificationsRaw.slice(0, limit) : notificationsRaw;
 
     // Muted notifications are dropped AFTER `hasMore`/`nextCursor` were taken from the
     // unfiltered page window, so a page can come back short but never skips a
@@ -446,8 +441,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
         // whose entityId resolved a cheap text preview above). The full hydrated
         // `post` embed stays gated to `type:'post'`.
         const preview = postPreviewMap.get(n.entityId);
-        const embeddedPost =
-          n.type === 'post' && n.entityType === 'post' ? postMap.get(n.entityId) : undefined;
+        const embeddedPost = embedsPost(n) ? postMap.get(n.entityId) : undefined;
         return {
           ...serializeNotification(n),
           preview,

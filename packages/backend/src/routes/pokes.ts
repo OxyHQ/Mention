@@ -9,26 +9,13 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { blockedEitherWay } from '../utils/privacyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { User } from '@oxy.so/core';
+import type { PostUser } from '@mention/shared-types';
+import { resolveActorProfiles } from '../utils/notificationActor';
 
 const router = Router();
 
-/** Resolve an array of Oxy user IDs into profile objects (best-effort). */
-async function resolveUsers(ids: string[]): Promise<Map<string, User>> {
-  const map = new Map<string, User>();
-  if (ids.length === 0) return map;
-  try {
-    // Single batched round-trip instead of one getUserById per id.
-    const users = await getServiceOxyClient().users.getMany(ids);
-    for (const user of users) {
-      if (user?.id) map.set(user.id, user);
-    }
-  } catch (error) {
-    logger.warn('[Pokes] Failed to resolve users in batch:', { count: ids.length, error });
-  }
-  return map;
-}
-
-function toUserSummary(user: User) {
+/** The public identity a pokes list carries for each person. */
+function toUserSummary(user: PostUser) {
   return {
     id: user.id,
     username: user.username,
@@ -77,16 +64,18 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
     const visibleReceived = received.filter((p) => !blockedIds.has(p.pokerId));
 
     const pokerIds = visibleReceived.map((p) => p.pokerId);
-    const pokedBackRows =
+    // Independent reads: whom the viewer poked back, and who the pokers are.
+    const [pokedBackRows, profiles] = await Promise.all([
       pokerIds.length > 0
-        ? await db
+        ? db
             .select({ pokedId: pokes.pokedId })
             .from(pokes)
             .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, pokerIds)))
-        : [];
+        : [],
+      resolveActorProfiles(pokerIds),
+    ]);
 
     const pokedBackSet = new Set(pokedBackRows.map((p) => p.pokedId));
-    const profiles = await resolveUsers(pokerIds);
 
     const items = visibleReceived.flatMap((p) => {
       const user = profiles.get(p.pokerId);
@@ -122,7 +111,7 @@ router.get('/sent', async (req: AuthRequest, res: Response) => {
       .orderBy(desc(pokes.createdAt))
       .limit(POKES_LIMIT);
     const pokedIds = sent.map((p) => p.pokedId);
-    const profiles = await resolveUsers(pokedIds);
+    const profiles = await resolveActorProfiles(pokedIds);
 
     const items = sent.flatMap((p) => {
       const user = profiles.get(p.pokedId);
@@ -189,7 +178,7 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
       .slice(0, POKE_SUGGESTION_BLOCK_WINDOW);
     const blockedIds = await blockedEitherWay(safetyRequesterFor(req), unpoked);
     const limitedIds = unpoked.filter((id) => !blockedIds.has(id)).slice(0, 20);
-    const profiles = await resolveUsers(limitedIds);
+    const profiles = await resolveActorProfiles(limitedIds);
 
     const items = limitedIds.flatMap((id) => {
       const user = profiles.get(id);

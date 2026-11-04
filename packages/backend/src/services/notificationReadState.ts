@@ -30,26 +30,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { notifications } from '../db/schema/discovery';
-import {
-  toPopulatedActor,
-  type NotificationActorProfile as ActorProfile,
-} from '../utils/notificationActor';
+import { resolveActorProfiles, toPopulatedActor } from '../utils/notificationActor';
 import { serializeNotification } from '../utils/notificationUtils';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { logger } from '../utils/logger';
-import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
-
-/**
- * Minimal read-surface of an actor profile consumed by `toPopulatedActor`.
- * `getUsersByIds`/`getUserById` return full `User` objects (assignable to this),
- * while the synthetic `system` actor only needs these fields.
- */
-export const SYSTEM_ACTOR: ActorProfile = {
-  id: SYSTEM_NOTIFICATION_ACTOR_ID,
-  username: 'system',
-  name: { displayName: 'System' },
-  avatar: undefined,
-};
 
 /** The wire shape both the REST response and the socket event carry. */
 export type EnrichedNotification = ReturnType<typeof serializeNotification> & {
@@ -58,25 +40,15 @@ export type EnrichedNotification = ReturnType<typeof serializeNotification> & {
 
 /**
  * Enrich a single notification with its actor profile the SAME way the GET list
- * handler does. `actorId` holds an Oxy user id, NOT a relation, so the actor must
- * be resolved through Oxy. On a lookup failure the notification is returned
- * unenriched so the read-state write is never blocked.
+ * handler does, through the same cached resolver. `actorId` holds an Oxy user
+ * id, NOT a relation. An unresolved actor leaves the neutral identity, so the
+ * read-state write is never blocked.
  */
 export async function enrichNotificationActor(
   notification: typeof notifications.$inferSelect,
 ): Promise<EnrichedNotification> {
   const actorId = notification.actorId;
-  let actor: ActorProfile | undefined;
-  if (actorId === SYSTEM_NOTIFICATION_ACTOR_ID) {
-    actor = SYSTEM_ACTOR;
-  } else if (actorId) {
-    try {
-      const [profile] = await getServiceOxyClient().users.getMany([actorId]);
-      if (profile?.id) actor = profile;
-    } catch (e) {
-      logger.warn('[Notifications] Failed to resolve actor profile:', e);
-    }
-  }
+  const actor = (await resolveActorProfiles([actorId])).get(actorId);
   return {
     ...serializeNotification(notification),
     actorId_populated: toPopulatedActor(actor, actorId),

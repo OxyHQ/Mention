@@ -227,18 +227,25 @@ describe('GET /notifications post privacy', () => {
     expect(JSON.stringify(response.body)).not.toContain(RAW_PRIVATE_TEXT);
   });
 
-  it('hands hydration the whole record and the VIEWER’s scope', async () => {
+  it('hands hydration the whole record, the VIEWER’s scope and what the rows render', async () => {
     const viewer = viewerId();
     const postId = await seedReferencedPost('an ordinary public post');
     await seedNotification(viewer, postId);
 
     await request(makeApp(viewer)).get('/').expect(200);
 
-    // `maxDepth: 1` is not decoration: a boost carries an empty body and renders
-    // only through its embedded original, so a depth-0 preview would be blank.
-    expect(mocks.hydratePosts).toHaveBeenCalledWith(
+    // A page of text previews skips the link cards and the note no row renders.
+    expect(mocks.hydratePosts).toHaveBeenLastCalledWith(
       expect.arrayContaining([expect.objectContaining({ id: postId, oxyUserId: ACTOR })]),
-      expect.objectContaining({ viewerId: viewer, maxDepth: 1, includeLinkMetadata: true }),
+      expect.objectContaining({ viewerId: viewer, maxDepth: 0, includeLinkMetadata: false }),
+    );
+
+    // A page that embeds a whole post hydrates it in full.
+    await seedNotification(viewer, postId, 'post');
+    await request(makeApp(viewer)).get('/').expect(200);
+    expect(mocks.hydratePosts).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ maxDepth: 1, includeLinkMetadata: true }),
     );
   });
 

@@ -1,5 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
-vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
+import { describe, expect, it } from 'vitest';
 import { formatPushForNotification } from '../../utils/push';
 
 describe('out-of-band notification privacy', () => {

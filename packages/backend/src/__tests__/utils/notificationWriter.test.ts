@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   getRuntimeSocketServer: vi.fn(),
   formatPushForNotification: vi.fn(),
   sendPushToTokens: vi.fn(),
-  getUserById: vi.fn(),
+  getUsersByIds: vi.fn(),
   notificationAccessBatch: vi.fn(),
   /** Actors Oxy refuses to let notify anyone, for the delivery decision. */
   refusedActors: new Set<string>(),
@@ -43,7 +43,7 @@ vi.mock('../../utils/push', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    users: { get: mocks.getUserById },
+    users: { getMany: mocks.getUsersByIds },
     safety: { notificationAccessBatch: mocks.notificationAccessBatch },
   }),
 }));
@@ -102,11 +102,9 @@ beforeEach(() => {
   mocks.getRuntimeSocketServer.mockReturnValue(undefined);
   mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b', data: {} });
   mocks.sendPushToTokens.mockResolvedValue(undefined);
-  mocks.getUserById.mockResolvedValue({
-    id: 'oxy-actor',
-    username: 'actor',
-    name: { displayName: 'Actor' },
-  });
+  mocks.getUsersByIds.mockResolvedValue([
+    { id: 'oxy-actor', username: 'actor', name: { displayName: 'Actor' } },
+  ]);
 });
 
 afterEach(async () => {
@@ -410,7 +408,7 @@ describe('createBatchNotifications', () => {
     await createBatchNotifications(batch(recipients));
 
     for (const recipient of recipients) expect(await rowsFor(recipient)).toHaveLength(1);
-    expect(mocks.getUserById).toHaveBeenCalledTimes(1);
+    expect(mocks.getUsersByIds).toHaveBeenCalledTimes(1);
     expect(emitted).toHaveLength(recipients.length);
     expect(mocks.sendPushToTokens).toHaveBeenCalledTimes(recipients.length);
   });
