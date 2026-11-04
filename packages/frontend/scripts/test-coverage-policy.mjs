@@ -119,8 +119,6 @@ function basePolicy() {
     minimumFilesInReport: 6,
     minimumTestFiles: 2,
     expectedCounts: {
-      domainFiles: 6,
-      pins: 5,
       unenforceable: 1,
       belowBarExemptions: 1,
       criticalPaths: 2,
@@ -406,7 +404,6 @@ const cases = [
         functions: 0,
         lines: 0,
       });
-      state.policy.expectedCounts.domainFiles = 7;
     },
     expectFailure: true,
     expectOutput: 'classified nowhere',

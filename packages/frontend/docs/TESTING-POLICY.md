@@ -27,8 +27,10 @@ Plain `coverage:record` only adds pins for newly classified files and drops
 pins for files that left the domains; every other number stays byte-identical,
 so two changes that each add a file do not conflict in the merge queue.
 `--refresh` re-anchors the totals, pins and file sizes at the current
-measurement; the check asks for it when the baseline has gone stale. A change
-that only deletes code or only adds tests usually needs neither. Commit the
+measurement. A pull request does not need it: when the baseline has gone stale,
+the daily `coverage-reanchor` workflow re-anchors `main` and merges that through
+the queue, so pull requests never conflict over it. A change that only deletes
+code or only adds tests needs neither. Commit the
 baseline in the same change. Whatever is written is checked against the base
 revision's baseline, and a looser one fails — that is the check the ratchet
 rests on.
@@ -131,10 +133,12 @@ file's growth — max(0, now − anchor) per file, from the `sizes` the baseline
 records — never the net change of the total (see below for why).
 
 Falling more than `uncoveredSlackAllowance` items inside the limit (about 0.75
-points of each metric, the percentage allowance it replaced) also fails, asking
-for `coverage:record -- --refresh` — without that, the baseline never refreshes
-and tests added today could be deleted next month unnoticed. Inside the
-allowance, a change that adds tests passes without touching the baseline.
+points of each metric, the percentage allowance it replaced) means the baseline
+is stale — without a refresh, tests added today could be deleted next month
+unnoticed. CI only warns about it; `.github/workflows/coverage-reanchor.yml`
+runs the check on `main` once a day with the warning turned into a failure, and
+when it fails runs `coverage:record -- --refresh`, re-checks, and opens an
+auto-merging pull request (`autobump/coverage-baseline`).
 
 **6. The baseline may not relax against the base revision.** Every other check
 reads the committed baseline, so without this one a pull request could record a
@@ -189,9 +193,9 @@ What still does not compose:
   covered at least as well as the average cannot be failed by what else is in
   the queue.
 - **The stale-baseline check.** Two queued changes that each add tests can bank
-  more than the allowance together, so it fails on a pull request and only warns
-  in the merge queue and on `main` (`COVERAGE_POLICY_STALE_BASELINE=warn` in
-  `ci.yml`).
+  more than the allowance together, and two pull requests that each re-anchor
+  conflict, so CI only warns (`COVERAGE_POLICY_STALE_BASELINE=warn` in `ci.yml`)
+  and `coverage-reanchor.yml` re-anchors `main`.
 
 The critical-path bar (rule 4) stays a percentage on purpose: it is a fixed
 floor, not a ratchet, and "80% of this file is tested" is the claim it makes.
@@ -243,11 +247,11 @@ move the reassuring way.
 
 | message                                            | what to do                                                                                                                       |
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `classified nowhere`                               | New logic file. Run `coverage:record`, or list it in `unenforceable` with a reason and bump `expectedCounts`.                    |
+| `classified nowhere`                               | New logic file. Run `coverage:record`, or list it in `unenforceable` with a reason and bump `expectedCounts.unenforceable`.      |
 | `more uncovered code than their pin allows`        | A test stopped exercising the file, or code added to it is covered worse than the file already was. Cover it — do not re-record. |
 | `critical-path file(s) are under the bar`          | Raise the coverage. An exemption needs a reason, a date and a bumped exact count, and should be argued in review.                |
 | `Overall <metric>: N uncovered, at most M allowed` | The change added code covered worse than the average, or lost a test. Cover it.                                                  |
-| `Overall <metric>: N uncovered, K fewer than …`    | Good news. `coverage:record -- --refresh` and commit the baseline.                                                               |
+| `Overall <metric>: N uncovered, K fewer than …`    | Good news, and a warning only: `coverage-reanchor.yml` re-anchors `main` daily.                                                  |
 | `looser than <base>'s`                             | The committed baseline allows more than the base revision's. If that is deliberate, add an `allowedBaselineRelaxations` entry.   |
 | `this script reads schema 2`                       | The baseline predates counts. `test:coverage`, then `coverage:record`.                                                           |
 | `missing from the coverage report`                 | A file failed to parse. Search the run's output for `Failed to collect coverage from`.                                           |
