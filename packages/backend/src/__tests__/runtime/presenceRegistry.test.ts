@@ -33,13 +33,18 @@ describe('PresenceRegistry', () => {
   let connectedSocketIds: Set<string>;
   let emitted: Array<{ userId: string; payload: PresencePayload }>;
   let registry: PresenceRegistry;
+  let hidden: Set<string>;
 
   beforeEach(() => {
+    hidden = new Set<string>();
     distributedPresence = createDistributedPresence();
     connectedSocketIds = new Set<string>();
     emitted = [];
     registry = new PresenceRegistry({
       distributedPresence,
+      policy: {
+        hiddenFrom: async (_viewer, userIds) => new Set(userIds.filter((id) => hidden.has(id))),
+      },
       isSocketConnected: (socketId) => connectedSocketIds.has(socketId),
       emitPresence: (userId, payload) => {
         emitted.push({ userId, payload });
@@ -69,24 +74,13 @@ describe('PresenceRegistry', () => {
   });
 
   describe('distributed answers', () => {
-    it('passes the local view to the distributed lookup as its fallback', async () => {
-      track('user-1', 'socket-a');
-      distributedPresence.isOnline.mockResolvedValue(true);
-
-      await expect(registry.isOnline('user-1')).resolves.toBe(true);
-      expect(distributedPresence.isOnline).toHaveBeenCalledWith('user-1', true);
-    });
-
-    it('falls back to false for a user this instance does not hold', async () => {
-      await registry.isOnline('user-9');
-      expect(distributedPresence.isOnline).toHaveBeenCalledWith('user-9', false);
-    });
+    const viewer = { id: 'viewer', accessToken: 'token' };
 
     it('hands getBulk a per-user local fallback predicate', async () => {
       track('user-1', 'socket-a');
       distributedPresence.getBulk.mockResolvedValue({ 'user-1': true, 'user-2': false });
 
-      await expect(registry.getBulk(['user-1', 'user-2'])).resolves.toEqual({
+      await expect(registry.onlineFor(viewer, ['user-1', 'user-2'])).resolves.toEqual({
         'user-1': true,
         'user-2': false,
       });
@@ -95,11 +89,23 @@ describe('PresenceRegistry', () => {
       expect(localFallback('user-1')).toBe(true);
       expect(localFallback('user-2')).toBe(false);
     });
+
+    it('reports a user the policy hides as offline without asking where they are', async () => {
+      hidden.add('user-2');
+      distributedPresence.getBulk.mockResolvedValue({ 'user-1': true });
+
+      await expect(registry.onlineFor(viewer, ['user-1', 'user-2'])).resolves.toEqual({
+        'user-1': true,
+        'user-2': false,
+      });
+      expect(distributedPresence.getBulk.mock.calls[0][0]).toEqual(['user-1']);
+      await expect(registry.mayWatch(viewer, 'user-2')).resolves.toBe(false);
+    });
   });
 
   describe('broadcastPresence', () => {
-    it('emits the userId, the state and an ISO timestamp', () => {
-      registry.broadcastPresence('user-1', true);
+    it('emits the userId, the state and an ISO timestamp', async () => {
+      await registry.broadcastPresence('user-1', true);
 
       expect(emitted).toHaveLength(1);
       expect(emitted[0].userId).toBe('user-1');
@@ -108,6 +114,12 @@ describe('PresenceRegistry', () => {
       expect(new Date(emitted[0].payload.timestamp).toISOString()).toBe(
         emitted[0].payload.timestamp,
       );
+    });
+
+    it('stays silent for a user who hides their online status', async () => {
+      hidden.add('user-1');
+      await registry.broadcastPresence('user-1', true);
+      expect(emitted).toHaveLength(0);
     });
   });
 

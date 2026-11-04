@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import type {
   ContentAccessInput,
   ContentAccessBatchInput,
+  ProfileAccessBatchInput,
   PublicationPoliciesInput,
   SafetyDecision,
 } from '@oxy.so/contracts';
@@ -25,6 +26,12 @@ export function adultSafetyFixture() {
       allowed: true,
       reason: 'public' as const,
       policyVersion: '2' as const,
+    })),
+    profileAccessBatch: vi.fn(async (input: ProfileAccessBatchInput) => ({
+      items: input.subjectAccountIds.map((subjectAccountId) => ({
+        subjectAccountId,
+        decision: { allowed: true, reason: 'public', policyVersion: '2' } as SafetyDecision,
+      })),
     })),
     publicationPolicy: vi.fn(async () => publication),
     publicationPolicies: vi.fn(async (input: PublicationPoliciesInput) => ({

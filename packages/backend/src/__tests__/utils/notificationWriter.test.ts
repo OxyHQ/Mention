@@ -38,12 +38,19 @@ vi.mock('../../utils/push', () => ({
   sendPushToTokens: mocks.sendPushToTokens,
 }));
 
+// Without Redis every real cache misses; the block test needs a retained list.
+vi.mock('../../utils/cache', async (importOriginal) => {
+  const { createMemoryCache } = await import('../helpers/memoryCache');
+  return { ...(await importOriginal<object>()), createCache: () => createMemoryCache() };
+});
+
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ users: { get: mocks.getUserById } }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { notifications } from '../../db/schema/discovery';
+import { getBlockedUserIds, type OxyClient } from '../../utils/privacyHelpers';
 import {
   createBatchNotifications,
   createNotification,
@@ -101,6 +108,27 @@ afterEach(async () => {
 
 afterAll(async () => {
   await closePostgres();
+});
+
+describe('createNotification across a block', () => {
+  it("writes, emits and pushes nothing when the recipient's own list blocks the actor", async () => {
+    const recipient = recipientId();
+    const client = { privacy: { blocked: async () => [{ blockedId: 'oxy-actor' }] } };
+    await getBlockedUserIds(client as unknown as OxyClient, recipient);
+    const emitted = captureEmits();
+
+    await createNotification({
+      recipientId: recipient,
+      actorId: 'oxy-actor',
+      type: 'like',
+      entityId: 'post-1',
+      entityType: 'post',
+    });
+
+    expect(await rowsFor(recipient)).toHaveLength(0);
+    expect(emitted).toHaveLength(0);
+    expect(mocks.sendPushToTokens).not.toHaveBeenCalled();
+  });
 });
 
 describe('createNotification idempotency', () => {

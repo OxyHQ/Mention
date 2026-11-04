@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
 }));
+vi.mock('../../db/userProfile/profileAudience', () => ({
+  accountsWithClosedAudience: async () => new Set(),
+}));
 vi.mock('../../db/posts/postRepository', () => ({
   loadPostRecord: async (id: string) =>
     id === 'p1'

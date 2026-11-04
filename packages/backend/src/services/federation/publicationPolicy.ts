@@ -15,10 +15,15 @@ import { pollOptions } from '../../db/schema/polls';
 import { and, eq } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../../connectors/shared/instagramSourceKey';
 import { resolveMentionCommunity } from '../publishAsAccount';
+import { accountsWithClosedAudience } from '../../db/userProfile/profileAudience';
 
 const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
-/** Public protocol pages use current account policy, including every persisted coauthor. */
+/**
+ * Public protocol pages use current account policy, including every persisted
+ * coauthor, and each author's profile audience: a private or followers-only
+ * profile's posts never federate (`db/userProfile/profileAudience.ts`).
+ */
 export async function filterFederatablePosts(
   records: readonly PostRecord[],
 ): Promise<PostRecord[]> {
@@ -26,9 +31,11 @@ export async function filterFederatablePosts(
     (post) => post.status === 'published' && post.visibility === 'public',
   );
   if (!publicPosts.length) return [];
-  const [policies, decisions] = await Promise.all([
-    authorPublicationPolicies(publicPosts.flatMap(postAuthorIds)),
+  const authorIds = publicPosts.flatMap(postAuthorIds);
+  const [policies, decisions, closedAudience] = await Promise.all([
+    authorPublicationPolicies(authorIds),
     loadPostSafetyDecisions(publicPosts, { accessToken: null }),
+    accountsWithClosedAudience(authorIds),
   ]);
   return publicPosts.filter(
     (post) =>
@@ -36,7 +43,10 @@ export async function filterFederatablePosts(
       postAuthorIds(post).every((id) => {
         const policy = policies.get(id);
         return (
-          policy?.publicationAllowed && policy.federationAllowed && policy.requiredAudience === null
+          !closedAudience.has(id) &&
+          policy?.publicationAllowed &&
+          policy.federationAllowed &&
+          policy.requiredAudience === null
         );
       }),
   );
@@ -266,6 +276,12 @@ export async function authorizeFederationDelivery({
     return access.allowed;
   }
   if (!['Create', 'Update', 'Like', 'Announce'].includes(String(activity.type)) || !objectId)
+    return false;
+  // A boost is the booster's own post, so it leaves only an open audience.
+  if (
+    activity.type === 'Announce' &&
+    (await accountsWithClosedAudience([senderAccountId])).has(senderAccountId)
+  )
     return false;
   if (
     ['Create', 'Update'].includes(String(activity.type)) &&

@@ -19,6 +19,7 @@ import { registerAllModules } from './src/mtn/feed/engine';
 import { registerGlobalErrorHandlers } from './src/runtime/globalErrorHandlers';
 import { registerGracefulShutdown } from './src/runtime/gracefulShutdown';
 import { PresenceRegistry } from './src/runtime/presenceRegistry';
+import { presencePolicy } from './src/services/presencePolicy';
 import { createSocketIoServer, createSocketNamespaces } from './src/runtime/socketIoServer';
 import { registerSocketHandlers } from './src/runtime/socketHandlers';
 import { attachSocketRedisAdapter } from './src/runtime/socketRedisAdapter';
@@ -67,6 +68,7 @@ const presence = new PresenceRegistry({
     getRedisClient,
     `${hostname()}:${process.pid}`,
   ),
+  policy: presencePolicy,
   isSocketConnected: (socketId) => io.sockets.sockets.get(socketId)?.connected === true,
   // Emit to users subscribed to this user's presence. Targeted emit only — no
   // global broadcast.

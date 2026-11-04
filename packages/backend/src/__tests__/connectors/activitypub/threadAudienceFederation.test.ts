@@ -69,6 +69,9 @@ vi.mock('../../../db/federation/deliveryQueueRepository', () => ({
   insertDeliveries: vi.fn(),
   insertDelivery: vi.fn(),
 }));
+vi.mock('../../../db/userProfile/profileAudience', () => ({
+  accountsWithClosedAudience: async () => new Set(),
+}));
 vi.mock('../../../db/posts/postRepository', () => ({
   loadPostRecord: (id: string) =>
     id === 'entry2'

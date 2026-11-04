@@ -25,8 +25,28 @@ export interface DistributedPresencePort {
   heartbeat(userIds: Iterable<string>): Promise<void>;
 }
 
+/** Who is asking about presence: an authenticated socket's account and verified bearer. */
+export interface PresenceViewer {
+  id: string;
+  accessToken: string;
+}
+
+/**
+ * Whose presence a viewer may learn — the one decision every presence answer
+ * and broadcast goes through (`services/presencePolicy.ts`).
+ */
+export interface PresencePolicyPort {
+  /**
+   * Of `userIds`, those `viewer` may not see online. `null` is "anyone": a
+   * broadcast reaches every subscriber, so only what applies to all of them.
+   * Never rejects; an unanswerable check hides.
+   */
+  hiddenFrom(viewer: PresenceViewer | null, userIds: readonly string[]): Promise<Set<string>>;
+}
+
 export interface PresenceRegistryDeps {
   distributedPresence: DistributedPresencePort;
+  policy: PresencePolicyPort;
   /** True while this process still holds a live connection with that socket id. */
   isSocketConnected(socketId: string): boolean;
   /** Deliver a presence change to whoever subscribed to this user. */
@@ -47,6 +67,7 @@ export class PresenceRegistry {
   readonly onlineUsers = new Map<string, Set<string>>();
   readonly distributedPresence: DistributedPresencePort;
 
+  private readonly policy: PresencePolicyPort;
   private readonly isSocketConnected: (socketId: string) => boolean;
   private readonly emitPresence: (userId: string, payload: PresencePayload) => void;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -54,6 +75,7 @@ export class PresenceRegistry {
 
   constructor(deps: PresenceRegistryDeps) {
     this.distributedPresence = deps.distributedPresence;
+    this.policy = deps.policy;
     this.isSocketConnected = deps.isSocketConnected;
     this.emitPresence = deps.emitPresence;
   }
@@ -64,17 +86,32 @@ export class PresenceRegistry {
     return sockets !== undefined && sockets.size > 0;
   }
 
-  /** Fleet-wide answer, degrading to this instance's own view. */
-  isOnline(userId: string): Promise<boolean> {
-    return this.distributedPresence.isOnline(userId, this.isUserOnline(userId));
+  /** Whether `viewer` may see `userId` online at all, which is what a subscription needs. */
+  async mayWatch(viewer: PresenceViewer, userId: string): Promise<boolean> {
+    return !(await this.policy.hiddenFrom(viewer, [userId])).has(userId);
   }
 
-  /** Fleet-wide answer for several users at once. */
-  getBulk(userIds: readonly string[]): Promise<Record<string, boolean>> {
-    return this.distributedPresence.getBulk(userIds, (userId) => this.isUserOnline(userId));
+  /**
+   * Fleet-wide answer for what `viewer` may know, degrading to this instance's
+   * own view. A user hidden from the viewer reads as offline — the same answer
+   * as being away, so hiding is not itself disclosed.
+   */
+  async onlineFor(
+    viewer: PresenceViewer,
+    userIds: readonly string[],
+  ): Promise<Record<string, boolean>> {
+    const hidden = await this.policy.hiddenFrom(viewer, userIds);
+    const shown = userIds.filter((userId) => !hidden.has(userId));
+    const online =
+      shown.length > 0
+        ? await this.distributedPresence.getBulk(shown, (userId) => this.isUserOnline(userId))
+        : {};
+    return Object.fromEntries(userIds.map((userId) => [userId, online[userId] === true]));
   }
 
-  broadcastPresence(userId: string, online: boolean): void {
+  /** Tell subscribers about a change, unless the user hides their online status. */
+  async broadcastPresence(userId: string, online: boolean): Promise<void> {
+    if ((await this.policy.hiddenFrom(null, [userId])).has(userId)) return;
     this.emitPresence(userId, { userId, online, timestamp: new Date().toISOString() });
   }
 
@@ -106,7 +143,7 @@ export class PresenceRegistry {
         pending.push(
           this.distributedPresence.markOffline(userId).then(async () => {
             if (!(await this.distributedPresence.isOnline(userId, false))) {
-              this.broadcastPresence(userId, false);
+              await this.broadcastPresence(userId, false);
             }
           }),
         );

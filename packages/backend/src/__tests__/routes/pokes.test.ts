@@ -45,6 +45,7 @@ vi.mock('../../utils/oxyHelpers', async () => ({
 
 vi.mock('../../utils/privacyHelpers', () => ({
   getBlockedUserIds: (...args: unknown[]) => mocks.getBlockedUserIds(...args),
+  separatedByRetainedBlock: async (pairs: readonly unknown[]) => pairs.map(() => false),
 }));
 
 vi.mock('../../utils/push', () => ({
