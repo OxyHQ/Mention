@@ -120,6 +120,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
 }));
 
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
+import { actorService } from '../../../connectors/activitypub/actor.service';
 
 const ACTOR_URI = `${scope.origin}/users/alice`;
 const OUTBOX_URL = `${ACTOR_URI}/outbox`;
@@ -611,5 +612,32 @@ describe('OutboxSyncService — outbox URL SSRF hardening', () => {
       reachedEnd: false,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('OutboxSyncService — an author Oxy has not linked yet', () => {
+  it('holds the note back and leaves the run unstamped, so the next run retries it', async () => {
+    // Known to the resolver, but without the Oxy link (Oxy was unreachable).
+    vi.spyOn(actorService, 'fetchRemoteActor').mockResolvedValueOnce({
+      uri: ACTOR_URI,
+    } as Awaited<ReturnType<typeof actorService.fetchRemoteActor>>);
+    stubOutbox({
+      type: 'OrderedCollection',
+      totalItems: 1,
+      orderedItems: [createNoteActivity('pending', '2023-04-01T12:00:00Z')],
+    });
+
+    const result = await outboxSyncService.syncOutboxPostsDetailed(
+      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL },
+      syncOptions,
+    );
+
+    expect(result).toMatchObject({
+      reason: 'author-pending',
+      shouldStampCooldown: false,
+      pendingAuthorCount: 1,
+      newPostCount: 0,
+    });
+    expect(await importedPosts()).toHaveLength(0);
   });
 });

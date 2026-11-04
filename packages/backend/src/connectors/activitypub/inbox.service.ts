@@ -31,15 +31,9 @@ import {
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
 import { refreshFederatedPostPoll, syncFederatedPoll } from '../../db/polls/pollRepository';
 import { extractApPoll } from './apPoll';
-import {
-  FEDERATION_MAX_CONTENT_LENGTH,
-  extractLocalPostIdFromApUri,
-  isBlockedDomain,
-  resolveOxyUser,
-} from './constants';
+import { extractLocalPostIdFromApUri, isBlockedDomain, resolveOxyUser } from './constants';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
-import { getPostCreator } from '../../services/serviceRegistry';
 import { storeRemoteLinkPreviews } from '../shared/linkPreviews';
 import { pollVoteService } from '../../services/PollVoteService';
 import {
@@ -53,35 +47,25 @@ import { deliveryService } from './delivery.service';
 import {
   asRecord,
   extractAnnouncedObjectUri,
-  extractDeclaredQuote,
   extractInReplyToUri,
-  resolveDeclaredQuoteTarget,
-  stripQuoteMarkerFromVariants,
   apAddressees,
-  parseApPublished,
   resolvePostIdFromObjectUri,
 } from './helpers';
+import { buildFederatedNoteContentForEdit, hasStorableContent } from './apPostContent';
 import {
-  buildFederatedNoteContent,
-  buildFederatedNoteContentForEdit,
-  buildFederatedNoteProvenance,
-  hasStorableContent,
-} from './apPostContent';
-import { resolvePostCommunity } from './apCommunity';
+  buildPostFromNote,
+  isLocalPostOwnerSharingEnabled,
+  logSkippedNote,
+  storeNotePost,
+} from './apNotePost';
 import { INBOX_RELAYED_TYPES, resolveAnnouncedActivity } from './apRelay';
 import { identityDomainOfActor } from './identityDomain';
-import { dropsFlattenedReposts } from './repostTransportPolicy';
 import { declaredOriginalUrls } from './declaredOriginal';
 import {
   detectCrosspostEquivalence,
   reevaluateClusterForPost,
 } from '../../services/PostEquivalenceService';
-import {
-  applyMentionPlaceholders,
-  extractMentionTags,
-  resolveApAudienceFor,
-  resolveInboundMentions,
-} from './apMentions';
+import { applyMentionPlaceholders, extractMentionTags, resolveInboundMentions } from './apMentions';
 import { OWN_DOMAINS } from './ownDomain';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
@@ -89,7 +73,6 @@ import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
 import { applyDetectedPrimaryTag } from '../../services/postVariants';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
-import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { isApPostObjectType, parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
 import {
@@ -251,28 +234,6 @@ export class InboxProcessingService {
     } else if (objectType === 'Announce') {
       await this.handleUndoAnnounce(undone, actorUri);
     }
-  }
-
-  /**
-   * Whether the LOCAL owner of `postId` currently allows fediverse sharing.
-   * Returns `true` (proceed) when the post can't be found, is remote-owned/
-   * mirrored (`federation != null`), or has no local `oxyUserId` — gating
-   * only ever applies to a real local owner, never a mirrored federated post.
-   * Id-based (redis-cached, fails OPEN on an Oxy outage — correct for
-   * inbound activities, same as every other consent read on this path).
-   *
-   * Shared by every shared-inbox handler below that creates NEW engagement
-   * against an EXISTING post (a reply's parent, a Like target, an Announce
-   * target) so an opted-out user's content stops accruing engagement the
-   * moment sharing is off — mirroring {@link handleIncomingFollow}'s gate for
-   * the Follow case. Deliberately NOT used by the Undo variants
-   * (`handleUndoLike`, `handleUndoAnnounce`) — see their own doc comments:
-   * an Undo is teardown, not new engagement, and must always converge.
-   */
-  private async isLocalPostOwnerSharingEnabled(postId: string): Promise<boolean> {
-    const post = await loadPostRecord(postId);
-    if (!post || post.federation != null || !post.oxyUserId) return true;
-    return isFediverseSharingEnabled(post.oxyUserId);
   }
 
   /**
@@ -571,7 +532,7 @@ export class InboxProcessingService {
     if (post?.federation != null) return true;
 
     // The poll owner may have turned fediverse sharing off — drop it silently.
-    if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
+    if (!(await isLocalPostOwnerSharingEnabled(postId))) {
       logger.debug('[Federation] dropped poll vote because sharing is disabled');
       return true;
     }
@@ -653,13 +614,6 @@ export class InboxProcessingService {
     else if (relayedBy && (await isFollowed(relayedBy))) importReason = 'inbox_community';
     else return;
 
-    // Sanitize and check content length
-    const rawContent = note.content || '';
-    if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) {
-      logger.debug('[Federation] rejected oversized content');
-      return;
-    }
-
     // Dedup by activityId — and, for a bridged Instagram Note, by the Instagram
     // post it mirrors, so a post the Graph import already holds is not stored twice.
     const [existingPost] = await getDb()
@@ -672,112 +626,39 @@ export class InboxProcessingService {
       return;
     }
 
-    // The Oxy link is MANDATORY: a federated post must carry a real Oxy author,
-    // never a null one. Resolve the actor and REQUIRE its `oxyUserId`. When the
-    // actor is missing or has no `oxyUserId` (Oxy unreachable when the actor was
-    // resolved), `requireActorOxyUserId` throws `ActorResolutionPendingError` so
-    // the BullMQ inbox job fails and retries with backoff — on a later attempt
-    // (Oxy reachable) the actor resolves and the post inserts with a real author.
-    // We NEVER insert an orphan post with a null author.
+    // The Oxy link is MANDATORY: a federated post must carry a real Oxy author.
+    // An actor that is missing or not yet linked (Oxy unreachable when it was
+    // resolved) throws `ActorResolutionPendingError`, so the BullMQ job fails
+    // and retries with backoff; the post is never stored with a null author.
     const actor = await actorService.getOrFetchActor(actorUri);
     const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${note.id}`);
-    // A direct message is stored as a private mention for the local users it is
-    // addressed to — and not at all when it names none of them.
-    const audience = await resolveApAudienceFor(object, {
-      uri: actorUri,
-      followersUrl: actor?.followersUrl,
-      lastFetchedAt: actor?.lastFetchedAt,
-    });
-    if (!audience) {
-      logger.debug('[Federation] skipped a direct note addressed to no local user');
-      return;
-    }
 
-    // Resolve the Note's @mentions BEFORE building the body: each `Mention` tag's
-    // actor URI is resolved (and synced/created) to a federated or local Oxy user
-    // id, then the matching in-content anchor is rewritten to Mention's internal
-    // `[mention:<oxyUserId>]` placeholder so hydration renders it as a real link
-    // (`@user@domain`) instead of dead `@user` text. Batched — each distinct actor
-    // is resolved once. Runs after the dedup gate above, so a redelivered Create
-    // never repeats the resolution.
-    const mentionResult = await resolveInboundMentions(object);
-    const noteObject = applyMentionPlaceholders(object, mentionResult.anchorMap);
-
-    // Extract the body (with contentMap fallback), normalize hashtags, and
-    // materialize media through the shared builder — the SAME path the outbox
-    // backfill and boost/ancestor import use. A Note that carries nothing
-    // storable (no text, no surviving media, no content-warning) is dropped
-    // instead of persisted as a blank post.
-    const built = await buildFederatedNoteContent(noteObject, authorOxyUserId, {
+    const post = await buildPostFromNote({
+      note: object,
+      activity,
       activityId: note.id,
-      actorUri,
-      // The author's IDENTITY network, so the bare handles they typed are stored
-      // qualified. `networkAcct` carries the re-labelled identity for a bridged
-      // actor (`pabloiglesias@x.com`), so its domain is `x.com` and not the
-      // bridge host the copy arrived through; an ordinary actor falls back to
-      // its own instance.
-      identityDomain: identityDomainOfActor(actor),
-      // Only for a REVIEWED bridge. These operators flatten a retweet into a
-      // plain Note authored by the retweeter, carrying no reference to the
-      // original at all — so the post would appear under a byline that did not
-      // write it, with no way to reach the real author. Dropped until the
-      // original can be shown. An ordinary instance is never gated this way, so
-      // a human opening a post with "RT:" is unaffected.
-      dropFlattenedRetweets: dropsFlattenedReposts(actor?.domain ?? ''),
+      author: { ...actor, uri: actorUri, oxyUserId: authorOxyUserId },
+      importReason,
       ingestPath: 'inbox',
+      relayedBy,
+      importQuoted: (uri) => outboxSyncService.ensureQuotedNote(uri),
     });
-    if (built.skip) {
-      logger.debug('[Federation] skipped empty Create', {
-        result: built.reason,
-      });
+    if (post.skip) {
+      logSkippedNote('Create', post);
       return;
     }
-    const { media, attachments, hashtags, summary, sensitive, variants, linkPreviews } = built;
+    const { audience, mentions: mentionResult } = post;
 
-    // Preserve the ORIGINAL publish date so a federated post reflects when it
-    // was authored remotely, not when our inbox happened to receive it. The Note
-    // carries its own `published`; fall back to the Create activity's `published`
-    // (mirrors the outbox-backfill path). A `createdAt` supplied on a NEW row is
-    // honored (the default only fills an absent value), so threading
-    // `createdAt`/`updatedAt` through PostCreationService persists the real date.
-    // Missing/invalid/future → undefined → schema timestamps fall back to now.
-    const originalCreatedAt = parseApPublished(object.published ?? activity.published);
-
-    // When this Note is a reply, resolve it to the local thread: parentPostId is
-    // the parent Post's _id and threadId is the thread ROOT id (mirroring the
-    // native reply rule). A parent not yet imported is backfilled (bounded) so
-    // the reply joins the existing thread instead of being orphaned. `inReplyTo`
-    // is normalized to a clean string URI (string IRI or embedded Link object).
-    const inReplyToUri = extractInReplyToUri(object.inReplyTo);
-    const threadLink = inReplyToUri
-      ? await outboxSyncService.ensureFederatedReplyLink(inReplyToUri)
+    // A reply joins its local thread: `parentPostId` is the parent's id and
+    // `threadId` the thread ROOT's (the native reply rule). A parent not yet
+    // imported is backfilled (bounded) so the reply is not orphaned.
+    const threadLink = post.inReplyToUri
+      ? await outboxSyncService.ensureFederatedReplyLink(post.inReplyToUri)
       : null;
-
-    // A reply targets its parent post's owner — if that owner is a LOCAL
-    // user who has turned fediverse sharing off, drop the reply silently
-    // rather than materialize it against an opted-out account.
-    if (threadLink && !(await this.isLocalPostOwnerSharingEnabled(threadLink.parentPostId))) {
-      logger.debug('[Federation] dropped reply because sharing is disabled');
-      return;
-    }
-
-    // A CHANNEL'S POST TAKES NO REPLIES, from this instance or any other.
-    //
-    // **A SILENT DROP, never a throw and never a 4xx** — the shape of the refusal
-    // matters more here than anywhere else. A throw fails the BullMQ inbox job,
-    // which then retries this activity forever; a 4xx from the inbox POST makes
-    // Mastodon stop delivering to this instance PERMANENTLY, killing every follow,
-    // accept, like and reply from that server rather than just this one. So the
-    // reply is discarded exactly the way the sharing-disabled case above discards
-    // one: `debug`, and a normal return that lets the activity be acknowledged.
-    if (threadLink && (await parentIsChannelPost(threadLink.parentPostId))) {
-      logger.debug('[Federation] dropped reply to a channel-authored post');
-      return;
-    }
 
     // The community HOSTED HERE the post is written in: the one it is addressed
     // to, or — for a reply — its thread's. A member its moderators banned is
-    // refused outright, silently (a throw would retry forever; see above). The
+    // refused outright, silently (a throw would retry the job forever). The
     // community relays the post only when it speaks for its own actor alone: the
     // signature proved who delivered it, `isSelfConsistentActivity` that they
     // claim nobody else's post. Otherwise it is filed as any federated post is.
@@ -795,95 +676,12 @@ export class InboxProcessingService {
     }
     const relayingCommunity =
       localCommunity && isSelfConsistentActivity(activity, actorUri) ? localCommunity : null;
-    const communityOxyUserId =
-      relayingCommunity?.oxyUserId ?? (await resolvePostCommunity(object, relayedBy));
 
-    // When this Note QUOTES another post, link it to the local quoted Post so
-    // hydration embeds the quoted original (mirrors the native quote shape). The
-    // quote URI is read from the standard AP quote surfaces (Bridgy Fed bridges a
-    // Bluesky quote through them, pointing at the quoted post's brid.gy object
-    // URL).
-    //
-    // A quoted post we do not already hold is FETCHED, through the same bounded,
-    // signed, SSRF-safe import a boost and a reply ancestor use. This previously
-    // resolved only against posts already imported and left `quoteOf` null
-    // otherwise — the comment promised it would "link on a later pass once the
-    // original is ingested", and nothing ever ingested it. In practice a quote of
-    // any account we do not already hold rendered as a bare `RE: <url>` in the
-    // body, with the reference sitting unused in three separate fields of the
-    // very same object.
-    // Threads carries its quote ONLY as `<span class="quote-inline">` in the
-    // body — no structured field at all — so the reader that answers this is
-    // shared rather than repeated here (see `resolveDeclaredQuote`).
-    const declaredQuote = extractDeclaredQuote(object, actorUri);
-    const quoteOf = declaredQuote
-      ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
-          outboxSyncService.ensureQuotedNote(uri),
-        )
-      : null;
-
-    // With the quote linked we render it properly, so the remote's `RE: <url>`
-    // fallback in the body is now a duplicate of the card sitting next to it.
-    // Left in place on an UNRESOLVED quote, where it is the only reference.
-    const quoteVariants = await stripQuoteMarkerFromVariants(variants, quoteOf, declaredQuote?.uri);
-
-    const createdPost = await getPostCreator().create({
-      oxyUserId: authorOxyUserId,
-      federation: buildFederatedNoteProvenance({
-        importReason,
-        activityId: note.id,
-        actorUri,
-        inReplyTo: inReplyToUri,
-        noteUrl: note.url,
-        sensitive,
-        spoilerText: summary,
-      }),
-      parentPostId: threadLink?.parentPostId ?? null,
-      threadId: threadLink?.threadId ?? null,
-      quoteOf,
-      communityOxyUserId,
-      content: {
-        // The body lives ONLY in the variants — a `contentMap` is one body PER
-        // LANGUAGE, not a fallback for one. `variants[0]` is the primary.
-        variants: quoteVariants.length > 0 ? quoteVariants : undefined,
-        title: built.title,
-        linkUrl: built.linkUrl,
-        media: media.length > 0 ? media : undefined,
-        attachments: attachments.length > 0 ? attachments : undefined,
-      },
-      visibility: audience.visibility,
-      ...(audience.recipients.length > 0 ? { recipients: audience.recipients } : {}),
-      hashtags,
-      // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist the
-      // native path stores, keyed by the `[mention:<id>]` placeholders now in the
-      // body, so hydration renders each as a real profile link.
-      mentions: mentionResult.ids,
-      // AP-derived language so Mastodon/Pleroma posts carry their REAL language
-      // (and feed the Stage-A classifier) instead of defaulting to 'en'. The
-      // singular `language` sets the top-level `post.language` (primary); the full
-      // declared set (top-level `language` + every `contentMap` key) feeds the
-      // classifier's `postClassification.languages`.
-      language: extractApLanguage(object),
-      languages: extractApLanguages(object),
-      // Instance host drives the Stage-A coarse region for federated posts.
-      instanceDomain: getRemoteHost(actorUri),
-      // AP actor type feeds the Stage-A RSS/bot-mirror spam signal.
-      actorType: actor?.type,
-      // WITHHELD when the note quotes something we could not produce. The
-      // author's text was written ABOUT that post; without it the reader gets
-      // half a conversation and the remote server's `RE: <url>` fallback.
-      // Stored rather than dropped, so the backfill can promote it later.
-      status: declaredQuote && !quoteOf ? 'incomplete' : 'published',
-      metadata: { isSensitive: sensitive },
-      skipNotifications: true,
-      skipSocketEmit: true,
-      skipFederationDelivery: true,
-      ...(originalCreatedAt ? { createdAt: originalCreatedAt, updatedAt: originalCreatedAt } : {}),
+    const createdPost = await storeNotePost(post, {
+      parentPostId: threadLink?.parentPostId,
+      threadId: threadLink?.threadId,
+      communityOxyUserId: relayingCommunity?.oxyUserId,
     });
-
-    // FEP-8967 cards: the fallback for a link Clarity has not described yet.
-    if (linkPreviews.length > 0) await storeRemoteLinkPreviews(createdPost.id, linkPreviews);
-    if (built.poll) await syncFederatedPoll(createdPost.id, authorOxyUserId, built.poll);
 
     // The community relays the member's Create to its own followers.
     if (relayingCommunity) await relayToCommunityFollowers(relayingCommunity, activity);
@@ -1013,7 +811,7 @@ export class InboxProcessingService {
     const postId = await resolvePostIdFromObjectUri(objectId);
     if (!postId) return;
 
-    if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
+    if (!(await isLocalPostOwnerSharingEnabled(postId))) {
       logger.debug('[Federation] dropped Like because sharing is disabled');
       return;
     }
@@ -1069,7 +867,7 @@ export class InboxProcessingService {
     // mirrored locally, or a genuinely remote post) skips the gate: there is
     // no local owner to protect.
     const announcedPostId = await resolvePostIdFromObjectUri(announcedUri);
-    if (announcedPostId && !(await this.isLocalPostOwnerSharingEnabled(announcedPostId))) {
+    if (announcedPostId && !(await isLocalPostOwnerSharingEnabled(announcedPostId))) {
       logger.debug('[Federation] dropped Announce because sharing is disabled');
       return;
     }

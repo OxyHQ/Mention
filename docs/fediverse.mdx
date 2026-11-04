@@ -156,7 +156,28 @@ An `Announce` of an ACTIVITY is a community relaying a member (FEP-1b12): the
 inner activity is verified and processed as the member's own, never as a boost
 — see [federation behaviors](./federation-behaviors.md#a-community-relays-its-members-fep-1b12).
 
-### Who a remote note is for
+### One Note builder
+
+Every road that imports a remote Note (the inbox `Create`, the outbox backfill,
+and the dependency import of boosted originals, reply ancestors, quoted notes,
+pinned posts and public statuses) builds the post through
+`buildPostFromNote` (`connectors/activitypub/apNotePost.ts`). It applies the size
+cap, the reply gates (no replies to a channel's post or to a local user who
+turned fediverse sharing off), the audience, the mentions, the body and media,
+the quote and the community. The roads differ only in how they resolve the
+author, link the thread and write the row. The inbox and the dependency import
+write through `PostCreationService`. The outbox batch-inserts, using the same
+Stage-A classification (`classifyPostBaseline`), stored-content conversion and
+mention reconciliation.
+
+A note whose author is known but not yet linked to Oxy is never stored without
+an author. The inbox throws `ActorResolutionPendingError`, so the job retries.
+The outbox holds the note back and reports the run as `author-pending`, which
+is not stamped done, so the next run retries the note from the last completed
+cursor instead of paging past it. An author whose actor cannot be fetched at all
+is skipped. A dependency import returns nothing, and its caller stores its own
+post unlinked, or as `incomplete` for a quote.
+
 
 `resolveApAudience` (`connectors/activitypub/apMentions.ts`) decides the stored
 audience of every inbound note, on the inbox, outbox-backfill and dependency
