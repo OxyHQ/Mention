@@ -143,18 +143,29 @@ export function startSchedulers(): void {
   } catch (error) {
     logger.warn('Failed to start Oxy file reference reconciliation', error);
   }
+
+  // Bluesky Jetstream (leader-gated): one subscription across the fleet for live
+  // posts and deletes, resumed from its durable cursor
+  // (`connectors/atproto/jetstream/`).
+  try {
+    const { atprotoConnector } = require('../connectors/atproto/AtprotoConnector');
+    atprotoConnector.startLiveIngestion();
+  } catch (error) {
+    logger.warn('Failed to start Bluesky Jetstream ingestion', error);
+  }
 }
 
 /**
  * Stop all in-process schedulers. Invoked by LeaderElection when this task
  * loses leadership (another task took over) or during graceful shutdown.
  * Each stop is isolated so one failure does not prevent stopping the rest.
+ * Async only for the Jetstream consumer, which saves its cursor on the way out.
  *
  * NOTE: FeedSeenPostsService's in-memory cleanup interval is intentionally NOT
  * stopped here — it is per-process memory hygiene for a request-time fallback
  * cache, not a shared cron job, so every task (leader or not) must keep it.
  */
-export function stopSchedulers(): void {
+export async function stopSchedulers(): Promise<void> {
   try {
     const { crosspostReconciliationJob } = require('../services/CrosspostReconciliationJob');
     crosspostReconciliationJob.stop();
@@ -254,5 +265,14 @@ export function stopSchedulers(): void {
     fileReferenceReconciliationScheduler.stop();
   } catch (error) {
     logger.warn('Failed to stop Oxy file reference reconciliation', error);
+  }
+
+  // Awaited, so the cursor of the last handled batch is saved before the
+  // leadership lock (and on shutdown, Postgres) goes.
+  try {
+    const { atprotoConnector } = require('../connectors/atproto/AtprotoConnector');
+    await atprotoConnector.stopLiveIngestion();
+  } catch (error) {
+    logger.warn('Failed to stop Bluesky Jetstream ingestion', error);
   }
 }

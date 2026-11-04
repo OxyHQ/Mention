@@ -32,12 +32,13 @@ Every Bluesky post is imported through one path: an AppView `PostView` mapped by
 `connectors/atproto/post.mapper.ts` and created through `getPostCreator().create`,
 deduped on its AT-URI (`posts.federation_activity_id`). The triggers differ:
 
-| Trigger                            | What it reads                       | Where                                |
-| ---------------------------------- | ----------------------------------- | ------------------------------------ |
-| Someone opens a profile            | The newest author-feed page         | `connectors/federatedProfileSync.ts` |
-| Someone follows the account        | The newest author-feed page         | `AtprotoConnector.followActor`       |
-| Periodic sync of followed accounts | The newest page of each due account | `syncFollowedAtprotoAccounts`        |
-| Periodic history backfill          | Older pages, from a saved cursor    | `advanceAtprotoHistoryBackfills`     |
+| Trigger                            | What it reads                                              | Where                                |
+| ---------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
+| Someone opens a profile            | The newest author-feed page                                | `connectors/federatedProfileSync.ts` |
+| Someone follows the account        | The newest author-feed page                                | `AtprotoConnector.followActor`       |
+| Periodic sync of followed accounts | The newest page of each due account                        | `syncFollowedAtprotoAccounts`        |
+| Periodic history backfill          | Older pages, from a saved cursor                           | `advanceAtprotoHistoryBackfills`     |
+| Jetstream, live                    | New posts of followed accounts; deletes of any stored post | `connectors/atproto/jetstream/`      |
 
 ### Followed accounts are re-read in the background
 
@@ -88,3 +89,105 @@ file) was the alternative. It was rejected for four reasons:
 
 Pagination also brings reposts (stored as boosts) and the pinned post, which a
 repository walk would have to re-derive.
+
+## Live posts and deletes: Jetstream
+
+`connectors/atproto/jetstream/` holds one WebSocket subscription to Bluesky's
+[Jetstream](https://bsky.network/docs/jetstream/) v2
+(`network.bsky.jetstream.subscribeEvents`; public, free, no authentication).
+It is configured with `ATPROTO_JETSTREAM_ENABLED` (on with the connector) and
+`ATPROTO_JETSTREAM_URL` (default `wss://jetstream.us-east.bsky.network`).
+
+**Where it runs.** On the scheduler leader. It is started and stopped with the
+other leader-gated jobs (`runtime/schedulers.ts`), so exactly one task in the
+fleet holds the subscription. Today that is one of the `combined` API tasks.
+Once the fleet is split (`MENTION_PROCESS_ROLE=worker`), the worker holds the
+leadership and the stream moves with it, with no code change. It is not a
+BullMQ job: it is one long-lived connection, not a unit of work.
+
+**One connection, filtered by collection, not by account.** The subscription asks
+for `kinds=commit` and the handlers' collections, and every handler filters
+accounts itself. The lexicon allows 10,000 `dids` per subscription, but the
+public instances refuse a request line over about 8 KB (measured 2026-11-04: a
+414 from their proxy at about 215 DIDs). A DID filter would therefore need a
+connection per ~200 accounts, re-sharding, and a reconnect on every follow. The
+handlers that come next cannot be written as a DID filter either: a like or a
+follow is ours when its subject is ours, whoever wrote it. The whole post stream
+is about 70 events/s and 65 KB/s (about 6 GB a day), which costs little to read
+and discard.
+
+**What the post handler does** (`postHandler.ts`):
+
+- A **create** by an account a local user follows is imported by its AT-URI
+  (`importPostsByUri`): hydrated through `app.bsky.feed.getPosts` with the posts
+  it replies to, then through the one post mapper. It therefore has the same
+  moderation labels, media and links as an author-feed import. The author comes
+  from the stored actor row, so no profile read is needed. The followed set is
+  re-read from `federated_follows` every minute. An account nobody follows is
+  left to the profile-view sync.
+- A **delete** removes any stored Bluesky post with that AT-URI, whoever wrote it,
+  through `deleteFederatedPostSubtree`, the cascade an ActivityPub `Delete` runs.
+  It costs one indexed lookup. Before this, a post deleted on Bluesky stayed on
+  Mention.
+- An **update** is ignored. Bluesky has no post editing.
+
+**Delivery and the cursor.** Delivery is at-least-once, so every handler is
+idempotent on the record's AT-URI. A post that is already stored costs one query
+and no AppView call. Commits are handed to handlers in stream order, in batches,
+about once a second. The resume cursor is the `witnessedAt` of the newest frame
+received before the batch, as unix microseconds. Jetstream reads a value of 1e15
+or more as a timestamp and resumes from it inclusively, and unlike `seq` it is
+valid on every instance. The cursor is stored in `jetstream_cursors` (row
+`bluesky`), at most every few seconds and on stop. It only moves past work that
+was handled:
+
+- **A handler that throws** (AppView down, database unreachable) does not move it.
+  The connection is dropped and reopened from the last good cursor, so the batch
+  comes again.
+- **A queue that outgrows its bound** reconnects the same way. That is the
+  backpressure.
+- **Reconnects back off** exponentially, up to a minute, and the backoff resets
+  after a connection has stayed up. A connection silent for two minutes counts as
+  dead.
+- **An outage longer than Jetstream's replay window** (36 h) starts at the oldest
+  event it still has, with an `OutdatedCursor` notice in the log. The periodic
+  author-feed sync covers the gap.
+
+### Adding a collection (the extension point)
+
+To follow likes, reposts or follow edges, write a `JetstreamCollectionHandler`
+(`JetstreamConsumer.ts`):
+
+```ts
+const likeHandler: JetstreamCollectionHandler = {
+  collection: 'app.bsky.feed.like',
+  async handle(commits) {
+    // Every like and unlike, from every account, in stream order.
+    // Filter to the ones that are ours; be idempotent on commit.uri.
+  },
+};
+```
+
+Then add it to `jetstreamHandlers()` in `connectors/atproto/jetstream/index.ts`.
+That is all. The consumer subscribes to every listed collection (up to 100),
+batches, retries, and shares the one cursor. A handler throws only for a failure
+that may pass, because a throw replays the batch. `deleteStoredAtprotoRecords`
+(`postHandler.ts`) deletes a stored post or boost by the record's AT-URI, which
+is what an unrepost needs: an author-feed import stores a repost as a boost under
+the repost's own AT-URI. A new collection multiplies the stream's volume (likes
+alone are several times the posts). Check the bandwidth before adding one.
+
+### Deploying
+
+No infrastructure change is needed. The stream runs inside the existing backend
+service's leader task and leaves through the same NAT as every AppView read.
+
+1. Merge. The deploy's migration one-shot creates `jetstream_cursors`
+   (`0115_jetstream_cursors`, pre-deploy phase, a new empty table).
+2. The new leader logs `[jetstream] connecting`, then `[jetstream] deleted posts`
+   and `imported posts` lines. The first start has no cursor, so it begins at the
+   live tip.
+3. To turn it off, set `ATPROTO_JETSTREAM_ENABLED=false` on the task definition
+   (the backend-config workflow) and redeploy. The periodic sync keeps working.
+4. Optional, later: when the API and worker roles are split, nothing changes
+   here. The stream follows the scheduler leadership onto the worker service.

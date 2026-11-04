@@ -94,6 +94,8 @@ export interface FollowFilter {
   remoteActorUri?: string;
   direction?: FollowDirection;
   statuses?: readonly FollowStatus[];
+  /** The protocol the edge was made over (`atproto` for a Bluesky follow). */
+  network?: FollowNetwork;
 }
 
 function followClauses(filter: FollowFilter): SQL[] | null {
@@ -109,6 +111,7 @@ function followClauses(filter: FollowFilter): SQL[] | null {
   }
   if (filter.direction !== undefined)
     clauses.push(eq(federatedFollows.direction, filter.direction));
+  if (filter.network !== undefined) clauses.push(eq(federatedFollows.network, filter.network));
   if (filter.statuses !== undefined) {
     // An empty status list means "no status can match", not "any status" — the
     // opposite of what dropping the clause would mean. `null` says so to the

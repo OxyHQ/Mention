@@ -589,3 +589,22 @@ export const federationDeliveryQueue = pgTable(
     index('federation_delivery_queue_drain_idx').on(t.status, t.nextAttemptAt),
   ],
 );
+
+/**
+ * `jetstream_cursors` — where the Bluesky Jetstream consumer
+ * (`connectors/atproto/jetstream/`) has durably processed the stream up to. One
+ * row per stream (today only `bluesky`).
+ *
+ * The cursor is a Jetstream unix-microsecond timestamp (the `witnessedAt` of the
+ * oldest event not yet fully handled), kept as text because it is an opaque
+ * resume token here, exactly like `oxy_account_event_cursors.cursor`. In
+ * Postgres rather than Redis for the same reason: a lost cursor resumes at the
+ * live tip and silently skips every create and delete in between.
+ */
+export const jetstreamCursors = pgTable('jetstream_cursors', {
+  /** The stream's name. A natural key: there is exactly one row per stream. */
+  id: text().primaryKey(),
+  cursor: text().notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});

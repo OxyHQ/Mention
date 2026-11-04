@@ -61,6 +61,7 @@ vi.mock('../../../connectors/shared/federatedMedia', () => ({
 
 import {
   importAuthorFeed,
+  importPostsByUri,
   importPostViews,
   mapPostViewToNormalizedPost,
 } from '../../../connectors/atproto/post.mapper';
@@ -830,6 +831,55 @@ describe('importPostViews', () => {
     expect(uris).toEqual([`at://${GOOD}/app.bsky.feed.post/g`]);
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(mocks.create.mock.calls[0][0].oxyUserId).toBe('oxy-good');
+  });
+});
+
+/**
+ * A record stream names posts by AT-URI only. Each is hydrated through
+ * `getPosts` with the posts it replies to, mapped by the one mapper, and
+ * attributed to the STORED author without a profile read.
+ */
+describe('importPostsByUri', () => {
+  it('hydrates unstored URIs and their reply parents, then imports through the mapper', async () => {
+    storeCreatedPosts();
+    await seedActor(scope, {
+      uri: DID,
+      protocol: 'atproto',
+      username: 'alice',
+      acct: 'alice.bsky.social',
+      domain: 'bsky.social',
+      networkAcct: 'alice@bsky.social',
+      oxyUserId: 'oxy-alice',
+    });
+    await seedPost(scope, { federation: { activityId: atUri('stored'), actorUri: DID } });
+    const reply = postView('reply', 'a reply', {
+      record: { reply: { parent: { uri: atUri('parent') }, root: { uri: atUri('parent') } } },
+    });
+    mocks.xrpcGet.mockImplementation(async (_host: string, _nsid: string, params) => {
+      const uris = (params as { uris: string[] }).uris;
+      if (uris.includes(atUri('reply'))) return { posts: [reply] };
+      if (uris.includes(atUri('parent'))) return { posts: [postView('parent', 'the parent')] };
+      return { posts: [] };
+    });
+
+    const created = await importPostsByUri([atUri('reply'), atUri('stored')]);
+
+    expect(created).toBe(1);
+    expect(mocks.xrpcGet.mock.calls.map(([, nsid, params]) => [nsid, params])).toEqual([
+      ['app.bsky.feed.getPosts', { uris: [atUri('reply')] }],
+      ['app.bsky.feed.getPosts', { uris: [atUri('parent')] }],
+    ]);
+    expect(mocks.fetchProfile).not.toHaveBeenCalled();
+    const parentId = await postIdOf(atUri('parent'));
+    expect(parentId).toBeDefined();
+    expect(mocks.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        oxyUserId: 'oxy-alice',
+        instanceDomain: 'bsky.social',
+        parentPostId: parentId,
+        federation: expect.objectContaining({ activityId: atUri('reply'), actorUri: DID }),
+      }),
+    );
   });
 });
 
