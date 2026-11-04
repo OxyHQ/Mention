@@ -3,12 +3,12 @@
 A person on another network can reach Mention through several transports at
 once:
 
-| Network | Transports | Post id the transport carries |
-| --- | --- | --- |
-| X | bird.makeup | the tweet id (`…/statuses/<tweet id>`) |
-| X | mastox.eu | none: its own Mastodon ids |
-| Instagram | kilogram.makeup, Meta Graph API | the shortcode |
-| Bluesky | native atproto, Bridgy Fed (`bsky.brid.gy`) | the at-URI |
+| Network   | Transports                                  | Post id the transport carries          |
+| --------- | ------------------------------------------- | -------------------------------------- |
+| X         | bird.makeup                                 | the tweet id (`…/statuses/<tweet id>`) |
+| X         | mastox.eu                                   | none: its own Mastodon ids             |
+| Instagram | kilogram.makeup, Meta Graph API             | the shortcode                          |
+| Bluesky   | native atproto, Bridgy Fed (`bsky.brid.gy`) | the at-URI                             |
 
 Mention reads from all of them and stores each upstream post once. Code:
 `packages/backend/src/connectors/shared/upstreamPostKey.ts`,
