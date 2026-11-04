@@ -208,161 +208,31 @@
       "lines": 100
     }
   },
-  "$comment:allowedBaselineDecreases": [
-    "Dated, path-and-metric-named permission to record a LOWER baseline than the",
-    "base revision — the one legitimate case being code that legitimately shrank.",
-    "An entry excuses only the drop recorded in the change that adds it, and an added",
-    "entry with no such drop fails. Entries already on the base revision excuse",
-    "nothing and are checked for nothing, so this list cannot become a standing",
-    "permission slip and an inherited entry never needs a follow-up deletion."
+  "$comment:allowedBaselineRelaxations": [
+    "Dated, path-and-metric-named permission to record a LOOSER baseline than the",
+    "base revision allows (`path` is a pinned file or `total`): more uncovered code",
+    "than the rule lets added code carry, accepted on purpose. Deleting code never",
+    "needs one. An entry excuses only the relaxation recorded in the change that",
+    "adds it, and an added entry with no such relaxation fails. Entries already on",
+    "the base revision excuse nothing and are checked for nothing, so this list",
+    "cannot become a standing permission slip and an inherited entry never needs a",
+    "follow-up deletion."
   ],
-  "allowedBaselineDecreases": [
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-11-04",
-      "reason": "The post menu's reply-settings submenu dropped its covered local copy of the post's settings and its two revert handlers for one shared savePostSettings write; deleting covered lines lowers the overall line ratio by 0.01 points."
-    },
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-24",
-      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
-    },
-    {
-      "path": "total",
-      "metric": "branches",
-      "date": "2026-10-24",
-      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
-    },
-    {
-      "path": "total",
-      "metric": "functions",
-      "date": "2026-10-24",
-      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-24",
-      "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
-    },
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-23",
-      "reason": "Opening Allo (the links, app vs install offer vs web) moved to Allo's own @oxy.so/allo-sdk/links (0.3.0, tested there); Mention's fully covered copy, lib/alloDirectMessage.ts, and its tests were deleted, which lowers the overall ratio by under 0.1 point."
-    },
-    {
-      "path": "total",
-      "metric": "branches",
-      "date": "2026-10-23",
-      "reason": "Opening Allo (the links, app vs install offer vs web) moved to Allo's own @oxy.so/allo-sdk/links (0.3.0, tested there); Mention's fully covered copy, lib/alloDirectMessage.ts, and its tests were deleted, which lowers the overall ratio by under 0.1 point."
-    },
-    {
-      "path": "total",
-      "metric": "functions",
-      "date": "2026-10-23",
-      "reason": "Opening Allo (the links, app vs install offer vs web) moved to Allo's own @oxy.so/allo-sdk/links (0.3.0, tested there); Mention's fully covered copy, lib/alloDirectMessage.ts, and its tests were deleted, which lowers the overall ratio by under 0.1 point."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-23",
-      "reason": "Opening Allo (the links, app vs install offer vs web) moved to Allo's own @oxy.so/allo-sdk/links (0.3.0, tested there); Mention's fully covered copy, lib/alloDirectMessage.ts, and its tests were deleted, which lowers the overall ratio by under 0.1 point."
-    },
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-24",
-      "reason": "The pager, its scroll plumbing, the navigation chrome, the icon set and the vote animations moved into Bloom (tab-pager destinations, AppShell, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, BottomBar, useFocusedScrollable, useNavigateOrReselect, useKeyboardVisibility, the bar-visibility provider, UnreadBadge, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
-    },
-    {
-      "path": "total",
-      "metric": "functions",
-      "date": "2026-10-24",
-      "reason": "The pager, its scroll plumbing, the navigation chrome, the icon set and the vote animations moved into Bloom (tab-pager destinations, AppShell, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, BottomBar, useFocusedScrollable, useNavigateOrReselect, useKeyboardVisibility, the bar-visibility provider, UnreadBadge, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-24",
-      "reason": "The pager, its scroll plumbing, the navigation chrome, the icon set and the vote animations moved into Bloom (tab-pager destinations, AppShell, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, BottomBar, useFocusedScrollable, useNavigateOrReselect, useKeyboardVisibility, the bar-visibility provider, UnreadBadge, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
-    },
-    {
-      "path": "total",
-      "metric": "branches",
-      "date": "2026-10-24",
-      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
-    },
-    {
-      "path": "hooks/useReferenceVisibility.ts",
-      "metric": "branches",
-      "date": "2026-10-24",
-      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
-    },
-    {
-      "path": "hooks/useReferenceVisibility.ts",
-      "metric": "functions",
-      "date": "2026-10-24",
-      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
-    },
-    {
-      "path": "hooks/useReferenceVisibility.ts",
-      "metric": "lines",
-      "date": "2026-10-24",
-      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
-    },
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-24",
-      "reason": "Reselect, web list virtualization, screen visibility, Back, page actions, the drawer state and the icon translation layer moved into Bloom (reselect, VirtualList, useScreenVisible, BloomProvider back, Screen primaryAction, AppShell, icons; tested there); Mention's copies (ScreenReselectContext, DocumentScroll, useOwnerVirtualizer, LoadMoreSentinel, useSafeBack, PageAction, DrawerContext, Ionicons, the EmptyState name table) were deleted, which lowers the overall ratio by about a tenth of a point."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-24",
-      "reason": "Reselect, web list virtualization, screen visibility, Back, page actions, the drawer state and the icon translation layer moved into Bloom (reselect, VirtualList, useScreenVisible, BloomProvider back, Screen primaryAction, AppShell, icons; tested there); Mention's copies (ScreenReselectContext, DocumentScroll, useOwnerVirtualizer, LoadMoreSentinel, useSafeBack, PageAction, DrawerContext, Ionicons, the EmptyState name table) were deleted, which lowers the overall ratio by about a tenth of a point."
-    },
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-24",
-      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
-    },
-    {
-      "path": "total",
-      "metric": "branches",
-      "date": "2026-10-24",
-      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-24",
-      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
-    },
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-25",
-      "reason": "Mention's own sheet host (context/BottomSheetContext.tsx, components/common/ContentDialog.tsx, hooks/useSourcesSheet.tsx) and lib/SafeAreaViewInterop were deleted with their tests: sheets are Bloom surfaces (present(), tested in Bloom) and safe areas are NativeWind classes. Sheet content now builds inside a render function, so a test that only checks a sheet was presented no longer evaluates its JSX; the overall ratio moves by under 0.15 point."
-    },
-    {
-      "path": "total",
-      "metric": "functions",
-      "date": "2026-10-25",
-      "reason": "Mention's own sheet host (context/BottomSheetContext.tsx, components/common/ContentDialog.tsx, hooks/useSourcesSheet.tsx) and lib/SafeAreaViewInterop were deleted with their tests: sheets are Bloom surfaces (present(), tested in Bloom) and safe areas are NativeWind classes. Sheet content now builds inside a render function, so a test that only checks a sheet was presented no longer evaluates its JSX; the overall ratio moves by under 0.15 point."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-25",
-      "reason": "Mention's own sheet host (context/BottomSheetContext.tsx, components/common/ContentDialog.tsx, hooks/useSourcesSheet.tsx) and lib/SafeAreaViewInterop were deleted with their tests: sheets are Bloom surfaces (present(), tested in Bloom) and safe areas are NativeWind classes. Sheet content now builds inside a render function, so a test that only checks a sheet was presented no longer evaluates its JSX; the overall ratio moves by under 0.15 point."
-    }
+  "allowedBaselineRelaxations": [],
+  "$comment:uncoveredSlackAllowance": [
+    "How many uncovered items the measurement may sit INSIDE what the rule allows",
+    "before the check asks for `coverage:record -- --refresh` (about 0.75 points",
+    "of each metric's total, the percentage allowance this replaced). Inside it,",
+    "tests added without re-anchoring are tolerated, so a change that only adds",
+    "tests or deletes code need not touch coverage-baseline.json. Advisory outside",
+    "a pull request: in the merge queue several changes can bank more together."
   ],
-  "globalDriftAllowancePoints": 0.75,
+  "uncoveredSlackAllowance": {
+    "statements": 225,
+    "branches": 175,
+    "functions": 60,
+    "lines": 200
+  },
   "minimumFilesInReport": 500,
   "minimumTestFiles": 140,
   "$comment:expectedCounts": [

@@ -21,7 +21,7 @@
       // scripts/validate-i18n.mjs requires every catalog to be exactly
       // JSON.stringify(catalog, null, 2) + "\n".
       "!packages/frontend/locales",
-      // Machine-recorded by `coverage:record` (JSON.stringify output).
+      // Machine-recorded by `coverage:record` (one JSON line per file).
       "!packages/frontend/coverage-baseline.json",
       // Not a project file. Sandboxed agent runs bind-mount an EMPTY file at
       // this path (see .gitignore), which is not valid JSON and would fail

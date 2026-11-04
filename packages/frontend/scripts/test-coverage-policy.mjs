@@ -17,7 +17,7 @@
  * the fixture itself being malformed.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -30,7 +30,11 @@ const checker = join(packageRoot, 'scripts', 'coverage-policy.mjs');
 /* Fixture                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Source files the fixture package contains, and how covered each one is. */
+/**
+ * Source files the fixture package contains, and how covered each one is. Every
+ * metric has 100 items, so a percentage here is also the covered count and
+ * `100 - pct` is the uncovered count the baseline pins.
+ */
 const FIXTURE_SOURCES = {
   // A critical path that clears the bar.
   'stores/keysStore.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
@@ -45,15 +49,48 @@ const FIXTURE_SOURCES = {
   'lib/other.web.ts': { statements: 70, branches: 60, functions: 50, lines: 71 },
 };
 
-const FIXTURE_PINS = {
-  'stores/keysStore.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
-  'hooks/usePostLike.ts': { statements: 0, branches: 0, functions: 0, lines: 0 },
-  'services/plainService.ts': { statements: 60, branches: 50, functions: 40, lines: 61 },
-  'utils/plainUtil.ts': { statements: 90, branches: 80, functions: 100, lines: 91 },
-  'lib/other.web.ts': { statements: 70, branches: 60, functions: 50, lines: 71 },
-};
+const PINNED = [
+  'stores/keysStore.ts',
+  'hooks/usePostLike.ts',
+  'services/plainService.ts',
+  'utils/plainUtil.ts',
+  'lib/other.web.ts',
+];
 
-const FIXTURE_TOTAL = { statements: 55, branches: 48, functions: 50, lines: 56 };
+/** A report entry for coverage given as `{ metric: pct-of-100 }`. */
+function entryFrom(percentages) {
+  const entry = {};
+  for (const [metric, pct] of Object.entries(percentages)) {
+    entry[metric] = { pct, covered: pct, total: 100, skipped: 0 };
+  }
+  return entry;
+}
+
+/** Overwrite one metric of a report entry with an exact covered/total pair. */
+function setMetric(entry, metric, covered, total) {
+  entry[metric] = {
+    pct: total === 0 ? 100 : Math.round((covered / total) * 10000) / 100,
+    covered,
+    total,
+    skipped: 0,
+  };
+}
+
+/** The `total` entry jest would write: the sum of every file entry. */
+function totalOf(report) {
+  const total = {};
+  for (const metric of ['statements', 'branches', 'functions', 'lines']) {
+    let covered = 0;
+    let items = 0;
+    for (const [key, entry] of Object.entries(report)) {
+      if (key === 'total') continue;
+      covered += entry[metric].covered;
+      items += entry[metric].total;
+    }
+    setMetric(total, metric, covered, items);
+  }
+  return total;
+}
 
 function basePolicy() {
   return {
@@ -77,8 +114,8 @@ function basePolicy() {
     jestOwnedThresholds: {
       './stores/keysStore.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
     },
-    allowedBaselineDecreases: [],
-    globalDriftAllowancePoints: 0.75,
+    allowedBaselineRelaxations: [],
+    uncoveredSlackAllowance: { statements: 2, branches: 2, functions: 2, lines: 2 },
     minimumFilesInReport: 6,
     minimumTestFiles: 2,
     expectedCounts: {
@@ -92,29 +129,41 @@ function basePolicy() {
   };
 }
 
+/**
+ * The recorded baseline for the unmutated fixture, as `coverage:record` would
+ * write it. Totals: statements 320/600, branches 290/600, functions 290/600,
+ * lines 323/600 — so added code may be uncovered at 280/600 of statements.
+ */
 function baseBaselineFile() {
+  const report = baseReport('/fixture');
+  const counts = (entry) =>
+    Object.fromEntries(Object.entries(entry).map(([metric, m]) => [metric, [m.covered, m.total]]));
+  const pins = {};
+  for (const path of PINNED) pins[path] = counts(entryFrom(FIXTURE_SOURCES[path]));
+  const sizes = {};
+  for (const path of Object.keys(FIXTURE_SOURCES).sort()) sizes[path] = [100, 100, 100, 100];
+  return { schemaVersion: 2, total: counts(report.total), pins, sizes };
+}
+
+/** The same fixture as a schema-1 (percentage) baseline, as main held before. */
+function percentageBaselineFile() {
+  const report = baseReport('/fixture');
   const total = {};
-  for (const [metric, pct] of Object.entries(FIXTURE_TOTAL)) {
-    total[metric] = { pct, covered: pct, total: 100 };
+  for (const [metric, m] of Object.entries(report.total)) {
+    total[metric] = { pct: m.pct, covered: m.covered, total: m.total };
   }
-  return { total, pins: structuredClone(FIXTURE_PINS) };
+  const pins = {};
+  for (const path of PINNED) pins[path] = { ...FIXTURE_SOURCES[path] };
+  return { total, pins };
 }
 
 /** The coverage-summary.json a run of the fixture's suite would produce. */
 function baseReport(root, sources = FIXTURE_SOURCES) {
   const report = {};
   for (const [path, percentages] of Object.entries(sources)) {
-    const entry = {};
-    for (const [metric, pct] of Object.entries(percentages)) {
-      entry[metric] = { pct, covered: pct, total: 100, skipped: 0 };
-    }
-    report[join(root, path)] = entry;
+    report[join(root, path)] = entryFrom(percentages);
   }
-  const total = {};
-  for (const [metric, pct] of Object.entries(FIXTURE_TOTAL)) {
-    total[metric] = { pct, covered: pct, total: 100, skipped: 0 };
-  }
-  report.total = total;
+  report.total = totalOf(report);
   return report;
 }
 
@@ -155,8 +204,12 @@ function runFixture(mutate) {
         },
       },
       base: 'HEAD',
+      env: {},
     };
     mutate(state, root);
+    // jest's total is the sum of its files, so a case mutates files and the
+    // total follows — exactly as it would in a real run.
+    state.report.total = totalOf(state.report);
 
     for (const path of Object.keys(FIXTURE_SOURCES)) write(root, path, 'export const x = 1;\n');
     for (const [path, body] of Object.entries(state.testFiles)) write(root, path, body);
@@ -178,24 +231,20 @@ function runFixture(mutate) {
     write(root, 'coverage-policy.json', state.policy);
     write(root, 'coverage-baseline.json', state.baseline);
 
-    const result = execFileSync(
-      process.execPath,
-      [checker, '--base', state.base],
-      {
-        cwd: root,
-        env: { ...process.env, COVERAGE_POLICY_ROOT: root },
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
+    // spawnSync rather than execFileSync: a passing run's stderr (where the
+    // advisory warnings go) has to reach the assertions too.
+    const result = spawnSync(process.execPath, [checker, '--base', state.base], {
+      cwd: root,
+      env: {
+        ...process.env,
+        COVERAGE_POLICY_STALE_BASELINE: '',
+        ...state.env,
+        COVERAGE_POLICY_ROOT: root,
       },
-      // execFileSync throws on a non-zero exit; caught below.
-    );
-    return { exitCode: 0, output: result };
-  } catch (error) {
-    if (error.status === undefined) throw error;
-    return {
-      exitCode: error.status,
-      output: `${error.stdout ?? ''}${error.stderr ?? ''}`,
-    };
+      encoding: 'utf8',
+    });
+    if (result.error) throw result.error;
+    return { exitCode: result.status, output: `${result.stdout}${result.stderr}` };
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -214,71 +263,199 @@ const cases = [
   {
     name: 'a pinned file losing coverage fails',
     mutate: (state, root) => {
-      state.report[join(root, 'utils/plainUtil.ts')].statements.pct = 89;
+      setMetric(state.report[join(root, 'utils/plainUtil.ts')], 'statements', 89, 100);
     },
     expectFailure: true,
-    expectOutput: 'lost coverage they had at the recorded baseline',
+    expectOutput: 'utils/plainUtil.ts: 11 uncovered statements, at most 10 allowed',
   },
   {
     name: 'a critical-path file dropping under the bar fails',
     mutate: (state, root) => {
-      state.report[join(root, 'stores/keysStore.ts')].branches.pct = 64;
-      state.baseline.pins['stores/keysStore.ts'].branches = 0;
-      state.baseCommitBaseline.pins['stores/keysStore.ts'].branches = 0;
+      setMetric(state.report[join(root, 'stores/keysStore.ts')], 'branches', 64, 100);
     },
     expectFailure: true,
     expectOutput: 'critical-path file(s) are under the bar',
   },
   {
-    name: 'overall coverage falling below the baseline fails',
-    mutate: (state) => {
-      state.report.total.statements.pct = 54;
+    // An unpinned file, so only the overall rule can see it: 1 statement added,
+    // 280/600 of which may be uncovered, is 0.47 of an item.
+    name: 'adding an uncovered statement anywhere fails overall',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'lib/thing.web.ts')], 'statements', 0, 101);
     },
     expectFailure: true,
-    expectOutput: 'Overall statements coverage fell to 54%',
+    expectOutput: 'Overall statements: 281 uncovered, at most 280 allowed',
   },
   {
-    name: 'overall coverage rising past the drift allowance demands a re-record',
-    mutate: (state) => {
-      state.report.total.statements.pct = 56;
+    // The #1814 shape: tested code deleted. Every ratio under 100% falls —
+    // plainService functions 40% -> 39.39%, under its old floored pin of 40 —
+    // yet nothing became less tested, so nothing may fail.
+    name: 'deleting tested code passes, though every percentage falls',
+    mutate: (state, root) => {
+      const service = state.report[join(root, 'services/plainService.ts')];
+      setMetric(service, 'functions', 39, 99);
+      setMetric(service, 'statements', 50, 90);
+      setMetric(service, 'lines', 51, 90);
+    },
+    expectFailure: false,
+  },
+  {
+    // plainService is 60/100: 10 statements added with 6 covered is exactly its
+    // own rate, and better than the 320/600 overall.
+    name: 'adding code covered at least as well as the average passes',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 66, 110);
+    },
+    expectFailure: false,
+  },
+  {
+    name: 'adding code covered worse than the average fails',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 65, 110);
     },
     expectFailure: true,
-    expectOutput: 'coverage:record',
+    expectOutput: 'services/plainService.ts: 45 uncovered statements, at most 44 allowed',
+  },
+  {
+    name: 'adding a function no test calls fails',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'functions', 40, 101);
+    },
+    expectFailure: true,
+    expectOutput: 'services/plainService.ts: 61 uncovered functions, at most 60 allowed',
+  },
+  {
+    // The merge-queue tree main + A + B, where each passes alone: additions at
+    // or above the average sum to an addition at or above the average.
+    name: 'two changes that each add code at the average pass together',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 66, 110);
+      setMetric(state.report[join(root, 'utils/plainUtil.ts')], 'statements', 99, 110);
+      // A queue run: what the pair banks above the average is advisory there.
+      state.env.COVERAGE_POLICY_STALE_BASELINE = 'warn';
+    },
+    expectFailure: false,
+  },
+  {
+    name: 'two changes that each add code below the average fail together',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 65, 110);
+      setMetric(state.report[join(root, 'utils/plainUtil.ts')], 'statements', 98, 110);
+    },
+    expectFailure: true,
+    expectOutput: 'Overall statements:',
+  },
+  {
+    // A deletes 10 tested statements from plainService; B adds 10 to plainUtil
+    // at its own rate. The NET total did not grow, so a net-growth rule would
+    // allow B nothing and fail the pair it passed one at a time. Growth is
+    // summed per file, so a deletion never cancels an addition elsewhere.
+    name: 'a deletion queued with an addition at the average passes together',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 50, 90);
+      setMetric(state.report[join(root, 'utils/plainUtil.ts')], 'statements', 99, 110);
+      // A queue run: what the pair banks above the average is advisory there.
+      state.env.COVERAGE_POLICY_STALE_BASELINE = 'warn';
+    },
+    expectFailure: false,
+  },
+  {
+    // main grew since the baseline: usePostLike gained 20 statements, 9 of them
+    // uncovered, which the allowance (280/600 of 20 = 9.33) just covers.
+    // Deleting tested code from another file must still pass — under a
+    // net-growth rule the deletion would shrink the allowance main already
+    // spent, and fail.
+    name: 'deleting tested code passes after the code grew since the baseline',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'hooks/usePostLike.ts')], 'statements', 11, 120);
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 50, 90);
+    },
+    expectFailure: false,
+  },
+  {
+    name: 'banked slack past the allowance demands a re-anchor',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 63, 100);
+    },
+    expectFailure: true,
+    expectOutput: 'coverage:record -- --refresh',
+  },
+  {
+    name: 'banked slack inside the allowance passes without a re-record',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 62, 100);
+    },
+    expectFailure: false,
+  },
+  {
+    name: 'a stale baseline is only a warning outside a pull request (merge queue)',
+    mutate: (state, root) => {
+      setMetric(state.report[join(root, 'services/plainService.ts')], 'statements', 63, 100);
+      state.env.COVERAGE_POLICY_STALE_BASELINE = 'warn';
+    },
+    expectFailure: false,
+    expectOutput: 'Coverage policy warning (advisory here)',
   },
   {
     name: 'a new unclassified domain file fails',
     mutate: (state, root) => {
       write(root, 'services/brandNew.ts', 'export const y = 2;\n');
-      state.report[join(root, 'services/brandNew.ts')] = baseReport(root, {
-        'services/brandNew.ts': { statements: 0, branches: 0, functions: 0, lines: 0 },
-      })[join(root, 'services/brandNew.ts')];
+      state.report[join(root, 'services/brandNew.ts')] = entryFrom({
+        statements: 0,
+        branches: 0,
+        functions: 0,
+        lines: 0,
+      });
       state.policy.expectedCounts.domainFiles = 7;
     },
     expectFailure: true,
     expectOutput: 'classified nowhere',
   },
   {
-    name: 'lowering the baseline against the base revision fails',
+    name: 'a schema-1 working baseline is refused, not misread as counts',
     mutate: (state) => {
-      state.baseline.pins['utils/plainUtil.ts'].statements = 10;
+      state.baseline = percentageBaselineFile();
     },
     expectFailure: true,
-    expectOutput: "lower than `HEAD`'s",
+    expectOutput: 'this script reads schema 2',
   },
   {
-    name: 'lowering the baseline TOTAL against the base revision fails',
+    name: 'relaxing a pin against the base revision fails',
     mutate: (state) => {
-      state.baseline.total.statements.pct = 40;
-      state.report.total.statements.pct = 40;
+      state.baseline.pins['utils/plainUtil.ts'].statements = [50, 100];
     },
     expectFailure: true,
-    expectOutput: 'baseline lowered from 55% to 40%',
+    expectOutput: "looser than `HEAD`'s",
   },
   {
-    name: 'a declared decrease excuses the lowering it names',
+    name: 'relaxing the baseline TOTAL against the base revision fails',
     mutate: (state) => {
-      state.baseline.pins['utils/plainUtil.ts'].statements = 10;
-      state.policy.allowedBaselineDecreases = [
+      state.baseline.total.statements = [200, 600];
+    },
+    expectFailure: true,
+    expectOutput: 'total statements: recorded 200/600 covered, which 320/600 does not allow',
+  },
+  {
+    name: 'migrating from a schema-1 base passes when the counts match its percentages',
+    mutate: (state) => {
+      state.baseCommitBaseline = percentageBaselineFile();
+    },
+    expectFailure: false,
+  },
+  {
+    name: 'migrating from a schema-1 base cannot record less than its percentages required',
+    mutate: (state) => {
+      state.baseCommitBaseline = percentageBaselineFile();
+      state.baseline.pins['utils/plainUtil.ts'].statements = [89, 100];
+    },
+    expectFailure: true,
+    expectOutput: 'statements pin recorded at 89/100 covered, which 90/100 does not allow',
+  },
+  {
+    name: 'a declared relaxation excuses the relaxation it names',
+    mutate: (state) => {
+      state.baseline.pins['utils/plainUtil.ts'].statements = [50, 100];
+      state.policy.allowedBaselineRelaxations = [
         { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
       ];
     },
@@ -287,32 +464,32 @@ const cases = [
   {
     name: 'an added allowance that is not happening fails (the list cannot rot)',
     mutate: (state) => {
-      state.policy.allowedBaselineDecreases = [
+      state.policy.allowedBaselineRelaxations = [
         { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
       ];
     },
     expectFailure: true,
-    expectOutput: 'excuse a decrease that is not happening',
+    expectOutput: 'excuse a relaxation that is not happening',
   },
   {
     name: 'an allowance inherited from the base excuses nothing',
     mutate: (state) => {
-      state.baseline.pins['utils/plainUtil.ts'].statements = 10;
-      state.policy.allowedBaselineDecreases = [
+      state.baseline.pins['utils/plainUtil.ts'].statements = [50, 100];
+      state.policy.allowedBaselineRelaxations = [
         { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
       ];
-      state.baseCommitPolicy.allowedBaselineDecreases = state.policy.allowedBaselineDecreases;
+      state.baseCommitPolicy.allowedBaselineRelaxations = state.policy.allowedBaselineRelaxations;
     },
     expectFailure: true,
-    expectOutput: "lower than `HEAD`'s",
+    expectOutput: "looser than `HEAD`'s",
   },
   {
     name: 'an allowance inherited from the base is not reported as unused',
     mutate: (state) => {
-      state.policy.allowedBaselineDecreases = [
+      state.policy.allowedBaselineRelaxations = [
         { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
       ];
-      state.baseCommitPolicy.allowedBaselineDecreases = state.policy.allowedBaselineDecreases;
+      state.baseCommitPolicy.allowedBaselineRelaxations = state.policy.allowedBaselineRelaxations;
     },
     expectFailure: false,
   },
@@ -331,9 +508,12 @@ const cases = [
   {
     name: 'an exemption that now clears the bar must be removed',
     mutate: (state, root) => {
-      state.report[join(root, 'hooks/usePostLike.ts')] = baseReport(root, {
-        'hooks/usePostLike.ts': { statements: 95, branches: 90, functions: 90, lines: 95 },
-      })[join(root, 'hooks/usePostLike.ts')];
+      state.report[join(root, 'hooks/usePostLike.ts')] = entryFrom({
+        statements: 95,
+        branches: 90,
+        functions: 90,
+        lines: 95,
+      });
     },
     expectFailure: true,
     expectOutput: 'now clear the bar and must be removed',
@@ -388,31 +568,18 @@ const cases = [
   {
     name: 'an uncovered web fork may not be left unlisted',
     mutate: (state, root) => {
-      state.report[join(root, 'lib/other.web.ts')].statements.covered = 0;
-      state.report[join(root, 'lib/other.web.ts')].statements.pct = 0;
-      state.baseline.pins['lib/other.web.ts'] = {
-        statements: 0,
-        branches: 0,
-        functions: 0,
-        lines: 0,
-      };
-      state.baseCommitBaseline.pins['lib/other.web.ts'] = {
-        statements: 0,
-        branches: 0,
-        functions: 0,
-        lines: 0,
-      };
+      setMetric(state.report[join(root, 'lib/other.web.ts')], 'statements', 0, 100);
     },
     expectFailure: true,
     expectOutput: 'must be listed in `unenforceable`',
   },
   {
-    name: 'an unparseable file dropping out of the report fails, even though it RAISES the percentages',
+    name: 'an unparseable file dropping out of the report fails, even though it LOWERS the uncovered count',
     mutate: (state, root) => {
       // Exactly what jest does with a syntax error in an uninstrumentable file:
-      // it logs, exits 0, and the file leaves the denominator.
+      // it logs, exits 0, and the file — with its uncovered items — leaves the
+      // report, which every count-based check reads as an improvement.
       delete state.report[join(root, 'lib/thing.web.ts')];
-      state.report.total.statements.pct = 55.4;
     },
     expectFailure: true,
     expectOutput: 'missing from the coverage report',
