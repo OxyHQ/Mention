@@ -1368,11 +1368,9 @@
       "clearCacheSuccess": "キャッシュを削除しました。"
     },
     "accessibility": {
-      "hapticFeedback": "触覚フィードバック",
-      "hapticFeedbackDesc": "操作したときに振動で反応します",
       "interaction": "操作",
       "title": "アクセシビリティ",
-      "nativeHaptics": "モバイルアプリで利用できます。"
+      "media": "メディア"
     },
     "debug": "デバッグ",
     "interests": {

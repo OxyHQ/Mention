@@ -1368,11 +1368,9 @@
       "clearCacheSuccess": "缓存已清除。"
     },
     "accessibility": {
-      "hapticFeedback": "触感反馈",
-      "hapticFeedbackDesc": "操作时的振动反馈",
       "interaction": "交互",
       "title": "无障碍",
-      "nativeHaptics": "可在移动应用中使用。"
+      "media": "媒体"
     },
     "debug": "调试",
     "interests": {

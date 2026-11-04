@@ -27,7 +27,6 @@ import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloo
 import { MediaFlightLayer } from '@oxy.so/bloom/media-flight';
 
 // Hooks
-import { useHapticsStore } from '@/stores/hapticsStore';
 import { useAppLanguage } from '@/hooks/useAppLanguage';
 
 // Services & Utils
@@ -84,9 +83,6 @@ export default function RootLayout() {
   const { askRef: aliaRef, openAlia } = useMentionAskBridge();
   // State
   const [appIsReady, setAppIsReady] = useState(false);
-  // Global haptics on/off, persisted via the accessibility settings toggle. Passed
-  // to <BloomProvider haptics> so every useHaptics() call honors the preference.
-  const hapticsDisabled = useHapticsStore((s) => s.disabled);
   // Every route screen's header offers Back: through the history, or Home when
   // a deep link left none.
   const back = useBackWithFallback('/');
@@ -170,7 +166,6 @@ export default function RootLayout() {
         scrollAdapter={expoRouterScrollAdapter}
         back={back}
         imageResolver={resolveImageSource}
-        haptics={!hapticsDisabled}
         locale={language}
         defaultMode="system"
         defaultColorPreset={APP_DEFAULT_COLOR_PRESET}
