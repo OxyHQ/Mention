@@ -27,11 +27,12 @@
  *     bun packages/backend/dist/src/scripts/backfillClarityLinks.js
  */
 
-import { and, desc, eq, gte, lt, or } from 'drizzle-orm';
+import { and, desc, eq, gte, lt } from 'drizzle-orm';
 import { findPostRecords } from '../db/posts/postRepository';
 import { connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { warmClarityDocumentsForPosts } from '../services/postEnrichment/clarityDocumentStep';
+import { chronoKeyset } from '../utils/chronoCursor';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
@@ -69,12 +70,7 @@ export async function backfillClarityLinks(
       eq(posts.hasLinks, true),
       gte(posts.createdAt, since),
       resumeBefore && !cursor ? lt(posts.createdAt, resumeBefore) : undefined,
-      cursor
-        ? or(
-            lt(posts.createdAt, cursor.createdAt),
-            and(eq(posts.createdAt, cursor.createdAt), lt(posts.id, cursor.id)),
-          )
-        : undefined,
+      cursor ? chronoKeyset(posts, cursor) : undefined,
     );
     const rows = await findPostRecords(where, {
       orderBy: [desc(posts.createdAt), desc(posts.id)],

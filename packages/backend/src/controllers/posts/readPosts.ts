@@ -14,12 +14,8 @@ import {
   findHashtagPage as findHashtagPageAt,
   postsListedUnderHashtagSql,
 } from '../../db/posts/postHashtagRepository';
-import {
-  ChronoCursor,
-  chronoCursorBoundary,
-  chronoCursorSql,
-  chronoOrderBy,
-} from '../../mtn/feed/CursorBuilder';
+import { chronoCursorBoundary, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../../utils/chronoCursor';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostCorrectionsResponse } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
@@ -221,7 +217,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
     const anchor = hasMore ? postsToReturn[postsToReturn.length - 1] : undefined;
-    const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
+    const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
 
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
@@ -278,7 +274,7 @@ export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
     const anchor = hasMore ? postsToReturn[postsToReturn.length - 1] : undefined;
-    const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
+    const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
 
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,

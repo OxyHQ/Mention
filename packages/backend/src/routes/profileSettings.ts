@@ -2,10 +2,11 @@ import { isFollowingFeedSort } from '@mention/shared-types/feed';
 import { Router, type Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import { deleteUserBehavior } from '../db/userProfile/userBehaviorRepository';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { posts } from '../db/schema/posts';
 import { findPostRecords } from '../db/posts/postRepository';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
+import { chronoOrderBy } from '../mtn/feed/CursorBuilder';
+import { type ChronoAnchor, chronoKeyset } from '../utils/chronoCursor';
 
 /** Posts assembled per page while streaming a user's data export. */
 const EXPORT_PAGE_SIZE = 200;
@@ -786,20 +787,22 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
     // walk over one author's posts, and each page is assembled from nine tables,
     // so a keyset page is both the cheapest correct shape and the one that keeps
     // a single reader's memory flat.
-    let exportCursor: string | undefined;
+    let postCursor: ChronoAnchor | undefined;
     for (;;) {
-      const keyset = await chronoCursorSql(exportCursor);
       const scope = eq(posts.oxyUserId, oxyUserId);
-      const page = await findPostRecords(keyset ? and(scope, keyset) : scope, {
-        orderBy: chronoOrderBy(),
-        limit: EXPORT_PAGE_SIZE,
-      });
+      const page = await findPostRecords(
+        postCursor ? and(scope, chronoKeyset(posts, postCursor)) : scope,
+        {
+          orderBy: chronoOrderBy(),
+          limit: EXPORT_PAGE_SIZE,
+        },
+      );
       for (const post of page) {
         writeLine('post', post);
       }
       if (page.length < EXPORT_PAGE_SIZE) break;
       const last = page[page.length - 1];
-      exportCursor = ChronoCursor.build(last.id, last.createdAt);
+      postCursor = { createdAt: last.createdAt, id: last.id };
     }
     // Postgres, like the posts above. These two read the abandoned store until
     // the port reached them, and it had stopped receiving engagement when the
@@ -819,11 +822,9 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
     // two are different drizzle table types, and a union of them makes the
     // builder's row type unresolvable (TS7022) — recoverable only with a cast
     // that would erase the column types this export writes verbatim.
-    let bookmarkCursor: { createdAt: Date; id: string } | null = null;
+    let bookmarkCursor: ChronoAnchor | undefined;
     for (;;) {
-      const keyset: SQL | undefined = bookmarkCursor
-        ? sql`(${bookmarks.createdAt}, ${bookmarks.id}) < (${bookmarkCursor.createdAt}, ${bookmarkCursor.id})`
-        : undefined;
+      const keyset = bookmarkCursor ? chronoKeyset(bookmarks, bookmarkCursor) : undefined;
       const page: (typeof bookmarks.$inferSelect)[] = await getDb()
         .select()
         .from(bookmarks)
@@ -836,11 +837,9 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
       bookmarkCursor = { createdAt: last.createdAt, id: last.id };
     }
 
-    let likeCursor: { createdAt: Date; id: string } | null = null;
+    let likeCursor: ChronoAnchor | undefined;
     for (;;) {
-      const keyset: SQL | undefined = likeCursor
-        ? sql`(${likes.createdAt}, ${likes.id}) < (${likeCursor.createdAt}, ${likeCursor.id})`
-        : undefined;
+      const keyset = likeCursor ? chronoKeyset(likes, likeCursor) : undefined;
       const page: (typeof likes.$inferSelect)[] = await getDb()
         .select()
         .from(likes)

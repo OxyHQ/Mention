@@ -81,6 +81,12 @@ import { channelWritersRateLimiter } from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
+import {
+  type ChronoAnchor,
+  chronoKeyset,
+  decodeChronoCursor,
+  encodeChronoCursor,
+} from '../utils/chronoCursor';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -93,47 +99,6 @@ const MAX_WRITERS_PAGE_SIZE = 100;
 
 /** The one body every refusal answers with. See the header note. */
 const NO_LIST_MESSAGE = 'No writers list for that account';
-
-/**
- * The keyset a writers page resumes from.
- *
- * `lastPostAt` alone is NOT unique — two writers whose most recent post landed in
- * the same millisecond would straddle a page boundary and be skipped or repeated
- * — so the cursor carries the writer's id as the tie-break, matching the
- * `{ lastPostAt: -1, _id: -1 }` sort exactly.
- */
-interface WritersCursor {
-  lastPostAt: Date;
-  writerOxyUserId: string;
-}
-
-/** `<epochMillis>_<oxyUserId>` — opaque to the client, cheap to parse here. */
-function encodeWritersCursor(lastPostAt: Date, writerOxyUserId: string): string {
-  return `${lastPostAt.getTime()}_${writerOxyUserId}`;
-}
-
-/**
- * Parse a client-supplied cursor. A malformed token yields `undefined` (⇒ the
- * first page) rather than an error, matching `GET /subscriptions`: a tampered
- * cursor must never become a 500. The id half is only ever compared as a STRING
- * against the group key, so it needs no cast — but it is length-bounded so a
- * megabyte of cursor cannot ride into a query.
- */
-function parseWritersCursor(raw: string | undefined): WritersCursor | undefined {
-  if (!raw) return undefined;
-  const separator = raw.indexOf('_');
-  if (separator <= 0) return undefined;
-
-  const millis = Number.parseInt(raw.slice(0, separator), 10);
-  if (!Number.isFinite(millis)) return undefined;
-  const lastPostAt = new Date(millis);
-  if (Number.isNaN(lastPostAt.getTime())) return undefined;
-
-  const writerOxyUserId = raw.slice(separator + 1);
-  if (!writerOxyUserId || writerOxyUserId.length > MAX_OXY_USER_ID_LENGTH) return undefined;
-
-  return { lastPostAt, writerOxyUserId };
-}
 
 /**
  * The distinct writers of a channel's posts, most recent publication first.
@@ -191,7 +156,7 @@ function parseWritersCursor(raw: string | undefined): WritersCursor | undefined 
 async function loadWriterIds(
   channelOxyUserId: string,
   limit: number,
-  cursor: WritersCursor | undefined,
+  cursor: ChronoAnchor | undefined,
 ): Promise<Array<{ writerOxyUserId: string; lastPostAt: Date }>> {
   // `.mapWith(posts.createdAt)` is what makes this a `Date` — it is NOT
   // decoration. `drizzle-orm/postgres-js` installs a TRANSPARENT parser for
@@ -224,18 +189,10 @@ async function loadWriterIds(
   // renders the clause it is given, and an absent cursor must produce a query
   // with no HAVING at all — not one with an empty predicate.
   //
-  // The cursor instant is encoded with the COLUMN's own serializer for the same
-  // reason the aggregate above is decoded with it: the driver setup disables
-  // postgres.js's timestamp codecs in BOTH directions, so a bare `Date`
-  // interpolated here is handed to the socket writer unconverted and the whole
-  // query dies with `ERR_INVALID_ARG_TYPE` — a paging failure that never reaches
-  // the first page, which is why only the SECOND page of a keyset test can see
-  // it. Postgres resolves the parameter's type from the timestamptz on the other
-  // side of the row comparison.
+  // The keyset is `(lastPostAt, writer)` — `lastPostAt` alone is not unique, two
+  // writers can share a millisecond — matching the ORDER BY below exactly.
   const paged = cursor
-    ? grouped.having(
-        sql`(${lastPostAt}, ${posts.writtenByOxyUserId}) < (${posts.createdAt.mapToDriverValue(cursor.lastPostAt)}, ${cursor.writerOxyUserId})`,
-      )
+    ? grouped.having(chronoKeyset({ createdAt: lastPostAt, id: posts.writtenByOxyUserId }, cursor))
     : grouped;
 
   const rows = await paged.orderBy(desc(lastPostAt), desc(posts.writtenByOxyUserId)).limit(limit);
@@ -274,7 +231,8 @@ router.get(
         Math.max(queryInt(req.query.limit) || DEFAULT_WRITERS_PAGE_SIZE, 1),
         MAX_WRITERS_PAGE_SIZE,
       );
-      const cursor = parseWritersCursor(queryString(req.query.cursor));
+      // A malformed token yields the first page, never a 500.
+      const cursor = decodeChronoCursor(queryString(req.query.cursor));
 
       // The identity and both settings reads, in one round trip. Nothing here
       // depends on another's answer, and the account resolve is the same batched
@@ -345,7 +303,7 @@ router.get(
       const last = page[page.length - 1];
       const body: ChannelWritersResponse = { writers };
       if (hasMore && last) {
-        body.nextCursor = encodeWritersCursor(last.lastPostAt, last.writerOxyUserId);
+        body.nextCursor = encodeChronoCursor(last.lastPostAt, last.writerOxyUserId);
       }
 
       return sendSuccessResponse(res, 200, body);

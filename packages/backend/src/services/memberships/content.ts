@@ -1,6 +1,7 @@
 import type { SafetyRequester } from '@oxy.so/contracts';
 import { requireMembershipSafety, membershipSafetyDecisions } from './safety';
-import { and, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { chronoKeyset } from '../../utils/chronoCursor';
 import { oxyFileStates } from '../../db/schema/oxyFiles';
 import { qualified } from '@oxy.so/db';
 import type {
@@ -311,15 +312,7 @@ export async function listMembershipContent(
           ? eq(membershipContents.parentContentId, options.parentContentId)
           : isNull(membershipContents.parentContentId),
         policy,
-        before
-          ? or(
-              lt(membershipContents.createdAt, before.createdAt),
-              and(
-                eq(membershipContents.createdAt, before.createdAt),
-                lt(membershipContents.id, before.id),
-              ),
-            )
-          : undefined,
+        before ? chronoKeyset(membershipContents, before) : undefined,
       ),
     )
     .orderBy(desc(membershipContents.createdAt), desc(membershipContents.id))

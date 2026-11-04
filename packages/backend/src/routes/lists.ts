@@ -16,7 +16,8 @@ import {
 import { accountListSearchPredicate } from '../utils/searchPredicates';
 import { posts } from '../db/schema/posts';
 import { findPostRecords } from '../db/posts/postRepository';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
+import { chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../utils/chronoCursor';
 import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
@@ -802,7 +803,7 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     const hasMore = docs.length > limit;
     const toReturn = hasMore ? docs.slice(0, limit) : docs;
     const anchor = hasMore ? toReturn[limit - 1] : undefined;
-    const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
+    const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
     const transformed = await feedController.transformPostsWithProfiles(
       toReturn,
       userId,

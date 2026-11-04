@@ -11,8 +11,8 @@
  *     uuid — so the moment the first post-cutover post anchors a page, the
  *     cursor is discarded and the client is handed page ONE, forever, with
  *     `hasMore: true`. An infinite scroll that never advances. The uuid cases
- *     below are the guard, and they are asserted twice: that the token PARSES,
- *     and that it actually bounds a page of rows.
+ *     below are the guard: that a uuid-anchored cursor actually bounds a page of
+ *     rows (that the token PARSES is `chronoCursor.test.ts`'s).
  *  2. **`id` order is no longer time order.** An ObjectId encoded its creation
  *     time; `text` holding two interleaved id spaces does not. So `id < X` is not
  *     a time bound and `ORDER BY id DESC` is not a time order — a literal
@@ -34,10 +34,10 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
 import { posts } from '../db/schema';
-import { uuidv7 } from '@oxy.so/db';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
+import { chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../utils/chronoCursor';
 
 let db: Database;
 const created: string[] = [];
@@ -85,49 +85,6 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('the cursor token', () => {
-  it('round-trips a pre-cutover ObjectId, with and without a timestamp', async () => {
-    expect(ChronoCursor.parse(ChronoCursor.build(OBJECT_ID_HEX))).toEqual({ id: OBJECT_ID_HEX });
-
-    const createdAt = new Date('2024-01-01T00:00:00.000Z');
-    expect(ChronoCursor.parse(ChronoCursor.build(OBJECT_ID_HEX, createdAt))).toEqual({
-      id: OBJECT_ID_HEX,
-      ts: createdAt.getTime(),
-    });
-  });
-
-  /**
-   * THE post-cutover case.
-   *
-   * Mutation: narrow `isLiveEntityId` back to the ObjectId regex and both
-   * assertions go red with `undefined` — which in production is not an error but
-   * a client pinned to page one for the rest of the session.
-   */
-  it('accepts a uuid v7, with and without a timestamp', async () => {
-    const id = uuidv7();
-    expect(ChronoCursor.parse(ChronoCursor.build(id))).toEqual({ id });
-
-    const createdAt = new Date('2026-08-01T00:00:00.000Z');
-    expect(ChronoCursor.parse(ChronoCursor.build(id, createdAt))).toEqual({
-      id,
-      ts: createdAt.getTime(),
-    });
-  });
-
-  it('refuses a token that is not one of the two live id shapes', async () => {
-    // A malformed token must RESET to page one, never become a keyset bound —
-    // which is the whole reason the check survives here while it was deleted
-    // from the query paths (`@oxy.so/db`).
-    expect(ChronoCursor.parse('not-an-id')).toBeUndefined();
-    expect(ChronoCursor.parse('1704067200000:not-an-id')).toBeUndefined();
-    // Nothing in this schema mints a v4, so a v4 is a client error rather than
-    // an id to look up — the version nibble is pinned on purpose.
-    expect(ChronoCursor.parse('7c9e6679-7425-40de-944b-e07fc1f90ae7')).toBeUndefined();
-    expect(ChronoCursor.parse(undefined)).toBeUndefined();
-    expect(ChronoCursor.parse('')).toBeUndefined();
-  });
-});
-
 describe('the Postgres keyset', () => {
   /**
    * The fixture that makes an id bound observably wrong: `older` carries the
@@ -159,13 +116,13 @@ describe('the Postgres keyset', () => {
   it('continues from a timestamped cursor without repeating or skipping', async () => {
     const { newest, middle, older } = await threeOutOfOrder();
 
-    const afterFirst = await chronoCursorSql(ChronoCursor.build(newest.id, newest.createdAt));
+    const afterFirst = await chronoCursorSql(encodeChronoCursor(newest.createdAt, newest.id));
     expect(await page(afterFirst)).toEqual([middle.id, older.id]);
 
-    const afterSecond = await chronoCursorSql(ChronoCursor.build(middle.id, middle.createdAt));
+    const afterSecond = await chronoCursorSql(encodeChronoCursor(middle.createdAt, middle.id));
     expect(await page(afterSecond)).toEqual([older.id]);
 
-    const afterLast = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt));
+    const afterLast = await chronoCursorSql(encodeChronoCursor(older.createdAt, older.id));
     expect(await page(afterLast)).toEqual([]);
   });
 
@@ -180,10 +137,10 @@ describe('the Postgres keyset', () => {
   it('recovers the missing timestamp for a legacy id-only cursor', async () => {
     const { newest, middle, older } = await threeOutOfOrder();
 
-    const recovered = await chronoCursorSql(ChronoCursor.build(newest.id));
+    const recovered = await chronoCursorSql(newest.id);
     expect(await page(recovered)).toEqual([middle.id, older.id]);
 
-    const withTimestamp = await chronoCursorSql(ChronoCursor.build(newest.id, newest.createdAt));
+    const withTimestamp = await chronoCursorSql(encodeChronoCursor(newest.createdAt, newest.id));
     expect(await page(recovered)).toEqual(await page(withTimestamp));
   });
 
@@ -200,9 +157,9 @@ describe('the Postgres keyset', () => {
     const older = await create({ createdAt: new Date('2026-01-01T00:00:00.000Z') });
     expect(newest.id).not.toBe(OBJECT_ID_HEX);
 
-    expect(await page(await chronoCursorSql(ChronoCursor.build(newest.id)))).toEqual([older.id]);
+    expect(await page(await chronoCursorSql(newest.id))).toEqual([older.id]);
     expect(
-      await page(await chronoCursorSql(ChronoCursor.build(newest.id, newest.createdAt))),
+      await page(await chronoCursorSql(encodeChronoCursor(newest.createdAt, newest.id))),
     ).toEqual([older.id]);
   });
 
@@ -215,7 +172,7 @@ describe('the Postgres keyset', () => {
     const lower = await create({ id: 'aaaaaaaaaaaaaaaaaaaaaaaa', createdAt: sameInstant });
 
     expect(await page(undefined)).toEqual([higher.id, lower.id]);
-    const afterHigher = await chronoCursorSql(ChronoCursor.build(higher.id, sameInstant));
+    const afterHigher = await chronoCursorSql(encodeChronoCursor(sameInstant, higher.id));
     expect(await page(afterHigher)).toEqual([lower.id]);
   });
 
@@ -227,7 +184,7 @@ describe('the Postgres keyset', () => {
     const survivor = await create({ createdAt: new Date('2026-01-01T00:00:00.000Z') });
 
     await db.delete(posts).where(inArray(posts.id, [anchor.id]));
-    expect(await chronoCursorSql(ChronoCursor.build(anchor.id))).toBeUndefined();
+    expect(await chronoCursorSql(anchor.id)).toBeUndefined();
     expect(await page(undefined)).toEqual([survivor.id]);
   });
 
@@ -267,11 +224,11 @@ describe('the ascending keyset', () => {
 
     expect(await pageAscending(undefined)).toEqual([older.id, middle.id, newest.id]);
 
-    const afterOldest = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt), 'asc');
+    const afterOldest = await chronoCursorSql(encodeChronoCursor(older.createdAt, older.id), 'asc');
     expect(await pageAscending(afterOldest)).toEqual([middle.id, newest.id]);
 
     const afterMiddle = await chronoCursorSql(
-      ChronoCursor.build(middle.id, middle.createdAt),
+      encodeChronoCursor(middle.createdAt, middle.id),
       'asc',
     );
     expect(await pageAscending(afterMiddle)).toEqual([newest.id]);
@@ -284,8 +241,8 @@ describe('the ascending keyset', () => {
     const newest = await create({ createdAt: new Date('2026-03-01T00:00:00.000Z') });
     const older = await create({ createdAt: new Date('2026-01-01T00:00:00.000Z') });
 
-    const forward = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt), 'asc');
-    const backward = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt));
+    const forward = await chronoCursorSql(encodeChronoCursor(older.createdAt, older.id), 'asc');
+    const backward = await chronoCursorSql(encodeChronoCursor(older.createdAt, older.id));
 
     expect(await pageAscending(forward)).toEqual([newest.id]);
     expect(await pageAscending(backward)).toEqual([]);
@@ -297,7 +254,7 @@ describe('the ascending keyset', () => {
     const higher = await create({ id: 'bbbbbbbbbbbbbbbbbbbbbbbb', createdAt: sameInstant });
 
     expect(await pageAscending(undefined)).toEqual([lower.id, higher.id]);
-    const afterLower = await chronoCursorSql(ChronoCursor.build(lower.id, sameInstant), 'asc');
+    const afterLower = await chronoCursorSql(encodeChronoCursor(sameInstant, lower.id), 'asc');
     expect(await pageAscending(afterLower)).toEqual([higher.id]);
   });
 });

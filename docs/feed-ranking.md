@@ -436,7 +436,7 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
 
 ## Feed API plumbing
 
-- **`ChronoCursor.applyToQuery` no longer exists** — pagination goes through the opaque, versioned token in `utils/chronoCursor.ts`, which has no query-object-mutation footgun to warn about. `posts.id` is `text` now, not `_id`; never sort or page a chronological query by id alone (see `docs/architecture.mdx` § PostgreSQL — the only store).
+- **`ChronoCursor.applyToQuery` no longer exists** — every chronological list (feeds, notifications, search, likes, follows, …) pages through the one opaque `(createdAt, id)` cursor and row-comparison keyset in `utils/chronoCursor.ts`, which has no query-object-mutation footgun to warn about and still decodes every cursor format a list minted before. `posts.id` is `text` now, not `_id`; never sort or page a chronological query by id alone (see `docs/architecture.mdx` § PostgreSQL — the only store).
 - **FOUR field projections feed hydration** (`mtn/feed/FeedAPI.ts`, `controllers/feed.controller.ts`, `services/ThreadSlicingService.ts`, `routes/search.ts`). A field missing from one hydrates `undefined` with no error.
 - **Any surface INCLUDING boosts must pass `maxDepth: 1`** or boosts render blank.
 - **`hasMore` comes from the overfetch flag**, never `slices.length >= limit`.

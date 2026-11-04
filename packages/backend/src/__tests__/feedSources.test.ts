@@ -67,7 +67,7 @@ import {
   savedSource,
 } from '../mtn/feed/engine/sources/userSources';
 import { standaloneNumberIds } from '../mtn/feed/recommendationEligibility';
-import { ChronoCursor } from '../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../utils/chronoCursor';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
 
 let db: Database;
@@ -352,7 +352,7 @@ describe('the topic source', () => {
     expect(
       idsOf(
         await topicSource.gather(
-          { cursor: ChronoCursor.build(refsOnly.id, refsOnly.createdAt) },
+          { cursor: encodeChronoCursor(refsOnly.createdAt, refsOnly.id) },
           params,
           2,
         ),
@@ -783,7 +783,7 @@ describe('the authored source (the profile feed)', () => {
     expect(idsOf(firstPage)).toEqual([newer.id, older.id]);
 
     const secondPage = await authoredSource.gather(
-      { currentUserId: VIEWER, cursor: ChronoCursor.build(newer.id, newer.createdAt) },
+      { currentUserId: VIEWER, cursor: encodeChronoCursor(newer.createdAt, newer.id) },
       { authorId: AUTHOR, filter: 'posts' },
       31,
     );

@@ -17,11 +17,12 @@ import { safetyRequesterFor } from '../../utils/safetyRequester';
  */
 
 import type { Response } from 'express';
-import { and, desc, eq, inArray, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { likes as likesTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
+import { chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
@@ -84,16 +85,8 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     if (!excluded) return res.status(404).json({ message: 'Post not found' });
     const conditions: SQL[] = [eq(likesTable.postId, String(id)), eq(likesTable.value, 1)];
     if (excluded.size) conditions.push(notInArray(likesTable.userId, [...excluded]));
-    const parsedCursor = ChronoCursor.parse(cursor);
-    if (parsedCursor?.ts !== undefined) {
-      const boundaryAt = new Date(parsedCursor.ts);
-      conditions.push(
-        or(
-          lt(likesTable.createdAt, boundaryAt),
-          and(eq(likesTable.createdAt, boundaryAt), lt(likesTable.id, parsedCursor.id)),
-        ) as SQL,
-      );
-    }
+    const anchor = decodeChronoCursor(cursor);
+    if (anchor) conditions.push(chronoKeyset(likesTable, anchor));
 
     const likes = await getDb()
       .select({ id: likesTable.id, userId: likesTable.userId, createdAt: likesTable.createdAt })
@@ -105,7 +98,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     const hasMore = likes.length > limit;
     const likesToReturn = hasMore ? likes.slice(0, limit) : likes;
     const last = likesToReturn[likesToReturn.length - 1];
-    const nextCursor = hasMore && last ? ChronoCursor.build(last.id, last.createdAt) : undefined;
+    const nextCursor = hasMore && last ? encodeChronoCursor(last.createdAt, last.id) : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
@@ -275,7 +268,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     const boostsToReturn = hasMore ? boosts.slice(0, limit) : boosts;
     const boostAnchor = hasMore ? boostsToReturn[limit - 1] : undefined;
     const nextCursor = boostAnchor
-      ? ChronoCursor.build(boostAnchor.id, boostAnchor.createdAt)
+      ? encodeChronoCursor(boostAnchor.createdAt, boostAnchor.id)
       : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared

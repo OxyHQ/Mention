@@ -131,7 +131,8 @@ import { selectRankedPage } from '../mtn/feed/selectRankedPage';
 import { FeedEngine, sliceTopWindow } from '../mtn/feed/engine/FeedEngine';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
-import { ScoreCursor, ChronoCursor } from '../mtn/feed/CursorBuilder';
+import { ScoreCursor } from '../mtn/feed/CursorBuilder';
+import { parseChronoCursor } from '../utils/chronoCursor';
 import type {
   CandidatePost,
   FeedDefinition,
@@ -833,9 +834,9 @@ describe('FeedEngine — filtered chronological pagination', () => {
       kind: 'source',
       userComposable: false,
       gather: async (ctx, _params, cap) => {
-        const boundary = ChronoCursor.parse(ctx.cursor);
+        const boundary = parseChronoCursor(ctx.cursor);
         return posts
-          .filter((post) => !boundary || new Date(post.createdAt!).getTime() < boundary.ts!)
+          .filter((post) => !boundary?.createdAt || new Date(post.createdAt!) < boundary.createdAt)
           .slice(0, cap);
       },
     });
@@ -865,7 +866,7 @@ describe('FeedEngine — filtered chronological pagination', () => {
     expect(first.items.map((post) => post.id)).toEqual([id(6), id(5)]);
     expect(first.hasMore).toBe(true);
     // #4 was rejected after the visible #5 and must still advance the cursor.
-    expect(ChronoCursor.parse(first.nextCursor)?.id).toBe(id(4));
+    expect(parseChronoCursor(first.nextCursor)?.id).toBe(id(4));
     const second = await engine.run(definition, {}, { limit: 2, cursor: first.nextCursor });
     expect(second.items.map((post) => post.id)).toEqual([id(3), id(2)]);
     const third = await engine.run(definition, {}, { limit: 2, cursor: second.nextCursor });

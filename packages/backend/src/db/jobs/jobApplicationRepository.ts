@@ -16,7 +16,7 @@
  * queries themselves to never join outside this table family.
  */
 
-import { and, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, type SQL } from 'drizzle-orm';
 import type {
   MentionJobApplication,
   MentionJobApplicationAnswer,
@@ -24,6 +24,7 @@ import type {
   MentionJobApplicationStatus,
 } from '@mention/shared-types';
 import { getDb } from '../postgres';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
 import {
   mentionJobApplicationAnswers,
   mentionJobApplicationNotes,
@@ -251,23 +252,8 @@ export interface ListApplicationsResult {
   nextCursor?: string;
 }
 
-const CURSOR_SEPARATOR = '|';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
-
-function encodeCursor(createdAt: Date, id: string): string {
-  return `${createdAt.toISOString()}${CURSOR_SEPARATOR}${id}`;
-}
-
-function decodeCursor(cursor: string): { createdAt: Date; id: string } | undefined {
-  const index = cursor.indexOf(CURSOR_SEPARATOR);
-  if (index === -1) return undefined;
-  const createdAtRaw = cursor.slice(0, index);
-  const id = cursor.slice(index + 1);
-  const createdAt = new Date(createdAtRaw);
-  if (!id || Number.isNaN(createdAt.getTime())) return undefined;
-  return { createdAt, id };
-}
 
 /** Newest first, by job. Employer-facing list — see the module docblock's privacy invariant. */
 export async function listApplicationsByJob(
@@ -278,15 +264,9 @@ export async function listApplicationsByJob(
   const conditions: SQL[] = [eq(mentionJobApplications.jobId, jobId)];
   if (params.status) conditions.push(eq(mentionJobApplications.status, params.status));
   if (params.cursor) {
-    const decoded = decodeCursor(params.cursor);
+    const decoded = decodeChronoCursor(params.cursor);
     if (!decoded) throw new MalformedCursorError();
-    // Row comparison, so the two columns are compared as ONE value in the same
-    // order the sort below uses — same construction as `entity-follow.routes.ts`'s
-    // keyset cursor, including the explicit `::timestamptz`/`::text` casts a bare
-    // template parameter needs to bind correctly.
-    conditions.push(
-      sql`(${mentionJobApplications.createdAt}, ${mentionJobApplications.id}) < (${decoded.createdAt.toISOString()}::timestamptz, ${decoded.id}::text)`,
-    );
+    conditions.push(chronoKeyset(mentionJobApplications, decoded));
   }
 
   const rows = await getDb()
@@ -306,7 +286,7 @@ export async function listApplicationsByJob(
   return {
     applications,
     hasMore,
-    nextCursor: hasMore && last ? encodeCursor(last.createdAt, last.id) : undefined,
+    nextCursor: hasMore && last ? encodeChronoCursor(last.createdAt, last.id) : undefined,
   };
 }
 

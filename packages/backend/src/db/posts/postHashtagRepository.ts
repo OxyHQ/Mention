@@ -14,6 +14,7 @@ import { postHashtags } from '../schema/postContent';
 import { posts } from '../schema/posts';
 import { CHRONO_DESC, findPostRecords } from './postRepository';
 import type { PostRecord } from './postRecord';
+import { type ChronoAnchor, chronoKeyset } from '../../utils/chronoCursor';
 
 /** The tag rows a hashtag page reads: stored tags are lowercase. */
 function hashtagRows(hashtag: string): SQL {
@@ -43,13 +44,13 @@ export function postsListedUnderHashtagSql(hashtag: string): SQL {
  */
 export async function findHashtagPage(
   hashtag: string,
-  boundary: { at: Date; id: string } | undefined,
+  boundary: ChronoAnchor | undefined,
   limit: number,
 ): Promise<PostRecord[]> {
-  // A row comparison, so the bound is part of the index range rather than a
+  // The row comparison makes the bound part of the index range rather than a
   // filter over every row of the tag newer than the cursor.
   const keyset = boundary
-    ? sql`(${postHashtags.createdAt}, ${postHashtags.postId}) < (${boundary.at.toISOString()}::timestamptz, ${boundary.id})`
+    ? chronoKeyset({ createdAt: postHashtags.createdAt, id: postHashtags.postId }, boundary)
     : undefined;
   const page = getDb()
     .select({ id: postHashtags.postId })

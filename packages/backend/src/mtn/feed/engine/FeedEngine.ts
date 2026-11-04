@@ -4,6 +4,7 @@ import {
   eligibleSocialPostIds,
 } from '../../../services/socialFeedEvidence';
 import { EXPLORE_RANKING_VERSION } from '../CursorBuilder';
+import { encodeChronoCursor } from '../../../utils/chronoCursor';
 import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
 import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
 /**
@@ -31,7 +32,7 @@ import { feedSeenPostsService } from '../../../services/FeedSeenPostsService';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { threadSlicingService } from '../../../services/ThreadSlicingService';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
-import { ScoreCursor, ChronoCursor, didCursorAdvance } from '../CursorBuilder';
+import { ScoreCursor, didCursorAdvance } from '../CursorBuilder';
 import { diversifyByAuthor } from '../diversifyByAuthor';
 import { selectRankedPage } from '../selectRankedPage';
 import { standaloneNumberIds, isStandaloneNumber } from '../recommendationEligibility';
@@ -178,7 +179,7 @@ function buildPopularCursor(
  * **Why an in-memory predicate and not a query `NOT IN` clause.** The muted set is
  * per-reader and tiny (empty for almost everyone). A clause would have to be
  * threaded into a dozen query builders, cannot be applied selectively by index,
- * and would still have to avoid `match.$or` (which `ChronoCursor` clobbers). This
+ * and would still have to avoid `match.$or` (which the old `ChronoCursor.applyToQuery` clobbered). This
  * is a `Set.has` per candidate, and literally free — `undefined`, never called —
  * for a reader with no mutes.
  */
@@ -577,7 +578,7 @@ export class FeedEngine {
               ? buildPopularCursor(last, session.sourceCursors[key])
               : source?.pagination === 'score'
                 ? ScoreCursor.build(last.finalScore ?? 0, last.id, { asOf: session.asOf })
-                : ChronoCursor.build(last.id, last.createdAt);
+                : encodeChronoCursor(last.createdAt, last.id);
         }
         if (rows.length < cap || (last && session.sourceCursors[key] === previousCursor))
           session.exhaustedSources.push(key);
@@ -1360,7 +1361,7 @@ export class FeedEngine {
       const last = deferred
         ? accepted[accepted.length - 1]
         : result.scanned[result.scanned.length - 1];
-      const next = last ? ChronoCursor.build(last.id, last.createdAt) : undefined;
+      const next = last ? encodeChronoCursor(last.createdAt, last.id) : undefined;
       if (!next || !didCursorAdvance(next, scanCursor)) {
         hasMore = false;
         break;
@@ -1422,7 +1423,7 @@ export class FeedEngine {
     let nextCursor: string | undefined = scan?.nextCursor;
     if (!scan && postsToProcess.length > 0 && hasMore) {
       const last = postsToProcess[postsToProcess.length - 1];
-      nextCursor = ChronoCursor.build(last.id, last.createdAt);
+      nextCursor = encodeChronoCursor(last.createdAt, last.id);
       if (!didCursorAdvance(nextCursor, cursor)) {
         logger.warn('[FeedEngine] Chronological cursor did not advance', { cursor, nextCursor });
         nextCursor = undefined;

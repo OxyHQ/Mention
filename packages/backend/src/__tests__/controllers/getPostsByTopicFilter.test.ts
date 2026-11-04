@@ -36,12 +36,12 @@ import {
 } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { chronoCursorSql } from '../../mtn/feed/CursorBuilder';
+import { encodeChronoCursor } from '../../utils/chronoCursor';
 import {
   buildPostsByHashtagFilter,
   buildPostsByTopicFilter,
   findHashtagPage,
 } from '../../controllers/posts/readPosts';
-import { ChronoCursor } from '../../mtn/feed/CursorBuilder';
 
 const AUTHOR = 'oxy-topic-author';
 const created: string[] = [];
@@ -186,7 +186,7 @@ describe('findHashtagPage — the page read from post_hashtags', () => {
     const anchor = first[first.length - 1];
     const second = await findHashtagPage(
       'paging',
-      ChronoCursor.build(anchor.id, anchor.createdAt),
+      encodeChronoCursor(anchor.createdAt, anchor.id),
       2,
     );
     expect(second.map((post) => post.id)).toEqual([oldest]);

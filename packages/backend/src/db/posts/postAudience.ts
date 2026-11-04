@@ -3,6 +3,7 @@ import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postRecipients } from '../schema/postContent';
+import { chronoKeyset } from '../../utils/chronoCursor';
 
 /**
  * WHO A POST IS FOR — the audience rules every post write and every
@@ -212,7 +213,10 @@ export async function listPrivateMentionConversations(
     from ${postRecipients} join ${posts} on ${posts.id} = ${postRecipients.postId}
     where ${postRecipients.oxyUserId} = ${viewerId} and ${direct}`;
   const before = options.before
-    ? sql`having (max(created_at), root_id) < (${options.before.lastActivityAt.toISOString()}::timestamptz, ${options.before.rootId})`
+    ? sql`having ${chronoKeyset(
+        { createdAt: sql`max(created_at)`, id: sql`root_id` },
+        { createdAt: options.before.lastActivityAt, id: options.before.rootId },
+      )}`
     : sql``;
   const rows = await db.execute<{
     root_id: string;

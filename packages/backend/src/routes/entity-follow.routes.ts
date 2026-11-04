@@ -1,5 +1,5 @@
 import { Router, type Response } from 'express';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, type SQL } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
@@ -8,6 +8,7 @@ import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
 import { canViewList, loadListVisibility } from '../services/listAccess';
 import { queryInt, queryString } from '../utils/queryParams';
+import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { normalizeHashtag } from '../utils/textProcessing';
 
 const router = Router();
@@ -28,9 +29,6 @@ type EntityFollowType = (typeof ENTITY_FOLLOW_TYPES)[number];
  * and above either live id shape, while keeping a row's size bounded.
  */
 const MAX_ENTITY_ID_LENGTH = 100;
-
-/** Separator in the keyset cursor. Not a legal character in either half. */
-const CURSOR_SEPARATOR = '|';
 
 function isValidEntityType(type: string): type is EntityFollowType {
   return (ENTITY_FOLLOW_TYPES as readonly string[]).includes(type);
@@ -295,22 +293,6 @@ router.get('/status', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Decode a keyset cursor emitted by the listing below.
- *
- * Returns `null` for a cursor that is not one this route produced, which the
- * caller answers with a 400 rather than silently serving page one — a cursor
- * quietly ignored makes an infinite-scroll client loop over the first page
- * forever with no error anywhere.
- */
-function parseFollowCursor(cursor: string): { createdAt: Date; id: string } | null {
-  const separator = cursor.indexOf(CURSOR_SEPARATOR);
-  if (separator <= 0 || separator === cursor.length - 1) return null;
-  const createdAt = new Date(cursor.slice(0, separator));
-  if (Number.isNaN(createdAt.getTime())) return null;
-  return { createdAt, id: cursor.slice(separator + 1) };
-}
-
-/**
  * List current user's entity follows
  * GET /entity-follows?type=...&limit=...&cursor=...
  *
@@ -348,24 +330,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       conditions.push(eq(entityFollows.entityType, rawType));
     }
     if (cursor) {
-      const decoded = parseFollowCursor(cursor);
+      // A cursor this route did not issue is a 400 rather than page one — a
+      // cursor quietly ignored makes an infinite-scroll client loop over the
+      // first page forever with no error anywhere.
+      const decoded = decodeChronoCursor(cursor);
       if (!decoded) {
         return res.status(400).json({ message: 'cursor is malformed' });
       }
-      // Row comparison, so the two columns are compared as ONE value in the same
-      // order the sort uses. Writing it as `created_at < x OR (created_at = x AND
-      // id < y)` is the same predicate and is the one that gets the parenthesis
-      // wrong.
-      //
-      // The timestamp is bound as an ISO STRING with an explicit cast, not as a
-      // `Date`. A drizzle column knows how to encode a `Date`; a bare parameter
-      // inside a hand-written `sql` template does not, and postgres.js rejects
-      // it with `TypeError: The "string" argument must be of type string … .
-      // Received an instance of Date`. It surfaces as a 500 on the SECOND page
-      // only, because the first page carries no cursor.
-      conditions.push(
-        sql`(${entityFollows.createdAt}, ${entityFollows.id}) < (${decoded.createdAt.toISOString()}::timestamptz, ${decoded.id}::text)`,
-      );
+      conditions.push(chronoKeyset(entityFollows, decoded));
     }
 
     const follows = await getDb()
@@ -378,8 +350,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const hasMore = follows.length > limit;
     const results = (hasMore ? follows.slice(0, limit) : follows).map(serializeFollow);
     const last = results[results.length - 1];
-    const nextCursor =
-      hasMore && last ? `${last.createdAt.toISOString()}${CURSOR_SEPARATOR}${last.id}` : undefined;
+    const nextCursor = hasMore && last ? encodeChronoCursor(last.createdAt, last.id) : undefined;
 
     res.json({ follows: results, hasMore, nextCursor });
   } catch (error) {

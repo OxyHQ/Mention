@@ -59,12 +59,10 @@ import { authorDefinition } from '../mtn/feed/definitions/presets';
 import type { CandidatePost, FeedDefinition, SourceModule } from '../mtn/feed/engine/types';
 
 /**
- * A stable post id. Plain text, because `posts.id` is `text` holding uuid v7
- * after the cutover — nothing in the engine parses an id, so a readable one is
- * strictly better than a fabricated ObjectId that implies a shape the column no
- * longer has.
+ * A stable uuid v7 post id — the shape every post-cutover row has, and the shape
+ * the engine's page cursor carries (`utils/chronoCursor.ts`).
  */
-const oid = (n: number) => `lanemute-post-${n}`;
+const oid = (n: number) => `01900000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const MUTED_LANE = 'lane-muted';
 const OTHER_LANE = 'lane-other';
 
