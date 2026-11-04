@@ -19,9 +19,11 @@ import {
   findActorByUri,
   findOtherActorHoldingHandle,
   releaseGoneActorHandle,
+  setActorMovedTo,
   tombstoneActor,
   upsertActor,
 } from '../../db/federation/actorRepository';
+import { recordRemoteMove } from './move.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
@@ -157,6 +159,19 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
       actorUri: uri,
       bannerUrl: columns.headerUrl,
     });
+    // A move the actor announces is believed only once its target confirms it,
+    // the same bilateral check an inbound Move gets; one it no longer announces
+    // was cancelled. Never awaited for the check: it fetches the target.
+    if (update.movedTo && update.movedTo !== row.movedTo) {
+      const targetActorUri = update.movedTo;
+      void recordRemoteMove({ oldActorUri: uri, targetActorUri }).catch((error: unknown) => {
+        logger.info('[FedSync] could not verify an announced move', {
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+    } else if (!update.movedTo && row.movedTo) {
+      await setActorMovedTo(uri, null);
+    }
     return withEngineId({ ...row, oxyUserId: resolved.user.id });
   },
   findActorByPublicKeyId: async (keyId) => withEngineId(await findActorByPublicKeyId(keyId)),

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   signedFetch: vi.fn(),
   resolveOxyIdentity: vi.fn(),
   syncFederatedBannerInBackground: vi.fn(),
+  recordRemoteMove: vi.fn(async () => 'recorded'),
 }));
 
 vi.mock('../../../connectors/activitypub/helpers', async () => {
@@ -30,11 +31,15 @@ vi.mock('../../../connectors/identity', () => ({
 vi.mock('../../../services/ActorIdentityProjectionService', () => ({
   reconcileActorIdentityProjection: vi.fn(async () => ({ postsChanged: 0 })),
 }));
+vi.mock('../../../connectors/activitypub/move.service', () => ({
+  recordRemoteMove: mocks.recordRemoteMove,
+}));
 vi.mock('../../../db/federation/bannerMirrorRepository', () => ({
   syncFederatedBannerInBackground: mocks.syncFederatedBannerInBackground,
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { findActorByUri, setActorMovedTo } from '../../../db/federation/actorRepository';
 import { actorService } from '../../../connectors/activitypub/actor.service';
 import { clearFederationScope, federationScope } from '../../helpers/federationFixtures';
 import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
@@ -44,6 +49,7 @@ const ACTOR = `${scope.origin}/users/alice`;
 const BANNER = `${scope.origin}/media/header.png`;
 
 let image: string | undefined;
+let movedTo: string | undefined;
 
 beforeAll(connectPostgres);
 afterAll(closePostgres);
@@ -60,6 +66,7 @@ beforeEach(() => {
           preferredUsername: 'alice',
           inbox: `${ACTOR}/inbox`,
           ...(image && { image: { type: 'Image', url: image } }),
+          ...(movedTo && { movedTo }),
         }),
         { status: 200, headers: { 'content-type': 'application/activity+json' } },
       ),
@@ -97,5 +104,21 @@ describe('the actor upsert', () => {
       actorUri: ACTOR,
       bannerUrl: undefined,
     });
+  });
+
+  it('verifies a move the actor announces, and clears one it stops announcing', async () => {
+    movedTo = `${scope.origin}/users/alice-new`;
+    await actorService.fetchRemoteActor(ACTOR);
+    expect(mocks.recordRemoteMove).toHaveBeenCalledWith({
+      oldActorUri: ACTOR,
+      targetActorUri: movedTo,
+    });
+    // The upsert itself never writes an unverified target.
+    expect((await findActorByUri(ACTOR))?.movedTo).toBeUndefined();
+
+    await setActorMovedTo(ACTOR, movedTo);
+    movedTo = undefined;
+    await actorService.fetchRemoteActor(ACTOR);
+    expect((await findActorByUri(ACTOR))?.movedTo).toBeUndefined();
   });
 });
