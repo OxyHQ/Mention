@@ -80,7 +80,7 @@ with the SDK's own lazily loaded voice call, which `extractCommonChunk` hoists i
 21,489,031 bytes (+64 KiB); every other ceiling is unchanged. The merge-queue export measured
 +58.46 KiB JavaScript (+12.28 KiB gzip) against main, all of it deferred: initial JavaScript is
 unchanged (+10 B gzip). The SDK's browser graph newly imports `@peable.to/contracts/vocabulary`
-(66 KB of unminified ESM, absent from 0.20.0's graph) through `core/errors.js` (`ERROR_CODES`,
+(66 KB of unminified ESM, absent from 0.20.0's graph) through its error classes (`ERROR_CODES`,
 `errorDocUrl`) and `PEABLE_API_VERSION`, into the lazily loaded Plus checkout; trimming that is
 Peable's to do, in the SDK.
 
