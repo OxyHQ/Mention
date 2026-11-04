@@ -61,7 +61,7 @@ export function startJetstreamIngestion(): void {
   }
   if (consumer) return;
   consumer = new JetstreamConsumer({
-    endpoint: config.atproto.jetstream.url,
+    endpoints: config.atproto.jetstream.urls,
     handlers: jetstreamHandlers(),
     cursors: cursorStore,
   });

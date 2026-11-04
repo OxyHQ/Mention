@@ -28,8 +28,21 @@
  * outgrows `maxPendingCommits` reconnects rather than growing.
  *
  * Reconnects back off exponentially (`reconnect*` options), reset once a
- * connection has stayed up; a connection that goes silent for `idleTimeoutMs` is
- * treated as dead.
+ * connection has stayed up, and move to the next of the `endpoints` each time,
+ * so one degraded Jetstream instance is left behind (the timestamp cursor is
+ * valid on every instance).
+ *
+ * ## A stream that falls behind live is a dead stream
+ *
+ * A Jetstream instance can stay connected while delivering a trickle of old
+ * events (seen on us-east, 2026-11-04: 1 event/s against 50/s on us-west, then
+ * nothing). Silence alone does not catch that, so the watchdog asks a stronger
+ * question every `stallWindowMs`: did the stream's own clock (the newest
+ * `witnessedAt` received) advance by at least half the wall-clock time that
+ * passed? A live tail advances one-for-one and a replay faster; a stream that
+ * cannot keep pace with real time will never catch up, and is reconnected
+ * elsewhere. The post collection is always subscribed, so a healthy stream is
+ * never quiet for minutes.
  */
 
 import { logger } from '../../../utils/logger';
@@ -83,15 +96,15 @@ export const webSocketTransport: JetstreamTransport = {
 };
 
 export interface JetstreamConsumerOptions {
-  /** The Jetstream v2 origin, e.g. `wss://jetstream.us-east.bsky.network`. */
-  endpoint: string;
+  /** Jetstream v2 origins, tried in order and rotated on every reconnect. */
+  endpoints: readonly string[];
   handlers: readonly JetstreamCollectionHandler[];
   cursors: JetstreamCursorStore;
   transport?: JetstreamTransport;
   flushIntervalMs?: number;
   cursorSaveIntervalMs?: number;
   maxPendingCommits?: number;
-  idleTimeoutMs?: number;
+  stallWindowMs?: number;
   reconnectBaseMs?: number;
   reconnectMaxMs?: number;
 }
@@ -100,7 +113,7 @@ const DEFAULTS = {
   flushIntervalMs: 1_000,
   cursorSaveIntervalMs: 5_000,
   maxPendingCommits: 5_000,
-  idleTimeoutMs: 2 * 60_000,
+  stallWindowMs: 2 * 60_000,
   reconnectBaseMs: 1_000,
   reconnectMaxMs: 60_000,
 };
@@ -121,7 +134,9 @@ export class JetstreamConsumer {
   /** Bumped per connection, so a late event from a closed one is ignored. */
   private generation = 0;
   private openedAt: number | undefined;
-  private lastFrameAt = 0;
+  private endpointIndex = 0;
+  /** Where the stream's clock stood at the start of the current stall window. */
+  private stallCheck: { at: number; cursor: number | undefined } = { at: 0, cursor: undefined };
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private flushTimer: ReturnType<typeof setInterval> | undefined;
@@ -198,9 +213,10 @@ export class JetstreamConsumer {
     this.pending = [];
     this.receivedCursor = undefined;
     this.openedAt = undefined;
-    this.lastFrameAt = Date.now();
-    const url = subscribeUrl(this.options.endpoint, [...this.handlers.keys()], this.handledCursor);
-    logger.info('[jetstream] connecting', { resumes: this.handledCursor !== undefined });
+    this.stallCheck = { at: Date.now(), cursor: undefined };
+    const endpoint = this.options.endpoints[this.endpointIndex % this.options.endpoints.length];
+    const url = subscribeUrl(endpoint, [...this.handlers.keys()], this.handledCursor);
+    logger.info('[jetstream] connecting', { endpoint, resumes: this.handledCursor !== undefined });
     this.connection = this.transport.connect(url, {
       onOpen: () => {
         if (generation === this.generation) this.openedAt = Date.now();
@@ -215,7 +231,6 @@ export class JetstreamConsumer {
   }
 
   private receive(text: string): void {
-    this.lastFrameAt = Date.now();
     const frame = parseFrame(text);
     switch (frame.kind) {
       case 'commit': {
@@ -285,11 +300,28 @@ export class JetstreamConsumer {
   }
 
   private async tick(): Promise<void> {
-    if (this.connection && Date.now() - this.lastFrameAt > this.options.idleTimeoutMs) {
-      this.reconnect('no frames received');
+    if (this.connection && this.isStalled()) {
+      this.reconnect('stream is falling behind live');
       return;
     }
     await this.flush();
+  }
+
+  /**
+   * True once a whole stall window passed in which the stream's clock advanced by
+   * less than half of it (or not at all). Starts a new window either way.
+   */
+  private isStalled(): boolean {
+    const now = Date.now();
+    const elapsed = now - this.stallCheck.at;
+    if (elapsed < this.options.stallWindowMs) return false;
+    const from = this.stallCheck.cursor;
+    const to = this.receivedCursor;
+    this.stallCheck = { at: now, cursor: to };
+    if (to === undefined) return true;
+    // The window's first frame sets its baseline; judge the next window.
+    if (from === undefined) return false;
+    return (to - from) / 1_000 < elapsed / 2;
   }
 
   /** Drop the current connection; {@link disconnected} schedules the next one. */
@@ -318,6 +350,7 @@ export class JetstreamConsumer {
     );
     const delay = base + Math.floor(Math.random() * base * 0.25);
     this.reconnectAttempt += 1;
+    this.endpointIndex += 1;
     logger.info('[jetstream] disconnected', { code, reason, retryInMs: delay });
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = setTimeout(() => {
