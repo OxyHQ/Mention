@@ -10,6 +10,7 @@ import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
+import { loadPostRecipients } from '../../db/posts/postAudience';
 import { asc, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
@@ -248,6 +249,20 @@ export interface NoteMentionContext {
   links: Map<string, ApMentionLink>;
   tags: Array<{ type: 'Mention'; href: string; name: string }>;
   cc: string[];
+  inboxes: string[];
+}
+
+/**
+ * How a PRIVATE MENTION (a `direct` post) is addressed: `to` its recipients'
+ * actor URIs and nobody else — no public collection, no followers collection,
+ * an empty `cc` — with a `Mention` tag per recipient, which is what makes
+ * Mastodon render it as a private mention. `inboxes` are the REMOTE recipients'
+ * (shared) inboxes, the only places it is delivered; a shared inbox is safe
+ * because the addressing travels with the activity.
+ */
+export interface NoteDirectAudience {
+  to: string[];
+  tags: Array<{ href: string; name: string }>;
   inboxes: string[];
 }
 
@@ -531,6 +546,7 @@ export class FollowService {
     quote?: NoteQuoteContext,
     community?: NoteCommunityContext,
     commerceLinks: readonly string[] = [],
+    direct?: NoteDirectAudience,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
     const postId = post.id;
@@ -559,6 +575,9 @@ export class FollowService {
     if (reply?.mention) pushMentionTag(reply.mention.href, reply.mention.name);
     if (mentions) {
       for (const tag of mentions.tags) pushMentionTag(tag.href, tag.name);
+    }
+    if (direct) {
+      for (const tag of direct.tags) pushMentionTag(tag.href, tag.name);
     }
     // FEP-e232 quote `Link` tag: a machine-readable pointer to the quoted object
     // (`mediaType: application/activity+json`) so a quote-aware server (Mastodon
@@ -636,6 +655,10 @@ export class FollowService {
       for (const href of mentions.cc) pushCc(href);
     }
     if (community) pushCc(community.actorUri);
+    // A private mention replaces all of the above: its recipients, and only them.
+    const to = direct ? direct.to : [AP_PUBLIC];
+    const addressedCc = direct ? [] : cc;
+    const audience = direct ? undefined : community?.actorUri;
 
     // A TOP-LEVEL post with a title is a `Page` — what Lemmy, PieFed and Mbin
     // publish a community post as, and what the ingest reads a title from — so
@@ -652,7 +675,7 @@ export class FollowService {
       type: title ? 'Page' : 'Note',
       ...(title ? { name: title } : {}),
       attributedTo: actor,
-      audience: community?.actorUri,
+      audience,
       // Only present on a reply — undefined is dropped by JSON serialization,
       // so a top-level Note carries no `inReplyTo`.
       inReplyTo: reply?.inReplyTo,
@@ -676,8 +699,8 @@ export class FollowService {
       source,
       language,
       published,
-      to: [AP_PUBLIC],
-      cc,
+      to,
+      cc: addressedCc,
       tag: tags.length > 0 ? tags : undefined,
       attachment: attachments.length > 0 ? attachments : undefined,
     };
@@ -690,8 +713,8 @@ export class FollowService {
       type: 'Create',
       actor,
       published,
-      to: [AP_PUBLIC],
-      cc,
+      to,
+      cc: addressedCc,
       object,
     };
   }
@@ -753,9 +776,13 @@ export class FollowService {
     // `federateNewPost` directly, bypassing the registry.
     if (
       !(await isFediverseSharingEnabled(senderOxyUserId)) ||
-      post.visibility !== PostVisibility.PUBLIC
+      (post.visibility !== PostVisibility.PUBLIC && post.visibility !== PostVisibility.DIRECT)
     ) {
       if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
+      return;
+    }
+    if (post.visibility === PostVisibility.DIRECT) {
+      await this.federateDirectNote(post, senderOxyUserId, senderUsername, 'create', options);
       return;
     }
 
@@ -887,6 +914,82 @@ export class FollowService {
     } catch (err) {
       logger.warn('[FedDeliver] failed to resolve reply delivery', err);
       return null;
+    }
+  }
+
+  /**
+   * The addressing of a private mention to these recipients (Oxy user ids), or
+   * `null` when none of them is a remote actor with an inbox — a private mention
+   * between local users federates nothing. Every recipient, local ones included,
+   * is named in `to` and tagged, so a remote server shows the whole conversation;
+   * only the remote ones are delivered to. Resolved through the same batched
+   * lookup mentions use.
+   */
+  async resolveDirectAudience(recipientIds: readonly string[]): Promise<NoteDirectAudience | null> {
+    const entries = await this.resolveMentionEntries([...recipientIds]);
+    const to: string[] = [];
+    const tags: NoteDirectAudience['tags'] = [];
+    const inboxes = new Set<string>();
+    for (const entry of entries.values()) {
+      if (to.includes(entry.href)) continue;
+      to.push(entry.href);
+      tags.push({ href: entry.href, name: `@${entry.handle}` });
+      if (entry.isRemote && entry.inbox) inboxes.add(entry.inbox);
+    }
+    return inboxes.size > 0 ? { to, tags, inboxes: [...inboxes] } : null;
+  }
+
+  /** Queue one activity to each distinct inbox — never a follower fan-out. */
+  private async queueToInboxes(
+    activity: Record<string, unknown>,
+    inboxes: readonly string[],
+    senderOxyUserId: string,
+  ): Promise<void> {
+    for (const inbox of new Set(inboxes)) {
+      await deliveryService.queueDelivery(activity, inbox, senderOxyUserId);
+    }
+  }
+
+  /**
+   * Federate a private mention (create or edit) to its remote recipients only:
+   * the same Note the public path builds — body, media, mentions, poll, `inReplyTo` —
+   * addressed by {@link NoteDirectAudience} and queued to the recipients'
+   * inboxes. It never reaches the author's followers, and a mention whose
+   * recipients are all local sends nothing.
+   */
+  private async federateDirectNote(
+    post: NoteSourcePost,
+    senderOxyUserId: string,
+    senderUsername: string,
+    kind: 'create' | 'update',
+    options: { throwOnError?: boolean } = {},
+  ): Promise<void> {
+    try {
+      const direct = await this.resolveDirectAudience(await loadPostRecipients(post.id));
+      if (!direct) return;
+      const reply = await this.resolveReplyDelivery(post);
+      const mentions = await this.resolveMentionContext(post);
+      // A private poll is a `Question` like a public one: its recipients vote on it.
+      const poll = await this.resolvePollContext(post);
+      const args = [
+        post,
+        senderUsername,
+        reply?.context,
+        mentions ?? undefined,
+        poll ?? undefined,
+        undefined,
+        undefined,
+        [],
+        direct,
+      ] as const;
+      const activity =
+        kind === 'create'
+          ? this.buildCreateNoteActivity(...args)
+          : this.buildUpdateNoteActivity(...args);
+      await this.queueToInboxes(activity, direct.inboxes, senderOxyUserId);
+    } catch (err) {
+      logger.error('Failed to federate private mention:', err);
+      if (options.throwOnError) throw err;
     }
   }
 
@@ -1406,7 +1509,7 @@ export class FollowService {
    * {@link federateNewPost}; best-effort.
    */
   async federateDelete(
-    post: { id: string; communityOxyUserId?: string | null },
+    post: { id: string; communityOxyUserId?: string | null; directRecipients?: string[] },
     deleterOxyUserId: string,
     deleterUsername: string,
   ): Promise<void> {
@@ -1415,6 +1518,13 @@ export class FollowService {
 
     try {
       const activity = this.buildDeleteActivity(deleterUsername, post.id);
+      // A private mention's retraction goes where the mention went: to its
+      // remote recipients, never to the author's followers.
+      if (post.directRecipients) {
+        const direct = await this.resolveDirectAudience(post.directRecipients);
+        if (direct) await this.queueToInboxes(activity, direct.inboxes, deleterOxyUserId);
+        return;
+      }
       // The community the post was written in takes its deletion too: a remote
       // one at its inbox (it announces it), one hosted here by relaying it.
       const community = await resolveCommunityAudience(post.communityOxyUserId);
@@ -1444,6 +1554,7 @@ export class FollowService {
     quote?: NoteQuoteContext,
     community?: NoteCommunityContext,
     commerceLinks: readonly string[] = [],
+    direct?: NoteDirectAudience,
   ): Record<string, unknown> {
     const created = this.buildCreateNoteActivity(
       post,
@@ -1454,6 +1565,7 @@ export class FollowService {
       quote,
       community,
       commerceLinks,
+      direct,
     );
     const note = created.object as Record<string, unknown>;
 
@@ -1495,6 +1607,10 @@ export class FollowService {
     if (!FEDERATION_ENABLED) return;
     if (!(await isFediverseSharingEnabled(editorOxyUserId))) return;
     if (post.boostOf) return;
+    if (post.visibility === PostVisibility.DIRECT) {
+      await this.federateDirectNote(post, editorOxyUserId, editorUsername, 'update', options);
+      return;
+    }
     if (post.visibility !== PostVisibility.PUBLIC) return;
 
     try {

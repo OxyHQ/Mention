@@ -105,6 +105,8 @@ export const NOTIFICATION_TYPES = [
   'like',
   'reply',
   'mention',
+  // A direct post (private mention) addressed to the recipient.
+  'private_mention',
   'follow',
   'boost',
   'quote',

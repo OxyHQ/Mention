@@ -39,7 +39,11 @@ vi.mock('../../../runtime/oxyClient', () => ({
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../../helpers/serviceFixtures';
-import { deletePostRecord, replacePostContent } from '../../../db/posts/postRepository';
+import {
+  deletePostRecord,
+  replacePostContent,
+  updatePostRecord,
+} from '../../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../../db/posts/postRecord';
 import { buildModerationReportInput } from '../../../services/moderation/EvidenceSnapshotService';
 import { createPostSubjectProvider } from '../../../services/moderation/subjects/postSubject';
@@ -242,12 +246,14 @@ describe('post subject provider', () => {
 
   it('omits private or unpublished neighbouring context', async () => {
     // The gate covers the NEIGHBOUR too: a public reply is reportable, but the
-    // private post it answers must not ride along into the envelope as context.
-    const parent = await textPost('Private parent.', {
-      status: 'scheduled',
-      visibility: 'private',
-    });
+    // post it answers, withdrawn to private since, must not ride along into the
+    // envelope as context. (A reply WRITTEN under a private post is private.)
+    const parent = await textPost('Private parent.');
     const post = await textPost('Public reply.', { parentPostId: parent.id });
+    await updatePostRecord(parent.id, {
+      status: 'scheduled',
+      visibility: PostVisibility.PRIVATE,
+    });
 
     const snapshot = await postProvider.snapshot(post.id, 'oxy-attacker');
 

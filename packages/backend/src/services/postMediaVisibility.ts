@@ -16,6 +16,7 @@
  * token is refused), so it runs with the author's own bearer, exactly like
  * `ensureProfileMediaPublic` does for the banner.
  */
+import { PostVisibility } from '@mention/shared-types';
 import type { OxyServices } from '@oxy.so/core';
 import { authorVariants } from './postVariants';
 import { logger } from '../utils/logger';
@@ -82,6 +83,19 @@ export function createPostMediaOwnerClient(req: Parameters<typeof createUserScop
  * already public), an asset the caller does not own, or an Oxy error is logged
  * and the post goes ahead. Making an already-public asset public is a no-op.
  */
+/**
+ * Whether a post of this visibility serves its media from the public CDN.
+ *
+ * A public post, and a private mention: its recipients — remote ones fetching
+ * the ActivityPub attachment from their own server included — hold no Oxy
+ * grant on the author's private file, so its media is public by unguessable URL
+ * exactly as Mastodon serves a direct message's. Followers-only and private
+ * posts keep private media behind Oxy's owner ACL.
+ */
+export function servesMediaPublicly(visibility: PostVisibility | undefined): boolean {
+  return visibility === PostVisibility.PUBLIC || visibility === PostVisibility.DIRECT;
+}
+
 export async function ensurePostMediaPublic(
   client: Pick<OxyServices, 'assets'> | undefined,
   content: PostMediaContent | null | undefined,

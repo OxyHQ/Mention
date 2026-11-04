@@ -61,8 +61,17 @@ import { createdAt, generatedId, geography, inList, timestamptz, updatedAt } fro
  */
 export const POST_TYPES = ['text', 'image', 'video', 'poll', 'boost', 'quote'] as const;
 
-/** `PostVisibility` (`@mention/shared-types`). */
-export const POST_VISIBILITIES = ['public', 'followers_only', 'private'] as const;
+/**
+ * `PostVisibility` (`@mention/shared-types`).
+ *
+ * `direct` is a private mention: readable by its author and its
+ * `post_recipients` only. Every listing filters visibility with an ALLOWLIST
+ * (`public`, or `public` + `followers_only`), which is what keeps a direct post
+ * out of every feed, profile, search and collection without a condition of its
+ * own; the thread and conversation reads admit it through
+ * `directPostParticipantSql`.
+ */
+export const POST_VISIBILITIES = ['public', 'followers_only', 'private', 'direct'] as const;
 
 /**
  * `PostPublicationStatus` — and the reason it is FOUR values, not the three the

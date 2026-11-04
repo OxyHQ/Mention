@@ -98,6 +98,7 @@ import {
   postCorrections,
   postMentions,
   postRecentRepliers,
+  postRecipients,
 } from '../../db/schema/postContent';
 import { authorPostCounts, posts } from '../../db/schema/posts';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
@@ -477,6 +478,12 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     postMentions,
     postMentions.id,
     accountIs(postMentions.oxyUserId),
+  ),
+  'post_recipients.oxyUserId': deleteRows(
+    'account',
+    postRecipients,
+    postRecipients.postId,
+    accountIs(postRecipients.oxyUserId),
   ),
   'event_attendance.oxyUserId': deleteRows(
     'account',

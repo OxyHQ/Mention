@@ -89,6 +89,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'POST_SCAN_FILTER is the literal `undefined` — the entire posts table.',
   },
+  recoverFederatedDirectMessages: {
+    scope: 'whole-table',
+    reason: 'Every private or followers-only post with an ActivityPub activity id.',
+  },
   repairFederatedMentions: {
     scope: 'whole-table',
     reason: 'Bounded by options.actorUri, which the suite does not pass.',

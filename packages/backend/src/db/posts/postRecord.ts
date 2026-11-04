@@ -231,6 +231,11 @@ export interface PostRecord {
   content: StoredPostContent;
   /** The resolved @mention allowlist (Oxy user ids). */
   mentions: string[];
+  /**
+   * Who a `direct` post is addressed to (Oxy user ids, author excluded) — with
+   * the author, the only readers it has. Empty for every other visibility.
+   */
+  recipients: string[];
 
   stats: PostStats;
   metadata: PostMetadata;
@@ -313,6 +318,13 @@ export interface PostRecordInput {
   communityOxyUserId?: string | null;
   content: StoredPostContent;
   mentions?: string[];
+  /**
+   * A `direct` post's addressees, when the writer knows them (a federated
+   * note's `to`/`cc`). Absent, a direct post is addressed to its mentions. The
+   * stored set is decided by `resolvePostAudience`, which also narrows
+   * `visibility` to the parent's for a reply.
+   */
+  recipients?: string[];
   metadata?: PostMetadata;
   federation?: PostRecordFederation;
   postClassification?: Partial<PostRecordClassification>;

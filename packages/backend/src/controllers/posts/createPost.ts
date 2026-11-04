@@ -1,3 +1,4 @@
+import { respondWithApiError } from '../../utils/error';
 import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
 import {
@@ -32,6 +33,7 @@ import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
   createPostMediaOwnerClient,
   ensurePostMediaPublic,
+  servesMediaPublicly,
 } from '../../services/postMediaVisibility';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
@@ -526,7 +528,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const autoAcceptCollaboratorIds = resolveMcpAutoAcceptIds(req, invitedCollaboratorIds);
 
     // Post media renders from the public CDN, and uploads arrive private.
-    if (resolvedVisibility === PostVisibility.PUBLIC && publicationPolicy.requiredAudience === null)
+    if (servesMediaPublicly(resolvedVisibility) && publicationPolicy.requiredAudience === null)
       await ensurePostMediaPublic(createPostMediaOwnerClient(req), postContent);
 
     const post = await postCreationService.create({
@@ -646,6 +648,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({ success: true, post: hydratedPost });
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     if (error instanceof PostPublicationPolicyError)
       return res
         .status(error.status)

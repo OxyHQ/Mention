@@ -14,6 +14,8 @@ export enum NotificationType {
   REPLY = 'reply',
   FOLLOW = 'follow',
   MENTION = 'mention',
+  /** A direct post (private mention) addressed to the recipient. */
+  PRIVATE_MENTION = 'private_mention',
   HASHTAG = 'hashtag',
   VERIFICATION = 'verification',
   SYSTEM = 'system',

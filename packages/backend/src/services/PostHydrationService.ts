@@ -202,6 +202,8 @@ interface RawPost {
   lastCorrectedAt?: unknown;
   hashtags?: string[];
   mentions?: unknown[];
+  /** A `direct` post's recipients (Oxy user ids) — with its author, its only readers. */
+  recipients?: unknown[];
   visibility?: string;
   status?: string;
   scheduledFor?: unknown;
@@ -906,7 +908,7 @@ export async function resolveOrphanFederatedAuthors(
 /**
  * Does this post's readability turn on whether the viewer OWNS it?
  *
- * The five gates below — unpublished, private, followers-only to a
+ * The five gates below — unpublished, private or direct, followers-only to a
  * non-follower, an author the viewer is restricted by, an author behind a
  * private profile — are exactly the states {@link viewerOwnsPost} overrides.
  * `false` means every one of them passes on its own terms and the post is
@@ -928,7 +930,7 @@ function ownershipDecidesReadability(
   if ((post.status ?? 'published') !== 'published') return true;
 
   const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
-  if (visibility === PostVisibility.PRIVATE) return true;
+  if (visibility === PostVisibility.PRIVATE || visibility === PostVisibility.DIRECT) return true;
 
   const viewerFollowsAuthor =
     Boolean(viewerContext.viewerId) && viewerContext.follows.has(authorId);
@@ -995,6 +997,28 @@ function viewerOwnsPost(
     (viewerEntry?.role === 'collaborator' &&
       (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending')) ||
     (Boolean(viewerContext.viewerId) && viewerContext.operatedAccountIds.has(authorId))
+  );
+}
+
+/**
+ * Is the viewer one of the people this published private mention is addressed
+ * to?
+ *
+ * The second — and only other — way into a `direct` post besides
+ * {@link viewerOwnsPost}, and it is a RESOURCE GRANT, not merely an audience
+ * pass: the author named this person, so Oxy's private-author rule must not
+ * refuse them for not following. It grants nothing on any other visibility, and
+ * nothing on an unpublished post, so it can never open a draft or a scheduled
+ * post to the people it will be sent to.
+ */
+function viewerIsRecipient(post: RawPost, viewerContext: ViewerContext): boolean {
+  const viewerId = viewerContext.viewerId;
+  return (
+    Boolean(viewerId) &&
+    post.visibility === PostVisibility.DIRECT &&
+    (post.status ?? 'published') === 'published' &&
+    Array.isArray(post.recipients) &&
+    post.recipients.includes(viewerId)
   );
 }
 
@@ -1420,7 +1444,9 @@ export class PostHydrationService {
     const eligiblePosts = policyPosts.filter((post) => {
       const authorId = post.oxyUserId ?? '';
       const authorship = normalizeAuthorship(post.authorship);
-      const resourceGrant = viewerOwnsPost(authorId, authorship, viewerContext);
+      const resourceGrant =
+        viewerOwnsPost(authorId, authorship, viewerContext) ||
+        viewerIsRecipient(post, viewerContext);
       // Contact approval only decides a published post's audience. It cannot
       // disclose an unpublished draft or override an application restriction.
       if (
@@ -2625,7 +2651,8 @@ export class PostHydrationService {
     if (!authorId && !post.federation) return false;
     const viewerContext = await this.buildViewerContext([post], viewerId, options, db);
     const authorship = normalizeAuthorship(post.authorship);
-    const resourceGrant = viewerOwnsPost(authorId, authorship, viewerContext);
+    const resourceGrant =
+      viewerOwnsPost(authorId, authorship, viewerContext) || viewerIsRecipient(post, viewerContext);
     if (
       viewerContext.blockedIds.has(authorId) ||
       (((post.status ?? 'published') !== 'published' ||
@@ -2685,7 +2712,9 @@ export class PostHydrationService {
     viewerContext: ViewerContext,
   ): boolean {
     if (!ownershipDecidesReadability(post, authorId, viewerContext)) return true;
-    return viewerOwnsPost(authorId, authorship, viewerContext);
+    return (
+      viewerOwnsPost(authorId, authorship, viewerContext) || viewerIsRecipient(post, viewerContext)
+    );
   }
 
   /**
@@ -3036,6 +3065,13 @@ export class PostHydrationService {
       mentions:
         includeFullMetadata && Array.isArray(post.mentions) && post.mentions.length > 0
           ? post.mentions.filter((m): m is string => typeof m === 'string')
+          : undefined,
+      // A private mention's audience, always: the reader is its author or one of
+      // these people (the ACL above), and who else is in the conversation is part
+      // of reading it.
+      recipients:
+        post.visibility === PostVisibility.DIRECT && Array.isArray(post.recipients)
+          ? post.recipients.filter((id): id is string => typeof id === 'string')
           : undefined,
       hashtags:
         includeFullMetadata && Array.isArray(post.hashtags) && post.hashtags.length > 0

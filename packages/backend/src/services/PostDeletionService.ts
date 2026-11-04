@@ -26,6 +26,7 @@ import { posts as postsTable } from '../db/schema/posts';
 import type { PostRecord } from '../db/posts/postRecord';
 import { emitTombstone, postRecordUri } from './mtn/MentionRecordEmitter';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
+import type { MentionDeleteEventPayload } from '../connectors/activitypub/ActivityPubConnector';
 import { repairRecentRepliersAfterPostDelete } from './PostRecentReplierService';
 import {
   allDeletionTargets,
@@ -92,16 +93,24 @@ export async function deleteAuthoredPost(
   // minted from the resolved username + post id. Local + published + public
   // only — an unpublished/private post was never federated. Username resolved
   // server-side from the authoritative oxyUserId.
+  // A private mention federated to its recipients, so its retraction goes to
+  // them — the recipients are read off the record captured before the delete.
+  const isDirect = deletedPost.visibility === PostVisibility.DIRECT;
   if (
     deletedPost.federation == null &&
     deletedPost.oxyUserId &&
-    deletedPost.visibility === PostVisibility.PUBLIC &&
+    (deletedPost.visibility === PostVisibility.PUBLIC || isDirect) &&
     deletedPost.status === 'published'
   ) {
     const deleterOxyUserId = deletedPost.oxyUserId;
+    const post: MentionDeleteEventPayload = {
+      _id: deletedId,
+      communityOxyUserId: deletedPost.communityOxyUserId,
+      ...(isDirect ? { directRecipients: deletedPost.recipients } : {}),
+    };
     federateAsResolvedActor(deleterOxyUserId, 'post delete', (username) => ({
       kind: 'post.delete',
-      post: { _id: deletedId, communityOxyUserId: deletedPost.communityOxyUserId },
+      post,
       actorOxyUserId: deleterOxyUserId,
       actorUsername: username,
     }));

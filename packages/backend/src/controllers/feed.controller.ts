@@ -3,6 +3,7 @@ import {
   resolveNativePostCommunity,
 } from '../services/communities/communityPosting';
 import { respondWithApiError } from '../utils/error';
+import { threadReplyVisibilitySql } from '../db/posts/postAudience';
 import type { SafetyRequester } from '@oxy.so/contracts';
 import type { Response } from 'express';
 import { and, desc, eq, inArray, isNotNull, notInArray, sql, type SQL } from 'drizzle-orm';
@@ -668,6 +669,7 @@ class FeedController {
         reply: hydratedReply,
       });
     } catch (error) {
+      if (respondWithApiError(res, error)) return;
       if (error instanceof CommunityPostError) {
         return res.status(error.status).json({ message: error.message });
       }
@@ -1045,7 +1047,7 @@ class FeedController {
         continuationIds.length > 0
           ? inArray(postsTable.parentPostId, [parentId, ...continuationIds])
           : eq(postsTable.parentPostId, parentId),
-        eq(postsTable.visibility, 'public'),
+        threadReplyVisibilitySql(currentUserId, viewerRelations?.viewerGraph.followingIds),
         eq(postsTable.status, 'published'),
       ];
       if (continuationIds.length > 0) {
@@ -1112,7 +1114,7 @@ class FeedController {
               postsTable.parentPostId,
               items.map((post) => post.id),
             ),
-            eq(postsTable.visibility, 'public'),
+            threadReplyVisibilitySql(currentUserId, viewerRelations?.viewerGraph.followingIds),
             eq(postsTable.status, 'published'),
           ),
           { orderBy, limit: Math.min(limit * 2, 60) },

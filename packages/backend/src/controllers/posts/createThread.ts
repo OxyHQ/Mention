@@ -1,3 +1,4 @@
+import { respondWithApiError } from '../../utils/error';
 import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import {
@@ -35,6 +36,7 @@ import { safetyRequesterFor } from '../../utils/safetyRequester';
 import {
   createPostMediaOwnerClient,
   ensurePostMediaPublic,
+  servesMediaPublicly,
 } from '../../services/postMediaVisibility';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
@@ -619,10 +621,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // EXACT pre-existing side-effect behavior (the response is byte-identical).
       const isThreadContinuation = mode === 'thread' && i > 0 && Boolean(previousPostId);
       // Post media renders from the public CDN, and uploads arrive private.
-      if (
-        entryVisibility[i] === PostVisibility.PUBLIC &&
-        publicationPolicy.requiredAudience === null
-      )
+      if (servesMediaPublicly(entryVisibility[i]) && publicationPolicy.requiredAudience === null)
         await ensurePostMediaPublic(mediaOwnerClient, postContent);
 
       const post = await postCreationService.create({
@@ -815,6 +814,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({ success: true, posts: createdPosts });
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     if (error instanceof PostPublicationPolicyError)
       return res
         .status(error.status)

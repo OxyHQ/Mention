@@ -391,6 +391,35 @@ export const createMentionNotifications = async (
 };
 
 /**
+ * Tell each recipient of a private mention (a `direct` post) that it was
+ * addressed to them — ONE `private_mention` per recipient, in place of the
+ * mention and reply notices a public post would send, since a recipient may be
+ * mentioned and replied to by the same post. Never throws.
+ */
+export const createPrivateMentionNotifications = async (
+  recipientIds: readonly string[],
+  postId: string,
+  actorId: string,
+  entityType: 'post' | 'reply' = 'post',
+): Promise<void> => {
+  try {
+    const unique = [...new Set(recipientIds)];
+    if (unique.length === 0) return;
+    await writeNotifications(
+      unique.map((recipientId) => ({
+        recipientId,
+        actorId,
+        type: 'private_mention' as const,
+        entityId: postId,
+        entityType,
+      })),
+    );
+  } catch (error) {
+    logger.error('[Notifications] Error creating private mention notifications:', error);
+  }
+};
+
+/**
  * Creates a welcome notification for new users
  */
 export const createWelcomeNotification = async (

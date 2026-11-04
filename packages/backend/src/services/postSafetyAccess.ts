@@ -47,8 +47,15 @@ export async function postSafetyItems(
   return uniquePosts.map((post) => ({
     resourceId: post.id,
     authorAccountId: post.oxyUserId ?? undefined,
+    // Oxy knows three audiences. A private mention (`direct`) maps to the most
+    // restrictive one: its readers are named people, not the public or the
+    // author's followers, and Mention alone knows who they are — it says so per
+    // reader through `applicationAudienceAllowed` / `applicationResourceGrant`
+    // (a recipient is a resource grant). `private` is also what keeps a
+    // supervised viewer behind contact approval, as it does for any non-public
+    // post.
     audience:
-      post.visibility === 'private'
+      post.visibility === 'private' || post.visibility === 'direct'
         ? 'private'
         : post.visibility === 'followers_only'
           ? 'followers'

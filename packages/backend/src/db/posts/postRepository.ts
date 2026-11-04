@@ -74,6 +74,14 @@ import type {
   StoredPostContent,
 } from '@mention/shared-types';
 import { followedAuthorsSql } from '../../utils/postAuthorship';
+import {
+  insertPostRecipients,
+  loadParentAudience,
+  loadPostRecipients,
+  mayJoinConversation,
+  resolvePostAudience,
+} from './postAudience';
+import { ApiError } from '../../utils/error';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { translatedBaseLanguages } from '../../services/postVariants';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
@@ -87,6 +95,7 @@ import {
   postContentVariants,
   postMedia,
   postMentions,
+  postRecipients,
   postSourceKeys,
   postSources,
   postVariantAltTexts,
@@ -150,6 +159,7 @@ const POST_VISIBILITY_BY_COLUMN = {
   public: PostVisibility.PUBLIC,
   followers_only: PostVisibility.FOLLOWERS_ONLY,
   private: PostVisibility.PRIVATE,
+  direct: PostVisibility.DIRECT,
 } as const satisfies Record<PostRow['visibility'], PostVisibility>;
 
 /**
@@ -245,6 +255,7 @@ interface PostChildRows {
   attachments: Map<string, PostAttachmentDescriptor[]>;
   sources: Map<string, PostSourceLink[]>;
   mentions: Map<string, string[]>;
+  recipients: Map<string, string[]>;
   topicRefs: Map<string, NonNullable<PostRecordClassification['topicRefs']>>;
 }
 
@@ -294,6 +305,7 @@ async function loadChildRows(
     attachmentRows,
     sourceRows,
     mentionRows,
+    recipientRows,
     topicRefRows,
     variantMediaRows,
     variantAltRows,
@@ -353,6 +365,11 @@ async function loadChildRows(
       .from(postMentions)
       .where(inArray(postMentions.postId, [...postIds]))
       .orderBy(asc(postMentions.id)),
+    db
+      .select()
+      .from(postRecipients)
+      .where(inArray(postRecipients.postId, [...postIds]))
+      .orderBy(asc(postRecipients.oxyUserId)),
     db
       .select()
       .from(postClassificationTopicRefs)
@@ -431,6 +448,11 @@ async function loadChildRows(
     ),
     mentions: groupBy(
       mentionRows,
+      (row) => row.postId,
+      (row) => row.oxyUserId,
+    ),
+    recipients: groupBy(
+      recipientRows,
       (row) => row.postId,
       (row) => row.oxyUserId,
     ),
@@ -622,6 +644,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
 
     content: assembleContent(row, children),
     mentions: children.mentions.get(row.id) ?? [],
+    recipients: children.recipients.get(row.id) ?? [],
 
     stats: {
       likesCount: row.statsLikesCount,
@@ -726,6 +749,7 @@ const NO_CHILD_ROWS: PostChildRows = {
   attachments: new Map(),
   sources: new Map(),
   mentions: new Map(),
+  recipients: new Map(),
   topicRefs: new Map(),
 };
 
@@ -1560,7 +1584,29 @@ export async function insertPostRecords(
 async function writePostRecord(input: PostRecordInput, db: DatabaseOrTransaction): Promise<string> {
   const id = input.id ?? uuidv7();
 
-  const insert = toPostInsert(input, id);
+  // WHO THE POST IS FOR, decided here for every creation path: a reply is never
+  // wider than its parent, and a reply in a private-mention conversation is
+  // addressed to everyone in it (`resolvePostAudience`). The parent's audience
+  // never changes after it is written, so reading it outside the transaction
+  // cannot race.
+  const parent = input.parentPostId ? await loadParentAudience(input.parentPostId, db) : null;
+  // Only the people in a private conversation can add to it from here. The
+  // refusal reads as a missing post, so it says nothing about one the writer
+  // cannot see. A federated reply is the remote author's own addressing and is
+  // kept, still narrowed to the conversation.
+  if (input.federation == null && parent && !mayJoinConversation(parent, input.oxyUserId)) {
+    throw new ApiError(404, 'Post not found', 'NOT_FOUND');
+  }
+  const audience = resolvePostAudience(
+    {
+      authorId: input.oxyUserId,
+      visibility: input.visibility,
+      recipients: input.recipients,
+      mentions: input.mentions,
+    },
+    parent,
+  );
+  const insert = toPostInsert({ ...input, visibility: audience.visibility }, id);
 
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
     await tx.insert(posts).values(insert);
@@ -1590,6 +1636,7 @@ async function writePostRecord(input: PostRecordInput, db: DatabaseOrTransaction
       input.postClassification?.topicRefs,
       input.federation?.goneMediaPolicy,
     );
+    await insertPostRecipients(id, audience.recipients, tx);
     // A reply COUNTS on its parent, from whichever path created it.
     //
     // This lived in the callers, and only two of the five ever did it — the
@@ -2275,22 +2322,47 @@ export async function linkReplyToParent(
 ): Promise<boolean> {
   const write = async (tx: DatabaseOrTransaction): Promise<boolean> => {
     const [current] = await tx
-      .select({ parentPostId: posts.parentPostId, isReply: posts.isReply })
+      .select({
+        id: posts.id,
+        oxyUserId: posts.oxyUserId,
+        visibility: posts.visibility,
+        parentPostId: posts.parentPostId,
+        isReply: posts.isReply,
+      })
       .from(posts)
       .where(where)
       .for('update');
     if (!current) return false;
+    // The same audience rule an insert applies: once the reply has a parent, it
+    // can be no wider than that parent, and joins its private conversation.
+    const audience = resolvePostAudience(
+      {
+        authorId: current.oxyUserId,
+        visibility: current.visibility as PostVisibility,
+        recipients: await loadPostRecipients(current.id, tx),
+      },
+      await loadParentAudience(link.parentPostId, tx),
+    );
     await tx
       .update(posts)
-      .set({ parentPostId: link.parentPostId, threadId: link.threadId })
+      .set({
+        parentPostId: link.parentPostId,
+        threadId: link.threadId,
+        visibility: audience.visibility,
+      })
       .where(where);
+    await insertPostRecipients(current.id, audience.recipients, tx);
     if (current.isReply && current.parentPostId !== link.parentPostId) {
       if (current.parentPostId) await bumpPostCounters(current.parentPostId, { comments: -1 }, tx);
       await bumpPostCounters(link.parentPostId, { comments: 1 }, tx);
     }
+    if (audience.visibility !== current.visibility) narrowedPostId = current.id;
     return true;
   };
-  return 'transaction' in db ? db.transaction(write) : write(db);
+  let narrowedPostId: string | null = null;
+  const linked = await ('transaction' in db ? db.transaction(write) : write(db));
+  if (narrowedPostId) await invalidatePostDetailCache(narrowedPostId);
+  return linked;
 }
 
 /**

@@ -82,6 +82,32 @@ post is classified and ranked once it exists.
 - Valid profile URLs: `/@username` and `/@username@domain`. A duplicate
   suffix (`/@user@domain@domain`) is a handle-normalization bug.
 
+## Visibility
+
+| Visibility                 | Readers                                           | Listed in feeds, profiles, search |
+| -------------------------- | ------------------------------------------------- | --------------------------------- |
+| `public`                   | everyone                                          | yes                               |
+| `followers_only`           | the author's followers                            | follower feeds only               |
+| `private`                  | the owner, collaborators, the channel's operators | no                                |
+| `direct` (private mention) | the author and its `post_recipients`              | never                             |
+
+`PostHydrationService` is the one read gate; a recipient of a published direct
+post is a resource grant there, and Oxy is asked with the `private` audience
+(`postSafetyAccess.ts`), so supervised accounts stay behind contact approval.
+Every listing filters visibility with an allowlist, which keeps `direct` out
+of all of them; only the thread reads (`GET /posts/:id`,
+`GET /feed/replies/:parentId`, via `threadReplyVisibilitySql`) and
+`GET /posts/private-mentions` admit it, for its participants.
+
+Who a post is for is decided at write time by `resolvePostAudience`
+(`db/posts/postAudience.ts`), which `writePostRecord` and `linkReplyToParent`
+apply to every path: a reply is never wider than its parent, a reply to a
+direct post is direct and addressed to the parent's author and recipients (plus
+its own mentions), and only participants can add to a private conversation
+natively. A new native direct post is addressed to its mentions and needs at
+least one. Direct posts' media is made public by unguessable URL, as Mastodon
+serves a DM's, so remote recipients can fetch it.
+
 ## Native event attendance
 
 A published Mention-native event opens `/events/<postId>`. Attendance defaults to

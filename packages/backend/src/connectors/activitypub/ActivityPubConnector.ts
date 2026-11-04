@@ -4,6 +4,7 @@ import type {
   NetworkConnector,
   NetworkId,
   NormalizedExternalActor,
+  LocalDeleteEventPayload,
   LocalNetworkEvent,
   LocalPostEventPayload,
   ReceiveContext,
@@ -54,6 +55,15 @@ export {
   type OutboxSyncOptions,
   type OutboxSyncFailureReason,
 };
+
+/**
+ * A `post.delete` payload as Mention sends it: a deleted PRIVATE MENTION also
+ * carries its recipients, captured before the row (and its `post_recipients`)
+ * went, so its retraction reaches the people it was sent to and nobody else.
+ */
+export interface MentionDeleteEventPayload extends LocalDeleteEventPayload {
+  directRecipients?: string[];
+}
 
 /**
  * The app↔SDK id translation, in the ONE place the seam is crossed inbound.
@@ -108,6 +118,8 @@ function bridgedIdentity(
  */
 class ActivityPubConnector implements NetworkConnector<PostContent> {
   readonly id: NetworkId = 'activitypub';
+  /** A private mention federates as a Note addressed to its recipients only. */
+  readonly deliversDirectPosts = true;
 
   get enabled(): boolean {
     return FEDERATION_ENABLED;
@@ -221,7 +233,11 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
         // A deletion broadcasts a Delete(Tombstone) of the post's canonical AP id
         // to the deleter's followers.
         await followService.federateDelete(
-          { id: String(event.post._id), communityOxyUserId: event.post.communityOxyUserId },
+          {
+            id: String(event.post._id),
+            communityOxyUserId: event.post.communityOxyUserId,
+            directRecipients: (event.post as MentionDeleteEventPayload).directRecipients,
+          },
           event.actorOxyUserId,
           event.actorUsername,
         );

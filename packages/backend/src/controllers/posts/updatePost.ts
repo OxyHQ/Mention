@@ -45,6 +45,7 @@ import { safetyRequesterFor } from '../../utils/safetyRequester';
 import {
   createPostMediaOwnerClient,
   ensurePostMediaPublic,
+  servesMediaPublicly,
 } from '../../services/postMediaVisibility';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
@@ -591,7 +592,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // become visible together. Check the unpublished carve-out AFTER taking the
     // same content/row locks used by shadow claims and content writers.
     // Post media renders from the public CDN, and uploads arrive private.
-    if (loaded.visibility === PostVisibility.PUBLIC && publicationPolicy.requiredAudience === null)
+    if (servesMediaPublicly(loaded.visibility) && publicationPolicy.requiredAudience === null)
       await ensurePostMediaPublic(createPostMediaOwnerClient(req), content);
 
     const written = await updatePostAndContent(
@@ -725,7 +726,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       edited.federation == null &&
       edited.oxyUserId &&
       !edited.boostOf &&
-      edited.visibility === PostVisibility.PUBLIC &&
+      (edited.visibility === PostVisibility.PUBLIC ||
+        edited.visibility === PostVisibility.DIRECT) &&
       edited.status === 'published'
     ) {
       const editorOxyUserId = edited.oxyUserId;

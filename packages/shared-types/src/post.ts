@@ -29,7 +29,15 @@ export enum PostType {
 export enum PostVisibility {
   PUBLIC = 'public',
   FOLLOWERS_ONLY = 'followers_only',
+  /** Its owner, collaborators and the channel's operators only. */
   PRIVATE = 'private',
+  /**
+   * A private mention: its author and the people it is addressed to (its
+   * recipients), nobody else. Never listed in any feed, profile, search or
+   * collection; read through its thread and the private-mentions conversations.
+   * Federates as an ActivityPub note addressed to its recipients only.
+   */
+  DIRECT = 'direct',
 }
 
 /**
@@ -1324,6 +1332,12 @@ export interface PostMetadataState {
    */
   languages?: string[];
   mentions?: string[];
+  /**
+   * The Oxy user ids a `direct` post is addressed to (its author excluded).
+   * Present only on a direct post, which only its author and these recipients
+   * can read.
+   */
+  recipients?: string[];
   hashtags?: string[];
   createdAt: string;
   updatedAt: string;
@@ -1615,4 +1629,30 @@ export interface HydratedPost extends HydratedPostSummary {
   quotedPostUnavailable?: boolean;
   boost?: HydratedBoostContext | null;
   context?: PostFeedContext;
+}
+
+/**
+ * One private-mention conversation in `GET /posts/private-mentions`: the direct
+ * posts the viewer wrote or was sent, grouped by thread root. Open it with the
+ * ordinary thread reads (`GET /posts/:rootId`, `GET /feed/replies/:rootId`),
+ * which admit only its participants.
+ */
+export interface PrivateMentionConversation {
+  /** The thread root — the conversation's id. */
+  rootId: string;
+  /** ISO time of the newest post in it. */
+  lastActivityAt: string;
+  /** How many of its posts the viewer takes part in. */
+  postCount: number;
+  /** Everyone in it besides the viewer (Oxy user ids): the latest post's author and recipients. */
+  participantIds: string[];
+  /** The newest post, hydrated for the viewer. */
+  latestPost: HydratedPost;
+}
+
+export interface PrivateMentionConversationsResponse {
+  items: PrivateMentionConversation[];
+  hasMore: boolean;
+  /** Opaque; pass back as `cursor` for the next page. */
+  nextCursor?: string;
 }

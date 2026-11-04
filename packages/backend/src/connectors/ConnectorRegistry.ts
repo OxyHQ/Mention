@@ -41,6 +41,16 @@ type AudienceAwareNetworkConnector = NetworkConnector<PostContent> & {
   ) => Promise<void>;
 };
 
+/**
+ * A connector that can carry a PRIVATE MENTION (a `direct` post) to exactly its
+ * recipients. Only such a connector is handed one: a network with no private
+ * addressing (atproto) would publish it. Declared here for the same reason as
+ * {@link AudienceAwareNetworkConnector}.
+ */
+type DirectCapableNetworkConnector = NetworkConnector<PostContent> & {
+  deliversDirectPosts?: boolean;
+};
+
 /** The Oxy user whose `fediverseSharing` consent gates a given outbound event. */
 function actingOxyUserId(event: LocalNetworkEvent<PostContent>): string {
   switch (event.kind) {
@@ -115,16 +125,31 @@ export class ConnectorRegistry implements PostFederator {
     const removal = ['post.delete', 'post.unboost', 'post.unlike', 'follow.remove'].includes(
       event.kind,
     );
+    // A private mention goes only to connectors that address it privately — its
+    // create, its edits and its retraction alike.
+    let directOnly =
+      event.kind === 'post.delete' &&
+      Boolean((event.post as { directRecipients?: string[] }).directRecipients);
     if (!removal) {
       const authorIds = [actorOxyUserId];
       if (event.kind === 'post.create' || event.kind === 'post.update') {
         const post = await loadPostRecord(String(event.post._id));
-        if (!post || post.visibility !== 'public' || post.status !== 'published')
+        if (
+          !post ||
+          (post.visibility !== 'public' && post.visibility !== 'direct') ||
+          post.status !== 'published'
+        )
           return { failures: [], dispatched: false };
+        directOnly = post.visibility === 'direct';
         authorIds.push(...postAuthorIds(post));
       }
       if (!(await authorsMayFederate(authorIds))) return { failures: [], dispatched: false };
     }
+    const connectors = directOnly
+      ? this.connectors.filter(
+          (connector) => (connector as DirectCapableNetworkConnector).deliversDirectPosts,
+        )
+      : this.connectors;
 
     if (!(await isFediverseSharingEnabled(actorOxyUserId))) {
       logger.debug('[Connectors] sharing disabled; skipping federation');
@@ -134,7 +159,7 @@ export class ConnectorRegistry implements PostFederator {
     const extraAudiences = options.alsoDeliverToAudiencesOf ?? [];
 
     const results = await Promise.allSettled(
-      this.connectors.map((connector) => {
+      connectors.map((connector) => {
         const audienceConnector = connector as AudienceAwareNetworkConnector;
         if (extraAudiences.length > 0 && audienceConnector.deliverToExtraAudiences) {
           return audienceConnector.deliverToExtraAudiences(event, extraAudiences, {
@@ -154,7 +179,7 @@ export class ConnectorRegistry implements PostFederator {
         failures.push(result.reason);
         logger.error('[connectors] delivery failed', {
           type: event.kind,
-          connector: this.connectors[index].id,
+          connector: connectors[index].id,
           error: result.reason,
         });
       }

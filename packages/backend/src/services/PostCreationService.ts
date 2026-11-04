@@ -32,9 +32,11 @@ import { foldProfileLinkMentions } from './profileLinkMentions';
 import {
   createMentionNotifications,
   createBatchNotifications,
+  createPrivateMentionNotifications,
   createPostAuthorNotifications,
 } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
+import { ApiError } from '../utils/error';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
@@ -167,6 +169,11 @@ export interface CreatePostParams {
   answersOperatedAccount?: boolean;
   hashtags?: string[];
   mentions?: string[];
+  /**
+   * A federated `direct` note's addressees, resolved to Oxy users. A native
+   * direct post is addressed to its mentions and passes none.
+   */
+  recipients?: string[];
   language?: string;
   // Full declared language set for federated posts (AP top-level `language` +
   // every `contentMap` key, via `extractApLanguages`). Authoritative for the
@@ -677,6 +684,7 @@ class PostCreationService {
         mentionTextsFromContent(storedContent),
         authorizedMentions,
       ),
+      ...(params.recipients ? { recipients: params.recipients } : {}),
       metadata: {
         ...(params.metadata ?? {}),
         ...(deferCollabFederation ? { collabFederationDeferred: true } : {}),
@@ -689,6 +697,23 @@ class PostCreationService {
       ...(params.createdAt != null ? { createdAt: params.createdAt } : {}),
       ...(params.updatedAt != null ? { updatedAt: params.updatedAt } : {}),
     };
+
+    // A private mention is addressed to the people it mentions, so a new one that
+    // mentions nobody would be readable by its author alone — refused rather than
+    // stored as a note to self. A reply needs none of its own: it is addressed to
+    // the conversation it joins (`resolvePostAudience`).
+    if (
+      input.visibility === PostVisibility.DIRECT &&
+      params.federation == null &&
+      !input.parentPostId &&
+      (input.mentions ?? []).length === 0
+    ) {
+      throw new ApiError(
+        400,
+        'A private mention needs at least one person to mention',
+        'DIRECT_POST_WITHOUT_RECIPIENTS',
+      );
+    }
 
     // `lane_id` goes in as an ordinary nullable value. The partial index is `where lane_id is not null`, so NULL is the
     // state that stays out of it, and "absent" and "null" are one state rather
@@ -1005,6 +1030,19 @@ class PostCreationService {
    * drifting apart again.
    */
   async notifyCreatedPost(post: PostRecord, oxyUserId: string | null): Promise<void> {
+    // A private mention tells its recipients and nobody else: no subscriber
+    // fan-out, and one notice per recipient instead of a mention and a reply.
+    if (post.visibility === PostVisibility.DIRECT) {
+      if (oxyUserId) {
+        await createPrivateMentionNotifications(
+          post.recipients,
+          post.id,
+          oxyUserId,
+          post.parentPostId ? 'reply' : 'post',
+        );
+      }
+      return;
+    }
     const mentions = post.mentions;
     const parentPostId = post.parentPostId;
     const quoteOf = post.quoteOf;

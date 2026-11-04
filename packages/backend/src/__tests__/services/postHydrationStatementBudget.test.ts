@@ -303,7 +303,7 @@ describe('the statement budget for one cold hydration', () => {
 describe('the statement budget for an anonymous feed cache hit', () => {
   it('re-authorizes an unchanged page from current records without hydrating it again', async () => {
     /**
-     * A hit loads the current records of the page's graph (posts + its nine
+     * A hit loads the current records of the page's graph (posts + its ten
      * child tables, once for the whole graph), the authors' privacy settings and
      * the safety evidence, and asks Oxy for current decisions. It does NOT run
      * the hydration pipeline: no `post_recent_repliers`, `starter_pack_members`,
@@ -327,6 +327,6 @@ describe('the statement budget for an anonymous feed cache hit', () => {
     const statements = await statementsByTable();
     expect(statements.get('posts')).toBe(1);
     expect(statements.get('post_recent_repliers')).toBeUndefined();
-    expect([...statements.values()].reduce((sum, count) => sum + count, 0)).toBe(12);
+    expect([...statements.values()].reduce((sum, count) => sum + count, 0)).toBe(13);
   });
 });

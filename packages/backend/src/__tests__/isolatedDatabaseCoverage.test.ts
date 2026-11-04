@@ -153,6 +153,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   // `require.main === module` block where the pool is opened.
   { name: 'reconcileBlockedDomains', call: /'scripts',\s*'reconcileBlockedDomains\.ts'/ },
   { name: 'repairFederatedMentions', call: /\brepairFederatedMentions\s*\(/ },
+  { name: 'recoverFederatedDirectMessages', call: /\brecoverFederatedDirectMessages\s*\(/ },
   { name: 'backfillThreadRootThreadId', call: /\bbackfillThreadRootThreadId\s*\(/ },
   { name: 'migrateThreadFanToChain', call: /\bmigrateThreadFanToChain\s*\(/ },
   { name: 'backfillMtnRecords', call: /\bbackfillMtnRecords\s*\(/ },

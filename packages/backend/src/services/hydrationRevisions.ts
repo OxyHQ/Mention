@@ -63,6 +63,7 @@ const RENDERED_FIELDS: Record<keyof PostRecord, boolean> = {
   communityOxyUserId: true,
   content: true,
   mentions: true,
+  recipients: true,
   metadata: true,
   federation: true,
   postClassification: true,

@@ -866,15 +866,15 @@ export function extractApHashtags(note: Record<string, unknown>): string[] {
 }
 
 /**
- * Map ActivityPub to/cc addressing to Mention visibility, or null when the note
- * has no audience Mention can represent.
+ * Map ActivityPub to/cc addressing to Mention visibility.
  *
  * Public (in `to` or `cc`) is public. A note addressed to its author's
  * followers collection is followers-only: a local user who follows the author
  * is one of those followers. Anything else — a direct message, or a limited
- * audience of named actors — is null, and the caller must not store it:
- * followers-only would show a DM to every local follower of its sender while
- * hiding it from the person it was sent to.
+ * audience of named actors — is `direct`: readable by its author and the actors
+ * it names, which `resolveApAudience` resolves (and drops the note when none of
+ * them is one of our users). Never followers-only: that would show a DM to every
+ * local follower of its sender while hiding it from the person it was sent to.
  *
  * `to`/`cc` come straight off remote JSON-LD, so they are `unknown` until the
  * addressee check narrows them.
@@ -883,12 +883,18 @@ export function mapApVisibility(
   to?: unknown,
   cc?: unknown,
   authorFollowersUrl?: string | null,
-): PostVisibility | null {
+): PostVisibility {
   if (isPubliclyAddressed(to, cc)) return PostVisibility.PUBLIC;
-  const addressees = [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])];
-  return authorFollowersUrl && addressees.includes(authorFollowersUrl)
+  return authorFollowersUrl && apAddressees(to, cc).includes(authorFollowersUrl)
     ? PostVisibility.FOLLOWERS_ONLY
-    : null;
+    : PostVisibility.DIRECT;
+}
+
+/** Every string addressee of a note's `to` and `cc`, in order. */
+export function apAddressees(to?: unknown, cc?: unknown): string[] {
+  return [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])].filter(
+    (entry): entry is string => typeof entry === 'string',
+  );
 }
 
 /**

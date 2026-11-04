@@ -116,6 +116,7 @@ Public or viewer-aware reads:
 | GET | `/posts/drafts` |
 | GET | `/posts/scheduled` |
 | GET | `/posts/saved` |
+| GET | `/posts/private-mentions` |
 | GET | `/posts/:id` |
 
 Authenticated commands and viewer data:
@@ -178,6 +179,46 @@ failure `503` (`classifyKaanaFailure` in `utils/kaana.ts`).
 `PUT /posts/:id` drops every machine variant, along with its localized ALT
 rows, when an edit changes what the variants were translated from: the primary
 body, the ALT text of the media it shows, or the article.
+
+### Private mentions
+
+A post with `visibility: 'direct'` is a private mention: its author and its
+recipients can read it, and nobody else. `POST /posts` accepts `direct` and
+addresses the post to the people it mentions (`400 DIRECT_POST_WITHOUT_RECIPIENTS`
+when it mentions nobody). A reply is never wider than its parent: a reply to a
+private mention is a private mention addressed to everyone in that conversation,
+and a reply to a followers-only post is followers-only. Only participants can
+reply into a private conversation; anyone else gets `404`. Hydrated direct posts
+carry `metadata.recipients` (Oxy user ids). Recipients get a `private_mention`
+notification instead of `mention`/`reply`.
+
+`GET /posts/private-mentions` (signed in; `401` otherwise) lists the viewer's
+conversations, newest activity first:
+
+| Query | Meaning |
+| --- | --- |
+| `limit` | Page size, default 20, max 100 |
+| `cursor` | The previous page's `nextCursor`; a malformed value is `400` |
+
+```ts
+// PrivateMentionConversationsResponse (@mention/shared-types)
+{
+  items: Array<{
+    rootId: string;          // thread root; open with GET /posts/:rootId
+    lastActivityAt: string;  // ISO time of the newest post
+    postCount: number;       // posts in it the viewer takes part in
+    participantIds: string[];// everyone but the viewer
+    latestPost: HydratedPost;
+  }>;
+  hasMore: boolean;
+  nextCursor?: string;
+}
+```
+
+Read a conversation with `GET /posts/:id` and `GET /feed/replies/:parentId`. Both
+apply the same ACL; the replies feed admits a signed-in viewer's own
+followers-only and direct replies beside the public ones. Direct posts appear in
+no other listing.
 
 Collaboration invite actions and threadgate/postgate operations also live under
 `/posts/:id`. Consult the exported shared types and route validators before
