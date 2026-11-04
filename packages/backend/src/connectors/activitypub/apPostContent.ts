@@ -1,4 +1,4 @@
-import { instagramSourceKeyFromApObjectUri } from '../shared/instagramSourceKey';
+import { upstreamPostKey } from '../shared/upstreamPostKey';
 import {
   MAX_AUTHOR_VARIANTS,
   canonicalizeLanguageTag,
@@ -712,10 +712,10 @@ export function buildFederatedNoteProvenance(input: {
     url: apNoteUrl(input.noteUrl) ?? input.activityId,
     sensitive: input.sensitive,
     spoilerText: input.spoilerText,
-    // A Note from an Instagram bridge carries the Instagram post's source key,
-    // so a copy of the same post already imported from the Graph API (or
-    // imported after this one) collides on `post_source_keys_source_key_key`.
-    ...withInstagramSourceKey(input.activityId),
+    // A Note whose id names its upstream post (a bird.makeup tweet id, a
+    // kilogram shortcode, a Bridgy at-URI) carries that key, so the same post
+    // stored from another transport collides on `post_source_keys_source_key_key`.
+    ...withUpstreamPostKey(input.activityId),
   };
 }
 
@@ -736,9 +736,9 @@ export function apNoteUrl(value: unknown): string | undefined {
   return first;
 }
 
-/** `{ sourcePostKey }` for a bridged Instagram Note, else no key at all. */
-function withInstagramSourceKey(activityId: string): Pick<PostRecordFederation, 'sourcePostKey'> {
-  const sourcePostKey = instagramSourceKeyFromApObjectUri(activityId);
+/** `{ sourcePostKey }` for a Note that names its upstream post, else no key at all. */
+function withUpstreamPostKey(activityId: string): Pick<PostRecordFederation, 'sourcePostKey'> {
+  const sourcePostKey = upstreamPostKey(activityId);
   return sourcePostKey ? { sourcePostKey } : {};
 }
 

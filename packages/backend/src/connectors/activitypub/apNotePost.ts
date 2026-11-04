@@ -17,6 +17,7 @@ import { buildAuthorship } from '../../utils/postAuthorship';
 import { reconcileMentionIdsForPost } from '../../utils/textProcessing';
 import { type RemoteLinkPreview, storeRemoteLinkPreviews } from '../shared/linkPreviews';
 import { getRemoteHost } from '../shared/url';
+import { absorbTransportCopy, transportCopyFacts } from '../shared/transportCopies';
 import { resolvePostCommunity } from './apCommunity';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import {
@@ -39,6 +40,7 @@ import {
 } from './helpers';
 import { identityDomainOfActor } from './identityDomain';
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
+import { keylessTransportRefusal } from './keylessTransport';
 
 /**
  * AN ACTIVITYPUB NOTE → A POST, ONCE.
@@ -177,7 +179,7 @@ async function refusedReplyReason(inReplyToUri: string): Promise<string | null> 
 /**
  * Turn a Note into the post it stores as, or say why it stores as nothing.
  *
- * In order: the size cap, the reply gates, who the note is for (a direct note
+ * In order: the size cap, the keyless-transport rule (`./keylessTransport`), the reply gates, who the note is for (a direct note
  * to none of our users is dropped before any mention is resolved), the
  * mentions, the body and media (`buildFederatedNoteContent`), the quote (a
  * quoted post we lack is imported through `importQuoted`, and an unresolved one
@@ -197,6 +199,11 @@ export async function buildPostFromNote(
   // backfill, dependency import) builds here, so this is the one gate.
   if (isBridgeFlattenedRetweet(note, author.uri))
     return { skip: true, reason: 'flattened-retweet' };
+
+  // A transport whose posts name no upstream post is a history source only.
+  const published = parseApPublished(note.published ?? input.activity?.published);
+  const keyless = await keylessTransportRefusal(author, published);
+  if (keyless) return { skip: true, reason: keyless };
 
   const inReplyToUri = extractInReplyToUri(note.inReplyTo);
   const refused = inReplyToUri ? await refusedReplyReason(inReplyToUri) : null;
@@ -231,8 +238,6 @@ export async function buildPostFromNote(
     ? await resolveDeclaredQuoteTarget(declaredQuote, input.importQuoted)
     : null;
   const variants = await stripQuoteMarkerFromVariants(built.variants, quoteOf, declaredQuote?.uri);
-
-  const published = parseApPublished(note.published ?? input.activity?.published);
 
   return {
     params: {
@@ -358,4 +363,44 @@ export async function notePostRecord(post: NotePost, id: string): Promise<PostRe
     ...(baseline.postClassification ? { postClassification: baseline.postClassification } : {}),
     ...(params.createdAt ? { createdAt: params.createdAt, updatedAt: params.updatedAt } : {}),
   };
+}
+
+/**
+ * Merge a built note into the post that already holds its upstream key — the
+ * same upstream post, delivered by another transport (`../shared/transportCopies`).
+ * `replyTo` is the note's thread link when the caller resolved one.
+ */
+export async function absorbNoteCopy(
+  postId: string,
+  post: NotePost,
+  replyTo?: { parentPostId: string; threadId: string } | null,
+  options: { edited?: boolean } = {},
+): Promise<boolean> {
+  const { params } = post;
+  const objectUri = params.federation.activityId;
+  const actorUri = params.federation.actorUri;
+  if (!objectUri || !actorUri) return false;
+  const record = await notePostRecord(post, postId);
+  return absorbTransportCopy(
+    postId,
+    {
+      objectUri,
+      actorUri,
+      facts: transportCopyFacts({
+        actorUri,
+        content: record.content,
+        createdAt: params.createdAt,
+        url: params.federation.url,
+        inReplyTo: params.federation.inReplyTo,
+        quoteOf: params.quoteOf,
+        replyTo,
+        language: record.language,
+        sensitive: params.metadata?.isSensitive,
+        spoilerText: params.federation.spoilerText,
+      }),
+      content: record.content,
+      mentions: record.mentions ?? [],
+    },
+    options,
+  );
 }

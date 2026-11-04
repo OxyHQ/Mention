@@ -6,7 +6,6 @@ import {
 import {
   instagramShortcodeFromPermalink,
   instagramSourceKey,
-  instagramSourceKeyFromApObjectUri,
   isInstagramSourceActivityId,
   kilogramNoteIdFor,
 } from '../../../connectors/shared/instagramSourceKey';
@@ -46,24 +45,6 @@ describe('the Instagram source key', () => {
 
   it('keeps the shortcode case — Instagram codes are case-sensitive', () => {
     expect(instagramSourceKey('DaX_K4yxa65')).toBe('instagram:DaX_K4yxa65');
-  });
-
-  it('derives the same key from a kilogram Note id (shape measured live)', () => {
-    expect(
-      instagramSourceKeyFromApObjectUri(
-        'https://kilogram.makeup/users/natgeo/statuses/DLmzYr6tcKJ',
-      ),
-    ).toBe('instagram:DLmzYr6tcKJ');
-  });
-
-  it.each([
-    'https://mastodon.social/users/natgeo/statuses/DLmzYr6tcKJ',
-    'https://kilogram.makeup/users/natgeo/statuses/DLmzYr6tcKJ/activity',
-    'https://kilogram.makeup/users/natgeo/statuses/DLmzYr6tcKJ?x=1',
-    'https://kilogram.makeup/users/natgeo',
-    'http://kilogram.makeup/users/natgeo/statuses/DLmzYr6tcKJ',
-  ])('gives no key to %s', (uri) => {
-    expect(instagramSourceKeyFromApObjectUri(uri)).toBeUndefined();
   });
 
   it('builds the kilogram Note id a pre-migration row carries', () => {

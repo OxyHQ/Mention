@@ -1,7 +1,13 @@
 import { observeFederationImportReason } from '../../db/federation/importProvenanceRepository';
 import type { FederationImportReason } from '../../db/schema/federationImports';
 import { and, eq } from 'drizzle-orm';
-import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
+import { postMatchesFederatedObjectSql } from '../shared/upstreamPostKey';
+import {
+  deliveredByActorSql,
+  findRecordedTransportCopies,
+  loadTransportCopies,
+  releaseTransportCopy,
+} from '../../db/posts/postTransportCopyRepository';
 import { isApActorType } from '@oxy.so/federation';
 import { createInboundDispatcher, type InboundDispatcherConfig } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
@@ -53,6 +59,7 @@ import {
 } from './helpers';
 import { buildFederatedNoteContentForEdit, hasStorableContent } from './apPostContent';
 import {
+  absorbNoteCopy,
   buildPostFromNote,
   isLocalPostOwnerSharingEnabled,
   logSkippedNote,
@@ -614,16 +621,20 @@ export class InboxProcessingService {
     else if (relayedBy && (await isFollowed(relayedBy))) importReason = 'inbox_community';
     else return;
 
-    // Dedup by activityId — and, for a bridged Instagram Note, by the Instagram
-    // post it mirrors, so a post the Graph import already holds is not stored twice.
+    // Dedup by activityId — and by the upstream post it names, so the same post
+    // another transport already delivered is not stored twice. A copy from
+    // another transport is MERGED into that post (below), once.
     const [existingPost] = await getDb()
-      .select({ id: posts.id })
+      .select({ id: posts.id, activityId: posts.federationActivityId })
       .from(posts)
       .where(postMatchesFederatedObjectSql(note.id))
       .limit(1);
     if (existingPost) {
       await observeFederationImportReason([existingPost.id], importReason);
-      return;
+      const newCopy =
+        existingPost.activityId !== note.id &&
+        !(await findRecordedTransportCopies([note.id])).has(note.id);
+      if (!newCopy) return;
     }
 
     // The Oxy link is MANDATORY: a federated post must carry a real Oxy author.
@@ -655,6 +666,13 @@ export class InboxProcessingService {
     const threadLink = post.inReplyToUri
       ? await outboxSyncService.ensureFederatedReplyLink(post.inReplyToUri)
       : null;
+
+    // The same upstream post from another transport: one post, merged. Nothing
+    // below runs for it — the post, its notifications and its thread exist.
+    if (existingPost) {
+      await absorbNoteCopy(existingPost.id, post, threadLink);
+      return;
+    }
 
     // The community HOSTED HERE the post is written in: the one it is addressed
     // to, or — for a reply — its thread's. A member its moderators banned is
@@ -769,22 +787,31 @@ export class InboxProcessingService {
     // the actor URI stamped when the post was ingested, using the actor whose
     // HTTP signature was verified rather than trusting activity.actor or a
     // best-effort actor-cache lookup.
-    // `postMatchesFederatedObjectSql`: a bridged Instagram Note also reaches the
-    // SAME Instagram post imported from the Graph API (stored under the bridge
-    // actor's URI), so a deletion from the bridge deletes it too. The ownership
-    // half is unchanged — only a post stamped with the signing actor matches.
+    // `postMatchesFederatedObjectSql`: the object, or the post holding the
+    // upstream post it names. The ownership half: only a post the signing actor
+    // delivered matches — stamped with it, or merged from a copy it delivered.
     const ownedByActor = and(
       postMatchesFederatedObjectSql(objectId),
-      eq(posts.federationActorUri, actorUri),
+      deliveredByActorSql(actorUri),
     );
     const [post] = await getDb()
-      .select({ id: posts.id, communityOxyUserId: posts.communityOxyUserId })
+      .select({
+        id: posts.id,
+        actorUri: posts.federationActorUri,
+        communityOxyUserId: posts.communityOxyUserId,
+      })
       .from(posts)
       .where(ownedByActor)
       .limit(1);
     if (!post) return;
 
-    const deleted = await deleteFederatedPostSubtree(post.id, actorUri);
+    // Another transport still asserts this upstream post: only this copy goes.
+    if (await releaseTransportCopy(post.id, objectId)) {
+      logger.debug('[Federation] released one transport copy of a merged post');
+      return;
+    }
+
+    const deleted = await deleteFederatedPostSubtree(post.id, post.actorUri ?? actorUri);
     if (deleted !== 'deleted') return;
     logger.debug('[Federation] deleted federated post');
 
@@ -970,15 +997,14 @@ export class InboxProcessingService {
       const objectActivityId = object.id;
       if (typeof objectActivityId !== 'string' || objectActivityId.length === 0) return;
 
-      // An Update may only edit the SENDING actor's OWN post. Scope every query
-      // by both the activity id AND `federation.actorUri` (stamped at create on
-      // the inbox Create + outbox backfill paths) so a remote server cannot
-      // overwrite another actor's post by replaying its activityId.
-      // The object, or — for a bridged Instagram Note — the same Instagram post
-      // imported from the Graph API under that bridge actor (see handleDelete).
+      // An Update may only edit a post the SENDING actor delivered: stamped with
+      // its `federation.actorUri`, or merged from a copy it delivered — so a
+      // remote server cannot overwrite another actor's post by replaying its
+      // activityId. The object, or the post holding the upstream post it names
+      // (see handleDelete).
       const editFilter = and(
         postMatchesFederatedObjectSql(objectActivityId),
-        eq(posts.federationActorUri, actorUri),
+        deliveredByActorSql(actorUri),
       );
 
       // At most one row: `federation_activity_id` is UNIQUE, and a bridged Note
@@ -1006,6 +1032,26 @@ export class InboxProcessingService {
       const pollChoices = object.updated === undefined ? extractApPoll(object) : null;
       if (pollChoices && (await refreshFederatedPostPoll(existingPost.id, pollChoices))) {
         logger.debug('[Federation] refreshed federated poll');
+        return;
+      }
+      // A post merged from several transports is the merge of all their copies:
+      // an edit is this copy's new content, merged by the same rules.
+      if ((await loadTransportCopies(existingPost.id)).length > 0) {
+        const editor = requireActorOxyUserId(editActor, actorUri, `Update ${objectActivityId}`);
+        const edited = await buildPostFromNote({
+          note: object,
+          activity,
+          activityId: objectActivityId,
+          author: { ...editActor, uri: actorUri, oxyUserId: editor },
+          importReason: 'inbox_follow',
+          ingestPath: 'inbox',
+          importQuoted: (uri) => outboxSyncService.ensureQuotedNote(uri),
+        });
+        if (edited.skip) {
+          logSkippedNote('Update', edited);
+          return;
+        }
+        await absorbNoteCopy(existingPost.id, edited, null, { edited: true });
         return;
       }
       // Resolved unconditionally, and reused twice: the owner id, and the

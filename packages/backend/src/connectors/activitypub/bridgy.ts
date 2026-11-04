@@ -48,6 +48,19 @@ export function deriveBridgyActorUri(
 }
 
 /**
+ * The AT-URI a Bridgy Fed object URL wraps
+ * (`https://bsky.brid.gy/convert/ap/at://<did>/app.bsky.feed.post/<rkey>` →
+ * `at://<did>/app.bsky.feed.post/<rkey>`), or undefined for any other URL.
+ * The Bluesky object a bridged Note IS — see `../shared/upstreamPostKey.ts`.
+ */
+export function atUriFromBridgyObjectUri(objectUri: string): string | undefined {
+  const prefix = `https://${BRIDGY_FED_BSKY_HOST}/convert/ap/`;
+  if (!objectUri.startsWith(prefix)) return undefined;
+  const atUri = objectUri.slice(prefix.length);
+  return atUri.startsWith('at://') && didFromAtUri(atUri) ? atUri : undefined;
+}
+
+/**
  * The atproto DID of a Bridgy Fed actor URI (`https://bsky.brid.gy/ap/<did>`) —
  * the inverse of {@link deriveBridgyActorUri}. Returns undefined for any
  * non-brid.gy URL or one whose path is not exactly `/ap/<did>`. Pure and

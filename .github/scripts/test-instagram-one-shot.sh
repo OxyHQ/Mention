@@ -70,7 +70,7 @@ aws() {
       elif [[ "$SCRIPT" == repairInstagramReelPosters ]]; then
         jq -n --argjson dry "$dry" '{events:[{message:({msg:"[repairInstagramReelPosters] complete",dryRun:$dry,actors:3,checked:40,candidates:1,repaired:0,waiting:0,gone:0,stopped:0} | tojson)}],nextForwardToken:"done"}'
       else
-        jq -n --argjson dry "$dry" '{events:[{message:({msg:"[backfillInstagramSourceKeys] complete",dryRun:$dry,actors:2,candidates:7,written:0,conflicts:0,claimed:0,validated:[],unvalidated:[]} | tojson)}],nextForwardToken:"done"}'
+        jq -n --argjson dry "$dry" '{events:[{message:({msg:"[backfillUpstreamPostKeys] complete",dryRun:$dry,actors:2,candidates:7,written:0,conflicts:0,claimed:0,validated:[],unvalidated:[]} | tojson)}],nextForwardToken:"done"}'
       fi ;;
     *) echo "Unexpected AWS operation $command" >&2; return 1 ;;
   esac
@@ -120,7 +120,7 @@ run_case() {
   echo "PASS $SCRIPT $name"
 }
 
-for script in repairInstagramReelPosters backfillInstagramSourceKeys; do
+for script in repairInstagramReelPosters backfillUpstreamPostKeys; do
   export SCRIPT="$script" DRY_RUN=true CONFIRM_WRITE='' REPAIR_DEPTH=''
   run_case success pass
   run_case delayed-report pass
@@ -142,7 +142,7 @@ for script in repairInstagramReelPosters backfillInstagramSourceKeys; do
   run_case wrong-preview-script fail
   run_case apply pass
 done
-grep -q 'timeout at its 3300 s bound\|stopped at its 3300 s bound' "$test_directory/backfillInstagramSourceKeys-timed-out/output"
+grep -q 'timeout at its 3300 s bound\|stopped at its 3300 s bound' "$test_directory/backfillUpstreamPostKeys-timed-out/output"
 grep -q 'finished with work left over' "$test_directory/repairInstagramReelPosters-incomplete/output"
 
 export SCRIPT=repairInstagramReelPosters DRY_RUN=true CONFIRM_WRITE='' REPAIR_DEPTH=250
@@ -152,7 +152,7 @@ export REPAIR_DEPTH='1;rm -rf /'
 run_case invalid-depth fail
 export REPAIR_DEPTH=5000
 run_case depth-too-large fail
-export SCRIPT=backfillInstagramSourceKeys REPAIR_DEPTH=10
+export SCRIPT=backfillUpstreamPostKeys REPAIR_DEPTH=10
 run_case depth-wrong-script fail
 export SCRIPT=eraseOxyAccount REPAIR_DEPTH=''
 run_case unsupported-script fail

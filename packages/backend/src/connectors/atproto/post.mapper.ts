@@ -14,13 +14,21 @@ import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import { createFederatedBoost } from '../shared/federatedBoost';
 import {
+  findPostsByFederatedObjects,
+  postMatchesFederatedObjectSql,
+  upstreamPostKey,
+} from '../shared/upstreamPostKey';
+import { absorbTransportCopy, transportCopyFacts } from '../shared/transportCopies';
+import { findRecordedTransportCopies } from '../../db/posts/postTransportCopyRepository';
+import { toStoredContent } from '../../services/postVariants';
+import {
   linkPreviewKey,
   remoteLinkPreview,
   remoteLinkUrl,
   storeRemoteLinkPreviews,
   type RemoteLinkPreview,
 } from '../shared/linkPreviews';
-import type { MediaItem } from '@mention/shared-types';
+import type { MediaItem, PostContent } from '@mention/shared-types';
 import type {
   NormalizedExternalActor,
   NormalizedExternalMedia,
@@ -729,7 +737,7 @@ async function resolveMentionDids(
 /**
  * Resolve a federated atproto post's reply parent, thread root and quoted
  * AT-URIs to LOCAL thread + quote links by matching each against an imported
- * post's `federation.activityId`. The ActivityPub reply rule (`threadId =
+ * post — natively, or the same post stored through Bridgy Fed. The ActivityPub reply rule (`threadId =
  * parent.threadId ?? parent._id`), except that atproto NAMES the root on every
  * reply, so an unlinked parent still joins the root's thread. The importers
  * store the parent, root and quoted post first ({@link importPostViewBatch}), so
@@ -744,17 +752,7 @@ async function resolveThreadAndQuoteLinks(
   );
   if (uris.length === 0) return {};
 
-  const docs = await getDb()
-    .select({
-      id: posts.id,
-      threadId: posts.threadId,
-      activityId: posts.federationActivityId,
-    })
-    .from(posts)
-    .where(inArray(posts.federationActivityId, uris));
-  const byUri = new Map(
-    docs.flatMap((doc) => (doc.activityId ? [[doc.activityId, doc] as const] : [])),
-  );
+  const byUri = await findPostsByFederatedObjects(uris);
 
   const links: { parentPostId?: string; threadId?: string; quoteOf?: string } = {};
   const parent = post.inReplyTo ? byUri.get(post.inReplyTo) : undefined;
@@ -768,18 +766,12 @@ async function resolveThreadAndQuoteLinks(
   return links;
 }
 
-/**
- * Persist a normalized atproto post as a native `Post` via the shared creation
- * path, after mirroring its media to Oxy S3, and store the card its external
- * embed carried. Returns true on a fresh insert, false when it already existed
- * (dedup race) or creation failed.
- */
-async function createPostFromNormalized(
+/** A normalized post's media re-hosted in Oxy and its thread/quote links: what both writes need. */
+async function prepareNormalizedPost(
   post: AtprotoNormalizedPost,
   ownerOxyUserId: string,
   did: string,
-  instanceDomain: string,
-): Promise<boolean> {
+) {
   const media: MediaItem[] = (post.media ?? []).map((item) => ({
     id: item.id,
     type: item.type,
@@ -801,8 +793,29 @@ async function createPostFromNormalized(
     activityId: post.activityId,
     actorUri: did,
   });
-
   const links = await resolveThreadAndQuoteLinks(post);
+  const content: PostContent = {
+    text: post.text,
+    linkUrl: post.linkUrl,
+    media: materialized.media.length > 0 ? materialized.media : undefined,
+    attachments: materialized.attachments.length > 0 ? materialized.attachments : undefined,
+  };
+  return { content, links };
+}
+
+/**
+ * Persist a normalized atproto post as a native `Post` via the shared creation
+ * path, after mirroring its media to Oxy S3, and store the card its external
+ * embed carried. Returns true on a fresh insert, false when it already existed
+ * (dedup race) or creation failed.
+ */
+async function createPostFromNormalized(
+  post: AtprotoNormalizedPost,
+  ownerOxyUserId: string,
+  did: string,
+  instanceDomain: string,
+): Promise<boolean> {
+  const { content, links } = await prepareNormalizedPost(post, ownerOxyUserId, did);
 
   try {
     const created = await getPostCreator().create({
@@ -813,16 +826,12 @@ async function createPostFromNormalized(
         inReplyTo: post.inReplyTo,
         url: post.url,
         sensitive: post.sensitive ?? false,
+        sourcePostKey: upstreamPostKey(post.activityId),
       },
       parentPostId: links.parentPostId ?? null,
       threadId: links.threadId ?? null,
       quoteOf: links.quoteOf ?? null,
-      content: {
-        text: post.text,
-        linkUrl: post.linkUrl,
-        media: materialized.media.length > 0 ? materialized.media : undefined,
-        attachments: materialized.attachments.length > 0 ? materialized.attachments : undefined,
-      },
+      content,
       visibility: PostVisibility.PUBLIC,
       hashtags: post.hashtags,
       // Resolved @mention Oxy user ids, keyed by the `[mention:<id>]` placeholders
@@ -847,6 +856,40 @@ async function createPostFromNormalized(
     logger.warn('[atproto] failed to import post', err);
     return false;
   }
+}
+
+/**
+ * Merge a normalized atproto post into the post another transport (Bridgy Fed)
+ * already stored under the same at-URI key (`../shared/transportCopies`).
+ */
+async function absorbNormalizedCopy(
+  postId: string,
+  post: AtprotoNormalizedPost,
+  ownerOxyUserId: string,
+  did: string,
+): Promise<void> {
+  const { content, links } = await prepareNormalizedPost(post, ownerOxyUserId, did);
+  const stored = toStoredContent(content, post.language);
+  await absorbTransportCopy(postId, {
+    objectUri: post.activityId,
+    actorUri: did,
+    facts: transportCopyFacts({
+      actorUri: did,
+      content: stored,
+      createdAt: post.createdAt,
+      url: post.url,
+      inReplyTo: post.inReplyTo,
+      quoteOf: links.quoteOf,
+      replyTo:
+        links.parentPostId && links.threadId
+          ? { parentPostId: links.parentPostId, threadId: links.threadId }
+          : null,
+      language: post.language,
+      sensitive: post.sensitive,
+    }),
+    content: stored,
+    mentions: post.mentions ?? [],
+  });
 }
 
 /** How many distinct post authors to resolve to Oxy users in parallel. */
@@ -937,8 +980,9 @@ interface ImportedView {
  * Each post's author is resolved to its federated Oxy user (deduped, bounded);
  * `authors` seeds already-resolved ones. A post whose author cannot be resolved
  * is skipped (no orphan), each view is validated against its OWN author's DID,
- * and the AT-URI dedup (backstopped by the unique `federation.activityId`
- * index) makes a re-import a no-op. Best-effort + fail-soft; nothing throws.
+ * and the AT-URI dedup (its activity id, or the same post stored through
+ * Bridgy Fed under its upstream key; both backstopped by unique indexes) makes
+ * a re-import a no-op. Best-effort + fail-soft; nothing throws.
  */
 async function importPostViewBatch(
   postViews: ReadonlyArray<AtprotoPostView | undefined>,
@@ -1008,21 +1052,22 @@ async function importPostViewBatch(
   }
   if (mapped.length === 0) return [];
 
-  const existingDocs = await getDb()
-    .select({ activityId: posts.federationActivityId })
-    .from(posts)
-    .where(
-      inArray(
-        posts.federationActivityId,
-        mapped.map((entry) => entry.uri),
-      ),
-    );
-  const seen = new Set(existingDocs.flatMap((doc) => (doc.activityId ? [doc.activityId] : [])));
+  const seen = await findPostsByFederatedObjects(mapped.map((entry) => entry.uri));
+  // Posts Bridgy Fed delivered first (found by key) whose native copy is new.
+  const keyed = mapped.filter((entry) => {
+    const stored = seen.get(entry.uri);
+    return stored !== undefined && stored.activityId !== entry.uri;
+  });
+  const merged = await findRecordedTransportCopies(keyed.map((entry) => entry.uri));
 
   const imported: ImportedView[] = [];
   for (const entry of mapped) {
+    const stored = seen.get(entry.uri);
+    if (stored && keyed.includes(entry) && !merged.has(entry.uri)) {
+      await absorbNormalizedCopy(stored.id, entry.post, entry.oxyUserId, entry.did);
+    }
     const created =
-      !seen.has(entry.uri) &&
+      !stored &&
       (await createPostFromNormalized(
         entry.post,
         entry.oxyUserId,
@@ -1044,7 +1089,8 @@ interface AuthorRepost {
 /**
  * Store an author's reposts as boosts of the (already imported) originals,
  * through the network-neutral {@link createFederatedBoost} the ActivityPub
- * `Announce` import uses. Deduped on the repost's AT-URI; a repost whose
+ * `Announce` import uses. Deduped on the repost's AT-URI (or its Bridgy Fed
+ * copy's upstream key); a repost whose
  * original could not be imported is skipped.
  */
 async function importReposts(
@@ -1053,21 +1099,12 @@ async function importReposts(
   did: string,
 ): Promise<void> {
   if (reposts.length === 0) return;
-  const rows = await getDb()
-    .select({ id: posts.id, activityId: posts.federationActivityId })
-    .from(posts)
-    .where(
-      inArray(
-        posts.federationActivityId,
-        reposts.flatMap((repost) => [repost.uri, repost.subjectUri]),
-      ),
-    );
-  const idByUri = new Map(
-    rows.flatMap((row) => (row.activityId ? [[row.activityId, row.id]] : [])),
+  const stored = await findPostsByFederatedObjects(
+    reposts.flatMap((repost) => [repost.uri, repost.subjectUri]),
   );
   for (const repost of reposts) {
-    const originalPostId = idByUri.get(repost.subjectUri);
-    if (idByUri.has(repost.uri) || !originalPostId) continue;
+    const originalPostId = stored.get(repost.subjectUri)?.id;
+    if (stored.has(repost.uri) || !originalPostId) continue;
     await createFederatedBoost({
       activityId: repost.uri,
       originalPostId,
@@ -1152,9 +1189,7 @@ export async function importAuthorFeed(
       ? await getDb()
           .select({ id: posts.id })
           .from(posts)
-          .where(
-            and(eq(posts.federationActivityId, pinnedUri), eq(posts.oxyUserId, ownerOxyUserId)),
-          )
+          .where(and(postMatchesFederatedObjectSql(pinnedUri), eq(posts.oxyUserId, ownerOxyUserId)))
           .limit(1)
       : [];
     if (!pinnedUri || pinned)

@@ -13,7 +13,7 @@ import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { pollOptions } from '../../db/schema/polls';
 import { and, eq } from 'drizzle-orm';
-import { postMatchesFederatedObjectSql } from '../../connectors/shared/instagramSourceKey';
+import { postMatchesFederatedObjectSql } from '../../connectors/shared/upstreamPostKey';
 import { resolveMentionCommunity } from '../publishAsAccount';
 import { accountsWithClosedAudience } from '../../db/userProfile/profileAudience';
 

@@ -387,7 +387,14 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'postId',
     scope: 'channel-posts',
     action: 'database',
-    why: 'The network-level source key of a destroyed post (Instagram shortcode). `ON DELETE CASCADE` on `posts.id`.',
+    why: 'The upstream post key of a destroyed post (tweet id, Instagram shortcode, at-URI). `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
+    table: 'post_transport_copies',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'What each transport copy of a destroyed post said. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
     table: 'post_link_previews',
@@ -1387,6 +1394,14 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
     "Meta's Instagram user id of a remote account; a channel is a local account",
   ],
   ['federated_follows.activityId', 'the AP activity that created the follow'],
+  [
+    'post_transport_copies.objectUri',
+    "a remote transport's object id for a federated post; a channel's posts are local",
+  ],
+  [
+    'post_transport_copies.actorUri',
+    'the remote transport actor that delivered a copy; a channel is a local account',
+  ],
   [
     'federated_follows.remoteActorUri',
     "the REMOTE side of a follow edge. A channel is a local account and can never appear here; the channel's " +

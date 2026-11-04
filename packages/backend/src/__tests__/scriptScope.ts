@@ -167,11 +167,11 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'Pages every federated actor with a header_url and an oxy_user_id, by primary key, ' +
       'and records a banner mirror for each (and, with retryFailed, re-arms every failed row).',
   },
-  backfillInstagramSourceKeys: {
+  backfillUpstreamPostKeys: {
     scope: 'whole-table',
     reason:
-      "Walks every kilogram.makeup actor by primary key and keys each one's bridge posts, then " +
-      'validates the CHECKs migration 0054 added NOT VALID.',
+      "Walks every keyed transport actor by primary key and keys each one's posts with " +
+      'their upstream post key.',
   },
   backfillVariantPostCreatedAt: {
     scope: 'whole-table',

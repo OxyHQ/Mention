@@ -1,7 +1,11 @@
 import { observeFederationImportReason } from '../../db/federation/importProvenanceRepository';
 import type { FederationImportReason } from '../../db/schema/federationImports';
 import { eq, inArray } from 'drizzle-orm';
-import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
+import {
+  findPostsByFederatedObjects,
+  postMatchesFederatedObjectSql,
+} from '../shared/upstreamPostKey';
+import { findRecordedTransportCopies } from '../../db/posts/postTransportCopyRepository';
 import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import {
@@ -24,6 +28,7 @@ import { extractActorUriFromActivityId } from '@oxy.so/federation';
 import { AP_CONTENT_TYPE, isBlockedDomain } from './constants';
 import { buildFederatedNoteVariants, apNoteUrl } from './apPostContent';
 import {
+  absorbNoteCopy,
   buildPostFromNote,
   logSkippedNote,
   type NoteAuthor,
@@ -835,10 +840,19 @@ export class OutboxSyncService {
     const newNotes = noteCandidates.filter((c) => !existing.has(c.activityId));
     const newAnnounces = announceCandidates.filter((a) => !existing.has(a.activityId));
     const healCandidates = this.mentionHealCandidates(noteCandidates, existing);
+    // Notes another transport already delivered (found by upstream key) whose
+    // copy this one has not been merged from yet.
+    const keyed = noteCandidates.filter(
+      (c) =>
+        existing.has(c.activityId) &&
+        existing.get(c.activityId)?.federation?.activityId !== c.activityId,
+    );
+    const merged = await findRecordedTransportCopies(keyed.map((c) => c.activityId));
+    const copyNotes = keyed.filter((c) => !merged.has(c.activityId));
 
     // Authors: the outbox owner, or the members a community relayed. The owner
     // is also the booster of every announce.
-    const authorUris = new Set(newNotes.map((c) => c.authorUri));
+    const authorUris = new Set([...newNotes, ...copyNotes].map((c) => c.authorUri));
     if (newAnnounces.length > 0 && !actor.oxyUserId) authorUris.add(actor.uri);
     const authors = await this.resolveOutboxAuthors(actor, authorUris);
 
@@ -846,7 +860,7 @@ export class OutboxSyncService {
     // distinct mentioned actor across the page is fetched at most once, with the
     // same concurrency and per-actor timeout as the authors.
     const mentionsByNote = await resolveInboundMentionsForNotes(
-      [...newNotes.map((c) => c.note), ...healCandidates.map((h) => h.note)],
+      [...newNotes, ...copyNotes].map((c) => c.note).concat(healCandidates.map((h) => h.note)),
       {
         concurrency: OUTBOX_ACTOR_RESOLVE_CONCURRENCY,
         perActorTimeoutMs: OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS,
@@ -870,6 +884,11 @@ export class OutboxSyncService {
     await this.insertOutboxNotes(built, importReason);
     await this.linkOutboxReplies(built);
     const healedMentionCount = await this.healExistingMentions(healCandidates, mentionsByNote);
+    const copies = await this.buildOutboxNotes(copyNotes, authors, mentionsByNote, importReason);
+    for (const copy of copies.built) {
+      const stored = existing.get(copy.activityId);
+      if (stored) await absorbNoteCopy(stored.id, copy.post);
+    }
 
     // Boosts (Announce) by the outbox owner: each ensures the boosted note exists
     // locally, then stores a boost post like a native repost. Bounded concurrency,
@@ -914,21 +933,21 @@ export class OutboxSyncService {
     candidates: OutboxCandidate[],
     importReason: FederationImportReason,
   ): Promise<Map<string, PostRecord>> {
-    const stored = await findPostRecords(
-      inArray(
-        posts.federationActivityId,
-        candidates.map((c) => c.activityId),
-      ),
-      { orderBy: CHRONO_DESC },
-    );
+    // By activity id, or by upstream key: the same post stored from another
+    // transport is this candidate too.
+    const matched = await findPostsByFederatedObjects(candidates.map((c) => c.activityId));
+    const ids = [...new Set([...matched.values()].map((post) => post.id))];
+    const stored =
+      ids.length > 0 ? await findPostRecords(inArray(posts.id, ids), { orderBy: CHRONO_DESC }) : [];
     await observeFederationImportReason(
       stored.map((post) => post.id),
       importReason,
     );
+    const byId = new Map(stored.map((post) => [post.id, post]));
     const byActivityId = new Map<string, PostRecord>();
-    for (const post of stored) {
-      const activityId = post.federation?.activityId;
-      if (activityId) byActivityId.set(activityId, post);
+    for (const [activityId, { id }] of matched) {
+      const post = byId.get(id);
+      if (post) byActivityId.set(activityId, post);
     }
     return byActivityId;
   }
@@ -1089,12 +1108,9 @@ export class OutboxSyncService {
         : [];
     });
     if (racedActivityIds.length > 0) {
-      const racedPosts = await findPostRecords(
-        inArray(posts.federationActivityId, racedActivityIds),
-        { orderBy: CHRONO_DESC },
-      );
+      const racedPosts = await findPostsByFederatedObjects(racedActivityIds);
       await observeFederationImportReason(
-        racedPosts.map((post) => post.id),
+        [...racedPosts.values()].map((post) => post.id),
         importReason,
       );
     }
@@ -1430,11 +1446,12 @@ export class OutboxSyncService {
       return false;
     }
 
-    // Dedup the boost itself by the Announce activity id.
+    // Dedup the boost itself by the Announce activity id, or by the repost it
+    // names upstream (a Bridgy Fed Announce of a repost already read natively).
     const [existingBoost] = await getDb()
       .select({ id: posts.id })
       .from(posts)
-      .where(eq(posts.federationActivityId, announceId))
+      .where(postMatchesFederatedObjectSql(announceId))
       .limit(1);
     if (existingBoost) {
       await observeFederationImportReason([existingBoost.id], importReason);

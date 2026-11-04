@@ -6,7 +6,7 @@
 # recovery). The file keeps its first name so a preview recorded by an earlier
 # run stays valid.
 #
-#   SCRIPT          repairInstagramReelPosters | backfillInstagramSourceKeys
+#   SCRIPT          repairInstagramReelPosters | backfillUpstreamPostKeys
 #                   | queueFederatedBannerMirrors
 #   DRY_RUN         true | false (anything else is refused)
 #   CONFIRM_WRITE   apply only: the script name, typed back
@@ -27,7 +27,7 @@ case "$SCRIPT" in
   repairInstagramReelPosters)
     report_fields='actors,checked,candidates,repaired,waiting,gone,stopped'
     ;;
-  backfillInstagramSourceKeys)
+  backfillUpstreamPostKeys)
     report_fields='actors,candidates,written,conflicts,claimed'
     ;;
   queueFederatedBannerMirrors)
