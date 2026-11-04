@@ -17,9 +17,9 @@
  * what is imported is exactly what was reviewed. It was read from the account's
  * public timeline; each entry is either the account's own post or a retweet.
  *
- * RETWEETS. Delivered retweets cannot be shown: bird.makeup flattens them into a
- * Note opening `RT: @original` that carries no reference to the original, and
- * ingest drops them (`flattenedRetweet.ts`). The fixture DOES know the original
+ * RETWEETS. A delivered retweet arrives from bird.makeup as an `Announce` of the
+ * original, which ingest stores as a boost. A history import reads statuses by
+ * id and has no Announce to read, but the fixture DOES know the original
  * — its author and id — so a retweet is imported as what it is: the original
  * tweet is imported under its own author (which also brings that author's
  * account into Oxy), and the account gets a boost of it through

@@ -8,7 +8,6 @@ import {
 import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { apIri, apList, apMediaTypeBase } from '@oxy.so/federation';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
-import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import type { PostRecordFederation } from '../../db/posts/postRecord';
@@ -65,11 +64,6 @@ export interface BuildFederatedNoteContentContext {
    * and every dry run wants.
    */
   identityDomain?: string;
-  /**
-   * Drop a Note whose body is a retweet the bridge flattened into plain text.
-   * Set only for actors on a reviewed bridge — see {@link isBridgeFlattenedRetweet}.
-   */
-  dropFlattenedRetweets?: boolean;
   /**
    * Disable media persistence/queueing for an administrative dry run. Normal
    * ingest defaults to true; false keeps extracted remote URLs unchanged.
@@ -600,12 +594,6 @@ async function assembleFederatedNoteContent(
   // scanner used for an actor's bio — it becomes `@Julio_Rodr_@x.com`:
   // clickable, and resolvable through the bridge lane.
   //
-  // This is also what makes a bridge's flattened retweet useful. bird.makeup and
-  // mastox do not emit an `Announce`; they publish an ordinary Note whose body
-  // begins `RT: @author`, so there is no boost to model and the original author
-  // survives only as that bare handle. Qualifying it is what turns the one
-  // reference the bridge left behind into something a reader can follow.
-  //
   // Only BARE handles are touched: a mention the Note carried in its `tag` array
   // is already a hydrated placeholder, and the shared scanner classifies it as a
   // different entity — so this cannot double-qualify or disturb one.
@@ -654,12 +642,6 @@ export async function buildFederatedNoteContent(
   ctx: BuildFederatedNoteContentContext = {},
 ): Promise<BuiltFederatedNoteContent | SkippedFederatedNoteContent> {
   const built = await assembleFederatedNoteContent(object, ownerOxyUserId, ctx);
-
-  // Checked BEFORE the empty-note guard so the reason a post was dropped is the
-  // real one rather than whatever it degrades into.
-  if (ctx.dropFlattenedRetweets && isBridgeFlattenedRetweet(built.text.trim())) {
-    return { skip: true, reason: 'bridge-flattened-retweet' };
-  }
 
   if (!hasStorableContent(built)) {
     const reason = built.customEmojiRemoved

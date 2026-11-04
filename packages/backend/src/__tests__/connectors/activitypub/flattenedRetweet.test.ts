@@ -1,54 +1,49 @@
 import { describe, it, expect } from 'bun:test';
 /**
- * A retweet a bridge flattened into an ordinary post cannot be rendered as the
- * repost it is, so it is dropped until it can.
- *
- * The object carries nothing to reconstruct from — verified field by field on
- * live notes from both bridges: `inReplyTo` null, `tag` empty, no `quoteUrl`,
- * no link to the upstream post, no id. The retweeter is `attributedTo`, so the
- * post would publish under a byline that did not write the text.
- *
- * This is the ONLY place a body is read to decide something, and the rule is
- * narrow because the two directions of failure are not alike: a missed retweet
- * stores what we store today, while a false match discards a real post.
+ * A retweet a reviewed bridge flattened into an ordinary post is dropped, and
+ * the decision is made on the BRIDGE'S OWN TEXT: a mention anchor counts as the
+ * `@handle` it shows. A false match destroys a real post, so the marker stays
+ * anchored at position 0 and only reviewed bridge actors are tested.
  */
 
-import { isBridgeFlattenedRetweet } from '../../../connectors/activitypub/flattenedRetweet';
+import {
+  isBridgeFlattenedRetweet,
+  isStoredBridgeFlattenedRetweet,
+} from '../../../connectors/activitypub/flattenedRetweet';
+import { REVIEWED_REPOST_TRANSPORT_HOSTS } from '../../../connectors/activitypub/repostTransportPolicy';
+
+const BRIDGE_ACTOR = `https://${REVIEWED_REPOST_TRANSPORT_HOSTS[0]}/users/someone`;
+const ORDINARY_ACTOR = 'https://ordinary-instance.test/users/someone';
+
+const note = (content: string) => ({ type: 'Note', content });
 
 describe('isBridgeFlattenedRetweet', () => {
   it.each([
+    ['a bare handle', '<p>RT: @original the text of the tweet</p>'],
     [
-      'mastox, the post reported',
-      'RT: @Julio_Rodr_ ¡Tres años de Canal Red navegando a contracorriente!',
+      'an h-card mention anchor',
+      '<p>RT: <span class="h-card"><a href="https://bridge.test/@original" class="u-url mention">@<span>original</span></a></span> the text</p>',
     ],
-    [
-      'bird.makeup, the other one',
-      'RT: @BoGardiner1 Remember this early press briefing from Trump on covid?',
-    ],
-    ['no space after the colon', 'RT:@someone hello'],
-  ])('matches %s', (_case, body) => {
-    expect(isBridgeFlattenedRetweet(body)).toBe(true);
+  ])('matches %s from a reviewed bridge', (_case, content) => {
+    expect(isBridgeFlattenedRetweet(note(content), BRIDGE_ACTOR)).toBe(true);
   });
 
-  /**
-   * Every one of these is a post we would DESTROY on a false match, which is why
-   * the rule is anchored and requires the `@`.
-   */
   it.each([
-    ['a sentence that merely mentions RT', 'Vi el RT: @alguien lo dijo ayer'],
-    ['RT not at the start', 'Interesante — RT: @alguien'],
-    ['a real word beginning with RT', 'RTVE ha publicado esto'],
-    ['RT without a handle after it', 'RT: esto es una cita famosa'],
-    ['a post about retweets', 'La función de RT se inventó en Twitter'],
-    ['an ordinary post', 'Buenos días a todos'],
-    ['an empty body', ''],
-  ])('does NOT match %s', (_case, body) => {
-    expect(isBridgeFlattenedRetweet(body)).toBe(false);
+    ['the same body from an ordinary instance', '<p>RT: @original the text</p>', ORDINARY_ACTOR],
+    ['RT not at the start', '<p>Interesante: RT: @alguien</p>', BRIDGE_ACTOR],
+    ['RT without a handle after it', '<p>RT: esto es una cita</p>', BRIDGE_ACTOR],
+  ])('does NOT match %s', (_case, content, actor) => {
+    expect(isBridgeFlattenedRetweet(note(content), actor)).toBe(false);
   });
+});
 
-  it('is case-sensitive on the RT marker', () => {
-    // The bridges emit uppercase `RT:`. Matching `rt:` too would start claiming
-    // ordinary prose in languages where that is a word fragment.
-    expect(isBridgeFlattenedRetweet('rt: @alguien hola')).toBe(false);
+describe('isStoredBridgeFlattenedRetweet', () => {
+  it('reads a stored mention back as the `@` the bridge wrote', () => {
+    expect(isStoredBridgeFlattenedRetweet('RT: [mention:abc123] text', BRIDGE_ACTOR)).toBe(true);
+    expect(
+      isStoredBridgeFlattenedRetweet('RT: [@@a@x.com](https://x.com/a) text', BRIDGE_ACTOR),
+    ).toBe(true);
+    expect(isStoredBridgeFlattenedRetweet('RT: [mention:abc123] text', ORDINARY_ACTOR)).toBe(false);
+    expect(isStoredBridgeFlattenedRetweet('RT: https://example.com/a', BRIDGE_ACTOR)).toBe(false);
   });
 });

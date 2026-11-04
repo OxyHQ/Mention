@@ -140,16 +140,23 @@ differs.
   such a post's body as `RE: <url>`; that is a rendering for clients that
   cannot show quotes, and it is never the source — a body carrying `RE: <url>`
   with no quote field yields no quote, and a test pins it.
-- **A bridge-flattened retweet** — bird.makeup and mastox publish a plain
-  Note, authored by the RETWEETER, opening `RT: @original`, and carrying
-  nothing else: `inReplyTo` null, `tag` empty, no quote field, no link to the
-  upstream post, no id. Verified field by field on live notes from both.
-  There is nothing to rebuild from, so these are DROPPED at ingest
-  (`isBridgeFlattenedRetweet`) rather than published under a byline that did
-  not write them. Reading the `RT:` prefix is the one place a body decides
-  anything, and it is scoped to actors on a reviewed bridge because the
-  failure directions are unequal: a missed retweet stores what we stored
-  before, a false match destroys a real post.
+- **A bridge-flattened retweet** — mastox.eu publishes a plain Note, authored
+  by the RETWEETER, opening `RT: @original` (the author sometimes tagged as a
+  mention), and carrying nothing else: `inReplyTo` null, no quote field, no
+  link to the upstream post, no tweet id. There is nothing to rebuild from, so
+  these are DROPPED at ingest (`isBridgeFlattenedRetweet`) rather than
+  published under a byline that did not write them. The decision is made on
+  the bridge's own text, a mention anchor counting as the `@handle` it shows,
+  before Mention resolves anything; deciding on the stored body instead let
+  every tagged retweet through as `RT: [mention:…]`. Reading the `RT:` prefix
+  is the one place a body decides anything, and it is scoped to actors on a
+  reviewed bridge because a false match destroys a real post.
+  bird.makeup does NOT flatten: it sends a real `Announce` whose object is the
+  original tweet, attributed to its author and fetchable by its tweet id, and
+  `importAnnounce` stores it as a boost. That is the one verifiable source of an
+  X retweet, which is why an X account should be followed through bird.makeup
+  when bird.makeup carries it (the transport an identity is followed through is
+  Oxy's to choose).
 
 Do not "fix" the third case by parsing the prefix into an author and fetching
 them — that reconstructs from prose a relationship the bridge already
