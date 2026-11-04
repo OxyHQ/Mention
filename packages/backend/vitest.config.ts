@@ -199,9 +199,12 @@ export default defineConfig({
               functions: 100,
               lines: 98.75,
             },
+            // Branches 85.33 -> 85.13 when the post-owner payload stopped being
+            // written and read: its two covered null-coalescing branches went, and
+            // the uncovered defensive ones are a larger share of what is left.
             'src/services/EngagementOutboxService.ts': {
               statements: 91.66,
-              branches: 85.33,
+              branches: 85.13,
               functions: 95,
               lines: 92.07,
             },

@@ -778,17 +778,15 @@ describe('enqueueing an event', () => {
     );
 
     const stored = await outboxRow(eventId);
-    expect(stored?.payloadPostOwnerOxyUserId).toBeNull();
     expect(stored?.payloadFederationActivityId).toBeNull();
     expect(stored?.payloadPreviousValue).toBeNull();
 
-    // …and the reader hands that back as ABSENT, never as `null`, because every
-    // consumer of these two is typed `string | undefined`.
+    // …and the reader hands that back as ABSENT, never as `null`, because its
+    // consumer is typed `string | undefined`.
     const claimed = await claimEngagementOutboxEvent({
       leaseOwner: 'optionals-worker',
       eventId,
     });
-    expect(claimed?.payload.postOwnerOxyUserId).toBeUndefined();
     expect(claimed?.payload.federationActivityId).toBeUndefined();
     expect(claimed?.payload.previousValue).toBeNull();
   });

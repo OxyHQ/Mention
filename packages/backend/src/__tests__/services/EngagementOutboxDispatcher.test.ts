@@ -97,7 +97,6 @@ function event(
       actorOxyUserId: 'actor-1',
       postId,
       relationshipId: 'relation-1',
-      postOwnerOxyUserId: 'owner-1',
       federationActivityId: 'https://remote.example/post/1',
       ...overrides,
     },

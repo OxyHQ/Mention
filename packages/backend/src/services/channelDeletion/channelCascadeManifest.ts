@@ -887,34 +887,6 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'the row still names the channel, so it goes too.',
   },
   {
-    table: 'mention_signed_records',
-    column: 'oxyUserId',
-    scope: 'channel-account',
-    action: 'delete-row',
-    why: "The channel's MTN hash chain. A channel post does emit a signed record, under the channel's own identity.",
-  },
-  {
-    table: 'mention_repo_heads',
-    column: 'oxyUserId',
-    scope: 'channel-account',
-    action: 'delete-row',
-    why: 'The head of that chain; orphaned the moment the records go.',
-  },
-  {
-    table: 'mention_user_nodes',
-    column: 'oxyUserId',
-    scope: 'channel-account',
-    action: 'delete-row',
-    why: 'Self-hosted node registration for the channel.',
-  },
-  {
-    table: 'mention_node_ingest_witnesses',
-    column: 'oxyUserId',
-    scope: 'channel-account',
-    action: 'delete-row',
-    why: 'Ingest witnesses for that node.',
-  },
-  {
     table: 'engagement_outbox',
     column: 'payloadActorOxyUserId',
     scope: 'channel-account',
@@ -1569,9 +1541,6 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
     'mention_jobs.employerOxyUserId',
     'the organization/project account a job is published under — jobs are restricted to those two kinds, never a channel',
   ],
-  ['mention_node_ingest_witnesses.recordId', 'a signed-record id within a chain'],
-  ['mention_repo_heads.headRecordId', 'the signed record at the head of a chain'],
-  ['mention_signed_records.recordId', "the record's own id"],
   ['moderation_enforcements.caseId', 'a CrowdSource case id; CrowdSource owns cases'],
   ['moderation_enforcements.decisionId', 'a CrowdSource decision id'],
   ['moderation_events.caseId', 'a CrowdSource case id'],
@@ -1765,16 +1734,6 @@ export const EMBEDDED_CHANNEL_REFERENCES: ReadonlyMap<string, string> = new Map(
       'workspace through oxyUserId. NOT REACHED for other accounts: navigation history contains no ' +
       'fetched content and resolving a deleted target uses the ordinary unavailable-screen behavior. ' +
       "Rewriting it would change another account's private navigation state.",
-  ],
-  [
-    'mention_signed_records.rkey / .subject_did / .envelope',
-    "A post record's `rkey` IS the `posts.id`, and the DID embeds the oxyUserId; the envelope is a signed " +
-      'document that must round-trip, so nothing may rewrite it. REACHED: the whole chain is deleted by ' +
-      '`oxy_user_id`, so no per-column sweep is needed.',
-  ],
-  [
-    'mention_repo_heads.subject_did',
-    "Embeds the channel's oxyUserId. REACHED: the row is deleted by `oxy_user_id`.",
   ],
   [
     'federation_delivery_queue.activity_json.actor / .object',

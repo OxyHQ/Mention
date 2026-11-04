@@ -2,7 +2,7 @@
 
 When a person deletes their Oxy account, Mention erases what it holds for them.
 This page covers the trigger, the guarantees, exactly what is deleted and what is
-kept (and why), federation, MTN, the operator script, and how to verify a run.
+kept (and why), federation, the operator script, and how to verify a run.
 Origin: [OxyHQ/Mention#1169](https://github.com/OxyHQ/Mention/issues/1169).
 
 The code is `packages/backend/src/services/accountErasure/`. The table-by-table
@@ -91,8 +91,8 @@ In order (the order is what each step reads before another deletes it):
    on the account, lanes and lane mutes, subscriptions both ways, collaborator
    entries on others' posts, mentions of the account, queued engagement and
    endorsement work, MCP connections, codes and receipts, job applications (with
-   answers and the employer's notes on them), jobs published under the account,
-   and the MTN signed-record chain, head and witnesses.
+   answers and the employer's notes on them), and jobs published under the
+   account.
 6. **Federation rows**: follow edges with remote actors, identity links, actor
    rows and legacy key material.
 7. **Redis caches** keyed by the account (user summary, fediverse-sharing flag,
@@ -111,7 +111,6 @@ In order (the order is what each step reads before another deletes it):
 | Labels the account applied under an official labeler; an official labeler it created                             | Creator replaced by the sentinel `erased:account`                    | Platform moderation outcomes on content, not the person's data.                                                                                                                                                     |
 | Employer records the account created as an operator (job rows, notes on applicants), blocklist decisions it made | Author replaced by the sentinel                                      | The organization's records; the person's id goes.                                                                                                                                                                   |
 | Channel posts the account wrote as a channel writer, corrections it made to them                                 | `written_by_oxy_user_id` NULL; corrector replaced by the sentinel    | The channel's posts; the pointer to the person goes.                                                                                                                                                                |
-| A managed MTN vault registration                                                                                 | Marked `revoked`                                                     | That row is the signal the node-fleet reconciler tears the per-user volume down from. A self-hosted node row is deleted.                                                                                            |
 | The `account_erasures` row                                                                                       | Account id, event id, counts; the handle for 14 days                 | The idempotency key and the proof the erasure ran. The handle is needed to sign the Deletes still retrying, and is cleared 14 days after completion.                                                                |
 | Other people's rows that embed the id in a string (feed descriptors, module params)                              | Unchanged                                                            | Opaque labels that resolve to nothing once the account is gone, with no content of their own.                                                                                                                       |
 
@@ -192,17 +191,6 @@ nothing. Either way each inbox hears the Delete once. A community's deletion in
 Mention only archives the account, so its event's erasure sends the Delete. When the archive starts anywhere else, the event is what erases
 the channel. The event carries the handle, so the erasure can still address
 the actor `Delete` after Oxy stops resolving the account.
-
-## MTN records
-
-The account's chain (`mention_signed_records`, `mention_repo_heads`,
-`mention_node_ingest_witnesses`) is **deleted, not tombstoned**. A tombstone is
-an appended record that supersedes a key but leaves the original signed envelope,
-with the post text, in the chain, so it is not erasure. Every reader of the chain
-reads Mention's own table (the atproto bridge and the node export), so deleting
-the rows removes the records from every surface Mention serves. The channel
-cascade makes the same call. A self-hosted node is the person's own server and
-copy; Mention stops syncing it. A managed vault is revoked for teardown.
 
 ## Outside Mention
 

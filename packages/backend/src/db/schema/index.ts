@@ -32,7 +32,6 @@ export * from './jobs';
 export * from './lists';
 export * from './mcp';
 export * from './moderation';
-export * from './mtn';
 export * from './outbox';
 export * from './oxyFiles';
 export * from './postContent';

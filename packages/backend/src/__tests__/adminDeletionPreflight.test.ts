@@ -42,12 +42,6 @@ import {
   starterPackUses,
   starterPacks,
 } from '../db/schema/lists';
-import {
-  mentionNodeIngestWitnesses,
-  mentionRepoHeads,
-  mentionSignedRecords,
-  mentionUserNodes,
-} from '../db/schema/mtn';
 import { endorsementOutbox, engagementOutbox } from '../db/schema/outbox';
 import { pollOptions, pollVotes, polls } from '../db/schema/polls';
 import { postMentions, postRecentRepliers } from '../db/schema/postContent';
@@ -104,7 +98,6 @@ const ACTOR_PROBE_READS: Readonly<Record<string, string>> = {
   'federation_delivery_queue.sender_oxy_user_id': 'hasDeliveriesFromSender',
   'posts owner/authorship/mentions': 'postExists',
   'user_settings.oxy_user_id': 'anyRow',
-  'mention_signed_records.oxy_user_id': 'anyRow',
   'posts.written_by_oxy_user_id': 'anyRow',
   'lanes.owner_id': 'anyRow',
   'lane_mutes.viewer/lane_owner': 'anyRow',
@@ -1346,76 +1339,6 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       },
       clear: async (s) => {
         await getDb().delete(actorKeyPairs).where(eq(actorKeyPairs.oxyUserId, s.oxyUserId));
-      },
-    },
-    {
-      probe: 'mention_user_nodes.oxy_user_id',
-      arm: 'beyondCascade',
-      plant: async (s) => {
-        await getDb().insert(mentionUserNodes).values({
-          oxyUserId: s.oxyUserId,
-          endpoint: 'https://node.invalid',
-          nodePublicKey: 'probe-key',
-        });
-      },
-      clear: async (s) => {
-        await getDb().delete(mentionUserNodes).where(eq(mentionUserNodes.oxyUserId, s.oxyUserId));
-      },
-    },
-    {
-      probe: 'mention_repo_heads.oxy_user_id',
-      arm: 'beyondCascade',
-      plant: async (s) => {
-        await getDb()
-          .insert(mentionRepoHeads)
-          .values({
-            oxyUserId: s.oxyUserId,
-            subjectDid: `did:probe:${s.oxyUserId}`,
-            seq: 1,
-            headRecordId: `probe-${s.oxyUserId}`,
-          });
-      },
-      clear: async (s) => {
-        await getDb().delete(mentionRepoHeads).where(eq(mentionRepoHeads.oxyUserId, s.oxyUserId));
-      },
-    },
-    {
-      probe: 'mention_signed_records.oxy_user_id',
-      arm: 'beyondCascade',
-      plant: async (s) => {
-        await getDb()
-          .insert(mentionSignedRecords)
-          .values({
-            subjectDid: `did:probe:${s.oxyUserId}`,
-            oxyUserId: s.oxyUserId,
-            type: 'app.mention.feed.post',
-            envelope: { probe: true },
-            publicKey: 'probe-key',
-          });
-      },
-      clear: async (s) => {
-        await getDb()
-          .delete(mentionSignedRecords)
-          .where(eq(mentionSignedRecords.oxyUserId, s.oxyUserId));
-      },
-    },
-    {
-      probe: 'mention_node_ingest_witnesses.oxy_user_id',
-      arm: 'beyondCascade',
-      plant: async (s) => {
-        await getDb()
-          .insert(mentionNodeIngestWitnesses)
-          .values({
-            oxyUserId: s.oxyUserId,
-            recordId: `probe-${s.oxyUserId}`,
-            witnessSignature: 'probe-signature',
-            ingestedAt: 1,
-          });
-      },
-      clear: async (s) => {
-        await getDb()
-          .delete(mentionNodeIngestWitnesses)
-          .where(eq(mentionNodeIngestWitnesses.oxyUserId, s.oxyUserId));
       },
     },
     {

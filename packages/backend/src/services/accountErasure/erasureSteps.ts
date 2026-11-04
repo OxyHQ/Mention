@@ -85,12 +85,6 @@ import {
 } from '../../db/schema/lists';
 import { mcpAuthCodes, mcpConnections, mcpEffectReceipts } from '../../db/schema/mcp';
 import { contentLabels, labelers, reports } from '../../db/schema/moderation';
-import {
-  mentionNodeIngestWitnesses,
-  mentionRepoHeads,
-  mentionSignedRecords,
-  mentionUserNodes,
-} from '../../db/schema/mtn';
 import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { pollVotes, polls } from '../../db/schema/polls';
 import {
@@ -372,31 +366,6 @@ async function eraseOwnedLists(oxyUserId: string): Promise<number> {
       eq(entityFollows.entityType, 'list'),
   );
   return deleteInBatches(accountLists, accountLists.id, eq(accountLists.ownerOxyUserId, oxyUserId));
-}
-
-/**
- * The account's MTN node rows. A self-hosted node is deleted; a managed vault is
- * revoked so the node-fleet reconciler tears its volume down from the row.
- */
-async function eraseUserNodes(oxyUserId: string): Promise<number> {
-  const revoked = await getDb()
-    .update(mentionUserNodes)
-    .set({ status: 'revoked' })
-    .where(
-      and(
-        eq(mentionUserNodes.oxyUserId, oxyUserId),
-        eq(mentionUserNodes.managed, true),
-        ne(mentionUserNodes.status, 'revoked'),
-      ),
-    )
-    .returning({ id: mentionUserNodes.id });
-  const removed = await deleteInBatches(
-    mentionUserNodes,
-    mentionUserNodes.id,
-    and(eq(mentionUserNodes.oxyUserId, oxyUserId), eq(mentionUserNodes.managed, false)) ??
-      eq(mentionUserNodes.oxyUserId, oxyUserId),
-  );
-  return revoked.length + removed;
 }
 
 /**
@@ -903,36 +872,6 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     blocklistProposals.id,
     ERASED_ACCOUNT_SENTINEL,
   ),
-  'mention_signed_records.oxyUserId': deleteRows(
-    'account',
-    mentionSignedRecords,
-    mentionSignedRecords.id,
-    accountIs(mentionSignedRecords.oxyUserId),
-  ),
-  'mention_repo_heads.oxyUserId': deleteRows(
-    'account',
-    mentionRepoHeads,
-    mentionRepoHeads.id,
-    accountIs(mentionRepoHeads.oxyUserId),
-  ),
-  'mention_node_ingest_witnesses.oxyUserId': deleteRows(
-    'account',
-    mentionNodeIngestWitnesses,
-    mentionNodeIngestWitnesses.id,
-    accountIs(mentionNodeIngestWitnesses.oxyUserId),
-  ),
-  'mention_user_nodes.oxyUserId': {
-    phase: 'account',
-    count: (ctx) =>
-      countRows(
-        mentionUserNodes,
-        and(
-          eq(mentionUserNodes.oxyUserId, ctx.oxyUserId),
-          or(eq(mentionUserNodes.managed, false), ne(mentionUserNodes.status, 'revoked')),
-        ) ?? eq(mentionUserNodes.oxyUserId, ctx.oxyUserId),
-      ),
-    apply: (ctx) => eraseUserNodes(ctx.oxyUserId),
-  },
 
   // --- federation, after the actor Delete -------------------------------------
   'federated_follows.localUserId': deleteRows(

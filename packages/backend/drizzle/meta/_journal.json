@@ -785,6 +785,13 @@
       "when": 1793760696133,
       "tag": "0111_federated_actor_visibility_opt_outs",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1793764171169,
+      "tag": "0112_drop_mention_signed_records_and_nodes",
+      "breakpoints": true
     }
   ]
 }
