@@ -10,7 +10,7 @@
  * meant to keep.
  */
 
-import { sql } from 'drizzle-orm';
+import { and, inArray, sql, type SQL } from 'drizzle-orm';
 import {
   boolean,
   check,
@@ -21,6 +21,7 @@ import {
   pgTable,
   text,
   unique,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { TREND_CATEGORIES } from '@mention/shared-types';
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
@@ -156,6 +157,21 @@ export const NOTIFICATION_TYPES = [
  * legitimate write the first time a federated reply arrived.
  */
 export const NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile'] as const;
+
+/** The entity types whose `entity_id` is a `posts.id`. */
+const POST_NOTIFICATION_ENTITY_TYPES = ['post', 'reply'] as const;
+
+/**
+ * `entity_type` names a post — the predicate of `notifications_post_entity_idx`.
+ *
+ * Rendered as LITERALS, never bind parameters: a partial index is usable only
+ * when the planner can prove the query's predicate implies the index's, and
+ * postgres.js prepares statements, so after five executions Postgres may plan
+ * a generic plan in which a parameter proves nothing.
+ */
+function namesAPost(entityType: AnyPgColumn): SQL {
+  return sql`${entityType} in (${sql.raw(inList(POST_NOTIFICATION_ENTITY_TYPES))})`;
+}
 
 /** `PushToken.type`. */
 export const PUSH_TOKEN_TYPES = ['fcm', 'apns', 'unknown'] as const;
@@ -664,8 +680,24 @@ export const notifications = pgTable(
       .where(sql`${t.read} = false`),
     // Required by the expiry sweep.
     index('notifications_created_at_idx').on(t.createdAt),
+    // Deleting a post deletes the notifications about it, then the residue
+    // check asks again ({@link notificationsAboutPosts}).
+    index('notifications_post_entity_idx').on(t.entityId).where(namesAPost(t.entityType)),
   ],
 );
+
+/**
+ * The notifications ABOUT these posts (`entity_type` `post` or `reply`), as the
+ * one predicate the deletion cascade, its residue probe and the blocked-domain
+ * purge all ask, served by `notifications_post_entity_idx`. Both entity types:
+ * `PostCreationService` and the ActivityPub inbox write `'reply'`.
+ */
+export function notificationsAboutPosts(postIds: readonly string[]): SQL {
+  return and(
+    namesAPost(notifications.entityType),
+    inArray(notifications.entityId, [...postIds]),
+  ) as SQL;
+}
 
 /** `push_tokens` — a device push registration for an Oxy user. */
 export const pushTokens = pgTable(

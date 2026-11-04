@@ -1,0 +1,22 @@
+-- oxy:deploy-phase=pre
+-- Deleting a post deletes the notifications about it (`entity_type` 'post' or
+-- 'reply', `entity_id` = the post id), and the residue check after the commit
+-- asks the same question again. No index led with `entity_id`, so both were
+-- sequential scans of `notifications` on every post deletion.
+--
+-- Partial: profile notifications never name a post, so they stay out of it.
+-- The predicate is the literal one `notificationsAboutPosts` renders, which is
+-- what lets the planner prove a query implies it.
+--
+-- CREATE INDEX takes SHARE on `notifications`: reads continue, writes wait for
+-- the build. Production holds under a thousand rows (2026-11-04), so the build
+-- is a few milliseconds. Should the table grow before this ships, build it
+-- CONCURRENTLY by hand first with the same name and definition and this
+-- statement passes over it:
+--
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS "notifications_post_entity_idx" ON "notifications"
+--     USING btree ("entity_id") WHERE "notifications"."entity_type" in ('post', 'reply');
+--
+-- A failed CONCURRENTLY build leaves an INVALID index that IF NOT EXISTS skips;
+-- check `pg_index.indisvalid` before deploying.
+CREATE INDEX IF NOT EXISTS "notifications_post_entity_idx" ON "notifications" USING btree ("entity_id") WHERE "notifications"."entity_type" in ('post', 'reply');

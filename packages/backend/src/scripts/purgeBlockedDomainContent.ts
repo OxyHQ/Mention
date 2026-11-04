@@ -159,7 +159,7 @@ import { PostType } from '@mention/shared-types';
 import { config } from '../config';
 import { connectPostgres, getDb } from '../db/postgres';
 import { bookmarks, entityFollows, likes, postSubscriptions } from '../db/schema/engagement';
-import { notifications } from '../db/schema/discovery';
+import { notifications, notificationsAboutPosts } from '../db/schema/discovery';
 import { posts } from '../db/schema/posts';
 import {
   postAuthorships,
@@ -1020,10 +1020,7 @@ async function purgePostBatch(
     await countOrDelete(
       notifications,
       notifications.id,
-      and(
-        inArray(notifications.entityType, ['post', 'reply']),
-        inArray(notifications.entityId, removedIdStrings),
-      ) as SQL,
+      notificationsAboutPosts(removedIdStrings),
       options.dryRun,
     ),
   );

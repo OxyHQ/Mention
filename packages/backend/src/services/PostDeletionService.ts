@@ -114,11 +114,7 @@ export async function deleteAuthoredPost(
   // It has to be outside the transaction to mean anything. Inside, the probes
   // would read that transaction's own uncommitted deletes and pass by
   // construction — a check that cannot fail.
-  try {
-    await reportResidue(allDeletionTargets(deletedTargets), deletedId, true);
-  } catch (error) {
-    recordDeletionSideEffectFailure('residue_check', error);
-  }
+  reportResidue(allDeletionTargets(deletedTargets), deletedId, true);
 
   return deletion;
 }
