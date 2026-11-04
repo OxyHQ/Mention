@@ -2,7 +2,7 @@
  * The concrete engagement dispatcher: what each event kind actually delivers,
  * and the interval loop that drains them.
  *
- * The MTN, federation and notification effects stay mocked — they are other
+ * The federation and notification effects stay mocked — they are other
  * services' contracts and are tested there. What is REAL here is Postgres,
  * because `handleEngagementOutboxEvent` now READS the post's authorship instead
  * of trusting a snapshot the event carried. `engagement_outbox.payload` used to
@@ -15,22 +15,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { eq, inArray } from 'drizzle-orm';
 
 const mocks = vi.hoisted(() => ({
-  emitLikeCreatedStrict: vi.fn(),
-  emitTombstoneStrict: vi.fn(),
-  emitBookmarkCreatedStrict: vi.fn(),
   federateAsResolvedActorAndWait: vi.fn(),
   createPostAuthorNotificationsStrict: vi.fn(),
   loggerInfo: vi.fn(),
   loggerError: vi.fn(),
-}));
-
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitLikeCreatedStrict: mocks.emitLikeCreatedStrict,
-  emitTombstoneStrict: mocks.emitTombstoneStrict,
-  emitBookmarkCreatedStrict: mocks.emitBookmarkCreatedStrict,
-  likeRecordUri: (userId: string, relationId: string) => `mtn://${userId}/likes/${relationId}`,
-  bookmarkRecordUri: (userId: string, relationId: string) =>
-    `mtn://${userId}/bookmarks/${relationId}`,
 }));
 
 vi.mock('../../connectors/outboundFederation', () => ({
@@ -126,9 +114,6 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.emitLikeCreatedStrict.mockResolvedValue(undefined);
-  mocks.emitTombstoneStrict.mockResolvedValue(undefined);
-  mocks.emitBookmarkCreatedStrict.mockResolvedValue(undefined);
   mocks.federateAsResolvedActorAndWait.mockResolvedValue(undefined);
   mocks.createPostAuthorNotificationsStrict.mockResolvedValue(undefined);
   vi.mocked(dispatchEngagementOutbox).mockResolvedValue({ processed: 0, failed: 0 });
@@ -146,7 +131,7 @@ afterAll(async () => {
 });
 
 describe('handleEngagementOutboxEvent', () => {
-  it('delivers like MTN, notification and federation effects', async () => {
+  it('delivers like notification and federation effects', async () => {
     const postId = await seedCollaborativePost();
     mocks.federateAsResolvedActorAndWait.mockImplementationOnce(
       async (_actorId, _description, buildEvent) => {
@@ -161,14 +146,7 @@ describe('handleEngagementOutboxEvent', () => {
 
     await handleEngagementOutboxEvent(event('post.like', postId));
 
-    expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledWith({
-      likerOxyUserId: 'actor-1',
-      likeRkey: 'relation-1',
-      likedPostId: postId,
-      likedPostOwnerOxyUserId: 'owner-1',
-      idempotencyKey: 'engagement:post.like:relation-1:v1',
-      issuedAt: CREATED_AT,
-    });
+    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
   });
 
@@ -247,12 +225,11 @@ describe('handleEngagementOutboxEvent', () => {
       event('post.downvote', postId, { previousValue: 1, value: -1 }),
     );
 
-    expect(mocks.emitTombstoneStrict).toHaveBeenCalledOnce();
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
-    expect(mocks.emitLikeCreatedStrict).not.toHaveBeenCalled();
+    expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
   });
 
-  it('does not publish a new downvote to MTN or federation', async () => {
+  it('does not federate a new downvote', async () => {
     const postId = await seedCollaborativePost();
 
     await handleEngagementOutboxEvent(
@@ -263,7 +240,6 @@ describe('handleEngagementOutboxEvent', () => {
       }),
     );
 
-    expect(mocks.emitTombstoneStrict).not.toHaveBeenCalled();
     expect(mocks.federateAsResolvedActorAndWait).not.toHaveBeenCalled();
   });
 
@@ -274,98 +250,50 @@ describe('handleEngagementOutboxEvent', () => {
       event('post.like', postId, { federationActivityId: undefined }),
     );
 
-    expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledOnce();
     expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
     expect(mocks.federateAsResolvedActorAndWait).not.toHaveBeenCalled();
   });
 
-  it('delivers unlike tombstones and treats undownvote as a local no-op', async () => {
+  it('federates an unlike and treats undownvote as a local no-op', async () => {
     const postId = await seedCollaborativePost();
 
     await handleEngagementOutboxEvent(event('post.unlike', postId));
     await handleEngagementOutboxEvent(event('post.undownvote', postId));
 
-    expect(mocks.emitTombstoneStrict).toHaveBeenCalledOnce();
-    expect(mocks.emitTombstoneStrict).toHaveBeenCalledWith(
-      expect.objectContaining({ subjectUri: 'mtn://actor-1/likes/relation-1' }),
-    );
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
   });
 
-  it('persists save and unsave records under the relationship key', async () => {
+  it('drains legacy save and unsave events without side effects', async () => {
+    // A save is nobody else's business: no notification, no federation.
     const postId = await seedCollaborativePost();
 
     await handleEngagementOutboxEvent(event('post.save', postId));
     await handleEngagementOutboxEvent(event('post.unsave', postId));
 
-    expect(mocks.emitBookmarkCreatedStrict).toHaveBeenCalledWith({
-      ownerOxyUserId: 'actor-1',
-      bookmarkRkey: 'relation-1',
-      bookmarkedPostId: postId,
-      bookmarkedPostOwnerOxyUserId: 'owner-1',
-      idempotencyKey: 'engagement:post.save:relation-1:v1',
-      issuedAt: CREATED_AT,
-    });
-    expect(mocks.emitTombstoneStrict).toHaveBeenCalledWith({
-      authorOxyUserId: 'actor-1',
-      tombstoneRkey: 'relation-1',
-      subjectUri: 'mtn://actor-1/bookmarks/relation-1',
-      idempotencyKey: 'engagement:post.unsave:relation-1:v1',
-      issuedAt: CREATED_AT,
-    });
-    // A save is nobody else's business: no notification, no federation.
     expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
     expect(mocks.federateAsResolvedActorAndWait).not.toHaveBeenCalled();
   });
 
-  it('surfaces a downstream failure so the claim is retried', async () => {
+  it('federates even when the notification fails, and retries only what failed', async () => {
     const postId = await seedCollaborativePost();
-    mocks.emitLikeCreatedStrict.mockRejectedValueOnce(new Error('MTN unavailable'));
-
-    await expect(handleEngagementOutboxEvent(event('post.like', postId))).rejects.toThrow(
-      'mtn: MTN unavailable',
-    );
-  });
-
-  it('notifies and federates even when the MTN append fails', async () => {
-    /**
-     * The production failure: the MTN append ran first and threw, so the
-     * author notification and the federation delivery behind it never ran —
-     * for weeks, on every retry. Each effect is independent now.
-     */
-    const postId = await seedCollaborativePost();
-    mocks.emitLikeCreatedStrict.mockRejectedValueOnce(
-      new Error('emitLikeCreated append failed: chain_conflict'),
-    );
+    mocks.createPostAuthorNotificationsStrict.mockRejectedValueOnce(new Error('store offline'));
     const markEffectDone = vi.fn().mockResolvedValue(undefined);
 
     await expect(
       handleEngagementOutboxEvent(event('post.like', postId), { markEffectDone }),
-    ).rejects.toThrow('mtn: emitLikeCreated append failed: chain_conflict');
+    ).rejects.toThrow('notification: store offline');
 
-    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
-    // Only what landed is recorded, so the retry repeats the MTN append alone.
-    expect(markEffectDone.mock.calls).toEqual([['notification'], ['federation']]);
+    expect(markEffectDone.mock.calls).toEqual([['federation']]);
   });
 
   it('names every effect that failed', async () => {
     const postId = await seedCollaborativePost();
-    mocks.emitLikeCreatedStrict.mockRejectedValueOnce(new Error('chain_conflict'));
+    mocks.createPostAuthorNotificationsStrict.mockRejectedValueOnce('store offline');
     mocks.federateAsResolvedActorAndWait.mockRejectedValueOnce(new Error('queue down'));
 
     await expect(handleEngagementOutboxEvent(event('post.like', postId))).rejects.toThrow(
-      'mtn: chain_conflict; federation: queue down',
-    );
-    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
-  });
-
-  it('keeps a non-Error rejection readable in the failure', async () => {
-    const postId = await seedCollaborativePost();
-    mocks.emitBookmarkCreatedStrict.mockRejectedValueOnce('store offline');
-
-    await expect(handleEngagementOutboxEvent(event('post.save', postId))).rejects.toThrow(
-      'mtn: store offline',
+      'notification: store offline; federation: queue down',
     );
   });
 
@@ -376,14 +304,13 @@ describe('handleEngagementOutboxEvent', () => {
     const markEffectDone = vi.fn().mockResolvedValue(undefined);
 
     await handleEngagementOutboxEvent(
-      { ...event('post.like', postId), completedEffects: ['notification', 'federation'] },
+      { ...event('post.like', postId), completedEffects: ['notification'] },
       { markEffectDone },
     );
 
-    expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledOnce();
     expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
-    expect(mocks.federateAsResolvedActorAndWait).not.toHaveBeenCalled();
-    expect(markEffectDone.mock.calls).toEqual([['mtn']]);
+    expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
+    expect(markEffectDone.mock.calls).toEqual([['federation']]);
   });
 
   it('retries an effect whose success could not be recorded', async () => {
@@ -400,7 +327,7 @@ describe('handleEngagementOutboxEvent', () => {
   it('does not notify for a like older than the notification window', async () => {
     /**
      * A drained backlog must not land on authors as a burst of pushes for likes
-     * days old. The like is still published to MTN and federation, and the
+     * days old. The like is still federated, and the
      * notification is recorded as handled so it is never attempted again.
      */
     const postId = await seedCollaborativePost();
@@ -410,9 +337,8 @@ describe('handleEngagementOutboxEvent', () => {
     await handleEngagementOutboxEvent(event('post.like', postId), { markEffectDone }, now);
 
     expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
-    expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledOnce();
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
-    expect(markEffectDone.mock.calls).toEqual([['mtn'], ['notification'], ['federation']]);
+    expect(markEffectDone.mock.calls).toEqual([['notification'], ['federation']]);
   });
 
   it('still notifies for a like inside the window', async () => {

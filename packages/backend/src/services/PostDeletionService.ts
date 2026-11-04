@@ -5,7 +5,7 @@
  * that captures, sweeps references, removes replies and claims the row). This is
  * the whole operation around it: that transaction, then the best-effort steps a
  * committed deletion owes — the replier projection, the surviving counters, the
- * MTN tombstone, the federated `Delete(Tombstone)` and the residue check.
+ * federated `Delete(Tombstone)` and the residue check.
  *
  * It lived inline in `DELETE /posts/:id` until a second caller needed exactly the
  * same behaviour: undoing a content import (`services/PostImportService.ts`) must
@@ -24,7 +24,6 @@ import { eq } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { posts as postsTable } from '../db/schema/posts';
 import type { PostRecord } from '../db/posts/postRecord';
-import { emitTombstone, postRecordUri } from './mtn/MentionRecordEmitter';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import { repairRecentRepliersAfterPostDelete } from './PostRecentReplierService';
 import {
@@ -74,16 +73,6 @@ export async function deleteAuthoredPost(
     await repairSurvivingCounters(deletedTargets, deletion.removedIds);
   } catch (error) {
     recordDeletionSideEffectFailure('surviving_counters', error);
-  }
-
-  // MTN dual-write: deleting a LOCAL post tombstones its
-  // `app.mention.feed.post` record. (Federated posts never emitted a record.)
-  if (deletedPost.federation == null && deletedPost.oxyUserId) {
-    await emitTombstone({
-      authorOxyUserId: deletedPost.oxyUserId,
-      tombstoneRkey: deletedId,
-      subjectUri: postRecordUri(deletedPost.oxyUserId, deletedId),
-    });
   }
 
   // Outbound federation: broadcast a Delete(Tombstone) so remote followers'

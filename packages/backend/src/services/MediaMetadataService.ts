@@ -65,10 +65,9 @@ function positiveNumber(value: unknown): number | undefined {
  * run of spaces would be visible, hence the canonical inline normalizer rather
  * than a bare `.trim()`.
  *
- * It has to hold at the WRITE boundary, not just on the way out: a native post's
- * media is signed onto the author's MTN hash chain (`mentionRecordBuilders`), and
- * a signed record is immutable — an un-normalized alt persisted there can never
- * be repaired, by this or any other backfill.
+ * It has to hold at the WRITE boundary, not just on the way out: a post's media
+ * federates as it was stored, and a remote copy can never be repaired by a
+ * backfill here.
  *
  * Returns undefined for a missing / non-string / whitespace-only value so the
  * caller omits the field instead of storing a blank one.

@@ -59,7 +59,7 @@ configuration
     ├──> Redis state, cache, queues, locks, and pub/sub
     ├──> Express application and route dependencies
     ├──> Socket.IO and distributed presence
-    └──> schedulers, workers, connectors, and MTN services
+    └──> schedulers, workers, and connectors
 ```
 
 Configuration is parsed with Zod during startup. Feature-specific variables
@@ -202,37 +202,19 @@ blocks, restrictions, and Mention mutes once. Excluded authors are removed
 before pagination. Chronological cursors use `(createdAt, id)` where that is
 the feed's declared sort axis.
 
-## MTN signed records
+## Ingested timestamps
 
-The signed-record layer lives under `packages/backend/src/services/mtn`:
+An ingested post's `createdAt` is asserted by someone else and must go through
+`clampFutureDate` (`utils/ingestTimestamp.ts`, the one guard every ingest path
+shares) — 1h for AT Protocol (author-asserted directly), 24h for ActivityPub (a
+third-party clock we cannot audit). Reject and fall back to `now`, never re-date
+to the clamp edge.
 
-- `MentionRecordService` signs and appends eligible local records.
-- `MentionRecordStore` persists the chain and repository head.
-- `PostMaterializer` projects verified records into the application post model
-  idempotently.
-- Node registry, sync, and scheduling support user-operated Mention nodes.
-
-PostgreSQL remains authoritative for application reads. Record append is
-best-effort and isolated from the native write result. Protocol verification
-uses Oxy verification methods for self-issued records and configured Mention
-keys for custodial records.
-
-A record's `createdAt` is SELF-ASSERTED and must go through
-`clampFutureDate` (`utils/ingestTimestamp.ts`, the one guard every ingest
-path shares) — 1h for MTN/atproto (author-asserted directly), 24h for
-ActivityPub (a third-party clock we cannot audit). Reject and fall back to
-`now`, never re-date to the clamp edge.
-
-Custodial signing (web posts, `issuer = MENTION_DID`) vs. self-issued
-(native, `issuer === subject`) is gated by
-`MENTION_DID`/`MENTION_PRIVATE_KEY`/`MENTION_PUBLIC_KEY`; inert without
-them. Write API: `services/mtn/MentionRecordService.ts`; storage:
-`db/schema/mtn.ts`.
-
-Lexicons live in `@mention/shared-types` (`src/mtn/lexicons.ts`);
-`@oxy.so/contracts` owns only the transport around them. Importing a
-`mention*RecordSchema` from `@oxy.so/contracts` is a `TS2305` — it does not
-export one.
+Mention used to dual-write every local post and engagement to a per-user signed
+record chain (MTN), with user-operated Mention nodes and an outbound AT Protocol
+bridge reading it. All three were removed: PostgreSQL is the only store. What
+survives of the name is the feed engine under `src/mtn/` and the `mtn://` post
+URI that threadgates and postgates are keyed by (`createPostUri`).
 
 ## External networks
 
@@ -242,8 +224,7 @@ network cannot abort another or the native post write.
 
 - ActivityPub is enabled unless `FEDERATION_ENABLED=false`.
 - AT Protocol discovery/read support is enabled unless `ATPROTO_ENABLED=false`.
-- The AT Protocol bridge remains independently gated by
-  `ATPROTO_BRIDGE_ENABLED`.
+  Mention reads from AT Protocol; it does not publish to it.
 
 Post creation depends on the registry's narrow federation interface, not a
 network implementation. Protocol DTOs at the connector boundary do not depend

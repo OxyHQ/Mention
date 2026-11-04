@@ -174,7 +174,7 @@ function productionSources(dir: string = BACKEND_SRC, prefix = ''): string[] {
 
 describe('post-ingest enrichment — every raw post write enriches', () => {
   // The routes above are the ones someone listed. A post also reaches storage
-  // through the repository directly — a quick reply, an MTN projection — and
+  // through the repository directly — a quick reply, for one — and
   // those were exactly the writes that never warmed their link cards, so the
   // first reader of such a post saw none. Derived from the source, not a list,
   // so a new raw write is covered without anyone remembering this file.
@@ -184,11 +184,7 @@ describe('post-ingest enrichment — every raw post write enriches', () => {
 
   it('finds the raw post writers (vacuity floor)', () => {
     expect(writers).toEqual(
-      expect.arrayContaining([
-        'services/PostCreationService.ts',
-        'services/mtn/PostMaterializer.ts',
-        'controllers/feed.controller.ts',
-      ]),
+      expect.arrayContaining(['services/PostCreationService.ts', 'controllers/feed.controller.ts']),
     );
   });
 

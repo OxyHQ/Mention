@@ -398,11 +398,9 @@ where the account went. Moving local follows to the new server is Oxy's
 ## Optional AT Protocol connector
 
 AT Protocol handle resolution and read/discovery are on unless
-`ATPROTO_ENABLED=false`, the same shape as `FEDERATION_ENABLED`. A separate
-bridge gate controls repository exposure, and that one is closed by default:
-this side reads, the bridge writes. These
-features do not change the ActivityPub routes or the native PostgreSQL
-authority.
+`ATPROTO_ENABLED=false`, the same shape as `FEDERATION_ENABLED`. Mention only
+reads from AT Protocol; it serves no repository or `/xrpc` surface of its own.
+None of it changes the ActivityPub routes or the native PostgreSQL authority.
 
 ## Instagram: the kilogram bridge and the Graph API
 
@@ -745,7 +743,7 @@ any other product code, because none of it references a protocol by name.
 
 Both `mention.earth` and `api.mention.earth` reach the Mention backend on AWS
 ECS. The apex is Cloudflare-proxied to the same load balancer; the API host is
-DNS-only. The backend mounts `/.well-known`, `/ap`, protocol bridge routes, and
+DNS-only. The backend mounts `/.well-known`, `/ap`, and
 `/media` before web-shell and static-proxy handling. Do not reintroduce a
 Cloudflare Worker or Pages Functions in front of the apex — it is served
 entirely by the Mention backend.

@@ -10,7 +10,7 @@ import { orderScheduledChains } from './scheduledChain';
  * ScheduledPostPublisher — publishes scheduled posts whose time has arrived.
  *
  * A post created with `status: 'scheduled'` and a future `scheduledFor` is saved
- * WITHOUT running any publish side-effects (collaborator invites, MTN dual-write,
+ * WITHOUT running any publish side-effects (collaborator invites,
  * notifications, real-time feed emit, federation) — those are all deferred to the
  * moment it actually goes live. This publisher sweeps for due scheduled posts and
  * drives each one through `PostCreationService.claimAndPublishScheduledPost`,

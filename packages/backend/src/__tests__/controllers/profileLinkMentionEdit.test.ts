@@ -71,14 +71,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn().mockResolvedValue(undefined),
-  emitRepostCreated: vi.fn().mockResolvedValue(undefined),
-  emitTombstone: vi.fn(),
-  postRecordUri: () => 'at://test',
-  repostRecordUri: () => 'at://test',
-}));
-
 vi.mock('../../connectors/outboundFederation', () => ({
   federateAsResolvedActor: vi.fn(),
 }));

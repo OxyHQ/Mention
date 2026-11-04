@@ -25,7 +25,6 @@ import Page3 from './pages/appearance';
 import Page4 from './pages/connected-ai';
 import Page5 from './pages/external-media';
 import Page6 from './pages/fediverse/index';
-import Page7 from './pages/fediverse/node';
 import TransparencySettingsPage from './pages/fediverse/transparency';
 import Page8 from './pages/feed';
 import Page9 from './pages/for-you';
@@ -102,10 +101,6 @@ export function useMentionSettingsPages(): MentionSettingsPages {
     'fediverse/transparency': {
       title: t('transparency.title'),
       content: <TransparencySettingsPage />,
-    },
-    'fediverse/node': {
-      title: t('settings.node.title', { defaultValue: 'Your Mention node' }),
-      content: <Page7 />,
     },
     feed: {
       title: t('settings.feed.title'),

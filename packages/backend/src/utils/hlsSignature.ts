@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { getMentionSigningValues } from '../config';
+import { getMediaHmacRoot } from '../config';
 import { logger } from './logger';
 
 /**
@@ -40,16 +40,16 @@ const HLS_SIGNATURE_KEY_LABEL = 'mention:hls-media-proxy:v1';
  *
  * It used to derive from `OXY_SERVICE_API_SECRET`, called "always-present" back
  * when it was. It is not: Mention authenticates to Oxy by attesting its task
- * role, and the pair is being removed from the deployment (oxy ADR 0026). The
- * federation signing key is provisioned wherever Mention federates and is not
- * something an identity migration takes away. Same reasoning, and the same
- * change, as `gifMediaProxy.ts`.
+ * role, and the pair is being removed from the deployment (oxy ADR 0026).
+ * `MENTION_PRIVATE_KEY` is provisioned everywhere and is not something an
+ * identity migration takes away. Same reasoning, and the same change, as
+ * `gifMediaProxy.ts`.
  */
 let cachedKey: Buffer | null | undefined;
 function resolveSigningKey(): Buffer | null {
   if (cachedKey !== undefined) return cachedKey;
 
-  const federationKey = getMentionSigningValues().privateKey;
+  const federationKey = getMediaHmacRoot();
   if (federationKey && federationKey.length > 0) {
     cachedKey = createHmac('sha256', federationKey).update(HLS_SIGNATURE_KEY_LABEL).digest();
     return cachedKey;

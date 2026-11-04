@@ -83,11 +83,6 @@ vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => und
 // outbound `Delete(Tombstone)`. Both are fire-and-forget and neither decides
 // anything here. Spread from the original so no OTHER export of these modules
 // silently becomes `undefined` for a module that imports one.
-vi.mock('../../services/mtn/MentionRecordEmitter', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/mtn/MentionRecordEmitter')>()),
-  emitTombstone: vi.fn(async () => undefined),
-}));
-
 vi.mock('../../connectors/outboundFederation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../connectors/outboundFederation')>()),
   federateAsResolvedActor: vi.fn(),

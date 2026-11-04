@@ -1,7 +1,7 @@
 /**
  * `threadgates` and `postgates` — who may reply to, and who may quote, a post.
  *
- * Both key on `post_uri`, an MTN URI that embeds the post id
+ * Both key on `post_uri`, a stable post URI (`createPostUri`) that embeds the post id
  * (`mtn://<oxyUserId>/app.mention.feed.post/<postId>`). It is UNIQUE; `post_id` alongside it is the same id in bare form, kept
  * because different read paths use one or the other.
  *
@@ -91,7 +91,7 @@ export const postgates = pgTable(
     postId: text().notNull(),
     disableQuotes: boolean().notNull().default(false),
     /**
-     * MTN URIs of quotes the author detached. A scalar list of opaque URIs,
+     * Post URIs (`createPostUri`) of quotes the author detached. A scalar list of opaque URIs,
      * never joined and never queried by element — so a `text[]`, not a junction.
      */
     detachedQuoteUris: text().array(),

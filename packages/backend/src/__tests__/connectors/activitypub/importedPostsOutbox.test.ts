@@ -60,13 +60,6 @@ vi.mock('../../../utils/clarityClient', () => ({
     indexing: { resolve: vi.fn().mockResolvedValue({ documents: [] }) },
   }),
 }));
-vi.mock('../../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn(),
-  emitRepostCreated: vi.fn(),
-  emitTombstone: vi.fn(),
-  postRecordUri: (author: string, id: string) => `mtn://${author}/${id}`,
-}));
-
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import { clearServiceScope, serviceScope, trackPost } from '../../helpers/serviceFixtures';
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';

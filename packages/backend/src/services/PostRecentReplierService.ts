@@ -205,8 +205,8 @@ async function trimToLimit(postId: string, tx: Transaction): Promise<void> {
 /**
  * Record one reply against its parent's projection.
  *
- * The hot path: called from every reply-creation site (native, federated, MTN
- * materialization), fire-and-forget. Two statements in one transaction, because
+ * The hot path: called from every reply-creation site (native and federated),
+ * fire-and-forget. Two statements in one transaction, because
  * the array splice that used to make this atomic no longer exists — an upsert
  * that keeps the newer timestamp, then the cap.
  */
@@ -261,8 +261,8 @@ export async function recordRecentReplierForPost(reply: RecentReplyLike): Promis
  *    predicted the failure: `posts.parent_post_id` is `ON DELETE SET NULL`, so
  *    the parent's DELETE nulls those links first. Zero rows on `deletePost`
  *    (whose transaction deletes the replies itself and commits before this
- *    runs), zero on the MTN tombstone path — where nothing else deleted them
- *    either, so replies were PROMOTED to root posts. That was bug #126, live on
+ *    runs), zero on the former signed-record tombstone path — where nothing else
+ *    deleted them either, so replies were PROMOTED to root posts. That was bug #126, live on
  *    a second path. `deletePostSubtree` owns the subtree now.
  *  - It DELETED THE PROJECTIONS of the deleted post and its replies.
  *    `post_recent_repliers.post_id` is `ON DELETE CASCADE` on `posts.id`

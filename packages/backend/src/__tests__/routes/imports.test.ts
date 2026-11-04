@@ -47,8 +47,6 @@ const mocks = vi.hoisted(() => ({
   federateAsResolvedActor: vi.fn(),
   getServiceAssetMetadataByIds: vi.fn(),
   getUserById: vi.fn(),
-  emitPostCreated: vi.fn(),
-  emitTombstone: vi.fn(),
 }));
 
 vi.mock('../../config', async (importOriginal) => {
@@ -114,13 +112,6 @@ vi.mock('../../services/profileLinkMentions', async (importOriginal) => {
     })),
   };
 });
-
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: mocks.emitPostCreated,
-  emitRepostCreated: vi.fn(),
-  emitTombstone: mocks.emitTombstone,
-  postRecordUri: (author: string, id: string) => `mtn://${author}/${id}`,
-}));
 
 import { OxyServer } from '@oxy.so/core/server';
 import { PostVisibility } from '@mention/shared-types';
@@ -757,7 +748,6 @@ describe('DELETE /imports/v1/batches/:batchId', () => {
     // One federated Delete per imported public post — newest first, so the
     // reply is not swallowed silently by its parent's subtree delete.
     expect(mocks.federateAsResolvedActor).toHaveBeenCalledTimes(2);
-    expect(mocks.emitTombstone).toHaveBeenCalledTimes(2);
 
     // The ledger rows went with the posts.
     const ledger = await getDb()

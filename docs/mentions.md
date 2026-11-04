@@ -1,7 +1,6 @@
 # User mentions
 
-User mentions link text in a post to an Oxy identity. They are unrelated to
-MTN, Mention's signed-record protocol.
+User mentions link text in a post to an Oxy identity.
 
 ## Canonical forms
 

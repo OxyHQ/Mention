@@ -8,7 +8,6 @@ const hoisted = vi.hoisted(() => ({
   hydratePosts: vi.fn(),
   createScopedOxyClient: vi.fn(),
   resolveCollaboratorRefs: vi.fn(),
-  emitPostCreated: vi.fn(),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -36,12 +35,6 @@ vi.mock('../../services/PostCollaborationService', () => ({
   },
   CollabValidationError: class extends Error {},
   CollabStateError: class extends Error {},
-}));
-
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: hoisted.emitPostCreated,
-  emitTombstone: vi.fn(),
-  postRecordUri: () => 'at://test',
 }));
 
 import { eq, sql } from 'drizzle-orm';

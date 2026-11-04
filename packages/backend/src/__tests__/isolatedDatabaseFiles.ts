@@ -304,13 +304,6 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       '`parent_post_id` on continuations to convert a fan into a chain.',
   },
   {
-    path: 'src/__tests__/scripts/backfillMtnRecords.test.ts',
-    jobEntryPoint: 'backfillMtnRecords',
-    reason:
-      'Selects every local published public non-boost post in the database and signs an MTN ' +
-      'record for each — so it emits chain records for posts other files own.',
-  },
-  {
     path: 'src/__tests__/scripts/backfillFederatedHandleQualificationRows.test.ts',
     jobEntryPoint: 'backfillFederatedHandleQualification',
     reason:

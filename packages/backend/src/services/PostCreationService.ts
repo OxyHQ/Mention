@@ -40,8 +40,6 @@ import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
 import { baselineContentClassifier } from './BaselineContentClassifier';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { emitPostCreated, emitRepostCreated } from './mtn/MentionRecordEmitter';
-import type { ReplyContext } from './mtn/mentionRecordBuilders';
 import { postCollaborationService } from './PostCollaborationService';
 import {
   getNotificationRecipients,
@@ -82,7 +80,7 @@ export interface CreatePostParams {
   boostOf?: string | null;
   /**
    * The author's own lane for this post — local curation only: it never
-   * federates, never enters an MTN record, and never changes distribution.
+   * federates and never changes distribution.
    * Validated by {@link assertLaneAssignable} before the document is built, so a
    * lane belonging to somebody else, or one attached to a reply or a boost, is
    * REFUSED rather than silently dropped (an author told nothing would go on
@@ -370,51 +368,6 @@ class PostCreationService {
   }
 
   /**
-   * MTN Protocol dual-write: emit the signed record for a just-created post.
-   *
-   * Boosts emit `app.mention.feed.repost`; everything else (top-level posts,
-   * replies, quotes) emits `app.mention.feed.post`. For a reply, the `reply.root`
-   * / `reply.parent` MTN URIs need the OWNER oxyUserId of the referenced posts,
-   * resolved here with a single lean lookup. Entirely best-effort and isolated by
-   * the emitter — a failure NEVER blocks creation or changes the response.
-   */
-  private async emitMtnRecord(post: PostRecord): Promise<void> {
-    try {
-      if (post.federation != null || !post.oxyUserId) {
-        return;
-      }
-
-      if (post.boostOf) {
-        const original = await loadPostRecord(post.boostOf);
-        await emitRepostCreated(post, post.boostOf, original?.oxyUserId ?? undefined);
-        return;
-      }
-
-      let reply: ReplyContext | undefined;
-      if (post.parentPostId) {
-        const rootId = post.threadId ?? post.parentPostId;
-        const ids = [...new Set([post.parentPostId, rootId])];
-        const refs = await loadPostRecords(ids);
-        const ownerById = new Map(refs.map((r) => [r.id, r.oxyUserId]));
-        const parentOwner = ownerById.get(post.parentPostId);
-        const rootOwner = ownerById.get(rootId);
-        if (parentOwner && rootOwner) {
-          reply = {
-            root: { postId: rootId, oxyUserId: rootOwner },
-            parent: { postId: post.parentPostId, oxyUserId: parentOwner },
-          };
-        }
-      }
-
-      await emitPostCreated(post, { reply });
-    } catch (error) {
-      // Defensive: the emitter already isolates failures, but guard the resolve
-      // step too so the dual-write can never surface as a creation error.
-      logger.error('PostCreationService: MTN record emission failed', error);
-    }
-  }
-
-  /**
    * Create a Post document and run the standard side-effect pipeline:
    * mention notifications, reply/quote/boost notifications, subscriber
    * notifications, socket emission, and federation delivery.
@@ -477,8 +430,8 @@ class PostCreationService {
     }
 
     // The post's AUTHOR. Everything downstream — `oxyUserId`, `authorship`, the
-    // lane's publisher, the notification actor, the federation identity, the MTN
-    // record's subject — reads this, never `params.oxyUserId`, so the authorship
+    // lane's publisher, the notification actor, and the federation identity
+    // — reads this, never `params.oxyUserId`, so the authorship
     // and the authorization can never disagree. The authenticated human survives
     // only as `writtenByOxyUserId`, outside `authorship`.
     const { authorId, authorKind } = await assertCanPublishAsAccount({
@@ -727,14 +680,6 @@ class PostCreationService {
       hasPendingInvites ||
       post.metadata.federationDelivered === true;
 
-    // MTN Protocol dual-write (best-effort, never blocks, never changes output).
-    // Postgres is authoritative; this emits a signed `app.mention.feed.*` record
-    // for LOCAL authors only (`federation == null && oxyUserId`). A scheduled
-    // post or a draft is not yet published, so it emits when it publishes.
-    if (!defersPublication) {
-      await this.emitMtnRecord(post);
-    }
-
     if (defersPublication || params.skipNotifications) {
       return post;
     }
@@ -753,7 +698,7 @@ class PostCreationService {
    *
    * The claim is the point. `publishScheduledPost` flips the status on a
    * document it was handed, so two callers holding the same document both run
-   * the whole pipeline — federating twice, writing two MTN records, notifying
+   * the whole pipeline — federating twice, notifying
    * twice. That is reachable in practice: the 60s sweep may load a due post
    * moments before its author taps "post now".
    *
@@ -764,7 +709,7 @@ class PostCreationService {
    *
    * A draft goes through this SAME method rather than a sibling, because it owes
    * the world exactly what a scheduled post owes it: `create` deferred the
-   * invites, the MTN record, the notifications and federation for both, and
+   * invites, the notifications and federation for both, and
    * `publishScheduledPost` is the one place that pays them. `from` defaults to
    * `scheduled`, so the sweep — which passes nothing — can never publish a draft.
    *
@@ -816,7 +761,7 @@ class PostCreationService {
    * `scheduledFor` time has arrived, or a `status: 'draft'` post its author has
    * chosen to publish. Flips the status to `published`, then runs
    * the SAME publish pipeline a fresh published post runs in `create()`:
-   * collaborator invites, the MTN dual-write, notifications, the real-time feed
+   * collaborator invites, notifications, the real-time feed
    * emit, and (deferred until every collaborator has resolved) federation.
    *
    * Reached only through {@link claimAndPublishScheduledPost}, which is what
@@ -843,10 +788,6 @@ class PostCreationService {
     if (ownerId && hasPendingInvites) {
       await postCollaborationService.notifyPendingInvites(published, ownerId);
     }
-
-    // MTN dual-write now — the signed record's authoritative timestamp is the
-    // publish moment, not the (earlier) scheduling moment.
-    await this.emitMtnRecord(published);
 
     // The federation username is resolved inside runPostSideEffects from the
     // authoritative owner id (and only when the post will actually federate) —

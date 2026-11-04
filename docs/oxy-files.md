@@ -109,7 +109,7 @@ transaction, deduped on its id, ordered by `occurredAt`, audited in
 Withholding (`oxy_file_states.withheld`, copied onto `post_media.withheld` and
 `post_variant_media.withheld`, and onto every new row by trigger) keeps the row
 and its reference, so `file.unblocked` / `file.restored` still reach Mention.
-DTOs (`resolveMediaItems`), ActivityPub attachments, MTN records and the Videos
+DTOs (`resolveMediaItems`), ActivityPub attachments and the Videos
 lane drop withheld items.
 
 ## The GIF library
@@ -291,6 +291,6 @@ The linked-download API must also return current `visibility: private` before a
 URL is exposed. A missing visibility field during an older API rollout fails
 closed. This live check covers visibility changes before callback delivery.
 URLs remain short-lived bearer links (Oxy's current limit is 300 seconds), never
-stored in posts, public teasers, notifications, search, federation or MTN records.
+stored in posts, public teasers, notifications, search or federation.
 Already-issued URLs retain that bounded lifetime; revocation is not retroactive
 cancellation of a bearer URL.

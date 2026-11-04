@@ -32,7 +32,7 @@ export const ENGAGEMENT_OUTBOX_STATUSES = ['pending', 'processing', 'processed']
  * recorded in `completed_effects` as it succeeds, so a retry re-runs only the
  * ones that have not — see `EngagementOutboxDispatcher`.
  */
-export const ENGAGEMENT_OUTBOX_EFFECTS = ['mtn', 'notification', 'federation'] as const;
+export const ENGAGEMENT_OUTBOX_EFFECTS = ['notification', 'federation'] as const;
 
 /**
  * 30 days. How long a PROCESSED event is kept before the expiry sweep deletes it.

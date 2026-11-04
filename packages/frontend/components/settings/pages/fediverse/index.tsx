@@ -113,31 +113,6 @@ function FediverseSharingBody() {
 
       <SettingsSection>
         <SettingsCard>
-          <SettingsRow
-            label={t('settings.node.title', {
-              defaultValue: 'Your Mention node',
-            })}
-            description={t('settings.node.description', {
-              defaultValue: 'Your own copy of your signed posts',
-            })}
-          >
-            <Button
-              size="sm"
-              appearance="subtle"
-              tone="neutral"
-              onPress={() => router.push('/settings/fediverse/node')}
-              accessibilityLabel={t('settings.node.title', {
-                defaultValue: 'Your Mention node',
-              })}
-            >
-              {t('common.open', { defaultValue: 'Open' })}
-            </Button>
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
-
-      <SettingsSection>
-        <SettingsCard>
           <SettingsRow label={t('fediverse.settings.whatIs')}>
             <Button
               size="sm"

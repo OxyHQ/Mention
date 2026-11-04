@@ -21,7 +21,6 @@ export const SETTINGS_PAGE_IDS = [
   'edit-profile',
   'external-media',
   'fediverse',
-  'fediverse/node',
   'fediverse/transparency',
   'feed',
   'deck',

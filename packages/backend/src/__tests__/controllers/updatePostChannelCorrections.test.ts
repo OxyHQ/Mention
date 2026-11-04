@@ -37,7 +37,6 @@ const hoisted = vi.hoisted(() => ({
   attachCollaborators: vi.fn(),
   autoAcceptInvites: vi.fn(),
   notifyPendingInvites: vi.fn(),
-  emitPostCreated: vi.fn(),
   federateAsResolvedActor: vi.fn(),
   listAccountMembers: vi.fn(),
 }));
@@ -88,12 +87,6 @@ vi.mock('../../services/PostCollaborationService', () => ({
 // The REAL module path the controller imports. A mock naming a path that does
 // not resolve applies to nothing and leaves the live emitter running, which
 // reads exactly like the branch not being taken.
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: hoisted.emitPostCreated,
-  emitTombstone: vi.fn(),
-  postRecordUri: () => 'mtn://test',
-}));
-
 vi.mock('../../connectors/outboundFederation', () => ({
   federateAsResolvedActor: hoisted.federateAsResolvedActor,
 }));

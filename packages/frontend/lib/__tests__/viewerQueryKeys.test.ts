@@ -95,7 +95,6 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.infiniteRecommendations(viewerId, 'agent'),
       viewerQueryKeys.viewerFollowing(viewerId),
       viewerQueryKeys.postActivity(viewerId, 'profile-1'),
-      viewerQueryKeys.mentionNode(viewerId),
       viewerQueryKeys.federatedProfile(viewerId, 'alice@example.com'),
       viewerQueryKeys.liveUsers(viewerId),
       viewerQueryKeys.profileMediaSearch(viewerId, 'song', 'query'),

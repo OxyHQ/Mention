@@ -38,8 +38,6 @@ describe('flags that are on unless someone closes them', () => {
     const config = await loadConfig();
 
     expect(config.atproto.enabled).toBe(true);
-    // The bridge is the one that writes, and it stays closed.
-    expect(config.atproto.bridgeEnabled).toBe(false);
   });
 
   it('still closes atproto when a deployment says so', async () => {

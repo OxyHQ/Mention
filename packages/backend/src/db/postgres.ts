@@ -44,9 +44,9 @@ export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
  * this: a `Transaction` is not assignable to `Database` (it has no `$client`),
  * so a helper typed only as `Database` silently forces its caller to run OUTSIDE
  * the transaction — which is how a guarded write loses its atomicity with the
- * work it is supposed to be atomic WITH. Mention has three real transactional
+ * work it is supposed to be atomic WITH. Mention has two real transactional
  * paths that depend on this (`PostEngagementCommandService`,
- * `MentionRecordStore.append`, `ReportIntakeService.createReport`).
+ * `ReportIntakeService.createReport`).
  */
 export type DatabaseOrTransaction = Database | Transaction;
 

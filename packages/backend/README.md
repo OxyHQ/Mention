@@ -1,6 +1,6 @@
 # @mention/backend
 
-Mention's Express, PostgreSQL, Redis/Valkey, Socket.IO, federation, and MTN
+Mention's Express, PostgreSQL, Redis/Valkey, Socket.IO, and federation
 backend. The production service listens on port 3000 and serves both
 `api.mention.earth` and the `mention.earth` web/federation surface.
 
@@ -15,8 +15,7 @@ backend. The production service listens on port 3000 and serves both
   and shutdown.
 - `src/services/PostHydrationService.ts` is the only authority for post DTOs.
 - `src/connectors/` isolates ActivityPub and AT Protocol integrations.
-- `src/mtn/` contains the feed engine; `src/services/mtn/` contains Mention's
-  signed-record integration.
+- `src/mtn/` contains the feed engine.
 - `drizzle/` contains the versioned schema migrations, applied by `src/db/migrate.ts`.
 
 Engagement writes use multi-statement transactions, which Postgres provides

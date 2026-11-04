@@ -22,10 +22,6 @@ vi.mock('../../services/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
 }));
 vi.mock('../../services/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn(async () => undefined),
-  emitRepostCreated: vi.fn(async () => undefined),
-}));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: vi.fn(async () => new Map()),

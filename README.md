@@ -1,6 +1,6 @@
 <p align="center">
   <b>Mention is a social network for iOS, Android and the web, connected to the Fediverse.</b><br>
-  Posts are signed records on a chain the author owns, not rows we can quietly rewrite.
+  One account and one feed on every device, reaching Mastodon and the wider Fediverse.
 </p>
 
 Mention's source code is publicly available under [Breathe 1.0](./LICENSE),
@@ -42,13 +42,13 @@ The interface is built with [**Bloom**](https://github.com/OxyHQ/Bloom). Live au
 
 ## Workspaces
 
-| Package                 | Path                                               | What it holds                                                                                                                                                |
-| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@mention/frontend`     | [`packages/frontend`](./packages/frontend)         | Expo Router app for iOS, Android and web. Expo 57, React Native 0.86, React 19, NativeWind, TanStack Query, Zustand                                          |
-| `@mention/backend`      | [`packages/backend`](./packages/backend)           | Express 5 API over PostgreSQL (Drizzle ORM) and Valkey, Socket.IO, background workers, ActivityPub federation, the MTN signed record layer and the web shell |
-| `@mention/shared-types` | [`packages/shared-types`](./packages/shared-types) | The request and response contracts, plus the MTN record schemas, that both sides compile against                                                             |
-| `@mention/mcp`          | [`packages/mcp`](./packages/mcp)                   | Model Context Protocol server, remote over HTTP and local over stdio                                                                                         |
-| `@mention/e2e`          | [`packages/e2e`](./packages/e2e)                   | Real browser release gate that exercises a candidate web build before it is promoted                                                                         |
+| Package                 | Path                                               | What it holds                                                                                                                   |
+| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `@mention/frontend`     | [`packages/frontend`](./packages/frontend)         | Expo Router app for iOS, Android and web. Expo 57, React Native 0.86, React 19, NativeWind, TanStack Query, Zustand             |
+| `@mention/backend`      | [`packages/backend`](./packages/backend)           | Express 5 API over PostgreSQL (Drizzle ORM) and Valkey, Socket.IO, background workers, ActivityPub federation and the web shell |
+| `@mention/shared-types` | [`packages/shared-types`](./packages/shared-types) | The request and response contracts that both sides compile against                                                              |
+| `@mention/mcp`          | [`packages/mcp`](./packages/mcp)                   | Model Context Protocol server, remote over HTTP and local over stdio                                                            |
+| `@mention/e2e`          | [`packages/e2e`](./packages/e2e)                   | Real browser release gate that exercises a candidate web build before it is promoted                                            |
 
 ## Quick start
 
@@ -125,10 +125,6 @@ Two things save time here. Rebuild `shared-types` before you trust a red type ch
 <table>
 <tr>
 <td valign="top" width="50%">
-
-**Signed records (MTN)**
-
-Local posts are dual written to a per user hash chain built on `@oxy.so/protocol`. PostgreSQL stays authoritative for reads while the chain gives an author a verifiable, portable history. Native writes are signed on the device, web writes are signed custodially by the service, and a user can run their own node to hold their own chain.
 
 **Federation**
 

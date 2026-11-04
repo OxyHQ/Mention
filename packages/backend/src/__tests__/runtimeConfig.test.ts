@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
   getIpHashSalt,
-  getMentionSigningConfig,
   isRedisRuntimeConfigured,
   isQueueRedisRuntimeConfigured,
   parseRuntimeEnvironment,
@@ -84,12 +83,6 @@ describe('runtime configuration', () => {
         FIREBASE_SERVICE_ACCOUNT_BASE64: Buffer.from('{}').toString('base64'),
       }),
     ).toThrow('FIREBASE_PROJECT_ID');
-    expect(() =>
-      parseRuntimeEnvironment({
-        MENTION_DID: 'did:web:mention.example',
-        MENTION_PUBLIC_KEY: 'public-key',
-      }),
-    ).toThrow('MENTION_DID');
   });
 
   it('detects every supported explicit Redis target', () => {
@@ -116,14 +109,5 @@ describe('runtime configuration', () => {
       }),
     ).toBe('dedicated-ip-salt');
     expect(getIpHashSalt({ MENTION_MCP_JWT_SECRET: 'm'.repeat(32) })).toBe('m'.repeat(32));
-  });
-
-  it('keeps dynamic MTN signing disabled when a rotated key group is incomplete', () => {
-    expect(
-      getMentionSigningConfig({
-        MENTION_DID: 'did:web:mention.example',
-        MENTION_PRIVATE_KEY: 'private-only',
-      }),
-    ).toBeUndefined();
   });
 });

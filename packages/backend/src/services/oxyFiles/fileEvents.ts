@@ -42,7 +42,7 @@ import { invalidate as invalidatePostDetailCache } from '../postDetailCache';
  *   `withheld` (`post_media.withheld`); the row and its Oxy reference stay, so
  *   the item comes back when the file does (`file.unblocked`, `file.restored`
  *   reach only applications that still reference it). Readers drop withheld
- *   items: the DTOs, ActivityPub, MTN records, the Videos lane. New rows take
+ *   items: the DTOs, ActivityPub, the Videos lane. New rows take
  *   the file's state by trigger, so an edit cannot un-withhold an item.
  * - `deleted` (and `lost`) / `blocked` (permanent from Mention's side): the GIF library row
  *   using the file is removed (Oxy collects the application file it stops

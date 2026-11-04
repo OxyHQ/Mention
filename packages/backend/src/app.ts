@@ -145,9 +145,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     if (
       !deps.isApexHost(req) &&
       !req.path.startsWith('/ap/') &&
-      !req.path.startsWith('/.well-known/') &&
-      !req.path.startsWith('/xrpc/') &&
-      !req.path.startsWith('/ap-bridge/')
+      !req.path.startsWith('/.well-known/')
     ) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.setHeader('Pragma', 'no-cache');
@@ -401,9 +399,6 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   app.use('/ap', routes.apRateLimiter);
   app.use('/ap', routes.actor);
   app.use('/ap', routes.federationContent);
-  app.use('/xrpc', routes.atprotoBridge);
-  app.use('/ap-bridge', routes.atprotoBridgeMeta);
-  app.use('/.well-known', routes.wellKnownBridge);
   app.use('/media', routes.media);
   app.use(routes.mcpOAuth);
   // App Links / Universal Links. Pure and connection-free, so mounted directly.

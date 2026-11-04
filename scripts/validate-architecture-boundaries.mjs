@@ -541,7 +541,6 @@ const LAYER_BASELINE = [
   { file: 'src/routes/lists.ts', area: 'src/db/postgres.ts', reason: REASONS.TRANSACTION_IN_ROUTE },
   { file: 'src/routes/lists.ts', area: 'src/db/posts/', reason: REASONS.REPOSITORY },
   { file: 'src/routes/lists.ts', area: 'src/db/schema/', reason: REASONS.BYPASSES_REPOSITORY },
-  { file: 'src/routes/mtn-nodes.routes.ts', area: 'src/db/mtn/', reason: REASONS.REPOSITORY },
   { file: 'src/routes/mute.routes.ts', area: 'src/db/postgres.ts', reason: REASONS.NO_REPOSITORY },
   { file: 'src/routes/mute.routes.ts', area: 'src/db/schema/', reason: REASONS.NO_REPOSITORY },
   {

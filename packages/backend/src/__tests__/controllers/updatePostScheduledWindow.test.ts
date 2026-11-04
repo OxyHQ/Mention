@@ -31,7 +31,6 @@ const hoisted = vi.hoisted(() => ({
   attachCollaborators: vi.fn(),
   autoAcceptInvites: vi.fn(),
   notifyPendingInvites: vi.fn(),
-  emitPostCreated: vi.fn(),
   listAccountMembers: vi.fn(),
 }));
 
@@ -80,20 +79,6 @@ vi.mock('../../services/PostCollaborationService', () => ({
   },
   CollabValidationError: class extends Error {},
   CollabStateError: class extends Error {},
-}));
-
-// `MentionRecordEmitter`, the module the controller actually imports. This mock
-// named `services/mtn/postRecords`, the path the emitter was renamed AWAY from —
-// and `vi.mock` keys on a RESOLVED id, so a mock naming a module that does not
-// exist matches nothing and reports nothing. The real emitter ran on every edit
-// below (`resolvePostRecordEmbeds` batches an Oxy asset lookup before the
-// env gate can turn the write into a no-op), while `hoisted.emitPostCreated`
-// stayed permanently uncalled — which is indistinguishable from a stub that is
-// working. The assertions on that spy are what stop it going quiet again.
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: hoisted.emitPostCreated,
-  emitTombstone: vi.fn(),
-  postRecordUri: () => 'at://test',
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
@@ -199,10 +184,6 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
 
     expect(captured.status).toBe(403);
     expect(await storedText()).toBe('original');
-    // A refusal emits nothing. Its negative control is the INSIDE-the-window
-    // case below, which asserts the same spy DOES fire — without it, "never
-    // called" is also what an orphaned mock reports.
-    expect(hoisted.emitPostCreated).not.toHaveBeenCalled();
   });
 
   /**
@@ -229,16 +210,6 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
 
     expect(captured.status).toBeUndefined();
     expect(await storedText()).toBe('quick fix');
-    // The MTN dual-write re-emits the record under the SAME rkey, carrying the
-    // EDITED body — the chain is append-only and materialization is
-    // last-writer-wins, so an emit of the pre-edit record would silently
-    // publish the old text forever. Also the one assertion that fails when the
-    // emitter mock stops intercepting.
-    expect(hoisted.emitPostCreated).toHaveBeenCalledTimes(1);
-    expect(hoisted.emitPostCreated.mock.calls[0]?.[0]).toMatchObject({
-      id: POST_ID,
-      content: { variants: [expect.objectContaining({ text: 'quick fix' })] },
-    });
   });
 
   it('cannot be talked out of the window by the request body', async () => {

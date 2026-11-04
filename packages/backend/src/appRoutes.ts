@@ -55,7 +55,6 @@ import topicsRoutes from './routes/topics.routes';
 import entityFollowRoutes from './routes/entity-follow.routes';
 import mediaRoutes from './routes/media';
 import recommendationsRoutes from './routes/recommendations';
-import mtnNodesRoutes from './routes/mtn-nodes.routes';
 import webShellRoutes from './routes/webShell.routes';
 import webTelemetryRoutes from './routes/webTelemetry.routes';
 import importsRoutes from './routes/imports';
@@ -78,10 +77,6 @@ import {
 } from './connectors/activitypub/routes/engine.routes';
 import federationContentRoutes from './connectors/activitypub/routes/ap.routes';
 import federationApiRoutes from './connectors/connectors.routes';
-import atprotoBridgeRoutes, {
-  bridgeMetaRouter as atprotoBridgeMetaRoutes,
-  wellKnownBridgeRouter,
-} from './connectors/atproto/bridge/routes';
 
 export interface AppRoutes {
   health: RequestHandler;
@@ -91,9 +86,6 @@ export interface AppRoutes {
   apRateLimiter: RequestHandler;
   actor: RequestHandler;
   federationContent: RequestHandler;
-  atprotoBridge: RequestHandler;
-  atprotoBridgeMeta: RequestHandler;
-  wellKnownBridge: RequestHandler;
   media: RequestHandler;
   /**
    * Mounted BEFORE `express.json` in `app.ts`. See the comment there — a webhook
@@ -173,7 +165,6 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   // at all. The disclosure gate itself is inside the route.
   publicApi.use('/channels', optionalAuth, channelWritersRoutes);
   publicApi.use('/membership-communities', optionalAuth, publicMembershipRoutes);
-  publicApi.use('/mtn/nodes', optionalAuth, mtnNodesRoutes);
   publicApi.use('/statistics', optionalAuth, publicStatisticsRouter);
 
   const authenticatedApi = express.Router();
@@ -234,9 +225,6 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
     apRateLimiter,
     actor: actorRouter,
     federationContent: federationContentRoutes,
-    atprotoBridge: atprotoBridgeRoutes,
-    atprotoBridgeMeta: atprotoBridgeMetaRoutes,
-    wellKnownBridge: wellKnownBridgeRouter,
     media: express.Router().use(createOptionalMcpAuth(), optionalAuth, mediaRoutes),
     crowdSourceWebhook: createCrowdSourceWebhookRoutes(),
     oxyAccountEvents: createOxyAccountEventsRoutes(),

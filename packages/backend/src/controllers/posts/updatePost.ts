@@ -60,7 +60,6 @@ import {
 import { isChannelAccount } from '../../services/publishAsAccount';
 import { recordPostCorrection } from '../../db/posts/postCorrectionsRepository';
 import { postManagementRefusal } from '../../services/postManagementAccess';
-import { emitPostCreated } from '../../services/mtn/MentionRecordEmitter';
 import {
   postCollaborationService,
   CollabValidationError,
@@ -698,15 +697,6 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         edited = await postCollaborationService.autoAcceptInvites(edited, new Set(autoAcceptIds));
       }
       await postCollaborationService.notifyPendingInvites(edited, userId);
-    }
-
-    // MTN dual-write: an edit re-emits the `app.mention.feed.post` record under
-    // the SAME rkey (the post id). The chain is append-only and materialization
-    // is last-writer-wins by chain order, so the new record supersedes the old
-    // version. Only LOCAL posts emit (an edited federated post never had a record;
-    // the 30-minute edit window above only applies to owner-scoped native posts).
-    if (edited.federation == null && edited.oxyUserId) {
-      await emitPostCreated(edited);
     }
 
     // Outbound federation: an edit re-federates the Note as an ActivityPub

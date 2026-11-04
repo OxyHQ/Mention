@@ -76,14 +76,6 @@ vi.mock('../../services/PostCollaborationService', () => ({
   CollabStateError: class extends Error {},
 }));
 
-// The MTN dual-write is a best-effort side effect with a batched Oxy asset
-// lookup inside it. Nothing here is about the chain.
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn().mockResolvedValue(undefined),
-  emitTombstone: vi.fn().mockResolvedValue(undefined),
-  postRecordUri: () => 'at://test',
-}));
-
 vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));

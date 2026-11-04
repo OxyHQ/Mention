@@ -47,16 +47,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-// The signed-record dual write. `createBoost` AWAITS `emitRepostCreated` outside
-// any try/catch, so leaving the real one in place hangs the boost case rather
-// than failing it.
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn().mockResolvedValue(undefined),
-  emitRepostCreated: vi.fn().mockResolvedValue(undefined),
-  emitTombstone: vi.fn(),
-  repostRecordUri: () => 'at://test',
-}));
-
 vi.mock('../../services/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn().mockResolvedValue(undefined),
 }));
