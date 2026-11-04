@@ -10,7 +10,7 @@ import { SEO } from '@/components/SEO';
 import {
   StarterPackCard,
   StarterPackCardSkeleton,
-  type StarterPackCardData,
+  starterPackCardData,
 } from '@/components/StarterPackCard';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
@@ -71,18 +71,7 @@ export default function StarterPacksScreen() {
   ) : (
     <View className="px-1">
       {myPacks.map((p: StarterPackSummary) => {
-        const memberCount = p.memberCount ?? (p.memberOxyUserIds || []).length;
-        const cardData: StarterPackCardData = {
-          id: String(p._id || p.id),
-          name: p.name || 'Untitled Pack',
-          description: p.description,
-          creator: p.creator,
-          memberCount,
-          useCount: p.useCount || 0,
-          memberAvatars: p.memberAvatars ?? [],
-          memberProfiles: p.memberProfiles,
-          totalMembers: memberCount,
-        };
+        const cardData = starterPackCardData(p);
 
         return (
           <View key={String(p._id || p.id)} className="px-3 mb-2">

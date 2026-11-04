@@ -3448,5 +3448,31 @@
       "title": "Não percas o que se passa",
       "subtitle": "Quem está no Mention é o primeiro a saber."
     }
+  },
+  "welcome": {
+    "stepCount": "Passo {{position}} de {{total}}",
+    "skip": "Pular",
+    "back": "Voltar",
+    "next": "Avançar",
+    "finish": "Concluir",
+    "interests": {
+      "title": "O que te interessa?",
+      "description": "Escolha alguns temas. Eles moldam seu feed e acompanham você em todos os apps da Oxy."
+    },
+    "people": {
+      "title": "Encontre pessoas para seguir",
+      "description": "Siga um starter pack com um toque, ou escolha as pessoas uma a uma.",
+      "packsTitle": "Starter packs",
+      "suggestionsTitle": "Pessoas de que você pode gostar",
+      "followAll": "Seguir todos",
+      "followingAll": "Seguindo todos"
+    },
+    "profile": {
+      "title": "Deixe com a sua cara",
+      "description": "Adicione uma foto e uma bio para que as pessoas saibam quem estão seguindo.",
+      "heading": "Seu perfil",
+      "body": "Uma foto e uma bio curta ajudam as pessoas a seguir você de volta. Você pode mudá-las a qualquer momento nos Ajustes.",
+      "edit": "Editar perfil"
+    }
   }
 }

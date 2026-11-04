@@ -3448,5 +3448,31 @@
       "title": "No et perdis el que està passant",
       "subtitle": "La gent de Mention és la primera a assabentar-se'n."
     }
+  },
+  "welcome": {
+    "stepCount": "Pas {{position}} de {{total}}",
+    "skip": "Omet",
+    "back": "Enrere",
+    "next": "Següent",
+    "finish": "Fet",
+    "interests": {
+      "title": "Què t'interessa?",
+      "description": "Tria uns quants temes. Donen forma al teu feed i t'acompanyen a totes les apps d'Oxy."
+    },
+    "people": {
+      "title": "Troba gent a qui seguir",
+      "description": "Segueix un starter pack amb un toc, o tria les persones una a una.",
+      "packsTitle": "Starter packs",
+      "suggestionsTitle": "Persones que et poden agradar",
+      "followAll": "Segueix-los tots",
+      "followingAll": "Els segueixes tots"
+    },
+    "profile": {
+      "title": "Fes-lo teu",
+      "description": "Afegeix una foto i una bio perquè la gent sàpiga a qui segueix.",
+      "heading": "El teu perfil",
+      "body": "Una foto i una bio curta ajuden la gent a seguir-te de tornada. Les pots canviar quan vulguis a Configuració.",
+      "edit": "Edita el perfil"
+    }
   }
 }

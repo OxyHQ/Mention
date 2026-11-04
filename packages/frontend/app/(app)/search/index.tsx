@@ -61,6 +61,8 @@ import { ListCard, type ListCardData } from '@/components/ListCard';
 import {
   StarterPackCard,
   StarterPackCardSkeleton,
+  starterPackCardData,
+  starterPackId,
   type StarterPackCardData,
 } from '@/components/StarterPackCard';
 import { ExternalActorFollowButton } from '@/components/search/ExternalActorFollowButton';
@@ -439,20 +441,7 @@ function toListCardData(list: SearchListResult): ListCardData | null {
 }
 
 function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardData | null {
-  const id = String(pack._id || pack.id || '');
-  if (!id) return null;
-  const memberCount = pack.memberCount ?? (pack.memberOxyUserIds || []).length;
-  return {
-    id,
-    name: pack.name || 'Untitled Pack',
-    description: pack.description,
-    creator: pack.creator,
-    memberCount,
-    useCount: pack.useCount || 0,
-    memberAvatars: pack.memberAvatars ?? [],
-    memberProfiles: pack.memberProfiles,
-    totalMembers: memberCount,
-  };
+  return starterPackId(pack) ? starterPackCardData(pack) : null;
 }
 
 function SearchIndex() {

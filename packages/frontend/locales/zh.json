@@ -3418,5 +3418,31 @@
       "title": "不错过正在发生的一切",
       "subtitle": "Mention 上的用户总是第一时间知晓。"
     }
+  },
+  "welcome": {
+    "stepCount": "第 {{position}} 步，共 {{total}} 步",
+    "skip": "跳过",
+    "back": "返回",
+    "next": "下一步",
+    "finish": "完成",
+    "interests": {
+      "title": "你对什么感兴趣？",
+      "description": "选几个话题。它们会塑造你的信息流，并在每个 Oxy 应用中跟随你。"
+    },
+    "people": {
+      "title": "找到想关注的人",
+      "description": "一键关注一个新手包，或逐个挑选。",
+      "packsTitle": "新手包",
+      "suggestionsTitle": "你可能喜欢的人",
+      "followAll": "全部关注",
+      "followingAll": "已全部关注"
+    },
+    "profile": {
+      "title": "打造你的主页",
+      "description": "添加头像和简介，让大家知道他们关注的是谁。",
+      "heading": "你的个人资料",
+      "body": "头像和简短的简介能让别人更愿意回关你。你可以随时在设置中修改。",
+      "edit": "编辑个人资料"
+    }
   }
 }

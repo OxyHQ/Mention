@@ -3418,5 +3418,31 @@
       "title": "Don’t miss what’s happening",
       "subtitle": "People on Mention are the first to know."
     }
+  },
+  "welcome": {
+    "stepCount": "Step {{position}} of {{total}}",
+    "skip": "Skip",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Done",
+    "interests": {
+      "title": "What are you into?",
+      "description": "Pick a few topics. They shape your feed and come with you to every Oxy app."
+    },
+    "people": {
+      "title": "Find people to follow",
+      "description": "Follow a starter pack in one tap, or pick people one by one.",
+      "packsTitle": "Starter packs",
+      "suggestionsTitle": "People you might like",
+      "followAll": "Follow all",
+      "followingAll": "Following all"
+    },
+    "profile": {
+      "title": "Make it yours",
+      "description": "Add a photo and a bio so people know who they're following.",
+      "heading": "Your profile",
+      "body": "A photo and a short bio help people decide to follow you back. You can change them any time in Settings.",
+      "edit": "Edit profile"
+    }
   }
 }

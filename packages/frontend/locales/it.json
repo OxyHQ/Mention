@@ -3448,5 +3448,31 @@
       "title": "Non perderti quello che succede",
       "subtitle": "Chi è su Mention lo scopre per primo."
     }
+  },
+  "welcome": {
+    "stepCount": "Passo {{position}} di {{total}}",
+    "skip": "Salta",
+    "back": "Indietro",
+    "next": "Avanti",
+    "finish": "Fatto",
+    "interests": {
+      "title": "Cosa ti interessa?",
+      "description": "Scegli qualche argomento. Danno forma al tuo feed e ti seguono in tutte le app Oxy."
+    },
+    "people": {
+      "title": "Trova persone da seguire",
+      "description": "Segui uno starter pack con un tocco, o scegli le persone una per una.",
+      "packsTitle": "Starter pack",
+      "suggestionsTitle": "Persone che potrebbero piacerti",
+      "followAll": "Segui tutti",
+      "followingAll": "Segui tutti"
+    },
+    "profile": {
+      "title": "Rendilo tuo",
+      "description": "Aggiungi una foto e una bio così le persone sanno chi stanno seguendo.",
+      "heading": "Il tuo profilo",
+      "body": "Una foto e una breve bio aiutano le persone a ricambiare il follow. Puoi cambiarle quando vuoi nelle Impostazioni.",
+      "edit": "Modifica profilo"
+    }
   }
 }

@@ -29,6 +29,7 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
 import {
   UnknownSettingsPathError,
+  completeWelcome,
   ensureUserSettings,
   loadUserSettings,
   loadUserSettingsByIds,
@@ -292,6 +293,19 @@ describe('user settings — read after write', () => {
     expect(batch.get(first)?.privacy.labelPreferences?.labelActions).toHaveLength(1);
     expect(batch.get(second)?.privacy.labelPreferences?.labelActions).toEqual([]);
     expect(batch.get(second)?.privacy.showSensitiveContent).toBe(true);
+  });
+});
+
+describe('user settings — the first-run welcome', () => {
+  it('starts unfinished and keeps the FIRST completion', async () => {
+    const id = userId('welcome');
+    expect((await ensureUserSettings(id)).welcomeCompletedAt).toBeNull();
+
+    const first = await completeWelcome(id);
+    const again = await completeWelcome(id);
+
+    expect(again.getTime()).toBe(first.getTime());
+    expect((await loadUserSettings(id))?.welcomeCompletedAt?.getTime()).toBe(first.getTime());
   });
 });
 

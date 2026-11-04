@@ -439,6 +439,7 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
     ...(row.fediversePreferredLanguage
       ? { fediversePreferredLanguage: row.fediversePreferredLanguage }
       : {}),
+    welcomeCompletedAt: row.welcomeCompletedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -496,6 +497,28 @@ export async function ensureUserSettings(
     throw new Error(`[userSettings] row for ${oxyUserId} was not readable after ensure`);
   }
   return record;
+}
+
+/**
+ * Record that the account finished (or skipped) `/welcome`. The FIRST stamp
+ * wins, so a second device finishing it later does not move the date.
+ */
+export async function completeWelcome(
+  oxyUserId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Date> {
+  const [row] = await db
+    .insert(userSettings)
+    .values({ oxyUserId, welcomeCompletedAt: new Date() })
+    .onConflictDoUpdate({
+      target: userSettings.oxyUserId,
+      set: { welcomeCompletedAt: sql`coalesce(${userSettings.welcomeCompletedAt}, now())` },
+    })
+    .returning({ welcomeCompletedAt: userSettings.welcomeCompletedAt });
+  if (!row?.welcomeCompletedAt) {
+    throw new Error(`[userSettings] welcome for ${oxyUserId} was not recorded`);
+  }
+  return row.welcomeCompletedAt;
 }
 
 /**

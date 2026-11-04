@@ -3418,5 +3418,31 @@
       "title": "Neler olduğunu kaçırma",
       "subtitle": "Mention'daki insanlar her şeyi ilk öğrenenlerdir."
     }
+  },
+  "welcome": {
+    "stepCount": "Adım {{position}} / {{total}}",
+    "skip": "Atla",
+    "back": "Geri",
+    "next": "İleri",
+    "finish": "Bitti",
+    "interests": {
+      "title": "Nelerle ilgileniyorsun?",
+      "description": "Birkaç konu seç. Akışını şekillendirir ve her Oxy uygulamasında seninle olur."
+    },
+    "people": {
+      "title": "Takip edecek kişiler bul",
+      "description": "Bir başlangıç paketini tek dokunuşla takip et ya da kişileri tek tek seç.",
+      "packsTitle": "Başlangıç paketleri",
+      "suggestionsTitle": "Hoşuna gidebilecek kişiler",
+      "followAll": "Tümünü takip et",
+      "followingAll": "Tümünü takip ediyorsun"
+    },
+    "profile": {
+      "title": "Sana özel yap",
+      "description": "İnsanlar kimi takip ettiğini bilsin diye bir fotoğraf ve biyografi ekle.",
+      "heading": "Profilin",
+      "body": "Bir fotoğraf ve kısa bir biyografi, insanların seni geri takip etmesine yardımcı olur. İstediğin zaman Ayarlar'dan değiştirebilirsin.",
+      "edit": "Profili düzenle"
+    }
   }
 }

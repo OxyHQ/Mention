@@ -382,6 +382,13 @@ export const userSettings = pgTable(
      */
     fediversePreferredLanguage: text(),
 
+    /**
+     * When the account finished (or skipped) the first-run `/welcome` flow. NULL
+     * means it has not, and the app sends it there once. Accounts that existed
+     * before the flow shipped were stamped by the migration that added the column.
+     */
+    welcomeCompletedAt: timestamptz(),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

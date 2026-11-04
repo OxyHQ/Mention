@@ -1,6 +1,6 @@
 /** Synthetic session and API for local-draft browser regressions. */
 import type { BrowserContext } from '@playwright/test';
-import { APP_ORIGIN } from './environment';
+import { APP_ORIGIN, FIXTURE_VIEWER_SETTINGS } from './environment';
 
 export const DRAFT_VIEWER_ID = 'draft-fixture-viewer';
 export const DRAFT_KEY = `@mention_drafts:v2:${DRAFT_VIEWER_ID}`;
@@ -130,7 +130,7 @@ export async function installDraftFixture(
     if (path.includes('/users/by-ids')) return json({ users: [user] });
     if (path === '/safety/supervision') return json({ self: null, children: [], invitations: [] });
     if (path.includes('settings') || path.includes('preferences') || path.includes('entitlements'))
-      return json({});
+      return json(FIXTURE_VIEWER_SETTINGS);
     if (path.startsWith('/notifications/')) return json({ count: 0 });
     if (path.includes('/feed') || path.includes('/posts'))
       return json({ posts: [], items: [], hasMore: false, nextCursor: null });

@@ -3418,5 +3418,31 @@
       "title": "Jangan lewatkan apa yang sedang terjadi",
       "subtitle": "Orang-orang di Mention yang pertama tahu."
     }
+  },
+  "welcome": {
+    "stepCount": "Langkah {{position}} dari {{total}}",
+    "skip": "Lewati",
+    "back": "Kembali",
+    "next": "Berikutnya",
+    "finish": "Selesai",
+    "interests": {
+      "title": "Apa yang kamu sukai?",
+      "description": "Pilih beberapa topik. Topik membentuk feed-mu dan ikut bersamamu di setiap aplikasi Oxy."
+    },
+    "people": {
+      "title": "Temukan orang untuk diikuti",
+      "description": "Ikuti starter pack dengan satu ketukan, atau pilih orang satu per satu.",
+      "packsTitle": "Starter pack",
+      "suggestionsTitle": "Orang yang mungkin kamu sukai",
+      "followAll": "Ikuti semua",
+      "followingAll": "Mengikuti semua"
+    },
+    "profile": {
+      "title": "Jadikan milikmu",
+      "description": "Tambahkan foto dan bio agar orang tahu siapa yang mereka ikuti.",
+      "heading": "Profilmu",
+      "body": "Foto dan bio singkat membantu orang untuk mengikutimu balik. Kamu bisa mengubahnya kapan saja di Pengaturan.",
+      "edit": "Edit profil"
+    }
   }
 }
