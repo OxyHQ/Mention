@@ -1,10 +1,9 @@
-const mockGet = jest.fn();
 const mockPut = jest.fn();
 const mockInvalidateQueries = jest.fn();
+const mockFetchViewerSettings = jest.fn();
 
 jest.mock('@/utils/api', () => ({
   api: {
-    get: (...args: unknown[]) => mockGet(...args),
     put: (...args: unknown[]) => mockPut(...args),
   },
   publicApi: {
@@ -16,7 +15,12 @@ jest.mock('@/utils/api', () => ({
 jest.mock('@/lib/queryClient', () => ({
   queryClient: {
     invalidateQueries: (...args: unknown[]) => mockInvalidateQueries(...args),
+    setQueryData: jest.fn(),
   },
+}));
+
+jest.mock('@/lib/viewerSettings', () => ({
+  fetchViewerSettings: (...args: unknown[]) => mockFetchViewerSettings(...args),
 }));
 
 // Install API mocks before loading the singleton store module.
@@ -45,21 +49,35 @@ describe('appearanceStore viewer isolation', () => {
   });
 
   it('discards A settings when its load resolves after B', async () => {
-    const pendingA = deferred<{ data: UserAppearance }>();
-    const pendingB = deferred<{ data: UserAppearance }>();
-    mockGet.mockReturnValueOnce(pendingA.promise).mockReturnValueOnce(pendingB.promise);
+    const pendingA = deferred<UserAppearance>();
+    const pendingB = deferred<UserAppearance>();
+    mockFetchViewerSettings
+      .mockReturnValueOnce(pendingA.promise)
+      .mockReturnValueOnce(pendingB.promise);
 
-    const requestA = useAppearanceStore.getState().loadMySettings(true);
+    const requestA = useAppearanceStore.getState().loadMySettings('viewer-a');
     useAppearanceStore.getState().resetViewerState();
-    const requestB = useAppearanceStore.getState().loadMySettings(true);
+    const requestB = useAppearanceStore.getState().loadMySettings('viewer-b');
+    expect(mockFetchViewerSettings).toHaveBeenLastCalledWith('viewer-b');
 
-    pendingB.resolve({ data: appearance('viewer-b', 'all') });
+    pendingB.resolve(appearance('viewer-b', 'all'));
     await requestB;
     expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
 
-    pendingA.resolve({ data: appearance('viewer-a', 'more') });
+    pendingA.resolve(appearance('viewer-a', 'more'));
     await requestA;
     expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
+  });
+
+  it('reloads, without an id, only for the viewer it last loaded', async () => {
+    await useAppearanceStore.getState().loadMySettings();
+    expect(mockFetchViewerSettings).not.toHaveBeenCalled();
+
+    mockFetchViewerSettings.mockResolvedValue(appearance('viewer-a', 'more'));
+    await useAppearanceStore.getState().loadMySettings('viewer-a');
+    await useAppearanceStore.getState().loadMySettings();
+    expect(mockFetchViewerSettings).toHaveBeenLastCalledWith('viewer-a');
+    expect(mockFetchViewerSettings).toHaveBeenCalledTimes(2);
   });
 
   it('does not let a late A update overwrite B settings', async () => {

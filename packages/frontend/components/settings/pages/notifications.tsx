@@ -1,7 +1,6 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
-import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
-import { authenticatedClient } from '@/utils/api';
+import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
@@ -9,7 +8,7 @@ import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
@@ -39,49 +38,21 @@ export default function NotificationSettingsScreen() {
 
   const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS);
-  const [loading, setLoading] = useState(true);
+  const {
+    value: stored,
+    isLoading: loading,
+    update,
+  } = useViewerSettingsSection('notificationPreferences');
+  const prefs: NotificationPreferences = { ...DEFAULT_PREFS, ...stored };
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (isPrivateApiPending) {
-      return;
-    }
-    if (!canUsePrivateApi) {
-      setLoading(false);
-      return;
-    }
-    loadPreferences();
-  }, [canUsePrivateApi, isPrivateApiPending]);
-
-  const loadPreferences = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      if (settings.notificationPreferences) {
-        setPrefs({ ...DEFAULT_PREFS, ...settings.notificationPreferences });
-      }
-    } catch (error) {
-      logger.error('Error loading notification preferences', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const updatePreference = useCallback(
     async (key: keyof NotificationPreferences, value: boolean) => {
-      const previous = prefs;
-      const updated = { ...prefs, [key]: value };
-      setPrefs(updated);
-
       try {
         setSaving(true);
-        await authenticatedClient.put('/profile/settings', {
-          notificationPreferences: { [key]: value },
-        });
+        await update({ [key]: value });
       } catch (error) {
         logger.error('Error updating notification preferences', error);
-        setPrefs(previous);
         toast(
           t('settings.notifications.saveError', {
             defaultValue: 'Failed to save notification preference',
@@ -92,7 +63,7 @@ export default function NotificationSettingsScreen() {
         setSaving(false);
       }
     },
-    [prefs, t],
+    [update, t],
   );
 
   if (isPrivateApiPending) {

@@ -479,6 +479,10 @@ export async function loadUserSettings(
 /**
  * The user's settings row, creating it with defaults if absent.
  *
+ * Reads first and inserts only on a miss: every account has its row after its
+ * first read, so the common case is one read and no write — not an
+ * `INSERT … ON CONFLICT` (a row lock and a WAL record) on every settings fetch.
+ *
  * Every default lives in the SCHEMA, so an insert of nothing but the id
  * produces exactly the document `ensureUserSettings` used to create — there is
  * no second copy of the defaults here to drift from it.
@@ -487,6 +491,9 @@ export async function ensureUserSettings(
   oxyUserId: string,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<UserSettingsRecord> {
+  const existing = await loadUserSettings(oxyUserId, db);
+  if (existing) return existing;
+  // Two first reads can race here; the conflict clause makes the loser a no-op.
   await db.insert(userSettings).values({ oxyUserId }).onConflictDoNothing({
     target: userSettings.oxyUserId,
   });

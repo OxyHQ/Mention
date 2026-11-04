@@ -10,8 +10,11 @@ const mockWarn = jest.fn();
 
 jest.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 jest.mock('expo-splash-screen', () => ({ hideAsync: () => mockHideSplash() }));
+const mockGetAllKeys = jest.fn();
+const mockMultiRemove = jest.fn();
 jest.mock('@react-native-async-storage/async-storage', () => ({
-  multiRemove: jest.fn().mockResolvedValue(undefined),
+  getAllKeys: () => mockGetAllKeys(),
+  multiRemove: (keys: string[]) => mockMultiRemove(keys),
 }));
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: (...args: unknown[]) => mockSetHandler(...args),
@@ -131,4 +134,22 @@ it('preserves the font gate and permits subsequent initializations', async () =>
   expect(mockSetHandler).toHaveBeenCalledTimes(2);
   expect(mockSetChannel).toHaveBeenCalledTimes(2);
   expect(mockLoadMutedState).toHaveBeenCalledTimes(2);
+});
+
+it('removes retired keys, including every viewer namespace of a retired cache', async () => {
+  mockGetAllKeys.mockResolvedValue([
+    '@mention_privacy_settings',
+    '@mention_privacy_settings:v2:viewer-1',
+    '@mention_external_embeds:v2:viewer-1',
+  ]);
+  mockMultiRemove.mockResolvedValue(undefined);
+
+  AppInitializer.runDeferredMaintenance();
+  await nextTurn();
+
+  expect(mockMultiRemove).toHaveBeenCalledWith([
+    'auto-translate-preference',
+    '@mention_privacy_settings',
+    '@mention_privacy_settings:v2:viewer-1',
+  ]);
 });

@@ -193,8 +193,11 @@ describe('useFeedSettings — instant save', () => {
     expect(mockPut).toHaveBeenCalledTimes(1);
     expect(mockRankingChanged).not.toHaveBeenCalled();
     // And the cache already holds the new value, which is what the screen reads.
-    const key = ['viewer', 'viewer-1', 'feed-settings'];
-    expect(client.getQueryData<typeof SERVER_SETTINGS>(key)?.quality.boostHighQuality).toBe(false);
+    const key = ['viewer', 'viewer-1', 'settings', 'mine'];
+    expect(
+      client.getQueryData<{ feedSettings: typeof SERVER_SETTINGS }>(key)?.feedSettings.quality
+        .boostHighQuality,
+    ).toBe(false);
 
     await act(async () => {
       resolvePut({ data: { feedSettings: next } });
@@ -206,11 +209,9 @@ describe('useFeedSettings — instant save', () => {
 
   it('rolls the value back and raises a toast when the write fails', async () => {
     mockPut.mockRejectedValue(new Error('500 from the API'));
-    // The revalidation `onSettled` fires must NOT be able to restore the value
-    // for us: if it could, this test would pass with the rollback deleted, which
-    // is exactly what it did before this line existed. With the refetch failing,
-    // the snapshot restore in `onError` is the only thing that can put the old
-    // value back.
+    // A refetch must NOT be able to restore the value for us: if it could, this
+    // test would pass with the rollback deleted. With any refetch failing, the
+    // snapshot restore in `onError` is the only thing that can put it back.
     mockGet
       .mockResolvedValueOnce({ data: { feedSettings: SERVER_SETTINGS } })
       .mockRejectedValue(new Error('refetch unavailable'));
@@ -244,8 +245,11 @@ describe('useFeedSettings — instant save', () => {
     });
     await settle();
 
-    const key = ['viewer', 'viewer-1', 'feed-settings'];
-    expect(client.getQueryData<typeof SERVER_SETTINGS>(key)?.recency.halfLifeHours).toBe(48);
+    const key = ['viewer', 'viewer-1', 'settings', 'mine'];
+    expect(
+      client.getQueryData<{ feedSettings: typeof SERVER_SETTINGS }>(key)?.feedSettings.recency
+        .halfLifeHours,
+    ).toBe(48);
     expect(latest!.settings.recency.halfLifeHours).toBe(48);
     // The whole point: a drag moves the displayed value and touches no network.
     expect(mockPut).not.toHaveBeenCalled();

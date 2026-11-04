@@ -4,7 +4,7 @@
  * Holds the viewer's per-provider tri-state preference (`'show' | 'hide' |
  * undefined`) for inline external players (YouTube, Spotify, GIPHY, …). The
  * preference is owned server-side (`UserSettings.externalEmbeds`, exposed via
- * `GET /profile/settings/me` + `PUT /profile/settings`); this store mirrors it
+ * the shared viewer settings read and `PUT /profile/settings`); this store mirrors it
  * locally so the feed can decide synchronously whether to mount a provider's
  * player, with an AsyncStorage cache so the choice survives cold boots and
  * renders before the network round-trip lands.
@@ -18,7 +18,6 @@ import { useEffect } from 'react';
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { authenticatedClient } from '@/utils/api';
 import { createLogger } from '@oxy.so/core/logger';
 import { viewerCacheId, viewerStorageKey, type ViewerId } from '@/lib/viewerQueryKeys';
 import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
@@ -27,7 +26,7 @@ import type {
   ExternalEmbedPref,
   ExternalEmbedsSettings,
 } from '@mention/shared-types';
-import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import { fetchViewerSettings, saveViewerSettings } from '@/lib/viewerSettings';
 
 const logger = createLogger('externalEmbedsStore');
 
@@ -104,9 +103,10 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
     }
 
     try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+      // The shared settings read (`lib/viewerSettings`), not a second request.
+      const settings = await fetchViewerSettings(viewerId);
       if (generation !== hydrationGeneration || activeViewerId !== normalizedViewerId) return;
-      const serverPrefs = response.data?.externalEmbeds;
+      const serverPrefs = settings.externalEmbeds;
       if (serverPrefs) {
         set({ prefs: serverPrefs, hydrated: true });
         try {
@@ -139,7 +139,7 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
     set({ prefs: next });
 
     try {
-      await authenticatedClient.put('/profile/settings', { externalEmbeds: patch });
+      await saveViewerSettings(viewerId, { externalEmbeds: patch });
       if (generation !== hydrationGeneration || activeViewerId !== viewerId) return;
       // Best-effort cache write — it doesn't gate the mutation, so don't await it.
       void enqueueExternalEmbedsStorage(viewerId, async () => {

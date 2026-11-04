@@ -1,69 +1,24 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
-import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
-import { authenticatedClient } from '@/utils/api';
+import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 export default function TagsMentionsScreen() {
   const { t } = useTranslation();
 
-  const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
-  const [allowTags, setAllowTags] = useState(true);
-  const [allowMentions, setAllowMentions] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const { value: privacy, isLoading: loading, update } = useViewerSettingsSection('privacy');
+  const allowTags = privacy.allowTags !== false;
+  const allowMentions = privacy.allowMentions !== false;
 
-  useEffect(() => {
-    if (!isAuthResolved || isPrivateApiPending) {
-      return;
-    }
-    if (!isAuthenticated) {
-      setLoading(false);
-      return;
-    }
-    loadSettings();
-  }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
-
-  const loadSettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setAllowTags(settings.privacy?.allowTags !== false);
-      setAllowMentions(settings.privacy?.allowMentions !== false);
-      setLoading(false);
-    } catch (error) {
-      logger.error('Error loading settings', error);
-      setLoading(false);
-    }
-  };
-
-  const updateSetting = async (field: 'allowTags' | 'allowMentions', value: boolean) => {
-    try {
-      let currentPrivacy = {};
-      try {
-        const currentResponse =
-          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-        currentPrivacy = currentResponse.data?.privacy || {};
-      } catch (e) {
-        logger.debug('Could not load current privacy settings', { error: e });
-      }
-
-      const updatedPrivacy = {
-        ...currentPrivacy,
-        [field]: value,
-      };
-      await authenticatedClient.put('/profile/settings', {
-        privacy: updatedPrivacy,
-      });
-    } catch (error) {
+  const updateSetting = (field: 'allowTags' | 'allowMentions', value: boolean) => {
+    update({ [field]: value }).catch((error: unknown) => {
       logger.error('Error updating setting', error);
-      if (field === 'allowTags') setAllowTags(!value);
-      if (field === 'allowMentions') setAllowMentions(!value);
-    }
+    });
   };
 
   if (!isAuthResolved || isPrivateApiPending) {
@@ -109,10 +64,7 @@ export default function TagsMentionsScreen() {
               {
                 <Switch
                   checked={allowTags}
-                  onCheckedChange={(value) => {
-                    setAllowTags(value);
-                    updateSetting('allowTags', value);
-                  }}
+                  onCheckedChange={(value) => updateSetting('allowTags', value)}
                   accessibilityLabel={t('settings.privacy.allowTags')}
                 />
               }
@@ -124,10 +76,7 @@ export default function TagsMentionsScreen() {
               {
                 <Switch
                   checked={allowMentions}
-                  onCheckedChange={(value) => {
-                    setAllowMentions(value);
-                    updateSetting('allowMentions', value);
-                  }}
+                  onCheckedChange={(value) => updateSetting('allowMentions', value)}
                   accessibilityLabel={t('settings.privacy.allowMentions')}
                 />
               }

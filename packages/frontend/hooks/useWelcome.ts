@@ -2,15 +2,21 @@
  * The first-run `/welcome` flow's one piece of state: whether this account has
  * finished (or skipped) it. The server owns the answer
  * (`user_settings.welcome_completed_at`), so a person who finishes it on one
- * device is not sent there again on another.
+ * device is not sent there again on another. It is a field of the viewer's
+ * settings document, read through the one shared settings query.
  */
 
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { queryClient } from '@/lib/queryClient';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import {
+  updateCachedViewerSettings,
+  viewerSettingsQuery,
+  type UserSettingsResponse,
+} from '@/lib/viewerSettings';
 import { authenticatedClient } from '@/utils/api';
+
+const selectNeedsWelcome = (settings: UserSettingsResponse): boolean =>
+  settings.welcomeCompletedAt === null;
 
 /**
  * `needsWelcome` is true only once the server has ANSWERED that the flow is
@@ -22,14 +28,9 @@ export function useWelcomeStatus(): { needsWelcome: boolean } {
   const { user, canUsePrivateApi } = useAuth();
   const viewerId = user?.id;
   const query = useQuery({
-    queryKey: viewerQueryKeys.welcomeStatus(viewerId),
-    queryFn: async () => {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      return response.data.welcomeCompletedAt === null;
-    },
+    ...viewerSettingsQuery(viewerId),
     enabled: canUsePrivateApi && Boolean(viewerId),
-    // It changes once, through `useCompleteWelcome`, which writes the cache.
-    staleTime: Number.POSITIVE_INFINITY,
+    select: selectNeedsWelcome,
   });
   return { needsWelcome: query.isSuccess && query.data };
 }
@@ -38,17 +39,22 @@ export function useWelcomeStatus(): { needsWelcome: boolean } {
 export function useCompleteWelcome() {
   const { user } = useAuth();
   const viewerId = user?.id;
+  const client = useQueryClient();
+  // A failed write must not trap the person in the flow either: this session
+  // treats it as done, and the server asks again next time it is read.
+  const markDone = (completedAt?: string | null) =>
+    updateCachedViewerSettings(client, viewerId, (current) => ({
+      ...current,
+      welcomeCompletedAt: completedAt ?? current.welcomeCompletedAt ?? new Date().toISOString(),
+    }));
   return useMutation({
-    mutationFn: async () => {
-      await authenticatedClient.post('/profile/settings/welcome');
-    },
-    onSuccess: () => {
-      queryClient.setQueryData(viewerQueryKeys.welcomeStatus(viewerId), false);
-    },
-    // A failed write must not trap the person in the flow: this session treats
-    // it as done, and the server asks again next time it is read.
-    onError: () => {
-      queryClient.setQueryData(viewerQueryKeys.welcomeStatus(viewerId), false);
-    },
+    mutationFn: async () =>
+      (
+        await authenticatedClient.post<{ welcomeCompletedAt?: string | null }>(
+          '/profile/settings/welcome',
+        )
+      ).data,
+    onSuccess: (data) => markDone(data?.welcomeCompletedAt),
+    onError: () => markDone(),
   });
 }

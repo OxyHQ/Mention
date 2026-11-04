@@ -3,6 +3,7 @@ import { api, publicApi, isUnauthorizedError } from '@/utils/api';
 import { queryClient } from '@/lib/queryClient';
 import type { ThemeMode } from '@oxy.so/bloom/theme';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { fetchViewerSettings } from '@/lib/viewerSettings';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
 
 function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
@@ -176,7 +177,11 @@ interface AppearanceStore {
   mySettings: UserAppearance | null;
   loading: boolean;
   error: string | null;
-  loadMySettings: (isAuthenticated: boolean) => Promise<void>;
+  /**
+   * Load the viewer's own settings. Without an id, reloads for the viewer it
+   * last loaded (a non-React caller that cannot name the session).
+   */
+  loadMySettings: (viewerId?: string) => Promise<void>;
   /**
    * Fetch a user's public profile-design payload. A plain fetcher: the caller
    * (`useProfileData`) owns caching through React Query, which is the single
@@ -189,27 +194,29 @@ interface AppearanceStore {
 }
 
 let viewerEpoch = 0;
+/** The viewer whose settings {@link AppearanceStore.mySettings} holds. */
+let settingsViewerId: string | undefined;
 
 export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
   mySettings: null,
   loading: false,
   error: null,
 
-  async loadMySettings(isAuthenticated: boolean) {
-    if (!isAuthenticated) {
-      return;
-    }
+  async loadMySettings(viewerId?: string) {
+    const owner = viewerId ?? settingsViewerId;
+    if (!owner) return;
+    settingsViewerId = owner;
 
     const operationEpoch = viewerEpoch;
     try {
       set({ loading: true, error: null });
-
-      const res = await api.get<UserAppearance>('profile/settings/me');
+      // The shared settings read (`lib/viewerSettings`): the embed store and
+      // the settings pages ask the same cached question at boot.
+      const doc = await fetchViewerSettings(owner);
       if (operationEpoch !== viewerEpoch) return;
-      const doc = unwrapApiData<UserAppearance>(res.data);
-
-      if (doc) {
-        set({ mySettings: doc, loading: false });
+      if (doc.oxyUserId) {
+        // A stored document always names its owner; `{}` is "no document yet".
+        set({ mySettings: doc as UserAppearance, loading: false });
       } else {
         set({ loading: false });
       }
@@ -280,6 +287,11 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
 
       if (doc) {
         set({ mySettings: doc, loading: false });
+        // The PUT answers with the whole saved document: it is the shared
+        // settings cache's new value too.
+        if (doc.oxyUserId) {
+          queryClient.setQueryData(viewerQueryKeys.settings(doc.oxyUserId), doc);
+        }
 
         // `useProfileData` reads this same appearance payload through React Query
         // (`['viewer', <viewerId>, 'appearance', 'user', <userId>]`). The paint
@@ -314,11 +326,13 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
 
   reset() {
     viewerEpoch += 1;
+    settingsViewerId = undefined;
     set({ mySettings: null, loading: false, error: null });
   },
 
   resetViewerState() {
     viewerEpoch += 1;
+    settingsViewerId = undefined;
     set({ mySettings: null, loading: false, error: null });
   },
 }));

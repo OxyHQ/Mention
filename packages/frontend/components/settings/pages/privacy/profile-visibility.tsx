@@ -3,20 +3,15 @@ import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { useSettingsBack } from '@/context/MentionSettingsContext';
-import {
-  createPrivacySettingsCacheLease,
-  updatePrivacySettingsCache,
-  type UserSettingsResponse,
-} from '@/hooks/usePrivacySettings';
+import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { alertDialog } from '@/utils/alerts';
-import { authenticatedClient } from '@/utils/api';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
@@ -32,35 +27,10 @@ interface VisibilityOptionConfig {
 function ProfileVisibilityScreen() {
   const { t } = useTranslation();
   const back = useSettingsBack();
-  const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } =
-    useAuth();
-
-  const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>('public');
-  const [loading, setLoading] = useState(true);
+  const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const { value: privacy, isLoading: loading, update } = useViewerSettingsSection('privacy');
+  const profileVisibility: VisibilityOption = privacy.profileVisibility || 'public';
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!isAuthResolved || isPrivateApiPending) {
-      return;
-    }
-    if (!isAuthenticated) {
-      setLoading(false);
-      return;
-    }
-    loadSettings();
-  }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
-
-  const loadSettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setProfileVisibility(settings.privacy?.profileVisibility || 'public');
-      setLoading(false);
-    } catch (error) {
-      logger.error('Error loading settings', error);
-      setLoading(false);
-    }
-  };
 
   const handleSave = async (newVisibility: VisibilityOption) => {
     if (newVisibility === profileVisibility) {
@@ -69,28 +39,8 @@ function ProfileVisibilityScreen() {
     }
 
     setSaving(true);
-    const cacheLease = createPrivacySettingsCacheLease(user?.id);
     try {
-      let currentPrivacy = {};
-      try {
-        const currentResponse =
-          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-        currentPrivacy = currentResponse.data?.privacy || {};
-      } catch (e) {
-        logger.debug('Could not load current privacy settings', { error: e });
-      }
-
-      const updatedPrivacy = {
-        ...currentPrivacy,
-        profileVisibility: newVisibility,
-      };
-      await authenticatedClient.put('/profile/settings', {
-        privacy: updatedPrivacy,
-      });
-
-      await updatePrivacySettingsCache(updatedPrivacy, cacheLease);
-
-      setProfileVisibility(newVisibility);
+      await update({ profileVisibility: newVisibility });
       await alertDialog({
         title: t('common.success'),
         message: t('settings.privacy.profileVisibilityUpdated'),

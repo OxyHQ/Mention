@@ -29,7 +29,6 @@ import { liveRoomRuntimeController } from '@/context/LiveRoomContext';
 import { claimViewerCache } from '@/db';
 import { viewerCacheId } from '@/lib/viewerQueryKeys';
 import { resetRecommendationFiltersViewer } from '@/lib/recommendationFilters';
-import { resetCurrentUserPrivacySettingsCache } from '@/hooks/usePrivacySettings';
 
 /**
  * Identity boundary for every account-dependent frontend cache.
@@ -149,7 +148,6 @@ export function AccountSwitchReset({
 
       if (previousViewerId) {
         resetRecommendationFiltersViewer(previousViewerId);
-        resetCurrentUserPrivacySettingsCache(previousViewerId);
         void searchService.clearSearchHistory(previousViewerId).catch((error: unknown) => {
           logger.warn('Failed to clear search history after account change', { error });
         });

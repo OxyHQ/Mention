@@ -38,7 +38,6 @@ const mockResetExternalEmbeds = jest.fn();
 const mockResetLiveRooms = jest.fn();
 const mockResetTrends = jest.fn();
 const mockResetRecommendationFilters = jest.fn();
-const mockResetPrivacySettingsCache = jest.fn();
 const mockChildRender = jest.fn();
 
 // Account-switch behavior reads locale state; initialization/storage are tested separately.
@@ -101,11 +100,6 @@ jest.mock('@/stores/trendsStore', () => ({
 
 jest.mock('@/lib/recommendationFilters', () => ({
   resetRecommendationFiltersViewer: (...args: unknown[]) => mockResetRecommendationFilters(...args),
-}));
-
-jest.mock('@/hooks/usePrivacySettings', () => ({
-  resetCurrentUserPrivacySettingsCache: (...args: unknown[]) =>
-    mockResetPrivacySettingsCache(...args),
 }));
 
 jest.mock('@/stores/feedScrollStore', () => ({
@@ -339,7 +333,6 @@ describe('AccountSwitchReset identity boundary', () => {
     expect(mockResetLiveRooms).toHaveBeenCalledTimes(1);
     expect(mockResetTrends).toHaveBeenCalledTimes(1);
     expect(mockResetRecommendationFilters).toHaveBeenCalledWith('viewer-a');
-    expect(mockResetPrivacySettingsCache).toHaveBeenCalledWith('viewer-a');
     expect(mockClearFeedScrollOffsets).toHaveBeenCalledTimes(1);
     expect(mockResetEngagementInvalidation).toHaveBeenCalledTimes(1);
     expect(mockResetSafetyInvalidation).toHaveBeenCalledTimes(1);

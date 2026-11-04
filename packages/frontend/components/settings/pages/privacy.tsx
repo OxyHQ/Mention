@@ -2,12 +2,6 @@ import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useSettingsRouter } from '@/context/MentionSettingsContext';
-import {
-  createPrivacySettingsCacheLease,
-  updatePrivacySettingsCache,
-  type PrivacySettings,
-  type UserSettingsResponse,
-} from '@/hooks/usePrivacySettings';
 import { queryClient } from '@/lib/queryClient';
 import {
   DEFAULT_RECOMMENDATION_FILTERS,
@@ -16,8 +10,8 @@ import {
   type RecommendationFilters,
 } from '@/lib/recommendationFilters';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
-import { authenticatedClient } from '@/utils/api';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
@@ -72,36 +66,19 @@ function PrivacySettingsScreen() {
     useAuth();
   const viewerId = user?.id;
 
-  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
+  const {
+    value: privacySettings,
+    isLoading: loading,
+    update: updatePrivacy,
+  } = useViewerSettingsSection('privacy');
   const [recFilters, setRecFilters] = useState<RecommendationFilters>(
     DEFAULT_RECOMMENDATION_FILTERS,
   );
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthResolved || isPrivateApiPending) {
-      return;
-    }
-    if (!isAuthenticated || !viewerId) {
-      setLoading(false);
-      return;
-    }
-    loadPrivacySettings();
+    if (!isAuthResolved || isPrivateApiPending || !isAuthenticated || !viewerId) return;
     getRecommendationFilters(viewerId).then(setRecFilters);
   }, [isAuthResolved, isPrivateApiPending, isAuthenticated, viewerId]);
-
-  const loadPrivacySettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setPrivacySettings(settings.privacy || { profileVisibility: 'public' });
-      setLoading(false);
-    } catch (error) {
-      logger.error('Error loading privacy settings', error);
-      setPrivacySettings({ profileVisibility: 'public' });
-      setLoading(false);
-    }
-  };
 
   const updateRecFilter = (key: keyof RecommendationFilters, value: boolean) => {
     const updated = { ...recFilters, [key]: value };
@@ -119,13 +96,8 @@ function PrivacySettingsScreen() {
     field: 'showSensitiveContent' | 'searchEngineIndexing' | 'showLikes',
     value: boolean,
   ) => {
-    const cacheLease = createPrivacySettingsCacheLease(viewerId);
-    const previous = privacySettings;
-    const updated = { ...privacySettings, [field]: value };
-    setPrivacySettings(updated);
     try {
-      await authenticatedClient.put('/profile/settings', { privacy: updated });
-      await updatePrivacySettingsCache(updated, cacheLease);
+      await updatePrivacy({ [field]: value });
       // Sensitive content is excluded by the SERVER's feed/search queries,
       // so a cache filled under the previous answer is now showing (or
       // withholding) exactly what the viewer just decided about. One
@@ -133,7 +105,6 @@ function PrivacySettingsScreen() {
       if (field === 'showSensitiveContent') invalidateSafetyFilters();
     } catch (error) {
       logger.error('Error updating privacy setting', error, { field });
-      setPrivacySettings(previous);
     }
   };
 

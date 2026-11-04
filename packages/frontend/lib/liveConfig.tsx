@@ -105,7 +105,7 @@ const getPinnedPodcast: NonNullable<LiveConfig['getPinnedPodcast']> = async () =
   const store = useAppearanceStore.getState();
   let settings = store.mySettings;
   if (!settings) {
-    await store.loadMySettings(true);
+    await store.loadMySettings();
     settings = useAppearanceStore.getState().mySettings;
   }
   const media = settings?.profileMedia;
