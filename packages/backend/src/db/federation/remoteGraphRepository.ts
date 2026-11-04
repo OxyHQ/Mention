@@ -175,6 +175,66 @@ async function deleteEdgesWhere(where: SQL, db: DatabaseOrTransaction): Promise<
   return deleted.length;
 }
 
+/** One follow record named by its repository and record key (an atproto unfollow). */
+export interface RemoteFollowRecordRef {
+  sourceUri: string;
+  recordKey: string;
+}
+
+/**
+ * Delete the edges these follow records created — an unfollow seen live names
+ * only its record, so it is matched by (source node, `record_key`). An edge a
+ * crawl wrote carries no record key and is left to the next crawl's prune.
+ *
+ * @returns how many edges were deleted.
+ */
+export async function deleteRemoteFollowEdgesByRecordKeys(
+  refs: readonly RemoteFollowRecordRef[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
+  if (refs.length === 0) return 0;
+  const sources = await db
+    .select({ id: remoteActorRefs.id, uri: remoteActorRefs.uri })
+    .from(remoteActorRefs)
+    .where(inArray(remoteActorRefs.uri, [...new Set(refs.map((ref) => ref.sourceUri))]));
+  const idByUri = new Map(sources.map((source) => [source.uri, source.id]));
+  const matches = refs.flatMap((ref) => {
+    const sourceId = idByUri.get(ref.sourceUri);
+    return sourceId === undefined
+      ? []
+      : [
+          and(
+            eq(remoteFollowEdges.sourceId, sourceId),
+            eq(remoteFollowEdges.recordKey, ref.recordKey),
+          ),
+        ];
+  });
+  if (matches.length === 0) return 0;
+  return deleteEdgesWhere(or(...matches) as SQL, db);
+}
+
+/**
+ * The accounts among `uris` whose FOLLOWING side the mirror crawls and may show
+ * (`following_state = 'visible'`) — the only sources a live follow may add an
+ * edge for, so the stream never widens who the mirror covers.
+ */
+export async function findCrawledFollowingSources(
+  uris: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Set<string>> {
+  if (uris.length === 0) return new Set();
+  const rows = await db
+    .select({ actorUri: remoteGraphCrawls.actorUri })
+    .from(remoteGraphCrawls)
+    .where(
+      and(
+        inArray(remoteGraphCrawls.actorUri, [...new Set(uris)]),
+        eq(remoteGraphCrawls.followingState, 'visible'),
+      ),
+    );
+  return new Set(rows.map((row) => row.actorUri));
+}
+
 /**
  * Delete the edges on one side of a node that were not seen since `seenBefore` —
  * after a COMPLETE crawl of that side, or with "now" once the origin hid the

@@ -28,6 +28,12 @@ import {
   type JetstreamCollectionHandler,
   type JetstreamCursorStore,
 } from './JetstreamConsumer';
+import {
+  createFollowJetstreamHandler,
+  createKnownBlueskyAccounts,
+  createLikeJetstreamHandler,
+  createRepostJetstreamHandler,
+} from './engagementHandlers';
 import { createPostJetstreamHandler } from './postHandler';
 
 export type { JetstreamCollectionHandler } from './JetstreamConsumer';
@@ -36,9 +42,18 @@ export type { JetstreamCommit } from './protocol';
 /** The `jetstream_cursors` row this consumer resumes from. */
 const STREAM_NAME = 'bluesky';
 
-/** Every collection the consumer reads, one handler each. */
+/**
+ * Every collection the consumer reads, one handler each. Posts first, so a
+ * like or repost of a post created in the same batch finds it stored.
+ */
 export function jetstreamHandlers(): JetstreamCollectionHandler[] {
-  return [createPostJetstreamHandler()];
+  const known = createKnownBlueskyAccounts();
+  return [
+    createPostJetstreamHandler(),
+    createLikeJetstreamHandler(known),
+    createRepostJetstreamHandler(known),
+    createFollowJetstreamHandler(known),
+  ];
 }
 
 /** The cursor, stored as text in `jetstream_cursors`. */

@@ -161,6 +161,41 @@ was handled:
   event it still has, with an `OutdatedCursor` notice in the log. The periodic
   author-feed sync covers the gap.
 
+### Likes, reposts and follows
+
+`engagementHandlers.ts` keeps the remote graph mirror and the Bluesky engagement
+import ([fediverse](./fediverse.mdx)) current between their crawls. It works only
+between accounts Mention already holds.
+
+- **Every commit is matched in memory first.** These collections are most of
+  Bluesky's traffic. On 2026-11-04 the like stream alone was about 330/s and
+  210 KB/s, against about 50 posts/s. Each commit is matched against the
+  Bluesky accounts known here (`createKnownBlueskyAccounts`). That set holds
+  every `atproto` actor and every Bridgy Fed actor that is linked to an Oxy
+  user and not suspended, keyed by DID. It is read with two index scans every
+  five minutes. Only a commit by a known account reaches the database. Nothing
+  is minted for a stranger.
+- **Like.** A known account's like of a stored post is materialized with the
+  like record's AT-URI as its id. The unlike tombstones that id. A like first
+  read from `getLikes` has no record id, so its unlike waits for the next
+  engagement import.
+- **Repost.** A known account's repost of a stored post becomes a boost under
+  the repost's AT-URI (`importAtprotoRepost`). A `getRepostedBy` sighting of the
+  same repost is adopted first, so it is not stored twice. The unrepost deletes
+  the boost through `deleteStoredAtprotoRecords`.
+- **Follow.** An edge is added only when both hold:
+  - its source is an account whose following the mirror crawls and may show
+    (`remote_graph_crawls.following_state = 'visible'`);
+  - its target is an account known here.
+
+  Live edges are therefore a subset of what a crawl could store, between two
+  accounts held here. An unfollow names only its record, so it deletes the edge
+  by (source, `record_key`). An edge a crawl wrote has no record key and is left
+  to the next crawl's prune.
+
+Subscribing to the three collections adds about 20 GB a day of ingress to the
+~4–6 GB the post stream costs. It still uses one connection.
+
 ### Adding a collection (the extension point)
 
 To follow likes, reposts or follow edges, write a `JetstreamCollectionHandler`
