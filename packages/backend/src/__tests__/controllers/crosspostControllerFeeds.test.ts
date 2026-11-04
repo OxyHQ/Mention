@@ -61,7 +61,8 @@ const oxyMocks = vi.hoisted(() => ({
 oxyMocks.createScopedOxyClient.mockReturnValue(oxyMocks.scopedClient);
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: oxyMocks.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(),
+  callerOxyUser: vi.fn(),
+  callerAccountAccess: vi.fn(),
   getServiceOxyClient: () => undefined,
 }));
 

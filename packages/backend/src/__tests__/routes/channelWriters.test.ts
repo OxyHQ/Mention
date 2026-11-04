@@ -53,7 +53,8 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => {
 
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  createUserScopedOxyServices: vi.fn(() => ({})),
+  callerOxyUser: vi.fn(() => ({})),
+  callerAccountAccess: vi.fn(() => undefined),
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';

@@ -12,14 +12,15 @@ import { resolveUserSummaries } from '../PostHydrationService';
 import { invalidate as invalidatePostDetail } from '../postDetailCache';
 import { degradedActorSummary } from '../../utils/degradedActorSummary';
 import { logger } from '../../utils/logger';
-import { assertCanModerateCommunity, type AccountMemberReader } from '../publishAsAccount';
+import type { AccountMember } from '@oxy.so/core';
+import { assertCanModerateCommunity, type AccountAccessReader } from '../publishAsAccount';
 import { CommunityPostError } from './communityPosting';
 
 /**
  * What a community's moderators may do to it, from Mention: remove a post from
  * it, and ban a person from posting in it. Every action is authorized by
- * {@link assertCanModerateCommunity} (an active member of the community, read
- * from Oxy with the moderator's own bearer) and federates the way Lemmy's do,
+ * {@link assertCanModerateCommunity} (a member of the community, direct or
+ * inherited, read from Oxy with the moderator's own bearer) and federates the way Lemmy's do,
  * relayed by the community (FEP-1b12).
  *
  * Reports on a community's posts need nothing here: they are ordinary posts, so
@@ -46,7 +47,16 @@ export function normalizeModerationReason(reason: unknown): string | null {
 interface ModeratorContext {
   communityOxyUserId: string;
   moderatorOxyUserId: string;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
+}
+
+/**
+ * The moderator's own Oxy client (`callerOxyUser`), for the community's member
+ * roster — a LISTING of who else is a moderator, not the moderator's own
+ * authority, which {@link assertCanModerateCommunity} answers.
+ */
+export interface CommunityRosterReader {
+  accounts: { members: { list(accountId: string): Promise<AccountMember[]> } };
 }
 
 /**
@@ -64,7 +74,7 @@ export async function removePostFromCommunity(
   await assertCanModerateCommunity({
     communityOxyUserId: params.communityOxyUserId,
     callerId: params.moderatorOxyUserId,
-    memberReader: params.memberReader,
+    accountAccess: params.accountAccess,
   });
 
   // The AP id is read BEFORE the community is cleared: what the fediverse knows
@@ -107,18 +117,22 @@ export async function removePostFromCommunity(
  * caller themselves (400).
  */
 export async function banFromCommunity(
-  params: ModeratorContext & { bannedOxyUserId: string; reason: string | null },
+  params: ModeratorContext & {
+    bannedOxyUserId: string;
+    reason: string | null;
+    rosterReader: CommunityRosterReader | undefined;
+  },
 ): Promise<void> {
   await assertCanModerateCommunity({
     communityOxyUserId: params.communityOxyUserId,
     callerId: params.moderatorOxyUserId,
-    memberReader: params.memberReader,
+    accountAccess: params.accountAccess,
   });
   if (params.bannedOxyUserId === params.moderatorOxyUserId) {
     throw new CommunityPostError(400, 'You cannot ban yourself');
   }
-  // The moderator's own client: the same `members:read` read the gate made.
-  const members = await params.memberReader?.accounts.members.list(params.communityOxyUserId);
+  // The moderator's own client lists the community's members (`members:read`).
+  const members = await params.rosterReader?.accounts.members.list(params.communityOxyUserId);
   if (
     members?.some(
       (member) => member.memberUserId === params.bannedOxyUserId && member.status === 'active',
@@ -149,7 +163,7 @@ export async function unbanFromCommunity(
   await assertCanModerateCommunity({
     communityOxyUserId: params.communityOxyUserId,
     callerId: params.moderatorOxyUserId,
-    memberReader: params.memberReader,
+    accountAccess: params.accountAccess,
   });
   if (!(await deleteCommunityBan(params.communityOxyUserId, params.bannedOxyUserId))) {
     throw new CommunityPostError(404, 'That person is not banned');
@@ -165,7 +179,7 @@ export async function listBansForModerators(params: ModeratorContext): Promise<C
   await assertCanModerateCommunity({
     communityOxyUserId: params.communityOxyUserId,
     callerId: params.moderatorOxyUserId,
-    memberReader: params.memberReader,
+    accountAccess: params.accountAccess,
   });
   const rows = await listCommunityBans(params.communityOxyUserId, MAX_BANS_LISTED);
   const summaries = await resolveUserSummaries(rows.map((row) => row.bannedOxyUserId));

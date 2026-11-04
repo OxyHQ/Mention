@@ -9,7 +9,7 @@ import {
   MEMBERSHIP_CONTENT_KINDS,
   MEMBERSHIP_TIER_STATES,
 } from '@mention/shared-types';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerOxyUser, callerAccountAccess } from '../utils/oxyHelpers';
 import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { logger } from '../utils/logger';
@@ -108,7 +108,7 @@ function foregroundActor(req: MembershipRequest, required = true): MembershipAct
   return {
     accountId: req.user.id,
     requester: safetyRequesterFor(req),
-    memberReader: createUserScopedOxyServices(req),
+    accountAccess: callerAccountAccess(req),
   };
 }
 function actor(req: MembershipRequest): MembershipActor {
@@ -227,7 +227,7 @@ membershipRoutes.post(
 );
 membershipRoutes.get(
   '/mine',
-  endpoint((req) => listMyMembershipCommunities(actor(req), createUserScopedOxyServices(req))),
+  endpoint((req) => listMyMembershipCommunities(actor(req), callerOxyUser(req))),
 );
 membershipRoutes.post(
   '/',

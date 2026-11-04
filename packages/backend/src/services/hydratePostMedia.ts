@@ -1,7 +1,7 @@
-import { OxyServices, type BatchFileAccessEntry } from '@oxy.so/core';
+import type { BatchFileAccessEntry } from '@oxy.so/core';
 import type { SafetyRequester } from '@oxy.so/contracts';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
-import { config } from '../config';
+import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { isOxyFileId } from './postMediaVisibility';
 
 type FileAccess = Map<string, BatchFileAccessEntry>;
@@ -25,17 +25,17 @@ function sessionToken(requester: SafetyRequester): string | undefined {
 
 /** Ask Oxy's live ACL about `ids` as the reader, one call per server batch. */
 async function readFileAccess(ids: readonly string[], token: string): Promise<FileAccess> {
-  const client = new OxyServices({ baseURL: config.oxyApiUrl });
-  client.session.setAccessToken(token);
   const batches: string[][] = [];
   for (let index = 0; index < ids.length; index += ACCESS_BATCH_SIZE) {
     batches.push(ids.slice(index, index + ACCESS_BATCH_SIZE));
   }
-  const results = await Promise.all(
-    batches.map((batch) =>
-      client.assets.access(
-        batch.map((fileId) => ({ fileId })),
-        { context: 'mention-post' },
+  const results = await getRuntimeOxyClient().withUser(token, (user) =>
+    Promise.all(
+      batches.map((batch) =>
+        user.assets.access(
+          batch.map((fileId) => ({ fileId })),
+          { context: 'mention-post' },
+        ),
       ),
     ),
   );

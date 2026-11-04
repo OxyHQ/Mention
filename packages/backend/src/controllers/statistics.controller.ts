@@ -17,7 +17,7 @@ import { recordDedupedView } from '../services/feedViewCounter';
 import { validateRequired } from '../utils/apiHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerAccountAccess } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 
@@ -422,7 +422,7 @@ async function resolveStatisticsSubject(req: AuthRequest): Promise<StatisticsSub
   const operates = await viewerOperatesAccount({
     targetOxyUserId: requested,
     callerId,
-    memberReader: createUserScopedOxyServices(req),
+    accountAccess: callerAccountAccess(req),
   });
   if (!operates) {
     return { ok: false, status: 403, message: 'You do not have access to that account’s insights' };
@@ -607,7 +607,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
     const refusal = await postManagementRefusal({
       post,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (refusal) {
       return res.status(refusal.status === 404 ? 403 : refusal.status).json({

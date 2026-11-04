@@ -46,8 +46,10 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({ listAccountMembers: vi.fn(async () => []) }),
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
+    listAccountMembers: vi.fn(async () => []),
+  })),
 }));
 
 import reportsRoutes from '../../routes/reports.routes';

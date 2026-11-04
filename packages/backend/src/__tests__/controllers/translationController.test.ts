@@ -53,7 +53,8 @@ vi.mock('../../services/PostTranslationService', () => {
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(),
-  createUserScopedOxyServices: vi.fn(),
+  callerOxyUser: vi.fn(),
+  callerAccountAccess: vi.fn(),
 }));
 
 vi.mock('../../utils/viewerLanguage', () => ({

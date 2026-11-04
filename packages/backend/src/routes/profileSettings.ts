@@ -24,7 +24,7 @@ import {
   loadUserSettings,
   updateUserSettings,
 } from '../db/userProfile/userSettingsRepository';
-import { createUserScopedOxyServices, ensureProfileMediaPublic } from '../utils/oxyHelpers';
+import { callerAccountAccess, ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
 import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
@@ -160,7 +160,7 @@ router.get(
         ({ authorKind } = await assertCanPublishAsAccount({
           publishAsOxyUserId: targetUserId,
           callerId,
-          memberReader: createUserScopedOxyServices(req),
+          accountAccess: callerAccountAccess(req),
         }));
       } catch (error) {
         if (error instanceof PublishAsAccessError) {
@@ -234,7 +234,7 @@ router.put(
         ({ authorKind } = await assertCanPublishAsAccount({
           publishAsOxyUserId: targetUserId,
           callerId,
-          memberReader: createUserScopedOxyServices(req),
+          accountAccess: callerAccountAccess(req),
         }));
       } catch (error) {
         if (error instanceof PublishAsAccessError) {

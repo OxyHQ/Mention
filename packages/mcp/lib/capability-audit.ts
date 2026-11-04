@@ -2,7 +2,7 @@ import { postOxyServiceJson } from '@oxy.so/mcp';
 import type { auditResultSchema } from '@oxy.so/contracts';
 import type { z } from 'zod/v4';
 import type { McpHttpConfig } from './config.js';
-import { oxyServiceClient } from './oxy-service-client.js';
+import type { OxyServer } from '@oxy.so/core/server';
 
 type AuditResult = z.infer<typeof auditResultSchema>;
 
@@ -18,8 +18,9 @@ export interface MentionCapabilityAudit {
 
 export function createMentionCapabilityAudit(
   config: Pick<McpHttpConfig, 'oxyApiUrl'>,
+  oxy: Pick<OxyServer, 'createServiceClient'>,
 ): MentionCapabilityAudit {
-  const transport = oxyServiceClient(config).createServiceClient({
+  const transport = oxy.createServiceClient({
     baseURL: config.oxyApiUrl,
     audience: 'oxy-api',
   });

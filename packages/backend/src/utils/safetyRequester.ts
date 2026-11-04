@@ -38,7 +38,9 @@ export function verifiedDownstreamRequester(req: RequestSafetyContext): string {
 
 /** Only original requester proofs reach central policy; an attributed ID is not authority. */
 export function safetyRequesterFor(req: RequestSafetyContext): SafetyRequester {
-  const token = req.accessToken || extractBearerToken(req.headers ?? {});
+  // Only the bearer the auth middleware VERIFIED: a raw `Authorization` header
+  // the optional mount refused is not a person's proof.
+  const token = req.accessToken;
   if (req.mcp) {
     const connectionToken = extractBearerToken(req.headers ?? {});
     if (!connectionToken) throw new Error('Safety decisions require the live MCP connection proof');

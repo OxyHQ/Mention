@@ -47,12 +47,14 @@ const hoisted = vi.hoisted(() => ({
 // and never revised — so a suite about the writer editing has to say who Oxy
 // currently thinks they are. Every PERSON_ID case edits its own post and never
 // reaches this.
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(() => ({
-    accounts: { members: { list: hoisted.listAccountMembers } },
-  })),
+  ...(await import('../helpers/accountAccess')).rosterMocks(
+    vi.fn(() => ({
+      accounts: { members: { list: hoisted.listAccountMembers } },
+    })),
+  ),
 }));
 
 /**
@@ -212,7 +214,7 @@ beforeEach(() => {
   hoisted.hydratePosts.mockImplementation(async () => [{ id: POST_ID }]);
   hoisted.resolveCollaboratorRefs.mockResolvedValue(undefined);
   // Oxy still names the writer as an active member, which is what admits them to
-  // this route at all — see the mock of `createUserScopedOxyServices` above. The
+  // this route at all — see the mock of `callerAccountAccess` above. The
   // departed-writer half is `channelPostManagementAuthority`'s subject, not this
   // file's; here it is a precondition so the correction rules can be the subject.
   hoisted.listAccountMembers.mockResolvedValue([{ memberUserId: WRITER_ID, status: 'active' }]);

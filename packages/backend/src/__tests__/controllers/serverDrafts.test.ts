@@ -24,16 +24,16 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => undefined),
   // The reader `listOperatedChannelIds` is asked with. No channels by default,
   // so the read collapses to the caller's own drafts; the channel half is the
   // same predicate `channelEditorialQueue.test.ts` drives for the scheduled list.
-  createUserScopedOxyServices: () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     listAccounts: async () => hoisted.listAccounts(),
     listAccountMembers: async () => [],
-  }),
+  })),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

@@ -20,9 +20,9 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: async (ids: string[]) =>
     new Map(ids.map((id) => [id, { user: { id, kind: 'organization', name: {} } }])),
 }));
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   createScopedOxyClient: () => ({}),
-  createUserScopedOxyServices: () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     privacy: {
       isBlocked: async () => {
         if (state.privacyFailed) throw new Error('Oxy unavailable');
@@ -30,7 +30,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
       },
     },
     accounts: { members: { list: async () => state.members } },
-  }),
+  })),
 }));
 vi.mock('../../utils/privacyHelpers', () => ({ canViewProfileDesign: async () => state.visible }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({

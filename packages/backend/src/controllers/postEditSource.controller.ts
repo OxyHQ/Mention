@@ -15,7 +15,7 @@ import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
 import { authorVariants } from '../services/postVariants';
 import { isFallbackUserSummary, resolveUserSummaries } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerAccountAccess } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
 import { resolveAccountKind } from '../services/publishAsAccount';
 
@@ -70,7 +70,7 @@ export const getPostEditSource = async (
     const refusal = await postManagementRefusal({
       post,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (refusal) {
       return res.status(refusal.status).json({ message: refusal.message });

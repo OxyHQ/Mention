@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountMember } from '@oxy.so/core';
+import { OxyAccessError } from '@oxy.so/core/server';
+import { accountAccessGrant, accountAccessReader } from '../helpers/accountAccess';
 
 /**
  * `assertCanPublishAsAccount` — "may this person publish as that account".
@@ -8,13 +9,15 @@ import type { AccountMember } from '@oxy.so/core';
  * families of account, because collapsing them is the mistake that reads as
  * correct:
  *
- *  - A **channel** cannot be acted as at all, so accepted membership is the whole
+ *  - A **channel** cannot be acted as at all, so membership is the whole
  *    authority. A `viewer` of a channel may publish as it.
  *  - An **organization / project / bot** CAN be acted as, and the right that
  *    governs that is `account:act_as`. A `viewer` of an organization may NOT
  *    publish as it, even though they are just as much a member.
  *
- * Every fixture below therefore carries an EXPLICIT `permissions` array, and the
+ * The caller's access is what `oxy.accountAccessFor` answers: Oxy's EFFECTIVE
+ * access in the account, direct or INHERITED from an ancestor, or a typed
+ * refusal. Every fixture below carries an EXPLICIT `permissions` array, and the
  * channel cases deliberately use a permission set WITHOUT `account:act_as` while
  * the organization cases include both shapes. A suite whose members all held
  * `account:act_as` could not tell the real check from `Boolean(membership)`; a
@@ -39,11 +42,9 @@ vi.mock('../../utils/logger', () => ({
 
 import {
   assertCanPublishAsAccount,
-  cacheAccountMemberReads,
   isChannelAccount,
   PublishAsAccessError,
   resolveAccountKind,
-  type AccountMemberReader,
 } from '../../services/publishAsAccount';
 
 const CALLER = 'caller-1';
@@ -61,35 +62,17 @@ const VIEWER_PERMISSIONS = ['account:read', 'members:read', 'children:read', 'ap
 /** `developer` — another active member without `account:act_as`. */
 const DEVELOPER_PERMISSIONS = ['account:read', 'children:read', 'credentials:create'];
 
-function member(overrides: Partial<AccountMember> = {}): AccountMember {
-  return {
-    _id: 'member-row-1',
-    accountId: 'account-1',
-    memberUserId: CALLER,
-    role: 'viewer',
-    permissions: VIEWER_PERMISSIONS,
-    inherit: true,
-    status: 'active',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides,
-  };
+/** A reader under which the caller holds `permissions` in every account. */
+function readerGranting(
+  permissions: readonly string[],
+  source: 'direct' | 'inherited' = 'direct',
+): ReturnType<typeof accountAccessReader> {
+  return accountAccessReader((accountId) => accountAccessGrant(accountId, permissions, { source }));
 }
 
-/** A reader that answers with a fixed list, and counts how often it was asked. */
-function readerReturning(members: AccountMember[]): AccountMemberReader & { calls: string[] } {
-  const calls: string[] = [];
-  return {
-    calls,
-    accounts: {
-      members: {
-        async list(accountId: string) {
-          calls.push(accountId);
-          return members;
-        },
-      },
-    },
-  };
+/** A reader under which every question is answered with this refusal. */
+function readerRefusing(error: OxyAccessError): ReturnType<typeof accountAccessReader> {
+  return accountAccessReader(() => error);
 }
 
 function kindsAre(byId: Record<string, string>): void {
@@ -116,13 +99,13 @@ beforeEach(() => {
 
 describe('assertCanPublishAsAccount — the free path', () => {
   it('answers with the caller and no kind when no account was named', async () => {
-    const reader = readerReturning([]);
+    const reader = readerGranting(OWNER_PERMISSIONS);
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: null,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: reader,
       }),
     ).resolves.toEqual({ authorId: CALLER, authorKind: null });
 
@@ -132,27 +115,27 @@ describe('assertCanPublishAsAccount — the free path', () => {
   });
 
   it('treats naming your OWN account as naming none', async () => {
-    const reader = readerReturning([]);
+    const reader = readerGranting(OWNER_PERMISSIONS);
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: CALLER,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: reader,
       }),
     ).resolves.toEqual({ authorId: CALLER, authorKind: null });
 
     expect(reader.calls).toEqual([]);
   });
 
-  it('trims before comparing, so whitespace does not buy a membership lookup', async () => {
-    const reader = readerReturning([]);
+  it('trims before comparing, so whitespace does not buy an access read', async () => {
+    const reader = readerGranting(OWNER_PERMISSIONS);
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: `  ${CALLER} `,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: reader,
       }),
     ).resolves.toEqual({ authorId: CALLER, authorKind: null });
 
@@ -161,18 +144,36 @@ describe('assertCanPublishAsAccount — the free path', () => {
 });
 
 describe('assertCanPublishAsAccount — a channel', () => {
-  it('admits an ACTIVE member with no account:act_as at all', async () => {
-    const reader = readerReturning([member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })]);
+  it('admits a member with no account:act_as at all', async () => {
+    const reader = readerGranting(VIEWER_PERMISSIONS);
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: CHANNEL,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: reader,
       }),
     ).resolves.toEqual({ authorId: CHANNEL, authorKind: 'channel' });
 
     expect(reader.calls).toEqual([CHANNEL]);
+  });
+
+  /**
+   * The bug this gate had: it read `GET /accounts/:id/members`, which lists
+   * DIRECT rows only, so a member of the organization a channel sits under — a
+   * member by Oxy's own resolution — was refused. Oxy's effective access carries
+   * the inherited membership, and the gate admits it.
+   */
+  it('admits a membership INHERITED from an ancestor account', async () => {
+    const reader = readerGranting(VIEWER_PERMISSIONS, 'inherited');
+
+    await expect(
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: CHANNEL,
+        callerId: CALLER,
+        accountAccess: reader,
+      }),
+    ).resolves.toEqual({ authorId: CHANNEL, authorKind: 'channel' });
   });
 
   /**
@@ -181,45 +182,24 @@ describe('assertCanPublishAsAccount — a channel', () => {
    * channel viewer out of the only mechanism a channel post can be written by,
    * and the test above is the one that fails. This one states why the two halves
    * cannot be merged: a channel can never be acted as, so `account:act_as` over
-   * one is a right nobody holds.
+   * one is a right nobody needs.
    */
-  it('MUTATION GUARD: no channel membership carries account:act_as, so requiring it would refuse them all', async () => {
-    const reader = readerReturning([
-      member({ memberUserId: 'someone-else', role: 'owner', permissions: OWNER_PERMISSIONS }),
-      member({ role: 'editor', permissions: VIEWER_PERMISSIONS }),
-    ]);
-
+  it('MUTATION GUARD: a channel member without account:act_as is still admitted', async () => {
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: CHANNEL,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: readerGranting(DEVELOPER_PERMISSIONS),
       }),
     ).resolves.toEqual({ authorId: CHANNEL, authorKind: 'channel' });
   });
 
-  it('refuses a non-member (403)', async () => {
-    const reader = readerReturning([
-      member({ memberUserId: 'somebody-else', permissions: OWNER_PERMISSIONS }),
-    ]);
-
+  it('refuses access that lacks even account:read (403)', async () => {
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: CHANNEL,
         callerId: CALLER,
-        memberReader: reader,
-      }),
-    ).rejects.toMatchObject({ status: 403 });
-  });
-
-  it.each([['invited'], ['removed']] as const)('refuses a %s membership (403)', async (status) => {
-    const reader = readerReturning([member({ status, permissions: OWNER_PERMISSIONS })]);
-
-    await expect(
-      assertCanPublishAsAccount({
-        publishAsOxyUserId: CHANNEL,
-        callerId: CALLER,
-        memberReader: reader,
+        accountAccess: readerGranting(['billing:read']),
       }),
     ).rejects.toMatchObject({ status: 403 });
   });
@@ -233,147 +213,148 @@ describe('assertCanPublishAsAccount — an act-as-eligible account', () => {
   ];
 
   it.each(eligible)('admits a %s member holding account:act_as', async (kind, accountId) => {
-    const reader = readerReturning([member({ role: 'editor', permissions: EDITOR_PERMISSIONS })]);
-
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: accountId,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: readerGranting(EDITOR_PERMISSIONS),
       }),
     ).resolves.toEqual({ authorId: accountId, authorKind: kind });
   });
 
+  it('admits an INHERITED membership holding account:act_as', async () => {
+    await expect(
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        accountAccess: readerGranting(EDITOR_PERMISSIONS, 'inherited'),
+      }),
+    ).resolves.toEqual({ authorId: ORGANIZATION, authorKind: 'organization' });
+  });
+
   /**
    * MUTATION GUARD. This is the test that must fail if the act-as check is
-   * loosened to bare membership: the fixture is an ACTIVE, genuine `viewer` — so
-   * `members.some(m => m.memberUserId === callerId && m.status === 'active')` says
-   * yes, and only reading `permissions` says no. It is the same person Oxy's own
-   * `POST /accounts/:id/switch` refuses, so admitting them here would hand out
-   * through this door exactly what that one is closed against.
+   * loosened to bare membership: the fixture is a genuine `viewer` — Oxy answers
+   * with their access, and only reading `permissions` says no. It is the same
+   * person Oxy's own `POST /accounts/:id/switch` refuses, so admitting them here
+   * would hand out through this door exactly what that one is closed against.
    */
   it.each(eligible)(
-    'MUTATION GUARD: refuses an ACTIVE %s member without account:act_as (403)',
+    'MUTATION GUARD: refuses a %s member without account:act_as (403)',
     async (_kind, accountId) => {
-      const reader = readerReturning([member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })]);
-
       await expect(
         assertCanPublishAsAccount({
           publishAsOxyUserId: accountId,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: readerGranting(VIEWER_PERMISSIONS),
         }),
       ).rejects.toMatchObject({ status: 403 });
     },
   );
 
   it('MUTATION GUARD: refuses a developer too — it is the permission, not one role name', async () => {
-    const reader = readerReturning([
-      member({ role: 'developer', permissions: DEVELOPER_PERMISSIONS }),
-    ]);
-
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: ORGANIZATION,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: readerGranting(DEVELOPER_PERMISSIONS),
       }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
   /**
-   * The permission is read off the row Oxy resolved, never inferred from the role
-   * name — so a row whose role SAYS `owner` while its permissions say otherwise is
-   * refused. Without this a role→permission map would creep back in, and the copy
-   * is what goes stale when Oxy changes a grant.
+   * The permission is read off the access Oxy resolved, never inferred from the
+   * role name — so access whose role SAYS `owner` while its permissions say
+   * otherwise is refused. Without this a role→permission map would creep back
+   * in, and the copy is what goes stale when Oxy changes a grant.
    */
   it('reads permissions, not the role name: role owner with no act_as permission is refused', async () => {
-    const reader = readerReturning([member({ role: 'owner', permissions: VIEWER_PERMISSIONS })]);
+    const reader = accountAccessReader((accountId) =>
+      accountAccessGrant(accountId, VIEWER_PERMISSIONS, { role: 'owner' }),
+    );
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: ORGANIZATION,
         callerId: CALLER,
-        memberReader: reader,
-      }),
-    ).rejects.toMatchObject({ status: 403 });
-  });
-
-  it('refuses a membership whose permissions array is missing entirely', async () => {
-    // A row from an older Oxy, or a truncated response. The type says the field is
-    // there; the wire is not bound by the type, and an absent permission list must
-    // not read as "no restrictions".
-    const withoutPermissions = member({ role: 'owner' });
-    Reflect.deleteProperty(withoutPermissions, 'permissions');
-    const reader = readerReturning([withoutPermissions]);
-
-    await expect(
-      assertCanPublishAsAccount({
-        publishAsOxyUserId: ORGANIZATION,
-        callerId: CALLER,
-        memberReader: reader,
-      }),
-    ).rejects.toMatchObject({ status: 403 });
-  });
-
-  it('matches the ACTIVE row when the caller also has an inactive one', async () => {
-    const reader = readerReturning([
-      member({ status: 'removed', role: 'owner', permissions: OWNER_PERMISSIONS }),
-      member({
-        _id: 'member-row-2',
-        status: 'active',
-        role: 'editor',
-        permissions: EDITOR_PERMISSIONS,
-      }),
-    ]);
-
-    await expect(
-      assertCanPublishAsAccount({
-        publishAsOxyUserId: ORGANIZATION,
-        callerId: CALLER,
-        memberReader: reader,
-      }),
-    ).resolves.toEqual({ authorId: ORGANIZATION, authorKind: 'organization' });
-  });
-
-  it("does NOT borrow another member's act_as", async () => {
-    const reader = readerReturning([
-      member({ memberUserId: 'somebody-else', role: 'owner', permissions: OWNER_PERMISSIONS }),
-      member({ role: 'viewer', permissions: VIEWER_PERMISSIONS }),
-    ]);
-
-    await expect(
-      assertCanPublishAsAccount({
-        publishAsOxyUserId: ORGANIZATION,
-        callerId: CALLER,
-        memberReader: reader,
+        accountAccess: reader,
       }),
     ).rejects.toMatchObject({ status: 403 });
   });
 });
 
+describe('assertCanPublishAsAccount — what Oxy answers', () => {
+  it.each([
+    ['ACCESS_DENIED (Oxy 403/404)', 'ACCESS_DENIED', 403],
+    ['ACCESS_SESSION_REQUIRED (Oxy 401)', 'ACCESS_SESSION_REQUIRED', 401],
+    ['ACCESS_UNAVAILABLE (outage)', 'ACCESS_UNAVAILABLE', 503],
+  ] as const)('maps %s to %s', async (_label, code, status) => {
+    await expect(
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        accountAccess: readerRefusing(new OxyAccessError(code, 'refused')),
+      }),
+    ).rejects.toMatchObject({ status });
+  });
+
+  it('answers 503, never a "no", when the read fails in an unexpected way', async () => {
+    const reader = async () => {
+      throw new Error('socket hang up');
+    };
+
+    await expect(
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        accountAccess: reader,
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+
+  it('asks again after an outage: nothing negative is remembered', async () => {
+    let outage = true;
+    const reader = accountAccessReader((accountId) =>
+      outage
+        ? new OxyAccessError('ACCESS_UNAVAILABLE', 'oxy 502')
+        : accountAccessGrant(accountId, EDITOR_PERMISSIONS),
+    );
+    const ask = () =>
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        accountAccess: reader,
+      });
+
+    await expect(ask()).rejects.toMatchObject({ status: 503 });
+    outage = false;
+    await expect(ask()).resolves.toEqual({ authorId: ORGANIZATION, authorKind: 'organization' });
+    expect(reader.calls).toEqual([ORGANIZATION, ORGANIZATION]);
+  });
+});
+
 describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () => {
-  it('refuses a personal account (400), before any membership call', async () => {
-    const reader = readerReturning([member({ role: 'owner', permissions: OWNER_PERMISSIONS })]);
+  it('refuses a personal account (400), before any access read', async () => {
+    const reader = readerGranting(OWNER_PERMISSIONS);
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: PERSONAL,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: reader,
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(reader.calls).toEqual([]);
   });
 
   it('refuses an account whose kind will not resolve (400) — failing closed', async () => {
-    const reader = readerReturning([member({ role: 'owner', permissions: OWNER_PERMISSIONS })]);
+    const reader = readerGranting(OWNER_PERMISSIONS);
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: 'unknown-account',
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: reader,
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(reader.calls).toEqual([]);
@@ -381,13 +362,12 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
 
   it('refuses when the identity lookup itself throws (400) — failing closed', async () => {
     resolveUserSummaries.mockRejectedValue(new Error('oxy down'));
-    const reader = readerReturning([member({ role: 'owner', permissions: OWNER_PERMISSIONS })]);
 
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: ORGANIZATION,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: readerGranting(OWNER_PERMISSIONS),
       }),
     ).rejects.toMatchObject({ status: 400 });
   });
@@ -397,39 +377,19 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
       assertCanPublishAsAccount({
         publishAsOxyUserId: CHANNEL,
         callerId: null,
-        memberReader: readerReturning([]),
+        accountAccess: readerGranting(OWNER_PERMISSIONS),
       }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
-  it('refuses when there is no reader to ask with (403) — an MCP caller', async () => {
+  it('refuses when there is no person to ask about (403) — an MCP caller', async () => {
     await expect(
       assertCanPublishAsAccount({
         publishAsOxyUserId: CHANNEL,
         callerId: CALLER,
-        memberReader: undefined,
+        accountAccess: undefined,
       }),
     ).rejects.toMatchObject({ status: 403 });
-  });
-
-  it('answers 503 when the membership read fails — the caller can retry', async () => {
-    const reader: AccountMemberReader = {
-      accounts: {
-        members: {
-          list: async () => {
-            throw new Error('oxy 500');
-          },
-        },
-      },
-    };
-
-    await expect(
-      assertCanPublishAsAccount({
-        publishAsOxyUserId: ORGANIZATION,
-        callerId: CALLER,
-        memberReader: reader,
-      }),
-    ).rejects.toMatchObject({ status: 503 });
   });
 
   it('the refusals are PublishAsAccessError, so the HTTP layer can map them', async () => {
@@ -437,7 +397,7 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
       assertCanPublishAsAccount({
         publishAsOxyUserId: PERSONAL,
         callerId: CALLER,
-        memberReader: readerReturning([]),
+        accountAccess: readerGranting([]),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -472,68 +432,5 @@ describe('resolveAccountKind / isChannelAccount', () => {
     await expect(isChannelAccount(BOT)).resolves.toBe(false);
     await expect(isChannelAccount(PERSONAL)).resolves.toBe(false);
     await expect(isChannelAccount(undefined)).resolves.toBe(false);
-  });
-});
-
-describe('cacheAccountMemberReads', () => {
-  it('asks once per account however many times it is asked', async () => {
-    const reader = readerReturning([member({ permissions: EDITOR_PERMISSIONS })]);
-    const cached = cacheAccountMemberReads(reader);
-
-    await Promise.all([
-      cached.accounts.members.list(ORGANIZATION),
-      cached.accounts.members.list(ORGANIZATION),
-      cached.accounts.members.list(ORGANIZATION),
-    ]);
-    await cached.accounts.members.list(ORGANIZATION);
-
-    expect(reader.calls).toEqual([ORGANIZATION]);
-  });
-
-  it('keeps distinct accounts distinct', async () => {
-    const reader = readerReturning([member({ permissions: EDITOR_PERMISSIONS })]);
-    const cached = cacheAccountMemberReads(reader);
-
-    await cached.accounts.members.list(ORGANIZATION);
-    await cached.accounts.members.list(CHANNEL);
-    await cached.accounts.members.list(ORGANIZATION);
-
-    expect(reader.calls).toEqual([ORGANIZATION, CHANNEL]);
-  });
-
-  it('shares a FAILURE too, so a batch refuses consistently', async () => {
-    let calls = 0;
-    const cached = cacheAccountMemberReads({
-      accounts: {
-        members: {
-          list: async () => {
-            calls += 1;
-            throw new Error('oxy 500');
-          },
-        },
-      },
-    });
-
-    await expect(cached.accounts.members.list(ORGANIZATION)).rejects.toThrow('oxy 500');
-    await expect(cached.accounts.members.list(ORGANIZATION)).rejects.toThrow('oxy 500');
-    expect(calls).toBe(1);
-  });
-
-  it('drives the gate: authorizing one account twice costs one membership read', async () => {
-    const reader = readerReturning([member({ permissions: EDITOR_PERMISSIONS })]);
-    const cached = cacheAccountMemberReads(reader);
-
-    await assertCanPublishAsAccount({
-      publishAsOxyUserId: ORGANIZATION,
-      callerId: CALLER,
-      memberReader: cached,
-    });
-    await assertCanPublishAsAccount({
-      publishAsOxyUserId: ORGANIZATION,
-      callerId: CALLER,
-      memberReader: cached,
-    });
-
-    expect(reader.calls).toEqual([ORGANIZATION]);
   });
 });

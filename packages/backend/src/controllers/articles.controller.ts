@@ -4,7 +4,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
 import { postHydrationService } from '../services/PostHydrationService';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { logger } from '../utils/logger';
 
@@ -67,7 +67,7 @@ export const getArticle = async (req: AuthRequest, res: Response) => {
             // the post is withheld and an account authored it.
             safetyRequester: safetyRequesterFor(req),
             oxyClient: createScopedOxyClient(req),
-            operatedAccountReader: createUserScopedOxyServices(req),
+            operatedAccountReader: callerOxyUser(req),
           })
         : viewerId !== '' && viewerId === article.createdBy;
     } catch (error) {

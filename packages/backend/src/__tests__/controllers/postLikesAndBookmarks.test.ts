@@ -52,7 +52,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // because bookmarks are selected by id alone and can therefore hold a post the
   // ACL withholds. Irrelevant to the SELECTION this suite is about — hydration
   // is a passthrough here — but the export has to exist or the route throws.
-  createUserScopedOxyServices: () => undefined,
+  callerOxyUser: () => undefined,
+  callerAccountAccess: () => undefined,
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

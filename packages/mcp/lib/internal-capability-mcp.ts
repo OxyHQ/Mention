@@ -4,44 +4,43 @@ import {
   createLiveCapabilityTicketVerifier,
   createOxyJwksKeyResolver,
   readCapabilityAuthorization,
+  type OxyServer,
 } from '@oxy.so/core/server';
-import { z } from 'zod/v4';
 import { MENTION_CAPABILITY_CATALOG, MENTION_TOOL_REGISTRY } from './mention-catalog.js';
 import { requestContext } from './context.js';
-import { oxyServiceClient } from './oxy-service-client.js';
 import { createMentionCapabilityAudit } from './capability-audit.js';
 import { logError, logInfo, logWarn } from './logger.js';
 import type { McpHttpConfig } from './config.js';
 import type { CapabilityCatalogBinding } from '@oxy.so/contracts';
 import { describeRegistrationFailure, registerMentionCatalog } from './catalog-registration.js';
 
-const keyHeaderSchema = z.object({ kid: z.string().min(1).max(256) });
+/** What the internal receiver asks of the process's one `OxyServer`. */
+type MentionInternalOxy = Pick<OxyServer, 'agency' | 'createServiceClient'>;
 
-export function createMentionInternalMcp(config: McpHttpConfig, binding: CapabilityCatalogBinding) {
-  const oxy = oxyServiceClient(config);
-  const audit = createMentionCapabilityAudit(config);
-  const resolveKey = createOxyJwksKeyResolver({
-    jwksUrl: `${config.oxyApiUrl}/capabilities/.well-known/jwks.json`,
+export function createMentionInternalMcp(
+  config: McpHttpConfig,
+  binding: CapabilityCatalogBinding,
+  oxy: MentionInternalOxy,
+) {
+  const audit = createMentionCapabilityAudit(config, oxy);
+  // Built ONCE. The SDK verifier hands the ticket's `kid` to the asynchronous
+  // JWKS resolver itself, then checks the signed bytes, issuer, audience, TTL
+  // and the live claims Oxy reports.
+  const verifyLiveTicket = createLiveCapabilityTicketVerifier({
+    issuer: config.oxyApiUrl,
+    audience: MENTION_CAPABILITY_CATALOG.audience,
+    resolvePublicKey: createOxyJwksKeyResolver({
+      jwksUrl: `${config.oxyApiUrl}/capabilities/.well-known/jwks.json`,
+    }),
+    introspect: async (token, request) => {
+      const result = await oxy.agency.introspectCapabilityTicket(token, request);
+      return result.decision?.allowed === true ? result : { ...result, active: false };
+    },
   });
   const verifyTicket = async (ticket: string, options: { signal: AbortSignal }) => {
     options.signal.throwIfAborted();
     if (ticket.length > 32768) throw new Error('Capability ticket exceeds size bound');
-    const kid = keyHeaderSchema.parse(
-      JSON.parse(Buffer.from(ticket.split('.')[0] ?? '', 'base64url').toString()),
-    ).kid;
-    // Untrusted kid selects a trusted JWKS key only; the common verifier checks
-    // the original signed bytes, issuer, audience, TTL and live claims next.
-    const key = await resolveKey(kid);
-    const verify = createLiveCapabilityTicketVerifier({
-      issuer: config.oxyApiUrl,
-      audience: MENTION_CAPABILITY_CATALOG.audience,
-      resolvePublicKey: (requested) => (requested === kid ? key : undefined),
-      introspect: async (token, request) => {
-        const result = await oxy.agency.introspectCapabilityTicket(token, request);
-        return result.decision?.allowed === true ? result : { ...result, active: false };
-      },
-    });
-    return verify(ticket, options);
+    return verifyLiveTicket(ticket, options);
   };
   const handlers: InvocationHandlers = Object.fromEntries(
     MENTION_CAPABILITY_CATALOG.tools
@@ -138,8 +137,9 @@ const REGISTRATION_RETRY_MS = 30_000;
  */
 export function createMentionInternalMcpReceiver(
   config: McpHttpConfig,
+  oxy: MentionInternalOxy,
   register: () => Promise<CapabilityCatalogBinding> = () =>
-    registerMentionCatalog({ oxy: oxyServiceClient(config), oxyApiUrl: config.oxyApiUrl }),
+    registerMentionCatalog({ oxy, oxyApiUrl: config.oxyApiUrl }),
   now: () => number = Date.now,
 ) {
   let service: MentionInternalMcp | undefined;
@@ -153,7 +153,7 @@ export function createMentionInternalMcpReceiver(
       pending = register()
         .then((binding) => {
           // Throws when the registration is not this catalogue's: caught below.
-          service = createMentionInternalMcp(config, binding);
+          service = createMentionInternalMcp(config, binding, oxy);
           logInfo('Mention internal MCP bound to its catalogue registration', {
             registrationId: binding.registrationId,
             version: binding.version,

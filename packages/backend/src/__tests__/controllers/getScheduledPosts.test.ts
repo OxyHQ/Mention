@@ -37,16 +37,16 @@ const hoisted = vi.hoisted(() => ({
   listAccounts: vi.fn(),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   // The reader `listOperatedChannelIds` is asked with. This file is about the
   // PERSONAL half of the read, so the forest is empty by default and the union
   // below collapses to the caller — the shared editorial queue is the subject of
   // `channelEditorialQueue.test.ts`, which drives the real membership predicate.
-  createUserScopedOxyServices: () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     listAccounts: async () => hoisted.listAccounts(),
-  }),
+  })),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

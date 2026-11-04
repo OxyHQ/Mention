@@ -3,31 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Shared mock state. Declared via `vi.hoisted` so it is initialised before the
  * hoisted `vi.mock` factory below runs (vitest lifts `vi.mock` to the top of the
- * module). Records every constructed Oxy client instance so each test can
- * inspect the scoped client built inside `ensureProfileMediaPublic` (tokens
- * planted + visibility call). The class is mocked because the helper otherwise
- * performs a real network PATCH to Oxy.
+ * module). The server singleton is faked because the helpers otherwise reach
+ * Oxy; every user client it builds (`asUser` / `withUser`) is recorded with the
+ * bearer it was given, so each test can see whose session a call carried.
  */
 const mockState = vi.hoisted(() => {
-  const instances: Array<{
-    session: { setAccessToken: ReturnType<typeof vi.fn> };
-    serviceRequest: ReturnType<typeof vi.fn>;
+  const userClients: Array<{
+    bearer: string;
     assets: { setVisibility: ReturnType<typeof vi.fn> };
   }> = [];
   const control: { reject?: unknown } = {};
-  /**
-   * One fake for both clients: the service singleton is an `OxyServer`
-   * (`@oxy.so/core/server`), the per-request clients are `OxyServices`.
-   */
-  class FakeOxyClient {
-    session = { setAccessToken: vi.fn() };
-    serviceRequest = vi.fn().mockResolvedValue({
-      data: { blockedIds: [], restrictedIds: [], followingIds: [], mutualIds: [] },
-    });
-    withRequester = vi.fn(() => ({
-      privacy: { blocked: vi.fn(), restricted: vi.fn() },
-      follows: { viewerGraph: vi.fn() },
-    }));
+  class FakeUserClient {
     assets = {
       setVisibility: vi
         .fn()
@@ -38,17 +24,32 @@ const mockState = vi.hoisted(() => {
         ),
     };
 
-    constructor() {
-      instances.push(this);
+    constructor(readonly bearer: string) {
+      userClients.push(this);
     }
   }
-  return { instances, control, FakeOxyClient };
+  /** The process `OxyServer`: one per process, never handed a user's bearer. */
+  class FakeOxyServer {
+    session = { setAccessToken: vi.fn() };
+    serviceRequest = vi.fn().mockResolvedValue({
+      data: { blockedIds: [], restrictedIds: [], followingIds: [], mutualIds: [] },
+    });
+    withRequester = vi.fn(() => ({
+      privacy: { blocked: vi.fn(), restricted: vi.fn() },
+      follows: { viewerGraph: vi.fn() },
+    }));
+    asUser = vi.fn((bearer: string) => new FakeUserClient(bearer));
+    withUser = vi.fn(async (bearer: string, use: (user: FakeUserClient) => unknown) =>
+      use(new FakeUserClient(bearer)),
+    );
+    accountAccessFor = vi.fn();
+  }
+  return { userClients, control, FakeOxyServer };
 });
 
-vi.mock('@oxy.so/core', () => ({ OxyServices: mockState.FakeOxyClient }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
-  OxyServer: mockState.FakeOxyClient,
+  OxyServer: mockState.FakeOxyServer,
 }));
 
 // Was `() => ({})`, which stubbed the module out entirely — including the
@@ -58,61 +59,68 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => importOriginal()
 
 import {
   getServiceOxyClient,
+  callerAccountAccess,
+  callerOxyUser,
   createScopedOxyClient,
-  createUserScopedOxyServices,
   createForegroundOxyProfileClient,
   ensureProfileMediaPublic,
 } from '../../utils/oxyHelpers';
 
-/** The scoped client is the LAST constructed instance (after the module-level singleton). */
-function lastScopedClient() {
-  return mockState.instances[mockState.instances.length - 1];
+type FakeServer = InstanceType<typeof mockState.FakeOxyServer>;
+
+function serviceClient(): FakeServer {
+  return getServiceOxyClient() as unknown as FakeServer;
+}
+
+/** The user client most recently built. */
+function lastUserClient() {
+  return mockState.userClients[mockState.userClients.length - 1];
 }
 
 describe('request-scoped Oxy clients', () => {
-  it('accepts one well-formed session bearer', () => {
-    const before = mockState.instances.length;
-    const client = createScopedOxyClient({
-      headers: { authorization: 'Bearer owner-token' },
-    });
+  it('gives a verified session its own user client, bound to the verified bearer', () => {
+    const before = mockState.userClients.length;
+    const client = createScopedOxyClient({ accessToken: 'owner-token' });
 
     expect(client).toBeDefined();
-    expect(mockState.instances.length).toBe(before + 1);
-    expect(lastScopedClient().session.setAccessToken).toHaveBeenCalledWith('owner-token');
+    expect(mockState.userClients.length).toBe(before + 1);
+    expect(lastUserClient().bearer).toBe('owner-token');
+    expect(serviceClient().session.setAccessToken).not.toHaveBeenCalled();
   });
 
-  it('rejects combined and duplicate bearer credentials', () => {
-    const before = mockState.instances.length;
+  /**
+   * Only what the auth middleware verified (`req.accessToken`) is a session. A
+   * raw `Authorization` header the optional mount refused — or never saw — is
+   * not one, so no user client is built from it.
+   */
+  it('never builds a user client from a raw Authorization header', () => {
+    const before = mockState.userClients.length;
 
+    expect(createScopedOxyClient({ headers: { authorization: 'Bearer unverified' } })).toBe(
+      undefined,
+    );
+    expect(callerOxyUser({ headers: { authorization: 'Bearer unverified' } })).toBeUndefined();
     expect(
-      createScopedOxyClient({
-        headers: { authorization: 'Bearer first, Bearer second' },
-      }),
+      callerAccountAccess({ headers: { authorization: 'Bearer unverified' } }),
     ).toBeUndefined();
-    expect(
-      createUserScopedOxyServices({
-        headers: { authorization: ['Bearer first', 'Bearer second'] },
-      }),
-    ).toBeUndefined();
-    expect(mockState.instances.length).toBe(before);
+    expect(mockState.userClients.length).toBe(before);
   });
 
-  it('never forwards a resource-bound MCP bearer into OxyServices', () => {
-    const before = mockState.instances.length;
+  it('never forwards a resource-bound MCP bearer into a user client', () => {
+    const before = mockState.userClients.length;
+    const mcp = {
+      accessToken: 'mcp-access-token',
+      headers: { authorization: 'Bearer mcp-access-token' },
+      mcp: { activeUserId: 'assigned-account' },
+    };
 
-    expect(
-      createUserScopedOxyServices({
-        headers: { authorization: 'Bearer mcp-access-token' },
-        mcp: { activeUserId: 'assigned-account' },
-      }),
-    ).toBeUndefined();
-    expect(mockState.instances.length).toBe(before);
+    expect(callerOxyUser(mcp)).toBeUndefined();
+    expect(callerAccountAccess(mcp)).toBeUndefined();
+    expect(mockState.userClients.length).toBe(before);
   });
 
   it('uses the centrally derived service context without reusing a task or service JWT as a session', () => {
-    const service = getServiceOxyClient() as unknown as InstanceType<
-      typeof mockState.FakeOxyClient
-    >;
+    const service = serviceClient();
     const own = {
       user: { id: 'original-person' },
       accessToken: 'service-jwt',
@@ -126,7 +134,9 @@ describe('request-scoped Oxy clients', () => {
     expect(createScopedOxyClient(own)).toBeDefined();
     expect(service.withRequester).toHaveBeenCalledWith({ requesterContext: 'verified-context' });
     expect(service.session.setAccessToken).not.toHaveBeenCalledWith('service-jwt');
-    expect(createUserScopedOxyServices(own)).toBeUndefined();
+    expect(service.asUser).not.toHaveBeenCalledWith('service-jwt');
+    expect(callerOxyUser(own)).toBeUndefined();
+    expect(callerAccountAccess(own)).toBeUndefined();
     expect(() => createScopedOxyClient({ ...own, user: { id: 'other-account' } })).toThrow(
       'requester proof',
     );
@@ -141,9 +151,7 @@ describe('request-scoped Oxy clients', () => {
         capability: { claims: { resource: { effectiveAccountId: 'assigned-account' } } },
       }),
     ).toThrow('proof is missing');
-    const service = getServiceOxyClient() as unknown as InstanceType<
-      typeof mockState.FakeOxyClient
-    >;
+    const service = serviceClient();
     const result = createScopedOxyClient({
       headers: { authorization: 'Capability signed-ticket' },
       capability: {
@@ -154,6 +162,47 @@ describe('request-scoped Oxy clients', () => {
     expect(result).toBeDefined();
     expect(service.withRequester).toHaveBeenCalledWith({ capabilityTicket: 'signed-ticket' });
     expect(service.session.setAccessToken).not.toHaveBeenCalledWith('signed-ticket');
+  });
+});
+
+describe('callerAccountAccess', () => {
+  const req = { user: { id: 'caller' }, userId: 'caller', sessionId: 's1', accessToken: 'tok' };
+
+  beforeEach(() => {
+    serviceClient().accountAccessFor.mockReset();
+  });
+
+  it('asks Oxy fresh, with the request itself, once per account per request', async () => {
+    const access = { accountId: 'org', has: () => true };
+    serviceClient().accountAccessFor.mockResolvedValue(access);
+    const read = callerAccountAccess(req);
+
+    await Promise.all([read?.('org'), read?.('org')]);
+    await read?.('org');
+    await read?.('channel');
+
+    expect(serviceClient().accountAccessFor.mock.calls).toEqual([
+      [req, 'org', { fresh: true }],
+      [req, 'channel', { fresh: true }],
+    ]);
+  });
+
+  /**
+   * Within ONE request a failure is shared, so a batch refuses consistently.
+   * The next request builds its own reader and asks Oxy again: an outage is
+   * never remembered as an answer.
+   */
+  it('shares a failure within a request, and asks again on the next request', async () => {
+    const outage = new Error('oxy 502');
+    serviceClient()
+      .accountAccessFor.mockRejectedValueOnce(outage)
+      .mockResolvedValueOnce({ accountId: 'org', has: () => true });
+    const first = callerAccountAccess(req);
+
+    await expect(first?.('org')).rejects.toBe(outage);
+    await expect(first?.('org')).rejects.toBe(outage);
+    await expect(callerAccountAccess(req)?.('org')).resolves.toMatchObject({ accountId: 'org' });
+    expect(serviceClient().accountAccessFor).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -178,12 +227,10 @@ describe('central MCP privacy reads', () => {
    * as a session, and one Oxy round trip answers all three reads.
    */
   it('reads blocks and restrictions of the served account with the connection token as proof', async () => {
-    const serviceClient = getServiceOxyClient() as unknown as InstanceType<
-      typeof mockState.FakeOxyClient
-    >;
+    const serviceClient = getServiceOxyClient() as unknown as FakeServer;
     serviceClient.serviceRequest.mockClear();
     serviceClient.serviceRequest.mockResolvedValueOnce({ account_id: 'served-account', graph });
-    const before = mockState.instances.length;
+    const before = mockState.userClients.length;
     const client = centralClient();
 
     await expect(client?.privacy.blocked()).resolves.toEqual([{ blockedId: 'blocked-account' }]);
@@ -201,13 +248,11 @@ describe('central MCP privacy reads', () => {
       { token: 'mcp-access-token' },
     );
     expect(serviceClient.session.setAccessToken).not.toHaveBeenCalledWith('mcp-access-token');
-    expect(mockState.instances.length).toBe(before);
+    expect(mockState.userClients.length).toBe(before);
   });
 
   it('refuses the lists when Oxy answers for an account other than the one served', async () => {
-    const serviceClient = getServiceOxyClient() as unknown as InstanceType<
-      typeof mockState.FakeOxyClient
-    >;
+    const serviceClient = getServiceOxyClient() as unknown as FakeServer;
     serviceClient.serviceRequest.mockResolvedValueOnce({ account_id: 'another-account', graph });
     const client = centralClient();
 
@@ -217,9 +262,7 @@ describe('central MCP privacy reads', () => {
   });
 
   it('refuses a graph with no privacy lists instead of reading it as "blocks nobody"', async () => {
-    const serviceClient = getServiceOxyClient() as unknown as InstanceType<
-      typeof mockState.FakeOxyClient
-    >;
+    const serviceClient = getServiceOxyClient() as unknown as FakeServer;
     serviceClient.serviceRequest.mockResolvedValueOnce({
       account_id: 'served-account',
       graph: { followingIds: [] },
@@ -239,36 +282,36 @@ describe('ensureProfileMediaPublic', () => {
     vi.clearAllMocks();
   });
 
-  it('promotes a bare Oxy file id to public using the owner access token', async () => {
-    const before = mockState.instances.length;
+  it('promotes a bare Oxy file id to public as the owner', async () => {
+    const before = mockState.userClients.length;
     await ensureProfileMediaPublic('owner-token', 'file-123');
 
-    // A new scoped client was constructed for this call.
-    expect(mockState.instances.length).toBe(before + 1);
-    const client = lastScopedClient();
-    expect(client.session.setAccessToken).toHaveBeenCalledWith('owner-token');
+    // One user client, bound to the owner's bearer, for this call.
+    expect(mockState.userClients.length).toBe(before + 1);
+    const client = lastUserClient();
+    expect(client.bearer).toBe('owner-token');
     expect(client.assets.setVisibility).toHaveBeenCalledWith('file-123', 'public');
   });
 
   it('does nothing when there is no access token', async () => {
-    const before = mockState.instances.length;
+    const before = mockState.userClients.length;
     await ensureProfileMediaPublic(undefined, 'file-123');
-    expect(mockState.instances.length).toBe(before);
+    expect(mockState.userClients.length).toBe(before);
   });
 
   it('skips empty, temp, and absolute-URL refs', async () => {
-    const before = mockState.instances.length;
+    const before = mockState.userClients.length;
     await ensureProfileMediaPublic('owner-token', '');
     await ensureProfileMediaPublic('owner-token', 'temp-abc');
     await ensureProfileMediaPublic('owner-token', 'https://example.com/banner.png');
     await ensureProfileMediaPublic('owner-token', 'http://example.com/banner.png');
-    expect(mockState.instances.length).toBe(before);
+    expect(mockState.userClients.length).toBe(before);
   });
 
   it('never throws when the visibility call fails', async () => {
     mockState.control.reject = new Error('403 Access denied');
     await expect(ensureProfileMediaPublic('owner-token', 'file-456')).resolves.toBeUndefined();
-    expect(lastScopedClient().assets.setVisibility).toHaveBeenCalledWith('file-456', 'public');
+    expect(lastUserClient().assets.setVisibility).toHaveBeenCalledWith('file-456', 'public');
   });
 });
 

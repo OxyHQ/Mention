@@ -5,6 +5,7 @@ const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn
 vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
 vi.mock('../../utils/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
+import { rosterAccess } from '../helpers/accountAccess';
 import {
   canManagePostWithoutLookup,
   postManagementRefusal,
@@ -71,7 +72,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: OWNER },
       callerId: OWNER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, OWNER),
     });
 
     expect(refusal).toBeNull();
@@ -87,7 +88,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: WRITER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, WRITER),
     });
 
     expect(refusal).toBeNull();
@@ -109,7 +110,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: WRITER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, WRITER),
     });
 
     expect(refusal).toEqual({ status: 404, message: 'Post not found' });
@@ -124,7 +125,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: WRITER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, WRITER),
     });
 
     expect(refusal?.status).toBe(404);
@@ -147,7 +148,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: WRITER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, WRITER),
     });
 
     expect(refusal?.status).toBe(503);
@@ -161,7 +162,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: STRANGER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, STRANGER),
     });
 
     expect(refusal).toBeNull();
@@ -176,7 +177,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: STRANGER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, STRANGER),
     });
 
     // 404, never 403: the reply must not distinguish "not yours" from "not
@@ -190,7 +191,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: STRANGER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, STRANGER),
     });
 
     expect(refusal?.status).toBe(404);
@@ -202,7 +203,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: OWNER },
       callerId: STRANGER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, STRANGER),
     });
 
     // A `personal` account is refused before any membership is consulted —
@@ -227,7 +228,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: STRANGER,
-      memberReader: reader,
+      accountAccess: rosterAccess(reader, STRANGER),
     });
 
     expect(refusal?.status).toBe(503);
@@ -237,7 +238,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: {},
       callerId: OWNER,
-      memberReader: memberReaderReturning([]),
+      accountAccess: rosterAccess(memberReaderReturning([]), OWNER),
     });
 
     expect(refusal?.status).toBe(404);
@@ -247,7 +248,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
       callerId: STRANGER,
-      memberReader: undefined,
+      accountAccess: rosterAccess(undefined, STRANGER),
     });
 
     expect(refusal?.status).toBe(404);
@@ -292,7 +293,7 @@ describe('affordance vs permission', () => {
       const refusal = await postManagementRefusal({
         post: testCase.post,
         callerId: testCase.caller,
-        memberReader: memberReaderReturning([]),
+        accountAccess: rosterAccess(memberReaderReturning([]), testCase.caller),
       });
       expect(refusal).toBeNull();
     }
@@ -312,9 +313,10 @@ describe('affordance vs permission', () => {
     const refusal = await postManagementRefusal({
       post,
       callerId: WRITER,
-      memberReader: memberReaderReturning([
-        { memberUserId: 'somebody-still-here', status: 'active' },
-      ]),
+      accountAccess: rosterAccess(
+        memberReaderReturning([{ memberUserId: 'somebody-still-here', status: 'active' }]),
+        WRITER,
+      ),
     });
     expect(refusal?.status).toBe(404);
 
@@ -325,7 +327,10 @@ describe('affordance vs permission', () => {
       await postManagementRefusal({
         post,
         callerId: WRITER,
-        memberReader: memberReaderReturning([{ memberUserId: WRITER, status: 'active' }]),
+        accountAccess: rosterAccess(
+          memberReaderReturning([{ memberUserId: WRITER, status: 'active' }]),
+          WRITER,
+        ),
       }),
     ).toBeNull();
   });

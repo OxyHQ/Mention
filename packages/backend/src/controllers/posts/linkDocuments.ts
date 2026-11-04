@@ -9,7 +9,7 @@ import {
 import { loadPendingPostDocuments } from '../../services/postDocuments';
 import { isOwnProfileLink, resolveClarityDocuments } from '../../utils/clarityDocuments';
 import { logger } from '../../utils/logger';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { resolveViewerPrivacyAndGraph } from '../../utils/privacyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
@@ -58,7 +58,7 @@ export const getPostDocuments = async (req: AuthRequest, res: Response) => {
       // The same reader `GET /posts/:id` passes: a member of a channel reads its
       // withheld posts there, so their cards must come back here too, or the
       // app clears the post's pending flag and the card never arrives.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
     return res.json(response);
   } catch (error) {

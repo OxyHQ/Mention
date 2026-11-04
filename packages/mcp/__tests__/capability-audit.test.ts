@@ -22,7 +22,10 @@ describe('Oxy capability audit failures', () => {
       fetch: globalThis.fetch,
       dispose() {},
     });
-    const audit = createMentionCapabilityAudit({ oxyApiUrl: 'https://api.oxy.test' });
+    const audit = createMentionCapabilityAudit(
+      { oxyApiUrl: 'https://api.oxy.test' },
+      new OxyServer({ baseURL: 'https://api.oxy.test' }),
+    );
     try {
       await expect(
         audit.audit({

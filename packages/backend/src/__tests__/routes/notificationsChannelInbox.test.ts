@@ -21,7 +21,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  * ROWS it did or did not reach, which is the same thing the operator sees.
  *
  * The recipient set itself is resolved for real, too: the route calls
- * `resolveNotificationInboxIds(userId, createUserScopedOxyServices(req))`, and
+ * `resolveNotificationInboxIds(userId, callerOxyUser(req))`, and
  * only the two foreign services under that (Oxy's account graph and the Redis
  * cache in front of it) are stubbed. So a viewer who operates no channel is
  * refused by the real predicate rather than by a mock told to answer differently.
@@ -66,7 +66,7 @@ vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   createScopedOxyClient: () => ({ follows: { following: mocks.getUserFollowing } }),
   /**
    * The reader the route hands to `resolveNotificationInboxIds`. In production it
@@ -77,9 +77,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
    * A module factory replaces the WHOLE module, so an export the route calls and
    * this factory omits is `undefined is not a function` on every request.
    */
-  createUserScopedOxyServices: (req: { user?: { id?: string } }) => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks((req: { user?: { id?: string } }) => ({
     accounts: { list: async () => mocks.listAccounts(req.user?.id) },
-  }),
+  })),
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
     users: { getMany: mocks.getUsersByIds },
@@ -314,6 +314,8 @@ function makeApp(viewerId: string, emitted: { event: string; payload: unknown }[
   app.use((req, _res, next) => {
     (req as typeof req & { user: { id: string } }).user = { id: viewerId };
     req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
+    // What `oxy.middleware.auth()` sets beside the user: the VERIFIED bearer.
+    (req as { accessToken?: string }).accessToken = req.user ? 'test-viewer-session' : undefined;
     next();
   });
   app.use('/', notificationsRouter);

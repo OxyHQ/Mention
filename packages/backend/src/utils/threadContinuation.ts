@@ -73,7 +73,7 @@ import {
   assertCanPublishAsAccount,
   PublishAsAccessError,
   resolveAccountKinds,
-  type AccountMemberReader,
+  type AccountAccessReader,
 } from '../services/publishAsAccount';
 
 /**
@@ -185,13 +185,13 @@ export async function assertAnswersOperatedAccount(params: {
   authorId: string | null;
   authorKind: AccountKind | null;
   callerId: string | null;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
 }): Promise<void> {
   const refuse = (): never => {
     throw new PublishAsAccessError(400, 'A reply cannot be published as another account');
   };
 
-  const { parentPostId, threadId, authorId, authorKind, callerId, memberReader } = params;
+  const { parentPostId, threadId, authorId, authorKind, callerId, accountAccess } = params;
   if (!authorId || !parentPostId || !threadId) refuse();
 
   // NO id-SHAPE guard, for the reason given in {@link assertContinuesOwnThread}:
@@ -251,6 +251,6 @@ export async function assertAnswersOperatedAccount(params: {
   await assertCanPublishAsAccount({
     publishAsOxyUserId: parentAuthorId,
     callerId,
-    memberReader,
+    accountAccess,
   });
 }

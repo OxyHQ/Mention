@@ -19,7 +19,7 @@ import {
   postHydrationService,
   resolveUserSummaries,
 } from '../services/PostHydrationService';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { queryInt, queryString } from '../utils/queryParams';
@@ -148,7 +148,7 @@ function optionalText(value: unknown): string | undefined {
  * mark read, delete, or have counted in the badge.
  */
 async function inboxRecipientIds(req: AuthRequest, userId: string): Promise<string[]> {
-  return resolveNotificationInboxIds(userId, createUserScopedOxyServices(req));
+  return resolveNotificationInboxIds(userId, callerOxyUser(req));
 }
 
 /**

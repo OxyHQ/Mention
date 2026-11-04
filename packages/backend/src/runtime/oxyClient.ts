@@ -12,7 +12,11 @@ export function getRuntimeOxyClient(): OxyServer {
   if (!runtimeOxyClient) {
     runtimeOxyClient = new OxyServer({
       baseURL: config.oxyApiUrl,
+      applicationId: config.identity.serviceApplicationId,
       serviceIdentity: 'when-anonymous',
+      // Every `middleware.auth()` / `service()` mount accepts service tokens
+      // minted for Mention itself; named once here instead of at each mount.
+      expectedAudience: `oxy-service:${config.identity.serviceApplicationId}`,
       workloadCredentials: createAwsWorkloadCredentialProvider(),
     });
     instrumentOxyEgress(runtimeOxyClient);

@@ -44,6 +44,7 @@ vi.mock('../../services/postSafetyAccess', () => ({
     new Map(records.map((record) => [record.id, { allowed: true }])),
 }));
 
+import { rosterAccess } from '../helpers/accountAccess';
 import { eq } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
@@ -278,7 +279,7 @@ describe('a community hosted here', () => {
     await removePostFromCommunity({
       communityOxyUserId: COMMUNITY,
       moderatorOxyUserId: MODERATOR,
-      memberReader,
+      accountAccess: rosterAccess(memberReader, MODERATOR),
       postId: post.id,
       reason: 'off topic',
     });
@@ -305,7 +306,7 @@ describe('a community hosted here', () => {
       removePostFromCommunity({
         communityOxyUserId: COMMUNITY,
         moderatorOxyUserId: MEMBER,
-        memberReader,
+        accountAccess: rosterAccess(memberReader, MEMBER),
         postId: post.id,
         reason: null,
       }),

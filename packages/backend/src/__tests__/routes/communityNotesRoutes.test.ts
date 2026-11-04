@@ -60,6 +60,8 @@ function appFor(viewerId: string | undefined) {
   app.use((req: OxyAuthRequest, _res: Response, next: NextFunction) => {
     if (viewerId) req.user = { id: viewerId };
     req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
+    // What `oxy.middleware.auth()` sets beside the user: the VERIFIED bearer.
+    (req as { accessToken?: string }).accessToken = req.user ? 'test-viewer-session' : undefined;
     next();
   });
   app.use('/community-notes', communityNotesRouter);

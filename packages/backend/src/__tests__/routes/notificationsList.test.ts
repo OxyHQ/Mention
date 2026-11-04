@@ -51,7 +51,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // omits is `undefined is not a function` on every request. Which recipient ids
   // the inbox covers is `notificationsChannelInbox.test.ts`'s subject; held at
   // "just the viewer" here so these cases stay about pagination and ordering.
-  createUserScopedOxyServices: () => undefined,
+  callerOxyUser: () => undefined,
+  callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
     getUsersByIds: mocks.getUsersByIds,
@@ -155,6 +156,8 @@ function makeApp(viewer: string | undefined, emitted: unknown[] = []) {
   app.use((req, _res, next) => {
     if (viewer) (req as typeof req & { user: { id: string } }).user = { id: viewer };
     req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
+    // What `oxy.middleware.auth()` sets beside the user: the VERIFIED bearer.
+    (req as { accessToken?: string }).accessToken = req.user ? 'test-viewer-session' : undefined;
     next();
   });
   app.use('/', notificationsRouter);

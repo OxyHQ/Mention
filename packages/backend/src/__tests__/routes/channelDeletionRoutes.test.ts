@@ -61,8 +61,8 @@ vi.mock('../../services/channelDeletion/ChannelDeletionService', () => {
   return { NotAChannelAccountError, previewChannelDeletion, deleteChannelContent };
 });
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     accounts: {
       members: {
         async list(accountId: string) {
@@ -83,10 +83,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
         },
       },
     },
-  }),
+  })),
 }));
 
-vi.mock('@oxy.so/core/server', () => ({
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   getRequiredOxyUserId: (req: express.Request & { user?: { id: string } }) => req.user?.id ?? '',
 }));
 

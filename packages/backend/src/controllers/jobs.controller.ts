@@ -16,7 +16,7 @@ import {
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerOxyUser, callerAccountAccess } from '../utils/oxyHelpers';
 import { getClarityClient } from '../utils/clarityClient';
 import {
   expireIfDue,
@@ -129,7 +129,7 @@ class JobsController {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const employerIds = await listOperatedJobEmployerIds(createUserScopedOxyServices(req));
+      const employerIds = await listOperatedJobEmployerIds(callerOxyUser(req));
       if (employerIds.length === 0) return res.json({ jobs: [] });
 
       const status = queryString(req.query.status) as MentionJobPosting['status'] | undefined;
@@ -165,7 +165,7 @@ class JobsController {
         await assertCanManageJob({
           employerOxyUserId,
           callerId: req.user?.id,
-          memberReader: createUserScopedOxyServices(req),
+          accountAccess: callerAccountAccess(req),
         });
         isAuthorizedOperator = true;
       } catch {
@@ -208,7 +208,7 @@ class JobsController {
           await assertCanManageJob({
             employerOxyUserId: row.employerOxyUserId,
             callerId: req.user?.id,
-            memberReader: createUserScopedOxyServices(req),
+            accountAccess: callerAccountAccess(req),
           });
         } catch (error) {
           if (error instanceof PublishAsAccessError) return jobNotFound(res);

@@ -258,7 +258,9 @@ beforeAll(async () => {
     jwtSecret: '',
     allowedOrigins: new Set(),
   };
-  receiver = createMentionInternalMcp(config, binding);
+  // The MCP process's one Oxy client, as its entry point builds it.
+  const { createOxyServiceClient } = await import('../../../../mcp/lib/oxy-service-client');
+  receiver = createMentionInternalMcp(config, binding, createOxyServiceClient(config));
 });
 
 beforeEach(async () => {

@@ -1,7 +1,7 @@
 import {
   PublishAsAccessError,
   assertCanPublishAsAccount,
-  type AccountMemberReader,
+  type AccountAccessReader,
 } from './publishAsAccount';
 
 /**
@@ -102,8 +102,9 @@ export interface PostManagementRefusal {
  *
  * **A refusal is a 404, not a 403.** These routes have always answered 404 for a
  * post the caller may not touch, so the response cannot be used to discover that
- * somebody else's post exists. The one exception is an Oxy OUTAGE: 503 says "try
- * again", where a 404 would tell an operator their post had vanished.
+ * somebody else's post exists. The exceptions say nothing about the post: an Oxy
+ * OUTAGE (503 says "try again", where a 404 would tell an operator their post
+ * had vanished) and a session Oxy refused (401, sign in again).
  *
  * Returning the refusal rather than throwing it is what keeps that mapping in
  * one place. Seven handlers ask this question, and a `catch` at each of them is
@@ -134,7 +135,7 @@ export interface PostManagementRefusal {
 export async function postManagementRefusal(params: {
   post: ManageablePost;
   callerId: string;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
 }): Promise<PostManagementRefusal | null> {
   // The one free path, and the only one: the caller IS the account that authored
   // the post. Nothing about it can go stale — it is a comparison between the
@@ -150,17 +151,19 @@ export async function postManagementRefusal(params: {
     await assertCanPublishAsAccount({
       publishAsOxyUserId: authorId,
       callerId: params.callerId,
-      memberReader: params.memberReader,
+      accountAccess: params.accountAccess,
     });
     return null;
   } catch (error) {
-    // 503 is the only status that survives: it means Oxy could not answer, and
-    // an operator retrying is the right outcome. Every genuine refusal — not a
-    // member, no `account:act_as`, an account nothing can be published as —
-    // collapses to the 404 these routes already answer, so the reply is the same
-    // whether the post belongs to somebody else or does not exist.
-    if (error instanceof PublishAsAccessError && error.status === 503) {
-      return { status: 503, message: error.message };
+    // Two statuses survive, and neither says anything about the post: 503 means
+    // Oxy could not answer, and an operator retrying is the right outcome; 401
+    // means Oxy refused the caller's own session, and signing in again is. Every
+    // genuine refusal — not a member, no `account:act_as`, an account nothing
+    // can be published as — collapses to the 404 these routes already answer,
+    // so the reply is the same whether the post belongs to somebody else or does
+    // not exist.
+    if (error instanceof PublishAsAccessError && (error.status === 503 || error.status === 401)) {
+      return { status: error.status, message: error.message };
     }
     return NOT_FOUND;
   }

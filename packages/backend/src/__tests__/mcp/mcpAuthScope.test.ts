@@ -6,10 +6,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyAuthRequest, OxyServer } from '@oxy.so/core/server';
 
 const centralTokens = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+/** When set, introspection THROWS (Oxy did not answer) instead of answering. */
+const introspection = vi.hoisted(() => ({ outage: false, calls: 0 }));
 
 vi.mock('@oxy.so/mcp', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/mcp')>()),
-  introspectOxyMcpAccessToken: vi.fn(async (value: string) => centralTokens.get(value) ?? null),
+  introspectOxyMcpAccessToken: vi.fn(async (value: string) => {
+    introspection.calls += 1;
+    if (introspection.outage) throw new Error('Oxy MCP introspection failed (502)');
+    return centralTokens.get(value) ?? null;
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -243,5 +249,87 @@ describe('retired Mention-issued MCP tokens', () => {
       error: 'invalid_token',
       message: 'Mention-issued MCP tokens were retired on 2026-10-02. Reconnect through Oxy.',
     });
+  });
+});
+
+/**
+ * An introspection OUTAGE is not an invalid token. A 401 `invalid_token` makes
+ * an OAuth client drop a grant that is fine, so a blip at Oxy would disconnect
+ * every MCP client that called during it; and an optional mount that served the
+ * caller anonymously would answer a different question than the one asked.
+ */
+describe('MCP token verification outage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    centralTokens.clear();
+    introspection.outage = false;
+    introspection.calls = 0;
+  });
+
+  it('answers 503 on the required mount, never 401, and asks again next time', async () => {
+    const app = buildApp();
+    const token = centralToken(['social.notifications.read']);
+    introspection.outage = true;
+
+    const outage = await request(app).get('/notifications').set('Authorization', `Bearer ${token}`);
+    expect(outage.status).toBe(503);
+    expect(outage.headers['retry-after']).toBeDefined();
+    expect(outage.body).toMatchObject({ error: 'temporarily_unavailable' });
+    expect(outage.headers['www-authenticate']).toBeUndefined();
+
+    // Nothing was remembered: the next request asks Oxy again and is served.
+    introspection.outage = false;
+    const recovered = await request(app)
+      .get('/notifications')
+      .set('Authorization', `Bearer ${token}`);
+    expect(recovered.status).toBe(200);
+    expect(recovered.body).toEqual({ userId: 'account-1' });
+    expect(introspection.calls).toBe(2);
+  });
+
+  it('answers 503 on the optional mount rather than serving the caller anonymously', async () => {
+    const app = express();
+    app.use(createOptionalMcpAuth());
+    const handler = vi.fn((req: express.Request, res: express.Response) =>
+      res.json({ userId: (req as OxyAuthRequest).userId ?? null }),
+    );
+    app.get('/notifications', handler);
+    const token = centralToken(['social.notifications.read']);
+    introspection.outage = true;
+
+    const response = await request(app)
+      .get('/notifications')
+      .set('Authorization', `Bearer ${token}`);
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({ error: 'temporarily_unavailable' });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('still answers 401 for a token Oxy says is inactive', async () => {
+    const app = buildApp();
+    const inactive = jwt.sign({ aud: 'mention-api' }, 'routing-only-test-secret', {
+      algorithm: 'HS256',
+    });
+
+    const response = await request(app)
+      .get('/notifications')
+      .set('Authorization', `Bearer ${inactive}`);
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ error: 'invalid_token' });
+  });
+
+  it('builds the Oxy session mount once, not once per request', async () => {
+    const auth = vi.fn(
+      () => (_req: express.Request, res: express.Response) =>
+        res.status(401).json({ error: 'oxy_required' }),
+    );
+    const app = express();
+    app.use(createRequireMcpOrOxyAuth({ middleware: { auth } } as unknown as OxyServer));
+    app.get('/resource', (_req, res) => res.json({ ok: true }));
+    for (let index = 0; index < 3; index += 1) {
+      await request(app).get('/resource').set('Authorization', 'Bearer oxy-session');
+    }
+    expect(auth).toHaveBeenCalledTimes(1);
+    expect(auth).toHaveBeenCalledWith({});
   });
 });

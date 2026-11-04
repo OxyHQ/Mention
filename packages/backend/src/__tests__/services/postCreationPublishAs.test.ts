@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { accountAccessFromMembers } from '../helpers/accountAccess';
 import type { AccountMember } from '@oxy.so/core';
 
 /**
@@ -157,7 +158,7 @@ const listAccountMembers = vi.fn(async (accountId: string) =>
   // permission is not being demanded where it cannot exist.
   accountId === CHANNEL ? [memberRow(NO_ACT_AS_PERMISSIONS)] : [memberRow(ACT_AS_PERMISSIONS)],
 );
-const memberReader = { accounts: { members: { list: listAccountMembers } } };
+const accountAccess = accountAccessFromMembers(listAccountMembers, WRITER);
 
 beforeAll(async () => {
   await connectPostgres();
@@ -209,7 +210,7 @@ describe('PostCreationService.create — publishing as another account', () => {
       oxyUserId: WRITER,
       content: { text: 'from the channel' },
       publishAsOxyUserId: CHANNEL,
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -228,7 +229,7 @@ describe('PostCreationService.create — publishing as another account', () => {
       oxyUserId: WRITER,
       content: { text: 'from the org' },
       publishAsOxyUserId: ORGANIZATION,
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -248,7 +249,7 @@ describe('PostCreationService.create — publishing as another account', () => {
       content: { text: 'from the channel' },
       publishAsOxyUserId: CHANNEL,
       replyPermission: ['anyone'],
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -269,7 +270,7 @@ describe('PostCreationService.create — publishing as another account', () => {
       content: { text: 'from the org' },
       publishAsOxyUserId: ORGANIZATION,
       replyPermission: ['anyone'],
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -284,7 +285,7 @@ describe('PostCreationService.create — publishing as another account', () => {
       content: { text: 'from the org' },
       publishAsOxyUserId: ORGANIZATION,
       replyPermission: ['followers'],
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -298,7 +299,7 @@ describe('PostCreationService.create — publishing as another account', () => {
       oxyUserId: WRITER,
       content: { text: 'from the org' },
       publishAsOxyUserId: ORGANIZATION,
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -332,7 +333,7 @@ describe('PostCreationService.create — publishing as another account', () => {
         oxyUserId: WRITER,
         content: { text: 'not mine to sign' },
         publishAsOxyUserId: ORGANIZATION,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
@@ -351,7 +352,7 @@ describe('PostCreationService.create — publishing as another account', () => {
           oxyUserId: WRITER,
           content: { text: 'x' },
           publishAsOxyUserId: ORGANIZATION,
-          memberReader,
+          accountAccess,
           skipNotifications: true,
           ...extra,
         }),
@@ -380,7 +381,7 @@ describe("PostCreationService.create — continuing the account's own thread", (
       parentPostId: OWN_ROOT,
       threadId: OWN_ROOT,
       continuesOwnThread: true,
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -403,7 +404,7 @@ describe("PostCreationService.create — continuing the account's own thread", (
       parentPostId: OWN_CONTINUATION,
       threadId: OWN_ROOT,
       continuesOwnThread: true,
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -427,7 +428,7 @@ describe("PostCreationService.create — continuing the account's own thread", (
         parentPostId: STRANGERS_POST,
         threadId: STRANGERS_POST,
         continuesOwnThread: true,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
@@ -445,7 +446,7 @@ describe("PostCreationService.create — continuing the account's own thread", (
         parentPostId: ABSENT_ROOT,
         threadId: ABSENT_ROOT,
         continuesOwnThread: true,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
@@ -478,7 +479,7 @@ describe("PostCreationService.create — continuing the account's own thread", (
         publishAsOxyUserId: CHANNEL,
         parentPostId: OWN_ROOT,
         threadId: OWN_ROOT,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
@@ -505,7 +506,7 @@ describe('PostCreationService.create — one operated account answering another'
       parentPostId: ORG_ROOT,
       threadId: ORG_ROOT,
       answersOperatedAccount: true,
-      memberReader,
+      accountAccess,
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -534,7 +535,7 @@ describe('PostCreationService.create — one operated account answering another'
         parentPostId: CHANNEL_ROOT,
         threadId: CHANNEL_ROOT,
         answersOperatedAccount: true,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
@@ -556,7 +557,7 @@ describe('PostCreationService.create — one operated account answering another'
         parentPostId: ORG_ROOT,
         threadId: ORG_ROOT,
         answersOperatedAccount: true,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
@@ -573,7 +574,7 @@ describe('PostCreationService.create — one operated account answering another'
         parentPostId: ABSENT_ROOT,
         threadId: ABSENT_ROOT,
         answersOperatedAccount: true,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
@@ -589,7 +590,7 @@ describe('PostCreationService.create — one operated account answering another'
         publishAsOxyUserId: SECOND_ORG,
         parentPostId: ORG_ROOT,
         threadId: ORG_ROOT,
-        memberReader,
+        accountAccess,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });

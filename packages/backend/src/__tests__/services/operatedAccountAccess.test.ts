@@ -7,6 +7,7 @@ vi.mock('../../utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+import { rosterAccess } from '../helpers/accountAccess';
 import { viewerOperatesAccount } from '../../services/operatedAccountAccess';
 
 /**
@@ -31,7 +32,7 @@ function accountsAre(kinds: Record<string, string>): void {
 }
 
 function memberReaderReturning(members: unknown[]) {
-  return { listAccountMembers: vi.fn(async () => members as never) };
+  return { accounts: { members: { list: vi.fn(async () => members as never) } } };
 }
 
 beforeEach(() => {
@@ -54,7 +55,7 @@ describe('viewerOperatesAccount — an absent target is not an operated account'
         await viewerOperatesAccount({
           targetOxyUserId: target,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ).toBe(false);
     }
@@ -65,7 +66,7 @@ describe('viewerOperatesAccount — an absent target is not an operated account'
       await viewerOperatesAccount({
         targetOxyUserId: CHANNEL,
         callerId: undefined,
-        memberReader: memberReaderReturning([]),
+        accountAccess: rosterAccess(memberReaderReturning([]), undefined),
       }),
     ).toBe(false);
   });
@@ -79,10 +80,10 @@ describe('viewerOperatesAccount — "is it me" is one case of it', () => {
       await viewerOperatesAccount({
         targetOxyUserId: CALLER,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: rosterAccess(reader, CALLER),
       }),
     ).toBe(true);
-    expect(reader.listAccountMembers).not.toHaveBeenCalled();
+    expect(reader.accounts.members.list).not.toHaveBeenCalled();
     expect(resolveUserSummaries).not.toHaveBeenCalled();
   });
 
@@ -91,7 +92,7 @@ describe('viewerOperatesAccount — "is it me" is one case of it', () => {
       await viewerOperatesAccount({
         targetOxyUserId: ` ${CALLER} `,
         callerId: CALLER,
-        memberReader: memberReaderReturning([]),
+        accountAccess: rosterAccess(memberReaderReturning([]), CALLER),
       }),
     ).toBe(true);
   });
@@ -105,7 +106,7 @@ describe('viewerOperatesAccount — no member reader', () => {
       await viewerOperatesAccount({
         targetOxyUserId: CHANNEL,
         callerId: CALLER,
-        memberReader: undefined,
+        accountAccess: rosterAccess(undefined, CALLER),
       }),
     ).toBe(false);
   });

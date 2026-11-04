@@ -18,7 +18,7 @@ import {
 } from '../../services/UserPreferenceService';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { queryInt, queryString } from '../../utils/queryParams';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
@@ -207,7 +207,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       // of the few list endpoints that can hold a withheld post, and dropping a
       // channel operator's own saved entry out of their bookmarks would be a
       // silent loss rather than a refusal they could act on.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
 
     res.json({

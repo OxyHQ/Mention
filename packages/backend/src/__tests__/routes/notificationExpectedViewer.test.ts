@@ -22,7 +22,8 @@ vi.mock('../../services/notificationReadState', () => ({
 vi.mock('../../services/notificationInbox', () => ({ resolveNotificationInboxIds: effects.inbox }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
-  createUserScopedOxyServices: vi.fn(() => ({})),
+  callerOxyUser: vi.fn(() => ({})),
+  callerAccountAccess: vi.fn(() => undefined),
   getServiceOxyClient: vi.fn(),
 }));
 vi.mock('../../db/postgres', () => ({

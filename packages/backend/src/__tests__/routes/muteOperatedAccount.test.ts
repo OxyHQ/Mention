@@ -41,13 +41,15 @@ const { resolveUserSummaries, listAccountMembers } = vi.hoisted(() => ({
 vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
 
 // Spread over the real module: `mute.routes` reaches only
-// `createUserScopedOxyServices`, but the guard beneath it is free to grow a
+// `callerAccountAccess`, but the guard beneath it is free to grow a
 // second helper, and an enumerated mock would hand that one back as `undefined`
 // — a `TypeError` inside the route's own `try`, i.e. a 500 that reads like a
 // broken rule rather than a missing stub.
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  createUserScopedOxyServices: () => ({ accounts: { members: { list: listAccountMembers } } }),
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
+    accounts: { members: { list: listAccountMembers } },
+  })),
 }));
 
 vi.mock('../../utils/logger', () => ({

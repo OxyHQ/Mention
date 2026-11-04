@@ -19,6 +19,22 @@ describe('safetyRequesterFor', () => {
       capabilityTicket: 'signed-original-ticket',
     });
   });
+  /**
+   * Only what the auth middleware VERIFIED is a person's proof. A raw
+   * `Authorization` header — one the optional mount refused, or never saw —
+   * is not forwarded as one.
+   */
+  it('forwards the verified bearer, never a raw Authorization header', () => {
+    expect(
+      safetyRequesterFor({ accessToken: 'verified', headers: { authorization: 'Bearer raw' } }),
+    ).toEqual({ accessToken: 'verified' });
+    expect(safetyRequesterFor({ headers: { authorization: 'Bearer unverified' } })).toEqual({
+      accessToken: null,
+    });
+    expect(() =>
+      safetyRequesterFor({ user: { id: 'person' }, headers: { authorization: 'Bearer raw' } }),
+    ).toThrow('original authenticated bearer');
+  });
 });
 
 describe('verified service requester context', () => {

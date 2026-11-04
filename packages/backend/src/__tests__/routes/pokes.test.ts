@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   getBlockedUserIds: vi.fn(),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({
     users: { getMany: mocks.getUsersByIds, get: mocks.getUserById },
     follows: { followers: mocks.getUserFollowers, following: mocks.getUserFollowing },
@@ -35,7 +35,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // A stand-in for the caller's own bearer-scoped client — real shape
   // verified in `oxyHelpers.test.ts`; here only the one method the block
   // check calls is exercised.
-  createUserScopedOxyServices: (...args: unknown[]) => mocks.userScopedClient(...args),
+  ...(await import('../helpers/accountAccess')).rosterMocks((...args: unknown[]) =>
+    mocks.userScopedClient(...args),
+  ),
   // The route also asks for this to feed `getBlockedUserIds`; its own return
   // value is irrelevant since that function is mocked below.
   createScopedOxyClient: () => ({}),

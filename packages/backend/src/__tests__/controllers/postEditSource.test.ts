@@ -40,13 +40,15 @@ vi.mock('../../services/PostHydrationService', () => ({
 // the rest, so no other export the controller graph reads silently becomes
 // `undefined`. It has to be doubled at all because the gate behind this route
 // asks Oxy who currently operates a channel — the real
-// `createUserScopedOxyServices` answers `undefined` for a request carrying no
+// `callerAccountAccess` answers `undefined` for a request carrying no
 // bearer, and an absent reader is a refusal. `utils/logger` is already mocked
 // globally in `__tests__/setup.ts`.
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
-  createUserScopedOxyServices: () => ({ accounts: { members: { list: listAccountMembers } } }),
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
+    accounts: { members: { list: listAccountMembers } },
+  })),
 }));
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';

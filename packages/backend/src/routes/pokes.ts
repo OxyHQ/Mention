@@ -5,11 +5,7 @@ import { getDb } from '../db/postgres';
 import { pokes } from '../db/schema/engagement';
 import { createNotification } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
-import {
-  createScopedOxyClient,
-  createUserScopedOxyServices,
-  getServiceOxyClient,
-} from '../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser, getServiceOxyClient } from '../utils/oxyHelpers';
 import { getBlockedUserIds } from '../utils/privacyHelpers';
 import type { User } from '@oxy.so/core';
 
@@ -253,7 +249,7 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
     //
     // An unanswerable check is refused, not treated as permission — the same
     // fail-closed rule `canViewerAccessPoll`/`canViewerReadPostId` use.
-    const oxy = createUserScopedOxyServices(req);
+    const oxy = callerOxyUser(req);
     try {
       if (!oxy) throw new Error('no user-scoped Oxy client for this request');
       if (await oxy.privacy.isBlocked(userId)) {

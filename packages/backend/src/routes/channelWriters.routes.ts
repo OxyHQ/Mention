@@ -76,7 +76,7 @@ import { degradedActorSummary } from '../utils/degradedActorSummary';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import { disclosesWriters, loadSigningChannelIds } from '../services/channelWriterDisclosure';
 import { checkFollowAccess, requiresAccessCheck } from '../utils/privacyHelpers';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerOxyUser } from '../utils/oxyHelpers';
 import { channelWritersRateLimiter } from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
@@ -305,7 +305,7 @@ router.get(
         // An anonymous reader can never satisfy a restricted profile, so the
         // upstream call is not even made for one.
         const canView = viewerId
-          ? await checkFollowAccess(viewerId, channelOxyUserId, createUserScopedOxyServices(req))
+          ? await checkFollowAccess(viewerId, channelOxyUserId, callerOxyUser(req))
           : false;
         if (!canView) {
           return sendErrorResponse(res, 404, 'Not Found', NO_LIST_MESSAGE);

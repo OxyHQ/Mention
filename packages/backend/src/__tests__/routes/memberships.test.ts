@@ -30,8 +30,8 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: async (ids: string[]) =>
     new Map(ids.map((id) => [id, { user: { id, kind: 'organization', name: {} } }])),
 }));
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     accounts: {
       list: async () => state.accounts,
       members: {
@@ -41,7 +41,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
         },
       },
     },
-  }),
+  })),
   getServiceOxyClient: () => ({
     safety: {
       contentAccessBatch: async (

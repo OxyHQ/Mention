@@ -53,15 +53,17 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries,
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
   // The caller's own bearer-scoped Oxy client, which is what the gate reads
   // membership with. One shared spy so the call COUNT across the whole request is
   // observable — that is the assertion behind "resolve each account once".
-  createUserScopedOxyServices: vi.fn(() => ({
-    accounts: { members: { list: listAccountMembers } },
-  })),
+  ...(await import('../helpers/accountAccess')).rosterMocks(
+    vi.fn(() => ({
+      accounts: { members: { list: listAccountMembers } },
+    })),
+  ),
 }));
 
 vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
@@ -249,7 +251,7 @@ describe('beast mode — each entry may come from a different account', () => {
     expect(requestedAccounts()).toEqual([CHANNEL, ORGANIZATION, null]);
   });
 
-  it('hands the SAME memberReader to every create, so the gate cannot be routed around', async () => {
+  it('hands the SAME accountAccess reader to every create, so the gate cannot be routed around', async () => {
     const res = makeRes();
     await createThread(
       req({
@@ -264,7 +266,7 @@ describe('beast mode — each entry may come from a different account', () => {
 
     expect(res.statusCode).toBe(201);
     const readers = create.mock.calls.map(
-      ([params]: [Record<string, unknown>]) => params.memberReader,
+      ([params]: [Record<string, unknown>]) => params.accountAccess,
     );
     expect(readers[0]).toBeDefined();
     expect(readers[1]).toBe(readers[0]);
@@ -272,7 +274,7 @@ describe('beast mode — each entry may come from a different account', () => {
 
   /**
    * The performance property, measured rather than assumed: twelve entries naming
-   * ONE account cost ONE membership read. Without `cacheAccountMemberReads` the
+   * ONE account cost ONE membership read. Without `callerAccountAccess`'s per-request memo the
    * pre-flight alone would make twelve.
    */
   it("reads each distinct account's members ONCE per request, not once per post", async () => {

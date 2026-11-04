@@ -14,7 +14,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { postCreationService } from '../../services/PostCreationService';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { listOperatedChannelIds } from '../../services/publishAsAccount';
@@ -44,7 +44,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const operatedChannelIds = await listOperatedChannelIds(createUserScopedOxyServices(req));
+    const operatedChannelIds = await listOperatedChannelIds(callerOxyUser(req));
 
     // Sorted on `created_at`, newest first.
     const drafts = await findPostRecords(
@@ -139,7 +139,7 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     const publishRefusal = await postManagementRefusal({
       post: target,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (publishRefusal) {
       return res.status(publishRefusal.status).json({ message: publishRefusal.message });
@@ -286,7 +286,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
     // ONE resolution feeding both gates below. Asked with the caller's own client
     // because `GET /accounts` is anchored on the authenticated operator — a
     // service credential cannot ask "which accounts does person X operate" at all.
-    const operatedChannelIds = await listOperatedChannelIds(createUserScopedOxyServices(req));
+    const operatedChannelIds = await listOperatedChannelIds(callerOxyUser(req));
 
     const scheduledPosts = await findPostRecords(
       and(

@@ -3,7 +3,7 @@
  * person DELETE that account", of "may this person MODERATE that community", and
  * of "is that account a channel" (or a community hosted here).
  *
- * The first two live together because they share the membership READ, not
+ * The first two live together because they share the access READ, not
  * because they share an answer — they deliberately do not. Publishing as a
  * channel asks for membership; deleting one asks for `account:delete`, the
  * permission Oxy itself gates the account archive on. A second reader for the
@@ -32,30 +32,33 @@
  *    its name would hand out through this door exactly what
  *    `POST /accounts/:id/switch` refuses at the other one.
  *
- * `AccountMember.permissions` is derived from the role by Oxy at write time, so
- * the permission is READ rather than inferred from a role name — a role list here
- * would be a second copy of Oxy's role→permission map, free to drift the moment a
- * role is added or its grants change.
+ * The permissions are READ off Oxy's answer rather than inferred from a role
+ * name — a role list here would be a second copy of Oxy's role→permission map,
+ * free to drift the moment a role is added or its grants change.
  *
- * WHY THE CALLER'S OWN OXY CLIENT, AND NOT THE SERVICE CREDENTIAL.
- * `GET /accounts/:id/members` is gated on the AUTHENTICATED USER's effective
- * `members:read` over that account (`requireAccountPermission` in oxy-api); it
- * does not honour service-token delegation (`X-Oxy-User-Id` is read by
- * `optionalAuth`, which that router does not use). So the check is made with a
- * client built from the caller's own verified bearer, and Oxy — not Mention —
- * decides. A caller with no readable membership gets a 403 from Oxy, which is the
- * same answer this gate would give them anyway.
+ * WHY THE CALLER'S OWN ACCESS, AND NOT THE SERVICE CREDENTIAL.
+ * Every gate here asks `oxy.accountAccessFor(req, accountId)`, which reads
+ * `GET /accounts/:id` with the request's OWN verified bearer. Oxy resolves the
+ * person's EFFECTIVE access in that account — a direct membership, or one
+ * INHERITED from an ancestor account (an organization's member reaching its
+ * channel), with per-member grants and revokes applied. Oxy, not Mention,
+ * decides. A request with no person session (anonymous, MCP, a capability
+ * ticket or a service token) has no access to ask about, so the gate refuses.
  *
- * IT FAILS CLOSED. An Oxy outage makes the answer unknowable, and the two
- * directions are not comparable: refusing publishes a post nobody can see until
- * the outage ends, while allowing publishes a post UNDER ANOTHER ACCOUNT'S
- * IDENTITY that the caller may have no right to. So an unresolvable membership is
- * a refusal, not a default.
+ * IT FAILS CLOSED, AND AN OUTAGE IS NOT A "NO". The SDK maps Oxy's answer one
+ * way (`accessErrorStatus`): 401 means the session is gone, 403/404 is Oxy's
+ * definitive refusal, anything else is UNAVAILABLE (503). Refusing during an
+ * outage publishes a post nobody can see until it ends, while allowing would
+ * publish a post UNDER ANOTHER ACCOUNT'S IDENTITY that the caller may have no
+ * right to — so an unresolvable answer refuses, with a status that says "try
+ * again" rather than "you are not a member". Nothing negative is cached: the
+ * SDK keeps positive answers only, and these gates ask `fresh` every time.
  */
 
 import type { AccountKind } from '@oxy.so/contracts';
 import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import type { AccountMember, AccountNode } from '@oxy.so/core';
+import { accessErrorStatus, OxyAccessError, type OxyAccountAccess } from '@oxy.so/core/server';
 import type { PostUser } from '@mention/shared-types';
 import { isMentionChannel, isMentionCommunity } from '@mention/shared-types/profileUrls';
 import { resolveUserSummaries } from './PostHydrationService';
@@ -93,6 +96,14 @@ const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
  */
 const ACCOUNT_DELETE_PERMISSION = 'account:delete';
 
+/**
+ * The Oxy account permission every role carries (`owner` through `viewer`):
+ * what being a member of an account means in Oxy's vocabulary. A `channel` or a
+ * `community` can never be acted as, so there is no stronger right to ask for
+ * over one — writing for it, or moderating it, IS being one of its members.
+ */
+const ACCOUNT_READ_PERMISSION = 'account:read';
+
 /** A refusal carrying the status the HTTP layer should answer with. */
 export class PublishAsAccessError extends Error {
   readonly status: number;
@@ -105,22 +116,18 @@ export class PublishAsAccessError extends Error {
 }
 
 /**
- * The one Oxy call this module makes, as an interface rather than the whole
- * `OxyServices` surface — so a caller has to hand over a client that can read a
- * member list and nothing else is implied about what it may do.
+ * The caller's effective access in one Oxy account: `oxy.accountAccessFor`
+ * bound to ONE request (`callerAccountAccess` in `utils/oxyHelpers`). A function
+ * rather than the request itself, so a gate can only ask about access and
+ * nothing else is implied about what it may do. It rejects with
+ * `OxyAccessError`, which {@link readCallerAccess} maps to a status.
  */
-export interface AccountMemberReader {
-  accounts: {
-    members: {
-      list(accountId: string): Promise<AccountMember[]>;
-    };
-  };
-}
+export type AccountAccessReader = (accountId: string) => Promise<OxyAccountAccess>;
 
 /**
  * The INVERSE read: every account this caller can reach, rather than one named
- * account's members. Separate interface for the same reason as
- * {@link AccountMemberReader} — a caller hands over a client that can enumerate
+ * account's access. Separate interface for the same reason as
+ * {@link AccountAccessReader} — a caller hands over a client that can enumerate
  * its own forest and nothing more is implied.
  *
  * Also authorized against the caller's OWN bearer: `GET /accounts` is anchored on
@@ -135,32 +142,50 @@ export interface OperatedAccountReader {
 }
 
 /**
- * Whether an ACTIVE membership row authorises its holder to act FOR an account of
- * this kind — the one predicate behind both questions this module answers
- * ("may this person publish as that account", "which accounts does this person
- * operate"), so the two can never drift into disagreeing about the same person.
+ * Whether a set of EFFECTIVE account permissions authorises its holder to act
+ * FOR an account of this kind — the one predicate behind every question this
+ * module answers ("may this person publish as that account", "which accounts
+ * does this person operate"), so they can never drift into disagreeing about
+ * the same person.
  *
  * The two families are graded differently, and the module docstring says why:
- * membership alone is the whole right over a `channel` (nothing stronger exists,
- * since a channel can never be acted as), while a delegation-eligible account
- * additionally demands `account:act_as`. Human account switching is a separate,
- * narrower question that excludes bots.
- *
- * Every "no" is a refusal rather than an assumption: a missing row, a membership
- * that is `invited`/`removed` rather than `active`, a kind that is neither family,
- * and an absent or malformed `permissions` array all answer `false`.
+ * membership (`account:read`, which every role holds) is the whole right over a
+ * `channel` (nothing stronger exists, since a channel can never be acted as),
+ * while a delegation-eligible account demands `account:act_as`. Human account
+ * switching is a separate, narrower question that excludes bots. A kind that is
+ * neither family answers `false`.
+ */
+function permissionsAuthorizeActingFor(
+  kind: AccountKind | null | undefined,
+  has: (permission: string) => boolean,
+): boolean {
+  if (kind === 'channel') return has(ACCOUNT_READ_PERMISSION);
+  if (!isDelegatedActAsEligibleKind(kind)) return false;
+  return has(ACCOUNT_ACT_AS_PERMISSION);
+}
+
+/** {@link permissionsAuthorizeActingFor} over the caller's access Oxy resolved for one account. */
+export function accessAuthorizesActingFor(
+  kind: AccountKind | null | undefined,
+  access: OxyAccountAccess,
+): boolean {
+  return permissionsAuthorizeActingFor(kind, (permission) => access.has(permission));
+}
+
+/**
+ * {@link permissionsAuthorizeActingFor} over the `callerMembership` an account
+ * LIST carries (`GET /accounts`, Oxy's effective membership, inherited rows
+ * included). Every "no" is a refusal rather than an assumption: a missing row, a
+ * membership that is `invited`/`removed` rather than `active`, and an absent or
+ * malformed `permissions` array all answer `false`.
  */
 export function membershipAuthorizesActingFor(
   kind: AccountKind | null | undefined,
   membership: AccountMember | null | undefined,
 ): boolean {
   if (!membership || membership.status !== 'active') return false;
-  if (kind === 'channel') return true;
-  if (!isDelegatedActAsEligibleKind(kind)) return false;
-  return (
-    Array.isArray(membership.permissions) &&
-    membership.permissions.includes(ACCOUNT_ACT_AS_PERMISSION)
-  );
+  const permissions = Array.isArray(membership.permissions) ? membership.permissions : [];
+  return permissionsAuthorizeActingFor(kind, (permission) => permissions.includes(permission));
 }
 
 /**
@@ -184,14 +209,9 @@ export function membershipAuthorizesActingFor(
  * `billing` member does not hold. Widening this to those kinds would hand the
  * refused view to exactly those members through a separate notification path.
  *
- * Where this set can differ from what {@link assertCanPublishAsAccount} would
- * allow: that gate reads `GET /accounts/:id/members`, which returns DIRECT rows
- * only, so a membership CASCADING from an ancestor account is invisible to it
- * (a known gap, documented in AGENTS.md). `callerMembership` here is Oxy's
- * resolved EFFECTIVE access and includes an inherited row. The divergence is
- * deliberate: an inherited member is a member by Oxy's own resolution, and
- * copying the gate's gap into a second place would leave this resolver behind on
- * the day the gap closes.
+ * Both this set and {@link assertCanPublishAsAccount} read Oxy's EFFECTIVE
+ * access — `callerMembership` here, `accountAccessFor` there — so an inherited
+ * member is a member to both.
  *
  * Fail-soft to `[]`. The caller ({@link resolveNotificationInboxIds}) still reads
  * its own notifications, so an Oxy outage degrades a channel operator to the
@@ -217,39 +237,6 @@ export async function listOperatedChannelIds(
     )
     .map((node) => node.accountId)
     .filter((accountId): accountId is string => Boolean(accountId));
-}
-
-/**
- * Collapse repeated reads of the SAME account's member list onto one call, for a
- * caller that authorizes several targets in one request (`POST /posts/thread` in
- * beast mode, where every entry may name its own account). Twelve entries naming
- * one organization make one membership call, not twelve.
- *
- * The PROMISE is memoized, not its value, so two concurrent asks for one account
- * share a single in-flight request — and a failure is shared too, which is what
- * makes the batch refuse consistently instead of depending on which entry hit the
- * outage.
- *
- * **Per REQUEST, never module scope.** This holds an authorization answer for one
- * specific caller's bearer; hoisting it would serve one person's membership to
- * the next — the same reason `createUserScopedOxyServices` builds a fresh Oxy
- * client per request.
- */
-export function cacheAccountMemberReads(reader: AccountMemberReader): AccountMemberReader {
-  const byAccount = new Map<string, Promise<AccountMember[]>>();
-  return {
-    accounts: {
-      members: {
-        list(accountId: string): Promise<AccountMember[]> {
-          const pending = byAccount.get(accountId);
-          if (pending) return pending;
-          const started = reader.accounts.members.list(accountId);
-          byAccount.set(accountId, started);
-          return started;
-        },
-      },
-    },
-  };
 }
 
 /**
@@ -334,40 +321,43 @@ export async function isChannelAccount(oxyUserId: string | null | undefined): Pr
   return isMentionChannel((await resolveAccounts([oxyUserId])).get(oxyUserId));
 }
 
-/**
- * The caller's ACTIVE membership row on an account, or a refusal.
- *
- * The ONE membership read behind every question this module answers, factored so
- * the publish gate and {@link assertCanDeleteAccount} cannot come to different
- * conclusions about who a caller is on an account — a second read is a second
- * answer, and whichever of the two is wrong, one of them is wrong in the
- * permissive direction. What each caller then DEMANDS of the row is their own
- * decision; this only establishes which row is theirs.
- */
-async function readActiveMembership(
-  target: string,
-  callerId: string,
-  memberReader: AccountMemberReader,
-): Promise<AccountMember> {
-  let members: AccountMember[];
-  try {
-    members = await memberReader.accounts.members.list(target);
-  } catch (error) {
-    // Includes Oxy's own 403 for a caller with no `members:read`, which is the
-    // same answer as "not a member" — but it is not distinguishable here from a
-    // genuine outage, and both must refuse. The status says "try again" because
-    // the outage case is the one a client can act on.
-    logger.warn('[publishAsAccount] Failed to read account members', error);
-    throw new PublishAsAccessError(503, 'Could not verify your access to that account');
-  }
+/** What each outcome of an access read is answered with. */
+const ACCESS_REFUSALS: Record<401 | 403 | 404 | 503, string> = {
+  401: 'Sign in again to act for that account',
+  403: 'You are not a member of that account',
+  404: 'You are not a member of that account',
+  503: 'Could not verify your access to that account',
+};
 
-  const membership = members.find(
-    (member) => member.memberUserId === callerId && member.status === 'active',
-  );
-  if (!membership) {
-    throw new PublishAsAccessError(403, 'You are not a member of that account');
+/**
+ * The caller's effective access in an account, or a refusal.
+ *
+ * The ONE access read behind every gate this module answers, factored so the
+ * publish gate, {@link assertCanDeleteAccount} and
+ * {@link assertCanModerateCommunity} cannot come to different conclusions about
+ * who a caller is on an account — a second read is a second answer, and
+ * whichever of the two is wrong, one of them is wrong in the permissive
+ * direction. What each caller then DEMANDS of the access is their own decision.
+ *
+ * `accessErrorStatus` is the SDK's one mapping: 401 (session gone), 403 (Oxy
+ * refused, 404 included), 503 (Oxy could not answer). Anything that is not an
+ * `OxyAccessError` is unexpected, and refuses as 503 too: fail closed.
+ */
+async function readCallerAccess(
+  target: string,
+  accountAccess: AccountAccessReader,
+): Promise<OxyAccountAccess> {
+  try {
+    return await accountAccess(target);
+  } catch (error) {
+    const status = error instanceof OxyAccessError ? accessErrorStatus(error) : 503;
+    if (status === 503) {
+      logger.warn("[publishAsAccount] Could not read the caller's account access", {
+        code: error instanceof OxyAccessError ? error.code : 'unexpected',
+      });
+    }
+    throw new PublishAsAccessError(status, ACCESS_REFUSALS[status]);
   }
-  return membership;
 }
 
 /** What {@link assertCanPublishAsAccount} answers with. */
@@ -412,15 +402,16 @@ export interface PublishAsAuthor {
  *    are not comparable — see the module docstring on failing closed. Any kind Oxy
  *    adds later is refused until it is deliberately admitted here, rather than
  *    inherited by accident.
- *  - **403** — no client to ask with (an unauthenticated or MCP caller), the
- *    caller is not an ACTIVE member of that account, or — for an act-as-eligible
- *    account — they are a member without `account:act_as`.
+ *  - **401** — Oxy refused the caller's session: sign in again.
+ *  - **403** — no person to ask about (an unauthenticated, MCP or capability
+ *    caller), Oxy says the caller has no access in that account, or — for an
+ *    act-as-eligible account — their access lacks `account:act_as`.
  *  - **503** — Oxy could not answer. See the module docstring on failing closed.
  */
 export async function assertCanPublishAsAccount(params: {
   publishAsOxyUserId: string | null | undefined;
   callerId: string | null | undefined;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
 }): Promise<PublishAsAuthor> {
   const target = params.publishAsOxyUserId?.trim();
   const callerId = params.callerId ?? null;
@@ -431,7 +422,7 @@ export async function assertCanPublishAsAccount(params: {
   }
 
   // WHICH authority this account answers to, decided before anything is asked of
-  // Oxy's member list. A named predicate rather than a `kind !== 'personal'`
+  // Oxy about the caller's access. A named predicate rather than a `kind !== 'personal'`
   // test on purpose: a kind Oxy adds later is handled by it instead of silently
   // inheriting whichever branch a local list happened to put it in.
   //
@@ -447,21 +438,20 @@ export async function assertCanPublishAsAccount(params: {
     throw new PublishAsAccessError(400, 'That account cannot be published as');
   }
 
-  if (!params.memberReader) {
+  if (!params.accountAccess) {
     throw new PublishAsAccessError(403, 'You cannot publish as another account');
   }
 
-  const membership = await readActiveMembership(target, callerId, params.memberReader);
+  const access = await readCallerAccess(target, params.accountAccess);
 
-  // The permission is READ off the membership Oxy resolved, never inferred from
-  // `membership.role` — a role list here would be a second copy of Oxy's
-  // role→permission map, and the copy is what goes stale. An absent or malformed
-  // `permissions` array is therefore a refusal, not an assumption.
+  // The permission is READ off the access Oxy resolved, never inferred from
+  // `access.role` — a role list here would be a second copy of Oxy's
+  // role→permission map, and the copy is what goes stale.
   //
   // Answered by the SHARED predicate rather than inline, so this gate and
   // `listOperatedChannelIds` cannot come to different conclusions about the same
   // person and the same account.
-  if (!membershipAuthorizesActingFor(authorKind, membership)) {
+  if (!accessAuthorizesActingFor(authorKind, access)) {
     throw new PublishAsAccessError(403, 'You cannot publish as that account');
   }
 
@@ -494,10 +484,11 @@ export async function assertCanPublishAsAccount(params: {
  *  - **400** — the account's kind could not be resolved at all. Deleting an
  *    account whose kind is unknown is the risk `ChannelDeletionService` already
  *    refuses to take at its own door, and this is the same judgement made one
- *    layer earlier, before a member list is even read.
- *  - **403** — no caller, no client to ask Oxy with (an unauthenticated or MCP
- *    caller), the caller is not an ACTIVE member, or they are a member WITHOUT
- *    `account:delete`.
+ *    layer earlier, before the caller's access is even read.
+ *  - **401** — Oxy refused the caller's session: sign in again.
+ *  - **403** — no caller, no person to ask about (an unauthenticated, MCP or
+ *    capability caller), Oxy says the caller has no access, or their access
+ *    lacks `account:delete`.
  *  - **503** — Oxy could not answer. It fails closed for the reason in the module
  *    docstring, and here the argument is at its strongest: the action is
  *    irreversible, so a refusal costs a retry and a wrong allow costs an archive.
@@ -512,7 +503,7 @@ export async function assertCanPublishAsAccount(params: {
 export async function assertCanDeleteAccount(params: {
   targetOxyUserId: string | null | undefined;
   callerId: string | null | undefined;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
 }): Promise<AccountKind> {
   const target = params.targetOxyUserId?.trim();
   const callerId = params.callerId?.trim();
@@ -529,20 +520,16 @@ export async function assertCanDeleteAccount(params: {
     throw new PublishAsAccessError(400, 'That account cannot be deleted');
   }
 
-  if (!params.memberReader) {
+  if (!params.accountAccess) {
     throw new PublishAsAccessError(403, 'You cannot delete that account');
   }
 
-  const membership = await readActiveMembership(target, callerId, params.memberReader);
+  const access = await readCallerAccess(target, params.accountAccess);
 
-  // READ off the row Oxy resolved, never inferred from `membership.role` — a role
+  // READ off the access Oxy resolved, never inferred from `access.role` — a role
   // list here would be a second copy of Oxy's role→permission map, and the copy
-  // is what goes stale on the day a role's grants change. An absent or malformed
-  // `permissions` array is a refusal, not an assumption.
-  if (
-    !Array.isArray(membership.permissions) ||
-    !membership.permissions.includes(ACCOUNT_DELETE_PERMISSION)
-  ) {
+  // is what goes stale on the day a role's grants change.
+  if (!access.has(ACCOUNT_DELETE_PERMISSION)) {
     throw new PublishAsAccessError(403, 'Only an owner of this account can delete it');
   }
 
@@ -593,24 +580,25 @@ export async function resolveMentionCommunities(
  * Refuse unless `callerId` MODERATES the community hosted here
  * `communityOxyUserId`, and answer with the community.
  *
- * A community's moderators are its ACTIVE MEMBERS, whatever their role — the
- * same answer Oxy publishes as its moderators collection (`GET
+ * A community's moderators are its MEMBERS, whatever their role (direct or
+ * inherited) — the same answer Oxy publishes as its moderators collection (`GET
  * /users/:id/moderators`) and the same grading a channel's writers get: a
  * community can never be acted as (`isDelegatedActAsEligibleKind` refuses it),
- * so nothing stronger than membership exists to ask for. Read through
- * {@link readActiveMembership}, the one membership read behind every gate here,
+ * so nothing stronger than membership (`account:read`) exists to ask for. Read
+ * through {@link readCallerAccess}, the one access read behind every gate here,
  * with the CALLER's own bearer.
  *
  *  - **404** — not a community hosted here (a remote community is moderated by
  *    its own server, and nothing else has moderators).
- *  - **403** — no caller, no client to ask Oxy with, or not an active member.
+ *  - **401** — Oxy refused the caller's session: sign in again.
+ *  - **403** — no caller, no person to ask about, or not a member.
  *  - **503** — Oxy could not answer. Fails closed: a moderation action removes
  *    other people's work, so an unverifiable moderator is refused.
  */
 export async function assertCanModerateCommunity(params: {
   communityOxyUserId: string | null | undefined;
   callerId: string | null | undefined;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
 }): Promise<PostUser> {
   const target = params.communityOxyUserId?.trim();
   const callerId = params.callerId?.trim();
@@ -618,9 +606,12 @@ export async function assertCanModerateCommunity(params: {
   if (!target || !community) {
     throw new PublishAsAccessError(404, 'Community not found');
   }
-  if (!callerId || !params.memberReader) {
+  if (!callerId || !params.accountAccess) {
     throw new PublishAsAccessError(403, 'You do not moderate that community');
   }
-  await readActiveMembership(target, callerId, params.memberReader);
+  const access = await readCallerAccess(target, params.accountAccess);
+  if (!access.has(ACCOUNT_READ_PERMISSION)) {
+    throw new PublishAsAccessError(403, 'You do not moderate that community');
+  }
   return community;
 }

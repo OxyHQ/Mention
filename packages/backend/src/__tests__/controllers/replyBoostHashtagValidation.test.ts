@@ -39,7 +39,8 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  callerOxyUser: vi.fn(() => undefined),
+  callerAccountAccess: vi.fn(() => undefined),
   getRuntimeOxyClient: vi.fn(() => ({})),
 }));
 

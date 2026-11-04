@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 const settings = vi.hoisted(() => ({
   oxyApiUrl: '',
   oxy: { requestMetricsEnabled: false },
+  identity: { serviceApplicationId: 'mention-test-application' },
   crowdSource: { baseUrl: undefined as string | undefined },
 }));
 vi.mock('../../../config', () => ({ config: settings }));

@@ -99,6 +99,7 @@ async function fetchReplies(
       params: { parentId },
       user: { id: 'viewer' },
       headers: { authorization: 'Bearer viewer-token' },
+      accessToken: 'viewer-token',
     } as never,
     res as never,
   );

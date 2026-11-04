@@ -39,7 +39,8 @@ const oxyClient = {
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => oxyClient,
-  createUserScopedOxyServices: () => undefined,
+  callerOxyUser: () => undefined,
+  callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },

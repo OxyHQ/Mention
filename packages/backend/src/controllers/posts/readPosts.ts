@@ -24,7 +24,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostCorrectionsResponse } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { queryInt, queryString } from '../../utils/queryParams';
 import { topicSlugSql } from '../../utils/postTopicMatch';
@@ -116,7 +116,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       // the people who runs the channel. Hydration spends this only when the
       // post is actually withheld AND an account authored it; an ordinary post
       // detail read asks Oxy nothing extra.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
 
     const hydratedPost = hydrated[0];
@@ -164,7 +164,7 @@ export const getPostCorrections = async (req: AuthRequest, res: Response) => {
       // The trail is exactly as readable as the post, so it has to be able to
       // reach the same verdict — a channel's operators included, on a post
       // moderation has since restricted.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
     if (hydrated.length === 0) {
       return res.status(404).json({ message: 'Post not available' });

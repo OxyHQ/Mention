@@ -232,6 +232,7 @@ async function getFeed(descriptor: string): Promise<FeedBody['data']> {
     query: { descriptor },
     user: { id: VIEWER },
     headers: { authorization: 'Bearer viewer-token' },
+    accessToken: 'viewer-token',
   } as never;
   const res = makeRes();
   await mtnFeedController.getFeed(req, res as never);
