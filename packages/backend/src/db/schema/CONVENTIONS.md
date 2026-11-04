@@ -86,8 +86,6 @@ quotes every identifier it emits. Hand-written SQL must quote it too.
 `text`, holding the 24-char ObjectId hex verbatim for pre-cutover rows and a
 **uuid v7** for new ones. This is not negotiable and not a convenience:
 
-- The MTN `rkey` **is** the post's original 24-char id, and `rkey`/`collection`/`subject` are all
-  inside the signed envelope. A remapped id invalidates every record ever signed.
 - Every published ActivityPub identifier below the actor embeds one: the Note id,
   the `Create`/`Announce`/`Update` id, the `Delete` id and its `Tombstone`
   `object.id`, the `Like` id, the `Follow` id. Remote servers hold those. A
@@ -187,10 +185,6 @@ Always `timestamptz`, always `mode: 'date'` (`timestamptz()` from `@oxy.so/db`).
 and it would fire during backfill and overwrite the historical value the
 migration exists to preserve.
 
-**One deliberate exception:** `mention_node_ingest_witnesses.ingested_at` stays a
-raw millisecond `bigint`, because it is part of the canonicalized signing input
-and must round-trip byte-identically. A `timestamptz` would re-render it.
-
 ## Foreign keys
 
 Every relation gets a real constraint with an **explicitly decided `ON DELETE`**.
@@ -255,8 +249,8 @@ partial unique index (`uniqueIndex().where(...)`).
 
 Postgres treats NULLs as DISTINCT by default, so a plain `UNIQUE` on a nullable
 column is already correct — but the partial form is used where the rule covers
-a subset (`starter_packs.source_uri`, the MTN chain indexes), because it also keeps the
-index the size of the real set and states the v1/v2 split at the constraint.
+a subset (`starter_packs.source_uri`), because it also keeps the
+index the size of the real set.
 
 A sparse-unique column must be written **NULL, never `''`** — an empty string is
 a VALUE, so it collides for real, converting a non-problem into a live bug.
@@ -287,7 +281,6 @@ Three invariants enforced as constraints:
   with NO default — not `'{}'`, which is a different value.
 
 **`jsonb` is for genuinely shape-less data only**, plus the narrowly scoped UI snapshot below:
-`mention_signed_records.envelope` (a signed document that must round-trip),
 `custom_feed_definition_modules.params` (defined by the module, not the engine),
 `federation_delivery_queue.activity_json` (an arbitrary ActivityStreams
 document), and the two moderation payloads (§10.11 makes a published decision
@@ -426,8 +419,7 @@ a query needs.
   unique that already leads with it — a btree serves any leading prefix.
 - **Multikey → GIN**, not btree: `hashtags`, `classification_topics`,
   `classification_languages`. A btree cannot serve `<@`/`&&`.
-- **Sparse → partial:** `posts.curated`, `starter_packs.source_uri`, the MTN
-  chain indexes. A partial index is the size of the real set.
+- **Sparse → partial:** `posts.curated`, `starter_packs.source_uri`. A partial index is the size of the real set.
 
 Do not add an index speculatively.
 

@@ -81,7 +81,6 @@ import { notifications, trending } from '../../db/schema/discovery';
 import { userBehaviors, userSettings } from '../../db/schema/userProfile';
 import { mcpConnections } from '../../db/schema/mcp';
 import { contentLabels, labelers, reports } from '../../db/schema/moderation';
-import { mentionSignedRecords, mentionUserNodes } from '../../db/schema/mtn';
 import { federatedFollows, federationDeliveryQueue } from '../../db/schema/federation';
 import {
   mentionJobApplicationNotes,
@@ -399,21 +398,6 @@ async function seedEverything(): Promise<Seeded> {
     actorIds: [ERASED, OTHER],
   });
 
-  await db.insert(mentionSignedRecords).values({
-    subjectDid: `did:mention:${ERASED}`,
-    oxyUserId: ERASED,
-    type: 'app_record',
-    envelope: { text: 'signed post body' },
-    publicKey: 'pk',
-  });
-  await db.insert(mentionUserNodes).values({
-    oxyUserId: ERASED,
-    endpoint: 'https://vault.example/erased',
-    nodePublicKey: 'npk',
-    managed: true,
-    controller: 'oxy',
-  });
-
   // Jobs: ERASED applied to OTHER's job, and wrote a note on another applicant as OTHER's operator.
   const [job] = await db
     .insert(mentionJobs)
@@ -483,8 +467,6 @@ async function cleanup(): Promise<void> {
   await db.delete(federationDeliveryQueue).where(like(federationDeliveryQueue.senderOxyUserId, p));
   await db.delete(federatedFollows).where(like(federatedFollows.localUserId, p));
   await db.delete(mentionJobs).where(like(mentionJobs.slug, p));
-  await db.delete(mentionUserNodes).where(like(mentionUserNodes.oxyUserId, p));
-  await db.delete(mentionSignedRecords).where(like(mentionSignedRecords.oxyUserId, p));
   await db.delete(trending).where(like(trending.name, p));
   await db
     .delete(labelers)
@@ -567,7 +549,6 @@ describe('eraseOxyUser on real rows', () => {
       const leftovers: string[] = [];
       for (const entry of ACCOUNT_ERASURE_MAP) {
         if (!ERASURE_STEPS[erasureKey(entry)] && erasureKey(entry) !== 'posts.oxyUserId') continue;
-        if (entry.disposition === 'revoke') continue; // asserted below: revoked, not deleted
         // The erasure's own queued Deletes are kept on purpose; asserted below.
         if (erasureKey(entry) === 'federation_delivery_queue.senderOxyUserId') continue;
         const n = await rowsNaming(entry.table, entry.column, ERASED);
@@ -688,13 +669,6 @@ describe('eraseOxyUser on real rows', () => {
         )
         .where(eq(mentionJobApplications.applicantOxyUserId, `${PREFIX}third`));
       expect(notes).toEqual([{ author: ERASED_ACCOUNT_SENTINEL }]);
-
-      // MTN: the chain is gone; the managed vault is revoked for teardown, not deleted.
-      const [vault] = await getDb()
-        .select({ status: mentionUserNodes.status })
-        .from(mentionUserNodes)
-        .where(eq(mentionUserNodes.oxyUserId, ERASED));
-      expect(vault.status).toBe('revoked');
 
       // Federation: the queued Create is cancelled, the queued Delete is not.
       const queued = await getDb()

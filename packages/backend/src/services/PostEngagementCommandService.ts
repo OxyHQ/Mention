@@ -208,7 +208,6 @@ async function enqueuePostEngagementEvent(
         actorOxyUserId: event.actorOxyUserId,
         postId: event.postId,
         relationshipId: event.relationshipId,
-        postOwnerOxyUserId: event.post.oxyUserId ?? undefined,
         federationActivityId: event.post.federationActivityId ?? undefined,
         previousValue: event.previousValue,
         value: event.value,

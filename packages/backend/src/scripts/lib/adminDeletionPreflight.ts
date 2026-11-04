@@ -41,12 +41,6 @@ import {
   starterPacks,
 } from '../../db/schema/lists';
 import {
-  mentionNodeIngestWitnesses,
-  mentionRepoHeads,
-  mentionSignedRecords,
-  mentionUserNodes,
-} from '../../db/schema/mtn';
-import {
   contentLabels,
   labelers,
   moderationEnforcements,
@@ -460,10 +454,6 @@ export const ACTOR_REFERENCE_PROBE_NAMES = [
   'user_feed_preferences.oxy_user_id',
   'author_follower_snapshots.oxy_user_id',
   'actor_key_pairs.oxy_user_id',
-  'mention_user_nodes.oxy_user_id',
-  'mention_repo_heads.oxy_user_id',
-  'mention_signed_records.oxy_user_id',
-  'mention_node_ingest_witnesses.oxy_user_id',
 ] as const;
 
 export type ActorReferenceProbeName = (typeof ACTOR_REFERENCE_PROBE_NAMES)[number];
@@ -899,36 +889,6 @@ export function actorReferenceProbes(
       {
         name: 'actor_key_pairs.oxy_user_id',
         hasReference: () => hasActorKeyPair(oxyUserId),
-      },
-      // The probe NAME follows the storage throughout: a blocker message has to
-      // name something an operator can go and look at.
-      {
-        name: 'mention_user_nodes.oxy_user_id',
-        hasReference: () =>
-          anyRow(mentionUserNodes, mentionUserNodes.id, eq(mentionUserNodes.oxyUserId, oxyUserId)),
-      },
-      {
-        name: 'mention_repo_heads.oxy_user_id',
-        hasReference: () =>
-          anyRow(mentionRepoHeads, mentionRepoHeads.id, eq(mentionRepoHeads.oxyUserId, oxyUserId)),
-      },
-      {
-        name: 'mention_signed_records.oxy_user_id',
-        hasReference: () =>
-          anyRow(
-            mentionSignedRecords,
-            mentionSignedRecords.id,
-            eq(mentionSignedRecords.oxyUserId, oxyUserId),
-          ),
-      },
-      {
-        name: 'mention_node_ingest_witnesses.oxy_user_id',
-        hasReference: () =>
-          anyRow(
-            mentionNodeIngestWitnesses,
-            mentionNodeIngestWitnesses.id,
-            eq(mentionNodeIngestWitnesses.oxyUserId, oxyUserId),
-          ),
       },
     );
   }

@@ -55,7 +55,6 @@ import {
 } from './moderation';
 import { customFeedTopics, feedInteractions } from './feeds';
 import { federatedFollows } from './federation';
-import { mentionNodeIngestWitnesses, mentionRepoHeads, mentionSignedRecords } from './mtn';
 import { notifications, pushTokens, topicStats, trending } from './discovery';
 import { postgates, threadgateAllowRules, threadgates } from './gates';
 import { endorsementOutbox, engagementOutbox } from './outbox';
@@ -479,23 +478,6 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason: "CrowdSource's case id.",
   },
   {
-    table: mentionRepoHeads,
-    column: mentionRepoHeads.headRecordId,
-    reason:
-      "The head record's CONTENT ADDRESS, not its row id. It is advanced in the " +
-      'same transaction as the record insert, so a constraint would only ' +
-      'restate an ordering the writer already guarantees — and a conflict ' +
-      'archive deliberately keeps a head whose target is no longer canonical.',
-  },
-  {
-    table: mentionNodeIngestWitnesses,
-    column: mentionNodeIngestWitnesses.recordId,
-    reason:
-      'The content address Mention witnessed. The witness must OUTLIVE the ' +
-      'record it attests to — that is the whole point of an independent ' +
-      'attestation against a silently rewritten history.',
-  },
-  {
     table: engagementOutbox,
     column: engagementOutbox.payloadRelationshipId,
     reason:
@@ -661,33 +643,6 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       'A published ActivityPub Follow URI held by remote servers. It EMBEDS a ' +
       '`federated_actors.id` but is not one.',
-  },
-  {
-    table: mentionSignedRecords,
-    column: mentionSignedRecords.recordId,
-    reason: 'A content address (sha256 of the signing input), not a row id.',
-  },
-  {
-    table: mentionSignedRecords,
-    column: mentionSignedRecords.prev,
-    reason:
-      "The PREVIOUS record's content address. It chains to another row in this " +
-      'table, but by content hash rather than by primary key — and a conflict ' +
-      'archive deliberately keeps a `prev` whose target is not canonical.',
-  },
-  {
-    table: mentionSignedRecords,
-    column: mentionSignedRecords.idempotencyKey,
-    reason: 'A producer-event identity minted by the outbox. Not a row id.',
-  },
-  {
-    table: mentionSignedRecords,
-    column: mentionSignedRecords.rkey,
-    reason:
-      'A record id INSIDE a signed envelope. It usually names a `posts.id`, ' +
-      'but it also names a `likes.id` or a `bookmarks.id` depending on `nsid`, ' +
-      'and a record must survive the deletion of what it describes — that is ' +
-      'what a tombstone is for.',
   },
   {
     table: postClassificationTopicRefs,

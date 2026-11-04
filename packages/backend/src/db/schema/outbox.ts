@@ -84,7 +84,11 @@ export const engagementOutbox = pgTable(
       .references(() => posts.id, { onDelete: 'cascade' }),
     /** The `likes.id` / `bookmarks.id` this transition is about. */
     payloadRelationshipId: text().notNull(),
-    /** An Oxy account id — no foreign key. */
+    /**
+     * An Oxy account id — no foreign key. NO LONGER WRITTEN: only the removed
+     * signed-record effect read it. It is dropped once the release that stopped
+     * writing it is the oldest one running; rows expire within the retention window.
+     */
     payloadPostOwnerOxyUserId: text(),
     /** The AP activity id to Undo, for a federated engagement. */
     payloadFederationActivityId: text(),

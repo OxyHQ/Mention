@@ -89,7 +89,6 @@ export interface EngagementOutboxPayload {
   actorOxyUserId: string;
   postId: string;
   relationshipId: string;
-  postOwnerOxyUserId?: string;
   federationActivityId?: string;
   previousValue?: EngagementVoteValue | null;
   value?: EngagementVoteValue | null;
@@ -129,7 +128,6 @@ const EVENT_COLUMNS = {
   payloadActorOxyUserId: engagementOutbox.payloadActorOxyUserId,
   payloadPostId: engagementOutbox.payloadPostId,
   payloadRelationshipId: engagementOutbox.payloadRelationshipId,
-  payloadPostOwnerOxyUserId: engagementOutbox.payloadPostOwnerOxyUserId,
   payloadFederationActivityId: engagementOutbox.payloadFederationActivityId,
   payloadPreviousValue: engagementOutbox.payloadPreviousValue,
   payloadValue: engagementOutbox.payloadValue,
@@ -167,8 +165,7 @@ function toEvent(row: EventRow): EngagementOutboxEvent {
       actorOxyUserId: row.payloadActorOxyUserId,
       postId: row.payloadPostId,
       relationshipId: row.payloadRelationshipId,
-      // Drizzle hands back `null` for an empty column, and every consumer of these two is typed `string | undefined`.
-      postOwnerOxyUserId: row.payloadPostOwnerOxyUserId ?? undefined,
+      // Drizzle hands back `null` for an empty column, and its consumer is typed `string | undefined`.
       federationActivityId: row.payloadFederationActivityId ?? undefined,
       previousValue: voteValue(row.payloadPreviousValue),
       value: voteValue(row.payloadValue),
@@ -225,7 +222,6 @@ export async function enqueueEngagementOutboxEvent(
       payloadActorOxyUserId: input.payload.actorOxyUserId,
       payloadPostId: input.payload.postId,
       payloadRelationshipId: input.payload.relationshipId,
-      payloadPostOwnerOxyUserId: input.payload.postOwnerOxyUserId ?? null,
       payloadFederationActivityId: input.payload.federationActivityId ?? null,
       payloadPreviousValue: input.payload.previousValue ?? null,
       payloadValue: input.payload.value ?? null,

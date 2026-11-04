@@ -49,8 +49,6 @@ export type ErasureDisposition =
    * can never be an Oxy id.
    */
   | 'anonymise'
-  /** A managed MTN vault is marked `revoked` so the node fleet tears its volume down. */
-  | 'revoke'
   /** An `ON DELETE` constraint does it when a parent row this erasure deletes goes. No step. */
   | 'database'
   /** Deliberately kept, with the obligation named in `why`. No step. */
@@ -705,7 +703,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'payloadActorOxyUserId',
     disposition: 'delete-row',
     phase: 'account',
-    why: "Queued side effects (MTN record, notification, federation) of the account's own likes.",
+    why: "Queued side effects (notification, federation) of the account's own likes.",
   },
   {
     table: 'engagement_outbox',
@@ -841,46 +839,6 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   },
 
   // ---------------------------------------------------------------------------
-  // MTN signed records
-  // ---------------------------------------------------------------------------
-  {
-    table: 'mention_signed_records',
-    column: 'oxyUserId',
-    disposition: 'delete-row',
-    phase: 'account',
-    why:
-      "The account's whole signed-record chain, deleted rather than tombstoned. A tombstone is an appended " +
-      'record that leaves the superseded envelope (the post text) in the chain, which is not erasure. Every ' +
-      'reader of the chain reads THIS table (the atproto bridge, the node export), so deleting the rows ' +
-      'removes the records from every surface Mention serves. The channel cascade makes the same call.',
-  },
-  {
-    table: 'mention_repo_heads',
-    column: 'oxyUserId',
-    disposition: 'delete-row',
-    phase: 'account',
-    why: 'The chain head. Its `subject_did` embeds the account id.',
-  },
-  {
-    table: 'mention_node_ingest_witnesses',
-    column: 'oxyUserId',
-    disposition: 'delete-row',
-    phase: 'account',
-    why: "Counter-signatures over records ingested from the account's node.",
-  },
-  {
-    table: 'mention_user_nodes',
-    column: 'oxyUserId',
-    disposition: 'revoke',
-    phase: 'account',
-    why:
-      "The account's MTN node registration. A self-hosted node row is deleted: the node and its copy are the " +
-      "person's own server. A MANAGED vault (`controller = oxy`) is marked `revoked` instead, because " +
-      'that row is the documented signal the node-fleet reconciler tears the per-user volume down from; ' +
-      'deleting it would strand the data.',
-  },
-
-  // ---------------------------------------------------------------------------
   // federation: last, after the actor Delete
   // ---------------------------------------------------------------------------
   {
@@ -994,10 +952,6 @@ export const NOT_AN_ACCOUNT_COLUMN: ReadonlyMap<string, string> = new Map([
  */
 export const EMBEDDED_ACCOUNT_REFERENCES: ReadonlyMap<string, string> = new Map([
   [
-    'mention_signed_records.envelope / .subject_did / mention_repo_heads.subject_did',
-    'The DID embeds the account id. REACHED: the rows are deleted by `oxy_user_id`.',
-  ],
-  [
     'federation_delivery_queue.activity_json',
     "The account's actor URL inside queued activities. REACHED for the account's own rows (drained by " +
       'sender); the `Delete` rows this erasure queues keep the actor URL, which is what a Delete must name.',
@@ -1044,11 +998,6 @@ export const OUTSIDE_THE_MAP: ReadonlyMap<string, string> = new Map([
     'CrowdSource (delivered reports, community notes and ratings)',
     "CrowdSource holds what was delivered to it under the account's id. Mention has no erasure call into " +
       "CrowdSource today; that is CrowdSource's to erase and is tracked as a follow-up.",
-  ],
-  [
-    'A self-hosted MTN node',
-    "The person's own server holding their own copy. Mention stops syncing with it; it cannot and should " +
-      'not reach into it.',
   ],
   [
     'Redis caches',

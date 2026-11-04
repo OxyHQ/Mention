@@ -79,12 +79,6 @@ import {
   federationDeliveryQueue,
 } from '../../db/schema/federation';
 import { mcpAuthCodes, mcpConnections, mcpEffectReceipts } from '../../db/schema/mcp';
-import {
-  mentionNodeIngestWitnesses,
-  mentionRepoHeads,
-  mentionSignedRecords,
-  mentionUserNodes,
-} from '../../db/schema/mtn';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
 import {
   accountEq,
@@ -338,26 +332,6 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: authorFollowerSnapshots,
     where: accountEq(authorFollowerSnapshots.oxyUserId),
-  },
-  'mention_signed_records.oxyUserId|channel-account': {
-    phase: 'account',
-    table: mentionSignedRecords,
-    where: accountEq(mentionSignedRecords.oxyUserId),
-  },
-  'mention_repo_heads.oxyUserId|channel-account': {
-    phase: 'account',
-    table: mentionRepoHeads,
-    where: accountEq(mentionRepoHeads.oxyUserId),
-  },
-  'mention_user_nodes.oxyUserId|channel-account': {
-    phase: 'account',
-    table: mentionUserNodes,
-    where: accountEq(mentionUserNodes.oxyUserId),
-  },
-  'mention_node_ingest_witnesses.oxyUserId|channel-account': {
-    phase: 'account',
-    table: mentionNodeIngestWitnesses,
-    where: accountEq(mentionNodeIngestWitnesses.oxyUserId),
   },
   'engagement_outbox.payloadActorOxyUserId|channel-account': {
     phase: 'account',

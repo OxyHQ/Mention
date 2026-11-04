@@ -41,7 +41,6 @@
     "@oxy.so/federation": "^2.14.0",
     "@oxy.so/mcp": "catalog:",
     "@oxy.so/mention-contracts": "workspace:*",
-    "@oxy.so/protocol": "catalog:",
     "@oxy.so/telemetry": "^2.1.0",
     "@oxy.so/utils": "catalog:",
     "@peable.to/sdk": "catalog:",
