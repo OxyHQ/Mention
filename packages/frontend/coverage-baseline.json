@@ -1463,12 +1463,6 @@
       "functions": 100,
       "lines": 100
     },
-    "stores/hapticsStore.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
     "stores/identityUpdates.ts": {
       "statements": 99,
       "branches": 98,

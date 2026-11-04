@@ -1,5 +1,5 @@
 import { useOxyIdentityRows } from '@/components/settings/useOxyIdentityRows';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
 import { PinnedMediaSection } from '@/components/Profile/EditProfile/PinnedMediaSection';
 import { markPresetSelection } from '@/hooks/useAccountTheme';

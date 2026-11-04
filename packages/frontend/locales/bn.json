@@ -1368,11 +1368,9 @@
       "clearCacheSuccess": "ক্যাশ পরিষ্কার হয়েছে।"
     },
     "accessibility": {
-      "hapticFeedback": "হ্যাপটিক ফিডব্যাক",
-      "hapticFeedbackDesc": "স্পর্শে কম্পনের মাধ্যমে সাড়া",
       "interaction": "মিথস্ক্রিয়া",
       "title": "অ্যাক্সেসিবিলিটি",
-      "nativeHaptics": "মোবাইল অ্যাপে উপলব্ধ।"
+      "media": "মিডিয়া"
     },
     "debug": "ডিবাগ",
     "interests": {

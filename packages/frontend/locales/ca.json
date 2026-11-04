@@ -1386,11 +1386,9 @@
       "clearCacheSuccess": "S'ha buidat la memòria cau."
     },
     "accessibility": {
-      "hapticFeedback": "Retorn hàptic",
-      "hapticFeedbackDesc": "Vibració en interaccionar",
       "interaction": "Interacció",
       "title": "Accessibilitat",
-      "nativeHaptics": "Disponible a l’aplicació mòbil."
+      "media": "Multimèdia"
     },
     "debug": "Depuració",
     "interests": {

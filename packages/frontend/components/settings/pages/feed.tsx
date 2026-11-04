@@ -1,4 +1,4 @@
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { Slider } from '@oxy.so/bloom/slider';
 import { DEFAULT_FEED_SETTINGS, useFeedSettings, type FeedSettings } from '@/hooks/useFeedSettings';
