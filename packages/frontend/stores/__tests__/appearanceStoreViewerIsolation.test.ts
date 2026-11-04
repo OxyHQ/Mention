@@ -69,6 +69,17 @@ describe('appearanceStore viewer isolation', () => {
     expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
   });
 
+  it('reloads, without an id, only for the viewer it last loaded', async () => {
+    await useAppearanceStore.getState().loadMySettings();
+    expect(mockFetchViewerSettings).not.toHaveBeenCalled();
+
+    mockFetchViewerSettings.mockResolvedValue(appearance('viewer-a', 'more'));
+    await useAppearanceStore.getState().loadMySettings('viewer-a');
+    await useAppearanceStore.getState().loadMySettings();
+    expect(mockFetchViewerSettings).toHaveBeenLastCalledWith('viewer-a');
+    expect(mockFetchViewerSettings).toHaveBeenCalledTimes(2);
+  });
+
   it('does not let a late A update overwrite B settings', async () => {
     const pendingA = deferred<{ data: UserAppearance }>();
     const pendingB = deferred<{ data: UserAppearance }>();
