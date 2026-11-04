@@ -7,7 +7,7 @@ import { Muted, Title } from '@oxy.so/bloom/typography';
 import { WizardFooter, WizardProgress, type WizardStep } from '@oxy.so/bloom/wizard';
 import { TopicPicker } from '@/components/interests/TopicPicker';
 import { requestSettings } from '@/components/settings/settingsRoutes';
-import { WhoToFollowTab } from '@/components/WhoToFollowTab';
+import { LazyWhoToFollowTab } from '@/components/sharedRouteScreens';
 import { useCompleteWelcome } from '@/hooks/useWelcome';
 import { useLocalSearchParams, useRouter } from '@/lib/navigation/router';
 import { WelcomeStarterPacks } from './WelcomeStarterPacks';
@@ -89,7 +89,7 @@ export function WelcomeScreen() {
           <TopicPicker query="" />
         </ScreenScrollView>
       ) : step === 1 ? (
-        <WhoToFollowTab listHeaderComponent={<WelcomeStarterPacks />} />
+        <LazyWhoToFollowTab listHeaderComponent={<WelcomeStarterPacks />} />
       ) : (
         <ScreenScrollView contentContainerClassName="gap-3 px-4 pt-4">
           <Title variant="headline-semibold">{t('welcome.profile.heading')}</Title>

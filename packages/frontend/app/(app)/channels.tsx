@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAccountsScreen';
+import { LazyOperatedAccountsScreen } from '@/components/sharedRouteScreens';
 
 /**
  * The channels you operate, and the one place to create another. A channel is
@@ -9,7 +9,7 @@ import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAc
 export default function ChannelsScreen() {
   const { t } = useTranslation();
   return (
-    <OperatedAccountsScreen
+    <LazyOperatedAccountsScreen
       kind="channel"
       copy={{
         title: t('channels.title', { defaultValue: 'Channels' }),

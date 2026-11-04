@@ -1,2 +1,2 @@
-// Re-export connections screen for followers route
-export { default } from './connections';
+// The connections screen, for the followers route.
+export { LazyConnectionsScreen as default } from '@/components/sharedRouteScreens';

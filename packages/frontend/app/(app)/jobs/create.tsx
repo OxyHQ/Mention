@@ -24,8 +24,8 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { jobsService, getJobErrorMessage, isJobEntitlementError } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
-import { JobFormFields, useJobForm } from '@/components/Jobs/JobFormFields';
-import { jobLocationInputFrom } from '@/components/Jobs/JobLocationField';
+import { jobLocationInputFrom, useJobForm } from '@/components/Jobs/jobForm';
+import { LazyJobFormFields } from '@/components/sharedRouteScreens';
 
 const ELIGIBLE_KINDS: readonly string[] = MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS;
 
@@ -239,7 +239,7 @@ export default function CreateJobScreen() {
             onClose={() => setEmployerPickerOpen(false)}
           />
 
-          <JobFormFields form={form} />
+          <LazyJobFormFields form={form} />
 
           {/* Submit */}
           <View className="flex-row gap-3 mt-6">

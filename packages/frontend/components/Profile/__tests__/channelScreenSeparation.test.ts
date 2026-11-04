@@ -169,7 +169,7 @@ describe('a channel has its own about page', () => {
       join('app', '(app)', 'c', '[username]', 'about.tsx'),
     ]) {
       const source = readFileSync(join(FRONTEND, route), 'utf8');
-      expect(source).toMatch(/from '@\/components\/AccountInfoScreen'/);
+      expect(source).toMatch(/LazyAccountInfoScreen \} from '@\/components\/sharedRouteScreens'/);
     }
     // And each declares which family it is, rather than sniffing the pathname.
     expect(

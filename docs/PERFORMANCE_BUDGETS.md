@@ -418,6 +418,67 @@ public entrypoints and route coupling for marginal savings. The shipped API
 keeps the simple lean-hook boundary; future reductions must preserve the shared
 screen behavior and are still measured against the unchanged gzip target.
 
+### Shared screens behind one boundary each (2026-11-04)
+
+The rule in "Initial JavaScript after #1216" applied to the screens that two or
+more ROUTES import: every route file is its own async chunk, so a screen two
+routes import statically is shared by two chunks and hoisted into `__common`.
+Each now renders through one boundary in `components/sharedRouteScreens.tsx`
+(one `lazy()` + skeleton per screen, as `LazyComposeScreen` does), so the screen
+is one chunk fetched when one of its pages opens:
+
+| Screen                                     | Routes                                        |
+| ------------------------------------------ | --------------------------------------------- |
+| `AccountInfoScreen`                        | `/@<handle>/about`, `/c/<handle>/about`       |
+| `ConnectionsScreen` (was the route file)   | `/@<handle>/connections` and its 4 aliases    |
+| `OperatedAccountsScreen`                   | `/channels`, `/communities`                   |
+| `OperatedAccountSettingsScreen`            | `/c/<handle>/settings`, `/@<handle>/settings` |
+| `WhoToFollowTab` / `NewUsersTab`           | `/explore/who-to-follow`, `/new`, `/welcome`  |
+| `ProfileShop`                              | the Shop tab, `/c/<handle>/shop`              |
+| `JobFormFields` (state moved to `jobForm`) | `/jobs/create`, `/jobs/<id>/edit`             |
+
+Two more shares came from code web never runs. expo-router bundles every route
+file for every platform, so the native `(tabs)/camera.tsx` shipped beside
+its web route sibling and shared the composer's post builders with it: the page is
+now a module fork (`components/Camera/CameraPage.tsx` and `components/Camera/CameraPage.web.tsx`) and the
+route only re-exports it. `MembershipComposer` read a picked document through
+`expo-file-system`, shared with Alia's chat sheet; on web the picker already
+holds the browser `File` (`pickedDocumentFile.web.ts`). `/c/<handle>/shop` also
+imported a hook through the `components/Profile` barrel.
+
+Measured with `build:analyze` and the unchanged analyzer on main `2e55a894c` and
+on this change (bytes):
+
+| Metric                     | Main       | This change | Change   |
+| -------------------------- | ---------- | ----------- | -------- |
+| totalBytes                 | 20,431,783 | 20,409,230  | -22,553  |
+| javascriptBytes            | 15,020,707 | 14,998,154  | -22,553  |
+| initialJavascriptBytes     | 5,964,790  | 5,855,632   | -109,158 |
+| initialJavascriptGzipBytes | 1,703,756  | 1,665,111   | -38,645  |
+
+The 1,677,722-byte initial gzip target is met, 12,611 bytes under. The four
+ceilings come down by the measured saving, keeping their headroom. The
+`deferredSources` gate holds the seven screens and the post builders out of the
+initial chunks.
+
+Still hoisted, and why it stays for now:
+
+- **The profile family**, ~190 KB raw of `__common` (`ProfileTabs`,
+  `ProfileShell`, the grids, `CoverHeader`, `expo-audio` for the profile song):
+  shared by the `[username]` layout, its thirteen tab routes and the channel
+  page. One boundary in front of it would put a chunk round trip in front of
+  every profile, the page most links land on.
+- **Bloom's chart cards** (~96 KB raw): Alia's chat sheet renders them, so any
+  Mention importer (Insights, the weekly recap, a post's insights sheet) makes a
+  second sharer. The fix is in the Alia SDK (load its chart renderers on demand).
+- **Bloom's date picker and `@oxy.so/services` account settings** (~50 KB raw):
+  shared with the services SDK's own lazily loaded screens.
+
+Expo SDK 58's `experiments.chunking.mode: "granular"` was measured as the
+general fix and rejected: the HTML then names only the entry (2.0 MB raw), but
+the home page fetches 245 chunks, 7.43 MB raw / 1,830,031 bytes gzip, against
+8 chunks, 6.12 MB / 1,752,885 bytes with the current strategy.
+
 ### Reanimated's layout animations and the feed's first request (2026-10-15)
 
 Two root causes, each measured on its own export of the same commit

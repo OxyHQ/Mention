@@ -13,56 +13,13 @@ import {
   SegmentedControlItem,
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
-import type {
-  CountryCode,
-  MentionJobLocation,
-  MentionJobLocationInput,
-  MentionJobPlace,
-} from '@mention/shared-types';
+import type { MentionJobPlace } from '@mention/shared-types';
 import { COUNTRY_CODES } from '@mention/shared-types/job';
 import { jobsService } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 import CodePickerDialog from './CodePickerDialog';
-
-/**
- * What the form holds for a location. Never free text: a Clarity place picked
- * from the autocomplete, a country picked from `COUNTRY_CODES`, or nothing.
- */
-export type JobLocationDraft =
-  | { kind: 'none' }
-  | { kind: 'place'; place: MentionJobPlace | null }
-  | { kind: 'country'; countryCode: CountryCode | null };
-
-export const EMPTY_JOB_LOCATION: JobLocationDraft = { kind: 'none' };
-
-/** The stored location, as the form's starting draft (edit). */
-export function jobLocationDraftFrom(location: MentionJobLocation | undefined): JobLocationDraft {
-  if (!location) return EMPTY_JOB_LOCATION;
-  if (!location.placeId) return { kind: 'country', countryCode: location.countryCode };
-  return {
-    kind: 'place',
-    place: {
-      id: location.placeId,
-      kind: location.city ? 'city' : 'region',
-      name: location.city ?? location.region ?? location.countryCode,
-      countryCode: location.countryCode,
-      region: location.city ? location.region : undefined,
-    },
-  };
-}
-
-/** The request body's `location`: `undefined` when the draft names nothing yet. */
-export function jobLocationInputFrom(draft: JobLocationDraft): MentionJobLocationInput | undefined {
-  if (draft.kind === 'place' && draft.place) return { placeId: draft.place.id };
-  if (draft.kind === 'country' && draft.countryCode) return { countryCode: draft.countryCode };
-  return undefined;
-}
-
-/** A chosen kind with nothing picked in it — the form should not submit that silently. */
-export function isJobLocationIncomplete(draft: JobLocationDraft): boolean {
-  return draft.kind !== 'none' && jobLocationInputFrom(draft) === undefined;
-}
+import { EMPTY_JOB_LOCATION, type JobLocationDraft } from './jobForm';
 
 const MIN_PLACE_QUERY_LENGTH = 2;
 const PLACE_SEARCH_DEBOUNCE_MS = 300;

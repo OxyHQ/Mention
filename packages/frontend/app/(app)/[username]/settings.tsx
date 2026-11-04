@@ -1,4 +1,4 @@
-import { OperatedAccountSettingsScreen } from '@/components/OperatedAccounts/OperatedAccountSettingsScreen';
+import { LazyOperatedAccountSettingsScreen } from '@/components/sharedRouteScreens';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
 
@@ -11,7 +11,7 @@ import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
  */
 function CommunitySettingsScreen() {
   const handle = useRoutedProfileUsername();
-  return <OperatedAccountSettingsScreen kind="community" handle={handle} />;
+  return <LazyOperatedAccountSettingsScreen kind="community" handle={handle} />;
 }
 
 export default function CommunitySettingsRoute() {

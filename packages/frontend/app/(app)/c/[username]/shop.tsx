@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { Screen } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useProfileAccount } from '@/components/Profile';
+import { useProfileAccount } from '@/components/Profile/hooks/useProfileAccount';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
-import { ProfileShop } from '@/components/Commerce/ProfileShop';
+import { LazyProfileShop } from '@/components/sharedRouteScreens';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 
@@ -15,7 +15,7 @@ export default function ChannelShopRoute() {
       {loading ? (
         <ListSkeleton />
       ) : profileData?.kind === 'channel' ? (
-        <ProfileShop accountId={profileData.id} />
+        <LazyProfileShop accountId={profileData.id} />
       ) : (
         <EmptyState title={t('commerce.shopUnavailable')} />
       )}

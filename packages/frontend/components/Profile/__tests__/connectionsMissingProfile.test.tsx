@@ -181,7 +181,7 @@ jest.mock('@oxy.so/bloom/list', () => {
   };
 });
 
-import ConnectionsScreen from '../connections';
+import ConnectionsScreen from '../ConnectionsScreen';
 
 const byTestId = (tree: TestRenderer.ReactTestRenderer, testID: string) =>
   tree.root.findAll((node) => node.props.testID === testID && typeof node.type === 'string');

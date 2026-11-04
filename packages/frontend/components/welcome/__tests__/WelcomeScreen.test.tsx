@@ -15,7 +15,7 @@ jest.mock('@/hooks/useWelcome', () => ({
 }));
 jest.mock('@/components/settings/settingsRoutes', () => ({ requestSettings: jest.fn() }));
 jest.mock('@/components/interests/TopicPicker', () => ({ TopicPicker: () => 'topics' }));
-jest.mock('@/components/WhoToFollowTab', () => ({ WhoToFollowTab: () => 'people' }));
+jest.mock('@/components/sharedRouteScreens', () => ({ LazyWhoToFollowTab: () => 'people' }));
 jest.mock('../WelcomeStarterPacks', () => ({ WelcomeStarterPacks: () => null }));
 jest.mock('@oxy.so/bloom/button', () => ({
   Button: ({ children, onPress }: { children: ReactNode; onPress: () => void }) => {

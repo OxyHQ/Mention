@@ -1,4 +1,4 @@
-import { AccountInfoScreen } from '@/components/AccountInfoScreen';
+import { LazyAccountInfoScreen } from '@/components/sharedRouteScreens';
 
 /**
  * A PERSON's about page.
@@ -9,5 +9,5 @@ import { AccountInfoScreen } from '@/components/AccountInfoScreen';
  * reader who arrived on the wrong one.
  */
 export default function ProfileAboutRoute() {
-  return <AccountInfoScreen routedFamily="person" />;
+  return <LazyAccountInfoScreen routedFamily="person" />;
 }
