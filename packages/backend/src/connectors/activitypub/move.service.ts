@@ -131,7 +131,9 @@ export type RemoteMoveOutcome =
  * Only the move is recorded. Moving this server's follows to the new actor needs
  * Oxy, which owns the follow graph, and is not done here.
  */
-export async function recordRemoteMove(move: InboundMove): Promise<RemoteMoveOutcome> {
+export async function recordRemoteMove(
+  move: Pick<InboundMove, 'oldActorUri' | 'targetActorUri'>,
+): Promise<RemoteMoveOutcome> {
   if (isOwnActorUri(move.targetActorUri)) return 'local_target';
   const oldActor = await findActorByUri(move.oldActorUri);
   if (!oldActor) return 'unknown_old_actor';

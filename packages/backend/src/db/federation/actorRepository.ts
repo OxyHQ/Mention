@@ -689,7 +689,7 @@ export async function setActorOxyUserId(
  */
 export async function setActorMovedTo(
   uri: string,
-  movedTo: string,
+  movedTo: string | null,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<boolean> {
   const rows = await db

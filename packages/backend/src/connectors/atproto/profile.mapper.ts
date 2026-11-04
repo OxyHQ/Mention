@@ -8,6 +8,7 @@ import { syncFederatedBannerInBackground } from '../../db/federation/bannerMirro
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
 import {
+  atprotoIdentityHandle,
   BSKY_NETWORK_DOMAIN,
   blueskyUsernameFromHandle,
   type NormalizedExternalActor,
@@ -16,7 +17,6 @@ import { describeDriverError, isUniqueViolation } from '@oxy.so/db';
 import { metrics } from '../../utils/metrics';
 import { xrpcGet } from './xrpcClient';
 import { PUBLIC_APPVIEW } from './constants';
-import { isUnresolvedAtprotoHandle } from './unresolvedHandle';
 
 /**
  * Counter a run can fail on when an actor row could not be written.
@@ -87,35 +87,6 @@ export interface AtprotoProfileView {
  * `domain` (`bsky.social`) but its `username` changes, so the scripts must compare
  * the full `local@domain`, not the domain alone.
  */
-/**
- * The handle an actor is IDENTIFIED by, which is its real handle unless the
- * AppView could not verify one — in which case it is the DID.
- *
- * `handle.invalid` is Bluesky's error string for a failed handle↔DID
- * verification, so it is the same value for every affected account and is the
- * one thing in the atproto namespace guaranteed not to identify anybody. Every
- * key this connector writes is derived from the handle — `acct`, `username`,
- * and the `<local>@<domain>` username oxy-api binds — and all three carry a
- * uniqueness constraint, so the sentinel is refused for every account after the
- * first: no actor row, no Oxy user, and the account's posts dropped as orphans
- * by the no-orphan rule.
- *
- * The DID is the identifier atproto actually guarantees stable and unique, and
- * it is already this row's `uri`. It contains a `:`, which no DNS handle may, so
- * the substituted identity can never collide with a real one — and oxy-api's
- * `normalizeFederatedResolveUsername` splits on the FIRST `@`, so
- * `did:plc:…@bsky.social` binds to `bsky.social` exactly like any other handle.
- *
- * SELF-HEALING: nothing is stored under the sentinel, so the next refresh after
- * the remote fixes its DNS re-derives the real handle and rewrites the row
- * through the ordinary path. A DID-shaped handle in the UI is the honest
- * rendering of an account whose handle does not verify — it is what bsky.app
- * shows too — and it is strictly better than the account not existing.
- */
-export function atprotoIdentityHandle(handle: string, did: string): string {
-  return isUnresolvedAtprotoHandle(handle) ? did : handle;
-}
-
 export function splitHandle(handle: string): {
   username: string;
   domain: string;

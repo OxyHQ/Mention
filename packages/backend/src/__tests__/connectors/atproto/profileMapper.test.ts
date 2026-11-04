@@ -41,7 +41,6 @@ vi.mock('../../../connectors/oxyIdentity', () => ({
 
 import {
   ACTOR_UPSERT_FAILED_METRIC,
-  atprotoIdentityHandle,
   fetchAndUpsertAtprotoProfile,
   mapProfileToNormalizedActor,
   splitHandle,
@@ -227,11 +226,6 @@ describe('mapProfileToNormalizedActor', () => {
 
   it('leaves a real handle alone (the substitution is not a blanket rewrite)', () => {
     expect(mapProfileToNormalizedActor(PROFILE)?.handle).toBe('alice.bsky.social');
-    expect(atprotoIdentityHandle('alice.bsky.social', DID)).toBe('alice.bsky.social');
-    // Case and surrounding space are the same failed verification, so they are
-    // the same sentinel.
-    expect(atprotoIdentityHandle('Handle.Invalid', DID)).toBe(DID);
-    expect(atprotoIdentityHandle(' handle.invalid ', DID)).toBe(DID);
   });
 });
 
