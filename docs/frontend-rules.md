@@ -297,7 +297,7 @@ for display.
 ## Translation keys
 
 Every key in `packages/frontend/locales/*.json` follows the Oxy-wide convention
-(oxy `docs/adr/0055-translation-keys.md`). A key is a path of identifier
+([oxy ADR 0055](https://github.com/OxyHQ/oxy/blob/main/docs/adr/0055-translation-keys.md)). A key is a path of identifier
 segments stored as nested objects (`compose.replySettings.nobody`), never the
 English text and never a flat dotted string. The first segment is the feature.
 Copy shared across features lives under `common` (`common.save`,
