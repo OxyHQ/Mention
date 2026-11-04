@@ -226,6 +226,36 @@ export async function findKnownOxyUserIdsByActorUris(
   return known;
 }
 
+/** One Bluesky account known here: its actor URI (a DID, or its Bridgy Fed actor URI) and Oxy user. */
+export interface KnownBlueskyAccountRow {
+  uri: string;
+  oxyUserId: string;
+}
+
+/**
+ * Every Bluesky account known here — linked to an Oxy user and not suspended —
+ * stored natively (`protocol = 'atproto'`, uri = DID) or through Bridgy Fed
+ * (`domain = bridgyDomain`, uri = `https://bsky.brid.gy/ap/<did>`). Two index
+ * scans (`federated_actors_protocol_idx`, `federated_actors_domain_idx`), so the
+ * Jetstream handlers can hold the set in memory instead of asking per event.
+ */
+export async function findKnownBlueskyAccounts(
+  bridgyDomain: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<KnownBlueskyAccountRow[]> {
+  const rows = await db
+    .select({ uri: federatedActors.uri, oxyUserId: federatedActors.oxyUserId })
+    .from(federatedActors)
+    .where(
+      and(
+        or(eq(federatedActors.protocol, 'atproto'), eq(federatedActors.domain, bridgyDomain)),
+        isNotNull(federatedActors.oxyUserId),
+        eq(federatedActors.suspended, false),
+      ),
+    );
+  return rows.flatMap((row) => (row.oxyUserId ? [{ uri: row.uri, oxyUserId: row.oxyUserId }] : []));
+}
+
 /**
  * `acct → oxyUserId` for a set of accts, in ONE indexed query — the typed-handle
  * mentions of a post (`@bob@remote.tld`). Projected: the caller needs the id

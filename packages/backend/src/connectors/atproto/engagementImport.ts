@@ -1,4 +1,7 @@
+import { and, eq } from 'drizzle-orm';
 import { findKnownOxyUserIdsByActorUris } from '../../db/federation/actorRepository';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
 import { materializeEngagementRelationship } from '../../services/PostEngagementCommandService';
 import { logger } from '../../utils/logger';
 import { isDid, PUBLIC_APPVIEW } from './constants';
@@ -96,6 +99,27 @@ async function knownAccountsByDid(dids: readonly string[]): Promise<Map<string, 
 /** A stable id for a repost seen on `getRepostedBy`, which does not name the record. */
 export function repostSightingId(boosterDid: string, postUri: string): string {
   return `urn:mention:atproto-repost:${boosterDid}:${postUri}`;
+}
+
+/**
+ * A repost first seen on `getRepostedBy` is stored under its sighting id, since
+ * that list does not name the record. When the record itself arrives (the
+ * firehose), the boost takes its real AT-URI, so an unrepost can find it.
+ */
+export async function adoptRepostSighting(
+  boosterDid: string,
+  postUri: string,
+  repostUri: string,
+): Promise<void> {
+  await getDb()
+    .update(posts)
+    .set({ federationActivityId: repostUri })
+    .where(
+      and(
+        eq(posts.federationActivityId, repostSightingId(boosterDid, postUri)),
+        eq(posts.federationActorUri, boosterDid),
+      ),
+    );
 }
 
 /**

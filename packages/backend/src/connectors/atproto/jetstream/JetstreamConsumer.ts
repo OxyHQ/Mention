@@ -19,7 +19,7 @@
  *
  * Frames are parsed as they arrive; commits for a handled collection are queued
  * and handed to the handlers every `flushIntervalMs`, in stream order, grouped
- * by collection. After a batch has been handled, the cursor of the newest frame
+ * by collection, the handlers called in the order they were given. After a batch has been handled, the cursor of the newest frame
  * received before the batch was taken is the resume position, saved at most
  * every `cursorSaveIntervalMs` and on stop. A handler that throws (the AppView
  * down, the database unreachable) does not advance it: the connection is
@@ -112,7 +112,8 @@ export interface JetstreamConsumerOptions {
 const DEFAULTS = {
   flushIntervalMs: 1_000,
   cursorSaveIntervalMs: 5_000,
-  maxPendingCommits: 5_000,
+  // About a minute of the four subscribed collections (~500 commits/s).
+  maxPendingCommits: 30_000,
   stallWindowMs: 2 * 60_000,
   reconnectBaseMs: 1_000,
   reconnectMaxMs: 60_000,
@@ -267,8 +268,10 @@ export class JetstreamConsumer {
         if (group) group.push(commit);
         else byCollection.set(commit.collection, [commit]);
       }
-      for (const [collection, commits] of byCollection) {
-        await this.handlers.get(collection)?.handle(commits);
+      // In handler order, so a collection can rely on an earlier one's writes.
+      for (const [collection, handler] of this.handlers) {
+        const commits = byCollection.get(collection);
+        if (commits) await handler.handle(commits);
       }
     } catch (err) {
       logger.warn('[jetstream] handler failed; replaying from the last cursor', {
