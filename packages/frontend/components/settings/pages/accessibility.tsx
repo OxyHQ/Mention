@@ -1,4 +1,5 @@
-import { useHapticsSettingRow, useVideoAutoplaySettingRow } from '@oxy.so/bloom/preferences';
+import { useHapticsSettingRow } from '@oxy.so/bloom/preferences/haptics-setting-row';
+import { useVideoAutoplaySettingRow } from '@oxy.so/bloom/preferences/video-autoplay-setting-row';
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { useTranslation } from 'react-i18next';
 
