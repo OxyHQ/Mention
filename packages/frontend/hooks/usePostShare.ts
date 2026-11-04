@@ -7,6 +7,7 @@ import { logger } from '@oxy.so/core/logger';
 import { toast } from '@oxy.so/bloom/toast';
 import { queryClient } from '@/lib/queryClient';
 import { postPermalink } from '@/utils/postPermalink';
+import { toReaderText } from '@mention/shared-types/textEntities';
 
 interface SharePostUser {
   id?: string;
@@ -36,7 +37,7 @@ export async function sharePost(post: SharePost | null | undefined): Promise<voi
     const postUrl = postPermalink(post.id ?? '');
     const content =
       typeof post.content === 'string' ? { text: post.content } : (post.content ?? {});
-    const contentText = content.text ?? post.text ?? '';
+    const contentText = toReaderText(content.text ?? post.text ?? '');
     const user: SharePostUser = post.user ?? {};
     const id = String(user.id ?? user._id ?? '');
     const name = user.name?.displayName || 'Someone';
