@@ -26,6 +26,7 @@ const httpEnvSchema = z.object({
   MCP_ALLOWED_ORIGINS: z.string().optional(),
   MENTION_MCP_PUBLIC_URL: z.string().url().default(DEFAULT_MCP_PUBLIC_URL),
   OXY_API_URL: z.string().url().default(DEFAULT_OXY_API_URL),
+  MENTION_SERVICE_APPLICATION_ID: z.string().trim().min(1).optional(),
   OXY_SERVICE_API_KEY: z
     .string()
     .optional()
@@ -53,6 +54,8 @@ export interface McpHttpConfig {
   maxSessions: number;
   publicUrl: string;
   oxyApiUrl: string;
+  /** Mention's registered Oxy application, when the task names it. */
+  applicationId?: string;
   allowedOrigins: ReadonlySet<string>;
   deploymentIdentity?: McpDeploymentIdentity;
 }
@@ -89,6 +92,9 @@ export function loadMcpHttpConfig(env: NodeJS.ProcessEnv = process.env): McpHttp
     maxSessions: parsed.MCP_MAX_SESSIONS,
     publicUrl: stripTrailingSlashes(parsed.MENTION_MCP_PUBLIC_URL),
     oxyApiUrl: stripTrailingSlashes(parsed.OXY_API_URL),
+    ...(parsed.MENTION_SERVICE_APPLICATION_ID
+      ? { applicationId: parsed.MENTION_SERVICE_APPLICATION_ID }
+      : {}),
     allowedOrigins: new Set([...DEFAULT_CORS_ORIGINS, ...configuredOrigins]),
   };
 }

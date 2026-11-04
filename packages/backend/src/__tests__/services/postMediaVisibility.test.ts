@@ -5,8 +5,23 @@ vi.mock('../../utils/logger', () => ({
   logger: { warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-const createUserScopedOxyServices = vi.hoisted(() => vi.fn());
-vi.mock('../../utils/oxyHelpers', () => ({ createUserScopedOxyServices }));
+const { constructed } = vi.hoisted(() => ({
+  constructed: [] as Array<{ config: unknown; bearer?: string }>,
+}));
+vi.mock('@oxy.so/core', () => ({
+  OxyServices: class {
+    readonly record: { config: unknown; bearer?: string };
+    session = {
+      setAccessToken: (bearer: string) => {
+        this.record.bearer = bearer;
+      },
+    };
+    constructor(config: unknown) {
+      this.record = { config };
+      constructed.push(this.record);
+    }
+  },
+}));
 
 import {
   POST_MEDIA_VISIBILITY_TIMEOUT_MS,
@@ -109,13 +124,29 @@ describe('ensurePostMediaPublic', () => {
 });
 
 describe('createPostMediaOwnerClient', () => {
-  it("uses the author's session with room for Oxy to move a long video's variants", () => {
-    const req = { accessToken: 'author-token' };
-    createPostMediaOwnerClient(req as never);
-    expect(createUserScopedOxyServices).toHaveBeenCalledWith(req, {
-      requestTimeout: POST_MEDIA_VISIBILITY_TIMEOUT_MS,
-    });
+  it("uses the author's verified session with room for Oxy to move a long video's variants", () => {
+    constructed.length = 0;
+    expect(createPostMediaOwnerClient({ accessToken: 'author-token' })).toBeDefined();
+    expect(constructed).toEqual([
+      {
+        config: expect.objectContaining({
+          requestTimeout: POST_MEDIA_VISIBILITY_TIMEOUT_MS,
+          enableCache: false,
+        }),
+        bearer: 'author-token',
+      },
+    ]);
     // The SDK default is 5s; a relocation of a few-minute video took longer.
     expect(POST_MEDIA_VISIBILITY_TIMEOUT_MS).toBeGreaterThan(5_000);
+  });
+
+  it('builds nothing for a request with no verified person session', () => {
+    constructed.length = 0;
+    const header = { headers: { authorization: 'Bearer unverified' } };
+    expect(createPostMediaOwnerClient(header)).toBeUndefined();
+    expect(
+      createPostMediaOwnerClient({ accessToken: 'mcp-token', mcp: { activeUserId: 'a' } }),
+    ).toBeUndefined();
+    expect(constructed).toEqual([]);
   });
 });

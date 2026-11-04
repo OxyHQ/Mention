@@ -11,7 +11,7 @@ import {
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { DuplicateReportError, createReport } from '../services/moderation/ReportIntakeService';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerAccountAccess } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { queryInt } from '../utils/queryParams';
 
@@ -182,7 +182,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       const operatesTarget = await viewerOperatesAccount({
         targetOxyUserId: reportedId,
         callerId: reporter,
-        memberReader: createUserScopedOxyServices(req),
+        accountAccess: callerAccountAccess(req),
       });
       if (operatesTarget) {
         return res.status(400).json({

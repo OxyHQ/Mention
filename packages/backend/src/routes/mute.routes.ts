@@ -9,7 +9,7 @@ import { getDb } from '../db/postgres';
 import { mutes } from '../db/schema/engagement';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerAccountAccess } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -65,7 +65,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const operatesTarget = await viewerOperatesAccount({
       targetOxyUserId: mutedId,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (operatesTarget) {
       return res.status(400).json({ message: 'You cannot mute an account you operate' });

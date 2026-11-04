@@ -85,7 +85,7 @@ export async function createMembershipCommunity(
   await assertCanPublishAsAccount({
     publishAsOxyUserId: input.ownerOxyUserId,
     callerId: actor.accountId,
-    memberReader: actor.memberReader,
+    accountAccess: actor.accountAccess,
   });
   await requireMembershipSafety(input.ownerOxyUserId, 'new-community', actor.requester);
   return getDb().transaction(async (tx) => {

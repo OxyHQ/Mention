@@ -44,7 +44,8 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  callerOxyUser: vi.fn(() => undefined),
+  callerAccountAccess: vi.fn(() => undefined),
   getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 
@@ -58,7 +59,6 @@ vi.mock('../../utils/logger', () => ({
 const isChannelAccount = vi.fn();
 vi.mock('../../services/publishAsAccount', () => ({
   isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
-  cacheAccountMemberReads: (reader: unknown) => reader,
   assertCanPublishAsAccount: vi.fn(async (params: { callerId: string | null }) => ({
     authorId: params.callerId,
     authorKind: null,

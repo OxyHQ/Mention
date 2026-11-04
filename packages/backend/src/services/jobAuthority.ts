@@ -22,11 +22,11 @@ import {
   assertCanPublishAsAccount,
   membershipAuthorizesActingFor,
   PublishAsAccessError,
-  type AccountMemberReader,
+  type AccountAccessReader,
   type OperatedAccountReader,
   type PublishAsAuthor,
 } from './publishAsAccount';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerAccountAccess } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -44,7 +44,7 @@ import { logger } from '../utils/logger';
 export async function assertCanManageJob(params: {
   employerOxyUserId: string | null | undefined;
   callerId: string | null | undefined;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
 }): Promise<PublishAsAuthor> {
   const employerOxyUserId = params.employerOxyUserId?.trim();
   if (!employerOxyUserId) {
@@ -54,7 +54,7 @@ export async function assertCanManageJob(params: {
   const author = await assertCanPublishAsAccount({
     publishAsOxyUserId: employerOxyUserId,
     callerId: params.callerId,
-    memberReader: params.memberReader,
+    accountAccess: params.accountAccess,
   });
 
   // `assertCanPublishAsAccount` treats naming the CALLER'S OWN account as
@@ -126,7 +126,7 @@ export async function requireEmployerAuthority(
     await assertCanManageJob({
       employerOxyUserId,
       callerId: req.user?.id,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     return true;
   } catch (error) {

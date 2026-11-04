@@ -3,7 +3,7 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { postHydrationService } from '../PostHydrationService';
 import { isAccountErased } from '../accountErasure/erasedAccounts';
-import { createUserScopedOxyServices, createScopedOxyClient } from '../../utils/oxyHelpers';
+import { callerOxyUser, createScopedOxyClient } from '../../utils/oxyHelpers';
 import { canViewProfileDesign } from '../../utils/privacyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import type { CommerceMetricTarget } from './metrics';
@@ -15,7 +15,7 @@ export async function canReadAccount(req: OxyAuthRequest, accountId: string): Pr
   ]);
   if (erased) return false;
   if (req.user?.id && req.user.id !== accountId) {
-    const caller = createUserScopedOxyServices(req);
+    const caller = callerOxyUser(req);
     // This caller-scoped relationship API checks blocks in both directions.
     if (!caller || (await caller.privacy.isBlocked(accountId))) return false;
   }
@@ -38,7 +38,7 @@ export async function resolveReadableCommercePost(
     !(await postHydrationService.canViewerReadPostId(post.id, req.user?.id ?? '', {
       safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     }))
   )
     return null;

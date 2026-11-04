@@ -11,9 +11,9 @@ vi.mock('../../utils/oxyHelpers', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   createScopedOxyClient: () => ({}),
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
-  createUserScopedOxyServices: () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     accounts: { members: { list: async () => state.members } },
-  }),
+  })),
 }));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { canViewerReadPostId: vi.fn(async () => state.readable) },

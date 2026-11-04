@@ -42,6 +42,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
  * the same condition an unknown id always was.
  */
 
+import { rosterAccess } from '../helpers/accountAccess';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 /**
@@ -418,7 +419,10 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
 
   it("admits organization B answering organization A in A's thread", async () => {
     await expect(
-      assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
+      assertAnswersOperatedAccount({
+        ...base,
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), OPERATOR),
+      }),
     ).resolves.toBeUndefined();
   });
 
@@ -430,7 +434,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
       assertAnswersOperatedAccount({
         ...base,
         parentPostId: B_SECOND,
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).resolves.toBeUndefined();
   });
@@ -441,7 +445,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
         ...base,
         parentPostId: CALLER_ROOT,
         threadId: CALLER_ROOT,
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).resolves.toBeUndefined();
   });
@@ -452,7 +456,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
       assertAnswersOperatedAccount({
         ...base,
         parentPostId: ELSEWHERE,
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -470,7 +474,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
         ...base,
         parentPostId: CHANNEL_ROOT,
         threadId: CHANNEL_ROOT,
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -487,7 +491,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
         ...base,
         authorId: CHANNEL,
         authorKind: 'channel',
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -504,7 +508,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
         ...base,
         parentPostId: IN_CHANNEL_THREAD,
         threadId: CHANNEL_ROOT,
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -518,7 +522,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
     await expect(
       assertAnswersOperatedAccount({
         ...base,
-        memberReader: readerFor({ [ORG_B]: ACT_AS }),
+        accountAccess: rosterAccess(readerFor({ [ORG_B]: ACT_AS }), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -527,7 +531,10 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
     await expect(
       assertAnswersOperatedAccount({
         ...base,
-        memberReader: readerFor({ [ORG_A]: NO_ACT_AS, [ORG_B]: ACT_AS }),
+        accountAccess: rosterAccess(
+          readerFor({ [ORG_A]: NO_ACT_AS, [ORG_B]: ACT_AS }),
+          base.callerId,
+        ),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -540,7 +547,10 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
   it("refuses when the parent account's kind will not resolve", async () => {
     kindsAre({ [ORG_B]: 'organization' });
     await expect(
-      assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
+      assertAnswersOperatedAccount({
+        ...base,
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
+      }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 
@@ -561,7 +571,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
         ...base,
         parentPostId: IN_UNKNOWN_THREAD,
         threadId: UNKNOWN_ROOT,
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -571,7 +581,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
       assertAnswersOperatedAccount({
         ...base,
         parentPostId: NO_SUCH_POST,
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
@@ -582,7 +592,11 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
     ['no author', { authorId: null }],
   ])('refuses with %s, and asks the database nothing', async (_label, override) => {
     await expect(
-      assertAnswersOperatedAccount({ ...base, ...override, memberReader: readerFor(ALL_OPERATED) }),
+      assertAnswersOperatedAccount({
+        ...base,
+        ...override,
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
+      }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
     expect(dbReads).not.toHaveBeenCalled();
   });
@@ -593,14 +607,17 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
       assertAnswersOperatedAccount({
         ...base,
         parentPostId: 'not-an-objectid',
-        memberReader: readerFor(ALL_OPERATED),
+        accountAccess: rosterAccess(readerFor(ALL_OPERATED), base.callerId),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 
   it('refuses with no member reader at all — an MCP caller cannot compose one', async () => {
     await expect(
-      assertAnswersOperatedAccount({ ...base, memberReader: undefined }),
+      assertAnswersOperatedAccount({
+        ...base,
+        accountAccess: rosterAccess(undefined, base.callerId),
+      }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 });

@@ -14,7 +14,7 @@ import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, deletePostRecord, findPostRecords } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
-import { createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { callerAccountAccess } from '../../utils/oxyHelpers';
 import { postManagementRefusal } from '../../services/postManagementAccess';
 import {
   PostDeletionTooLargeError,
@@ -58,7 +58,7 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     const deleteRefusal = await postManagementRefusal({
       post: target,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (deleteRefusal) {
       return res.status(deleteRefusal.status).json({ message: deleteRefusal.message });

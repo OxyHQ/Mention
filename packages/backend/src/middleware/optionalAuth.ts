@@ -1,5 +1,4 @@
-import { config } from '../config';
-import { supervisedActionForRequest } from './supervisedAction';
+import { createOxySessionAuth } from './oxySessionAuth';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest, OxyServer } from '@oxy.so/core/server';
 import { bearerLooksLikeMcpToken } from '../mcp/middleware/mcpAuth';
@@ -12,6 +11,7 @@ import { logger } from '../utils/logger';
  * session must be verified; an outage cannot turn a supervised reader anonymous.
  */
 export function createOptionalAuth(oxy: OxyServer): RequestHandler {
+  const sessionAuth = createOxySessionAuth(oxy);
   return (req: Request, res: Response, next: NextFunction) => {
     if ((req as AuthRequest).user?.id) {
       return next();
@@ -26,13 +26,6 @@ export function createOptionalAuth(oxy: OxyServer): RequestHandler {
       return next();
     }
 
-    const authMiddleware = oxy.middleware.auth({
-      expectedAudience: `oxy-service:${config.identity.serviceApplicationId}`,
-      supervisedAction: supervisedActionForRequest(req),
-    });
-    return authMiddleware(req, res, (error?: unknown) => {
-      if (error) return next(error);
-      next();
-    });
+    return sessionAuth(req, res, next);
   };
 }

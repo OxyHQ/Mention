@@ -26,7 +26,8 @@ vi.mock('../../runtime/oxyClient', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => undefined,
-  createUserScopedOxyServices: () => undefined,
+  callerOxyUser: () => undefined,
+  callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },

@@ -1,5 +1,5 @@
 import { mcpDeploymentIdentity } from '@mention/shared-types/deployment';
-import { oxyServiceClient } from './oxy-service-client.js';
+import type { OxyServer } from '@oxy.so/core/server';
 import {
   introspectOxyMcpAccessToken,
   type McpAccessTokenClaims as OxyMcpAccessTokenClaims,
@@ -11,10 +11,11 @@ type TokenAuthConfig = Pick<McpHttpConfig, 'oxyApiUrl' | 'publicUrl' | 'deployme
 
 export type CentralTokenIntrospector = (token: string) => Promise<OxyMcpAccessTokenClaims | null>;
 
+/** One introspector per process, over the process's one `OxyServer` and one transport. */
 export function createCentralTokenIntrospector(
   config: Pick<McpHttpConfig, 'oxyApiUrl'>,
+  oxy: Pick<OxyServer, 'createServiceClient'>,
 ): CentralTokenIntrospector {
-  const oxy = oxyServiceClient(config);
   const transport = oxy.createServiceClient({ baseURL: config.oxyApiUrl, audience: 'oxy-api' });
   return (token) =>
     introspectOxyMcpAccessToken(token, {

@@ -12,7 +12,8 @@ vi.mock('../../services/postDetailCache', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => undefined),
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  callerOxyUser: vi.fn(() => undefined),
+  callerAccountAccess: vi.fn(() => undefined),
 }));
 vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/privacyHelpers')>()),

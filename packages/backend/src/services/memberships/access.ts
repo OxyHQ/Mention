@@ -13,13 +13,13 @@ import {
 import {
   assertCanPublishAsAccount,
   PublishAsAccessError,
-  type AccountMemberReader,
+  type AccountAccessReader,
 } from '../publishAsAccount';
 
 export interface MembershipActor {
   accountId: string;
   requester: SafetyRequester;
-  memberReader?: AccountMemberReader;
+  accountAccess?: AccountAccessReader;
 }
 export type CommunityRow = typeof membershipCommunities.$inferSelect;
 export type MembershipRow = typeof communityMemberships.$inferSelect;
@@ -44,7 +44,7 @@ export async function managesCommunity(
     await assertCanPublishAsAccount({
       publishAsOxyUserId: community.ownerOxyUserId,
       callerId: actor.accountId,
-      memberReader: actor.memberReader,
+      accountAccess: actor.accountAccess,
     });
     return true;
   } catch (error) {

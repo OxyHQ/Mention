@@ -40,8 +40,8 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     accounts: {
       members: {
         list: async (accountId: string) =>
@@ -50,7 +50,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
             : [],
       },
     },
-  }),
+  })),
 }));
 
 class FakeClarityError extends Error {

@@ -112,6 +112,8 @@ const app = express();
 app.use((req, _res, next) => {
   (req as express.Request & { user?: { id: string } }).user = { id: VIEWER };
   req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
+  // What `oxy.middleware.auth()` sets beside the user: the VERIFIED bearer.
+  (req as { accessToken?: string }).accessToken = req.user ? 'test-viewer-session' : undefined;
   next();
 });
 app.use('/search', searchRoutes);

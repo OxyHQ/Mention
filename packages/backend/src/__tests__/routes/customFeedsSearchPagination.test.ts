@@ -124,6 +124,8 @@ app.use(express.json());
 app.use((req, _res, next) => {
   if (viewer) (req as express.Request & { user?: { id: string } }).user = { id: viewer };
   req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
+  // What `oxy.middleware.auth()` sets beside the user: the VERIFIED bearer.
+  (req as { accessToken?: string }).accessToken = req.user ? 'test-viewer-session' : undefined;
   next();
 });
 app.use('/feeds', customFeedsRoutes);

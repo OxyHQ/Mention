@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { rosterAccess } from '../helpers/accountAccess';
 import type { AccountMember } from '@oxy.so/core';
 
 /**
@@ -41,11 +42,7 @@ vi.mock('../../utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import {
-  assertCanDeleteAccount,
-  PublishAsAccessError,
-  type AccountMemberReader,
-} from '../../services/publishAsAccount';
+import { assertCanDeleteAccount, PublishAsAccessError } from '../../services/publishAsAccount';
 
 const CALLER = 'caller-1';
 const CHANNEL = 'channel-1';
@@ -82,7 +79,8 @@ function member(overrides: Partial<AccountMember> = {}): AccountMember {
   };
 }
 
-function readerReturning(members: AccountMember[]): AccountMemberReader & { calls: string[] } {
+/** A fake caller client whose roster is `members`; counts the accounts asked about. */
+function readerReturning(members: AccountMember[]) {
   const calls: string[] = [];
   return {
     calls,
@@ -97,7 +95,7 @@ function readerReturning(members: AccountMember[]): AccountMemberReader & { call
   };
 }
 
-function readerThatFails(): AccountMemberReader {
+function readerThatFails() {
   return {
     accounts: {
       members: {
@@ -141,7 +139,11 @@ describe('assertCanDeleteAccount — what it allows', () => {
     const reader = readerReturning([member()]);
 
     await expect(
-      assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+      assertCanDeleteAccount({
+        targetOxyUserId: CHANNEL,
+        callerId: CALLER,
+        accountAccess: rosterAccess(reader, CALLER),
+      }),
     ).resolves.toBe('channel');
 
     expect(reader.calls).toEqual([CHANNEL]);
@@ -157,7 +159,7 @@ describe('assertCanDeleteAccount — what it allows', () => {
       assertCanDeleteAccount({
         targetOxyUserId: ORGANIZATION,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: rosterAccess(reader, CALLER),
       }),
     ).resolves.toBe('organization');
   });
@@ -169,7 +171,7 @@ describe('assertCanDeleteAccount — what it allows', () => {
       assertCanDeleteAccount({
         targetOxyUserId: `  ${CHANNEL} `,
         callerId: CALLER,
-        memberReader: reader,
+        accountAccess: rosterAccess(reader, CALLER),
       }),
     ).resolves.toBe('channel');
 
@@ -186,7 +188,7 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -203,7 +205,7 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -217,7 +219,7 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -231,7 +233,7 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -249,7 +251,7 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -265,7 +267,7 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -281,7 +283,7 @@ describe('assertCanDeleteAccount — who is asking', () => {
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -295,7 +297,7 @@ describe('assertCanDeleteAccount — who is asking', () => {
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -309,7 +311,7 @@ describe('assertCanDeleteAccount — who is asking', () => {
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -320,7 +322,11 @@ describe('assertCanDeleteAccount — who is asking', () => {
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: null, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: null,
+          accountAccess: rosterAccess(reader, null),
+        }),
       ),
     ).resolves.toBe(403);
 
@@ -334,7 +340,7 @@ describe('assertCanDeleteAccount — who is asking', () => {
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: undefined,
+          accountAccess: rosterAccess(undefined, CALLER),
         }),
       ),
     ).resolves.toBe(403);
@@ -348,7 +354,11 @@ describe('assertCanDeleteAccount — who is asking', () => {
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: '   ', callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: '   ',
+          callerId: CALLER,
+          accountAccess: rosterAccess(reader, CALLER),
+        }),
       ),
     ).resolves.toBe(403);
 
@@ -365,7 +375,7 @@ describe('assertCanDeleteAccount — it fails closed', () => {
         assertCanDeleteAccount({
           targetOxyUserId: UNKNOWN,
           callerId: CALLER,
-          memberReader: reader,
+          accountAccess: rosterAccess(reader, CALLER),
         }),
       ),
     ).resolves.toBe(400);
@@ -382,7 +392,7 @@ describe('assertCanDeleteAccount — it fails closed', () => {
         assertCanDeleteAccount({
           targetOxyUserId: CHANNEL,
           callerId: CALLER,
-          memberReader: readerThatFails(),
+          accountAccess: rosterAccess(readerThatFails(), CALLER),
         }),
       ),
     ).resolves.toBe(503);

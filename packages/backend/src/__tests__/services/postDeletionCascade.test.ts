@@ -69,11 +69,13 @@ vi.mock('../../services/PostHydrationService', () => ({
   degradedActorSummary: vi.fn(() => ({ id: 'unknown', username: '' })),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => ({
-    accounts: { members: { list: mocks.listAccountMembers } },
-  })),
+  ...(await import('../helpers/accountAccess')).rosterMocks(
+    vi.fn(() => ({
+      accounts: { members: { list: mocks.listAccountMembers } },
+    })),
+  ),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 

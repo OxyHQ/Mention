@@ -9,7 +9,7 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import {
@@ -107,7 +107,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       // Loaded by id with no status filter, so a channel's operators must be
       // able to translate a story before it publishes — which is when a
       // translation is worth anything.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
     if (visiblePosts.length === 0) {
       res.status(404).json({ message: 'Post not found' });
@@ -129,7 +129,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       !(await postHydrationService.canViewerReadPostId(post.id, req.user?.id ?? '', {
         safetyRequester: safetyRequesterFor(req),
         oxyClient: createScopedOxyClient(req),
-        operatedAccountReader: createUserScopedOxyServices(req),
+        operatedAccountReader: callerOxyUser(req),
       }))
     ) {
       res.status(403).json({

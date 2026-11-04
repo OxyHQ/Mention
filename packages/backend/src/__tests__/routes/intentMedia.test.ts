@@ -21,20 +21,12 @@ const { assetUploadMock, uploadServiceUserMediaMock, importUserMediaMock } = vi.
   uploadServiceUserMediaMock: vi.fn(),
   importUserMediaMock: vi.fn(),
 }));
-vi.mock('@oxy.so/core', async () => {
-  const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
-  return {
-    ...actual,
-    OxyServices: class MockOxyServices {
-      session = { setAccessToken(): void {} };
-      assets = { upload: assetUploadMock };
-    },
-  };
-});
-
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     assets: { metadataByIds: vi.fn().mockResolvedValue([]), importUserMedia: importUserMediaMock },
+    // The uploader's own user client (`oxy.withUser`), bound to their session.
+    withUser: async (_bearer: string, use: (user: unknown) => unknown) =>
+      use({ assets: { upload: assetUploadMock } }),
   }),
   requesterFiles: () => ({ importUserMedia: importUserMediaMock }),
   uploadServiceUserMedia: (...args: unknown[]) => uploadServiceUserMediaMock(...args),

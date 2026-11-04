@@ -61,7 +61,7 @@ import {
   NotAChannelAccountError,
   type ChannelDeletionPreview,
 } from '../services/channelDeletion/ChannelDeletionService';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerAccountAccess } from '../utils/oxyHelpers';
 import { channelDeletionRateLimiter } from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
@@ -116,7 +116,7 @@ async function resolveDeletableChannel(req: AuthRequest, res: Response): Promise
     kind = await assertCanDeleteAccount({
       targetOxyUserId: channelOxyUserId,
       callerId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
   } catch (error) {
     if (error instanceof PublishAsAccessError) {

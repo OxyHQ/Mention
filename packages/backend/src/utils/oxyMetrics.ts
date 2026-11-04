@@ -16,10 +16,10 @@
  * reaches 100% of egress.
  *
  * It is patched on the PROTOTYPE, reached once through an instance, rather than
- * on each instance. There are seven `new OxyServices(...)` sites in this
- * codebase and two of them construct PER REQUEST (`createScopedOxyClient`,
- * `createUserScopedOxyServices`), so per-instance patching would have to be
- * threaded through every construction site and an eighth added later would go
+ * on each instance. Clients are constructed PER REQUEST (the user clients
+ * `oxy.asUser` / `oxy.withUser` build for `callerOxyUser`, and the SDK's own
+ * requester and service clients), so per-instance patching would have to be
+ * threaded through every construction site and one added later would go
  * silently unmeasured. Prototypes are shared, so patching once covers every
  * instance built before or after — the same argument `queryMetrics.ts` makes
  * for mutating the client object drizzle already holds.
@@ -30,9 +30,8 @@
  * `request()`, so a cache hit is recorded as a call of near-zero duration. That
  * is deliberate: this counts LOGICAL Oxy calls — the number the viewer-graph
  * consolidation is trying to move — and the histogram's bottom bucket separates
- * the hits from the round trips. It matters less than it sounds, because
- * `createScopedOxyClient` builds a fresh instance per request and the SDK's
- * cache is per-instance, so on the request path it is nearly always cold.
+ * the hits from the round trips. It matters less than it sounds, because a
+ * user client caches nothing, so on the request path it is nearly always cold.
  *
  * ## Cost when disabled
  *

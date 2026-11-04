@@ -132,9 +132,11 @@ vi.mock('../../services/publishAsAccount', () => ({
 vi.mock('../../utils/userSettings', () => ({
   buildSettingsResponseForViewer: (doc: unknown) => doc,
 }));
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   ensureProfileMediaPublic: vi.fn().mockResolvedValue(undefined),
-  createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: vi.fn() })),
+  ...(await import('../helpers/accountAccess')).rosterMocks(
+    vi.fn(() => ({ listAccountMembers: vi.fn() })),
+  ),
 }));
 vi.mock('../../utils/syraPodcast', () => ({ syraClient: {} }));
 vi.mock('../../utils/privacyHelpers', () => ({

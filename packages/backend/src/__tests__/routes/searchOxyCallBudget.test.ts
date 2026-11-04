@@ -105,14 +105,14 @@ vi.mock('../../utils/cache', async (importOriginal) => {
   };
 });
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   // BOTH factories hand back the same object, so a call made through either
   // seam lands in the same counters — otherwise a leak could hide behind the
   // service client while the scoped one looked clean.
   createScopedOxyClient: () => oxyClient,
   getServiceOxyClient: () => oxyClient,
   getRuntimeOxyClient: () => oxyClient,
-  createUserScopedOxyServices: () => oxyClient,
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => oxyClient),
 }));
 
 const VIEWER = 'search-budget-viewer';
@@ -127,6 +127,8 @@ beforeAll(async () => {
   app.use((req, _res, next) => {
     (req as express.Request & { user?: { id: string } }).user = { id: VIEWER };
     req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
+    // What `oxy.middleware.auth()` sets beside the user: the VERIFIED bearer.
+    (req as { accessToken?: string }).accessToken = req.user ? 'test-viewer-session' : undefined;
     next();
   });
   app.use('/search', searchRoutes);

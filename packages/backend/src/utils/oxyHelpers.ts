@@ -1,23 +1,28 @@
 import { verifiedDownstreamRequester, type RequestSafetyContext } from './safetyRequester';
-import { OxyServices } from '@oxy.so/core';
-import type { OxyServer } from '@oxy.so/core/server';
+import type {
+  OxyAccountAccess,
+  OxyCallerRequest,
+  OxyServer,
+  OxyUserClient,
+} from '@oxy.so/core/server';
 import { ForegroundOxyProfileClient } from '../services/ForegroundOxyProfileClient';
+import type { AccountAccessReader } from '../services/publishAsAccount';
 import { extractBearerToken } from '@oxy.so/mcp';
 import { OxyPrivacyUnavailableError, type OxyClient } from './privacyHelpers';
 import { config } from '../config';
 import { logger } from './logger';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 
-const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer-graph';
 
 /**
  * Create the Oxy client appropriate for the verified request identity.
  *
- * Normal Oxy sessions receive an isolated token-scoped client. MCP requests
- * MUST NOT plant the resource-bound MCP bearer into OxyServices; instead they
- * present their original connection proof to the shared authority. Capability
- * requests use the original live ticket; neither proof is planted as a session.
+ * Normal Oxy sessions get the person's own user client (`oxy.asUser`). MCP
+ * requests MUST NOT plant the resource-bound MCP bearer into an Oxy client;
+ * instead they present their original connection proof to the shared authority.
+ * Capability requests use the original live ticket; neither proof is planted as
+ * a session.
  */
 export function createScopedOxyClient(req: RequestSafetyContext): OxyClient | undefined {
   if (req.capability) {
@@ -38,40 +43,56 @@ export function createScopedOxyClient(req: RequestSafetyContext): OxyClient | un
     const connectionToken = req.mcp ? extractBearerToken(req.headers ?? {}) : undefined;
     return createServiceDelegatedOxyClient(delegatedUserId, connectionToken ?? undefined);
   }
-
-  const token = req.accessToken || extractBearerToken(req.headers ?? {});
-  if (!token) return undefined;
-  const client = new OxyServices({ baseURL: OXY_BASE_URL });
-  client.session.setAccessToken(token);
-  return client;
+  return callerOxyUser(req);
 }
 
 /**
- * A full `OxyServices` scoped to the caller's OWN verified bearer, for the Oxy
- * endpoints that are authorized against the authenticated USER and honour no
- * service-token delegation — today, the account-graph membership read behind
- * `publishAsOxyUserId` (`GET /accounts/:id/members`).
+ * The person's own Oxy client (`oxy.asUser`), for the Oxy endpoints that are
+ * authorized against the authenticated USER and honour no service-token
+ * delegation (`GET /accounts`, an asset's visibility, the batch file ACL).
  *
- * Deliberately NOT {@link createScopedOxyClient}: that one narrows to the
- * privacy-graph surface and, for an MCP request, answers with a SERVICE-delegated
- * client. A service credential cannot read that route at all, so an MCP caller
- * gets `undefined` here and the publish-as gate refuses — which is the correct
- * answer, not a gap.
+ * `undefined` for a request that carries no person session: anonymous, or one
+ * authenticated by an MCP connection, a capability ticket or a service token —
+ * none of which is a session, so none is ever planted on a user client. Only
+ * the bearer the auth middleware VERIFIED (`req.accessToken`) is used, never a
+ * raw `Authorization` header.
  *
- * A fresh instance per request, so the SDK's own GET cache is empty: an
- * authorization decision must never be served from another caller's cached
- * membership list.
+ * The client caches nothing and holds no process-wide resource, so one per
+ * request needs no disposal (`withUser` is the form for a single call).
  */
-export function createUserScopedOxyServices(
-  req: RequestSafetyContext,
-  options: { requestTimeout?: number } = {},
-): OxyServices | undefined {
-  if (req.mcp || req.capability || req.serviceApp) return undefined;
-  const token = req.accessToken || extractBearerToken(req.headers ?? {});
-  if (!token) return undefined;
-  const client = new OxyServices({ baseURL: OXY_BASE_URL, ...options });
-  client.session.setAccessToken(token);
-  return client;
+export function callerOxyUser(req: RequestSafetyContext): OxyUserClient | undefined {
+  if (req.mcp || req.capability || req.serviceApp || !req.accessToken) return undefined;
+  return getServiceOxyClient().asUser(req.accessToken);
+}
+
+/**
+ * The caller's effective access in an Oxy account, asked of Oxy with the
+ * request's own verified bearer: `oxy.accountAccessFor(req, accountId, { fresh })`
+ * bound to this request, for the gates in `services/publishAsAccount`.
+ *
+ * `fresh` every time, because every gate behind it guards a write or a private
+ * read and a revoked member must lose the right on their next request; the SDK
+ * caches positive answers only, never a refusal or an outage. Memoized per
+ * REQUEST (the promise, failures included): a batch naming one account several
+ * times (`POST /posts/thread` in beast mode) asks Oxy once and refuses
+ * consistently. Never hoisted past the request — it answers for one person.
+ *
+ * `undefined` for a request with no person session, as {@link callerOxyUser}.
+ */
+export function callerAccountAccess(
+  req: RequestSafetyContext & OxyCallerRequest,
+): AccountAccessReader | undefined {
+  if (req.mcp || req.capability || req.serviceApp || !req.accessToken) return undefined;
+  const oxy = getServiceOxyClient();
+  const answers = new Map<string, Promise<OxyAccountAccess>>();
+  return (accountId) => {
+    let answer = answers.get(accountId);
+    if (!answer) {
+      answer = oxy.accountAccessFor(req, accountId, { fresh: true });
+      answers.set(accountId, answer);
+    }
+    return answer;
+  };
 }
 
 /** Already verified HTTP request only; an MCP or attribution proof is not a session. */
@@ -313,8 +334,8 @@ export async function uploadServiceUserMedia(params: {
  * user bearer token and enforces `file.ownerUserId === req.user._id`. A service
  * token (no `sessionId`) is rejected by that route, so this MUST use the
  * owner's own access token — which is exactly the token on the authenticated
- * profile-settings request. Building a scoped client (never mutating the
- * singleton) keeps it race-safe under concurrent requests.
+ * profile-settings request. A user client (`oxy.withUser`, never the shared
+ * server's session) keeps it race-safe under concurrent requests.
  *
  * Best-effort and owner-gated by Oxy: it skips empty/temp/absolute refs, never
  * throws, and never blocks the profile update. A non-owner or already-public
@@ -333,9 +354,9 @@ export async function ensureProfileMediaPublic(
   if (!fileId || fileId.startsWith('temp-') || /^https?:\/\//i.test(fileId)) return;
 
   try {
-    const client = new OxyServices({ baseURL: OXY_BASE_URL });
-    client.session.setAccessToken(accessToken);
-    await client.assets.setVisibility(fileId, 'public');
+    await getServiceOxyClient().withUser(accessToken, (user) =>
+      user.assets.setVisibility(fileId, 'public'),
+    );
     logger.info('[oxyHelpers] Promoted profile media asset to public', { fileId });
   } catch (error) {
     // Non-fatal: a failed visibility flip must never block the profile update.

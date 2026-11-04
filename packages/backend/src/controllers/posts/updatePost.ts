@@ -40,7 +40,7 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../../utils/textProcessing';
 import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import {
   createPostMediaOwnerClient,
@@ -144,7 +144,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     const editRefusal = await postManagementRefusal({
       post: loaded,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (editRefusal) {
       return res.status(editRefusal.status).json({ message: editRefusal.message });
@@ -747,7 +747,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       // a scheduled one is still withheld after the edit — so without the same
       // authority answer here the write succeeds and the response is a 500 to
       // the person who made it.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
     if (hydrated.length === 0) {
       logger.error('Failed to hydrate edited post', { postId: edited.id, userId });

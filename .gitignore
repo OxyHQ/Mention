@@ -149,6 +149,7 @@ packages/e2e/playwright-report/
 
 # AI tool worktrees
 .claude/
+.worktrees/
 .opencode
 .superpowers
 

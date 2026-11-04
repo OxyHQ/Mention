@@ -63,7 +63,7 @@ import {
 import {
   assertCanPublishAsAccount,
   PublishAsAccessError,
-  type AccountMemberReader,
+  type AccountAccessReader,
 } from './publishAsAccount';
 
 export interface CreatePostParams {
@@ -128,7 +128,7 @@ export interface CreatePostParams {
    * lets a future caller route around the gate. Absent ⇒ no publish-as is
    * authorizable, so naming an account without one is a 403.
    */
-  memberReader?: AccountMemberReader;
+  accountAccess?: AccountAccessReader;
   /**
    * This post CONTINUES a thread its own author started — the single case in
    * which a post carrying both {@link publishAsOxyUserId} and `parentPostId` is
@@ -444,7 +444,7 @@ class PostCreationService {
     const { authorId, authorKind } = await assertCanPublishAsAccount({
       publishAsOxyUserId: params.publishAsOxyUserId,
       callerId: params.oxyUserId,
-      memberReader: params.memberReader,
+      accountAccess: params.accountAccess,
     });
     const publishedAsAccount = authorId !== null && authorId !== params.oxyUserId;
     if (params.federation == null) {
@@ -478,7 +478,7 @@ class PostCreationService {
           authorId,
           authorKind,
           callerId: params.oxyUserId,
-          memberReader: params.memberReader,
+          accountAccess: params.accountAccess,
         });
       }
     }

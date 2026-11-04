@@ -75,7 +75,7 @@ vi.mock('../../runtime/oxyClient', () => ({
   }),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
@@ -97,12 +97,12 @@ vi.mock('../../utils/oxyHelpers', () => ({
   //
   // Both are derived from ONE fixture below, so the test cannot accidentally
   // describe someone who reads a queue they may not act on, or the reverse.
-  createUserScopedOxyServices: (req: { user?: { id?: string } }) => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks((req: { user?: { id?: string } }) => ({
     accounts: {
       list: async () => listAccounts(req.user?.id),
       members: { list: async (accountId: string) => listAccountMembers(accountId) },
     },
-  }),
+  })),
 }));
 
 vi.mock('../../utils/privacyHelpers', () => ({

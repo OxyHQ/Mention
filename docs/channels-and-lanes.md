@@ -134,10 +134,14 @@ workarounds.
   ONE voice — a second account in it would be a reply to the channel — and
   the refusal names the offending channel. A beast batch may mix accounts
   freely, since no entry there replies to another.
-- **Known gaps, both failing closed:** an organization's post is anonymous
-  with no way to sign it (writer disclosure is gated on `channel` +
-  `signPosts`), and inherited memberships are invisible to the gate because
-  `GET /accounts/:id/members` returns DIRECT rows only.
+- **The gate reads Oxy's EFFECTIVE access, inherited memberships included.**
+  `assertCanPublishAsAccount` (and the delete and moderate gates beside it)
+  ask `oxy.accountAccessFor(req, accountId, { fresh: true })` with the
+  caller's own bearer, so a member of the organization a channel sits under is
+  a member of the channel. 401 asks the caller to sign in again, 403/404 is a
+  refusal, and an Oxy outage is 503 — never a "no", never cached.
+- **Known gap, failing closed:** an organization's post is anonymous with no
+  way to sign it (writer disclosure is gated on `channel` + `signPosts`).
 - **A channel post DOES federate**, under the channel's own identity. It was
   skipped in the first design solely because the post was authored by a person
   and federation is an author surface; with the channel as the author the

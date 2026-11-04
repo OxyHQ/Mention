@@ -45,8 +45,8 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 /** `EMPLOYER_OPERATOR_ID` is an active member of `EMPLOYER_ID` with `account:act_as`; nobody else is a member of anything. */
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     accounts: {
       members: {
         list: async (accountId: string) =>
@@ -61,7 +61,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
             : [],
       },
     },
-  }),
+  })),
 }));
 
 let db: Database;

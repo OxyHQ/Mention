@@ -26,7 +26,7 @@ import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
@@ -557,7 +557,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       // its thread's community instead, and a ban, a boost, a non-public post or
       // an account that is not a community hosted here is refused.
       communityOxyUserId: typeof communityOxyUserId === 'string' ? communityOxyUserId : null,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: resolvedVisibility,
@@ -639,7 +639,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       // here the ACL refuses the response to the person who just created it, and
       // the 500 below fires on a write that succeeded. Free for the ordinary
       // case: a published post asks Oxy nothing.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
 
     if (!hydratedPost) {

@@ -46,10 +46,10 @@ vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: object[]) => rows) },
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
     accounts: { members: { list: mocks.listAccountMembers } },
-  }),
+  })),
   createScopedOxyClient: () => ({}),
   getServiceOxyClient: () => ({}),
 }));

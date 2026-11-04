@@ -1,7 +1,7 @@
 import {
   PublishAsAccessError,
   assertCanPublishAsAccount,
-  type AccountMemberReader,
+  type AccountAccessReader,
 } from './publishAsAccount';
 import { logger } from '../utils/logger';
 
@@ -65,7 +65,7 @@ import { logger } from '../utils/logger';
 export async function viewerOperatesAccount(params: {
   targetOxyUserId: string | null | undefined;
   callerId: string | null | undefined;
-  memberReader: AccountMemberReader | undefined;
+  accountAccess: AccountAccessReader | undefined;
 }): Promise<boolean> {
   const target = params.targetOxyUserId?.trim();
   const callerId = params.callerId?.trim();
@@ -78,7 +78,7 @@ export async function viewerOperatesAccount(params: {
     await assertCanPublishAsAccount({
       publishAsOxyUserId: target,
       callerId,
-      memberReader: params.memberReader,
+      accountAccess: params.accountAccess,
     });
     return true;
   } catch (error) {

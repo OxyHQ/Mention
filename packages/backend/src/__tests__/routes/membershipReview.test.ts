@@ -25,7 +25,8 @@ const files = vi.hoisted(() => ({
   download: vi.fn(),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({}),
+  callerOxyUser: () => ({}),
+  callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     assets: {
       withRequester: (proof: unknown) => {

@@ -17,7 +17,7 @@ import {
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { ReplyPermission } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { callerAccountAccess } from '../../utils/oxyHelpers';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
 import { postIsAuthoredByChannel } from '../../utils/channelReplyGate';
 import { postManagementRefusal } from '../../services/postManagementAccess';
@@ -40,7 +40,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
     const settingsRefusal = await postManagementRefusal({
       post,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (settingsRefusal) {
       return res.status(settingsRefusal.status).json({ message: settingsRefusal.message });
@@ -207,7 +207,7 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     const laneRefusal = await postManagementRefusal({
       post,
       callerId: userId,
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     if (laneRefusal) {
       return res.status(laneRefusal.status).json({ message: laneRefusal.message });

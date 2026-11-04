@@ -44,16 +44,18 @@ const hoisted = vi.hoisted(() => ({
  * tell a correct translation from one that matches nothing — which is what a
  * silently un-rescheduled thread looks like.
  */
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   // A real member reader, because the CHANNEL case below is authorized through
   // `postManagementRefusal` rather than by owning the row. Every other case in
   // this file edits its own post, which `canManagePostWithoutLookup` settles
   // before any account read — so none of them reaches this.
-  createUserScopedOxyServices: vi.fn(() => ({
-    accounts: { members: { list: (accountId: string) => hoisted.listAccountMembers(accountId) } },
-  })),
+  ...(await import('../helpers/accountAccess')).rosterMocks(
+    vi.fn(() => ({
+      accounts: { members: { list: (accountId: string) => hoisted.listAccountMembers(accountId) } },
+    })),
+  ),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

@@ -7,7 +7,7 @@ import {
 import { markAllNotificationsRead, markNotificationRead } from '../services/notificationReadState';
 import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { createSocketRateLimiter } from '../middleware/socketRateLimit';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerOxyUser } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { PRESENCE_ROOM_PREFIX, presenceRoom, isValidPresenceUserId } from '@mention/shared-types';
 import type { PresenceRegistry } from './presenceRegistry';
@@ -74,10 +74,7 @@ function registerNotificationsHandlers(
     const socketBearer =
       typeof socket.handshake.auth?.token === 'string' ? socket.handshake.auth.token : undefined;
     if (socketBearer) {
-      void resolveNotificationInboxIds(
-        userId,
-        createUserScopedOxyServices({ accessToken: socketBearer }),
-      )
+      void resolveNotificationInboxIds(userId, callerOxyUser({ accessToken: socketBearer }))
         .then((recipientIds) => {
           if (!socket.connected) return;
           for (const recipientId of recipientIds) {

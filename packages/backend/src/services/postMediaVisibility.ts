@@ -17,10 +17,11 @@
  * `ensureProfileMediaPublic` does for the banner.
  */
 import { PostVisibility } from '@mention/shared-types';
-import type { OxyServices } from '@oxy.so/core';
+import { OxyServices } from '@oxy.so/core';
 import { authorVariants } from './postVariants';
+import { config } from '../config';
 import { logger } from '../utils/logger';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import type { RequestSafetyContext } from '../utils/safetyRequester';
 
 type PostMediaContent = Parameters<typeof authorVariants>[0];
 
@@ -70,9 +71,28 @@ export function postMediaFileIds(content: PostMediaContent | null | undefined): 
  */
 export const POST_MEDIA_VISIBILITY_TIMEOUT_MS = 60_000;
 
-/** The author's own Oxy session, with room for {@link POST_MEDIA_VISIBILITY_TIMEOUT_MS}. */
-export function createPostMediaOwnerClient(req: Parameters<typeof createUserScopedOxyServices>[0]) {
-  return createUserScopedOxyServices(req, { requestTimeout: POST_MEDIA_VISIBILITY_TIMEOUT_MS });
+/**
+ * The author's own Oxy session, with room for {@link POST_MEDIA_VISIBILITY_TIMEOUT_MS}.
+ *
+ * The one user-bearer client still built by hand, and only because the SDK
+ * cannot yet do this: `oxy.asUser` inherits the server's request timeout and
+ * `assets.setVisibility` takes no per-call `ServiceCallOptions`, so neither can
+ * give one call 60 s. It follows the same rules as a user client otherwise —
+ * only the VERIFIED bearer (`req.accessToken`), never for an MCP, capability or
+ * service request, and no response cache. Replace it with `oxy.withUser` once
+ * `setVisibility` accepts a timeout.
+ */
+export function createPostMediaOwnerClient(
+  req: RequestSafetyContext,
+): Pick<OxyServices, 'assets'> | undefined {
+  if (req.mcp || req.capability || req.serviceApp || !req.accessToken) return undefined;
+  const client = new OxyServices({
+    baseURL: config.oxyApiUrl,
+    requestTimeout: POST_MEDIA_VISIBILITY_TIMEOUT_MS,
+    enableCache: false,
+  });
+  client.session.setAccessToken(req.accessToken);
+  return client;
 }
 
 /**

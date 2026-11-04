@@ -33,6 +33,7 @@ import {
   createCentralTokenIntrospector,
 } from './lib/token-authenticator.js';
 import { createMentionInternalMcpReceiver } from './lib/internal-capability-mcp.js';
+import { createOxyServiceClient } from './lib/oxy-service-client.js';
 
 const config = loadConfiguration();
 const PORT = config.port;
@@ -40,8 +41,10 @@ const MAX_REQUEST_BODY_BYTES = config.maxRequestBodyBytes;
 const MAX_SESSIONS = config.maxSessions;
 const MCP_PUBLIC_URL = config.publicUrl;
 const OAUTH_AS_URL = config.oxyApiUrl;
-const introspectCentralToken = createCentralTokenIntrospector(config);
-const internalMcp = createMentionInternalMcpReceiver(config);
+// The process's ONE Oxy client: every Oxy call below goes through it.
+const oxy = createOxyServiceClient(config);
+const introspectCentralToken = createCentralTokenIntrospector(config, oxy);
+const internalMcp = createMentionInternalMcpReceiver(config, oxy);
 // At startup, so a task that cannot bind says so in its first lines of log.
 void internalMcp.bound();
 

@@ -30,7 +30,7 @@ import {
   removePostFromCommunity,
   unbanFromCommunity,
 } from '../services/communities/communityModeration';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerOxyUser, callerAccountAccess } from '../utils/oxyHelpers';
 import { communityModerationRateLimiter } from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
@@ -77,10 +77,7 @@ const limiters = config.runtime.isProduction ? [communityModerationRateLimiter] 
  */
 router.get('/joined', async (req: AuthRequest, res: Response) => {
   try {
-    const communities = await listJoinedCommunities(
-      getRequiredOxyUserId(req),
-      createUserScopedOxyServices(req),
-    );
+    const communities = await listJoinedCommunities(getRequiredOxyUserId(req), callerOxyUser(req));
     res.set('Cache-Control', 'private, no-store');
     return sendSuccessResponse<JoinedCommunitiesResponse>(res, 200, { communities });
   } catch (error) {
@@ -101,7 +98,7 @@ router.post(
       await removePostFromCommunity({
         communityOxyUserId: communityId,
         moderatorOxyUserId: getRequiredOxyUserId(req),
-        memberReader: createUserScopedOxyServices(req),
+        accountAccess: callerAccountAccess(req),
         postId,
         reason: normalizeModerationReason(req.body?.reason),
       });
@@ -119,7 +116,7 @@ router.get('/:communityId/bans', ...limiters, async (req: AuthRequest, res: Resp
     const bans = await listBansForModerators({
       communityOxyUserId: communityId,
       moderatorOxyUserId: getRequiredOxyUserId(req),
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
     });
     res.set('Cache-Control', 'private, no-store');
     return sendSuccessResponse<CommunityBansResponse>(res, 200, { bans });
@@ -138,7 +135,8 @@ router.post('/:communityId/bans', ...limiters, async (req: AuthRequest, res: Res
     await banFromCommunity({
       communityOxyUserId: communityId,
       moderatorOxyUserId: getRequiredOxyUserId(req),
-      memberReader: createUserScopedOxyServices(req),
+      accountAccess: callerAccountAccess(req),
+      rosterReader: callerOxyUser(req),
       bannedOxyUserId: userId,
       reason: normalizeModerationReason(req.body?.reason),
     });
@@ -161,7 +159,7 @@ router.delete(
       await unbanFromCommunity({
         communityOxyUserId: communityId,
         moderatorOxyUserId: getRequiredOxyUserId(req),
-        memberReader: createUserScopedOxyServices(req),
+        accountAccess: callerAccountAccess(req),
         bannedOxyUserId: userId,
       });
       return sendSuccessResponse(res, 200, { banned: false });

@@ -90,7 +90,8 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
     getUsersByIds: vi.fn().mockResolvedValue([]),
   }),
   createScopedOxyClient: () => undefined,
-  createUserScopedOxyServices: () => undefined,
+  callerOxyUser: () => undefined,
+  callerAccountAccess: () => undefined,
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';

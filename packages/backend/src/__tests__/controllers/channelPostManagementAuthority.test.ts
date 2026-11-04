@@ -49,7 +49,7 @@ const oxy = vi.hoisted(() => ({
 
 // Oxy is a remote service and stays mocked; every row this suite reads or writes
 // is real, including the corrections trail an edit appends.
-vi.mock('../../utils/oxyHelpers', () => ({
+vi.mock('../../utils/oxyHelpers', async () => ({
   createScopedOxyClient: () => undefined,
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
@@ -57,7 +57,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
-  createUserScopedOxyServices: () => ({ accounts: { members: { list: oxy.listAccountMembers } } }),
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
+    accounts: { members: { list: oxy.listAccountMembers } },
+  })),
 }));
 
 // `resolveUserSummaries` is how `resolveAccountKind` learns that the authoring

@@ -1,6 +1,5 @@
 import { Router, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { OxyServices } from '@oxy.so/core';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 
 import { logger } from '../utils/logger';
@@ -9,7 +8,6 @@ import { hashedIpKey } from '../utils/ipKey';
 import { getServiceOxyClient, uploadServiceUserMedia, requesterFiles } from '../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import type { RequestSafetyContext } from '../utils/safetyRequester';
-import { config } from '../config';
 import { contentTypeFamilyFromString } from '../utils/safeUpstreamFetch';
 import { describeOxyError, oxyErrorStatus } from '../services/oxyFiles/oxyErrors';
 import { MEDIA_REJECTED_TYPES } from '../services/mediaCache/mediaTypes';
@@ -29,8 +27,6 @@ import { MEDIA_REJECTED_TYPES } from '../services/mediaCache/mediaTypes';
  */
 
 const router = Router();
-
-const OXY_API_URL = config.oxyApiUrl;
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 20;
@@ -172,11 +168,11 @@ async function uploadWithOxySession(
   fileName: string,
 ): Promise<string> {
   const file = new File([new Uint8Array(buffer)], fileName, { type: contentType });
-  const oxyClient = new OxyServices({ baseURL: OXY_API_URL });
-  oxyClient.session.setAccessToken(token);
   // Post media renders from the public CDN, which 404s a private asset — the
   // same visibility the MCP path's service upload already gives it.
-  const uploadResult = await oxyClient.assets.upload(file, { visibility: 'public' });
+  const uploadResult = await getServiceOxyClient().withUser(token, (user) =>
+    user.assets.upload(file, { visibility: 'public' }),
+  );
   const fileId = uploadResult?.file?.id;
   if (typeof fileId !== 'string' || fileId.length === 0) {
     throw new Error('Could not save the media');

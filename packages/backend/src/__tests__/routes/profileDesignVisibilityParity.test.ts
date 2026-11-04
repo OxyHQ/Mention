@@ -63,7 +63,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
     },
   }),
   ensureProfileMediaPublic: vi.fn().mockResolvedValue(undefined),
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  callerOxyUser: vi.fn(() => undefined),
+  callerAccountAccess: vi.fn(() => undefined),
 }));
 
 // `profileSettings` reaches this through `PUT /settings/:userId`, whose gate

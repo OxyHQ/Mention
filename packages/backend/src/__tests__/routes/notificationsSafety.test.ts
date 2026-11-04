@@ -59,7 +59,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // The route hands this to `resolveNotificationInboxIds`; a module factory
   // replaces the WHOLE module, so an export the route calls and this factory
   // omits is `undefined is not a function` on every request.
-  createUserScopedOxyServices: () => undefined,
+  callerOxyUser: () => undefined,
+  callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
     users: { getMany: mocks.getUsersByIds },
@@ -212,6 +213,8 @@ function makeApp(viewer: string) {
   app.use((req, _res, next) => {
     (req as typeof req & { user: { id: string } }).user = { id: viewer };
     req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
+    // What `oxy.middleware.auth()` sets beside the user: the VERIFIED bearer.
+    (req as { accessToken?: string }).accessToken = req.user ? 'test-viewer-session' : undefined;
     next();
   });
   app.use('/', notificationsRouter);

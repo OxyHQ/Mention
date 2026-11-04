@@ -19,7 +19,7 @@ import {
   StorefrontOwnershipError,
 } from '../services/commerce/storefronts';
 import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { callerAccountAccess } from '../utils/oxyHelpers';
 import { isAccountErased } from '../services/accountErasure/erasedAccounts';
 import {
   operatedAccountSettingsRateLimiter,
@@ -72,7 +72,7 @@ async function canManageAccount(req: OxyAuthRequest, accountId: string): Promise
   await assertCanPublishAsAccount({
     publishAsOxyUserId: accountId,
     callerId: getRequiredOxyUserId(req),
-    memberReader: createUserScopedOxyServices(req),
+    accountAccess: callerAccountAccess(req),
   });
 }
 

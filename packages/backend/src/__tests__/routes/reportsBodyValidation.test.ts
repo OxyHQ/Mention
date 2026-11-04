@@ -34,8 +34,8 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({ listAccountMembers }),
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({ listAccountMembers })),
 }));
 
 import { REPORT_CATEGORIES } from '../../db/schema/moderation';

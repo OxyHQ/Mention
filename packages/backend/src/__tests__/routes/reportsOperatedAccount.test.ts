@@ -42,8 +42,10 @@ vi.mock('../../services/moderation/ReportIntakeService', async () => {
 
 vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({ accounts: { members: { list: listAccountMembers } } }),
+vi.mock('../../utils/oxyHelpers', async () => ({
+  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
+    accounts: { members: { list: listAccountMembers } },
+  })),
 }));
 
 vi.mock('../../utils/logger', () => ({

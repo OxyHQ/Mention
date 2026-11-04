@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MediaItem } from '@mention/shared-types';
-const { access, setAccessToken } = vi.hoisted(() => ({ access: vi.fn(), setAccessToken: vi.fn() }));
-vi.mock('@oxy.so/core', () => ({
-  OxyServices: class {
-    session = { setAccessToken };
-    assets = { access };
-  },
-}));
+const { access, withUser } = vi.hoisted(() => {
+  const access = vi.fn();
+  // `oxy.withUser(bearer, use)`: one user client per call, bound to that bearer.
+  const withUser = vi.fn(async (_bearer: string, use: (user: unknown) => unknown) =>
+    use({ assets: { access } }),
+  );
+  return { access, withUser };
+});
+vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({ withUser }) }));
 import { hydratePostMedia, prefetchPostMediaAccess } from '../../services/hydratePostMedia';
 beforeEach(() => {
   vi.clearAllMocks();
@@ -45,7 +47,7 @@ describe('canonical asset access for a hydrated graph', () => {
       },
     });
     await hydratePostMedia([post], { accessToken: 'original-adult-contact' });
-    expect(setAccessToken).toHaveBeenCalledWith('original-adult-contact');
+    expect(withUser).toHaveBeenCalledWith('original-adult-contact', expect.any(Function));
     expect(access).toHaveBeenCalledTimes(1);
     expect(access.mock.calls[0][0]).toEqual([
       { fileId: 'private-file' },
@@ -67,7 +69,7 @@ describe('canonical asset access for a hydrated graph', () => {
       await hydratePostMedia([post], requester);
       expect(post.content.media).toEqual([stored]);
     }
-    expect(setAccessToken).not.toHaveBeenCalled();
+    expect(withUser).not.toHaveBeenCalled();
     expect(access).not.toHaveBeenCalled();
   });
   it('bounds 201 unique files to three calls and refuses an authority outage', async () => {

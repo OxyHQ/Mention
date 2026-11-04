@@ -19,7 +19,8 @@ vi.mock('../../services/notificationInbox', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: vi.fn(),
+  callerOxyUser: vi.fn(),
+  callerAccountAccess: vi.fn(),
 }));
 
 const { registerSocketHandlers } = await import('../../runtime/socketHandlers');

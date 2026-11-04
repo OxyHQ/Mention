@@ -31,7 +31,7 @@ import { persistPreparedArticle, prepareArticle } from '../../services/postArtic
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { callerAccountAccess, createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import {
   createPostMediaOwnerClient,
@@ -46,11 +46,7 @@ import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
 import type { AccountKind } from '@oxy.so/contracts';
-import {
-  assertCanPublishAsAccount,
-  cacheAccountMemberReads,
-  PublishAsAccessError,
-} from '../../services/publishAsAccount';
+import { assertCanPublishAsAccount, PublishAsAccessError } from '../../services/publishAsAccount';
 import { sanitizePodcast } from '../../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
 import { federatePostBatchDetached } from '../../connectors/threadFederation';
@@ -208,13 +204,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // single post is written — the same shape the collaborator and lane refusals
     // take, and for the same reason (a partial thread cannot be undone in one
     // action). In thread mode that is literally one call for the whole request;
-    // in beast mode `cacheAccountMemberReads` is what makes it one MEMBERSHIP READ
-    // per distinct account, since the creation loop below hands every post the
-    // SAME reader and lets `PostCreationService` run the real gate itself, so
-    // nothing routes around the authorization.
-    const memberReader = createUserScopedOxyServices(req);
+    // in beast mode the request's ONE access reader (`callerAccountAccess`, which
+    // memoizes per account) is what makes it one ACCESS READ per distinct
+    // account, since the creation loop below hands every post the SAME reader and
+    // lets `PostCreationService` run the real gate itself, so nothing routes
+    // around the authorization.
+    const batchAccountAccess = callerAccountAccess(req);
     const mediaOwnerClient = createPostMediaOwnerClient(req);
-    const batchMemberReader = memberReader ? cacheAccountMemberReads(memberReader) : undefined;
     /**
      * The account THIS request names for an entry, if any. In thread mode the
      * entry's own field wins and the batch-level one is the default for entries
@@ -233,7 +229,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     try {
       // Authorized once per DISTINCT account, memoized across the batch: a thread
       // naming one account asks Oxy once however many entries it has, and one
-      // naming two asks twice. `cacheAccountMemberReads` is what makes that true
+      // naming two asks twice. `callerAccountAccess` is what makes that true
       // end to end, since the creation loop below hands every post the SAME reader
       // and lets `PostCreationService` run the real gate itself — nothing routes
       // around the authorization.
@@ -249,7 +245,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           decision = await assertCanPublishAsAccount({
             publishAsOxyUserId: requested,
             callerId: userId,
-            memberReader: batchMemberReader,
+            accountAccess: batchAccountAccess,
           });
           decided.set(key, decision);
         }
@@ -641,11 +637,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // itself — deliberately, not wastefully. The gate is the one place that
         // decides the author, so passing a pre-resolved id instead would be the
         // "checked upstream, trust me" shape that lets a later caller route around
-        // it. The repeat is free: `batchMemberReader` has already answered for this
+        // it. The repeat is free: `batchAccountAccess` has already answered for this
         // account. In thread mode the account is the batch's, applied to every
         // entry; in beast mode it is the entry's own.
         publishAsOxyUserId: accountForEntry(i),
-        memberReader: batchMemberReader,
+        accountAccess: batchAccountAccess,
         // The root names the community; continuations inherit it as replies.
         ...(i === 0 && threadCommunity ? { communityOxyUserId: threadCommunity } : {}),
         // For thread mode: chain each continuation post to the immediately
@@ -791,7 +787,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // moment it is written, and a batch published as a channel is authored by
       // the channel — so the response would otherwise come back empty to the
       // person who just wrote the thread.
-      operatedAccountReader: createUserScopedOxyServices(req),
+      operatedAccountReader: callerOxyUser(req),
     });
 
     logger.info(`Created ${createdPosts.length} posts in ${mode} mode`);

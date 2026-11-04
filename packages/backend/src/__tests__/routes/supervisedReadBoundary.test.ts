@@ -2,7 +2,6 @@ import express, { type ErrorRequestHandler } from 'express';
 import request from 'supertest';
 import { OxyServer } from '@oxy.so/core/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MENTION_SERVICE_APPLICATION_ID } from '@oxy.so/mention-contracts';
 import { createOptionalAuth } from '../../middleware/optionalAuth';
 import { supervisedActionForRequest } from '../../middleware/supervisedAction';
 
@@ -30,10 +29,26 @@ describe('reviewed optional reads', () => {
     expect(result.status).toBe(503);
     expect(result.text).not.toContain('public cache body');
     expect(anonymousFeed).not.toHaveBeenCalled();
-    expect(oxy.middleware.auth).toHaveBeenCalledWith({
-      supervisedAction: 'content',
-      expectedAudience: `oxy-service:${MENTION_SERVICE_APPLICATION_ID}`,
-    });
+    // The accepted service audience is the server's own (`runtime/oxyClient`),
+    // not repeated at the mount.
+    expect(oxy.middleware.auth).toHaveBeenCalledWith({ supervisedAction: 'content' });
+  });
+
+  it('builds each auth mount once, not once per request', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://127.0.0.1:9' });
+    const auth = vi
+      .spyOn(oxy.middleware, 'auth')
+      .mockImplementation(() => (_req, _res, next) => next());
+    const app = express();
+    app.use('/api', createOptionalAuth(oxy));
+    app.get('/api/feed/mtn', (_req, res) => res.json({ items: [] }));
+    app.get('/api/search', (_req, res) => res.json({ items: [] }));
+    for (const path of ['/api/feed/mtn', '/api/feed/mtn', '/api/search', '/api/search']) {
+      await request(app).get(path).set('Authorization', 'Bearer session');
+    }
+    expect(auth).toHaveBeenCalledTimes(2);
+    expect(auth).toHaveBeenCalledWith({ supervisedAction: 'content' });
+    expect(auth).toHaveBeenCalledWith({});
   });
 
   it('preserves genuinely anonymous browsing without turning it into a supervised session', async () => {

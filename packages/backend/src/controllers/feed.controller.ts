@@ -68,7 +68,7 @@ import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { postIsAuthoredByChannel } from '../utils/channelReplyGate';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { toStoredContent } from '../services/postVariants';
-import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { OperatedAccountReader } from '../services/publishAsAccount';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
@@ -1296,7 +1296,7 @@ class FeedController {
         {
           safetyRequester: safetyRequesterFor(req),
           includeQuoteCounts: true,
-          operatedAccountReader: createUserScopedOxyServices(req),
+          operatedAccountReader: callerOxyUser(req),
           viewerPrivacy: viewerContext?.viewerPrivacy,
           viewerGraph: viewerContext?.viewerGraph,
           rethrow: true,

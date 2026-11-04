@@ -55,6 +55,11 @@ vi.mock('../../runtime/oxyClient', () => ({
     getUserById: vi.fn(),
     getUserFollowing: vi.fn(async () => []),
     getUserFollowers: vi.fn(async () => []),
+    // The reader's own client for the media ACL: the `OxyServices` fake above.
+    withUser: async (_bearer: string, use: (user: unknown) => unknown) => {
+      const { OxyServices } = await import('@oxy.so/core');
+      return use(new OxyServices({ baseURL: 'https://api.oxy.test' }));
+    },
   }),
 }));
 
