@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "vérification des liens…",
-      "willMention": "Ce post mentionnera"
+      "willMention": "Ce post mentionnera",
+      "onlyVisibleTo": "Visible uniquement par"
     },
     "newPost": "Nouveau post",
     "placeholder": "Quoi de neuf ?",
@@ -619,7 +620,13 @@
     "hoursAgo_many": "il y a {{count}} heures",
     "daysAgo_many": "il y a {{count}} jours",
     "draftWithMedia_many": "{{count}} médias",
-    "draftWithThread_many": "Fil de discussion ({{count}} posts)"
+    "draftWithThread_many": "Fil de discussion ({{count}} posts)",
+    "audience": {
+      "title": "Qui peut voir cette publication",
+      "public": "Tout le monde",
+      "direct": "Mention privée : uniquement les personnes que vous mentionnez",
+      "needsRecipient": "Mentionnez au moins une personne. Seules les personnes mentionnées verront cette publication."
+    }
   },
   "post": {
     "threadPosition": "Publication {{index}} sur {{total}} du fil",
@@ -744,7 +751,8 @@
       "follow": "s'est abonné à ton compte",
       "post": "a publié une nouveauté",
       "poke": "t'a fait un signe",
-      "default": "a interagi avec ton contenu"
+      "default": "a interagi avec ton contenu",
+      "privateMention": "vous a envoyé une mention privée"
     },
     "forChannel": "Pour {{channel}}",
     "someone": "Quelqu'un",
@@ -3473,6 +3481,27 @@
       "heading": "Votre profil",
       "body": "Une photo et une courte bio aident les gens à vous suivre en retour. Vous pouvez les modifier à tout moment dans les Réglages.",
       "edit": "Modifier le profil"
+    }
+  },
+  "privateMentions": {
+    "title": "Mentions privées",
+    "badge": "Mention privée",
+    "onlyMentioned": "Visible uniquement par les personnes mentionnées",
+    "replyPlaceholder": "Répondre en privé",
+    "replyAudience": "Uniquement les personnes de cette conversation",
+    "twoNames": "{{first}} et {{second}}",
+    "oneAndMore": "{{first}} et {{others}} autres",
+    "manyNames": "{{first}}, {{second}} et {{others}} autres",
+    "you": "Vous",
+    "media": "Média",
+    "signIn": "Connectez-vous pour voir vos mentions privées",
+    "error": {
+      "title": "Impossible de charger les mentions privées",
+      "message": "Vérifiez votre connexion et réessayez."
+    },
+    "empty": {
+      "title": "Aucune mention privée pour l'instant",
+      "subtitle": "Les publications que seuls vous et les personnes mentionnées pouvez voir apparaîtront ici. Commencez-en une depuis l'éditeur en choisissant « Mention privée »."
     }
   }
 }

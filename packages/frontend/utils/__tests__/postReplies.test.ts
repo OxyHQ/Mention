@@ -1,5 +1,9 @@
 import type { HydratedPostSummary, PostPermissions, ReplyPermission } from '@mention/shared-types';
-import { postAcceptsReplies, reportableReplyPermission } from '@/utils/postReplies';
+import {
+  isPrivateMention,
+  postAcceptsReplies,
+  reportableReplyPermission,
+} from '@/utils/postReplies';
 
 /**
  * The rule two surfaces read — the feed row's action bar and the post detail's
@@ -110,5 +114,15 @@ describe('reportableReplyPermission', () => {
     expect(reportableReplyPermission(makePost({}))).toBeUndefined();
     expect(reportableReplyPermission(null)).toBeUndefined();
     expect(reportableReplyPermission(undefined)).toBeUndefined();
+  });
+});
+
+describe('isPrivateMention', () => {
+  it('is true only for a direct post', () => {
+    const direct = makePost({});
+    direct.metadata.visibility = 'direct' as HydratedPostSummary['metadata']['visibility'];
+    expect(isPrivateMention(direct)).toBe(true);
+    expect(isPrivateMention(makePost({}))).toBe(false);
+    expect(isPrivateMention(null)).toBe(false);
   });
 });

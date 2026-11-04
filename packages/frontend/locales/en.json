@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "checking links…",
-      "willMention": "This post will mention"
+      "willMention": "This post will mention",
+      "onlyVisibleTo": "Only visible to"
     },
     "newPost": "New post",
     "placeholder": "What's new?",
@@ -614,6 +615,12 @@
       "allowQuotes": "Allow quote posts",
       "anyoneCanInteract": "Anyone can interact",
       "limited": "Interaction limited"
+    },
+    "audience": {
+      "title": "Who can see this post",
+      "public": "Everyone",
+      "direct": "Private mention: only the people you mention",
+      "needsRecipient": "Mention at least one person. Only the people you mention will see this post."
     }
   },
   "post": {
@@ -732,7 +739,8 @@
       "follow": "started following you",
       "post": "posted a new update",
       "poke": "poked you",
-      "default": "interacted with your content"
+      "default": "interacted with your content",
+      "privateMention": "sent you a private mention"
     },
     "forChannel": "For {{channel}}",
     "someone": "Someone",
@@ -3443,6 +3451,27 @@
       "heading": "Your profile",
       "body": "A photo and a short bio help people decide to follow you back. You can change them any time in Settings.",
       "edit": "Edit profile"
+    }
+  },
+  "privateMentions": {
+    "title": "Private mentions",
+    "badge": "Private mention",
+    "onlyMentioned": "Only visible to the people mentioned",
+    "replyPlaceholder": "Reply privately",
+    "replyAudience": "Only people in this conversation",
+    "twoNames": "{{first}} and {{second}}",
+    "oneAndMore": "{{first}} and {{others}} more",
+    "manyNames": "{{first}}, {{second}} and {{others}} more",
+    "you": "You",
+    "media": "Media",
+    "signIn": "Sign in to see your private mentions",
+    "error": {
+      "title": "Couldn't load private mentions",
+      "message": "Check your connection and try again."
+    },
+    "empty": {
+      "title": "No private mentions yet",
+      "subtitle": "Posts only you and the people mentioned can see will appear here. Start one from the composer by choosing \"Private mention\"."
     }
   }
 }

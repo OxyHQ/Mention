@@ -29,6 +29,7 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.post(viewerId, 'post-1'),
       viewerQueryKeys.pinnedPost(viewerId, 'profile-1'),
       viewerQueryKeys.scheduledPosts(viewerId),
+      viewerQueryKeys.privateMentions(viewerId),
       viewerQueryKeys.feedsRoot(viewerId),
       viewerQueryKeys.feed(viewerId, 'custom', undefined, { customFeedId: 'feed-1' }),
       viewerQueryKeys.search(viewerId, 'posts', 'query', true),

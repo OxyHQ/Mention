@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "Links werden geprüft …",
-      "willMention": "Dieser Beitrag erwähnt"
+      "willMention": "Dieser Beitrag erwähnt",
+      "onlyVisibleTo": "Nur sichtbar für"
     },
     "newPost": "Neuer Beitrag",
     "placeholder": "Was gibt's Neues?",
@@ -614,6 +615,12 @@
       "allowQuotes": "Zitat-Beiträge erlauben",
       "anyoneCanInteract": "Alle können interagieren",
       "limited": "Interaktion eingeschränkt"
+    },
+    "audience": {
+      "title": "Wer kann diesen Beitrag sehen",
+      "public": "Alle",
+      "direct": "Private Erwähnung: nur die Personen, die du erwähnst",
+      "needsRecipient": "Erwähne mindestens eine Person. Nur die erwähnten Personen sehen diesen Beitrag."
     }
   },
   "post": {
@@ -732,7 +739,8 @@
       "follow": "folgt dir jetzt",
       "post": "hat etwas Neues gepostet",
       "poke": "hat dich angestupst",
-      "default": "hat mit deinen Inhalten interagiert"
+      "default": "hat mit deinen Inhalten interagiert",
+      "privateMention": "hat dir eine private Erwähnung geschickt"
     },
     "forChannel": "Für {{channel}}",
     "someone": "Jemand",
@@ -3443,6 +3451,27 @@
       "heading": "Dein Profil",
       "body": "Ein Foto und eine kurze Bio helfen anderen, dir zurückzufolgen. Du kannst sie jederzeit in den Einstellungen ändern.",
       "edit": "Profil bearbeiten"
+    }
+  },
+  "privateMentions": {
+    "title": "Private Erwähnungen",
+    "badge": "Private Erwähnung",
+    "onlyMentioned": "Nur für die erwähnten Personen sichtbar",
+    "replyPlaceholder": "Privat antworten",
+    "replyAudience": "Nur Personen in diesem Gespräch",
+    "twoNames": "{{first}} und {{second}}",
+    "oneAndMore": "{{first}} und {{others}} weitere",
+    "manyNames": "{{first}}, {{second}} und {{others}} weitere",
+    "you": "Du",
+    "media": "Medien",
+    "signIn": "Melde dich an, um deine privaten Erwähnungen zu sehen",
+    "error": {
+      "title": "Private Erwähnungen konnten nicht geladen werden",
+      "message": "Prüfe deine Verbindung und versuche es erneut."
+    },
+    "empty": {
+      "title": "Noch keine privaten Erwähnungen",
+      "subtitle": "Beiträge, die nur du und die erwähnten Personen sehen können, erscheinen hier. Starte einen im Editor mit „Private Erwähnung“."
     }
   }
 }

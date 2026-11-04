@@ -14,6 +14,33 @@ interface ComposeMentionSummaryProps {
   texts: readonly string[];
   /** The post's mention registry, as the composer holds it. */
   mentions: readonly MentionData[];
+  /**
+   * A private mention: these people are not only mentioned, they are the only
+   * ones who will see the post, and the row says so.
+   */
+  isPrivate?: boolean;
+}
+
+/**
+ * Everyone a post's bodies will mention — picked handles still present in the
+ * text plus anybody a pasted profile link resolves to. The ONE derivation the
+ * summary row and the composer's private-mention check share.
+ */
+export function useComposeRecipients(
+  texts: readonly string[],
+  mentions: readonly MentionData[],
+): { recipients: MentionData[]; isResolving: boolean } {
+  // Only ids that still have a placeholder in one of the bodies. A handle the
+  // author deleted is not a recipient, however recently it was picked.
+  const picked = reconcileMentionData(texts, mentions);
+  const mentionIds = picked.map((mention) => mention.userId);
+  const { linkMentions, isResolving } = useProfileLinkMentions(texts, mentionIds);
+
+  const byId = new Map<string, MentionData>();
+  for (const mention of [...picked, ...linkMentions]) {
+    if (!byId.has(mention.userId)) byId.set(mention.userId, mention);
+  }
+  return { recipients: [...byId.values()], isResolving };
 }
 
 /**
@@ -43,20 +70,9 @@ interface ComposeMentionSummaryProps {
  * distinct mentions a post is a broadcast and notifies nobody, so "notify" would
  * be false for exactly the posts that name the most people.
  */
-const ComposeMentionSummary = memo<ComposeMentionSummaryProps>(({ texts, mentions }) => {
+const ComposeMentionSummary = memo<ComposeMentionSummaryProps>(({ texts, mentions, isPrivate }) => {
   const { t } = useTranslation();
-
-  // Only ids that still have a placeholder in one of the bodies. A handle the
-  // author deleted is not a recipient, however recently it was picked.
-  const picked = reconcileMentionData(texts, mentions);
-  const mentionIds = picked.map((mention) => mention.userId);
-  const { linkMentions, isResolving } = useProfileLinkMentions(texts, mentionIds);
-
-  const byId = new Map<string, MentionData>();
-  for (const mention of [...picked, ...linkMentions]) {
-    if (!byId.has(mention.userId)) byId.set(mention.userId, mention);
-  }
-  const recipients = [...byId.values()];
+  const { recipients, isResolving } = useComposeRecipients(texts, mentions);
 
   if (recipients.length === 0) {
     // Nothing is claimed while a link is still being resolved — the row appears
@@ -67,9 +83,11 @@ const ComposeMentionSummary = memo<ComposeMentionSummaryProps>(({ texts, mention
   return (
     <View style={styles.container}>
       <Text className="text-muted-foreground" style={styles.label}>
-        {t('compose.mentions.willMention', {
-          defaultValue: 'This post will mention',
-        })}
+        {isPrivate
+          ? t('compose.mentions.onlyVisibleTo', { defaultValue: 'Only visible to' })
+          : t('compose.mentions.willMention', {
+              defaultValue: 'This post will mention',
+            })}
       </Text>
       <View style={styles.handles}>
         {recipients.map((recipient) => (

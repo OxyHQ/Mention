@@ -1,4 +1,5 @@
 import type { HydratedPostSummary, ReplyPermission } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types/post';
 
 /**
  * Whether a post can be replied to at all — the ONE definition both the feed
@@ -51,4 +52,14 @@ export function reportableReplyPermission(
   post: HydratedPostSummary | null | undefined,
 ): ReplyPermission[] | undefined {
   return post?.metadata?.replyPermission;
+}
+
+/**
+ * Whether a post is a private mention (`direct`): only its author and the people
+ * it is addressed to can read it, and a reply to it stays inside that
+ * conversation — the server narrows the reply's audience, so the client only
+ * says so. Read off the post itself, like the predicates above.
+ */
+export function isPrivateMention(post: HydratedPostSummary | null | undefined): boolean {
+  return post?.metadata?.visibility === PostVisibility.DIRECT;
 }

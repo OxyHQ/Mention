@@ -9,6 +9,7 @@ import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
@@ -100,6 +101,15 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.mention', { defaultValue: 'mentioned you' }),
+  },
+  // A direct post addressed to the reader: it opens the conversation like any
+  // post notice, and the lock says only its participants can see it.
+  private_mention: {
+    icon: RiLockLine,
+    colorToken: 'primary',
+    hasPreview: true,
+    actionPhrase: (t) =>
+      t('notification.action.privateMention', { defaultValue: 'sent you a private mention' }),
   },
   quote: {
     icon: RiDoubleQuotesL,

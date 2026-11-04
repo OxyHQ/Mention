@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "s'estan comprovant els enllaços…",
-      "willMention": "Aquesta publicació mencionarà"
+      "willMention": "Aquesta publicació mencionarà",
+      "onlyVisibleTo": "Només visible per a"
     },
     "newPost": "Publicació nova",
     "placeholder": "Què hi ha de nou?",
@@ -619,7 +620,13 @@
     "hoursAgo_many": "fa {{count}} d'hores",
     "daysAgo_many": "fa {{count}} de dies",
     "draftWithMedia_many": "{{count}} d'elements multimèdia",
-    "draftWithThread_many": "Fil ({{count}} de publicacions)"
+    "draftWithThread_many": "Fil ({{count}} de publicacions)",
+    "audience": {
+      "title": "Qui pot veure aquesta publicació",
+      "public": "Tothom",
+      "direct": "Menció privada: només les persones que mencionis",
+      "needsRecipient": "Menciona com a mínim una persona. Només les persones que mencionis veuran aquesta publicació."
+    }
   },
   "post": {
     "threadPosition": "Publicació {{index}} de {{total}} del fil",
@@ -744,7 +751,8 @@
       "follow": "t'ha començat a seguir",
       "post": "ha publicat una novetat",
       "poke": "t'ha donat un toc",
-      "default": "ha interaccionat amb el teu contingut"
+      "default": "ha interaccionat amb el teu contingut",
+      "privateMention": "t'ha enviat una menció privada"
     },
     "forChannel": "Per a {{channel}}",
     "someone": "Algú",
@@ -3473,6 +3481,27 @@
       "heading": "El teu perfil",
       "body": "Una foto i una bio curta ajuden la gent a seguir-te de tornada. Les pots canviar quan vulguis a Configuració.",
       "edit": "Edita el perfil"
+    }
+  },
+  "privateMentions": {
+    "title": "Mencions privades",
+    "badge": "Menció privada",
+    "onlyMentioned": "Només visible per a les persones mencionades",
+    "replyPlaceholder": "Respon en privat",
+    "replyAudience": "Només les persones d'aquesta conversa",
+    "twoNames": "{{first}} i {{second}}",
+    "oneAndMore": "{{first}} i {{others}} més",
+    "manyNames": "{{first}}, {{second}} i {{others}} més",
+    "you": "Tu",
+    "media": "Multimèdia",
+    "signIn": "Inicia la sessió per veure les teves mencions privades",
+    "error": {
+      "title": "No s'han pogut carregar les mencions privades",
+      "message": "Comprova la connexió i torna-ho a provar."
+    },
+    "empty": {
+      "title": "Encara no hi ha mencions privades",
+      "subtitle": "Aquí apareixeran les publicacions que només tu i les persones mencionades podeu veure. Comença'n una des de l'editor triant \"Menció privada\"."
     }
   }
 }

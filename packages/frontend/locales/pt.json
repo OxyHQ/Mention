@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "a verificar ligações…",
-      "willMention": "Esta publicação vai mencionar"
+      "willMention": "Esta publicação vai mencionar",
+      "onlyVisibleTo": "Visível apenas para"
     },
     "newPost": "Nova publicação",
     "placeholder": "O que há de novo?",
@@ -619,7 +620,13 @@
     "hoursAgo_many": "há {{count}} horas",
     "daysAgo_many": "há {{count}} dias",
     "draftWithMedia_many": "{{count}} ficheiros multimédia",
-    "draftWithThread_many": "Tópico ({{count}} publicações)"
+    "draftWithThread_many": "Tópico ({{count}} publicações)",
+    "audience": {
+      "title": "Quem pode ver esta publicação",
+      "public": "Todos",
+      "direct": "Menção privada: apenas as pessoas que mencionar",
+      "needsRecipient": "Mencione pelo menos uma pessoa. Só as pessoas mencionadas verão esta publicação."
+    }
   },
   "post": {
     "threadPosition": "Publicação {{index}} de {{total}} na sequência",
@@ -744,7 +751,8 @@
       "follow": "começou a seguir-te",
       "post": "publicou uma novidade",
       "poke": "deu-te um toque",
-      "default": "interagiu com o teu conteúdo"
+      "default": "interagiu com o teu conteúdo",
+      "privateMention": "enviou-lhe uma menção privada"
     },
     "forChannel": "Para {{channel}}",
     "someone": "Alguém",
@@ -3473,6 +3481,27 @@
       "heading": "Seu perfil",
       "body": "Uma foto e uma bio curta ajudam as pessoas a seguir você de volta. Você pode mudá-las a qualquer momento nos Ajustes.",
       "edit": "Editar perfil"
+    }
+  },
+  "privateMentions": {
+    "title": "Menções privadas",
+    "badge": "Menção privada",
+    "onlyMentioned": "Visível apenas para as pessoas mencionadas",
+    "replyPlaceholder": "Responder em privado",
+    "replyAudience": "Apenas as pessoas desta conversa",
+    "twoNames": "{{first}} e {{second}}",
+    "oneAndMore": "{{first}} e mais {{others}}",
+    "manyNames": "{{first}}, {{second}} e mais {{others}}",
+    "you": "Você",
+    "media": "Mídia",
+    "signIn": "Inicie sessão para ver as suas menções privadas",
+    "error": {
+      "title": "Não foi possível carregar as menções privadas",
+      "message": "Verifique a sua ligação e tente novamente."
+    },
+    "empty": {
+      "title": "Ainda não há menções privadas",
+      "subtitle": "As publicações que só você e as pessoas mencionadas podem ver aparecerão aqui. Comece uma no editor escolhendo \"Menção privada\"."
     }
   }
 }

@@ -10,6 +10,7 @@ import { Screen } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { recoverChunkError } from '@/lib/chunkReload';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
@@ -102,7 +103,7 @@ function timeBucketOf(createdAt: string, now: Date): TimeBucket {
 type FilterableTab = Exclude<NotificationTab, 'all'>;
 
 const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
-  mentions: ['mention', 'reply'],
+  mentions: ['mention', 'reply', 'private_mention'],
   follows: ['follow'],
   likes: ['like', 'boost', 'quote'],
   posts: ['post'],
@@ -815,6 +816,18 @@ const NotificationsScreen: React.FC = () => {
                     onPress={handleMarkAllAsRead}
                     disabled={markAllAsReadMutation.isPending}
                     accessibilityLabel={t('notification.mark_all_read')}
+                  />
+                ) : null}
+                {canUsePrivateApi ? (
+                  <Button
+                    appearance="subtle"
+                    tone="neutral"
+                    iconOnly
+                    icon={<RiLockLine width={20} height={20} fill={theme.colors.text} />}
+                    onPress={() => router.push('/notifications/private-mentions')}
+                    accessibilityLabel={t('privateMentions.title', {
+                      defaultValue: 'Private mentions',
+                    })}
                   />
                 ) : null}
                 <Button
