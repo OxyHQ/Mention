@@ -36,10 +36,11 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   upsertCachedUser: jest.fn(),
   upsertCachedUsers: jest.fn(),
 }));
-jest.mock('@/services/feedService', () => ({ feedService: { getPostById: jest.fn() } }));
+jest.mock('@/services/feedService', () => ({ feedService: {} }));
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: unknown) => unknown) => selector({ cachePosts: jest.fn() }),
 }));
+jest.mock('@/hooks/useStorePost', () => ({ useStorePost: () => null }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,

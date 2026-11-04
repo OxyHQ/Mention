@@ -55,7 +55,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   const [selectedPeriod, setSelectedPeriod] = useState(30);
   const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'publishing'>('overview');
 
-  const getPostById = usePostsStore((state) => state.getPostById);
+  const getPostsByIds = usePostsStore((state) => state.getPostsByIds);
 
   // Stats + engagement + hydrated top posts for the selected period. Keyed on
   // the auth identity, the SUBJECT and the period so it fires only once the
@@ -72,21 +72,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
         insightsService.getEngagementRatios(selectedPeriod, { accountId }),
       ]);
 
-      let topPosts: HydratedPost[] = [];
-      if (stats.topPosts && stats.topPosts.length > 0) {
-        const posts = await Promise.all(
-          stats.topPosts.slice(0, 5).map((postInfo) =>
-            getPostById(postInfo.postId).catch((error: unknown) => {
-              const status = (error as { response?: { status?: number } })?.response?.status;
-              if (status !== 404) {
-                logger.error(`Error loading post ${postInfo.postId}`, error);
-              }
-              return null;
-            }),
-          ),
-        );
-        topPosts = posts.filter((p): p is HydratedPost => p !== null);
-      }
+      // The top posts in ONE batch read (cached ones cost nothing). A failure
+      // leaves the figures on screen without them.
+      const topPosts: HydratedPost[] = await getPostsByIds(
+        (stats.topPosts ?? []).slice(0, 5).map((postInfo) => postInfo.postId),
+      ).catch((error: unknown) => {
+        logger.error('Error loading top posts', error);
+        return [];
+      });
 
       return { stats, engagement, topPosts };
     },

@@ -75,6 +75,7 @@ import {
   translationRateLimiter,
 } from '../middleware/security';
 import { getPostDocuments, resolveLinkPreviews } from '../controllers/posts/linkDocuments';
+import { getPostAncestors, getPostsBatch } from '../controllers/posts/postBatchReads';
 
 const router = Router();
 
@@ -132,6 +133,9 @@ publicPostsRouter.get('/in-area', getPostsInArea);
 publicPostsRouter.get('/nearby-all', getNearbyPostsBothLocations);
 publicPostsRouter.get('/location-stats', getLocationStats);
 publicPostsRouter.get('/', getPosts);
+// Several posts by id in one read (`?ids=a,b,c`), hydrated through the same ACL
+// as `/:id`. A literal, so it must stay ahead of `/:id`.
+publicPostsRouter.get('/batch', getPostsBatch);
 
 // Link cards the first read could not carry yet (`documentsPending`). Public for
 // the same reason `/:id` is, and hydrated through the same ACL, so it discloses
@@ -156,6 +160,11 @@ publicPostsRouter.get('/:id/likes/known', getKnownPostLikers);
 // owes that to are not signed in. The handler hydrates the post first and 404s
 // when this viewer may not read it, so it discloses nothing `/:id` would not.
 publicPostsRouter.get('/:id/corrections', getPostCorrections);
+
+// The reply chain above a post, root first, in one read: the post-detail thread.
+// 404 when this viewer may not read the post itself, and the chain stops at the
+// first ancestor they may not read — what reading each ancestor by `/:id` did.
+publicPostsRouter.get('/:id/ancestors', getPostAncestors);
 
 // Public post detail — parameterized, MUST be registered LAST so every literal
 // read above resolves first. Anonymous viewers receive ONLY public+published

@@ -8,12 +8,13 @@
  */
 
 const mockAuthenticatedPost = jest.fn();
+const mockAuthenticatedGet = jest.fn();
 const mockPublicPost = jest.fn();
 let mockAccessToken: string | undefined = 'token';
 
 jest.mock('@/utils/api', () => ({
   authenticatedClient: {
-    get: jest.fn(),
+    get: (...args: unknown[]) => mockAuthenticatedGet(...args),
     post: (...args: unknown[]) => mockAuthenticatedPost(...args),
   },
   publicClient: {
@@ -93,5 +94,32 @@ describe('feedService link cards', () => {
       { urls: ['https://example.com/a'] },
       { signal, retry: false },
     );
+  });
+});
+
+describe('feedService batch post reads', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockAccessToken = 'token';
+  });
+
+  it('reads a reply chain in one request', async () => {
+    mockAuthenticatedGet.mockResolvedValue({ data: { items: [{ id: 'root' }] } });
+    await expect(feedService.getPostAncestors('leaf')).resolves.toEqual([{ id: 'root' }]);
+    expect(mockAuthenticatedGet).toHaveBeenCalledWith('/posts/leaf/ancestors', {
+      signal: undefined,
+    });
+  });
+
+  it('reads several posts in one request, and nothing for no ids', async () => {
+    mockAuthenticatedGet.mockResolvedValue({ data: { items: [{ id: 'a' }] } });
+    await expect(feedService.getPostsByIds(['a', 'b'])).resolves.toEqual([{ id: 'a' }]);
+    expect(mockAuthenticatedGet).toHaveBeenCalledWith('/posts/batch', {
+      params: { ids: 'a,b' },
+      signal: undefined,
+    });
+
+    await expect(feedService.getPostsByIds([])).resolves.toEqual([]);
+    expect(mockAuthenticatedGet).toHaveBeenCalledTimes(1);
   });
 });

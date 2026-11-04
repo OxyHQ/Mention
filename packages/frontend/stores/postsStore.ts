@@ -16,6 +16,7 @@ import type {
   FeedPostSlice,
   FeedPostViewCounts,
 } from '@mention/shared-types';
+import { MAX_POST_ANCESTORS, MAX_POST_BATCH } from '@mention/shared-types/post';
 import { createLogger } from '@oxy.so/core/logger';
 import { feedService, type ExtendedFeedRequest } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
@@ -34,6 +35,7 @@ import {
   upsertPost as dbUpsertPost,
   upsertPosts as dbUpsertPosts,
   getPostById as dbGetPostById,
+  getPostsByIds as dbGetPostsByIds,
   getPostIdsReferencing as dbGetPostIdsReferencing,
   updatePost as dbUpdatePost,
   deletePost as dbDeletePost,
@@ -126,6 +128,17 @@ const persistRelatedPosts = (items: readonly FeedItem[]): void => {
   }
 };
 
+/**
+ * Write posts a read just returned into the shared cache — with the posts they
+ * embed — and wake the selectors watching any of them.
+ */
+const writeFetchedPosts = (items: readonly FeedItem[]): void => {
+  if (items.length === 0) return;
+  dbUpsertPosts([...items]);
+  persistRelatedPosts(items);
+  notifyPostChanges(collectWrittenPostIds([...items]));
+};
+
 // ── Request tracking ─────────────────────────────────────────────
 
 const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
@@ -152,6 +165,21 @@ let viewerStateEpoch = 0;
 
 const captureViewerStateEpoch = () => viewerStateEpoch;
 const isCurrentViewerStateEpoch = (epoch: number) => epoch === viewerStateEpoch;
+
+/**
+ * Drop a post the server refused this viewer (403/404) from every surface, with
+ * every cached boost or quote that embeds it, transitively.
+ */
+const removeRevokedPost = (get: () => PostsStoreState, postId: string): void => {
+  const revoked = new Set([postId]);
+  let cohort = [postId];
+  while (cohort.length > 0) {
+    const references = dbGetPostIdsReferencing(cohort).filter((id) => !revoked.has(id));
+    for (const id of references) revoked.add(id);
+    cohort = references;
+  }
+  for (const id of revoked) get().removePostEverywhere(id);
+};
 
 // ── Sync vote state from server ──────────────────────────────────
 
@@ -280,6 +308,18 @@ interface PostsStoreState {
   // circuit on a cache hit — it refreshes engagement/viewer state for an
   // already-cached post (e.g. when the post-detail screen opens from the feed).
   revalidatePostById: (postId: string) => Promise<FeedItem | null>;
+  // Several posts at once: cached ones from the shared cache, the rest in ONE
+  // batch read. Posts the viewer may not read are absent; order is kept.
+  getPostsByIds: (postIds: readonly string[]) => Promise<FeedItem[]>;
+  // The reply chain above `postId` (whose parent is `startParentId`), root
+  // first, in at most ONE read. `fresh` skips the cache (a supervised reader
+  // must not be shown what an earlier authority cached) and drops the ancestor
+  // the chain stopped at, as `revalidatePostById` drops a post it is refused.
+  loadPostAncestors: (
+    postId: string,
+    startParentId: string | null | undefined,
+    options?: { fresh?: boolean },
+  ) => Promise<FeedItem[]>;
   // Upsert post objects into the shared cache WITHOUT touching feed ordering.
   // Used by the feed query path (web without SQLite, and scoped feeds), which
   // owns its own ordering in the React Query cache but must still seed the
@@ -1637,16 +1677,7 @@ export const usePostsStore = create<PostsStoreState>()(
         if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch))
           return null;
         const { status } = normalizeApiError(error);
-        if (status === 403 || status === 404) {
-          const revoked = new Set([postId]);
-          let cohort = [postId];
-          while (cohort.length > 0) {
-            const references = dbGetPostIdsReferencing(cohort).filter((id) => !revoked.has(id));
-            for (const id of references) revoked.add(id);
-            cohort = references;
-          }
-          for (const id of revoked) get().removePostEverywhere(id);
-        }
+        if (status === 403 || status === 404) removeRevokedPost(get, postId);
         const errorMessage = error instanceof Error ? error.message : 'Failed to revalidate post';
         logger.debug('revalidatePostById failed', { postId, error: errorMessage });
         return null;
@@ -1656,6 +1687,65 @@ export const usePostsStore = create<PostsStoreState>()(
           pendingRequests.delete(requestKey);
         }
       }
+    },
+
+    // ── getPostsByIds ────────────────────────────────────────
+    getPostsByIds: async (postIds: readonly string[]) => {
+      const ids = [...new Set(postIds.filter(isValidId))];
+      if (ids.length === 0) return [];
+      const cached = dbGetPostsByIds(ids);
+      const misses = ids.filter((id) => !cached[id]);
+      const fetched = new Map<string, FeedItem>();
+      if (misses.length > 0) {
+        const operationEpoch = captureViewerStateEpoch();
+        const chunks: string[][] = [];
+        for (let offset = 0; offset < misses.length; offset += MAX_POST_BATCH) {
+          chunks.push(misses.slice(offset, offset + MAX_POST_BATCH));
+        }
+        const pages = await Promise.all(chunks.map((chunk) => feedService.getPostsByIds(chunk)));
+        if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
+        const items = pages
+          .flat()
+          .map((post) => toFeedItem(post))
+          .filter((item) => isValidId(item.id));
+        writeFetchedPosts(items);
+        for (const item of items) fetched.set(String(item.id), item);
+      }
+      return ids.flatMap((id) => {
+        const post = cached[id] ?? fetched.get(id);
+        return post ? [post] : [];
+      });
+    },
+
+    // ── loadPostAncestors ────────────────────────────────────
+    loadPostAncestors: async (postId, startParentId, options) => {
+      const fresh = options?.fresh === true;
+      if (!postId || !startParentId) return [];
+      const cached = fresh ? [] : getCachedAncestorChain(postId, startParentId);
+      const top = cached[0];
+      // A cached chain that reaches the root (or the ceiling) needs no read.
+      if (top && (!top.parentPostId || cached.length >= MAX_POST_ANCESTORS)) return cached;
+
+      const operationEpoch = captureViewerStateEpoch();
+      let fetched: FeedItem[];
+      try {
+        const response = await feedService.getPostAncestors(top ? String(top.id) : postId);
+        fetched = response.map((post) => toFeedItem(post)).filter((item) => isValidId(item.id));
+      } catch (error) {
+        // Unreadable, missing or offline: keep what the cache already showed.
+        logger.debug('loadPostAncestors failed', { postId, ...normalizeApiError(error) });
+        return isCurrentViewerStateEpoch(operationEpoch) ? cached : [];
+      }
+      if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
+      writeFetchedPosts(fetched);
+
+      // The chain stopped below a parent the server would not return: the same
+      // answer a per-ancestor revalidation got as a 403/404.
+      const stoppedAt = fetched.length > 0 ? fetched[0].parentPostId : startParentId;
+      if (fresh && stoppedAt && fetched.length < MAX_POST_ANCESTORS) {
+        removeRevokedPost(get, String(stoppedAt));
+      }
+      return [...fetched, ...cached].slice(-MAX_POST_ANCESTORS);
     },
 
     // ── cachePosts ───────────────────────────────────────────
@@ -1956,26 +2046,19 @@ const useFeedSnapshot = (feedKey: string | null): FeedSnapshot => {
 };
 
 /**
- * Hard ceiling on an ancestor walk, guarding a runaway or cyclic chain. Threads
- * are a handful of hops in practice; this is purely a safety bound, and it is
- * the same number the post-detail screen's async walk uses.
- */
-const MAX_CACHED_ANCESTOR_DEPTH = 30;
-
-/**
  * The part of a post's ancestor chain the cache can answer with NO network,
- * ordered root first — the same order the post-detail screen's async walk
+ * ordered root first — the same order `loadPostAncestors`
  * produces.
  *
- * Exists so the chain is on screen in the FIRST commit. The async walk sets
+ * Exists so the chain is on screen in the FIRST commit. The ancestor read sets
  * state from an effect, i.e. after the browser has already painted, so a fully
  * cached thread showed the focused post alone for a frame and then pushed it
  * down as its parents appeared. Opening a post from a feed is exactly the case
  * where every ancestor is already cached — the common case was the janky one.
  *
  * Stops at the first UNCACHED hop rather than skipping it: a chain with a hole
- * in it would render parents out of order. The async walk then fetches the tail
- * and replaces the whole chain.
+ * in it would render parents out of order. `loadPostAncestors` then reads the
+ * rest of the chain in one request and appends it above.
  */
 export const getCachedAncestorChain = (
   postId: string,
@@ -1986,7 +2069,7 @@ export const getCachedAncestorChain = (
   const visited = new Set<string>([postId]);
   let nextId: string | undefined = startParentId;
 
-  while (nextId && chain.length < MAX_CACHED_ANCESTOR_DEPTH) {
+  while (nextId && chain.length < MAX_POST_ANCESTORS) {
     if (visited.has(nextId)) break;
     visited.add(nextId);
     const ancestor = dbGetPostById(nextId);

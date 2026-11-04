@@ -1,10 +1,10 @@
 import type { FeedItem } from '@/db';
-import { getCachedAncestorChain } from '../postsStore';
+import { getCachedAncestorChain, usePostsStore } from '../postsStore';
 
 /**
  * The ancestor chain has to be on screen in the FIRST commit.
  *
- * The post-detail screen's ancestor walk is async and sets state from an effect
+ * The post-detail screen's ancestor read is async and sets state from an effect
  * — after the browser has already painted — so a fully cached thread showed the
  * focused post alone for a frame and then pushed it down as its parents
  * appeared. Opening a post from a feed is exactly the case where every ancestor
@@ -17,13 +17,16 @@ import { getCachedAncestorChain } from '../postsStore';
  */
 
 const mockCache = new Map<string, FeedItem>();
+const mockGetPostAncestors = jest.fn();
+const mockDeletePost = jest.fn();
 
 jest.mock('@/db', () => ({
   getPostById: (postId: string) => mockCache.get(postId) ?? null,
+  getPostIdsReferencing: () => [],
   upsertPost: jest.fn(),
   upsertPosts: jest.fn(),
   updatePost: () => null,
-  deletePost: jest.fn(),
+  deletePost: (postId: string) => mockDeletePost(postId),
   pruneOldPosts: jest.fn(),
   setFeedItems: jest.fn(),
   appendFeedItems: jest.fn(),
@@ -40,7 +43,11 @@ jest.mock('@/db', () => ({
   clearAllCachedData: () => mockCache.clear(),
 }));
 
-jest.mock('@/services/feedService', () => ({ feedService: {} }));
+jest.mock('@/services/feedService', () => ({
+  feedService: { getPostAncestors: (postId: string) => mockGetPostAncestors(postId) },
+}));
+// Fixtures are already in the cached shape; only the chain fields are read.
+jest.mock('@/db/feedItem', () => ({ toFeedItem: (post: FeedItem) => post }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/stores/engagementInvalidation', () => ({ invalidateEngagementLists: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
@@ -66,6 +73,7 @@ const ids = (chain: FeedItem[]): string[] => chain.map((post) => post.id);
 
 beforeEach(() => {
   mockCache.clear();
+  jest.clearAllMocks();
 });
 
 describe('getCachedAncestorChain', () => {
@@ -79,7 +87,7 @@ describe('getCachedAncestorChain', () => {
 
   it('stops at the first uncached hop instead of skipping it', () => {
     // `root` is referenced but NOT cached. `['root','mid']` would be a fabrication
-    // and `['mid']` is the honest partial answer — the async walk fetches the rest
+    // and `['mid']` is the honest partial answer — `loadPostAncestors` reads the rest
     // and replaces the whole chain.
     seed('mid', 'root');
     seed('leaf', 'mid');
@@ -113,7 +121,7 @@ describe('getCachedAncestorChain', () => {
 
   it('stops at the depth cap on a long chain', () => {
     // 40 cached ancestors against a cap of 30. Without the bound this walks the
-    // whole chain; with it, the async walk owns everything past the cap.
+    // whole chain; with it, nothing past the cap is shown.
     seed('p0');
     for (let index = 1; index <= 40; index += 1) seed(`p${index}`, `p${index - 1}`);
     seed('leaf', 'p40');
@@ -122,5 +130,40 @@ describe('getCachedAncestorChain', () => {
     expect(chain).toHaveLength(30);
     // Root first, so the LAST entry is the immediate parent.
     expect(chain[chain.length - 1]?.id).toBe('p40');
+  });
+});
+
+describe('loadPostAncestors', () => {
+  const load = (postId: string, parentId: string, fresh = false) =>
+    usePostsStore.getState().loadPostAncestors(postId, parentId, { fresh });
+
+  it('answers a chain cached up to the root without a request', async () => {
+    seed('root');
+    seed('mid', 'root');
+    seed('leaf', 'mid');
+
+    expect(ids(await load('leaf', 'mid'))).toEqual(['root', 'mid']);
+    expect(mockGetPostAncestors).not.toHaveBeenCalled();
+  });
+
+  it('reads the uncached rest in one request, from the top of the cached part', async () => {
+    seed('mid', 'root');
+    seed('leaf', 'mid');
+    mockGetPostAncestors.mockResolvedValue([{ id: 'root' }]);
+
+    expect(ids(await load('leaf', 'mid'))).toEqual(['root', 'mid']);
+    expect(mockGetPostAncestors).toHaveBeenCalledTimes(1);
+    expect(mockGetPostAncestors).toHaveBeenCalledWith('mid');
+  });
+
+  it('reads past the cache when fresh, and drops the ancestor the chain stopped at', async () => {
+    seed('hidden');
+    seed('mid', 'hidden');
+    seed('leaf', 'mid');
+    mockGetPostAncestors.mockResolvedValue([{ id: 'mid', parentPostId: 'hidden' }]);
+
+    expect(ids(await load('leaf', 'mid', true))).toEqual(['mid']);
+    expect(mockGetPostAncestors).toHaveBeenCalledWith('leaf');
+    expect(mockDeletePost).toHaveBeenCalledWith('hidden');
   });
 });

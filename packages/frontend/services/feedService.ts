@@ -20,6 +20,7 @@ import type {
   PostDocumentsRequest,
   PostDocumentsResponse,
   PostEditSource,
+  PostListResponse,
   PostUser,
   LinkPreviewRequest,
   LinkPreviewResponse,
@@ -845,6 +846,33 @@ class FeedService {
       });
     }
     return await makeViewerAwarePublicRead<HydratedPost>(`/posts/${postId}`, { signal });
+  }
+
+  /**
+   * The reply chain above `postId`, root first, ending at its immediate parent,
+   * in ONE read (`GET /posts/:id/ancestors`). Stops at the first ancestor this
+   * viewer may not read; rejects (404) when they may not read `postId` itself.
+   */
+  async getPostAncestors(postId: string, signal?: AbortSignal): Promise<HydratedPost[]> {
+    const response = await makeViewerAwarePublicRead<PostListResponse>(
+      `/posts/${encodeURIComponent(postId)}/ancestors`,
+      { signal },
+    );
+    return Array.isArray(response.items) ? response.items : [];
+  }
+
+  /**
+   * Up to `MAX_POST_BATCH` posts by id in ONE read (`GET /posts/batch`), in the
+   * order asked for. A post this viewer may not read, or that does not exist,
+   * is absent.
+   */
+  async getPostsByIds(ids: readonly string[], signal?: AbortSignal): Promise<HydratedPost[]> {
+    if (ids.length === 0) return [];
+    const response = await makeViewerAwarePublicRead<PostListResponse>('/posts/batch', {
+      params: { ids: ids.join(',') },
+      signal,
+    });
+    return Array.isArray(response.items) ? response.items : [];
   }
 
   /**

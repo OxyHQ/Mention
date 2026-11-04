@@ -14,7 +14,7 @@ import { WeeklyRecapContent } from '@/components/insights/WeeklyRecapContent';
 export default function WeeklyRecapScreen() {
   const { t } = useTranslation();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
-  const getPostById = usePostsStore((state) => state.getPostById);
+  const getPostsByIds = usePostsStore((state) => state.getPostsByIds);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: viewerQueryKeys.weeklyRecapPosts(user?.id),
     enabled: canUsePrivateApi,
@@ -22,13 +22,10 @@ export default function WeeklyRecapScreen() {
       // Use the API's actual period. Sparse daily rows cannot be split into
       // weeks by array position; the API doesn't provide prior-week post totals.
       const stats = await insightsService.getAccountInsights(7);
-      const posts = await Promise.all(
-        stats.topPosts.slice(0, 5).map((post) => getPostById(post.postId).catch(() => null)),
-      );
-      return {
-        stats,
-        topPosts: posts.filter((post): post is HydratedPost => post !== null),
-      };
+      const topPosts: HydratedPost[] = await getPostsByIds(
+        stats.topPosts.slice(0, 5).map((post) => post.postId),
+      ).catch(() => []);
+      return { stats, topPosts };
     },
   });
   const { data: summary } = useQuery({
