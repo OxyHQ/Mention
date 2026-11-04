@@ -92,7 +92,6 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.weeklyRecapSummary(viewerId),
       viewerQueryKeys.insights(viewerId, null, 30),
       viewerQueryKeys.recommendationFilters(viewerId),
-      viewerQueryKeys.welcomeStatus(viewerId),
       viewerQueryKeys.recommendations(viewerId, 'agent'),
       viewerQueryKeys.infiniteRecommendations(viewerId, 'agent'),
       viewerQueryKeys.newestUsers(viewerId),

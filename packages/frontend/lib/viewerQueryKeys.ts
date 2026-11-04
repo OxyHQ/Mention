@@ -595,9 +595,6 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'insights', subjectId ?? 'self', period] as const,
   recommendationFilters: (viewerId: ViewerId) =>
     [...viewerQueryKeys.all(viewerId), 'recommendation-filters'] as const,
-  /** When the viewer finished the first-run `/welcome` flow (`null` = not yet). */
-  welcomeStatus: (viewerId: ViewerId) =>
-    [...viewerQueryKeys.all(viewerId), 'welcome-status'] as const,
   recommendations: (viewerId: ViewerId, excludeTypesCsv: string) =>
     [...viewerQueryKeys.all(viewerId), 'recommendations', excludeTypesCsv] as const,
   infiniteRecommendations: (viewerId: ViewerId, excludeTypesCsv: string) =>

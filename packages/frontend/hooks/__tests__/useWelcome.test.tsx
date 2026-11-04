@@ -6,7 +6,10 @@ import { authenticatedClient } from '@/utils/api';
 import { useCompleteWelcome, useWelcomeStatus } from '../useWelcome';
 
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: jest.fn() }));
-jest.mock('@/utils/api', () => ({ authenticatedClient: { get: jest.fn(), post: jest.fn() } }));
+jest.mock('@/utils/api', () => ({
+  authenticatedClient: { get: jest.fn(), post: jest.fn() },
+  isNotFoundError: () => false,
+}));
 
 let status: { needsWelcome: boolean } | undefined;
 let complete: ReturnType<typeof useCompleteWelcome> | undefined;
