@@ -96,7 +96,9 @@ repository walk would have to re-derive.
 [Jetstream](https://bsky.network/docs/jetstream/) v2
 (`network.bsky.jetstream.subscribeEvents`; public, free, no authentication).
 It is configured with `ATPROTO_JETSTREAM_ENABLED` (on with the connector) and
-`ATPROTO_JETSTREAM_URL` (default `wss://jetstream.us-east.bsky.network`).
+`ATPROTO_JETSTREAM_URL`: one or more comma-separated origins, by default
+`wss://jetstream.us-west.bsky.network` (the backend's own region) then
+`wss://jetstream.us-east.bsky.network`.
 
 **Where it runs.** On the scheduler leader. It is started and stopped with the
 other leader-gated jobs (`runtime/schedulers.ts`), so exactly one task in the
@@ -147,8 +149,14 @@ was handled:
 - **A queue that outgrows its bound** reconnects the same way. That is the
   backpressure.
 - **Reconnects back off** exponentially, up to a minute, and the backoff resets
-  after a connection has stayed up. A connection silent for two minutes counts as
-  dead.
+  after a connection has stayed up. Each reconnect moves to the next origin, so a
+  degraded instance is left behind; the timestamp cursor is valid on every one.
+- **A stream that falls behind live is reconnected.** An instance can stay
+  connected while delivering a trickle of old events (us-east on 2026-11-04: one
+  event a second, then none, while us-west delivered fifty). Every two minutes
+  the consumer checks that the stream's own clock, the newest `witnessedAt`,
+  advanced by at least half the time that passed. A live tail advances one for
+  one and a replay faster, so one that does not has stalled.
 - **An outage longer than Jetstream's replay window** (36 h) starts at the oldest
   event it still has, with an `OutdatedCursor` notice in the log. The periodic
   author-feed sync covers the gap.

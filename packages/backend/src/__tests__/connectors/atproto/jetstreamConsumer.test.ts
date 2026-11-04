@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * The Jetstream consumer against a fake stream: commits reach their collection's
  * handler in order, the cursor is saved only past handled work, a restart
- * resumes from the saved cursor, and a batch whose handler threw is delivered
- * again from the last good cursor.
+ * resumes from the saved cursor, a batch whose handler threw is delivered again
+ * from the last good cursor, and a stream that falls behind live is left for
+ * the next instance.
  */
 
 import {
@@ -109,7 +110,7 @@ describe('JetstreamConsumer', () => {
     const handler = recordingHandler();
     const { store, cursors } = memoryCursors();
     const consumer = new JetstreamConsumer({
-      endpoint: 'wss://jetstream.test',
+      endpoints: ['wss://jetstream.test'],
       handlers: [handler],
       cursors,
       transport,
@@ -135,12 +136,36 @@ describe('JetstreamConsumer', () => {
     await consumer.stop();
   });
 
+  it('moves to the next instance when the stream falls behind live', async () => {
+    const { transport, connections } = fakeTransport();
+    const { cursors } = memoryCursors();
+    const consumer = new JetstreamConsumer({
+      endpoints: ['wss://east.test', 'wss://west.test'],
+      handlers: [recordingHandler()],
+      cursors,
+      transport,
+      stallWindowMs: 60_000,
+      reconnectBaseMs: 10,
+    });
+
+    await consumer.start();
+    // A trickle: one frame a minute, each one second newer than the last.
+    for (let minute = 1; minute <= 2; minute++) {
+      connections[0].send(commitFrame(minute * 1_000_000, 'create', `t${minute}`));
+      await vi.advanceTimersByTimeAsync(60_000);
+    }
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(connections.map((c) => new URL(c.url).host)).toEqual(['east.test', 'west.test']);
+    await consumer.stop();
+  });
+
   it('resumes from the saved cursor, and replays a batch whose handler failed', async () => {
     const { transport, connections } = fakeTransport();
     const handler = recordingHandler();
     const { store, cursors } = memoryCursors(BASE_MICROS);
     const consumer = new JetstreamConsumer({
-      endpoint: 'wss://jetstream.test',
+      endpoints: ['wss://jetstream.test'],
       handlers: [handler],
       cursors,
       transport,

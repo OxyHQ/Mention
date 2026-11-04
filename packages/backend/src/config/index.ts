@@ -387,18 +387,32 @@ const environmentSchema = z
      * The Bluesky Jetstream consumer (`connectors/atproto/jetstream/`): live
      * posts and deletes, read by the scheduler leader. ON with the connector;
      * `false` closes the stream and leaves the periodic author-feed sync. The URL
-     * is a Jetstream v2 origin (`network.bsky.jetstream.subscribeEvents`).
+     * is one or more comma-separated Jetstream v2 origins
+     * (`network.bsky.jetstream.subscribeEvents`), tried in order and rotated on
+     * every reconnect. us-west first: the backend runs in us-west-2.
      */
     ATPROTO_JETSTREAM_ENABLED: booleanFromEnv(true),
     ATPROTO_JETSTREAM_URL: z.preprocess(
       emptyAsUndefined,
       z
         .string()
-        .trim()
-        .url()
-        .refine((value) => new URL(value).protocol === 'wss:', 'must use wss://')
-        .transform(withoutTrailingSlash)
-        .default('wss://jetstream.us-east.bsky.network'),
+        .default('wss://jetstream.us-west.bsky.network,wss://jetstream.us-east.bsky.network')
+        .transform((value) =>
+          value
+            .split(',')
+            .map((url) => withoutTrailingSlash(url.trim()))
+            .filter((url) => url.length > 0),
+        )
+        .pipe(
+          z
+            .array(
+              z
+                .string()
+                .url()
+                .refine((value) => new URL(value).protocol === 'wss:', 'must use wss://'),
+            )
+            .min(1),
+        ),
     ),
 
     /**
@@ -870,7 +884,7 @@ export const config = {
     plcDirectoryHost: environment.ATPROTO_PLC_DIRECTORY,
     jetstream: {
       enabled: environment.ATPROTO_ENABLED && environment.ATPROTO_JETSTREAM_ENABLED,
-      url: environment.ATPROTO_JETSTREAM_URL,
+      urls: environment.ATPROTO_JETSTREAM_URL,
     },
   },
   oxyFiles: {
