@@ -684,12 +684,7 @@
     "repostedBy": "Impulsado por",
     "sensitiveContent": "Contenido sensible",
     "sensitiveContentTap": "Toca para mostrar",
-    "sourcesSheet": {
-      "empty": "No hay fuentes disponibles para esta publicación.",
-      "title": "Fuentes"
-    },
     "viewArticle": "Ver artículo",
-    "viewSources": "Ver fuentes",
     "editedIndicator": "Editado",
     "editedToast": "Esta publicación fue editada",
     "language": {
@@ -720,7 +715,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "en !{{handle}}"
+    "inCommunity": "en !{{handle}}",
+    "sources": "Fuentes"
   },
   "navigation": {
     "menu": "Menú de navegación",
@@ -3079,7 +3075,7 @@
       "choose": "Elegir un carril"
     },
     "postActions": {
-      "moveToLane": "Mover a un carril…",
+      "moveToLane": "Mover a un carril",
       "moveFailed": "No se pudo mover esta publicación",
       "muteLane": "Silenciar «{{lane}}» de @{{username}}",
       "muteLaneConfirm": "Las publicaciones de «{{lane}}» dejan de aparecer en tus feeds. Sigues siguiendo a @{{username}}, y todo lo demás que publique te sigue llegando.",

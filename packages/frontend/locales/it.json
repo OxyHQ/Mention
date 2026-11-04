@@ -684,12 +684,7 @@
     "repostedBy": "Boostato da",
     "sensitiveContent": "Contenuto sensibile",
     "sensitiveContentTap": "Tocca per mostrare",
-    "sourcesSheet": {
-      "empty": "Nessuna fonte disponibile per questo post.",
-      "title": "Fonti"
-    },
     "viewArticle": "Leggi l'articolo",
-    "viewSources": "Vedi le fonti",
     "editedIndicator": "Modificato",
     "editedToast": "Questo post è stato modificato",
     "language": {
@@ -720,7 +715,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "in !{{handle}}"
+    "inCommunity": "in !{{handle}}",
+    "sources": "Fonti"
   },
   "navigation": {
     "menu": "Menu di navigazione",
@@ -3079,7 +3075,7 @@
       "choose": "Scegli una corsia"
     },
     "postActions": {
-      "moveToLane": "Sposta in una corsia…",
+      "moveToLane": "Sposta in una corsia",
       "moveFailed": "Impossibile spostare questo post",
       "muteLane": "Silenzia «{{lane}}» di @{{username}}",
       "muteLaneConfirm": "I post su «{{lane}}» smettono di comparire nei tuoi feed. Continui a seguire @{{username}}, e tutto il resto che pubblica ti arriva comunque.",

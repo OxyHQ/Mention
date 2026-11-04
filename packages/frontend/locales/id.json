@@ -674,12 +674,7 @@
     "repostedBy": "Diposting ulang oleh",
     "sensitiveContent": "Konten sensitif",
     "sensitiveContentTap": "Ketuk untuk menampilkan",
-    "sourcesSheet": {
-      "empty": "Tidak ada sumber untuk postingan ini.",
-      "title": "Sumber"
-    },
     "viewArticle": "Lihat artikel",
-    "viewSources": "Lihat sumber",
     "editedIndicator": "Diedit",
     "editedToast": "Postingan ini telah diedit",
     "language": {
@@ -708,7 +703,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "di !{{handle}}"
+    "inCommunity": "di !{{handle}}",
+    "sources": "Sumber"
   },
   "navigation": {
     "menu": "Menu navigasi",
@@ -3054,7 +3050,7 @@
       "choose": "Pilih jalur"
     },
     "postActions": {
-      "moveToLane": "Pindahkan ke jalur…",
+      "moveToLane": "Pindahkan ke jalur",
       "moveFailed": "Gagal memindahkan postingan ini",
       "muteLane": "Bisukan «{{lane}}» dari @{{username}}",
       "muteLaneConfirm": "Postingan di «{{lane}}» berhenti muncul di feed-mu. Kamu tetap mengikuti @{{username}}, dan semua postingannya yang lain tetap sampai kepadamu.",

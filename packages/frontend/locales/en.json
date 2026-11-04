@@ -674,12 +674,7 @@
     "repostedBy": "Reposted by",
     "sensitiveContent": "Sensitive content",
     "sensitiveContentTap": "Tap to reveal",
-    "sourcesSheet": {
-      "empty": "No sources available for this post.",
-      "title": "Sources"
-    },
     "viewArticle": "View article",
-    "viewSources": "View sources",
     "editedIndicator": "Edited",
     "editedToast": "This post was edited",
     "language": {
@@ -708,7 +703,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "in !{{handle}}"
+    "inCommunity": "in !{{handle}}",
+    "sources": "Sources"
   },
   "navigation": {
     "menu": "Navigation menu",
@@ -3054,7 +3050,7 @@
       "choose": "Choose a lane"
     },
     "postActions": {
-      "moveToLane": "Move to lane…",
+      "moveToLane": "Move to lane",
       "moveFailed": "Failed to move this post",
       "muteLane": "Mute «{{lane}}» from @{{username}}",
       "muteLaneConfirm": "Posts on «{{lane}}» stop appearing in your feeds. You keep following @{{username}}, and everything else they post still reaches you.",

@@ -674,12 +674,7 @@
     "repostedBy": "ブーストしたユーザー",
     "sensitiveContent": "センシティブなコンテンツ",
     "sensitiveContentTap": "タップして表示",
-    "sourcesSheet": {
-      "empty": "この投稿に出典はありません。",
-      "title": "出典"
-    },
     "viewArticle": "記事を見る",
-    "viewSources": "出典を見る",
     "editedIndicator": "編集済み",
     "editedToast": "この投稿は編集されました",
     "language": {
@@ -708,7 +703,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "!{{handle}} にて"
+    "inCommunity": "!{{handle}} にて",
+    "sources": "出典"
   },
   "navigation": {
     "menu": "ナビゲーションメニュー",
@@ -3054,7 +3050,7 @@
       "choose": "レーンを選択"
     },
     "postActions": {
-      "moveToLane": "レーンに移動…",
+      "moveToLane": "レーンに移動",
       "moveFailed": "この投稿を移動できませんでした",
       "muteLane": "@{{username}}の「{{lane}}」をミュート",
       "muteLaneConfirm": "「{{lane}}」の投稿はフィードに表示されなくなります。@{{username}}のフォローは続き、それ以外の投稿はこれまでどおり届きます。",

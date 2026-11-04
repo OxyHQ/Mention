@@ -2,18 +2,15 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
-import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
-import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import type { Lane } from '@mention/shared-types';
-import { lanesService } from '@/services/lanesService';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { usePublisherLanes } from '@/hooks/usePublisherLanes';
 import { EmptyState } from '@/components/common/EmptyState';
 
 interface LanePickerSheetProps {
@@ -55,30 +52,8 @@ const LanePickerSheet = memo(function LanePickerSheet({
 }: LanePickerSheetProps) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { user, canUsePrivateApi } = useAuth();
 
-  // Only an account's OWNER may read its management list; a mere member gets the
-  // public one, which is tab lanes only. The role comes off the account node the
-  // composer already holds, so it costs no extra request — and asking the wrong
-  // endpoint would answer 403 rather than an empty list.
-  const managesPublisher =
-    publishAs != null &&
-    (publishAs.relationship === 'owner' || publishAs.callerMembership?.role === 'owner');
-
-  const { data: lanes = [], isLoading } = useQuery<Lane[]>({
-    queryKey: publishAs
-      ? managesPublisher
-        ? viewerQueryKeys.operatedLanes(user?.id, publishAs.accountId)
-        : viewerQueryKeys.lanesForOwner(user?.id, publishAs.accountId)
-      : viewerQueryKeys.ownedLanes(user?.id),
-    queryFn: () => {
-      if (!publishAs) return lanesService.listMine();
-      return managesPublisher
-        ? lanesService.listMine(publishAs.accountId)
-        : lanesService.listForOwner(publishAs.accountId);
-    },
-    enabled: canUsePrivateApi,
-  });
+  const { lanes, isLoading } = usePublisherLanes(publishAs);
 
   const handleSelect = useCallback(
     (laneId: string | null) => {

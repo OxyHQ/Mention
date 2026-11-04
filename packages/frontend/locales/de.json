@@ -674,12 +674,7 @@
     "repostedBy": "Geboostet von",
     "sensitiveContent": "Sensibler Inhalt",
     "sensitiveContentTap": "Zum Anzeigen tippen",
-    "sourcesSheet": {
-      "empty": "Für diesen Beitrag sind keine Quellen verfügbar.",
-      "title": "Quellen"
-    },
     "viewArticle": "Artikel ansehen",
-    "viewSources": "Quellen ansehen",
     "editedIndicator": "Bearbeitet",
     "editedToast": "Dieser Beitrag wurde bearbeitet",
     "language": {
@@ -708,7 +703,8 @@
     "job": {
       "label": "Job"
     },
-    "inCommunity": "in !{{handle}}"
+    "inCommunity": "in !{{handle}}",
+    "sources": "Quellen"
   },
   "navigation": {
     "menu": "Navigationsmenü",
@@ -3054,7 +3050,7 @@
       "choose": "Spur auswählen"
     },
     "postActions": {
-      "moveToLane": "Auf Spur verschieben …",
+      "moveToLane": "Auf Spur verschieben",
       "moveFailed": "Dieser Beitrag konnte nicht verschoben werden",
       "muteLane": "„{{lane}}“ von @{{username}} stummschalten",
       "muteLaneConfirm": "Beiträge auf „{{lane}}“ erscheinen nicht mehr in deinen Feeds. Du folgst @{{username}} weiterhin, und alles andere von dieser Person erreicht dich nach wie vor.",
