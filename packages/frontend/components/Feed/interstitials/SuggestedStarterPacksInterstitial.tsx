@@ -8,7 +8,8 @@ import { FollowButton } from '@/components/FollowButton';
 import {
   StarterPackCard,
   StarterPackCardSkeleton,
-  type StarterPackCardData,
+  starterPackCardData,
+  starterPackId,
 } from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { logger } from '@oxy.so/core/logger';
@@ -137,10 +138,6 @@ export function SuggestedStarterPacksInterstitial({
   );
 }
 
-function starterPackId(pack: StarterPackSummary): string {
-  return String(pack.id || pack._id);
-}
-
 interface SuggestedStarterPackItemProps {
   pack: StarterPackSummary;
   /** 0-based index within the band — the `position` every item event carries. */
@@ -171,19 +168,7 @@ function SuggestedStarterPackItem({
 
   const id = starterPackId(pack);
   const memberIds = pack.memberOxyUserIds ?? [];
-  const memberCount = pack.memberCount ?? memberIds.length;
-
-  const cardData: StarterPackCardData = {
-    id,
-    name: pack.name,
-    description: pack.description,
-    creator: pack.creator,
-    memberCount,
-    useCount: pack.useCount ?? 0,
-    memberAvatars: pack.memberAvatars ?? [],
-    memberProfiles: pack.memberProfiles,
-    totalMembers: memberCount,
-  };
+  const cardData = starterPackCardData(pack);
 
   return (
     <View className="flex-1 gap-2">

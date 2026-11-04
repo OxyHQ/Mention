@@ -71,6 +71,8 @@ export interface UserSettingsResponse {
   feedSettings?: FeedSettings;
   notificationPreferences?: NotificationPreferences;
   externalEmbeds?: ExternalEmbedsSettings;
+  /** When the account finished or skipped `/welcome`; absent until then. Owner-only. */
+  welcomeCompletedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }

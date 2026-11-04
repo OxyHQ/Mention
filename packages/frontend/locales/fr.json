@@ -3448,5 +3448,31 @@
       "title": "Ne rate rien de ce qui se passe",
       "subtitle": "Sur Mention, on est les premiers au courant."
     }
+  },
+  "welcome": {
+    "stepCount": "Étape {{position}} sur {{total}}",
+    "skip": "Passer",
+    "back": "Retour",
+    "next": "Suivant",
+    "finish": "Terminé",
+    "interests": {
+      "title": "Qu'est-ce qui vous intéresse ?",
+      "description": "Choisissez quelques sujets. Ils façonnent votre fil et vous suivent dans toutes les apps Oxy."
+    },
+    "people": {
+      "title": "Trouvez des personnes à suivre",
+      "description": "Suivez un starter pack en un geste, ou choisissez les personnes une par une.",
+      "packsTitle": "Starter packs",
+      "suggestionsTitle": "Des personnes qui pourraient vous plaire",
+      "followAll": "Tout suivre",
+      "followingAll": "Tous suivis"
+    },
+    "profile": {
+      "title": "À votre image",
+      "description": "Ajoutez une photo et une bio pour que les gens sachent qui ils suivent.",
+      "heading": "Votre profil",
+      "body": "Une photo et une courte bio aident les gens à vous suivre en retour. Vous pouvez les modifier à tout moment dans les Réglages.",
+      "edit": "Modifier le profil"
+    }
   }
 }

@@ -17,6 +17,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
+import type { StarterPackSummary } from '@/services/starterPacksService';
 
 export interface StarterPackCardData {
   id: string;
@@ -35,6 +36,27 @@ export interface StarterPackCardData {
   memberProfiles?: AvatarIdentitySummary[];
   /** Total member count for "+N" calculation (defaults to memberCount) */
   totalMembers?: number;
+}
+
+/** The stable id of a pack as the API returns it (`id`, or a legacy `_id`). */
+export function starterPackId(pack: StarterPackSummary): string {
+  return String(pack.id || pack._id || '');
+}
+
+/** What every list of packs hands {@link StarterPackCard}. */
+export function starterPackCardData(pack: StarterPackSummary): StarterPackCardData {
+  const memberCount = pack.memberCount ?? (pack.memberOxyUserIds ?? []).length;
+  return {
+    id: starterPackId(pack),
+    name: pack.name || 'Untitled Pack',
+    description: pack.description,
+    creator: pack.creator,
+    memberCount,
+    useCount: pack.useCount ?? 0,
+    memberAvatars: pack.memberAvatars ?? [],
+    memberProfiles: pack.memberProfiles,
+    totalMembers: memberCount,
+  };
 }
 
 interface StarterPackCardProps {

@@ -20,6 +20,7 @@ import {
 import { buildSettingsResponseForViewer } from '../utils/userSettings';
 import {
   UnknownSettingsPathError,
+  completeWelcome,
   ensureUserSettings,
   loadUserSettings,
   updateUserSettings,
@@ -71,6 +72,24 @@ router.get('/settings/me', async (req: AuthRequest, res: Response) => {
       error: err,
     });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');
+  }
+});
+
+/**
+ * POST /api/profile/settings/welcome
+ * Record that the viewer finished or skipped the first-run `/welcome` flow.
+ * Idempotent: the first stamp is kept.
+ */
+router.post('/settings/welcome', async (req: AuthRequest, res: Response) => {
+  try {
+    const welcomeCompletedAt = await completeWelcome(getAuthenticatedUserId(req));
+    return sendSuccessResponse(res, 200, { welcomeCompletedAt });
+  } catch (err) {
+    logger.error('[ProfileSettings] Error completing welcome:', {
+      userId: req.user?.id,
+      error: err,
+    });
+    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to complete welcome');
   }
 });
 
