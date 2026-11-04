@@ -354,6 +354,12 @@
       "metric": "lines",
       "date": "2026-10-25",
       "reason": "Mention's own sheet host (context/BottomSheetContext.tsx, components/common/ContentDialog.tsx, hooks/useSourcesSheet.tsx) and lib/SafeAreaViewInterop were deleted with their tests: sheets are Bloom surfaces (present(), tested in Bloom) and safe areas are NativeWind classes. Sheet content now builds inside a render function, so a test that only checks a sheet was presented no longer evaluates its JSX; the overall ratio moves by under 0.15 point."
+    },
+    {
+      "path": "total",
+      "metric": "functions",
+      "date": "2026-11-04",
+      "reason": "Native accounts no longer draw the fediverse icon beside their name (product decision, #1814): FediverseSharingBadge (components/AccountBadge.tsx) and the trailingBadge prop it was the only user of (UserName, ChannelHeader) were deleted together with their test. That removes exactly one covered function (3960/7783 -> 3959/7782), so the overall functions ratio moves by 0.01 point; no per-file pin is lowered."
     }
   ],
   "globalDriftAllowancePoints": 0.75,

@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 56.43,
-      "covered": 16872,
-      "total": 29898
+      "pct": 56.45,
+      "covered": 16886,
+      "total": 29911
     },
     "branches": {
-      "pct": 52.92,
-      "covered": 12261,
-      "total": 23167
+      "pct": 52.96,
+      "covered": 12270,
+      "total": 23168
     },
     "functions": {
-      "pct": 50.88,
-      "covered": 3960,
-      "total": 7783
+      "pct": 50.87,
+      "covered": 3959,
+      "total": 7782
     },
     "lines": {
-      "pct": 57.37,
-      "covered": 15228,
-      "total": 26543
+      "pct": 57.39,
+      "covered": 15239,
+      "total": 26553
     }
   },
   "pins": {
@@ -1884,8 +1884,8 @@
       "lines": 100
     },
     "utils/postLinkCards.ts": {
-      "statements": 92,
-      "branches": 91,
+      "statements": 94,
+      "branches": 95,
       "functions": 100,
       "lines": 97
     },
