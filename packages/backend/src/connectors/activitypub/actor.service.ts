@@ -123,6 +123,11 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
     //
     // Oxy's per-source alias is a projection for content provenance. Transport
     // acct/domain/keys remain the remote actor's delivery coordinates.
+    //
+    // `discoverable` and `indexable` arrive in `columns`. The resolver leaves
+    // `indexable` out when the actor does not state it, and the row then stores
+    // NULL ("said nothing"), which `federatedSearchOptOutSql` reads as not
+    // indexable — Mastodon's rule for a remote account.
     const { fields, uri: _uri, ...columns } = update;
     const resolved = await resolveOxyIdentity({
       actorUri: uri,

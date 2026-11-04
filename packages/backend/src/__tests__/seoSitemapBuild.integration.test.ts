@@ -64,7 +64,7 @@ vi.mock('../utils/cache', () => ({
 import webShellRoutes from '../routes/webShell.routes';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { userSettings } from '../db/schema';
+import { federatedActors, userSettings } from '../db/schema';
 import { buildAllSitemaps, buildSitemapsIfDue, sitemapsAreDue } from '../services/seoSitemap';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 
@@ -72,6 +72,7 @@ const scope = postScope('seo-sitemap-build');
 const AUTHOR = scope.user('author');
 const HIDDEN = scope.user('hidden');
 const OPTED_OUT = scope.user('opted-out');
+const FEDERATED = scope.user('federated');
 
 function bucketOf(value: string): string {
   return (Number.parseInt(createHash('md5').update(value).digest('hex').slice(0, 8), 16) % 64)
@@ -251,6 +252,45 @@ describe('SEO sitemaps', () => {
       expect(resolved).not.toContain(OPTED_OUT);
     } finally {
       await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, OPTED_OUT));
+    }
+  });
+
+  it('leaves out a federated author whose origin did not opt in to indexing', async () => {
+    // An ActivityPub actor that never sent `indexable: true` — Mastodon's rule.
+    const actorUri = `https://origin.example/users/${FEDERATED}`;
+    await getDb()
+      .insert(federatedActors)
+      .values({
+        uri: actorUri,
+        username: FEDERATED,
+        domain: 'origin.example',
+        acct: `${FEDERATED}@origin.example`,
+        oxyUserId: FEDERATED,
+      });
+    try {
+      const listed = await seedPost(scope, {
+        oxyUserId: AUTHOR,
+        authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+      });
+      const post = await seedPost(scope, {
+        oxyUserId: FEDERATED,
+        authorship: [{ oxyUserId: FEDERATED, role: 'owner', status: 'accepted' }],
+      });
+
+      await buildAllSitemaps();
+
+      const app = makeApp();
+      // The opt-out is the author's own, not anyone else's.
+      const listedShard = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-0.xml`);
+      expect(listedShard.text).toContain(listed.id);
+      const shard = await request(app).get(`/sitemaps/posts-${bucketOf(post.id)}-0.xml`);
+      expect(shard.text).not.toContain(post.id);
+      const resolved = serviceRequest.mock.calls.flatMap(
+        ([, , body]) => (body as { ids: string[] }).ids,
+      );
+      expect(resolved).not.toContain(FEDERATED);
+    } finally {
+      await getDb().delete(federatedActors).where(eq(federatedActors.uri, actorUri));
     }
   });
 

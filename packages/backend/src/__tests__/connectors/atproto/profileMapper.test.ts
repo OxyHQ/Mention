@@ -47,6 +47,7 @@ import {
   upsertAtprotoActor,
 } from '../../../connectors/atproto/profile.mapper';
 import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
+import { findFederatedVisibilityOptOuts } from '../../../db/federation/actorRepository';
 import { metrics } from '../../../utils/metrics';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
@@ -298,6 +299,20 @@ describe('fetchAndUpsertAtprotoProfile', () => {
       oxyUserId: 'oxy-alice',
       actorUri: DID,
       bannerUrl: PROFILE.banner,
+    });
+  });
+
+  it('carries a `!no-unauthenticated` self-label to the actor row', async () => {
+    mocks.xrpcGet.mockResolvedValue({
+      ...PROFILE,
+      labels: [{ src: DID, val: '!no-unauthenticated' }],
+    });
+
+    await fetchAndUpsertAtprotoProfile(DID);
+
+    expect((await findFederatedVisibilityOptOuts(['oxy-alice'])).get('oxy-alice')).toEqual({
+      requiresSignIn: true,
+      searchOptOut: true,
     });
   });
 

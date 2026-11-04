@@ -131,8 +131,16 @@ and that a profile renders one `<h1>` and anchors to its posts
   search engines", `privacy.searchEngineIndexing`). Its profile and posts stay
   public to people — the pages render and unfurl as before — but are served
   `noindex,follow` and are left out of the sitemap. A boost of an opted-out
-  author's post is `noindex` too: its words are theirs. Federated accounts have
-  no Mention settings and are indexed unless private.
+  author's post is `noindex` too: its words are theirs.
+- A federated account has no Mention settings; its choices at its origin feed
+  the same policy (`mentionProfileSeoPolicy`, `publicSeoPost`), read from its
+  `federated_actors` row (`federatedSearchOptOutSql`). It is `noindex` and out
+  of the sitemap when it is not `discoverable`, when it is an ActivityPub actor
+  that did not opt in with `indexable: true` (Mastodon's rule: `false` and
+  absent alike), or when it hides from signed-out readers (Bluesky's
+  `!no-unauthenticated` self-label). That last one also makes the page
+  unavailable signed out and withholds its posts from every signed-out
+  hydration, through the private-profile gate.
 - Posts must be published, public, safe for discovery, and authored by a public
   profile.
 - Sensitive posts may still produce privacy-safe link previews, but are marked

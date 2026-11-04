@@ -53,7 +53,7 @@ import {
 } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordFederation } from '../db/posts/postRecord';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
-import { findActorsByUris } from '../db/federation/actorRepository';
+import { findActorsByUris, findFederatedVisibilityOptOuts } from '../db/federation/actorRepository';
 import { loadImportProvenance, type PostImportHydration } from '../db/imports/postImportRepository';
 import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
 import { loadShownNotes } from './communityNotes/CommunityNotesService';
@@ -1725,6 +1725,23 @@ export class PostHydrationService {
             if (accessDb) throw error;
             logger.warn('[PostHydration] Failed to load author settings:', error);
           }
+        }
+      })(),
+      (async () => {
+        // A signed-out viewer, and a federated author who hides from signed-out
+        // readers at their origin (Bluesky's `!no-unauthenticated`). Joining
+        // the private-profile set is exactly right: that gate admits followers
+        // and owners, and a signed-out viewer is neither.
+        if (viewerId || authorIds.length === 0) return;
+        try {
+          const optOuts = await findFederatedVisibilityOptOuts(authorIds, accessDb);
+          for (const [authorId, optOut] of optOuts) {
+            if (optOut.requiresSignIn) context.privateProfileIds.add(authorId);
+          }
+        } catch (error) {
+          // The same failure policy as the author settings read above.
+          if (accessDb) throw error;
+          logger.warn('[PostHydration] Failed to load federated visibility opt-outs:', error);
         }
       })(),
       (async () => {

@@ -47,6 +47,32 @@ export interface AtprotoProfileView {
   postsCount?: number;
   /** ISO 8601 — when the account was created. */
   createdAt?: string;
+  /** `com.atproto.label.defs#label`s on the account, its own self-labels among them. */
+  labels?: { val?: string }[];
+}
+
+/**
+ * Bluesky's opt-out from signed-out visibility: an account self-labelled
+ * `!no-unauthenticated` asks apps not to show its profile or posts to anyone
+ * who is not signed in. Read from any source — a label can only make an
+ * account LESS visible, never more.
+ */
+export const NO_UNAUTHENTICATED_LABEL = '!no-unauthenticated';
+
+/** Whether this profile hides from signed-out readers ({@link NO_UNAUTHENTICATED_LABEL}). */
+export function atprotoRequiresSignIn(profile: AtprotoProfileView): boolean {
+  return (
+    Array.isArray(profile.labels) &&
+    profile.labels.some((label) => label?.val === NO_UNAUTHENTICATED_LABEL)
+  );
+}
+
+/** What the profile says about the account that the network-neutral actor has no field for. */
+export interface AtprotoProfileFacts {
+  /** The account's own creation date — the profile's "Joined". */
+  remoteCreatedAt?: Date;
+  /** {@link atprotoRequiresSignIn}. Absent is false. */
+  requiresSignIn?: boolean;
 }
 
 /**
@@ -163,7 +189,7 @@ export function mapProfileToNormalizedActor(
  */
 export async function upsertAtprotoActor(
   actor: NormalizedExternalActor,
-  profileFacts: { remoteCreatedAt?: Date } = {},
+  profileFacts: AtprotoProfileFacts = {},
 ): Promise<NormalizedExternalActor> {
   const did = actor.externalId;
   // Substituted again (idempotent) rather than trusted, for the same reason the
@@ -213,6 +239,9 @@ export async function upsertAtprotoActor(
         type: 'Person',
         manuallyApprovesFollowers: false,
         discoverable: true,
+        // Bluesky has no `indexable`; its one opt-out is the signed-out label,
+        // which keeps search engines out as well.
+        requiresSignIn: profileFacts.requiresSignIn ?? false,
         memorial: false,
         suspended: false,
         // A count the profile did not carry is unknown, not zero.
@@ -315,5 +344,6 @@ export async function fetchAndUpsertAtprotoProfile(
       typeof profile.createdAt === 'string'
         ? trustedRemoteCreatedAt(new Date(profile.createdAt))
         : undefined,
+    requiresSignIn: atprotoRequiresSignIn(profile),
   });
 }
