@@ -9,10 +9,9 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { canRequestReadPost } from '../../services/postReadAccess';
-import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
-import { safetyRequesterFor } from '../../utils/safetyRequester';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
+import { callerOxyUser } from '../../utils/oxyHelpers';
 import {
   postTranslationService,
   TranslationRequestError,
@@ -93,14 +92,11 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const visiblePosts = await postHydrationService.hydratePosts([post], {
+      ...hydrationOptionsFor(req),
       // Hydrated to answer "may this reader see the post at all", not to render
       // it — the response is the translation. A note lookup would be a
       // CrowdSource round trip for a field nothing here reads.
       includeCommunityNotes: false,
-      viewerId: req.user?.id,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 0,
       includeLinkMetadata: false,
       includeFullArticleBody: false,

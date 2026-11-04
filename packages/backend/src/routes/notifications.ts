@@ -15,6 +15,7 @@ import type { Server } from 'socket.io';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
 import { postHydrationService, type HydrationOptions } from '../services/PostHydrationService';
+import { hydrationOptionsFor } from '../utils/hydrationOptions';
 import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { blockedEitherWay } from '../utils/privacyHelpers';
@@ -355,9 +356,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
       // Returning a partially enriched page would otherwise make a transient
       // privacy-authority outage indistinguishable from authorization success.
       const hydratedPosts = await postHydrationService.hydratePosts(posts, {
-        viewerId: userId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: scopedOxyClient,
+        ...hydrationOptionsFor(req, scopedOxyClient),
         ...hydrationNeedsFor(notificationsToReturn),
         // Already resolved above, for the recipient scope — so the ACL gets the
         // SAME answer the inbox query was built from, and gets it for free. The

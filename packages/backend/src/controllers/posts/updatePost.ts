@@ -38,13 +38,13 @@ import {
 } from '../../db/posts/articleRepository';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../../utils/textProcessing';
 import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
-import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
+import { callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
   applyDetectedPrimaryTag,
@@ -731,14 +731,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // display name and break the profile-identity contract). If hydration fails
     // for this just-saved, owner-scoped post, treat it as a server-side error.
     const hydrated = await postHydrationService.hydratePosts([edited], {
+      ...hydrationOptionsFor(req),
       manageOwnPostIds: edited.oxyUserId === userId ? [edited.id] : [],
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       // `postManagementRefusal` above already let this caller edit the post, and
       // a scheduled one is still withheld after the edit — so without the same
       // authority answer here the write succeeds and the response is a 500 to

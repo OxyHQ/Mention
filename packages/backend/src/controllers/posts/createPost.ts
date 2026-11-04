@@ -25,10 +25,10 @@ import { persistPreparedArticle, prepareArticle } from '../../services/postArtic
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { postHydrationService } from '../../services/PostHydrationService';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { mergeHashtags } from '../../utils/textProcessing';
-import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
+import { callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
@@ -627,14 +627,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     trackBackgroundWork(warmClarityDocumentForText(resolveVariant(post.content).text));
 
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      ...hydrationOptionsFor(req),
       manageOwnPostIds: post.oxyUserId === userId ? [post.id] : [],
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
       // A post scheduled or drafted AS A CHANNEL is withheld the instant it is

@@ -30,11 +30,11 @@ import { postCreationService } from '../../services/PostCreationService';
 import { persistPreparedArticle, prepareArticle } from '../../services/postArticles';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { mergeHashtags } from '../../utils/textProcessing';
-import { callerAccountAccess, createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
+import { callerAccountAccess, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
@@ -766,16 +766,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
+      ...hydrationOptionsFor(req),
       manageOwnPostIds: createdPostObjects
         .filter((post) => post.oxyUserId === userId)
         .map((post) => post.id),
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
       // Same reason as `createPost`: a SCHEDULED batch is withheld from the

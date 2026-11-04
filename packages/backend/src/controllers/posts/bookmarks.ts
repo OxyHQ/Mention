@@ -19,10 +19,9 @@ import {
 } from '../../services/UserPreferenceService';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
-import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
-import { safetyRequesterFor } from '../../utils/safetyRequester';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
+import { callerOxyUser } from '../../utils/oxyHelpers';
 import { queryInt, queryString } from '../../utils/queryParams';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../../services/postEngagementBroadcast';
 import {
   EngagementPostNotFoundError,
@@ -218,10 +217,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     const where = and(...conditions);
     const hydrate = (rows: PostRecord[]) =>
       postHydrationService.hydratePosts(rows, {
-        viewerId: userId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: createScopedOxyClient(req),
-        requestLanguages: requestLanguageCandidates(req),
+        ...hydrationOptionsFor(req),
         maxDepth: 1,
         includeLinkMetadata: true,
         // Bookmarks are selected by id alone — deliberately, so saving something

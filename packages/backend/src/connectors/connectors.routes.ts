@@ -43,8 +43,8 @@ import { classifyQuery } from './resolve';
 import type { NetworkConnector } from '@oxy.so/federation';
 import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { postHydrationService } from '../services/PostHydrationService';
-import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
-import { safetyRequesterFor } from '../utils/safetyRequester';
+import { hydrationOptionsFor } from '../utils/hydrationOptions';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { extractBearerToken } from '@oxy.so/mcp';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { invalidateViewerRelations } from '../utils/privacyHelpers';
@@ -838,9 +838,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // Hydrate posts so they render identically to native posts. maxDepth:1 is
     // REQUIRED so federated boosts (empty body, hydrated via boostOf) render.
     const hydrated = await postHydrationService.hydratePosts(sliced, {
-      viewerId: req.user?.id,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
+      ...hydrationOptionsFor(req),
       maxDepth: 1,
       publicReferencesOnly: true,
       includeLinkMetadata: false,
