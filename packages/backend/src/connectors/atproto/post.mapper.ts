@@ -874,7 +874,7 @@ async function absorbNormalizedCopy(
     objectUri: post.activityId,
     actorUri: did,
     facts: transportCopyFacts({
-      actorUri: did,
+      objectUri: post.activityId,
       content: stored,
       createdAt: post.createdAt,
       url: post.url,

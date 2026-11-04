@@ -76,9 +76,12 @@ transport removes only its copy while another copy remains. The post is deleted,
 with its counters, when its last copy goes. Only the transport that delivered a
 copy may edit or delete it.
 
-Copies are merged on the inbox, outbox and atproto author-feed paths. A post
-fetched as a dependency (a reply parent, a quote) is not refetched just to
-merge it. The Graph import still skips a post the bridge already delivered.
+Copies are merged on the inbox, outbox, atproto author-feed and Instagram Graph
+import paths. A Graph import of a post kilogram.makeup already delivered merges
+into it, its caption, media and permalink winning (the Graph API is Instagram's
+own); a Graph copy is ranked by its `instagram:` object id, since it shares the
+kilogram actor. A post fetched as a dependency (a reply parent, a quote) is not
+refetched just to merge it.
 
 ## mastox.eu: history only, and why
 

@@ -10,11 +10,11 @@ import { and, eq, gt, inArray, isNotNull, isNull, like, lte } from 'drizzle-orm'
 import { getDb } from '../../db/postgres';
 import { postSourceKeys } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
-import {
-  claimSourceKey,
-  findFilledSourceKeys,
-  releaseSourceKeyClaim,
-} from '../../db/posts/postSourceKeyRepository';
+import { claimSourceKey, releaseSourceKeyClaim } from '../../db/posts/postSourceKeyRepository';
+import { findRecordedTransportCopies } from '../../db/posts/postTransportCopyRepository';
+import { toStoredContent } from '../../services/postVariants';
+import { absorbTransportCopy, transportCopyFacts } from '../shared/transportCopies';
+import { findPostsByFederatedObjects } from '../shared/upstreamPostKey';
 import { mediaMetadataService } from '../../services/MediaMetadataService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
@@ -229,32 +229,38 @@ export async function materializeInstagramMedia(
   return { media: enriched, attachments };
 }
 
-/** The mapped posts already here (either road) — by source key. */
+/** A mapped post already stored: the post, and whether the BRIDGE stored it. */
+interface StoredInstagramPost {
+  postId: string;
+  byBridge: boolean;
+}
+
+/**
+ * The mapped posts already here (either road), by source key: by the key itself,
+ * or — for a bridge row stored before `post_source_keys` existed — by its Note id.
+ */
 async function findAlreadyImported(
   mapped: readonly InstagramMappedPost[],
   kilogramActorUri: string | undefined,
-): Promise<Set<string>> {
-  if (mapped.length === 0) return new Set();
-  const keys = mapped.map((entry) => entry.post.activityId);
-  const known = await findFilledSourceKeys(keys);
-
-  const byKilogramId = new Map<string, string>();
+): Promise<Map<string, StoredInstagramPost>> {
+  const known = new Map<string, StoredInstagramPost>();
+  if (mapped.length === 0) return known;
+  const noteIdOf = new Map<string, string>();
   for (const entry of mapped) {
     const noteId = kilogramActorUri
       ? kilogramNoteIdFor(kilogramActorUri, entry.shortcode)
       : undefined;
-    if (noteId) byKilogramId.set(noteId, entry.post.activityId);
+    if (noteId) noteIdOf.set(entry.post.activityId, noteId);
   }
-  // Graph-imported rows carry the key as their activity id too; bridge rows
-  // stored before `post_source_keys` existed carry only their Note id.
-  const activityIds = [...keys, ...byKilogramId.keys()];
-  const rows = await getDb()
-    .select({ activityId: posts.federationActivityId })
-    .from(posts)
-    .where(inArray(posts.federationActivityId, activityIds));
-  for (const row of rows) {
-    if (!row.activityId) continue;
-    known.add(byKilogramId.get(row.activityId) ?? row.activityId);
+  const stored = await findPostsByFederatedObjects([
+    ...mapped.map((entry) => entry.post.activityId),
+    ...noteIdOf.values(),
+  ]);
+  for (const entry of mapped) {
+    const key = entry.post.activityId;
+    const noteId = noteIdOf.get(key);
+    const row = stored.get(key) ?? (noteId ? stored.get(noteId) : undefined);
+    if (row) known.set(key, { postId: row.id, byBridge: row.activityId !== key });
   }
   return known;
 }
@@ -269,6 +275,58 @@ async function queueUnused(fileIds: readonly string[]): Promise<void> {
       files: fileIds.length,
       error: err instanceof Error ? err.message : String(err),
     });
+  });
+}
+
+/**
+ * Merge this road's copy into the post the kilogram bridge already stored for
+ * the same Instagram post (`../shared/transportCopies`): the Graph API is the
+ * network's own API, so its caption, media and permalink win where the copies
+ * disagree, and the bridge's fill what the Graph copy lacks. The media are
+ * re-hosted first, as for a new post; a slot that must wait leaves the merge for
+ * the next sync.
+ */
+async function mergeGraphCopy(
+  postId: string,
+  entry: InstagramMappedPost,
+  target: InstagramImportTarget,
+): Promise<void> {
+  const { post } = entry;
+  let materialized: Awaited<ReturnType<typeof materializeInstagramMedia>>;
+  try {
+    materialized = await materializeInstagramMedia(entry.mediaPlans, target.ownerOxyUserId, {
+      activityId: post.activityId,
+      actorUri: target.actorUri,
+    });
+  } catch (err) {
+    logger.warn('[instagram] media re-hosting failed for a merge', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if ('waitFor' in materialized) {
+    await queueUnused(materialized.uploaded);
+    return;
+  }
+  const content = toStoredContent(
+    {
+      text: post.text,
+      media: materialized.media.length > 0 ? materialized.media : undefined,
+      attachments: materialized.attachments.length > 0 ? materialized.attachments : undefined,
+    },
+    undefined,
+  );
+  await absorbTransportCopy(postId, {
+    objectUri: post.activityId,
+    actorUri: target.actorUri,
+    facts: transportCopyFacts({
+      objectUri: post.activityId,
+      content,
+      createdAt: post.createdAt,
+      url: post.url,
+    }),
+    content,
+    mentions: [],
   });
 }
 
@@ -527,9 +585,19 @@ export async function importInstagramMedia(
       .map((item) => mapGraphMediaToNormalizedPost(item, target.actorUri))
       .filter((entry): entry is InstagramMappedPost => entry !== null);
     const known = await findAlreadyImported(mapped, target.kilogramActorUri);
+    // The bridge's copies this road has not been merged into yet.
+    const merged = await findRecordedTransportCopies(
+      [...known].filter(([, stored]) => stored.byBridge).map(([key]) => key),
+    );
 
     for (const entry of mapped) {
-      if (known.has(entry.post.activityId)) continue;
+      const stored = known.get(entry.post.activityId);
+      if (stored) {
+        if (!stored.byBridge || merged.has(entry.post.activityId)) continue;
+        if (pastDeadline()) return result('deadline');
+        await mergeGraphCopy(stored.postId, entry, target);
+        continue;
+      }
       if (pastDeadline()) return result('deadline');
       const outcome = await createInstagramPost(entry, target);
       if (outcome === 'created') {

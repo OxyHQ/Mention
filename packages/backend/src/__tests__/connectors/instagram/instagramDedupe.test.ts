@@ -104,7 +104,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { config } from '../../../config';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
-import { postMedia, postSourceKeys } from '../../../db/schema/postContent';
+import { postContentVariants, postMedia, postSourceKeys } from '../../../db/schema/postContent';
 import {
   federatedActors,
   federatedFollows,
@@ -321,25 +321,38 @@ describe('kilogram first, then the Graph API', () => {
     ).not.toHaveProperty('sourcePostKey');
   });
 
-  it('skips a post the bridge already delivered — and re-hosts nothing for it', async () => {
-    await ingestKilogramNote(1);
-    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(1), item(2)]));
+  it('merges into the post the bridge already delivered — one post, the Graph copy winning', async () => {
+    const bridged = await ingestKilogramNote(1);
+    h.fetchBusinessDiscovery.mockResolvedValue(page([item(1), item(2)]));
 
-    const result = await importInstagramMedia(TARGET, ONE_SHOT);
-
-    expect(result).toMatchObject({ outcome: 'ok', imported: 1 });
-    expect(await rowsFor(1)).toHaveLength(1);
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({
+      outcome: 'ok',
+      imported: 1,
+    });
+    expect(await rowsFor(1)).toEqual([bridged.id]);
     expect(await rowsFor(2)).toHaveLength(1);
-    expect(h.persist).toHaveBeenCalledTimes(1);
+    // The Graph API is the network's own: its caption and media replace the bridge's.
+    const [body] = await getDb()
+      .select({ body: postContentVariants.body })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, bridged.id));
+    expect(body?.body).toBe('caption 1');
+    expect(await mediaOf(bridged.id)).toHaveLength(1);
+
+    // Merged once: the next sync re-hosts nothing for it.
+    h.persist.mockClear();
+    await importInstagramMedia(TARGET, ONE_SHOT);
+    expect(h.persist).not.toHaveBeenCalled();
   });
 
-  it('skips a bridge post stored BEFORE source keys existed (activity id only)', async () => {
+  it('merges into a bridge post stored BEFORE source keys existed (activity id only)', async () => {
     const legacy = await ingestKilogramNote(3);
     await getDb().delete(postSourceKeys).where(eq(postSourceKeys.postId, legacy.id));
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(3)]));
 
     expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ imported: 0 });
-    expect(await rowsFor(3)).toHaveLength(1);
+    expect(await rowsFor(3)).toEqual([legacy.id]);
+    expect(await mediaOf(legacy.id)).toHaveLength(1);
   });
 });
 
