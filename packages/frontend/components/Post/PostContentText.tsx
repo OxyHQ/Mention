@@ -10,6 +10,7 @@ import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useTextExpansion } from '@/hooks/useExpandableText';
+import { type PostLinkCard, withoutTrailingCardLink } from '@/utils/postLinkCards';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -28,14 +29,12 @@ interface Props {
    */
   overrideText?: string | null;
   /**
-   * URLs the post renders as preview cards. A trailing URL in the body is
-   * trimmed when it matches ANY of them — the card already shows the link, so
-   * repeating it as the last line of the text is noise.
+   * The link cards the post renders (`postLinkCards`). A link that ends the body
+   * is trimmed when one of them shows it — repeating it as the last line of the
+   * text is noise.
    */
-  linkPreviewUrls?: string[];
+  linkCards?: readonly PostLinkCard[];
 }
-
-const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 
 /** In-feed truncation thresholds (chars) per the `postTextExpand` preference. */
 const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity } as const;
@@ -47,7 +46,7 @@ const PostContentText: React.FC<Props> = ({
   detail = false,
   trailingContent,
   overrideText,
-  linkPreviewUrls,
+  linkCards,
 }) => {
   const router = useRouter();
   // Keep navigation scoped to the containing panel. The translated suffix
@@ -60,12 +59,7 @@ const PostContentText: React.FC<Props> = ({
   const resolvedText = typeof content === 'string' ? content : content?.text || '';
   const rawText = overrideText || resolvedText;
 
-  const textContent =
-    linkPreviewUrls && linkPreviewUrls.length > 0
-      ? rawText.replace(TRAILING_URL_RE, (match: string, url: string) =>
-          linkPreviewUrls.includes(url) ? '' : match,
-        )
-      : rawText;
+  const textContent = linkCards ? withoutTrailingCardLink(rawText, linkCards) : rawText;
 
   const parsed = useMemo(() => parsePostInlineMarkdown(textContent), [textContent]);
   const preview = useMemo(

@@ -44,6 +44,7 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
+import { postLinkCards } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
   THREAD_LINE_BORDER_RADIUS,
@@ -700,11 +701,11 @@ const PostItem: React.FC<PostItemProps> = ({
     [roomContent, roomId],
   );
 
-  // URLs of the previewed links, used to trim a trailing URL from the body text
-  // when a card already renders it.
-  const linkPreviewUrls = useMemo(
-    () => documents.map((document) => document.requestedUrl ?? document.canonicalUrl),
-    [documents],
+  // The cards the attachment row draws for this post, so the body drops a
+  // trailing link one of them already shows (`postLinkCards` is the row's own rule).
+  const linkCards = useMemo(
+    () => postLinkCards(content.text, documents),
+    [content.text, documents],
   );
 
   const engagementSummary: PostEngagementSummary | undefined = viewPost?.engagement;
@@ -1026,7 +1027,7 @@ const PostItem: React.FC<PostItemProps> = ({
           detail={isDetailMain}
           previewChars={isDetailMain ? Infinity : undefined}
           overrideText={languageDisplayText}
-          linkPreviewUrls={linkPreviewUrls}
+          linkCards={linkCards}
           trailingContent={
             threadPosition && !isNested ? (
               <Text>
