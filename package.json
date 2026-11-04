@@ -38,6 +38,7 @@
     "audit:security": "node --test ./scripts/security-audit-policy.test.mjs && bun ./scripts/audit-security.mjs",
     "doctor": "bun ./scripts/doctor.mjs",
     "doctor:oxy": "oxy-doctor --ci",
+    "doctor:i18n": "oxy-doctor-i18n --ci",
     "check": "bun run check:workspace && bun run build && bun run check:types",
     "check:workspace": "bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path validate:bun-pins test:shell-worker audit:security",
     "check:types": "bun run --parallel typecheck:frontend lint:shared-types lint:backend lint:mcp lint:e2e && bun run lint:frontend",
@@ -85,7 +86,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
-    "@oxy.so/doctor": "1.5.0",
+    "@oxy.so/doctor": "1.6.1",
     "@types/node": "catalog:",
     "semver": "^7.8.6",
     "typescript": "catalog:",
