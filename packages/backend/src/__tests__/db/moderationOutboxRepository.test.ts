@@ -25,7 +25,6 @@ import {
   claimModerationOutboxEvent,
   completeModerationOutboxEvent,
   enqueueModerationOutboxEvent,
-  findModerationOutboxEvent,
   releaseModerationOutboxEvent,
   renewModerationOutboxEvent,
 } from '../../db/moderation/moderationOutboxRepository';
@@ -411,16 +410,5 @@ describe('finishing', () => {
     await expect(
       claimModerationOutboxEvent({ leaseOwner: 'worker-2', eventId: id }),
     ).resolves.toBeNull();
-  });
-
-  it('reads one event back by id', async () => {
-    const id = eventId();
-    await enqueue(id);
-
-    await expect(findModerationOutboxEvent(id)).resolves.toMatchObject({
-      _id: id,
-      kind: 'report.submit',
-    });
-    await expect(findModerationOutboxEvent(`${PREFIX}absent`)).resolves.toBeUndefined();
   });
 });

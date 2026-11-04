@@ -167,9 +167,6 @@ let knownIdentities: ReadonlyMap<string, IdentityUpdate> = EMPTY;
 
 type IdentityListener = () => void;
 
-/** Woken by every change, whichever identity it touched. */
-const listeners = new Set<IdentityListener>();
-
 /**
  * Woken only by a change to one of the ids they registered under. This is what
  * keeps one profile edit from waking every mounted post row: a row listens for
@@ -178,12 +175,12 @@ const listeners = new Set<IdentityListener>();
 const keyedListeners = new Map<string, Set<IdentityListener>>();
 
 /**
- * Wake the global listeners, and the keyed listeners of `changedIds` — or every
- * keyed listener when `changedIds` is `'all'` (a reset). A listener registered
- * under several of the changed ids is called once.
+ * Wake the keyed listeners of `changedIds` — or every keyed listener when
+ * `changedIds` is `'all'` (a reset). A listener registered under several of the
+ * changed ids is called once.
  */
 function notify(changedIds: Iterable<string> | 'all'): void {
-  const woken = new Set<IdentityListener>(listeners);
+  const woken = new Set<IdentityListener>();
   if (changedIds === 'all') {
     for (const set of keyedListeners.values()) {
       for (const listener of set) woken.add(listener);
@@ -489,19 +486,6 @@ export function reconcileKnownIdentities(actors: readonly IdentityHolder[]): voi
   if (!next) return;
   knownIdentities = next.size === 0 ? EMPTY : next;
   notify(changed);
-}
-
-/**
- * Subscribe to EVERY identity change. Returns an unsubscribe function.
- *
- * A component should use {@link useKnownIdentitySet} instead, which listens only
- * for the ids it renders.
- */
-export function subscribeToIdentityUpdates(listener: IdentityListener): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
 }
 
 /**

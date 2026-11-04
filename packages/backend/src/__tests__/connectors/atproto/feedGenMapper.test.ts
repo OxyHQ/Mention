@@ -31,7 +31,6 @@ vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGe
 
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { feedGenerators } from '../../../db/schema/feeds';
-import { loadFeedGeneratorByUri } from '../../../db/feeds/feedGeneratorRepository';
 import { mapGeneratorView, syncActorFeeds } from '../../../connectors/atproto/feedgen.mapper';
 
 /**
@@ -157,7 +156,7 @@ describe('syncActorFeeds', () => {
   it('is idempotent — a re-sync updates the SAME row and refreshes its stamp', async () => {
     mocks.xrpcGet.mockResolvedValue({ feeds: [generatorView('f1')] });
     await syncActorFeeds(CREATOR_DID, OWNER);
-    const first = await loadFeedGeneratorByUri(genUri('f1'));
+    const [first] = await storedGenerators();
 
     mocks.xrpcGet.mockResolvedValue({
       feeds: [generatorView('f1', { displayName: 'Renamed', likeCount: 99 })],
@@ -185,7 +184,7 @@ describe('syncActorFeeds', () => {
 
     await syncActorFeeds(CREATOR_DID, OWNER);
 
-    expect((await loadFeedGeneratorByUri(genUri('f1')))?.subscriberCount).toBe(7);
+    expect((await storedGenerators())[0]?.subscriberCount).toBe(7);
   });
 
   it('CLEARS a description the remote view stopped carrying', async () => {
@@ -194,12 +193,12 @@ describe('syncActorFeeds', () => {
     // mirroring it.
     mocks.xrpcGet.mockResolvedValue({ feeds: [generatorView('f1')] });
     await syncActorFeeds(CREATOR_DID, OWNER);
-    expect((await loadFeedGeneratorByUri(genUri('f1')))?.description).toBe('A nice feed');
+    expect((await storedGenerators())[0]?.description).toBe('A nice feed');
 
     mocks.xrpcGet.mockResolvedValue({ feeds: [generatorView('f1', { description: undefined })] });
     await syncActorFeeds(CREATOR_DID, OWNER);
 
-    expect((await loadFeedGeneratorByUri(genUri('f1')))?.description).toBeNull();
+    expect((await storedGenerators())[0]?.description).toBeNull();
   });
 
   it('skips unmappable generator views', async () => {

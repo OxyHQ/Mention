@@ -31,11 +31,10 @@ import {
   UnknownSettingsPathError,
   ensureUserSettings,
   loadUserSettings,
-  loadUserSettingsByIds,
-  replaceLabelActions,
   updateUserSettings,
 } from '../../db/userProfile/userSettingsRepository';
 import { loadShowSensitiveContent } from '../../services/safety/viewerSafety';
+import { LabelService } from '../../services/LabelService';
 
 const created: string[] = [];
 
@@ -268,30 +267,13 @@ describe('user settings — read after write', () => {
     const user = userId('labels');
     await ensureUserSettings(user);
 
-    await replaceLabelActions(user, [
+    await LabelService.setLabelActions(user, [
       { labelerId: 'labeler-1', labelSlug: 'spoiler', action: 'warn' },
     ]);
 
     expect((await loadUserSettings(user))?.privacy.labelPreferences?.labelActions).toEqual([
       { labelerId: 'labeler-1', labelSlug: 'spoiler', action: 'warn' },
     ]);
-  });
-
-  it('batches several users without cross-contaminating their label actions', async () => {
-    const first = userId('batch-a');
-    const second = userId('batch-b');
-    await ensureUserSettings(first);
-    await ensureUserSettings(second);
-    await replaceLabelActions(first, [
-      { labelerId: 'labeler-1', labelSlug: 'spoiler', action: 'hide' },
-    ]);
-    await updateUserSettings(second, { set: { 'privacy.showSensitiveContent': true } });
-
-    const batch = await loadUserSettingsByIds([first, second]);
-
-    expect(batch.get(first)?.privacy.labelPreferences?.labelActions).toHaveLength(1);
-    expect(batch.get(second)?.privacy.labelPreferences?.labelActions).toEqual([]);
-    expect(batch.get(second)?.privacy.showSensitiveContent).toBe(true);
   });
 });
 

@@ -129,24 +129,6 @@ export async function createCluster(
   });
 }
 
-/** Add a member to an existing cluster, then re-apply the projection. */
-export async function addClusterMember(
-  clusterId: string,
-  member: EquivalenceMemberWrite,
-  db: DatabaseOrTransaction = getDb(),
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.insert(postEquivalenceMembers).values({
-      clusterId,
-      postId: member.postId,
-      networkDomain: member.networkDomain,
-      preferred: member.preferred,
-      evidence: member.evidence,
-    });
-    await applyCollapseProjection(clusterId, tx);
-  });
-}
-
 /**
  * Move `preferred` to one member and re-apply the projection.
  *
@@ -269,20 +251,6 @@ export async function findClusterIdsForPosts(
     .from(postEquivalenceMembers)
     .where(inArray(postEquivalenceMembers.postId, [...postIds]));
   return rows.map((row) => row.clusterId);
-}
-
-/** How many clusters and collapsed posts exist — the reconciliation report's counters. */
-export async function countEquivalence(
-  db: DatabaseOrTransaction = getDb(),
-): Promise<{ clusters: number; collapsedPosts: number }> {
-  const [clusters] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(postEquivalenceClusters);
-  const [collapsed] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(posts)
-    .where(eq(posts.crosspostCollapsed, true));
-  return { clusters: clusters?.count ?? 0, collapsedPosts: collapsed?.count ?? 0 };
 }
 
 /** Oldest checked first: durable ordering prevents restarts starving later clusters. */

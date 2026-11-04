@@ -16,7 +16,7 @@
  * genuinely is not atproto-backed.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { feedGenerators } from '../schema/feeds';
 
@@ -80,13 +80,4 @@ export async function upsertAtprotoFeedGenerator(
         updatedAt: new Date(),
       },
     });
-}
-
-/** One generator by AT-URI, or `null`. */
-export async function loadFeedGeneratorByUri(
-  uri: string,
-  db: DatabaseOrTransaction = getDb(),
-): Promise<typeof feedGenerators.$inferSelect | null> {
-  const [row] = await db.select().from(feedGenerators).where(eq(feedGenerators.uri, uri)).limit(1);
-  return row ?? null;
 }

@@ -122,55 +122,6 @@ async function resolveProduct(
   }
 }
 
-/**
- * Hydrate persisted product refs, index-aligned with the input.
- *
- * Each element is validated as UNKNOWN data (as it comes back from a database
- * or a JSON body); anything that is not exactly a product ref — a variant or
- * store ref included — is `invalid` and sends no request. Identical refs are
- * read once and share one result, and at most
- * `config.mercaria.hydrationConcurrency` reads are in flight at a time.
- */
-export async function hydrateMercariaProductRefs(
-  refs: readonly unknown[],
-): Promise<MercariaProductHydration[]> {
-  const parsed = refs.map((value) => {
-    const ref = parseMercariaRef(value);
-    return ref?.kind === 'product' ? ref : null;
-  });
-
-  const unique = new Map<string, MercariaProductRef>();
-  for (const ref of parsed) {
-    if (ref === null) continue;
-    const key = formatMercariaRef(ref);
-    if (!unique.has(key)) unique.set(key, ref);
-  }
-  if (unique.size === 0) return parsed.map(() => INVALID);
-
-  const client = getMercariaClient();
-  const entries = [...unique.entries()];
-  const settled = await mapWithConcurrency(
-    entries,
-    config.mercaria.hydrationConcurrency,
-    ([, ref]) => resolveProduct(client, ref),
-  );
-
-  const byKey = new Map<string, MercariaProductHydration>();
-  entries.forEach(([key, ref], index) => {
-    const outcome = settled[index];
-    // `resolveProduct` converts every failure into a state, so a rejected slot
-    // is unreachable today; it is mapped rather than trusted.
-    byKey.set(
-      key,
-      outcome.status === 'fulfilled' ? outcome.value : unresolved('product', ref, outcome.reason),
-    );
-  });
-
-  return parsed.map((ref) =>
-    ref === null ? INVALID : (byKey.get(formatMercariaRef(ref)) ?? INVALID),
-  );
-}
-
 /** Hydrate one persisted store ref (e.g. an account's connected storefront). */
 export async function resolveMercariaStore(value: unknown): Promise<MercariaStoreHydration> {
   const ref = parseMercariaRef(value);

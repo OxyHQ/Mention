@@ -6,7 +6,6 @@ import {
   reconcileKnownIdentities,
   recordIdentityChange,
   resetIdentityUpdates,
-  subscribeToIdentityUpdates,
 } from '../identityUpdates';
 
 /**
@@ -96,41 +95,6 @@ describe('recordIdentityChange', () => {
 });
 
 describe('the recorded identity', () => {
-  it('notifies subscribers when it is written, retired and reset', () => {
-    const listener = jest.fn();
-    const unsubscribe = subscribeToIdentityUpdates(listener);
-
-    recordIdentityChange({ id: 'channel-1', avatar: 'avatar-after' });
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    reconcileKnownIdentities([{ id: 'channel-1', avatar: 'avatar-after' }]);
-    expect(listener).toHaveBeenCalledTimes(2);
-
-    resetIdentityUpdates();
-    expect(listener).toHaveBeenCalledTimes(3);
-
-    unsubscribe();
-    recordIdentityChange({ id: 'channel-1', avatar: 'avatar-later' });
-    expect(listener).toHaveBeenCalledTimes(3);
-  });
-
-  it('does not notify when a batch agrees with nothing', () => {
-    const listener = jest.fn();
-    const unsubscribe = subscribeToIdentityUpdates(listener);
-
-    // Nothing recorded at all, then a recorded entry the batch disagrees with:
-    // a subscriber woken here would re-render every post row on every page.
-    reconcileKnownIdentities([{ id: 'channel-1', avatar: 'avatar-before' }]);
-    expect(listener).not.toHaveBeenCalled();
-
-    recordIdentityChange({ id: 'channel-1', avatar: 'avatar-after' });
-    listener.mockClear();
-    reconcileKnownIdentities([{ id: 'channel-1', avatar: 'avatar-before' }]);
-    expect(listener).not.toHaveBeenCalled();
-
-    unsubscribe();
-  });
-
   it('is stable by reference until that user is written again', () => {
     recordIdentityChange({ id: 'channel-1', avatar: 'avatar-after' });
     const first = getKnownIdentity('channel-1');
@@ -307,20 +271,6 @@ describe('reconciling against the server', () => {
       reconcileKnownIdentities([{ id: 'channel-1', accountCategories: ['news', 'sports'] }]);
 
       expect(getKnownIdentity('channel-1')).toBeUndefined();
-    });
-
-    it('does not notify when every field is unanswerable', () => {
-      recordIdentityChange({ id: 'channel-1', bio: 'bio-after' });
-      const listener = jest.fn();
-      const unsubscribe = subscribeToIdentityUpdates(listener);
-
-      // Waking every mounted post row for a batch that said nothing is the cost
-      // this guard avoids; it runs on every page of every feed.
-      reconcileKnownIdentities([{ id: 'channel-1', username: 'daily', avatar: 'avatar-after' }]);
-
-      expect(listener).not.toHaveBeenCalled();
-      expect(getKnownIdentity('channel-1')).toEqual({ id: 'channel-1', bio: 'bio-after' });
-      unsubscribe();
     });
   });
 });

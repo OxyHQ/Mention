@@ -909,21 +909,6 @@ export async function reevaluateClusters(clusterIds: readonly string[]): Promise
   }
 }
 
-/**
- * Classify a pair WITHOUT writing anything — the reconciliation one-shot's
- * dry-run reads this so its report and the live path can never disagree about
- * what would have been clustered.
- */
-export async function classifyStoredPair(
-  postId: string,
-  otherPostId: string,
-  declaredOriginalUrls: readonly string[] = [],
-): Promise<{ confidence: EquivalenceClusterRecord['confidence']; evidence: string } | undefined> {
-  const [a, b] = await Promise.all([loadCandidate(postId), loadCandidate(otherPostId)]);
-  if (!a || !b) return undefined;
-  return classifyPair(a, b, declaredOriginalUrls, await loadIdentityProof([a, b]));
-}
-
 /** One variant of a cluster, as the hydration path reads it. */
 export interface CrosspostVariantRow {
   postId: string;

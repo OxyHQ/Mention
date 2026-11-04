@@ -321,16 +321,3 @@ export async function readModerationOutboxStatus(
     .limit(1);
   return row?.status;
 }
-
-/** One event by id, whatever its state. Used by the reconciliation sweep. */
-export async function findModerationOutboxEvent(
-  eventId: string,
-  db: DatabaseOrTransaction = getDb(),
-): Promise<ModerationOutboxEvent | undefined> {
-  const [row] = await db
-    .select()
-    .from(moderationOutbox)
-    .where(eq(moderationOutbox.id, eventId))
-    .limit(1);
-  return row ? toEvent(row) : undefined;
-}

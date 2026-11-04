@@ -33,11 +33,6 @@ export async function isInCommunitiesPreview(
   }
 }
 
-/** Test seam: forget what was learned about accounts. */
-export function resetCommunitiesPreviewCache(): void {
-  verdicts.clear();
-}
-
 /** An authenticated route that only the preview may reach; everyone else gets a plain 404. */
 export async function requireCommunitiesPreview(
   req: Request,

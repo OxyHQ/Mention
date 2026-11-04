@@ -15,7 +15,6 @@ import { findClusterByPostId } from '../../db/posts/postEquivalenceRepository';
 import * as equivalenceRepository from '../../db/posts/postEquivalenceRepository';
 import {
   CROSSPOST_WINDOW_MS,
-  classifyStoredPair,
   detectCrosspostEquivalence,
   loadCrosspostVariants,
   networkLabel,
@@ -409,28 +408,6 @@ describe('what must never collapse', () => {
     });
     expect(await visibleIds()).toHaveLength(2);
   });
-  it('refuses reconciliation across different Oxy people even with a declared original', async () => {
-    const originalUrl = 'https://www.instagram.com/p/identity-gate/';
-    const instagram = await createVariant({
-      actorUri: IG_ACTOR,
-      text: 'same words',
-      createdAt: NOW,
-      media: MEDIA,
-      federationUrl: originalUrl,
-    });
-    const threads = await createVariant({
-      actorUri: THREADS_ACTOR,
-      text: 'same words',
-      createdAt: new Date(NOW.getTime() + 60_000),
-      media: MEDIA_ON_THREADS,
-      oxyUserId: OTHER_PERSON,
-    });
-
-    expect(await classifyStoredPair(threads, instagram)).toBeUndefined();
-    expect(await classifyStoredPair(threads, instagram, [originalUrl])).toBeUndefined();
-    expect(await visibleIds()).toHaveLength(2);
-  });
-
   it('refuses the same content from two DIFFERENT people', async () => {
     await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA });
     const theirs = await createVariant({
@@ -462,7 +439,7 @@ describe('what must never collapse', () => {
   });
 
   it('refuses the same author repeating themselves outside the window', async () => {
-    const instagram = await createVariant({
+    await createVariant({
       actorUri: IG_ACTOR,
       text: 'good morning',
       createdAt: NOW,
@@ -479,7 +456,6 @@ describe('what must never collapse', () => {
       outcome: 'refused',
       reason: 'no-sibling-in-window',
     });
-    expect(await classifyStoredPair(later, instagram)).toBeUndefined();
   });
 
   it('refuses carousels that reuse an asset a different number of times', async () => {

@@ -568,37 +568,12 @@ export async function updateUserSettings(
 }
 
 /**
- * Replace a user's label actions wholesale.
- *
- * Delete-then-insert rather than a per-row diff: the set is small, the caller
- * always supplies the complete list, and a diff would have to reconcile a
- * composite natural key for no benefit.
- */
-export async function replaceLabelActions(
-  oxyUserId: string,
-  actions: readonly LabelAction[],
-  db: DatabaseOrTransaction = getDb(),
-): Promise<void> {
-  const [row] = await db
-    .select({ id: userSettings.id })
-    .from(userSettings)
-    .where(eq(userSettings.oxyUserId, oxyUserId));
-  if (!row) return;
-  await db.delete(userSettingsLabelActions).where(eq(userSettingsLabelActions.settingsId, row.id));
-  if (actions.length === 0) return;
-  await db
-    .insert(userSettingsLabelActions)
-    .values(actions.map((action) => ({ settingsId: row.id, ...action })));
-}
-
-/**
  * `channel_account.sign_posts` for several accounts in ONE narrow query — the
  * writer-disclosure batch path.
  *
- * Deliberately NOT {@link loadUserSettingsByIds}: that selects every column and
- * runs a SECOND query for label actions, and this sits on feed hydration, which
- * asks about every channel on a page at once. Two columns and one query is what
- * keeps an ordinary page of posts costing nothing for this.
+ * Not a full settings read: this sits on feed hydration, which asks about every
+ * channel on a page at once. Two columns and one query is what keeps an
+ * ordinary page of posts costing nothing for this.
  *
  * A NULL is a real answer — the column is NULL for an account that is not a
  * channel — so the raw value crosses this boundary rather than a boolean. The
@@ -640,50 +615,4 @@ export async function accountsHidingOnlineStatus(
       ),
     );
   return new Set(rows.map((row) => row.oxyUserId));
-}
-
-/** Several users' settings in one query — the hydration batch path. */
-export async function loadUserSettingsByIds(
-  oxyUserIds: readonly string[],
-  db: DatabaseOrTransaction = getDb(),
-): Promise<Map<string, UserSettingsRecord>> {
-  if (oxyUserIds.length === 0) return new Map();
-  // Same single wave as `loadUserSettings`: the actions are reached through the
-  // account ids, not through the rows' ids.
-  const [rows, actions] = await Promise.all([
-    db
-      .select()
-      .from(userSettings)
-      .where(inArray(userSettings.oxyUserId, [...oxyUserIds])),
-    db
-      .select({
-        settingsId: userSettingsLabelActions.settingsId,
-        labelerId: userSettingsLabelActions.labelerId,
-        labelSlug: userSettingsLabelActions.labelSlug,
-        action: userSettingsLabelActions.action,
-      })
-      .from(userSettingsLabelActions)
-      .where(
-        inArray(
-          userSettingsLabelActions.settingsId,
-          db
-            .select({ id: userSettings.id })
-            .from(userSettings)
-            .where(inArray(userSettings.oxyUserId, [...oxyUserIds])),
-        ),
-      ),
-  ]);
-  if (rows.length === 0) return new Map();
-
-  const bySettingsId = new Map<string, LabelAction[]>();
-  for (const entry of actions) {
-    const list = bySettingsId.get(entry.settingsId);
-    const action = { labelerId: entry.labelerId, labelSlug: entry.labelSlug, action: entry.action };
-    if (list) list.push(action);
-    else bySettingsId.set(entry.settingsId, [action]);
-  }
-
-  return new Map(
-    rows.map((row) => [row.oxyUserId, assembleRecord(row, bySettingsId.get(row.id) ?? [])]),
-  );
 }
