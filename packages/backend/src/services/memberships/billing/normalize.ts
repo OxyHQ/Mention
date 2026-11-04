@@ -67,8 +67,8 @@ export function normalizeMembershipInvoice(
     !Number.isSafeInteger(offer.offerVersion) ||
     offer.offerVersion < 1 ||
     paid.livemode !== (offer.mode === 'live') ||
-    ![invoice.gross_minor_units, invoice.net_minor_units, invoice.tax_minor_units].every(
-      (amount) => BASE_UNITS.test(amount),
+    ![invoice.gross_minor_units, invoice.net_minor_units, invoice.tax_minor_units].every((amount) =>
+      BASE_UNITS.test(amount),
     ) ||
     invoice.gross_minor_units === '0' ||
     BigInt(invoice.net_minor_units) + BigInt(invoice.tax_minor_units) !==
