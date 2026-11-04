@@ -26,6 +26,8 @@ vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
+// The post read gate has its own suites; this one is about what happens past it.
+vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: {
     hydratePosts: vi.fn(async (records: Array<{ id: string; oxyUserId: string }>) =>
@@ -292,9 +294,20 @@ describe('getRepliesFeed — self-thread spine expansion', () => {
     expect(body.items).toEqual([]);
   });
 
-  it('returns an empty page for an unknown parent instead of failing', async () => {
-    const body = await fetchReplies('019fffff-ffff-7fff-bfff-ffffffffffff');
+  it('answers an unknown or unreadable parent with 404, listing nothing', async () => {
+    const { res, payload } = buildResponse();
+    await feedController.getRepliesFeed(
+      {
+        query: {},
+        params: { parentId: '019fffff-ffff-7fff-bfff-ffffffffffff' },
+        user: { id: 'viewer' },
+        headers: { authorization: 'Bearer viewer-token' },
+        accessToken: 'viewer-token',
+      } as never,
+      res as never,
+    );
 
-    expect(body.items).toEqual([]);
+    expect(payload.status).toBe(404);
+    expect(payload.value).toEqual({ message: 'Post not found' });
   });
 });

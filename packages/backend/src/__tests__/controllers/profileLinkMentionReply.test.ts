@@ -36,6 +36,8 @@ const hoisted = vi.hoisted(() => ({
   findActorByAcct: vi.fn(),
 }));
 
+// The post read gate has its own suites; this one is about what happens past it.
+vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),

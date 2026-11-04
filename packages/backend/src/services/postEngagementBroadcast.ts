@@ -4,29 +4,21 @@ import {
   type PostEngagementCountsPayload,
   type PostEngagementEvent,
 } from '@mention/shared-types';
-import { eq } from 'drizzle-orm';
-import { getDb } from '../db/postgres';
-import { userSettings } from '../db/schema/userProfile';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import {
-  DEFAULT_PRIVACY,
-  readEngagementCountPrivacy,
+  loadEngagementCountPrivacy,
+  visibleEngagementCounts,
   type EngagementCountPrivacy,
+  type EngagementCounts,
 } from './engagementCountPrivacy';
 import { logger } from '../utils/logger';
 
 /**
- * The counters a single engagement write moved, named the way the models name
- * them. Only the ones that actually changed belong here; a counter the write did
- * not touch is left for the client's own copy.
+ * The counters a single engagement write moved. Only the ones that actually
+ * changed belong here; a counter the write did not touch is left for the
+ * client's own copy.
  */
-export interface PostEngagementCounts {
-  likes?: number;
-  downvotes?: number;
-  boosts?: number;
-  replies?: number;
-  saves?: number;
-}
+export type PostEngagementCounts = EngagementCounts;
 
 export interface BroadcastPostEngagementInput {
   event: PostEngagementEvent;
@@ -43,35 +35,6 @@ export interface BroadcastPostEngagementInput {
   actorId?: string;
 }
 
-async function loadAuthorCountPrivacy(
-  authorOxyUserId: string | undefined,
-): Promise<EngagementCountPrivacy> {
-  if (!authorOxyUserId) return { ...DEFAULT_PRIVACY };
-  try {
-    // The four columns are flat and `NOT NULL`, so the row IS a
-    // `CountPrivacySource` — but it still goes through the shared reader,
-    // because this broadcast must hide exactly what the DTO hides.
-    const [settings] = await getDb()
-      .select({
-        hideLikeCounts: userSettings.privacyHideLikeCounts,
-        hideShareCounts: userSettings.privacyHideShareCounts,
-        hideReplyCounts: userSettings.privacyHideReplyCounts,
-        hideSaveCounts: userSettings.privacyHideSaveCounts,
-      })
-      .from(userSettings)
-      .where(eq(userSettings.oxyUserId, authorOxyUserId))
-      .limit(1);
-    return readEngagementCountPrivacy(settings);
-  } catch (error) {
-    // Same fallback the render path takes, for the same reason: a settings-load
-    // failure must not make the live number and the reloaded number disagree.
-    logger.warn('[PostEngagementBroadcast] Failed to load author count privacy', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { ...DEFAULT_PRIVACY };
-  }
-}
-
 function buildPayload(
   input: BroadcastPostEngagementInput,
   privacy: EngagementCountPrivacy,
@@ -82,21 +45,13 @@ function buildPayload(
   };
   if (input.actorId) payload.actorId = input.actorId;
 
-  // Likes and downvotes are two faces of one vote and share one author control,
-  // so a vote that switched sides reports both or neither.
-  if (!privacy.hideLikeCounts) {
-    if (typeof input.counts.likes === 'number') payload.likesCount = input.counts.likes;
-    if (typeof input.counts.downvotes === 'number') payload.downvotesCount = input.counts.downvotes;
-  }
-  if (!privacy.hideShareCounts && typeof input.counts.boosts === 'number') {
-    payload.boostsCount = input.counts.boosts;
-  }
-  if (!privacy.hideReplyCounts && typeof input.counts.replies === 'number') {
-    payload.repliesCount = input.counts.replies;
-  }
-  if (!privacy.hideSaveCounts && typeof input.counts.saves === 'number') {
-    payload.savesCount = input.counts.saves;
-  }
+  // Hidden counters are `null` here and are omitted from the wire.
+  const visible = visibleEngagementCounts(input.counts, privacy);
+  if (typeof visible.likes === 'number') payload.likesCount = visible.likes;
+  if (typeof visible.downvotes === 'number') payload.downvotesCount = visible.downvotes;
+  if (typeof visible.boosts === 'number') payload.boostsCount = visible.boosts;
+  if (typeof visible.replies === 'number') payload.repliesCount = visible.replies;
+  if (typeof visible.saves === 'number') payload.savesCount = visible.saves;
 
   const carriesACount =
     payload.likesCount !== undefined ||
@@ -123,7 +78,7 @@ export async function broadcastPostEngagement(input: BroadcastPostEngagementInpu
   const io = getRuntimeSocketServer();
   if (!io || !input.postId) return;
 
-  const payload = buildPayload(input, await loadAuthorCountPrivacy(input.authorOxyUserId));
+  const payload = buildPayload(input, await loadEngagementCountPrivacy(input.authorOxyUserId));
   if (!payload) return;
 
   io.to(postEngagementRoom(input.postId)).emit(input.event, payload);

@@ -39,6 +39,14 @@ vi.mock('../../runtime/socketServer', () => ({
 const hoisted = vi.hoisted(() => ({
   createScopedOxyClient: vi.fn(() => ({})),
   resolveUserSummaries: vi.fn(),
+  /** Posts the read gate refuses the viewer: hydration drops them, the id gate says no. */
+  unreadableIds: new Set<string>(),
+}));
+
+vi.mock('../../services/postReadAccess', () => ({
+  canRequestReadPost: vi.fn(
+    async (_req: unknown, postId: string) => !hoisted.unreadableIds.has(postId),
+  ),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -59,7 +67,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   // Passthrough: the SELECTION is the subject, and it has already happened by
   // the time hydration runs.
-  postHydrationService: { hydratePosts: vi.fn(async (records: object[]) => records) },
+  postHydrationService: {
+    hydratePosts: vi.fn(async (records: Array<{ id: string }>) =>
+      records.filter((record) => !hoisted.unreadableIds.has(record.id)),
+    ),
+  },
   resolveUserSummaries: hoisted.resolveUserSummaries,
   degradedActorSummary: (id: string) => ({
     id,
@@ -76,7 +88,9 @@ import {
   createBookmarkFolder,
   getBookmarkFolders,
   getSavedPosts,
+  savePost,
 } from '../../controllers/posts/bookmarks';
+import { likePost } from '../../controllers/posts/likes';
 import { getPostLikes, getPostBoosts } from '../../controllers/posts/engagementLists';
 import type { PostRecord } from '../../db/posts/postRecord';
 
@@ -122,6 +136,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  hoisted.unreadableIds.clear();
   await clearServiceScope(scope);
   hoisted.createScopedOxyClient.mockReturnValue({
     privacy: { blocked: async () => [], restricted: async () => [] },
@@ -520,6 +535,20 @@ describe('getSavedPosts', () => {
     expect(await saved({ search: 'C:\\Users' })).toEqual([literal.id]);
   });
 
+  it('derives hasMore from readable saved posts only', async () => {
+    // A bookmark can outlive the right to read its post; its text must not be
+    // probeable through the page flag.
+    const hidden = await seedSaved('the secret plan');
+    hoisted.unreadableIds.add(hidden.id);
+
+    const { res, captured } = buildResponse();
+    await getSavedPosts(
+      buildRequest({ user: { id: VIEWER }, query: { search: 'secret', limit: '1' } }) as never,
+      res as never,
+    );
+    expect(captured.body).toMatchObject({ posts: [], hasMore: false });
+  });
+
   it('answers an unauthenticated caller with 401', async () => {
     const { res, captured } = buildResponse();
     await getSavedPosts(buildRequest({ query: {} }) as never, res as never);
@@ -543,5 +572,44 @@ describe('getSavedPosts', () => {
     await seedPost(scope, { oxyUserId: scope.user('author') });
 
     expect(await saved()).toEqual([]);
+  });
+});
+
+describe('like and save answer through the read gate', () => {
+  async function act(handler: typeof likePost, postId: string) {
+    const { res, captured } = buildResponse();
+    await handler(
+      buildRequest({ user: { id: VIEWER }, params: { id: postId }, body: {} }) as never,
+      res as never,
+    );
+    return captured;
+  }
+
+  it('answers an unreadable post exactly as a missing one, and writes nothing', async () => {
+    const post = await seedPost(scope, { oxyUserId: scope.user('author') });
+    hoisted.unreadableIds.add(post.id);
+
+    for (const handler of [likePost, savePost]) {
+      const missing = await act(handler, `${post.id}-missing`);
+      const unreadable = await act(handler, post.id);
+      expect(unreadable).toEqual(missing);
+      expect(unreadable.status).toBe(404);
+    }
+    expect(await getDb().select().from(likes).where(eq(likes.postId, post.id))).toEqual([]);
+    expect(await getDb().select().from(bookmarks).where(eq(bookmarks.postId, post.id))).toEqual([]);
+  });
+
+  it('answers with the counts the author lets anyone see', async () => {
+    const author = scope.user('liker-a');
+    const post = await seedPost(scope, { oxyUserId: author });
+    await getDb()
+      .insert(userSettings)
+      .values({ oxyUserId: author, privacyHideLikeCounts: true, privacyHideSaveCounts: true });
+
+    expect((await act(likePost, post.id)).body).toMatchObject({
+      likesCount: null,
+      downvotesCount: null,
+    });
+    expect((await act(savePost, post.id)).body).toMatchObject({ savesCount: null });
   });
 });

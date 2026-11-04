@@ -28,6 +28,13 @@ import {
   savePostCommand,
   unsavePostCommand,
 } from '../../services/PostEngagementCommandService';
+import type { EngagementPostSnapshot } from '../../services/PostEngagementCommandService';
+import { canRequestReadPost } from '../../services/postReadAccess';
+import {
+  loadEngagementCountPrivacy,
+  visibleEngagementCounts,
+} from '../../services/engagementCountPrivacy';
+import { collectReadable } from '../../services/readablePage';
 import {
   BookmarkFolderInputError,
   type BookmarkFolderTarget,
@@ -37,6 +44,15 @@ import {
 } from '../../services/BookmarkFolderService';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
+
+/** The save counter a response may carry: `null` when the author hides it. */
+async function visibleSavesCount(post: EngagementPostSnapshot): Promise<number | null> {
+  const counts = visibleEngagementCounts(
+    { saves: post.statsSavesCount },
+    await loadEngagementCountPrivacy(post.oxyUserId),
+  );
+  return counts.saves ?? null;
+}
 
 // Save post
 export const savePost = async (req: AuthRequest, res: Response) => {
@@ -50,6 +66,8 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     const surface = readInteractionSurface(req.body);
 
     logger.debug('Save request received', { surface });
+    // A post the viewer may not read answers exactly as a missing one.
+    if (!(await canRequestReadPost(req, postId))) throw new EngagementPostNotFoundError(postId);
     const result = await savePostCommand({ userId, postId });
 
     // Learn only from the relationship transition, not an idempotent retry.
@@ -74,7 +92,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
 
     res.json({
       message: result.changed ? 'Post saved successfully' : 'Post already saved',
-      savesCount: result.post.statsSavesCount,
+      savesCount: await visibleSavesCount(result.post),
     });
   } catch (error) {
     if (error instanceof EngagementPostNotFoundError) {
@@ -94,6 +112,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = req.params.id as string;
+    if (!(await canRequestReadPost(req, postId))) throw new EngagementPostNotFoundError(postId);
     const result = await unsavePostCommand({ userId, postId });
 
     if (result.changed) {
@@ -108,7 +127,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     // Durable MTN side effects are delivered by the transactional outbox.
     res.json({
       message: result.changed ? 'Post unsaved successfully' : 'Post not saved',
-      savesCount: result.post.statsSavesCount,
+      savesCount: await visibleSavesCount(result.post),
     });
   } catch (error) {
     if (error instanceof EngagementPostNotFoundError) {
@@ -188,31 +207,51 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       logger.debug('Built saved-post query', { hasSearchFilter: true });
     }
 
-    // Get the actual posts
-    const posts = await findPostRecords(and(...conditions), {
-      orderBy: CHRONO_DESC,
-      limit,
-      offset: (page - 1) * limit,
-    });
+    const where = and(...conditions);
+    const hydrate = (rows: object[]) =>
+      postHydrationService.hydratePosts(rows, {
+        viewerId: userId,
+        safetyRequester: safetyRequesterFor(req),
+        oxyClient: createScopedOxyClient(req),
+        requestLanguages: requestLanguageCandidates(req),
+        maxDepth: 1,
+        includeLinkMetadata: true,
+        // Bookmarks are selected by id alone — deliberately, so saving something
+        // does not stop working when its visibility changes. That makes this one
+        // of the few list endpoints that can hold a withheld post, and dropping a
+        // channel operator's own saved entry out of their bookmarks would be a
+        // silent loss rather than a refusal they could act on.
+        operatedAccountReader: callerOxyUser(req),
+      });
 
-    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
-      maxDepth: 1,
-      includeLinkMetadata: true,
-      // Bookmarks are selected by id alone — deliberately, so saving something
-      // does not stop working when its visibility changes. That makes this one
-      // of the few list endpoints that can hold a withheld post, and dropping a
-      // channel operator's own saved entry out of their bookmarks would be a
-      // silent loss rather than a refusal they could act on.
-      operatedAccountReader: callerOxyUser(req),
-    });
+    const offset = (page - 1) * limit;
+    const posts = await findPostRecords(where, { orderBy: CHRONO_DESC, limit, offset });
+    const hydratedPosts = await hydrate(posts);
+
+    // `hasMore` is decided by READABLE saved posts only (`collectReadable`): a
+    // bookmark can outlive the viewer's right to read its post, and a flag taken
+    // from the raw rows let `search` probe that post's text.
+    let nextOffset = offset + posts.length;
+    const beyond =
+      posts.length < limit
+        ? []
+        : await collectReadable({
+            want: 1,
+            fetchAfter: async (_last, size) => {
+              const rows = await findPostRecords(where, {
+                orderBy: CHRONO_DESC,
+                limit: size,
+                offset: nextOffset,
+              });
+              nextOffset += rows.length;
+              return rows;
+            },
+            hydrate,
+          });
 
     res.json({
       posts: hydratedPosts,
-      hasMore: posts.length === limit,
+      hasMore: beyond.length > 0,
       page,
       limit,
     });

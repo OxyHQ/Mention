@@ -39,6 +39,7 @@ import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { validatePublicShareTarget } from '../../utils/postAccessControl';
+import { canRequestReadPost } from '../../services/postReadAccess';
 import { LaneAssignmentError } from '../../utils/laneAssignment';
 import { assertParentAcceptsReplies, ChannelReplyError } from '../../utils/channelReplyGate';
 import { PublishAsAccessError } from '../../services/publishAsAccount';
@@ -484,8 +485,14 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // there is nothing here to hang the gate off — it needs its own lookup, or the
     // refusal in `feed.controller.createReply` is a front door with the back one
     // open.
+    // The parent must also be one this viewer may read: a parent they may not
+    // read answers exactly as a missing one, rather than confirming it exists
+    // and attaching a reply (and its author's notification) to it.
     const replyTargetId = parentPostId || in_reply_to_status_id;
     if (replyTargetId) {
+      if (!(await canRequestReadPost(req, String(replyTargetId)))) {
+        return res.status(404).json({ message: 'Post not found' });
+      }
       await assertParentAcceptsReplies(String(replyTargetId));
     }
 

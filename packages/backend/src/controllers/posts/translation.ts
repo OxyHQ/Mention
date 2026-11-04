@@ -9,6 +9,7 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
+import { canRequestReadPost } from '../../services/postReadAccess';
 import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
@@ -124,14 +125,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
     // A stored translation changes the assessed material. Recheck the current
     // revision before serving model output; the worker will assess it again.
     const current = await loadPostRecord(post.id);
-    if (
-      !current ||
-      !(await postHydrationService.canViewerReadPostId(post.id, req.user?.id ?? '', {
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: createScopedOxyClient(req),
-        operatedAccountReader: callerOxyUser(req),
-      }))
-    ) {
+    if (!current || !(await canRequestReadPost(req, post.id))) {
       res.status(403).json({
         code: 'CONTENT_UNAVAILABLE',
         message: 'This translation is not available for this account',
