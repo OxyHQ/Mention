@@ -8,20 +8,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /** Actual workload transport, with fetch responses standing in for Oxy. */
 vi.mock('../../services/mediaCache/constants', () => ({ MEDIA_CACHE_WRITE_ENABLED: true }));
-const SERVICE_TOKEN = `e30.${Buffer.from(
-  JSON.stringify({
-    type: 'service',
-    authority: 'first_party',
-    appId: 'mention',
-    credentialId: 'wl_mention',
-    ownerAccountId: 'owner',
-    environment: 'production',
-    aud: 'oxy-api',
-    iss: 'oxy-auth',
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 300,
-  }),
-).toString('base64url')}.fixture`;
+const serviceToken = (credentialId: string) =>
+  `e30.${Buffer.from(
+    JSON.stringify({
+      type: 'service',
+      authority: 'first_party',
+      appId: 'mention',
+      credentialId,
+      ownerAccountId: 'owner',
+      environment: 'production',
+      aud: 'oxy-api',
+      iss: 'oxy-auth',
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 300,
+    }),
+  ).toString('base64url')}.fixture`;
+const SERVICE_TOKEN = serviceToken('wl_mention');
+/** A token minted after the first one was rotated away. */
+const ROTATED_TOKEN = serviceToken('wl_mention_rotated');
 const OXY_BASE = 'http://oxy.test';
 const mint = vi.fn();
 const nativeFetch = globalThis.fetch;
@@ -300,9 +304,35 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     );
   });
 
-  it('answers a 401 as a refusal like any other: sent once, never replayed', async () => {
+  it('resends once with a fresh token when Oxy refuses a rotated one (the SDK, core 7.20)', async () => {
+    const filePath = join(workDir, 'rotated.bin');
+    await writeFile(filePath, Buffer.from('x'));
+    mint
+      .mockResolvedValueOnce({ token: SERVICE_TOKEN, expiresIn: 300 })
+      .mockResolvedValueOnce({ token: ROTATED_TOKEN, expiresIn: 300 });
+    respond = (captured) =>
+      captured.options.headers.authorization === `Bearer ${SERVICE_TOKEN}`
+        ? { statusCode: 401, body: JSON.stringify({ message: 'token rejected' }) }
+        : { statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_rotated' } } }) };
+
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).resolves.toMatchObject({
+      oxyFileId: 'oxy_file_rotated',
+    });
+
+    expect(requests.map((r) => r.options.headers.authorization)).toEqual([
+      `Bearer ${SERVICE_TOKEN}`,
+      `Bearer ${ROTATED_TOKEN}`,
+    ]);
+    // The same bytes went again: a 401 means the first request never ran.
+    expect(Buffer.concat(requests[1].bodyChunks)).toEqual(Buffer.concat(requests[0].bodyChunks));
+  });
+
+  it('answers a 401 the fresh token does not cure as a refusal like any other', async () => {
     const filePath = join(workDir, 'unauthorized.bin');
     await writeFile(filePath, Buffer.from('x'));
+    mint
+      .mockResolvedValueOnce({ token: SERVICE_TOKEN, expiresIn: 300 })
+      .mockResolvedValueOnce({ token: ROTATED_TOKEN, expiresIn: 300 });
     respond = () => ({ statusCode: 401, body: JSON.stringify({ message: 'token rejected' }) });
 
     const refusal = await uploadCachedMedia({ filePath, contentType: 'image/png' }).catch(
@@ -313,8 +343,8 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     expect((refusal as OxyMediaStoreRequestError).statusCode).toBe(401);
     // The caller retries a failed write later; no cooldown is opened for it.
     expect(isMediaStoreThrottled(refusal)).toBe(false);
-    expect(requests).toHaveLength(1);
-    expect(mint).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(2);
+    expect(mint).toHaveBeenCalledTimes(2);
   });
 
   it('sends a failed upload once (no transport retry)', async () => {
@@ -462,7 +492,10 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     expect(isAbsentFromCacheNamespace(scopeRefused)).toBe(false);
   });
 
-  it('answers a 401 on a delete as a refusal: sent once, never replayed', async () => {
+  it('answers a 401 on a delete the fresh token does not cure as a refusal', async () => {
+    mint
+      .mockResolvedValueOnce({ token: SERVICE_TOKEN, expiresIn: 300 })
+      .mockResolvedValueOnce({ token: ROTATED_TOKEN, expiresIn: 300 });
     respond = () => ({ statusCode: 401, body: JSON.stringify({ message: 'token rejected' }) });
 
     const refusal = await deleteCachedMedia('oxy_file_to_delete').catch((error: unknown) => error);
@@ -470,8 +503,10 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     expect(refusal).toBeInstanceOf(OxyMediaStoreRequestError);
     expect((refusal as OxyMediaStoreRequestError).statusCode).toBe(401);
     expect(isAbsentFromCacheNamespace(refusal)).toBe(false);
-    expect(requests).toHaveLength(1);
-    expect(mint).toHaveBeenCalledTimes(1);
+    expect(requests.map((r) => r.options.headers.authorization)).toEqual([
+      `Bearer ${SERVICE_TOKEN}`,
+      `Bearer ${ROTATED_TOKEN}`,
+    ]);
   });
 
   it('sends a failed delete once (no transport retry)', async () => {

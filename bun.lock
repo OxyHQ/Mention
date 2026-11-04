@@ -110,7 +110,7 @@
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
         "@oxy.so/expo-splash": "^1.1.0",
-        "@oxy.so/homiio-sdk": "0.2.0",
+        "@oxy.so/homiio-sdk": "1.0.0",
         "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/services": "catalog:",
         "@oxy.so/stickers": "^0.2.2",
@@ -256,7 +256,7 @@
         "@clarity.surf/sdk": "0.12.0",
         "@mercaria.co/sdk": "0.8.0",
         "@oxy.so/contracts": "catalog:",
-        "@oxy.so/homiio-contracts": "0.2.1",
+        "@oxy.so/homiio-contracts": "0.2.2",
         "@oxy.so/utils": "catalog:",
         "zod": "catalog:",
       },
@@ -285,7 +285,7 @@
     "@modelcontextprotocol/sdk": "1.32.2",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
-    "@oxy.so/core": "7.19.0",
+    "@oxy.so/core": "7.21.0",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/services": "14.3.4",
     "@peable.to/sdk": "catalog:",
@@ -344,8 +344,8 @@
   },
   "catalog": {
     "@oxy.so/bloom": "17.6.2",
-    "@oxy.so/contracts": "6.5.0",
-    "@oxy.so/core": "7.19.0",
+    "@oxy.so/contracts": "6.7.0",
+    "@oxy.so/core": "7.21.0",
     "@oxy.so/mcp": "1.4.1",
     "@oxy.so/protocol": "1.6.1",
     "@oxy.so/services": "14.3.4",
@@ -1064,9 +1064,9 @@
 
     "@oxy.so/bloom-avatar-native": ["@oxy.so/bloom-avatar-native@0.1.1", "", { "peerDependencies": { "expo": ">=58 <59", "expo-gl": "58.0.3", "expo-modules-core": ">=58 <59", "react": ">=19", "react-native": ">=0.88" } }, "sha512-iMiJJ3WEllJ2PukcZ7/ezvw5EtDq7BSyRhjE3Lq5GMHD1kpuQRUwdLiWwufXBwzRVCA8+WfVZXG+JoL/H4K5Dw=="],
 
-    "@oxy.so/contracts": ["@oxy.so/contracts@6.5.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-8qH2DeFz9l9RsQdTx70WIHhgKJGIWVeY7OCFxcdSO7DzpilhnI5v+xCDw1nVI2ZWfllbffNFNzSjTOmFndmzpg=="],
+    "@oxy.so/contracts": ["@oxy.so/contracts@6.7.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-FStZKC+iF2ip8td08vO88cQTjQQsTWm7mjxfhtoOadghbEu1zlXfAa/yMvgMcl/TDz4lKWOxHShBACM5OLQvxA=="],
 
-    "@oxy.so/core": ["@oxy.so/core@7.19.0", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "6.5.0", "@oxy.so/protocol": "^1.6.1", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0 || ^5.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-LfMlY3405wYjFRf4LNXgfw3YoSHSz9PnT7GysoLsjtmSsVktbvwljbGk2x0xJKcQ+Yn1XqZnGbhu9ZO0jcLNIw=="],
+    "@oxy.so/core": ["@oxy.so/core@7.21.0", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "6.7.0", "@oxy.so/protocol": "^1.6.1", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0 || ^5.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-3+8hMJVBwpH8Ik7XrvfNFf3oCM2c/cm3EAT+N/Q8pm5752V/PSY1ZDVjhUPQR1lOMrgP9f/5PadOV1Uh7wwM3Q=="],
 
     "@oxy.so/db": ["@oxy.so/db@1.4.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" }, "bin": { "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js" } }, "sha512-qumZQoZ4khGXOl+LYC5uZquw5N3DdjBZoV3+WbwJ/zlLXCJ180Qhg72nRSalvIUQHoFIosuIr5DFHT0ia3Garg=="],
 
@@ -1076,9 +1076,9 @@
 
     "@oxy.so/federation": ["@oxy.so/federation@2.17.0", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || 4.11.0-oxy-one.0", "@oxy.so/core": "^6.14.0 || ^7.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-ZmUhYuLlXY3+ry2bC9gy766vItt1W6nNAKZaPtaOvI55BXRlpPpb7wNPb8ljo2PsX15TMwEIuxx/WKC5eNk1eA=="],
 
-    "@oxy.so/homiio-contracts": ["@oxy.so/homiio-contracts@0.2.1", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-Yl0zPN5C5DgQEEo7ogfdCuHs80smCLtGGvEmenneppHeGOGw32XxBH6Lkn1nTh8mhbjwntR8F85IsDv0gMLF4Q=="],
+    "@oxy.so/homiio-contracts": ["@oxy.so/homiio-contracts@0.2.2", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-j7JpjG7LW/ejpOmGIjrKLqwM4xlZ7vReeNzpz6Gzza9lw9er9s/HIou7er4L2c3N+BTbd4IE2l9jFcySzy+Umg=="],
 
-    "@oxy.so/homiio-sdk": ["@oxy.so/homiio-sdk@0.2.0", "", { "dependencies": { "@oxy.so/homiio-contracts": "0.2.1" } }, "sha512-qelR6GogxKdkVcV+C861bvb/IFi2ucQYl8Szd3eWHT+8GnY38BPSDWSQzkf9eXEwNEjnGebG4Bpkq48hvvLscw=="],
+    "@oxy.so/homiio-sdk": ["@oxy.so/homiio-sdk@1.0.0", "", { "dependencies": { "@oxy.so/homiio-contracts": "0.2.2" } }, "sha512-LhiII+VSzEhK0+qHn1e5ssrW2HvFVoTcd+8bXmuD6c+n83Bw92c5xLikBSx9xH0Vmo9EX9ceIDrq9tcZS+fcvQ=="],
 
     "@oxy.so/mcp": ["@oxy.so/mcp@1.4.1", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.32.2", "@oxy.so/contracts": "^6.5.0", "zod": "^4.6.7" } }, "sha512-xE7qEMOClukImw5DKqjyZRsFZvC5SDmpu+EBdhepasVyIHccaSgFsumWJJ6GwrMTph6YdNy7cUgJ23POXXowFQ=="],
 

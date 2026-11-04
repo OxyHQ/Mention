@@ -668,7 +668,7 @@ Only an answer from Oxy settles a deletion:
   item, and never stores the expiring URL. ActivityPub and atproto keep the
   stable URL behind the media proxy.
 - A 429 (never sooner than the wait Oxy names), a 5xx, any other refusal (a 401
-  included: each delete call is sent once, with no transport replay), a transport
+  included, once the SDK's single fresh-token resend has not cured it), a transport
   failure, or a 404 for the route itself (an oxy-api that predates it) is retried
   with exponential backoff.
 

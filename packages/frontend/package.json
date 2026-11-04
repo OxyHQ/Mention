@@ -123,7 +123,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/expo-splash": "^1.1.0",
-    "@oxy.so/homiio-sdk": "0.2.0",
+    "@oxy.so/homiio-sdk": "1.0.0",
     "@oxy.so/mention-contracts": "workspace:*",
     "@oxy.so/services": "catalog:",
     "@oxy.so/stickers": "^0.2.2",
