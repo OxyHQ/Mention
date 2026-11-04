@@ -23,16 +23,17 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', async () => ({
   createScopedOxyClient: () => ({}),
   ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
-    privacy: {
-      isBlocked: async () => {
-        if (state.privacyFailed) throw new Error('Oxy unavailable');
-        return state.blocked;
-      },
-    },
     accounts: { members: { list: async () => state.members } },
   })),
 }));
-vi.mock('../../utils/privacyHelpers', () => ({ canViewProfileDesign: async () => state.visible }));
+vi.mock('../../utils/privacyHelpers', () => ({
+  canViewProfileDesign: async () => state.visible,
+  // Oxy's two-way answer for the caller's proof.
+  blockedEitherWay: async (_requester: unknown, ids: string[]) => {
+    if (state.privacyFailed) throw new Error('Oxy unavailable');
+    return new Set(state.blocked ? ids : []);
+  },
+}));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   requireOxyAuth: (_req: express.Request, res: express.Response, next: express.NextFunction) =>
@@ -91,7 +92,10 @@ function featuredCollection(): MercariaCollection {
 const app = express();
 app.use(express.json());
 app.use((req: express.Request & { user?: { id: string } }, _res, next) => {
-  if (state.viewer) req.user = { id: state.viewer };
+  if (state.viewer) {
+    req.user = { id: state.viewer };
+    (req as { accessToken?: string }).accessToken = `bearer-${state.viewer}`;
+  }
   next();
 });
 app.use('/commerce', commerceRoutes);
