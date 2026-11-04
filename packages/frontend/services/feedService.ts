@@ -93,6 +93,8 @@ export interface ExternalActorResolution {
 export interface SavedPostsPage {
   posts: HydratedPost[];
   hasMore: boolean;
+  /** Pass back as `cursor` for the next page; present exactly when `hasMore`. */
+  nextCursor?: string;
   page: number;
   limit: number;
 }

@@ -264,11 +264,15 @@ async function fetchSearchPage(
     case 'saved': {
       // Auth-gated (`/posts/saved`) — see the posts tab above.
       if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
-      const page = typeof pageParam === 'number' ? pageParam : 1;
-      const { posts, hasMore, nextPage } = await searchService.searchSavedPage(query, page, signal);
+      const cursor = typeof pageParam === 'string' ? pageParam : undefined;
+      const { posts, hasMore, nextCursor } = await searchService.searchSavedPage(
+        query,
+        cursor,
+        signal,
+      );
       return {
         results: { ...EMPTY_RESULTS, saved: posts },
-        nextPageParam: hasMore ? nextPage : undefined,
+        nextPageParam: hasMore ? nextCursor : undefined,
       };
     }
     case 'feeds': {

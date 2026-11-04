@@ -36,6 +36,8 @@ vi.mock('../../services/PostCreationService', () => ({
   postCreationService: { create: (...args: unknown[]) => postCreationCreate(...args) },
 }));
 
+// The post read gate has its own suites; this one is about what happens past it.
+vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async () => new Map()),

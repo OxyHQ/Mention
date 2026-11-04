@@ -33,6 +33,7 @@ import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEnga
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
+import { canRequestReadPost } from '../services/postReadAccess';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import {
   checkFollowAccess,
@@ -370,9 +371,11 @@ class FeedController {
         parsedHashtags = parsed.data;
       }
 
-      // Fetch parent post to check reply permissions
+      // Fetch parent post to check reply permissions. A parent the viewer may
+      // not read answers exactly as a missing one: replying under it would both
+      // confirm it exists and notify its author.
       const parentPost = await loadPostRecord(postId);
-      if (!parentPost) {
+      if (!parentPost || !(await canRequestReadPost(req, postId))) {
         return res.status(404).json({ error: 'Post not found' });
       }
 
@@ -972,31 +975,34 @@ class FeedController {
       // Detect whether the parent is a self-thread ROOT. A self-thread root anchors
       // its own id as `threadId` (see createThread); for such a post the replies feed
       // must surface external replies to ANY node of the OP's continuation spine
-      // (root … cN) — Bluesky behavior — not just the root's direct children. An
-      // unknown parent id simply reads as no row, so spine expansion is skipped and
-      // the single-parent query stands.
+      // (root … cN) — Bluesky behavior — not just the root's direct children.
       //
       // The parent (through the record cache every detail read shares), the
       // viewer's relations and their exclusion list are independent reads, so
       // they run together; the relations are then threaded into hydration so it
       // does not resolve them a second time.
       const requestOxyClient = createScopedOxyClient(req);
-      const [parent, viewerRelations, blockedAndMutedIds] = await Promise.all([
+      const [parent, parentReadable, viewerRelations, blockedAndMutedIds] = await Promise.all([
         getOrLoadPostRecord(parentId, () => loadPostRecord(parentId)),
+        canRequestReadPost(req, parentId),
         resolveViewerPrivacyAndGraph(currentUserId, requestOxyClient),
         this.getBlockedAndMutedUserIds(currentUserId, requestOxyClient),
       ]);
-      const isSelfThreadRoot = parent?.threadId === parent?.id;
+      // The replies under a post are only public when the post is: a parent the
+      // viewer may not read (or that does not exist) has no replies to list.
+      if (!parent || !parentReadable) {
+        return res.status(404).json({ message: 'Post not found' });
+      }
+      const isSelfThreadRoot = parent.threadId === parent.id;
 
       // The OP's own continuations are rendered as the connected spine on the client,
       // so they must NOT also appear as replies. Each continuation hangs off another
       // spine node (c1.parentPostId === root, c2.parentPostId === c1, …) and would
       // otherwise match the expanded parent filter, so exclude them by id. The root
       // has no parentPostId and can never appear as a reply.
-      const continuationIds =
-        isSelfThreadRoot && parent
-          ? (await this.getSelfThreadContinuations(parent)).map((c) => c.id)
-          : [];
+      const continuationIds = isSelfThreadRoot
+        ? (await this.getSelfThreadContinuations(parent)).map((c) => c.id)
+        : [];
 
       const conditions: SQL[] = [
         continuationIds.length > 0
@@ -1127,21 +1133,10 @@ class FeedController {
       const requestOxyClient = createScopedOxyClient(req);
 
       // This is a public route, but the relationship it exposes is only public
-      // when the quoted post itself is viewable. Hydrate the anchor first so it
-      // passes through the same post/profile ACL as post detail before either
-      // enumerating its quotes or embedding it as nested quote context.
-      const anchorPost = await loadPostRecord(postId);
-      if (!anchorPost) {
+      // when the quoted post itself is viewable — and an unreadable post answers
+      // exactly as a missing one.
+      if (!(await canRequestReadPost(req, postId))) {
         return res.status(404).json({ message: 'Post not found' });
-      }
-      const [visibleAnchor] = await postHydrationService.hydratePosts([anchorPost], {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: requestOxyClient,
-        maxDepth: 0,
-      });
-      if (!visibleAnchor) {
-        return res.status(404).json({ message: 'Post not available' });
       }
 
       const conditions: SQL[] = [

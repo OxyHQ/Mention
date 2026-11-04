@@ -44,6 +44,8 @@ vi.mock('../../services/PostCreationService', () => ({
   postCreationService: { create },
 }));
 
+// The post read gate has its own suites; this one is about what happens past it.
+vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: vi.fn(async () => new Map()),
@@ -78,6 +80,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { createPost } from '../../controllers/posts/createPost';
+import { canRequestReadPost } from '../../services/postReadAccess';
 
 const scope = serviceScope('posts-controller-channel-reply');
 const OPERATOR = scope.user('operator');
@@ -201,12 +204,8 @@ describe('POST /posts — a channel post takes no replies', () => {
    * state the deleted `ObjectId.isValid` guard produced for every post created
    * after the cutover, silently, while the gate still looked present.
    */
-  it('lets a reply through when the parent id names NO row — the gate is a lookup, not a shape check', async () => {
-    create.mockResolvedValue({
-      id: 'pccr-created',
-      oxyUserId: OPERATOR,
-      content: { text: 'x' },
-    });
+  it('answers a parent the viewer may not read (or that names NO row) with 404, creating nothing', async () => {
+    vi.mocked(canRequestReadPost).mockResolvedValueOnce(false);
 
     const res = makeRes();
     await createPost(
@@ -214,8 +213,8 @@ describe('POST /posts — a channel post takes no replies', () => {
       res as never,
     );
 
-    expect(res.statusCode).not.toBe(403);
-    expect(create).toHaveBeenCalled();
+    expect(res.statusCode).toBe(404);
+    expect(create).not.toHaveBeenCalled();
   });
 
   /**

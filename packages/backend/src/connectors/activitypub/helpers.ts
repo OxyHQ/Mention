@@ -3,7 +3,8 @@ import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { createSignedFetch, type SignedFetch } from '@oxy.so/federation/node';
+import { apIri, apIriList, apList, isActivityPubMediaType } from '@oxy.so/federation';
+import { createSignedFetch, type SignedFetch, type SignedFetchInit } from '@oxy.so/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
 import { AP_CONTENT_TYPE, USER_AGENT, extractLocalPostIdFromApUri } from './constants';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
@@ -61,29 +62,10 @@ export function activityPubItems(value: Record<string, unknown>): unknown[] {
   return [];
 }
 
+/** The absolute http(s) IRI a reference names (string, `{id}` or `{href}`), or null. */
 export function activityPubLinkUrl(value: unknown): string | null {
-  if (typeof value === 'string' && isAbsoluteHttpUrl(value)) return value;
-  const record = asRecord(value);
-  if (!record) return null;
-  if (typeof record.id === 'string' && isAbsoluteHttpUrl(record.id)) return record.id;
-  if (typeof record.href === 'string' && isAbsoluteHttpUrl(record.href)) return record.href;
-  return null;
-}
-
-export function firstStringUrl(value: unknown): string | undefined {
-  if (typeof value === 'string' && isAbsoluteHttpUrl(value)) return value;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const resolved = firstStringUrl(item);
-      if (resolved) return resolved;
-    }
-    return undefined;
-  }
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return firstStringUrl(record.url) || firstStringUrl(record.href);
-  }
-  return undefined;
+  const iri = apIri(value);
+  return iri && isAbsoluteHttpUrl(iri) ? iri : null;
 }
 
 /**
@@ -320,12 +302,13 @@ function getSignedFetch(): SignedFetch {
  * TOCTOU window). The engine re-validates AND re-signs each redirect hop, honours
  * `init.redirect === 'manual'` (returning the redirect for a stricter per-hop
  * policy — see {@link fetchVerifiedAnnouncedNote}), and retries unsigned on a 5xx
- * for public resources.
+ * for public resources. `init.keyId` signs as a local user instead of the
+ * instance (Oxy signs for that key too); such a request is never retried unsigned.
  */
 export function signedFetch(
   url: string,
   accept: string,
-  init: RequestInit = {},
+  init: SignedFetchInit = {},
 ): Promise<Response> {
   return withActivityPubDeadline(
     (signal) => getSignedFetch()(url, accept, { ...init, signal }),
@@ -344,9 +327,24 @@ export function sameOrigin(left: string, right: string): boolean {
   }
 }
 
+/**
+ * The public collection in each form a server may send it: JSON-LD compaction
+ * against the ActivityStreams context turns the IRI into `as:Public` or
+ * `Public`, and Mastodon accepts all three.
+ */
+const AP_PUBLIC_ADDRESSEES: ReadonlySet<string> = new Set([
+  'https://www.w3.org/ns/activitystreams#Public',
+  'as:Public',
+  'Public',
+]);
+
+/** Whether one addressee is the public collection. */
+export function isApPublicAddressee(addressee: string): boolean {
+  return AP_PUBLIC_ADDRESSEES.has(addressee);
+}
+
 function isPubliclyAddressed(to?: unknown, cc?: unknown): boolean {
-  const addressees = [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])];
-  return addressees.includes('https://www.w3.org/ns/activitystreams#Public');
+  return apAddressees(to, cc).some(isApPublicAddressee);
 }
 
 export interface FetchedOriginDocument {
@@ -464,28 +462,76 @@ export async function fetchVerifiedAnnouncedNote(
 }
 
 /**
- * Fetch and parse a remote ActivityPub object via `signedFetch`. Returns null
- * on any HTTP/parse failure.
+ * What one signed fetch of an ActivityPub object answered:
+ *  - `object`: the parsed document;
+ *  - `refused`: 401/403 — the signing actor may not read it;
+ *  - `notFound`: 404/410 — absent, or (Mastodon) hidden from this actor;
+ *  - `failed`: anything else (5xx, network, unparseable) — no verdict, try later.
  */
-export async function fetchActivityPubObject(url: string): Promise<Record<string, unknown> | null> {
+export type ActivityPubObjectFetch =
+  | { kind: 'object'; object: Record<string, unknown> }
+  | { kind: 'refused' | 'notFound'; status: number }
+  | { kind: 'failed'; status?: number };
+
+/**
+ * Fetch and parse a remote ActivityPub object via `signedFetch`, signed as the
+ * instance or — with `keyId` — as a local user (see
+ * {@link localActorKeyIdResolver}), and say how it went.
+ */
+export async function fetchActivityPubObjectAs(
+  url: string,
+  options: { keyId?: string } = {},
+): Promise<ActivityPubObjectFetch> {
   try {
-    const res = await signedFetch(url, AP_CONTENT_TYPE);
+    const res = await signedFetch(url, AP_CONTENT_TYPE, { keyId: options.keyId });
     if (!res.ok) {
       logger.info('[FedSync] ActivityPub object fetch failed', {
         status: res.status,
         statusText: res.statusText,
+        asActor: options.keyId !== undefined,
       });
-      return null;
+      await res.body?.cancel().catch(() => undefined);
+      if (res.status === 401 || res.status === 403) return { kind: 'refused', status: res.status };
+      if (res.status === 404 || res.status === 410) return { kind: 'notFound', status: res.status };
+      return { kind: 'failed', status: res.status };
     }
-    const object = await res.json();
-    return asRecord(object);
+    const object = asRecord(await res.json());
+    return object ? { kind: 'object', object } : { kind: 'failed', status: res.status };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.info('[FedSync] ActivityPub object fetch error', {
       error: message,
     });
-    return null;
+    return { kind: 'failed' };
   }
+}
+
+/**
+ * Fetch and parse a remote ActivityPub object signed as the instance. Returns
+ * null on any HTTP/parse failure.
+ */
+export async function fetchActivityPubObject(url: string): Promise<Record<string, unknown> | null> {
+  const fetched = await fetchActivityPubObjectAs(url);
+  return fetched.kind === 'object' ? fetched.object : null;
+}
+
+/**
+ * A local user's signing `keyId` by username, memoized for the life of the
+ * returned function — one script run, say — so a sweep signing many fetches as
+ * the same user asks Oxy once. Not module state: Oxy owns the binding of a
+ * handle to its key and is asked again by the next caller.
+ */
+export function localActorKeyIdResolver(): (username: string) => Promise<string> {
+  const keyIds = new Map<string, Promise<string>>();
+  return (username) => {
+    let keyId = keyIds.get(username);
+    if (!keyId) {
+      keyId = getPublicKey(username).then((key) => key.keyId);
+      keyId.catch(() => keyIds.delete(username));
+      keyIds.set(username, keyId);
+    }
+    return keyId;
+  };
 }
 
 /**
@@ -511,24 +557,25 @@ export async function runWithTimeout<T>(work: Promise<T>, timeoutMs: number): Pr
  * which may be a plain URI string or an embedded object with an `id`.
  */
 export function extractAnnouncedObjectUri(object: unknown): string | undefined {
-  if (typeof object === 'string') return isAbsoluteHttpUrl(object) ? object : undefined;
-  if (object && typeof object === 'object' && 'id' in object) {
-    const id = (object as { id?: unknown }).id;
-    return typeof id === 'string' && isAbsoluteHttpUrl(id) ? id : undefined;
-  }
-  return undefined;
+  return activityPubLinkUrl(object) ?? undefined;
 }
 
 /**
- * Extract the actor URI from an AP attributedTo value,
- * which may be a plain URI string or an object with an id property.
+ * The actor URI an AP `attributedTo` (or `actor`) value names: an IRI, an
+ * embedded actor, or a list of them. PeerTube attributes a video to its author
+ * AND its channel (`[Person, Group]`), so in a list the first entry that is not
+ * a `Group` is the author; a list of only `Group`s yields the first.
  */
 export function extractActorUri(attributedTo: unknown): string | undefined {
-  if (typeof attributedTo === 'string') return attributedTo;
-  if (attributedTo && typeof attributedTo === 'object' && 'id' in attributedTo) {
-    return (attributedTo as { id?: string }).id;
+  let firstGroup: string | undefined;
+  for (const entry of apList(attributedTo)) {
+    const uri = apIri(entry);
+    if (!uri) continue;
+    const type = asRecord(entry)?.type;
+    if (!(type === 'Group' || (Array.isArray(type) && type.includes('Group')))) return uri;
+    firstGroup ??= uri;
   }
-  return undefined;
+  return firstGroup;
 }
 
 /**
@@ -542,16 +589,7 @@ export function extractActorUri(attributedTo: unknown): string | undefined {
  * directly by {@link resolvePostIdFromObjectUri} for thread linking.
  */
 export function extractInReplyToUri(inReplyTo: unknown): string | undefined {
-  if (typeof inReplyTo === 'string') {
-    const trimmed = inReplyTo.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
-  if (inReplyTo && typeof inReplyTo === 'object') {
-    const record = inReplyTo as { id?: unknown; href?: unknown };
-    if (typeof record.id === 'string' && record.id.trim().length > 0) return record.id.trim();
-    if (typeof record.href === 'string' && record.href.trim().length > 0) return record.href.trim();
-  }
-  return undefined;
+  return apIri(inReplyTo)?.trim() || undefined;
 }
 
 /**
@@ -578,34 +616,28 @@ export function extractApQuoteUri(object: Record<string, unknown>): string | und
     if (uri) return uri;
   }
 
-  const tags = object.tag;
-  if (Array.isArray(tags)) {
-    for (const entry of tags) {
-      if (!entry || typeof entry !== 'object') continue;
-      const record = entry as {
-        type?: unknown;
-        rel?: unknown;
-        mediaType?: unknown;
-        href?: unknown;
-      };
-      const isLink =
-        record.type === 'Link' || (Array.isArray(record.type) && record.type.includes('Link'));
-      if (!isLink) continue;
+  for (const entry of apList(object.tag)) {
+    if (typeof entry !== 'object') continue;
+    const record = entry as {
+      type?: unknown;
+      rel?: unknown;
+      mediaType?: unknown;
+      href?: unknown;
+    };
+    const isLink =
+      record.type === 'Link' || (Array.isArray(record.type) && record.type.includes('Link'));
+    if (!isLink) continue;
 
-      const rel = Array.isArray(record.rel)
-        ? record.rel.join(' ')
-        : typeof record.rel === 'string'
-          ? record.rel
-          : '';
-      const isQuoteRel = rel.includes('_misskey_quote');
-      const isApLink =
-        typeof record.mediaType === 'string' &&
-        record.mediaType.toLowerCase().includes('activity+json');
-      if (!isQuoteRel && !isApLink) continue;
+    const rel = Array.isArray(record.rel)
+      ? record.rel.join(' ')
+      : typeof record.rel === 'string'
+        ? record.rel
+        : '';
+    const isQuoteRel = rel.includes('_misskey_quote');
+    if (!isQuoteRel && !isActivityPubMediaType(record.mediaType)) continue;
 
-      const href = typeof record.href === 'string' ? record.href.trim() : '';
-      if (href && isAbsoluteHttpUrl(href)) return href;
-    }
+    const href = typeof record.href === 'string' ? record.href.trim() : '';
+    if (href && isAbsoluteHttpUrl(href)) return href;
   }
 
   return undefined;
@@ -848,10 +880,9 @@ export function extractApMedia(note: Record<string, unknown>): {
  */
 export function extractApHashtags(note: Record<string, unknown>): string[] {
   const hashtags: string[] = [];
-  if (!Array.isArray(note.tag)) return hashtags;
-
-  for (const tag of note.tag) {
-    if (tag?.type === 'Hashtag' && tag.name) {
+  for (const entry of apList(note.tag)) {
+    const tag = asRecord(entry);
+    if (tag?.type === 'Hashtag' && typeof tag.name === 'string' && tag.name) {
       const normalized = normalizeHashtag(tag.name);
       if (normalized.length > 0) {
         hashtags.push(normalized);
@@ -886,11 +917,9 @@ export function mapApVisibility(
     : PostVisibility.DIRECT;
 }
 
-/** Every string addressee of a note's `to` and `cc`, in order. */
+/** Every addressee of a note's `to` and `cc`, in order ({@link apIriList}). */
 export function apAddressees(to?: unknown, cc?: unknown): string[] {
-  return [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])].filter(
-    (entry): entry is string => typeof entry === 'string',
-  );
+  return [...apIriList(to), ...apIriList(cc)];
 }
 
 /**

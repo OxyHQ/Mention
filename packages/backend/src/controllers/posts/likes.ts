@@ -18,6 +18,24 @@ import {
   removeVoteCommand,
   votePostCommand,
 } from '../../services/PostEngagementCommandService';
+import type { EngagementPostSnapshot } from '../../services/PostEngagementCommandService';
+import { canRequestReadPost } from '../../services/postReadAccess';
+import {
+  loadEngagementCountPrivacy,
+  visibleEngagementCounts,
+} from '../../services/engagementCountPrivacy';
+
+/**
+ * The vote counters a response may carry: `null` for counters the author hides,
+ * the same answer the post DTO and the realtime broadcast give.
+ */
+async function visibleVoteCounts(post: EngagementPostSnapshot) {
+  const counts = visibleEngagementCounts(
+    { likes: post.statsLikesCount, downvotes: post.statsDownvotesCount },
+    await loadEngagementCountPrivacy(post.oxyUserId),
+  );
+  return { likesCount: counts.likes ?? null, downvotesCount: counts.downvotes ?? null };
+}
 
 /**
  * Apply an idempotent vote command. The relationship, counters and durable
@@ -39,6 +57,8 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       value,
       surface,
     });
+    // A post the viewer may not read answers exactly as a missing one.
+    if (!(await canRequestReadPost(req, postId))) throw new EngagementPostNotFoundError(postId);
     const result = await votePostCommand({ userId, postId, value, source: surface });
 
     if (result.changed && result.likeId && value === 1) {
@@ -90,8 +110,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
             : 'Post downvoted successfully'
           : 'Vote switched successfully'
         : 'Vote unchanged',
-      likesCount: result.post.statsLikesCount,
-      downvotesCount: result.post.statsDownvotesCount,
+      ...(await visibleVoteCounts(result.post)),
       liked: value === 1,
       downvoted: value === -1,
     });
@@ -113,6 +132,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = req.params.id as string;
+    if (!(await canRequestReadPost(req, postId))) throw new EngagementPostNotFoundError(postId);
     const result = await removeVoteCommand({ userId, postId });
 
     if (result.changed) {
@@ -130,8 +150,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
 
     res.json({
       message: result.changed ? 'Vote removed successfully' : 'No vote to remove',
-      likesCount: result.post.statsLikesCount,
-      downvotesCount: result.post.statsDownvotesCount,
+      ...(await visibleVoteCounts(result.post)),
       liked: false,
       downvoted: false,
     });

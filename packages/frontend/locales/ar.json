@@ -1440,11 +1440,9 @@
       "clearCacheSuccess": "تم مسح ذاكرة التخزين المؤقت."
     },
     "accessibility": {
-      "hapticFeedback": "الاستجابة اللمسية",
-      "hapticFeedbackDesc": "اهتزاز عند التفاعل",
       "interaction": "التفاعل",
       "title": "إمكانية الوصول",
-      "nativeHaptics": "متاح في تطبيق الهاتف."
+      "media": "الوسائط"
     },
     "debug": "تصحيح الأخطاء",
     "interests": {

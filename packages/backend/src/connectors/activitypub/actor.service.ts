@@ -26,7 +26,7 @@ import {
 import { recordRemoteMove } from './move.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
-import { signedFetch, firstStringUrl, normalizeFederatedAcct, domainFromAcct } from './helpers';
+import { signedFetch, normalizeFederatedAcct, domainFromAcct } from './helpers';
 import { reportFederatedActorGone } from '../identity';
 import { resolveOxyIdentity } from '../oxyIdentity';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
@@ -243,7 +243,6 @@ export const activityPubActorResolverConfig: ActorResolverConfig<EngineFederated
   isBlockedDomain,
   normalizeFederatedAcct,
   domainFromAcct,
-  firstStringUrl,
   store,
   identity: {
     resolveExternalUser: async (actor) => actor.oxyUserId ?? null,

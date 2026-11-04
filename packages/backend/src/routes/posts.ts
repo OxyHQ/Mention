@@ -56,16 +56,14 @@ import {
 } from '../controllers/posts/collaboration';
 import { getPostEditSource } from '../controllers/postEditSource.controller';
 import {
-  deletePostgate,
-  deleteThreadgate,
-  loadPostgateByPostId,
-  loadThreadgateByPostId,
-  parseDetachedQuoteUris,
-  parseThreadgateAllowRules,
-  upsertPostgate,
-  upsertThreadgate,
-} from '../db/gates/gateRepository';
-import { createPostUri } from '@mention/shared-types';
+  readPostgate,
+  readThreadgate,
+  removePostgate,
+  removeThreadgate,
+  writePostgate,
+  writeThreadgate,
+  type GateResponse,
+} from '../services/postGates';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
 import {
@@ -226,149 +224,31 @@ router.post('/:id/save', savePost);
 router.delete('/:id/save', unsavePost);
 router.post('/:id/translate', ...translationRateLimiters, translatePost);
 
-// Threadgate routes (reply controls)
-router.put('/:id/threadgate', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+// Reply controls (threadgate) and quote controls (postgate). Reading one is an
+// action on the post (the read gate); writing one is managing it — see
+// `services/postGates.ts`.
+const gateRoute =
+  (handler: (req: AuthRequest, postId: string) => Promise<GateResponse>, failure: string) =>
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { status, body } = await handler(req, String(req.params.id));
+      return res.status(status).json(body);
+    } catch (error) {
+      return res.status(500).json({ message: failure, error: String(error) });
     }
+  };
 
-    const postId = String(req.params.id);
-    const postUri = createPostUri(userId, postId);
-
-    // `allow[]` is validated here because the rules table refuses a `listOnly`
-    // rule with no list and a list on any other rule. Rejecting the payload here
-    // answers 400 instead of letting a CHECK violation surface as a 500.
-    const allow = parseThreadgateAllowRules(req.body?.allow);
-    if (!allow) {
-      return res.status(400).json({ message: 'Invalid threadgate allow rules' });
-    }
-
-    const threadgate = await upsertThreadgate({ postUri, postId, createdBy: userId, allow });
-
-    return res.status(200).json(threadgate);
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to set threadgate', error: String(error) });
-  }
-});
-
-router.get('/:id/threadgate', async (req: AuthRequest, res: Response) => {
-  try {
-    const postId = String(req.params.id);
-    const threadgate = await loadThreadgateByPostId(postId);
-
-    if (!threadgate) {
-      return res.status(404).json({ message: 'Threadgate not found' });
-    }
-
-    return res.status(200).json(threadgate);
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to get threadgate', error: String(error) });
-  }
-});
-
-router.delete('/:id/threadgate', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const postId = String(req.params.id);
-    const threadgate = await loadThreadgateByPostId(postId);
-
-    if (!threadgate) {
-      return res.status(404).json({ message: 'Threadgate not found' });
-    }
-
-    if (threadgate.createdBy !== userId) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    await deleteThreadgate(threadgate.id);
-    return res.status(200).json({ message: 'Threadgate removed' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to delete threadgate', error: String(error) });
-  }
-});
-
-// Postgate routes (quote controls)
-router.put('/:id/postgate', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const postId = String(req.params.id);
-    const postUri = createPostUri(userId, postId);
-    const { disableQuotes, detachedQuoteUris } = req.body ?? {};
-
-    if (
-      disableQuotes !== undefined &&
-      disableQuotes !== null &&
-      typeof disableQuotes !== 'boolean'
-    ) {
-      return res.status(400).json({ message: 'disableQuotes must be a boolean' });
-    }
-    const uris = parseDetachedQuoteUris(detachedQuoteUris);
-    if (!uris) {
-      return res.status(400).json({ message: 'detachedQuoteUris must be an array of strings' });
-    }
-
-    const postgate = await upsertPostgate({
-      postUri,
-      postId,
-      createdBy: userId,
-      disableQuotes: disableQuotes ?? false,
-      detachedQuoteUris: uris,
-    });
-
-    return res.status(200).json(postgate);
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to set postgate', error: String(error) });
-  }
-});
-
-router.get('/:id/postgate', async (req: AuthRequest, res: Response) => {
-  try {
-    const postId = String(req.params.id);
-    const postgate = await loadPostgateByPostId(postId);
-
-    if (!postgate) {
-      return res.status(404).json({ message: 'Postgate not found' });
-    }
-
-    return res.status(200).json(postgate);
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to get postgate', error: String(error) });
-  }
-});
-
-router.delete('/:id/postgate', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const postId = String(req.params.id);
-    const postgate = await loadPostgateByPostId(postId);
-
-    if (!postgate) {
-      return res.status(404).json({ message: 'Postgate not found' });
-    }
-
-    if (postgate.createdBy !== userId) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    await deletePostgate(postgate.id);
-    return res.status(200).json({ message: 'Postgate removed' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to delete postgate', error: String(error) });
-  }
-});
+router.put(
+  '/:id/threadgate',
+  gateRoute((req, id) => writeThreadgate(req, id, req.body), 'Failed to set threadgate'),
+);
+router.get('/:id/threadgate', gateRoute(readThreadgate, 'Failed to get threadgate'));
+router.delete('/:id/threadgate', gateRoute(removeThreadgate, 'Failed to delete threadgate'));
+router.put(
+  '/:id/postgate',
+  gateRoute((req, id) => writePostgate(req, id, req.body), 'Failed to set postgate'),
+);
+router.get('/:id/postgate', gateRoute(readPostgate, 'Failed to get postgate'));
+router.delete('/:id/postgate', gateRoute(removePostgate, 'Failed to delete postgate'));
 
 export default router;

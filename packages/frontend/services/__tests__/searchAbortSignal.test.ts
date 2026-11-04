@@ -263,7 +263,7 @@ describe('search AbortSignal propagation', () => {
 
     await searchService.searchPostsPage('mention', 'cursor-v1', signal);
     await searchService.searchListsPage('mention', 20, signal);
-    await searchService.searchSavedPage('mention', 2, signal);
+    await searchService.searchSavedPage('mention', 'saved-cursor', signal);
 
     expect(mockAuthGet).toHaveBeenCalledWith(
       '/search',
@@ -279,7 +279,9 @@ describe('search AbortSignal propagation', () => {
         signal,
       }),
     );
-    expect(mockGetSavedPosts).toHaveBeenCalledWith(expect.objectContaining({ page: 2, signal }));
+    expect(mockGetSavedPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: 'saved-cursor', signal }),
+    );
   });
 
   it('searches public lists without a session and retains pagination and cancellation', async () => {

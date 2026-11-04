@@ -1386,11 +1386,9 @@
       "clearCacheSuccess": "Cache vidé."
     },
     "accessibility": {
-      "hapticFeedback": "Retour haptique",
-      "hapticFeedbackDesc": "Vibration lors des interactions",
       "interaction": "Interaction",
       "title": "Accessibilité",
-      "nativeHaptics": "Disponible dans l’application mobile."
+      "media": "Médias"
     },
     "debug": "Débogage",
     "interests": {

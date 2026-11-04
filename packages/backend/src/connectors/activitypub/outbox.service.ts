@@ -38,6 +38,7 @@ import {
   buildFederatedNoteContent,
   buildFederatedNoteProvenance,
   buildFederatedNoteVariants,
+  apNoteUrl,
 } from './apPostContent';
 import { resolvePostCommunity } from './apCommunity';
 import { resolveAnnouncedActivity } from './apRelay';
@@ -91,6 +92,7 @@ import {
   extractMentionTags,
   hasSourceMentionLink,
   resolveApAudience,
+  resolveApAudienceFor,
   resolveInboundMentions,
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
@@ -402,7 +404,10 @@ export class OutboxSyncService {
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
   async syncOutboxPosts(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri' | 'followersUrl'> & {
+    actor: Pick<
+      FederatedActorRecord,
+      'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
+    > & {
       oxyUserId?: string;
       type?: string;
       networkAcct?: string | null;
@@ -473,7 +478,10 @@ export class OutboxSyncService {
   }
 
   async syncOutboxPostsDetailed(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri' | 'followersUrl'> & {
+    actor: Pick<
+      FederatedActorRecord,
+      'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
+    > & {
       oxyUserId?: string;
       type?: string;
       networkAcct?: string | null;
@@ -909,6 +917,12 @@ export class OutboxSyncService {
         visibility: PostVisibility;
         published?: Date;
       }> = [];
+      // The owner is re-read at most once per page when its stored row lacks a
+      // followers collection (`authorFollowersUrl`).
+      const authorRefreshes = new Map<
+        string,
+        Promise<{ followersUrl: string | undefined } | null>
+      >();
       for (const { note, activity, activityId, authorUri, relayedBy } of noteCandidates) {
         if (existingIds.has(activityId)) continue;
 
@@ -1072,10 +1086,17 @@ export class OutboxSyncService {
         const primaryLanguage = baseline.languages[0] ?? apLanguage;
         // A community relays its members' notes, whose followers it does not know.
         // A direct note is kept only for the local users it is addressed to.
-        const audience = await resolveApAudience(note, {
-          uri: authorUri,
-          followersUrl: relayedBy ? undefined : actor.followersUrl,
-        });
+        const audience = relayedBy
+          ? await resolveApAudience(note, { uri: authorUri })
+          : await resolveApAudienceFor(
+              note,
+              {
+                uri: authorUri,
+                followersUrl: actor.followersUrl,
+                lastFetchedAt: actor.lastFetchedAt,
+              },
+              { refreshes: authorRefreshes },
+            );
         if (!audience) {
           logger.debug('[FedSync] skipped a direct outbox note addressed to no local user');
           continue;
@@ -1650,8 +1671,8 @@ export class OutboxSyncService {
       originalPostId,
       boosterOxyUserId,
       importReason,
-      actorUri: typeof announceActivity.actor === 'string' ? announceActivity.actor : undefined,
-      url: typeof announceActivity.url === 'string' ? announceActivity.url : announceId,
+      actorUri: extractActorUri(announceActivity.actor),
+      url: apNoteUrl(announceActivity.url) ?? announceId,
       createdAt: parseApPublished(announceActivity.published),
     });
   }
@@ -1834,9 +1855,10 @@ export class OutboxSyncService {
       logger.info('[FedSync] skipped boosted object whose author is unresolved');
       return null;
     }
-    const audience = await resolveApAudience(note, {
+    const audience = await resolveApAudienceFor(note, {
       uri: authorUri,
-      followersUrl: authorActor?.followersUrl,
+      followersUrl: authorActor.followersUrl,
+      lastFetchedAt: authorActor.lastFetchedAt,
     });
     if (!audience) {
       logger.info('[FedSync] skipped a direct note addressed to no local user');

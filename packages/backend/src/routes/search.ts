@@ -1,11 +1,12 @@
 import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
-import { and, arrayContains, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayContains, eq, exists, gte, lte, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { QUERY_CANCELED, sqlStateOf } from '@oxy.so/db';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postMedia, postMentions } from '../db/schema/postContent';
 import { findPostSearchPage } from '../services/search/postSearch';
+import { collectReadable } from '../services/readablePage';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -19,6 +20,7 @@ import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
+import { chronoAfterSql } from '../mtn/feed/CursorBuilder';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
@@ -51,6 +53,9 @@ function mediaExists(type?: 'image' | 'video' | 'gif'): SQL {
 
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
+
+/** One candidate row of a posts search. */
+type SearchRow = Awaited<ReturnType<typeof findPostSearchPage>>[number];
 /**
  * Is this query nothing but a handle — `@alice`, `@alice@x.com`?
  *
@@ -412,27 +417,16 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         conditions.push(arrayContains(posts.classificationLanguages, [language]));
       }
 
-      // Cursor-based pagination
-      let newest: Date | undefined;
+      // Cursor-based pagination. The keyset matches the `(created_at DESC, id
+      // DESC)` sort below exactly; the id bound is a plain `text` comparison.
+      let requestCursor: { createdAt: Date; id: string } | undefined;
       if (cursor !== undefined) {
         const decodedCursor = typeof cursor === 'string' ? decodeChronoCursor(cursor) : undefined;
         if (!decodedCursor) {
           return res.status(400).json({ message: 'Invalid search cursor' });
         }
-
-        // The keyset matches the `(created_at DESC, id DESC)` sort below exactly.
-        // The id bound is a plain `text` comparison and no longer has to parse as
-        // an ObjectId — which is what stopped it working the moment ids became
-        // uuid v7.
-        conditions.push(
-          or(
-            lt(posts.createdAt, decodedCursor.createdAt),
-            and(eq(posts.createdAt, decodedCursor.createdAt), lt(posts.id, decodedCursor.id)),
-          ) as SQL,
-        );
-        newest = decodedCursor.createdAt;
+        requestCursor = decodedCursor;
       }
-
       // Validate and normalize limit (max 100)
       const limitNum = Math.min(
         Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1),
@@ -446,19 +440,16 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // Planned per search, not from a cached generic plan, and a text match is
       // read one time window at a time — the reasons, and the measurements, are
       // in `services/search/postSearch.ts`.
-      const page = await findPostSearchPage(
-        and(...conditions),
-        limitNum + 1, // one extra detects `hasMore`
-        operators.textQuery ? { query: operators.textQuery, newest } : undefined,
-      );
-
-      // Check if there are more results
-      const hasMoreResults = page.length > limitNum;
-      const postsToReturn = hasMoreResults ? page.slice(0, limitNum) : page;
-
-      // Calculate next cursor
-      const anchor = hasMoreResults ? postsToReturn[postsToReturn.length - 1] : undefined;
-      const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
+      const fetchAfter = (last: SearchRow | undefined, size: number) => {
+        const anchor = last ?? requestCursor;
+        return findPostSearchPage(
+          and(...conditions, ...(anchor ? [chronoAfterSql(anchor)] : [])),
+          size,
+          operators.textQuery
+            ? { query: operators.textQuery, newest: anchor?.createdAt }
+            : undefined,
+        );
+      };
 
       // Hydrate posts with viewer-scoped state and embedded quoted/boost
       // originals. Pass the request's oxyClient so viewer-scoped fields
@@ -468,42 +459,51 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       //
       // `includeFullArticleBody: false` matches the feed's own choice (full
       // article bodies aren't needed in a result card) — but `includeFullMetadata`
-      // stays at its default (`true`): the mute-word filter a few lines below
-      // reads `post.metadata?.hashtags`, which `includeFullMetadata: false` would
-      // drop entirely, silently disabling muted-hashtag filtering in search.
+      // stays at its default (`true`): the mute-word filter below reads
+      // `post.metadata?.hashtags`, which `includeFullMetadata: false` would drop
+      // entirely, silently disabling muted-hashtag filtering in search.
       const scopedOxyClient = createScopedOxyClient(req);
-      const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: scopedOxyClient,
-        maxDepth: 1,
-        includeLinkMetadata: true,
-        includeFullArticleBody: false,
-      });
-
-      // Muted words are matched on the HYDRATED post — the rendition and canonical
-      // hashtags the viewer would actually be shown — which is exactly what the feed
-      // tuner matches, so a muted word means the same thing on both surfaces. Dropping
-      // here (after the cursor was taken from the unfiltered page window above) keeps
-      // pagination stable: a page may return fewer than `limit` posts, but no post is
-      // skipped on the next page.
       const followedAuthorIds = compiledMuteWords?.needsFollowState
         ? await loadFollowedAuthorIds(currentUserId, scopedOxyClient)
         : NO_FOLLOWED_AUTHORS;
-      results.posts = transformedPosts.filter(
-        (post) =>
-          !isMutedSubject(
-            compiledMuteWords,
-            {
-              text: post.content?.text,
-              hashtags: post.metadata?.hashtags,
-              authorId: post.user?.id,
-            },
-            followedAuthorIds,
-          ),
-      );
+      const hydrate = async (rows: SearchRow[]) =>
+        (
+          await postHydrationService.hydratePosts(rows, {
+            viewerId: currentUserId,
+            safetyRequester: safetyRequesterFor(req),
+            oxyClient: scopedOxyClient,
+            maxDepth: 1,
+            includeLinkMetadata: true,
+            includeFullArticleBody: false,
+          })
+        ).filter(
+          // Muted words are matched on the HYDRATED post — the rendition and
+          // canonical hashtags the viewer would actually be shown — which is
+          // exactly what the feed tuner matches, so a muted word means the same
+          // thing on both surfaces.
+          (post) =>
+            !isMutedSubject(
+              compiledMuteWords,
+              {
+                text: post.content?.text,
+                hashtags: post.metadata?.hashtags,
+                authorId: post.user?.id,
+              },
+              followedAuthorIds,
+            ),
+        );
+
+      // The page, `hasMore` and the cursor describe READABLE posts only — see
+      // `services/readablePage.ts`. Taken from the raw rows, they answered
+      // "does a hidden post match this query" (`from:` a private profile, a
+      // keyword, `limit=1`) and the cursor carried the hidden row's id.
+      const entries = await collectReadable({ want: limitNum + 1, fetchAfter, hydrate });
+      const hasMoreResults = entries.length > limitNum;
+      const page = entries.slice(0, limitNum);
+      const anchor = hasMoreResults ? page[page.length - 1]?.row : undefined;
+      results.posts = page.map((entry) => entry.item);
       results.hasMore = hasMoreResults;
-      results.nextCursor = nextCursor;
+      results.nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
     }
 
     res.json(results);

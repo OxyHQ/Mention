@@ -25,6 +25,8 @@ const hoisted = vi.hoisted(() => ({
   findActorByAcct: vi.fn(),
 }));
 
+// The post read gate has its own suites; this one is about what happens past it.
+vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),
@@ -103,6 +105,7 @@ import {
   serviceScope,
 } from '../helpers/serviceFixtures';
 import { feedController } from '../../controllers/feed.controller';
+import { canRequestReadPost } from '../../services/postReadAccess';
 import { drainBackgroundWork, resetBackgroundWorkForTests } from '../../runtime/backgroundWork';
 import {
   createMentionNotifications,
@@ -193,6 +196,27 @@ describe('POST /feed/reply', () => {
       entityType: 'reply',
     });
     expect(vi.mocked(createMentionNotifications)).not.toHaveBeenCalled();
+  });
+
+  it('answers a parent the replier may not read with 404, writing and notifying nothing', async () => {
+    const parent = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
+    vi.mocked(canRequestReadPost).mockResolvedValueOnce(false);
+    const { res, captured } = buildResponse();
+
+    await feedController.createReply(
+      {
+        accessToken: 'test-viewer-session',
+        body: { postId: parent.id, content: { text: 'nice post' } },
+        user: { id: USER_ID },
+      } as never,
+      res as never,
+    );
+
+    expect(captured).toEqual({ status: 404, body: { error: 'Post not found' } });
+    expect((await readScopePosts(scope)).filter((row) => row.parentPostId === parent.id)).toEqual(
+      [],
+    );
+    expect(vi.mocked(createPostAuthorNotifications)).not.toHaveBeenCalled();
   });
 
   it('notifies everyone the reply @mentions, as a mention in a reply', async () => {

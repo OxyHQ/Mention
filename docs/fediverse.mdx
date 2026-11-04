@@ -150,7 +150,21 @@ and hide it from the person it was sent to.
 `scripts/recoverFederatedDirectMessages.ts` repairs posts stored before this:
 it re-fetches every private or followers-only ActivityPub post and converts a
 direct note with a local recipient to `direct` (DRY_RUN by default,
-`CONFIRM_ADMIN_MUTATION=recoverFederatedDirectMessages`, idempotent).
+`CONFIRM_ADMIN_MUTATION=recoverFederatedDirectMessages`, idempotent). Mastodon
+serves those notes only to their addressees or the author's followers, so a
+fetch refused to the instance actor is retried signed as up to three local users
+entitled to read it (the users the post mentions, then local followers of its
+author); Oxy signs as them through `signedFetch`'s `keyId`. A note refused to
+all of them, or gone, hides the post; an origin failure leaves it for a re-run.
+A post whose origin addresses it publicly (stored narrower because the old rule
+misread `as:Public` or single-value addressing) is restored to `public`.
+
+Followers-only is told from direct by the author's followers collection. When a
+non-public note arrives (inbox, outbox backfill, a fetched note) and the stored
+author has none, the author is re-read once through the shared resolver before
+the note is judged (at most hourly per author on ingest, once per run in the
+repair). The repair leaves a post unchanged, counted `actorUnresolved`, when that
+re-read fails; ingest then judges the note as before.
 
 ### Remote custom emoji
 
@@ -668,7 +682,7 @@ Only an answer from Oxy settles a deletion:
   item, and never stores the expiring URL. ActivityPub and atproto keep the
   stable URL behind the media proxy.
 - A 429 (never sooner than the wait Oxy names), a 5xx, any other refusal (a 401
-  included: each delete call is sent once, with no transport replay), a transport
+  included, once the SDK's single fresh-token resend has not cured it), a transport
   failure, or a 404 for the route itself (an oxy-api that predates it) is retried
   with exponential backoff.
 

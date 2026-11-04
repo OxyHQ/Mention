@@ -1,3 +1,4 @@
+import { apList } from '@oxy.so/federation';
 import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { logger } from '../../utils/logger';
@@ -155,14 +156,11 @@ function reconstructProfileHrefs(tag: InboundMentionTag): string[] {
   return hrefs;
 }
 
-/** Parse the `Mention` entries out of an AP object's `tag` array. Pure. */
+/** Parse the `Mention` entries out of an AP object's `tag` (one tag or a list). Pure. */
 export function extractMentionTags(object: Record<string, unknown>): InboundMentionTag[] {
-  const tag = object.tag;
-  if (!Array.isArray(tag)) return [];
-
   const tags: InboundMentionTag[] = [];
-  for (const entry of tag) {
-    if (!entry || typeof entry !== 'object') continue;
+  for (const entry of apList(object.tag)) {
+    if (typeof entry !== 'object') continue;
     const record = entry as { type?: unknown; href?: unknown; name?: unknown };
     if (primaryApType(record.type as string | string[] | undefined) !== 'Mention') continue;
     if (typeof record.href !== 'string' || record.href.trim().length === 0) continue;
@@ -643,6 +641,89 @@ export async function resolveApAudience(
     recipients: [...recipients],
     localRecipients: [...localRecipients],
   };
+}
+
+/** How long ingest trusts a stored author without a followers collection before re-reading it. */
+export const AUTHOR_FOLLOWERS_RECHECK_MS = 60 * 60 * 1000;
+
+/** How {@link authorFollowersUrl} re-reads a stored author. */
+export interface AuthorRefreshOptions {
+  /** Re-read a row without a followers collection fetched longer ago than this. */
+  recheckAfterMs?: number;
+  /** The caller's memo of refreshes by author URI. */
+  refreshes?: Map<string, Promise<{ followersUrl: string | undefined } | null>>;
+}
+
+/** A stored author as {@link authorFollowersUrl} reads it. */
+export interface ApAudienceAuthor {
+  uri: string;
+  followersUrl?: string | null;
+  lastFetchedAt?: Date | null;
+}
+
+/**
+ * The author's followers collection, which is what tells a non-public note's
+ * followers-only audience from a direct one ({@link resolveApAudience}).
+ *
+ * A stored row without one may simply be stale — read before the resolver
+ * understood an embedded collection (`@oxy.so/federation` 2.16.0), or partial —
+ * and judging a followers-only note against it drops (or hides) it as a direct
+ * message to nobody. So such a row is re-read through the shared resolver
+ * (`actorService.fetchRemoteActor`: domain policy, bounded fetch) when it was
+ * last fetched more than `recheckAfterMs` ago and the note is not public. A
+ * public note never needs it.
+ *
+ * `refreshes` memoizes the refresh per author for its owner (an outbox page, a
+ * repair run), so a batch of one author's notes re-reads it once.
+ *
+ * Returns `null` when that refresh FAILED (unreachable, refused, blocked): the
+ * caller then knows it lacks the author, rather than that the author has no
+ * followers collection.
+ */
+export async function authorFollowersUrl(
+  note: Record<string, unknown>,
+  author: ApAudienceAuthor,
+  options: AuthorRefreshOptions = {},
+): Promise<{ followersUrl: string | undefined } | null> {
+  const recheckAfterMs = options.recheckAfterMs ?? AUTHOR_FOLLOWERS_RECHECK_MS;
+  if (author.followersUrl) return { followersUrl: author.followersUrl };
+  if (mapApVisibility(note.to, note.cc) === PostVisibility.PUBLIC) {
+    return { followersUrl: undefined };
+  }
+  const fetchedAt = author.lastFetchedAt?.getTime();
+  if (fetchedAt !== undefined && Date.now() - fetchedAt < recheckAfterMs) {
+    return { followersUrl: undefined };
+  }
+  let refresh = options.refreshes?.get(author.uri);
+  if (!refresh) {
+    refresh = (async () => {
+      try {
+        const actor = await actorService.fetchRemoteActor(author.uri);
+        return actor ? { followersUrl: actor.followersUrl ?? undefined } : null;
+      } catch {
+        return null;
+      }
+    })();
+    options.refreshes?.set(author.uri, refresh);
+  }
+  return refresh;
+}
+
+/**
+ * {@link resolveApAudience} for ingest: the author's followers collection comes
+ * from {@link authorFollowersUrl}, falling back to what is stored when a
+ * refresh fails (the note is then judged as before).
+ */
+export async function resolveApAudienceFor(
+  note: Record<string, unknown>,
+  author: ApAudienceAuthor,
+  options: AuthorRefreshOptions = {},
+): Promise<ApAudience | null> {
+  const followers = await authorFollowersUrl(note, author, options);
+  return resolveApAudience(note, {
+    uri: author.uri,
+    followersUrl: followers?.followersUrl ?? author.followersUrl,
+  });
 }
 
 /** {@link resolveApAudience} against already-stored actors only — never a fetch. */

@@ -84,6 +84,11 @@ interface AtprotoPostRecord {
   langs?: string[];
   tags?: string[];
   labels?: { values?: Array<{ val?: string }> };
+  /**
+   * The quote as the author wrote it: `app.bsky.embed.record` names the quoted
+   * post by strong ref, `app.bsky.embed.recordWithMedia` nests that under `record`.
+   */
+  embed?: { $type?: string; record?: { uri?: string; record?: { uri?: string } } };
 }
 interface AtprotoEmbedImage {
   thumb?: string;
@@ -333,6 +338,60 @@ function applyFacetReplacements(text: string, ops: FacetReplacement[]): string {
 }
 
 /**
+ * The quoted record's view in a record embed (`app.bsky.embed.record#view`, or
+ * the record half of `app.bsky.embed.recordWithMedia#view`), whatever its kind.
+ */
+function embeddedRecordView(
+  embed: AtprotoEmbedView | undefined,
+): AtprotoEmbedRecordView | undefined {
+  return embed?.$type === 'app.bsky.embed.record#view'
+    ? embed.record
+    : embed?.$type === 'app.bsky.embed.recordWithMedia#view'
+      ? embed.record?.record
+      : undefined;
+}
+
+/** The AT-URI of the post an `app.bsky.feed.post` record quotes, from its own embed. */
+function recordQuotedUri(record: AtprotoPostRecord | undefined): string | undefined {
+  const embed = record?.embed;
+  const uri =
+    embed?.$type === 'app.bsky.embed.record'
+      ? embed.record?.uri
+      : embed?.$type === 'app.bsky.embed.recordWithMedia'
+        ? embed.record?.record?.uri
+        : undefined;
+  return typeof uri === 'string' && parseAtUri(uri)?.collection === POST_COLLECTION
+    ? uri
+    : undefined;
+}
+
+/**
+ * Hydrated quote stubs whose URI still names the quoted post. The AppView did
+ * not hydrate it (deleted, or a block between the accounts), but the quote is
+ * the author's own statement, so the link is kept: it resolves only to a post
+ * already imported here, and nothing is read from the stub. `#viewDetached` is
+ * not one of them: the quoted author removed their post from this quote, and
+ * re-attaching it would undo that choice.
+ */
+const UNHYDRATED_QUOTE_VIEWS: ReadonlySet<string> = new Set([
+  'app.bsky.embed.record#viewNotFound',
+  'app.bsky.embed.record#viewBlocked',
+]);
+
+/**
+ * The AT-URI of the post a post view quotes: the hydrated `#viewRecord`'s, or,
+ * for a {@link UNHYDRATED_QUOTE_VIEWS} stub, the record's own strong ref. Pure.
+ */
+function quotedPostUri(postView: AtprotoPostView): string | undefined {
+  const hydrated = quotedRecordView(postView.embed)?.uri;
+  if (hydrated) return hydrated;
+  const stub = embeddedRecordView(postView.embed);
+  return stub?.$type && UNHYDRATED_QUOTE_VIEWS.has(stub.$type)
+    ? recordQuotedUri(postView.record)
+    : undefined;
+}
+
+/**
  * The quoted post's hydrated `#viewRecord` from a record embed
  * (`app.bsky.embed.record#view`, or the record half of
  * `app.bsky.embed.recordWithMedia#view`) — but ONLY when the quoted record is a
@@ -342,12 +401,7 @@ function applyFacetReplacements(text: string, ops: FacetReplacement[]): string {
 function quotedRecordView(
   embed: AtprotoEmbedView | undefined,
 ): (AtprotoEmbedRecordView & { uri: string }) | undefined {
-  const recordView =
-    embed?.$type === 'app.bsky.embed.record#view'
-      ? embed.record
-      : embed?.$type === 'app.bsky.embed.recordWithMedia#view'
-        ? embed.record?.record
-        : undefined;
+  const recordView = embeddedRecordView(embed);
   if (
     recordView?.$type === 'app.bsky.embed.record#viewRecord' &&
     typeof recordView.uri === 'string' &&
@@ -588,7 +642,7 @@ export function mapPostViewToNormalizedPost(
   const inReplyTo =
     typeof record.reply?.parent?.uri === 'string' ? record.reply.parent.uri : undefined;
   const rootUri = typeof record.reply?.root?.uri === 'string' ? record.reply.root.uri : undefined;
-  const quotedUri = quotedRecordView(postView.embed)?.uri;
+  const quotedUri = quotedPostUri(postView);
 
   // Rewrite richtext facets over the RAW body FIRST, then normalize whitespace:
   // the facet indices are byte offsets into `record.text`, so they must be applied
