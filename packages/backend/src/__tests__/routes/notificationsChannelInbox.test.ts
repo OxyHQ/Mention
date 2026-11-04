@@ -116,7 +116,6 @@ vi.mock('../../utils/privacyHelpers', () => ({
     (Array.isArray(value) ? value : []).map((entry) => (entry as { id: string }).id),
   extractFollowersIds: vi.fn(() => []),
   blockedEitherWay: vi.fn(async () => new Set()),
-  separatedByRetainedBlock: async (pairs: readonly unknown[]) => pairs.map(() => false),
 }));
 
 vi.mock('../../services/userSummaryCache', () => ({

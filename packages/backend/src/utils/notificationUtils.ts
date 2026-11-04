@@ -10,7 +10,6 @@ import {
   type NOTIFICATION_TYPES,
 } from '../db/schema/discovery';
 import { getServiceOxyClient } from './oxyHelpers';
-import { separatedByRetainedBlock } from './privacyHelpers';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import {
   formatPushForNotification,
@@ -169,17 +168,14 @@ async function writeNotifications(
     const key = dedupKey(item);
     if (!unique.has(key)) unique.set(key, item);
   }
-  // Nor from across a block, either way: no row, so no socket emit and no push.
-  // The writer holds neither party's proof, so this is what their own retained
-  // block lists say (`separatedByRetainedBlock`); the inbox read re-checks with
-  // the recipient's proof and hides whatever got past this.
-  const candidates = [...unique.entries()];
-  const separated = await separatedByRetainedBlock(
-    candidates.map(([, item]) => [item.recipientId, item.actorId] as const),
-  );
-  candidates.forEach(([key], index) => {
-    if (separated[index]) unique.delete(key);
-  });
+  // Nor across a block, either way: no row, so no socket emit and no push.
+  // Oxy decides each pair for this background lane (`notificationAccessBatch`).
+  // An unanswered check still writes the rows — the inbox read re-checks them
+  // with the recipient's proof — but delivers nothing live: fail closed.
+  const decisions = await notificationDecisions([...unique.values()]);
+  if (decisions) {
+    for (const [key] of unique) if (!decisions.has(key)) unique.delete(key);
+  }
   if (unique.size === 0) return;
 
   const inserted: (typeof notifications.$inferSelect)[] = [];
@@ -212,7 +208,49 @@ async function writeNotifications(
     return;
   }
 
-  await deliverNotifications(inserted, emitEvent);
+  await deliverNotifications(decisions ? inserted : [], emitEvent);
+}
+
+/** Oxy's per-call ceiling for `safety.notificationAccessBatch`. */
+const NOTIFICATION_ACCESS_BATCH_MAX = 100;
+
+/**
+ * The dedup keys of `items` Oxy lets their actor deliver to their recipient,
+ * or `null` when it could not answer. The system actor is not an account, so
+ * its notifications are never asked about.
+ */
+async function notificationDecisions(
+  items: readonly CreateNotificationData[],
+): Promise<Set<string> | null> {
+  const allowed = new Set<string>();
+  const asked = items.filter((item) => {
+    if (item.actorId !== SYSTEM_NOTIFICATION_ACTOR_ID) return true;
+    allowed.add(dedupKey(item));
+    return false;
+  });
+  try {
+    for (let index = 0; index < asked.length; index += NOTIFICATION_ACCESS_BATCH_MAX) {
+      const chunk = asked.slice(index, index + NOTIFICATION_ACCESS_BATCH_MAX);
+      const { items: answers } = await getServiceOxyClient().safety.notificationAccessBatch({
+        items: chunk.map((item, position) => ({
+          resourceId: String(position),
+          actorAccountId: item.actorId,
+          recipientAccountId: item.recipientId,
+        })),
+      });
+      for (const answer of answers) {
+        const item = chunk[Number(answer.resourceId)];
+        if (item && answer.decision.allowed) allowed.add(dedupKey(item));
+      }
+    }
+    return allowed;
+  } catch (error) {
+    logger.warn('[Notifications] Delivery decision unavailable; writing without live delivery', {
+      count: asked.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 /**

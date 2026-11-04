@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => ({
   formatPushForNotification: vi.fn(),
   sendPushToTokens: vi.fn(),
   getUserById: vi.fn(),
+  notificationAccessBatch: vi.fn(),
+  /** Actors Oxy refuses to let notify anyone, for the delivery decision. */
+  refusedActors: new Set<string>(),
 }));
 
 vi.mock('../../runtime/socketServer', () => ({
@@ -38,19 +41,15 @@ vi.mock('../../utils/push', () => ({
   sendPushToTokens: mocks.sendPushToTokens,
 }));
 
-// Without Redis every real cache misses; the block test needs a retained list.
-vi.mock('../../utils/cache', async (importOriginal) => {
-  const { createMemoryCache } = await import('../helpers/memoryCache');
-  return { ...(await importOriginal<object>()), createCache: () => createMemoryCache() };
-});
-
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { get: mocks.getUserById } }),
+  getServiceOxyClient: () => ({
+    users: { get: mocks.getUserById },
+    safety: { notificationAccessBatch: mocks.notificationAccessBatch },
+  }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { notifications } from '../../db/schema/discovery';
-import { getBlockedUserIds, type OxyClient } from '../../utils/privacyHelpers';
 import {
   createBatchNotifications,
   createNotification,
@@ -89,6 +88,17 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.refusedActors.clear();
+  mocks.notificationAccessBatch.mockImplementation(
+    async (input: { items: { resourceId: string; actorAccountId: string }[] }) => ({
+      items: input.items.map((item) => ({
+        resourceId: item.resourceId,
+        decision: mocks.refusedActors.has(item.actorAccountId)
+          ? { allowed: false, reason: 'blocked', policyVersion: '2' }
+          : { allowed: true, reason: 'allowed', policyVersion: '2' },
+      })),
+    }),
+  );
   mocks.getRuntimeSocketServer.mockReturnValue(undefined);
   mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b', data: {} });
   mocks.sendPushToTokens.mockResolvedValue(undefined);
@@ -111,10 +121,9 @@ afterAll(async () => {
 });
 
 describe('createNotification across a block', () => {
-  it("writes, emits and pushes nothing when the recipient's own list blocks the actor", async () => {
+  it('writes, emits and pushes nothing for a pair Oxy refuses', async () => {
     const recipient = recipientId();
-    const client = { privacy: { blocked: async () => [{ blockedId: 'oxy-actor' }] } };
-    await getBlockedUserIds(client as unknown as OxyClient, recipient);
+    mocks.refusedActors.add('oxy-actor');
     const emitted = captureEmits();
 
     await createNotification({
@@ -126,6 +135,24 @@ describe('createNotification across a block', () => {
     });
 
     expect(await rowsFor(recipient)).toHaveLength(0);
+    expect(emitted).toHaveLength(0);
+    expect(mocks.sendPushToTokens).not.toHaveBeenCalled();
+  });
+
+  it('writes but delivers nothing live when Oxy cannot decide', async () => {
+    const recipient = recipientId();
+    mocks.notificationAccessBatch.mockRejectedValue(new Error('Oxy unavailable'));
+    const emitted = captureEmits();
+
+    await createNotification({
+      recipientId: recipient,
+      actorId: 'oxy-actor',
+      type: 'like',
+      entityId: 'post-1',
+      entityType: 'post',
+    });
+
+    expect(await rowsFor(recipient)).toHaveLength(1);
     expect(emitted).toHaveLength(0);
     expect(mocks.sendPushToTokens).not.toHaveBeenCalled();
   });

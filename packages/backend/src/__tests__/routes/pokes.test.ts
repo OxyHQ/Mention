@@ -15,6 +15,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, or } from 'drizzle-orm';
 
+import { adultSafetyFixture } from '../helpers/adultSafety';
+
 const mocks = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
   getUserById: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({
     users: { getMany: mocks.getUsersByIds, get: mocks.getUserById },
     follows: { followers: mocks.getUserFollowers, following: mocks.getUserFollowing },
+    safety: adultSafetyFixture(),
   }),
   // A stand-in for the caller's own bearer-scoped client — real shape
   // verified in `oxyHelpers.test.ts`; here only the one method the block
@@ -45,7 +48,6 @@ vi.mock('../../utils/oxyHelpers', async () => ({
 
 vi.mock('../../utils/privacyHelpers', () => ({
   getBlockedUserIds: (...args: unknown[]) => mocks.getBlockedUserIds(...args),
-  separatedByRetainedBlock: async (pairs: readonly unknown[]) => pairs.map(() => false),
 }));
 
 vi.mock('../../utils/push', () => ({

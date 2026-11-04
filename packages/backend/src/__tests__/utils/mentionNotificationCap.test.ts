@@ -38,7 +38,10 @@ vi.mock('../../utils/logger', () => ({
     child: vi.fn().mockReturnThis(),
   },
 }));
-vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
+vi.mock('../../utils/oxyHelpers', async () => {
+  const { adultSafetyFixture } = await import('../helpers/adultSafety');
+  return { getServiceOxyClient: () => ({ safety: adultSafetyFixture() }) };
+});
 // No socket server → the real-time emit branch is skipped entirely.
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 vi.mock('../../utils/push', () => ({

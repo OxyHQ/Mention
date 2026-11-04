@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import type {
   ContentAccessInput,
   ContentAccessBatchInput,
+  NotificationAccessBatchInput,
   ProfileAccessBatchInput,
   PublicationPoliciesInput,
   SafetyDecision,
@@ -31,6 +32,12 @@ export function adultSafetyFixture() {
       items: input.subjectAccountIds.map((subjectAccountId) => ({
         subjectAccountId,
         decision: { allowed: true, reason: 'public', policyVersion: '2' } as SafetyDecision,
+      })),
+    })),
+    notificationAccessBatch: vi.fn(async (input: NotificationAccessBatchInput) => ({
+      items: input.items.map((item) => ({
+        resourceId: item.resourceId,
+        decision: { allowed: true, reason: 'allowed', policyVersion: '2' } as SafetyDecision,
       })),
     })),
     publicationPolicy: vi.fn(async () => publication),
