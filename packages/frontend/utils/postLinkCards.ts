@@ -75,20 +75,37 @@ export function postLinkCards(
 }
 
 /**
- * `text` without its last link when that link is the last thing in it (only
- * whitespace after) and one of `cards` already shows it. A link followed by more
- * words or punctuation is part of a sentence and stays.
+ * `text` without the links its cards already show: a bare link alone on its own
+ * line, wherever that line is, and a bare link that ends the text. A link inside
+ * a sentence, or written as `[label](url)`, is the author's own words and stays.
  */
-export function withoutTrailingCardLink(text: string, cards: readonly PostLinkCard[]): string {
-  if (cards.length === 0) return text;
-  const last = scanTextEntities(text, { kinds: ['url'] }).at(-1);
-  // A bare link only: a written `[label](url)` is the author's own words.
-  if (!last || last.raw !== last.value || text.slice(last.end).trim() !== '') return text;
-  const { url } = trimUrlTrailingPunctuation(last.value);
-  if (!url || url !== last.value) return text;
-  const link = normalizedLinkUrl(toOpenableUrl(url));
-  const shown = cards.some(
-    (card) => card.sourceUrl !== undefined && normalizedLinkUrl(card.sourceUrl) === link,
+export function withoutCardLinks(text: string, cards: readonly PostLinkCard[]): string {
+  const shown = new Set(
+    cards.flatMap((card) => (card.sourceUrl ? [normalizedLinkUrl(card.sourceUrl)] : [])),
   );
-  return shown ? text.slice(0, last.start).trimEnd() : text;
+  if (shown.size === 0) return text;
+  const removals: Array<[number, number]> = [];
+  for (const entity of scanTextEntities(text, { kinds: ['url'] })) {
+    const { url } = trimUrlTrailingPunctuation(entity.value);
+    if (entity.raw !== entity.value || !url || url !== entity.value) continue;
+    if (!shown.has(normalizedLinkUrl(toOpenableUrl(url)))) continue;
+    const lineStart = text.lastIndexOf('\n', entity.start - 1) + 1;
+    const newline = text.indexOf('\n', entity.end);
+    const lineEnd = newline === -1 ? text.length : newline;
+    const aloneOnLine =
+      text.slice(lineStart, entity.start).trim() === '' &&
+      text.slice(entity.end, lineEnd).trim() === '';
+    if (aloneOnLine) removals.push([lineStart, newline === -1 ? lineEnd : newline + 1]);
+    else if (text.slice(entity.end).trim() === '') removals.push([entity.start, entity.end]);
+  }
+  if (removals.length === 0) return text;
+  let result = '';
+  let from = 0;
+  for (const [start, end] of removals) {
+    result += text.slice(from, start);
+    from = end;
+  }
+  result += text.slice(from);
+  // A removed line leaves its blank neighbours behind: one blank line is enough.
+  return result.replace(/\n{3,}/g, '\n\n').trimEnd();
 }

@@ -10,7 +10,7 @@ import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useTextExpansion } from '@/hooks/useExpandableText';
-import { type PostLinkCard, withoutTrailingCardLink } from '@/utils/postLinkCards';
+import { type PostLinkCard, withoutCardLinks } from '@/utils/postLinkCards';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -29,9 +29,9 @@ interface Props {
    */
   overrideText?: string | null;
   /**
-   * The link cards the post renders (`postLinkCards`). A link that ends the body
-   * is trimmed when one of them shows it — repeating it as the last line of the
-   * text is noise.
+   * The link cards the post renders (`postLinkCards`). A bare link one of them
+   * shows is dropped from the body when it stands on its own line or ends the
+   * text — repeating it next to its card is noise.
    */
   linkCards?: readonly PostLinkCard[];
 }
@@ -59,7 +59,7 @@ const PostContentText: React.FC<Props> = ({
   const resolvedText = typeof content === 'string' ? content : content?.text || '';
   const rawText = overrideText || resolvedText;
 
-  const textContent = linkCards ? withoutTrailingCardLink(rawText, linkCards) : rawText;
+  const textContent = linkCards ? withoutCardLinks(rawText, linkCards) : rawText;
 
   const parsed = useMemo(() => parsePostInlineMarkdown(textContent), [textContent]);
   const preview = useMemo(
