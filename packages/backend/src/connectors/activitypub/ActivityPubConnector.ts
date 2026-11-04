@@ -459,6 +459,18 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return outboxSyncService.syncFeaturedPost(actor);
   }
 
+  /**
+   * Deliver a local user's vote on a REMOTE poll to the poll's author (Mastodon's
+   * vote shape). A local poll has nothing to deliver. Best-effort; never throws.
+   */
+  federatePollVote(
+    pollPostId: string,
+    option: { id: string; text: string },
+    voterOxyUserId: string,
+  ): Promise<void> {
+    return followService.federatePollVote(pollPostId, option, voterOxyUserId);
+  }
+
   markOutboxBackfillUnavailable(
     actor: Pick<FederatedActorRecord, 'id' | 'outboxUrl'>,
     reason?: string,
