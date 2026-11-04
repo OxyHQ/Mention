@@ -21,11 +21,16 @@ const scope = federationScope('actor-tombstone');
 const mocks = vi.hoisted(() => ({
   reportFederatedActorGone: vi.fn(),
   signedFetch: vi.fn(),
+  observeOxySource: vi.fn(),
 }));
 
 vi.mock('../../../connectors/identity', () => ({
   reportFederatedActorGone: mocks.reportFederatedActorGone,
-  resolveOxyExternalUser: vi.fn(),
+}));
+
+// Oxy reads the actor; a source that refused it reports its own status.
+vi.mock('../../../connectors/oxyIdentity', () => ({
+  observeOxySource: mocks.observeOxySource,
 }));
 
 vi.mock('../../../connectors/activitypub/helpers', async (importActual) => ({
@@ -103,7 +108,7 @@ describe('actorService.tombstoneGoneActor', () => {
 
 describe('fetchRemoteActor 410 detection', () => {
   it('tombstones and returns null on a definitive 410 Gone', async () => {
-    mocks.signedFetch.mockResolvedValue(new Response('gone', { status: 410 }));
+    mocks.observeOxySource.mockResolvedValue({ status: 410 });
     const tombstoneSpy = vi.spyOn(actorService, 'tombstoneGoneActor').mockResolvedValue(undefined);
 
     const result = await actorService.fetchRemoteActor(ACTOR_URI);
@@ -114,7 +119,7 @@ describe('fetchRemoteActor 410 detection', () => {
   });
 
   it('does NOT tombstone on a 404 (transient — not definitive gone)', async () => {
-    mocks.signedFetch.mockResolvedValue(new Response('not found', { status: 404 }));
+    mocks.observeOxySource.mockResolvedValue({ status: 404 });
     const tombstoneSpy = vi.spyOn(actorService, 'tombstoneGoneActor').mockResolvedValue(undefined);
 
     await actorService.fetchRemoteActor(ACTOR_URI);

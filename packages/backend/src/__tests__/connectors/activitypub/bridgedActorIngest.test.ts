@@ -45,9 +45,14 @@ vi.mock('../../../db/federation/actorRepository', () => ({
 }));
 
 vi.mock('../../../connectors/identity', () => ({ reportFederatedActorGone: vi.fn() }));
-vi.mock('../../../connectors/oxyIdentity', () => ({
-  resolveOxyIdentity: mocks.resolveOxyIdentity,
-}));
+vi.mock('../../../connectors/oxyIdentity', async () => {
+  const { observeOxySourceDouble } = await import('../../helpers/oxyIdentityFixtures');
+  return {
+    resolveOxyIdentity: mocks.resolveOxyIdentity,
+    // Oxy reads the actor (served by `signedFetch`, the remote double) once.
+    observeOxySource: vi.fn(observeOxySourceDouble(mocks.signedFetch, mocks.resolveOxyIdentity)),
+  };
+});
 vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 
 // Only the network call is stubbed. The bridge policy, the boilerplate patterns,
@@ -62,6 +67,7 @@ vi.mock('../../../connectors/activitypub/helpers', async () => {
 
 import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
 import { actorService } from '../../../connectors/activitypub/actor.service';
+import { observeOxySource } from '../../../connectors/oxyIdentity';
 
 const ACTOR_URI = 'https://bird.makeup/users/elonmusk';
 
@@ -149,15 +155,16 @@ describe('ingesting a live bird.makeup actor', () => {
     expect(storedRow.summary).toBe('');
   });
 
-  it('hands the re-labelled identity to the Oxy identity bridge', async () => {
+  it('reads the actor once, through Oxy, sending only the source actor', async () => {
     await actorService.fetchRemoteActor(ACTOR_URI);
 
-    expect(mocks.resolveOxyIdentity).toHaveBeenCalledTimes(1);
-    expect(mocks.resolveOxyIdentity.mock.calls[0][0]).toEqual({
+    expect(vi.mocked(observeOxySource)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(observeOxySource).mock.calls[0][0]).toEqual({
       actorUri: ACTOR_URI,
-      transportAcct: 'elonmusk@bird.makeup',
+      transportAcct: undefined,
       protocol: 'activitypub',
     });
+    expect(mocks.signedFetch.mock.calls.filter(([url]) => url === ACTOR_URI)).toHaveLength(1);
   });
 
   it("leaves the bridge operator's own account alone", async () => {
@@ -191,9 +198,8 @@ describe('ingesting a live bird.makeup actor', () => {
 
     expect(storedRow.networkAcct).toBe('admin@bird.makeup');
     expect(storedRow.summary).toBe('I run this bridge.');
-    expect(mocks.resolveOxyIdentity.mock.calls[0][0]).toMatchObject({
+    expect(vi.mocked(observeOxySource).mock.calls[0][0]).toMatchObject({
       actorUri: admin.id,
-      transportAcct: 'admin@bird.makeup',
       protocol: 'activitypub',
     });
   });

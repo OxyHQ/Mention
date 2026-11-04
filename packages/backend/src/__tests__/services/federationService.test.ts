@@ -241,6 +241,18 @@ async function likeRowsFor(postId: string) {
     .where(eq(likes.postId, postId));
 }
 
+/** Marks the actor read the Oxy double makes, so it is told apart from Mention's own fetches. */
+const OXY_READ_HEADER = 'x-test-read-by-oxy';
+
+/** The URLs Mention itself fetched (not Oxy's read of the actor). */
+function mentionFetches(fetchMock: { mock: { calls: unknown[][] } }): string[] {
+  return fetchMock.mock.calls
+    .filter(
+      ([, init]) => !(init as { headers?: Record<string, string> })?.headers?.[OXY_READ_HEADER],
+    )
+    .map(([url]) => String(url));
+}
+
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -293,21 +305,39 @@ beforeEach(async () => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
+  // Oxy, as an `actorUri` resolve answers: it fetches the actor itself (from the
+  // stubbed global `fetch`, marked so a test can tell its read from Mention's),
+  // refuses a document that does not name the requested actor, and answers with
+  // the identity plus the document it read.
   mocks.serviceRequest.mockImplementation(
     async (
       method: string,
       path: string,
-      input: { actorUri: string; transportAcct: string; protocol: 'activitypub' },
+      input: { actorUri: string; transportAcct?: string; protocol: 'activitypub' },
     ) => {
       if (method !== 'POST' || path !== '/federation/identities/resolve') {
         throw new Error(`Unexpected Oxy request: ${method} ${path}`);
       }
+      const notVerified = (sourceStatus?: number) =>
+        Object.assign(new Error('External actor could not be verified'), {
+          status: 404,
+          ...(sourceStatus ? { details: { sourceStatus } } : {}),
+        });
+      const res = await (globalThis.fetch as typeof fetch)(input.actorUri, {
+        headers: { [OXY_READ_HEADER]: '1' },
+      });
+      if (!res.ok) throw notVerified(res.status);
+      const sourceDocument = (await res.json()) as Record<string, unknown>;
+      if (sourceDocument.id !== input.actorUri) throw notVerified();
+      const transportAcct =
+        input.transportAcct ??
+        `${String(sourceDocument.preferredUsername).trim().toLowerCase()}@${new URL(input.actorUri).hostname}`;
       const identity = {
         actorUri: input.actorUri,
-        transportAcct: input.transportAcct,
-        canonicalAcct: input.transportAcct,
+        transportAcct,
+        canonicalAcct: transportAcct,
         protocol: input.protocol,
-        network: input.transportAcct.slice(input.transportAcct.lastIndexOf('@') + 1),
+        network: transportAcct.slice(transportAcct.lastIndexOf('@') + 1),
         sourceUserId: 'oxy_source_1',
       };
       return {
@@ -322,6 +352,7 @@ beforeEach(async () => {
         externalIdentity: { ...identity, userId: 'oxy_user_1' },
         externalIdentities: [identity],
         redirectedUserIds: [],
+        sourceDocument,
       } satisfies ResolveExternalIdentityResponse;
     },
   );
@@ -458,14 +489,11 @@ describe('federationService.fetchRemoteActor', () => {
     );
 
     expect(actor?.uri).toBe('https://www.threads.net/ap/users/mosseri/');
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://www.threads.net/ap/users/mosseri/',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Accept: expect.stringContaining('application/activity+json'),
-        }),
-      }),
-    );
+    // The actor is read once, by Oxy; Mention fetches only the collection.
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url === 'https://www.threads.net/ap/users/mosseri/'),
+    ).toHaveLength(1);
+    expect(mentionFetches(fetchMock)).toEqual(['https://www.threads.net/ap/users/mosseri/outbox']);
     expect(fetchMock).not.toHaveBeenCalledWith(
       expect.stringContaining('https://threads.net/ap/users/mosseri/'),
       expect.anything(),
@@ -512,8 +540,8 @@ describe('federationService.fetchRemoteActor', () => {
     const actor = await federationService.fetchRemoteActor('https://evil.example/users/mallory');
 
     expect(actor).toBeNull();
-    expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(mocks.serviceRequest).not.toHaveBeenCalled();
+    expect(await readActor('https://evil.example/users/mallory')).toBeNull();
+    expect(await readActor('https://victim.example/users/alice')).toBeNull();
   });
 
   it('rejects actor documents with a cross-origin public key id', async () => {
@@ -538,9 +566,9 @@ describe('federationService.fetchRemoteActor', () => {
 
     const actor = await federationService.fetchRemoteActor('https://remote.example/users/alice');
 
+    // Oxy read the document; Mention's own key check refuses to store it.
     expect(actor).toBeNull();
-    expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(mocks.serviceRequest).not.toHaveBeenCalled();
+    expect(await readActor('https://remote.example/users/alice')).toBeNull();
   });
 
   it('does not trust cross-domain acct hints or actor webfinger claims', async () => {
@@ -583,11 +611,12 @@ describe('federationService.fetchRemoteActor', () => {
     expect(mocks.serviceRequest).toHaveBeenCalledWith(
       'POST',
       '/federation/identities/resolve',
-      expect.objectContaining({
-        transportAcct: 'mallory@evil.example',
+      // The cross-domain hint is not passed on as a transport.
+      {
         actorUri: 'https://evil.example/users/mallory',
+        transportAcct: undefined,
         protocol: 'activitypub',
-      }),
+      },
     );
   });
 
@@ -739,7 +768,6 @@ describe('federationService.fetchRemoteActor', () => {
     // Mention sends source coordinates only; Oxy verifies the public profile.
     expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       actorUri: 'https://remote.example/users/carol',
-      transportAcct: 'carol@remote.example',
       protocol: 'activitypub',
     });
   });

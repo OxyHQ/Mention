@@ -22,9 +22,14 @@ vi.mock('../../../connectors/activitypub/helpers', async () => {
   );
   return { ...actual, signedFetch: mocks.signedFetch };
 });
-vi.mock('../../../connectors/oxyIdentity', () => ({
-  resolveOxyIdentity: mocks.resolveOxyIdentity,
-}));
+vi.mock('../../../connectors/oxyIdentity', async () => {
+  const { observeOxySourceDouble } = await import('../../helpers/oxyIdentityFixtures');
+  return {
+    resolveOxyIdentity: mocks.resolveOxyIdentity,
+    // Oxy reads the actor (served by `signedFetch`, the remote double) once.
+    observeOxySource: observeOxySourceDouble(mocks.signedFetch, mocks.resolveOxyIdentity),
+  };
+});
 vi.mock('../../../connectors/identity', () => ({
   reportFederatedActorGone: vi.fn(async () => 'archived'),
 }));

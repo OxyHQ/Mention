@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * `mirrorFederatedBanner` — the extracted, network-neutral banner-mirror helper
- * shared by the live actor-resolution path (`resolveOxyExternalUser`) and the
- * one-shot `backfillFederatedBanners` script. Asserts it goes through the SAME
+ * `mirrorFederatedBanner` — the network-neutral banner-mirror helper the banner
+ * sweep and the one-shot `backfillFederatedBanners` script share. Asserts it goes through the SAME
  * service-token public-upload path as federated post media
  * (`persistRemoteMediaForFederatedOwnerDetailed`) and writes
  * `user_settings.profile_header_image` only on success.

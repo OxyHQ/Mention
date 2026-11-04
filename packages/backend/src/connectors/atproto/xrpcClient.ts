@@ -43,9 +43,6 @@ const XRPC_TIMEOUT_MS = 8_000;
 /** Maximum JSON document size accepted from any atproto endpoint (2 MiB). */
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 
-/** Maximum text document size (e.g. `.well-known/atproto-did`) — DIDs are short. */
-const MAX_TEXT_BYTES = 4 * 1024;
-
 /** User-Agent presented to atproto hosts. */
 const USER_AGENT = 'Mention/atproto-connector (+https://mention.earth)';
 
@@ -251,12 +248,6 @@ export async function safeGetJson<T = unknown>(url: string): Promise<T> {
   } catch {
     throw new XrpcError(`atproto GET ${url} returned invalid JSON`);
   }
-}
-
-/** Fetch a short text document (e.g. `.well-known/atproto-did`), trimmed. */
-export async function safeGetText(url: string): Promise<string> {
-  const buffer = await safeGet(url, 'text/plain', MAX_TEXT_BYTES);
-  return buffer.toString('utf8').trim();
 }
 
 /**

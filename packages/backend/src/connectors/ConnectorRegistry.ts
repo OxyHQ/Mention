@@ -2,11 +2,7 @@ import { authorsMayFederate, postAuthorIds } from '../services/postPublicationPo
 import { accountsWithClosedAudience } from '../db/userProfile/profileAudience';
 import { loadPostRecord } from '../db/posts/postRepository';
 import type { PostContent } from '@mention/shared-types';
-import type {
-  LocalNetworkEvent,
-  NetworkConnector,
-  NormalizedExternalActor,
-} from '@oxy.so/federation';
+import type { LocalNetworkEvent, NetworkConnector } from '@oxy.so/federation';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 import { toFederationPostPayload } from '../services/serviceRegistry';
@@ -85,9 +81,8 @@ function actingOxyUserId(event: LocalNetworkEvent<PostContent>): string {
  * Implements the {@link PostFederator} seam (the subset `PostCreationService`
  * depends on, registered via `serviceRegistry`), so creating a new local post
  * federates it to EVERY enabled connector without `PostCreationService` knowing
- * any network exists. `resolve` / `connectorFor` dispatch a handle/URI to the
- * connector that owns it (minimal here; full unified cross-network resolve is a
- * later phase).
+ * any network exists. `connectorFor` dispatches a handle/URI to the connector
+ * that owns it; identity itself is Oxy's (`/federation/identities/resolve`).
  */
 export class ConnectorRegistry implements PostFederator {
   private readonly connectors: NetworkConnector<PostContent>[];
@@ -253,24 +248,5 @@ export class ConnectorRegistry implements PostFederator {
       (connector) => subject.startsWith(`${connector.id}:`) && connector.matches(subject),
     );
     return byScheme ?? this.connectors.find((connector) => connector.matches(subject));
-  }
-
-  /**
-   * Resolve a handle/URI/DID through the FIRST enabled connector that claims it,
-   * returning a normalized actor with its Oxy user (`oxyUserId`) resolved. The
-   * connector's own `resolve` usually mints the identity while upserting; this
-   * runs `mapIdentity` as a fallback so the returned actor always carries an
-   * `oxyUserId` when one could be resolved.
-   */
-  async resolve(handle: string): Promise<NormalizedExternalActor | null> {
-    const connector = this.connectorFor(handle);
-    if (!connector) return null;
-    const actor = await connector.resolve(handle);
-    if (!actor) return null;
-    if (!actor.oxyUserId) {
-      const oxyUserId = await connector.mapIdentity(actor);
-      if (oxyUserId) return { ...actor, oxyUserId };
-    }
-    return actor;
   }
 }

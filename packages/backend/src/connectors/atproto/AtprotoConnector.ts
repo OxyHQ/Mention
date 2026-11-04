@@ -6,16 +6,13 @@ import type {
   NetworkConnector,
   NetworkId,
   NormalizedExternalActor,
-  ReceiveContext,
 } from '@oxy.so/federation';
 import { logger } from '../../utils/logger';
 import {
   deleteFollow,
   upsertOutboundAcceptedSubscription,
 } from '../../db/federation/followRepository';
-import { resolveOxyExternalUser } from '../identity';
 import { ATPROTO_ENABLED, isAtUri, isAtprotoHandle, isDid } from './constants';
-import { resolveIdentity } from './identityResolver';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { startJetstreamIngestion, stopJetstreamIngestion } from './jetstream';
 import { importAuthorFeed } from './post.mapper';
@@ -28,8 +25,8 @@ import {
 /**
  * The AT Protocol (Bluesky) network connector — it READS Bluesky.
  *
- * It resolves Bluesky handles/DIDs, mirrors profiles into `FederatedActor`
- * (`protocol:'atproto'`) + the shared Oxy identity bridge, and backfills an
+ * It mirrors profiles Oxy verified into `FederatedActor` (`protocol:'atproto'`)
+ * under the Oxy user Oxy resolved, and backfills an
  * actor's author feed through the SAME `getPostCreator().create` path
  * ActivityPub uses: their posts as native `Post` rows (deduped on the AT-URI,
  * with the posts they reply to and quote), their pinned post, and their reposts
@@ -53,20 +50,6 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
   matches(subject: string): boolean {
     const value = subject.trim();
     return isDid(value) || isAtUri(value) || isAtprotoHandle(value);
-  }
-
-  /**
-   * Resolve a handle / DID / AT-URI to a normalized actor (handle→DID, then
-   * `app.bsky.actor.getProfile`), upserting the `FederatedActor` row and the
-   * Oxy identity it maps to.
-   */
-  async resolve(handle: string): Promise<NormalizedExternalActor | null> {
-    const value = handle.trim();
-    // Resolve to a DID first (handles, DIDs, and AT-URI authorities all funnel
-    // through identity resolution); getProfile then accepts the DID.
-    const identity = await resolveIdentity(this.toIdentityInput(value));
-    if (!identity) return null;
-    return this.fetchProfile(identity.did);
   }
 
   /** Fetch + normalize an atproto profile by its DID (or handle). */
@@ -130,17 +113,6 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     }
   }
 
-  /** There is no inbound atproto push transport — discovery is pull-only. */
-  async receive(_payload: unknown, _ctx: ReceiveContext): Promise<void> {
-    // No-op: there is no signed atproto inbox to process. Posts arrive via the
-    // pull-based `fetchPosts` backfill, not an inbound delivery.
-  }
-
-  /** Resolve/mint the Oxy user this atproto actor maps to. */
-  mapIdentity(actor: NormalizedExternalActor): Promise<string | null> {
-    return resolveOxyExternalUser(actor);
-  }
-
   /**
    * Record a LOCAL subscription to an atproto actor and backfill its posts. No
    * Follow record is written to the atproto network (Mention publishes nothing
@@ -150,7 +122,7 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
   private async followActor(localOxyUserId: string, targetDid: string): Promise<void> {
     // Resolve the actor first so `targetDid` is canonical (a handle/AT-URI is
     // normalized to its DID) and its Oxy user is minted before the backfill.
-    const actor = await this.resolve(targetDid);
+    const actor = await this.fetchProfile(this.toIdentityInput(targetDid.trim()));
     const canonicalDid = actor?.externalId ?? targetDid;
 
     await upsertOutboundAcceptedSubscription(localOxyUserId, canonicalDid, 'atproto');
@@ -171,13 +143,13 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     // input (so a degraded follow stored under a handle still unfollows). Without
     // this, an unfollow-by-handle would never match the DID-keyed follow record
     // and the subscription would stay stuck.
-    const actor = await this.resolve(targetDid);
+    const actor = await this.fetchProfile(this.toIdentityInput(targetDid.trim()));
     const canonicalDid = actor?.externalId ?? targetDid;
 
     await deleteFollow(localOxyUserId, canonicalDid, 'outbound');
   }
 
-  /** Strip an `at://<authority>/...` to its authority so identity resolution works. */
+  /** Strip an `at://<authority>/...` to its authority (a handle or DID) for Oxy to resolve. */
   private toIdentityInput(subject: string): string {
     if (isAtUri(subject)) {
       const authority = subject.slice('at://'.length).split('/')[0];

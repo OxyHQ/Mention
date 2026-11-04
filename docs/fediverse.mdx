@@ -72,6 +72,20 @@ path. The search box sends every spelling of a fediverse handle as one
 (`normalizeFederatedAcct` in `@mention/shared-types`), and a miss is never kept
 as fresh.
 
+**One fetch of a remote profile per sync.** Oxy has to fetch the source to
+verify it (it never trusts a document a caller hands it), and its resolve answer
+for an `actorUri` carries the document it read (`sourceDocument`, contracts
+6.8.0). Mention reads the actor from that answer and never fetches it itself: the
+ActivityPub resolver's `fetchActorDocument` is `observeOxySource`
+(`connectors/oxyIdentity.ts`), and the atproto connector reads the `getProfile`
+view the same way. Banner, counts, profile fields, flags, inbox and keys come
+from that document; name, bio and avatar from Oxy's profile. Mention's own
+signed fetch reads only what Oxy does not: an ActivityPub actor's
+`followers`/`following`/`outbox` collections, the outbox, and posts. A source
+that refused Oxy is Oxy's 404 with `details.sourceStatus`, so a 410 still
+tombstones the actor. Per sync, a Mastodon actor is 1 actor GET (Oxy) + 3
+collection GETs (Mention); a Bluesky profile is 1 `getProfile` (Oxy).
+
 ## Consent
 
 Oxy owns `privacySettings.fediverseSharing`; Mention does not persist a second
@@ -393,8 +407,8 @@ totals, the join date (AP `published`, atproto `createdAt`), `locked`
 (`manuallyApprovesFollowers`), `memorial`, the metadata table
 (`federated_actor_fields`, each value reduced to plain text by `htmlToInlineLabel`,
 links to their URLs) and `movedTo`. Anything the origin did not report is absent,
-never `0`. `movedTo` is learned only from an inbound `Move`: `@oxy.so/federation`'s
-actor resolver does not parse an actor's `movedTo` on refresh.
+never `0`. `movedTo` is stored only once its target confirms it, whether it came
+from an inbound `Move` or from the `movedTo` an actor refresh read (`recordRemoteMove`).
 
 ## Identity and safety on federated surfaces
 
@@ -839,14 +853,16 @@ interface NetworkConnector<TContent = unknown> {
   readonly id: NetworkId;
   readonly enabled: boolean;
   matches(subject: string): boolean;
-  resolve(handle: string): Promise<NormalizedExternalActor | null>;
   fetchProfile(externalId: string): Promise<NormalizedExternalActor | null>;
   fetchPosts(externalId: string, opts?: FetchPostsOptions): Promise<FetchPostsResult>;
   deliver(event: LocalNetworkEvent<TContent>): Promise<void>;
-  receive(payload: unknown, ctx: ReceiveContext): Promise<void>;
-  mapIdentity(actor: NormalizedExternalActor): Promise<string | null>;
 }
 ```
+
+Identity is not on the contract (`@oxy.so/federation` 3.0.0 dropped `resolve`,
+`mapIdentity` and `receive`): Oxy resolves and verifies every external account
+(`connectors/oxyIdentity.ts`), and inbound activities reach the ActivityPub inbox
+handler directly.
 
 **What capability discovery looks like today.** There is no `getCapabilities()`
 method — instead, `AtprotoConnector.deliver()` switches on every

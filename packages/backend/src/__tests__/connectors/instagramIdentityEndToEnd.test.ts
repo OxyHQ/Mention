@@ -54,16 +54,21 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
   upsertActor: mocks.upsertActor,
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: () => ({
-    serviceRequest: mocks.serviceRequest,
-    users: {
-      get: vi.fn(),
-      getMany: vi.fn(async () => []),
-    },
-  }),
-}));
+vi.mock('../../utils/oxyHelpers', async () => {
+  const { oxyServiceRequestDouble } = await import('../helpers/oxyIdentityFixtures');
+  // Oxy reads an `actorUri` source (served by `signedFetch`, the remote double).
+  const serviceRequest = oxyServiceRequestDouble(mocks.serviceRequest, mocks.signedFetch);
+  return {
+    createScopedOxyClient: vi.fn(),
+    getServiceOxyClient: () => ({
+      serviceRequest,
+      users: {
+        get: vi.fn(),
+        getMany: vi.fn(async () => []),
+      },
+    }),
+  };
+});
 
 vi.mock('@oxy.so/core/server', async (importOriginal) => {
   const { Readable } = await import('node:stream');
@@ -258,7 +263,6 @@ describe('resolving @zuck@kilogram.makeup', () => {
     await activityPubConnector.fetchProfile(ACTOR_URI);
     expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       actorUri: ACTOR_URI,
-      transportAcct: 'zuck@kilogram.makeup',
       protocol: 'activitypub',
     });
     expect(mocks.serviceRequest.mock.calls.some(([, path]) => path === '/users/resolve')).toBe(

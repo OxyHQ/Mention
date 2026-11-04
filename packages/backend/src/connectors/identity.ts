@@ -9,15 +9,16 @@ import { userSettings } from '../db/schema/userProfile';
 import { eq } from 'drizzle-orm';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { updateUserSettings } from '../db/userProfile/userSettingsRepository';
-import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
-import type { NormalizedExternalActor } from '@oxy.so/federation';
 import { createIdentityBridge, type ServiceRequest } from '@oxy.so/federation/node';
-import { resolveOxyIdentity } from './oxyIdentity';
 
-/** Oxy owns discovery and profiles; this module exposes Mention's transport adapter. */
+/**
+ * Oxy owns discovery, identity and profiles (`connectors/oxyIdentity.ts`). This
+ * module is the actor-gone teardown seam and the banner mirror, which Mention
+ * owns.
+ */
 
 /**
  * Service-scoped oxy-api request, resolved at call time (the client is per-request).
@@ -33,28 +34,6 @@ const identityBridge = createIdentityBridge({
     warn: (message, meta) => logger.warn(message, meta),
   },
 });
-
-/** Resolve only transport coordinates; Oxy independently verifies identity and profile fields. */
-export async function resolveOxyExternalUser(
-  actor: NormalizedExternalActor,
-): Promise<string | null> {
-  try {
-    const resolved = await resolveOxyIdentity({
-      actorUri: actor.externalId,
-      transportAcct: actor.handle,
-      // The actor's own network IS the protocol Oxy resolves it through — no
-      // longer "atproto, else ActivityPub": an `instagram-graph` actor is neither.
-      protocol: actor.network,
-    });
-    await invalidateUserSummaryCache([resolved.user.id]);
-    // The banner is NOT handled here: each network's actor upsert syncs it
-    // (`syncFederatedBannerInBackground`) from the full profile it just read.
-    return resolved.user.id;
-  } catch (err) {
-    logger.warn('[FedSync] Oxy identity resolution failed', { actor: actor.externalId, err });
-    return null;
-  }
-}
 
 /**
  * Teardown counterpart: tell oxy-api that a federated actor is permanently gone so

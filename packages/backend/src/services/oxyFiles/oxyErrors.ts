@@ -13,6 +13,16 @@ export function oxyErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+/** The `details` object Oxy sent with an error answer, when it sent one. */
+export function oxyErrorDetails(error: unknown): Record<string, unknown> | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const record = error as { details?: unknown; response?: { data?: { details?: unknown } } };
+  const details = record.details ?? record.response?.data?.details;
+  return details && typeof details === 'object' && !Array.isArray(details)
+    ? (details as Record<string, unknown>)
+    : undefined;
+}
+
 /** Oxy's machine-readable error code (`SOURCE_URL_REFUSED`, …), when it sent one. */
 export function oxyErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object') return undefined;

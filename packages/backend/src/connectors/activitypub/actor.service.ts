@@ -5,12 +5,14 @@ import { normalizeInlineText } from '@oxy.so/core';
 import { readResponseJson, safeFetch } from '@oxy.so/core/server';
 import {
   createActorResolver,
+  type ActorDocumentFetch,
   type ActorResolverConfig,
   type FederatedActorStore,
   type FederatedActorUpsert,
   type WebFingerFetch,
   type WebFingerJrd,
 } from '@oxy.so/federation/node';
+import { isSameFederationHost } from '@oxy.so/federation';
 import { logger } from '../../utils/logger';
 import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
 import { isUniqueViolation } from '@oxy.so/db';
@@ -28,7 +30,7 @@ import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { signedFetch, normalizeFederatedAcct, domainFromAcct } from './helpers';
 import { reportFederatedActorGone } from '../identity';
-import { resolveOxyIdentity } from '../oxyIdentity';
+import { observeOxySource, type ObservedOxySource } from '../oxyIdentity';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { syncFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
 import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
@@ -36,13 +38,14 @@ import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileS
 /**
  * Resolution, caching and refresh of remote ActivityPub actors.
  *
- * The PROTOCOL — webfinger resolution, the signed actor fetch + WebFinger
- * fallback, the 410-Gone tombstone, the self-consistency/same-origin guards, the
- * staleness/refresh policy — lives in `@oxy.so/federation`'s `createActorResolver`
- * so every Oxy app backend resolves remote actors identically. This module is the
- * Mention wiring: it supplies the FederatedActor CACHE store (bring-your-own-store,
- * no data move), the actor↔Oxy-user identity bridge, the signed AP fetch + the
- * SSRF-safe WebFinger fetch, and Mention's canonical text normalization.
+ * The PROTOCOL — webfinger resolution, the WebFinger fallback, the 410-Gone
+ * tombstone, the self-consistency/same-origin guards, the staleness/refresh
+ * policy — lives in `@oxy.so/federation`'s `createActorResolver` so every Oxy app
+ * backend resolves remote actors identically. This module is the Mention wiring:
+ * the FederatedActor CACHE store (bring-your-own-store, no data move), the actor
+ * document source (Oxy's verified read, {@link fetchActorDocument}), the signed AP
+ * fetch for collections + the SSRF-safe WebFinger fetch, and Mention's canonical
+ * text normalization.
  */
 
 const WEBFINGER_TIMEOUT_MS = 10000;
@@ -113,9 +116,9 @@ async function upsertActorFreeingStaleHandle(
  * `db/federation/actorRepository.ts`; this only adapts the shapes the engine's
  * interface names.
  */
-const store: FederatedActorStore<EngineFederatedActorRecord> = {
+const store: FederatedActorStore<EngineFederatedActorRecord, ObservedOxySource> = {
   findActorByUri: async (uri) => withEngineId(await findActorByUri(uri)),
-  upsertActor: async (uri, update: FederatedActorUpsert) => {
+  upsertActor: async (uri, update: FederatedActorUpsert, resolved) => {
     // `fields` is the one part of the write that is a second TABLE rather than a
     // column, so it is split out here and the repository replaces the whole list
     // inside the same transaction as the row.
@@ -127,14 +130,13 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
     // `indexable` out when the actor does not state it, and the row then stores
     // NULL ("said nothing"), which `federatedSearchOptOutSql` reads as not
     // indexable — Mastodon's rule for a remote account.
+    //
+    // `resolved` is the Oxy answer the document was read from
+    // ({@link fetchActorDocument}): the identity is already verified, so the
+    // store never asks Oxy (or the source) again.
+    if (resolved?.externalIdentity.actorUri !== uri)
+      throw new Error('Actor document was not read through Oxy');
     const { fields, uri: _uri, ...columns } = update;
-    const resolved = await resolveOxyIdentity({
-      actorUri: uri,
-      transportAcct: update.acct,
-      protocol: 'activitypub',
-    });
-    if (resolved.externalIdentity.actorUri !== uri)
-      throw new Error('Oxy resolved a different source actor');
     const row = await upsertActorFreeingStaleHandle(
       uri,
       {
@@ -187,6 +189,29 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
 };
 
 /**
+ * Every actor document comes from Oxy's verified read of it
+ * ({@link observeOxySource}), never from a fetch of Mention's own: Oxy has to
+ * fetch the actor to verify it, so a second fetch here would read the same
+ * document twice per sync. The answer rides to {@link store}'s upsert as its
+ * `source`. A source that refused Oxy reports its own status (410 tombstones).
+ */
+const fetchActorDocument: ActorDocumentFetch<ObservedOxySource> = async (actorUri, acctHint) => {
+  // A hint on another host is an unverified claim: Oxy is not asked to chase it
+  // (the resolver ignores it too).
+  const hintDomain = acctHint ? domainFromAcct(acctHint) : undefined;
+  const { status, resolved } = await observeOxySource({
+    actorUri,
+    transportAcct:
+      hintDomain && isSameFederationHost(hintDomain, new URL(actorUri).hostname)
+        ? acctHint
+        : undefined,
+    protocol: 'activitypub',
+  });
+  if (!resolved) return { status, detail: 'Oxy could not verify the actor' };
+  return { status, document: resolved.sourceDocument, source: resolved };
+};
+
+/**
  * SSRF-safe bounded WebFinger fetch. Validates + IP-pins the URL, reads the body
  * within the 256 KiB cap and {@link WEBFINGER_TIMEOUT_MS}, and returns the parsed
  * JRD (or null on a non-2xx). A network, parse, size-limit or body-deadline
@@ -230,9 +255,13 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
  * stripped, handles qualified) all come from Oxy's
  * `/federation/identities/resolve` in `store.upsertActor` (OxyHQ/oxy#1253).
  */
-export const activityPubActorResolverConfig: ActorResolverConfig<EngineFederatedActorRecord> = {
+export const activityPubActorResolverConfig: ActorResolverConfig<
+  EngineFederatedActorRecord,
+  ObservedOxySource
+> = {
   federationEnabled: FEDERATION_ENABLED,
   signedFetch,
+  fetchActorDocument,
   fetchWebFinger,
   isBlockedDomain,
   normalizeFederatedAcct,
@@ -262,8 +291,6 @@ export const activityPubActorResolverConfig: ActorResolverConfig<EngineFederated
   },
 };
 
-export const actorService = createActorResolver<EngineFederatedActorRecord>(
-  activityPubActorResolverConfig,
-);
+export const actorService = createActorResolver(activityPubActorResolverConfig);
 
 export default actorService;
