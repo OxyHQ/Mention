@@ -1086,6 +1086,7 @@ async function importReposts(
  * `Announce` is stored. Page one also mirrors which post is pinned.
  *
  * The actor MUST already carry a resolved `oxyUserId` (no orphan posts).
+ * Throws `XrpcError` when the AppView cannot be read.
  */
 export async function importAuthorFeed(
   actor: NormalizedExternalActor,
@@ -1098,19 +1099,16 @@ export async function importAuthorFeed(
     return { posts: [] };
   }
 
-  let feed: AtprotoAuthorFeed;
-  try {
-    feed = await xrpcGet<AtprotoAuthorFeed>(PUBLIC_APPVIEW, 'app.bsky.feed.getAuthorFeed', {
-      actor: did,
-      limit: opts.limit ?? 20,
-      cursor: opts.cursor,
-      // Page one leads with the pinned post, which may be older than the page.
-      includePins: opts.cursor ? undefined : true,
-    });
-  } catch (err) {
-    logger.debug('[atproto] getAuthorFeed failed', err);
-    return { posts: [] };
-  }
+  // A failed read THROWS (`XrpcError`) rather than answering an empty page:
+  // the history backfill pages until there is no cursor, and an empty answer
+  // would read as "reached the end". Every caller already catches.
+  const feed = await xrpcGet<AtprotoAuthorFeed>(PUBLIC_APPVIEW, 'app.bsky.feed.getAuthorFeed', {
+    actor: did,
+    limit: opts.limit ?? 20,
+    cursor: opts.cursor,
+    // Page one leads with the pinned post, which may be older than the page.
+    includePins: opts.cursor ? undefined : true,
+  });
 
   const items = Array.isArray(feed?.feed) ? feed.feed : [];
   const own: AtprotoPostView[] = [];

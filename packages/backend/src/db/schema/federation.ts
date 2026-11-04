@@ -189,6 +189,11 @@ export const federatedActors = pgTable(
     lastOutboxSyncAt: timestamptz(),
 
     // ── `outboxBackfill` subdocument ──
+    // The post-history backfill of BOTH pull protocols. An ActivityPub actor
+    // walks its outbox (`outbox_url` set, cursor = the next page URL); an
+    // atproto actor walks `app.bsky.feed.getAuthorFeed` (`outbox_url` and
+    // `outbox_backfill_outbox_url` NULL, cursor = the AppView's opaque cursor).
+    // Each protocol's candidate query selects only its own actors.
     outboxBackfillStatus: text({ enum: OUTBOX_BACKFILL_STATUSES }),
     outboxBackfillOutboxUrl: text(),
     outboxBackfillCursorUrl: text(),

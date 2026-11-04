@@ -18,6 +18,11 @@ import { ATPROTO_ENABLED, isAtUri, isAtprotoHandle, isDid } from './constants';
 import { resolveIdentity } from './identityResolver';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { importAuthorFeed } from './post.mapper';
+import {
+  advanceAtprotoHistoryBackfills,
+  importAccountPosts,
+  syncFollowedAtprotoAccounts,
+} from './accountSync';
 
 /**
  * The AT Protocol (Bluesky) network connector — it READS Bluesky.
@@ -72,18 +77,18 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
    * Backfill an actor's recent posts. Resolves/refreshes the actor (so its Oxy
    * user is known — no orphan posts), then imports `app.bsky.feed.getAuthorFeed`.
    */
-  async fetchPosts(externalId: string, opts: FetchPostsOptions = {}): Promise<FetchPostsResult> {
-    const actor = await fetchAndUpsertAtprotoProfile(externalId);
-    if (!actor) return { posts: [] };
-    if (!actor.oxyUserId) {
-      logger.warn('[atproto] fetchPosts skipped backfill without a resolved Oxy user');
-      return { posts: [] };
-    }
-    const { posts, cursor } = await importAuthorFeed(actor, {
-      limit: opts.limit,
-      cursor: opts.cursor,
-    });
-    return { posts, cursor };
+  fetchPosts(externalId: string, opts: FetchPostsOptions = {}): Promise<FetchPostsResult> {
+    return importAccountPosts(externalId, opts);
+  }
+
+  /** The periodic job body: the newest page of each followed account that is due. */
+  syncFollowedAccounts(): Promise<number> {
+    return syncFollowedAtprotoAccounts();
+  }
+
+  /** The periodic job body: advance the bounded post-history backfills. */
+  advanceHistoryBackfills(): Promise<number> {
+    return advanceAtprotoHistoryBackfills();
   }
 
   /** Deliver a local domain event. */

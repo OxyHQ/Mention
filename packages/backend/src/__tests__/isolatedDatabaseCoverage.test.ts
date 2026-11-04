@@ -138,6 +138,8 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   // Whole-table aggregates over `posts` (NodeInfo, #1748): any concurrent fixture insert moves them.
   { name: 'measureNodeinfoStatistics', call: /\bmeasureNodeinfoStatistics\s*\(/ },
   { name: 'reportNodeinfoAuthors', call: /\breportNodeinfoAuthors\s*\(/ },
+  // The Bluesky pull jobs select every due atproto actor and stamp it.
+  { name: 'syncFollowedAtprotoAccounts', call: /\bsyncFollowedAtprotoAccounts\s*\(/ },
 
   /*
    * The admin one-shots, added by the second scan. Each is keyed on the IMPORTED

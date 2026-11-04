@@ -1114,15 +1114,7 @@ export async function findInstagramGraphSyncCandidates(
           sql`lower(split_part(${federatedActors.networkAcct}, '@', 2)) = 'instagram.com'`,
         ),
         instagramGraphDueSql(cutoffs),
-        // Every reference `qualified()`: a bare column in a correlated subquery
-        // resolves against the SUBQUERY's table and silently matches nothing
-        // (`schema/CONVENTIONS.md`).
-        sql`exists (
-          select 1 from ${federatedFollows}
-          where ${qualified(federatedFollows.remoteActorUri)} = ${qualified(federatedActors.uri)}
-            and ${qualified(federatedFollows.direction)} = 'outbound'
-            and ${qualified(federatedFollows.status)} = 'accepted'
-        )`,
+        followedLocallySql(),
       ),
     )
     .orderBy(
@@ -1373,6 +1365,119 @@ export async function findOutboxBackfillCandidates(
           },
         ],
   );
+}
+
+/**
+ * "Some local account follows this actor": an accepted outbound follow edge.
+ * Correlated on `qualified()` columns — a bare reference would bind to the
+ * subquery's own table and silently match nothing (`schema/CONVENTIONS.md`).
+ */
+function followedLocallySql(): SQL {
+  return sql`exists (
+    select 1 from ${federatedFollows}
+    where ${qualified(federatedFollows.remoteActorUri)} = ${qualified(federatedActors.uri)}
+      and ${qualified(federatedFollows.direction)} = 'outbound'
+      and ${qualified(federatedFollows.status)} = 'accepted'
+  )`;
+}
+
+/** A Bluesky account the periodic sync should read the newest page of. */
+export interface AtprotoSyncCandidate {
+  id: string;
+  uri: string;
+}
+
+/**
+ * Followed atproto actors whose posts were last imported before `dueBefore`
+ * (or never), the longest-waiting first.
+ *
+ * `last_outbox_sync_at` is the one "when did we last import this actor's posts"
+ * stamp both protocols and both triggers write — a profile view stamps it too —
+ * so an account someone just viewed is not fetched again by the periodic job.
+ * `NULLS FIRST` because Postgres sorts NULL last: a never-synced account would
+ * otherwise wait behind every synced one.
+ */
+export async function findAtprotoFollowedSyncCandidates(
+  dueBefore: Date,
+  limit: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<AtprotoSyncCandidate[]> {
+  return db
+    .select({ id: federatedActors.id, uri: federatedActors.uri })
+    .from(federatedActors)
+    .where(
+      and(
+        eq(federatedActors.protocol, 'atproto'),
+        isNotNull(federatedActors.oxyUserId),
+        eq(federatedActors.suspended, false),
+        or(
+          isNull(federatedActors.lastOutboxSyncAt),
+          lt(federatedActors.lastOutboxSyncAt, dueBefore),
+        ),
+        followedLocallySql(),
+      ),
+    )
+    .orderBy(sql`${federatedActors.lastOutboxSyncAt} asc nulls first`, asc(federatedActors.id))
+    .limit(limit);
+}
+
+/** A Bluesky account whose post history the bounded backfill may advance. */
+export interface AtprotoHistoryCandidate extends AtprotoSyncCandidate {
+  outboxBackfill: FederatedOutboxBackfillState;
+}
+
+/**
+ * atproto actors whose post history is unfinished and unlocked: every followed
+ * account, and an account someone has opened (its posts were synced once) whose
+ * whole history is at most `cheapPostsCount` posts — a page or two, so reading
+ * all of it on discovery costs about what the profile view already did.
+ *
+ * Only atproto rows: the ActivityPub walk ({@link findOutboxBackfillCandidates})
+ * requires an `outbox_url`, which an atproto actor never has, so the two never
+ * pick each other's actors.
+ */
+export async function findAtprotoHistoryBackfillCandidates(
+  now: Date,
+  cheapPostsCount: number,
+  limit: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<AtprotoHistoryCandidate[]> {
+  const rows = await db
+    .select()
+    .from(federatedActors)
+    .where(
+      and(
+        eq(federatedActors.protocol, 'atproto'),
+        isNotNull(federatedActors.oxyUserId),
+        eq(federatedActors.suspended, false),
+        or(
+          isNull(federatedActors.outboxBackfillStatus),
+          inArray(federatedActors.outboxBackfillStatus, ['pending', 'failed']),
+        ),
+        or(
+          isNull(federatedActors.outboxBackfillLockedUntil),
+          lte(federatedActors.outboxBackfillLockedUntil, now),
+        ),
+        or(
+          followedLocallySql(),
+          and(
+            isNotNull(federatedActors.lastOutboxSyncAt),
+            gt(federatedActors.postsCount, 0),
+            lte(federatedActors.postsCount, cheapPostsCount),
+          ),
+        ),
+      ),
+    )
+    .orderBy(
+      sql`${federatedActors.outboxBackfillLastRunAt} asc nulls first`,
+      asc(federatedActors.id),
+    )
+    .limit(limit);
+  return rows.map((row) => ({
+    id: row.id,
+    uri: row.uri,
+    outboxBackfill: assembleOutboxBackfill(row),
+  }));
 }
 
 /**
