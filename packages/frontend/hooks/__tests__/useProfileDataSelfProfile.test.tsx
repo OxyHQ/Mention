@@ -315,6 +315,73 @@ describe('useProfileData — Oxy-proven public aliases', () => {
 });
 
 /**
+ * A federated profile's account facts come from its origin (`remote` on the
+ * design DTO): the metadata table, locked/memorial, and the origin's post total
+ * in place of the count of posts Mention imported — when the origin reports one.
+ */
+describe('useProfileData — a federated profile’s origin facts', () => {
+  const federated = {
+    ...user('fed-1', 'alice@mastodon.example', 'Alice'),
+    isFederated: true,
+    externalIdentities: [
+      {
+        canonicalAcct: 'alice@mastodon.example',
+        network: 'mastodon.example',
+        protocol: 'activitypub',
+        actorUri: 'https://mastodon.example/users/alice',
+        transportAcct: 'alice@mastodon.example',
+        sourceUserId: 'alice-source',
+      },
+    ],
+  };
+  const fields = [{ name: 'Site', value: 'https://alice.example/' }];
+
+  beforeEach(() => {
+    mockViewer.current = null;
+    mockResolveProfile.mockReset().mockResolvedValue(federated);
+    mockLoadAppearance.mockReset();
+  });
+
+  it.each([
+    [
+      'states what the origin reports',
+      { postsCount: 4096, fields, locked: true, memorial: true },
+      { postsCount: 4096, fields, locked: true, memorial: true },
+    ],
+    [
+      'falls back to the imported count when the origin reports none',
+      {},
+      { postsCount: 3, fields: undefined, locked: false, memorial: false },
+    ],
+  ])('%s', async (_case, remote, expected) => {
+    mockLoadAppearance.mockResolvedValue({ oxyUserId: 'fed-1', postsCount: 3, remote });
+    const seen: Record<string, unknown>[] = [];
+    function FactsProbe() {
+      const { data } = useProfileData('alice@mastodon.example');
+      if (data)
+        seen.push({
+          postsCount: data.postsCount,
+          fields: data.fields,
+          locked: data.locked,
+          memorial: data.memorial,
+        });
+      return null;
+    }
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={new QueryClient()}>
+          <FactsProbe />
+        </QueryClientProvider>,
+      );
+    });
+    await settle();
+    expect(seen.at(-1)).toEqual(expected);
+    act(() => renderer?.unmount());
+  });
+});
+
+/**
  * "No such profile" and "the lookup failed" are different answers: the first
  * ends in "Profile not found", the second in a retry (OxyHQ/Mention#1124 — the
  * connections screen needs to tell them apart, and could not).
