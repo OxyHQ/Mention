@@ -1,9 +1,13 @@
-import type { Peable } from '@peable.to/sdk';
+import type { Invoice, PaymentIntent, Subscription } from '@peable.to/sdk';
 import { MembershipError } from '../errors';
 import type { MembershipBillingOffer } from './catalogue';
 
-type InvoiceState = Awaited<ReturnType<Peable['billing']['retrieveInvoiceState']>>;
-type InvoiceAuthority = Awaited<ReturnType<Peable['billing']['retrieveFinalInvoiceAuthority']>>;
+/** The merchant the calling credential resolves to (`GET /v1/merchants/me`). */
+export interface MembershipBillingMerchant {
+  id: string;
+  oxy_app_id: string;
+  environment: string;
+}
 
 export interface MembershipInvoiceRequest {
   payerAccountId: string;
@@ -11,92 +15,127 @@ export interface MembershipInvoiceRequest {
   invoiceId: string;
 }
 
-/** Peable instants are integer Unix seconds (ADR 0014). */
-function isUnixSeconds(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0;
+/** What Peable's native engine answers for one invoice, read with Mention's own credential. */
+export interface MembershipInvoiceEvidence {
+  merchant: MembershipBillingMerchant;
+  invoice: Invoice;
+  subscription: Subscription;
+  paymentIntent: PaymentIntent;
 }
 
-/** Peable amounts are base-unit integer strings (ADR 0014 D1, authority schema 3). */
+/**
+ * Metadata Mention writes on the subscription at checkout
+ * (`subscription_data.metadata`), with its own service credential. A payer
+ * cannot write it, so it binds the subscription to one payer, community, tier
+ * and offer version.
+ */
+export const MEMBERSHIP_SUBSCRIPTION_METADATA = {
+  payer: 'payer_account_id',
+  community: 'community_id',
+  tier: 'tier_id',
+  offer: 'offer_id',
+  offerVersion: 'offer_version',
+} as const;
+
+/** Peable instants are integer Unix seconds (ADR 0014). */
+function isUnixSeconds(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+/** Peable amounts are base-unit integer strings (ADR 0014 D1). Signed fields must be positive here. */
 const BASE_UNITS = /^(0|[1-9][0-9]*)$/;
 
-/** Called only after the official SDK verifies the final authority signature. */
+/** An expandable reference's id, whether Peable answered the id or the object. */
+function refId(value: string | { id: string } | null | undefined): string | undefined {
+  if (typeof value === 'string') return value;
+  return value?.id;
+}
+
+/**
+ * Bind one native invoice to one reviewed membership offer.
+ *
+ * Every input is an authoritative read of Peable's own objects, made by Mention's
+ * workload over the gateway — never a payload a client or a webhook handed in.
+ * The merchant binds application and environment; `livemode` binds the mode; the
+ * subscription's metadata binds payer, community, tier and offer version; its one
+ * item and the invoice's one subscription line bind the price (a Peable price never
+ * changes what it charges, so the price is the product and the amount); the
+ * PaymentIntent binds the money actually received and refunded.
+ */
 export function normalizeMembershipInvoice(
   offer: MembershipBillingOffer,
   request: MembershipInvoiceRequest,
-  paid: InvoiceState,
-  authority: InvoiceAuthority,
+  evidence: MembershipInvoiceEvidence,
   now = new Date(),
 ) {
-  const source = authority.source;
-  const invoice = authority.invoice;
-  const context = invoice.context;
-  const exact = [
-    [paid.invoice_id, request.invoiceId],
-    [source.invoice_id, request.invoiceId],
-    [paid.provider_subscription_id, request.subscriptionId],
-    [source.subscription_id, request.subscriptionId],
-    [context.provider_subscription_id, request.subscriptionId],
-    [paid.store_id, request.payerAccountId],
-    [context.payer_account_id, request.payerAccountId],
-    // Membership access belongs to its payer. Gift/delegated billing requires a new contract.
-    [context.beneficiary_account_id, request.payerAccountId],
-    [paid.payment_intent_id, source.payment_intent_id],
-    [paid.provider_customer_id, source.customer_id],
-    [paid.provider_price_id, offer.providerPriceId],
-    [source.price_id, offer.providerPriceId],
-    [paid.plan_id, offer.planId],
-    [source.plan_id, offer.planId],
-    [source.merchant_id, offer.merchantId],
-    [source.app_id, offer.appId],
-    [source.mode, offer.mode],
-    [context.mode, offer.mode],
-    [source.environment, offer.environment],
-    [context.environment, offer.environment],
-    [context.offer_id, offer.offerId],
-    [paid.currency, invoice.currency],
-    [paid.amount_paid, invoice.gross_minor_units],
-    [paid.net_amount, invoice.net_minor_units],
-    [paid.tax_amount, invoice.tax_minor_units],
+  const { merchant, invoice, subscription, paymentIntent } = evidence;
+  const meta = subscription.metadata;
+  const keys = MEMBERSHIP_SUBSCRIPTION_METADATA;
+  const customerId = refId(invoice.customer);
+  const items = subscription.items.data;
+  const lines = invoice.lines.data;
+  // Exactly one line: the subscription's own. A proration, an extra item or a
+  // discount line is a different sale than the reviewed offer.
+  const line = lines.length === 1 && lines[0]?.type === 'subscription' ? lines[0] : undefined;
+  const livemode = offer.mode === 'live';
+  const exact: Array<[string | null | undefined, string]> = [
+    [merchant.id, offer.merchantId],
+    [merchant.oxy_app_id, offer.appId],
+    [merchant.environment, offer.environment],
+    [invoice.id, request.invoiceId],
+    [refId(invoice.subscription), request.subscriptionId],
+    [subscription.id, request.subscriptionId],
+    [refId(subscription.customer), customerId ?? ''],
+    [refId(paymentIntent.customer), customerId ?? ''],
+    [refId(invoice.payment_intent), paymentIntent.id],
+    [meta[keys.payer], request.payerAccountId],
+    [meta[keys.community], offer.communityId],
+    [meta[keys.tier], offer.tierId],
+    [meta[keys.offer], offer.offerId],
+    [meta[keys.offerVersion], String(offer.offerVersion)],
+    [items[0]?.price.id, offer.providerPriceId],
+    [line?.price?.id, offer.providerPriceId],
+    [line?.subscription, request.subscriptionId],
+    [paymentIntent.currency, invoice.currency],
+    [paymentIntent.amount_received, invoice.amount_paid],
+    [invoice.total, invoice.amount_paid],
   ];
-  const instants = [paid.period_start, paid.period_end, paid.paid_at, paid.observed_at];
-  const [start, end, paidAt, observedAt] = instants;
-  const nowSeconds = now.getTime() / 1000;
+  const paidAt = invoice.status_transitions.paid_at;
+  const start = line?.period.start;
+  const end = line?.period.end;
+  const nowSeconds = Math.floor(now.getTime() / 1000);
   if (
+    !customerId ||
     exact.some(([left, right]) => !left || left !== right) ||
-    context.offer_version !== offer.offerVersion ||
     !Number.isSafeInteger(offer.offerVersion) ||
     offer.offerVersion < 1 ||
-    paid.livemode !== (offer.mode === 'live') ||
-    ![invoice.gross_minor_units, invoice.net_minor_units, invoice.tax_minor_units].every((amount) =>
-      BASE_UNITS.test(amount),
+    [invoice.livemode, subscription.livemode, paymentIntent.livemode].some(
+      (mode) => mode !== livemode,
     ) ||
-    invoice.gross_minor_units === '0' ||
-    BigInt(invoice.net_minor_units) + BigInt(invoice.tax_minor_units) !==
-      BigInt(invoice.gross_minor_units) ||
-    !instants.every(isUnixSeconds) ||
-    start === undefined ||
-    end === undefined ||
-    paidAt === undefined ||
-    observedAt === undefined ||
-    start !== context.period_start ||
-    end !== context.period_end ||
+    items.length !== 1 ||
+    items[0]?.quantity !== 1 ||
+    line?.quantity !== 1 ||
+    line.proration ||
+    invoice.status !== 'paid' ||
+    invoice.paid_out_of_band ||
+    paymentIntent.status !== 'succeeded' ||
+    !BASE_UNITS.test(invoice.amount_paid) ||
+    invoice.amount_paid === '0' ||
+    invoice.tax === null ||
+    !BASE_UNITS.test(invoice.tax) ||
+    !isUnixSeconds(paidAt) ||
+    !isUnixSeconds(start) ||
+    !isUnixSeconds(end) ||
     end <= start ||
     paidAt > nowSeconds ||
-    observedAt > nowSeconds ||
-    observedAt < paidAt ||
-    !['paid', 'partially_refunded', 'fully_refunded'].includes(paid.state) ||
-    !BASE_UNITS.test(paid.amount_refunded)
+    !BASE_UNITS.test(paymentIntent.amount_refunded)
   )
     throw new MembershipError(409, 'Invoice does not match the membership offer');
-  const refunded = BigInt(paid.amount_refunded);
-  const gross = BigInt(invoice.gross_minor_units);
-  if (
-    refunded > gross ||
-    (paid.state === 'paid' && refunded !== 0n) ||
-    (paid.state === 'fully_refunded' && refunded !== gross) ||
-    (paid.state === 'partially_refunded' && (refunded === 0n || refunded === gross))
-  )
-    throw new MembershipError(409, 'Invoice refund state is inconsistent');
+  const refunded = BigInt(paymentIntent.amount_refunded);
+  const paid = BigInt(invoice.amount_paid);
+  if (refunded > paid) throw new MembershipError(409, 'Invoice refund state is inconsistent');
+  const state: 'paid' | 'partially_refunded' | 'fully_refunded' =
+    refunded === 0n ? 'paid' : refunded === paid ? 'fully_refunded' : 'partially_refunded';
   return {
     communityId: offer.communityId,
     tierId: offer.tierId,
@@ -110,13 +149,12 @@ export function normalizeMembershipInvoice(
     offerId: offer.offerId,
     offerVersion: offer.offerVersion,
     providerPriceId: offer.providerPriceId,
-    planId: offer.planId,
-    paymentIntentId: paid.payment_intent_id,
-    providerCustomerId: paid.provider_customer_id,
+    paymentIntentId: paymentIntent.id,
+    providerCustomerId: customerId,
     periodStart: new Date(start * 1000),
     periodEnd: new Date(end * 1000),
     paidAt: new Date(paidAt * 1000),
-    observedAt: new Date(observedAt * 1000),
-    state: paid.state,
+    observedAt: new Date(nowSeconds * 1000),
+    state,
   };
 }

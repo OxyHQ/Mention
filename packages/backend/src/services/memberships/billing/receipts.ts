@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { PEABLE_BILLING_AUTHORITY_KEYS, peableForOxyService } from '@peable.to/sdk';
+import { peableForOxyService } from '@peable.to/sdk';
 import { getDb } from '../../../db/postgres';
 import { membershipBillingReceipts } from '../../../db/schema/membershipBilling';
 import { membershipTiers } from '../../../db/schema/memberships';
@@ -43,7 +43,6 @@ export async function persistMembershipInvoice(receipt: NormalizedReceipt) {
       'offerId',
       'offerVersion',
       'providerPriceId',
-      'planId',
       'paymentIntentId',
       'providerCustomerId',
     ] as const;
@@ -104,21 +103,30 @@ export async function reconcileMembershipInvoice(
     .where(and(eq(membershipTiers.id, tierId), eq(membershipTiers.communityId, communityId)));
   if (tier?.kind !== 'paid') throw new MembershipError(409, 'Paid tier required');
   const client = peableForOxyService({
-    invoiceAuthorityKeys: PEABLE_BILLING_AUTHORITY_KEYS,
     oxy: getServiceOxyClient(),
     requester: { accountId: actor.accountId, token: request.accessToken },
   });
   try {
-    const [paid, authority] = await Promise.all([
-      client.billing.retrieveInvoiceState(invoice.subscriptionId, invoice.invoiceId),
-      client.billing.retrieveFinalInvoiceAuthority(invoice.subscriptionId, invoice.invoiceId),
+    // Authoritative native objects, read with Mention's own merchant credential.
+    // The invoice names its subscription and PaymentIntent; each is re-read rather
+    // than trusted from the invoice's embedding.
+    const [merchant, invoiceObject, subscription] = await Promise.all([
+      client.merchants.retrieve(),
+      client.invoices.retrieve(invoice.invoiceId),
+      client.subscriptions.retrieve(invoice.subscriptionId),
     ]);
+    const paymentIntentId =
+      typeof invoiceObject.payment_intent === 'string'
+        ? invoiceObject.payment_intent
+        : invoiceObject.payment_intent?.id;
+    if (!paymentIntentId)
+      throw new MembershipError(409, 'Invoice does not match the membership offer');
+    const paymentIntent = await client.paymentIntents.retrieve(paymentIntentId);
     return await persistMembershipInvoice(
       normalizeMembershipInvoice(
         offer,
         { ...invoice, payerAccountId: actor.accountId },
-        paid,
-        authority,
+        { merchant, invoice: invoiceObject, subscription, paymentIntent },
       ),
     );
   } finally {

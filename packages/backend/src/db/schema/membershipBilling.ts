@@ -22,7 +22,6 @@ export const membershipBillingReceipts = pgTable(
     offerId: text().notNull(),
     offerVersion: integer().notNull(),
     providerPriceId: text().notNull(),
-    planId: text().notNull(),
     paymentIntentId: text().notNull(),
     providerCustomerId: text().notNull(),
     periodStart: timestamptz().notNull(),

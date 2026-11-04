@@ -8,8 +8,8 @@ export interface MembershipBillingOffer {
   appId: string;
   mode: 'test' | 'live';
   environment: 'development' | 'staging' | 'production';
+  /** The Orbit price (`price_…`) the tier is sold at; a Peable price never changes what it charges. */
   providerPriceId: string;
-  planId: string;
 }
 
 /** Commercial configuration is deferred. No existing merchant/cohort is borrowed. */

@@ -21,95 +21,103 @@ const now = new Date('2026-10-28T00:00:00Z');
 const unix = (iso: string) => Date.parse(iso) / 1000;
 const start = unix('2026-10-01T00:00:00Z');
 const end = unix('2026-11-01T00:00:00Z');
+type Evidence = Parameters<typeof normalizeMembershipInvoice>[2];
 function fixture() {
   const offer: MembershipBillingOffer = {
     communityId: randomUUID(),
     tierId: randomUUID(),
     offerId: 'synthetic-offer',
     offerVersion: 1,
-    merchantId: 'synthetic-merchant',
+    merchantId: 'merch_synthetic',
     appId: 'mention-test',
     mode: 'test',
     environment: 'development',
-    providerPriceId: 'synthetic-price',
-    planId: 'synthetic-plan',
+    providerPriceId: 'price_synthetic',
   };
   const request = {
     payerAccountId: 'membership-billing-test-payer',
-    subscriptionId: 'synthetic-subscription',
-    invoiceId: randomUUID(),
+    subscriptionId: 'sub_synthetic',
+    invoiceId: `in_${randomUUID()}`,
   };
-  const paid: Parameters<typeof normalizeMembershipInvoice>[2] = {
-    invoice_id: request.invoiceId,
-    line_id: 'line',
-    payment_intent_id: 'payment',
-    provider_subscription_id: request.subscriptionId,
-    provider_customer_id: 'customer',
-    provider_price_id: offer.providerPriceId,
-    store_id: request.payerAccountId,
-    plan_id: offer.planId,
-    livemode: false,
-    currency: 'EUR',
-    amount_paid: '100',
-    net_amount: '80',
-    tax_amount: '20',
-    period_start: start,
-    period_end: end,
-    paid_at: start,
-    observed_at: now.getTime() / 1000,
-    charge_id: 'charge',
-    amount_refunded: '0',
-    state: 'paid',
-  };
-  const authority: Parameters<typeof normalizeMembershipInvoice>[3] = {
-    schema_version: 3,
-    source: {
-      invoice_id: request.invoiceId,
-      payment_intent_id: paid.payment_intent_id,
-      customer_id: paid.provider_customer_id,
-      subscription_id: request.subscriptionId,
-      price_id: offer.providerPriceId,
-      plan_id: offer.planId,
-      merchant_id: offer.merchantId,
-      app_id: offer.appId,
-      mode: offer.mode,
-      environment: offer.environment,
-    },
+  const price = { id: offer.providerPriceId, object: 'price' };
+  const evidence = {
+    merchant: { id: offer.merchantId, oxy_app_id: offer.appId, environment: offer.environment },
     invoice: {
-      platform: 'peable',
+      id: request.invoiceId,
+      object: 'invoice',
+      livemode: false,
+      customer: 'cus_synthetic',
+      subscription: request.subscriptionId,
+      status: 'paid',
       currency: 'EUR',
-      gross_minor_units: '100',
-      net_minor_units: '80',
-      tax_minor_units: '20',
-      merchant_fee_minor_units: '0',
-      tax_treatment: 'inclusive',
-      seller_id: 'seller',
-      invoice_issuer_id: 'issuer',
-      tax_quote_id: 'taxquote',
-      customer_location_evidence_id: 'location',
-      tax_rate_evidence_id: 'rate',
-      context: {
-        payer_account_id: request.payerAccountId,
-        beneficiary_account_id: request.payerAccountId,
-        provider_subscription_id: request.subscriptionId,
-        offer_id: offer.offerId,
-        offer_version: offer.offerVersion,
-        period_start: start,
-        period_end: end,
-        mode: offer.mode,
-        environment: offer.environment,
+      lines: {
+        object: 'list',
+        has_more: false,
+        url: '/v1/invoices/lines',
+        data: [
+          {
+            id: 'il_synthetic',
+            object: 'line_item',
+            livemode: false,
+            type: 'subscription',
+            amount: '100',
+            period: { start, end },
+            price,
+            quantity: 1,
+            proration: false,
+            subscription: request.subscriptionId,
+          },
+        ],
       },
-      issued_at: start,
-      expires_at: end,
+      tax: '20',
+      total: '100',
+      amount_paid: '100',
+      paid_out_of_band: false,
+      payment_intent: 'pi_synthetic',
+      status_transitions: {
+        finalized_at: start,
+        paid_at: start,
+        voided_at: null,
+        marked_uncollectible_at: null,
+      },
     },
-    method: 'card',
-    signature: {
-      algorithm: 'Ed25519',
-      key_id: 'synthetic',
-      value: 'not-a-signature-fixture-normalization-only',
+    subscription: {
+      id: request.subscriptionId,
+      object: 'subscription',
+      livemode: false,
+      customer: 'cus_synthetic',
+      items: {
+        object: 'list',
+        has_more: false,
+        url: '/v1/subscription_items',
+        data: [{ id: 'si_synthetic', price, quantity: 1 }],
+      },
+      metadata: {
+        payer_account_id: request.payerAccountId,
+        community_id: offer.communityId,
+        tier_id: offer.tierId,
+        offer_id: offer.offerId,
+        offer_version: '1',
+      },
     },
-  };
-  return { offer, request, paid, authority };
+    paymentIntent: {
+      id: 'pi_synthetic',
+      object: 'payment_intent',
+      livemode: false,
+      customer: 'cus_synthetic',
+      status: 'succeeded',
+      currency: 'EUR',
+      amount_received: '100',
+      amount_refunded: '0',
+    },
+  } as unknown as Evidence;
+  return { offer, request, evidence };
+}
+/** A deep copy with one change applied, for the refusal tables. */
+function altered(evidence: Evidence, change: (copy: Evidence) => void): Evidence {
+  const copy = structuredClone(evidence);
+  change(copy);
+  return copy;
 }
 const communities: string[] = [];
 beforeAll(connectPostgres);
@@ -119,102 +127,80 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('membership invoice normalization (after SDK signature verification)', () => {
-  it('normalizes only exact signed scope and fiscal evidence', () => {
+describe('membership invoice normalization (native Peable objects)', () => {
+  it('normalizes an invoice bound to the reviewed offer, payer and tier', () => {
     const f = fixture();
-    expect(normalizeMembershipInvoice(f.offer, f.request, f.paid, f.authority, now)).toMatchObject({
+    expect(normalizeMembershipInvoice(f.offer, f.request, f.evidence, now)).toMatchObject({
       payerOxyUserId: f.request.payerAccountId,
+      providerCustomerId: 'cus_synthetic',
+      paymentIntentId: 'pi_synthetic',
+      periodStart: new Date(start * 1000),
+      periodEnd: new Date(end * 1000),
       state: 'paid',
       tierId: f.offer.tierId,
     });
-    for (const key of [
-      'merchant_id',
-      'app_id',
-      'mode',
-      'environment',
-      'price_id',
-      'plan_id',
-      'customer_id',
-      'payment_intent_id',
-      'subscription_id',
-      'invoice_id',
-    ] as const) {
-      const altered = structuredClone(f.authority);
-      Object.assign(altered.source, { [key]: 'wrong' });
-      expect(() => normalizeMembershipInvoice(f.offer, f.request, f.paid, altered, now)).toThrow(
-        'does not match',
-      );
-    }
   });
-  it('rejects wrong payer, beneficiary, offer, version, period and amount', () => {
+  it('rejects every scope, binding and amount that differs', () => {
     const f = fixture();
-    for (const change of [
-      { payer_account_id: 'other' },
-      { beneficiary_account_id: 'other' },
-      { offer_id: 'other' },
-      { offer_version: 2 },
-      { period_end: start },
-    ]) {
-      const altered = structuredClone(f.authority);
-      Object.assign(altered.invoice.context, change);
-      expect(() => normalizeMembershipInvoice(f.offer, f.request, f.paid, altered, now)).toThrow();
-    }
-    expect(() =>
-      normalizeMembershipInvoice(
-        f.offer,
-        f.request,
-        { ...f.paid, amount_paid: '99' },
-        f.authority,
-        now,
-      ),
-    ).toThrow();
-    // Amounts are base-unit strings that add up exactly (authority schema 3).
-    const unbalanced = structuredClone(f.authority);
-    unbalanced.invoice.net_minor_units = '81';
-    expect(() =>
-      normalizeMembershipInvoice(
-        f.offer,
-        f.request,
-        { ...f.paid, net_amount: '81' },
-        unbalanced,
-        now,
-      ),
-    ).toThrow('does not match');
-  });
-  it('rejects inconsistent refunds and future observations', () => {
-    const f = fixture();
-    expect(() =>
-      normalizeMembershipInvoice(
-        f.offer,
-        f.request,
-        { ...f.paid, state: 'fully_refunded' },
-        f.authority,
-        now,
-      ),
-    ).toThrow('refund');
-    expect(() =>
-      normalizeMembershipInvoice(
-        f.offer,
-        f.request,
-        { ...f.paid, observed_at: end },
-        f.authority,
-        now,
-      ),
-    ).toThrow();
-    // Instants are integer Unix seconds; milliseconds or fractions are not a Peable instant.
-    for (const paid_at of [start * 1000, start + 0.5])
+    const changes: Array<(e: Evidence) => void> = [
+      (e) => Object.assign(e.merchant, { id: 'merch_other' }),
+      (e) => Object.assign(e.merchant, { oxy_app_id: 'other' }),
+      (e) => Object.assign(e.merchant, { environment: 'production' }),
+      (e) => Object.assign(e.invoice, { id: 'in_other' }),
+      (e) => Object.assign(e.invoice, { subscription: 'sub_other' }),
+      (e) => Object.assign(e.invoice, { livemode: true }),
+      (e) => Object.assign(e.subscription, { customer: 'cus_other' }),
+      (e) => Object.assign(e.paymentIntent, { customer: 'cus_other' }),
+      (e) => Object.assign(e.invoice, { payment_intent: 'pi_other' }),
+      (e) => Object.assign(e.subscription.metadata, { payer_account_id: 'other' }),
+      (e) => Object.assign(e.subscription.metadata, { community_id: 'other' }),
+      (e) => Object.assign(e.subscription.metadata, { tier_id: 'other' }),
+      (e) => Object.assign(e.subscription.metadata, { offer_id: 'other' }),
+      (e) => Object.assign(e.subscription.metadata, { offer_version: '2' }),
+      (e) => {
+        e.subscription.metadata = {};
+      },
+      (e) => Object.assign(e.subscription.items.data[0]?.price ?? {}, { id: 'price_other' }),
+      (e) => Object.assign(e.subscription.items.data[0] ?? {}, { quantity: 2 }),
+      (e) => Object.assign(e.invoice.lines.data[0] ?? {}, { proration: true }),
+      (e) => Object.assign(e.invoice.lines.data[0] ?? {}, { period: { start: end, end: start } }),
+      (e) => e.invoice.lines.data.push(structuredClone(e.invoice.lines.data[0] as never)),
+      (e) => Object.assign(e.invoice, { status: 'open' }),
+      (e) => Object.assign(e.invoice, { paid_out_of_band: true }),
+      (e) => Object.assign(e.invoice, { amount_paid: '99' }),
+      (e) => Object.assign(e.invoice, { tax: null }),
+      (e) => Object.assign(e.paymentIntent, { status: 'processing' }),
+      (e) => Object.assign(e.paymentIntent, { amount_received: '99' }),
+      (e) => Object.assign(e.paymentIntent, { currency: 'USD' }),
+    ];
+    for (const change of changes)
       expect(() =>
-        normalizeMembershipInvoice(f.offer, f.request, { ...f.paid, paid_at }, f.authority, now),
+        normalizeMembershipInvoice(f.offer, f.request, altered(f.evidence, change), now),
       ).toThrow('does not match');
-    expect(
-      normalizeMembershipInvoice(
-        f.offer,
-        f.request,
-        { ...f.paid, state: 'partially_refunded', amount_refunded: '10' },
-        f.authority,
-        now,
-      ).state,
-    ).toBe('partially_refunded');
+  });
+  it('derives refund state from the PaymentIntent and refuses future or non-second instants', () => {
+    const f = fixture();
+    const refunded = (amount: string) =>
+      altered(f.evidence, (e) => Object.assign(e.paymentIntent, { amount_refunded: amount }));
+    expect(normalizeMembershipInvoice(f.offer, f.request, refunded('10'), now).state).toBe(
+      'partially_refunded',
+    );
+    expect(normalizeMembershipInvoice(f.offer, f.request, refunded('100'), now).state).toBe(
+      'fully_refunded',
+    );
+    expect(() => normalizeMembershipInvoice(f.offer, f.request, refunded('101'), now)).toThrow(
+      'refund',
+    );
+    // Instants are integer Unix seconds; milliseconds, fractions or the future are not.
+    for (const paid_at of [start * 1000, start + 0.5, end])
+      expect(() =>
+        normalizeMembershipInvoice(
+          f.offer,
+          f.request,
+          altered(f.evidence, (e) => Object.assign(e.invoice.status_transitions, { paid_at })),
+          now,
+        ),
+      ).toThrow('does not match');
   });
   it('refuses unconfigured runtime before provider requests or receipt writes', async () => {
     await expect(
@@ -248,7 +234,7 @@ describe('membership invoice normalization (after SDK signature verification)', 
       kind: 'paid',
       status: 'draft',
     });
-    const receipt = normalizeMembershipInvoice(f.offer, f.request, f.paid, f.authority, now);
+    const receipt = normalizeMembershipInvoice(f.offer, f.request, f.evidence, now);
     const inserted = await Promise.all([
       persistMembershipInvoice(receipt),
       persistMembershipInvoice(receipt),

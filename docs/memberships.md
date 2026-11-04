@@ -130,21 +130,33 @@ Peable is the canonical payment execution boundary. Its official SDK supports
 requester proof. Do not use Mercaria's legacy credential-backed adapter as a new
 integration, embed Stripe directly, or invent an app merchant/customer mapping.
 
-Peable `BillingSubscription` is an observation, not proof of payment. The receipt normalizer verifies the paid invoice and its signed final
-invoice authority and binds all of merchant, application/environment, payer,
-subscription, offer/version, community and tier. Provider identifiers stay in private `membership_billing_receipts`, not public
-social IDs. A unique source key makes concurrent replays idempotent; changed
-payers, communities, tiers or immutable invoice identity are rejected. Older
-observations and refund-state reversals cannot rewind stored refunds. These
-records are entitlement evidence, not fiscal records: community/payer erasure
-removes them while Peable remains the accounting system of record.
+A receipt is bound to Peable's **native** billing engine (Peable ADR 0018): the
+Stripe-Billing proxy (`/v1/billing/*`), its signed invoice authorities and its
+subscription observations are gone, and nothing here reads them. The receipt
+normalizer reads four authoritative native objects with Mention's own workload —
+`merchants.retrieve()` (merchant, application, environment), `invoices.retrieve`,
+`subscriptions.retrieve` and the invoice's `paymentIntents.retrieve` — and binds
+all of merchant, application/environment, mode (`livemode` on every object),
+payer, subscription, customer, offer/version, community, tier and price. The
+binding to the membership lives in the subscription's `metadata`, which Mention
+writes at checkout with its own credential (`payer_account_id`, `community_id`,
+`tier_id`, `offer_id`, `offer_version`) and a payer cannot write. The invoice
+must be `paid` (never out of band), carry exactly one non-proration
+`subscription` line at the reviewed price with quantity 1 (its `period` is the
+receipt's period), and equal what its succeeded PaymentIntent received; the
+refund state is the PaymentIntent's `amount_refunded`. A Peable price never
+changes what it charges, so the price is the whole commercial identity — there
+is no separate plan reference. Provider identifiers stay in private
+`membership_billing_receipts`, not public social IDs. A unique source key makes
+concurrent replays idempotent; changed payers, communities, tiers or immutable
+invoice identity are rejected. Older observations and refund-state reversals
+cannot rewind stored refunds. These records are entitlement evidence, not fiscal
+records: community/payer erasure removes them while Peable remains the accounting
+system of record.
 
-`reconcileMembershipInvoice` uses the official Peable SDK and its pinned
-invoice authority keys. It reads authoritative invoice state and the verified
-signed final authority (`billing.retrieveInvoiceState` and
-`billing.retrieveFinalInvoiceAuthority`; `schema_version: 3`, snake_case, instants in integer
-Unix seconds, amounts as base-unit integer strings), checks their payer, product, period and fiscal totals, and
-disposes the requester-bound client. Peable instants are converted to
+`reconcileMembershipInvoice` uses the official Peable SDK's requester-bound
+workload client (snake_case, instants in integer Unix seconds, amounts as
+base-unit integer strings) and disposes it. Peable instants are converted to
 `timestamptz` only after validation; the receipt table stores Mention's own
 normalized columns, never a Peable payload. The reviewed versioned catalogue is
 empty, so runtime calls stop before any provider request. `POST /membership-communities/:communityId/tiers/:tierId/billing/reconcile`
@@ -157,12 +169,13 @@ activates a paid tier; paid activation remains forbidden in PostgreSQL.
 
 Commercial decisions remain deferred by the user: amounts, commission and grace
 rules. Runtime activation additionally requires a reviewed Mention merchant and
-offer catalogue, invoice authority keys, requester-preserving checkout/portal
+offer catalogue (Orbit prices), native Checkout Sessions with `mode: 'subscription'`
+and the subscription metadata above, requester-preserving portal
 calls, verified receipt normalization, reconciliation and bounded revocation.
 No generic webhook accepting `active` is exposed and no existing Peable/Mercaria
 production billing cohort is repurposed for memberships.
 
-Sources: Oxy ADR 0033, Peable ADR 0010 and
+Sources: Oxy ADR 0033, Peable ADR 0018 and
 [the billing runtime binding runbook](https://github.com/OxyHQ/oxy-infra/blob/main/docs/runbooks/51-billing-runtime-bindings.md).
 The receipt tests use synthetic invoice evidence and a real local PostgreSQL
 database; they do not demonstrate a live Mention merchant binding or purchase.
