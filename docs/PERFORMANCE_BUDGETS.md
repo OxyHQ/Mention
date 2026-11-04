@@ -439,8 +439,8 @@ is one chunk fetched when one of its pages opens:
 
 Two more shares came from code web never runs. expo-router bundles every route
 file for every platform, so the native `(tabs)/camera.tsx` shipped beside
-`camera.web.tsx` and shared the composer's post builders with it: the page is
-now a module fork (`components/Camera/CameraPage.tsx` / `.web.tsx`) and the
+its web route sibling and shared the composer's post builders with it: the page is
+now a module fork (`components/Camera/CameraPage.tsx` and `components/Camera/CameraPage.web.tsx`) and the
 route only re-exports it. `MembershipComposer` read a picked document through
 `expo-file-system`, shared with Alia's chat sheet; on web the picker already
 holds the browser `File` (`pickedDocumentFile.web.ts`). `/c/<handle>/shop` also
