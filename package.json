@@ -12,7 +12,7 @@
     "catalog": {
       "@oxy.so/bloom": "17.1.0",
       "@oxy.so/contracts": "6.5.0",
-      "@oxy.so/core": "7.18.0",
+      "@oxy.so/core": "7.19.0",
       "@oxy.so/mcp": "1.4.1",
       "@oxy.so/services": "14.3.4",
       "@oxy.so/utils": "^1.5.2",
@@ -133,7 +133,7 @@
     "metro-transform-worker": "0.87.1",
     "ob1": "0.87.1",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/core": "7.18.0",
+    "@oxy.so/core": "7.19.0",
     "@oxy.so/services": "14.3.4",
     "fast-uri": "3.1.9",
     "fast-xml-parser": "5.12.0",

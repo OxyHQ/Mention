@@ -11,6 +11,7 @@ const mockState = vi.hoisted(() => {
   const userClients: Array<{
     bearer: string;
     assets: { setVisibility: ReturnType<typeof vi.fn> };
+    withCallOptions: ReturnType<typeof vi.fn>;
   }> = [];
   const control: { reject?: unknown } = {};
   class FakeUserClient {
@@ -23,6 +24,8 @@ const mockState = vi.hoisted(() => {
             : Promise.resolve({ file: { id: 'x', visibility: 'public' } }),
         ),
     };
+    /** The SDK's call scope: the same client's namespaces, with these options. */
+    withCallOptions = vi.fn(() => this);
 
     constructor(readonly bearer: string) {
       userClients.push(this);
@@ -64,6 +67,7 @@ import {
   createScopedOxyClient,
   createForegroundOxyProfileClient,
   ensureProfileMediaPublic,
+  MEDIA_VISIBILITY_TIMEOUT_MS,
 } from '../../utils/oxyHelpers';
 
 type FakeServer = InstanceType<typeof mockState.FakeOxyServer>;
@@ -291,6 +295,9 @@ describe('ensureProfileMediaPublic', () => {
     const client = lastUserClient();
     expect(client.bearer).toBe('owner-token');
     expect(client.assets.setVisibility).toHaveBeenCalledWith('file-123', 'public');
+    // Oxy moves every variant before it answers: past the SDK's 5 s default.
+    expect(client.withCallOptions).toHaveBeenCalledWith({ timeout: MEDIA_VISIBILITY_TIMEOUT_MS });
+    expect(MEDIA_VISIBILITY_TIMEOUT_MS).toBeGreaterThan(5_000);
   });
 
   it('does nothing when there is no access token', async () => {

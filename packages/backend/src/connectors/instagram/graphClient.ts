@@ -1,7 +1,6 @@
-import { readResponseBody, type ReadResponseBodyResult } from '@oxy.so/core/server';
+import { readResponseBody, safeFetch, type ReadResponseBodyResult } from '@oxy.so/core/server';
 import { config, getMetaGraphAccessToken } from '../../config';
 import { logger } from '../../utils/logger';
-import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { GRAPH_API_HOST, isInstagramGraphEnabled, isValidInstagramUsername } from './constants';
 import {
   acquireCallBudget,
@@ -271,7 +270,8 @@ export async function fetchBusinessDiscovery(
   let headers: Record<string, string | string[] | undefined>;
   let read: ReadResponseBodyResult;
   try {
-    const result = await fetchUpstreamSingleHop(url, {
+    const result = await safeFetch(url, {
+      redirect: 'manual',
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/json',

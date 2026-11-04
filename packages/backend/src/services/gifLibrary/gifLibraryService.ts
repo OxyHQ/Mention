@@ -11,8 +11,8 @@ import { isUniqueViolation, qualified } from '@oxy.so/db';
 import { getDb } from '../../db/postgres';
 import { gifs } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
-import { SsrfRejection } from '@oxy.so/core/server';
-import { fetchUpstreamFollowingRedirects } from '../../utils/safeUpstreamFetch';
+import { SsrfRejection, safeFetch } from '@oxy.so/core/server';
+import { mediaFetchOptions } from '../../utils/mediaFetch';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { describeOxyError, oxyErrorStatus } from '../oxyFiles/oxyErrors';
 import { isAllowedKlipyHost } from './gifMediaProxy';
@@ -382,7 +382,7 @@ async function downloadToTempFile(url: string, dir: string): Promise<DownloadedM
   const abortController = new AbortController();
   let response: IncomingMessage;
   try {
-    const upstream = await fetchUpstreamFollowingRedirects(url, {}, abortController.signal);
+    const upstream = await safeFetch(url, mediaFetchOptions(abortController.signal));
     response = upstream.response;
   } catch (error) {
     if (error instanceof SsrfRejection) {

@@ -14,6 +14,22 @@
  * own rewrite branch ({@link isHlsManifestType} +
  * {@link import('../../utils/hlsManifest').rewriteHlsManifest}).
  */
+import type { IncomingHttpHeaders } from 'node:http';
+
+/**
+ * Extract the bare media type family from a raw content-type string (strips
+ * parameters and casing). E.g. `'IMAGE/PNG; charset=binary'` → `'image/png'`.
+ */
+export function contentTypeFamilyFromString(raw: string | undefined): string {
+  if (typeof raw !== 'string') return '';
+  return raw.split(';')[0]?.trim().toLowerCase() ?? '';
+}
+
+/** Extract the bare media type family from response headers. */
+export function contentTypeFamily(headers: IncomingHttpHeaders): string {
+  const raw = headers['content-type'];
+  return contentTypeFamilyFromString(typeof raw === 'string' ? raw : undefined);
+}
 
 /** Prefix used to detect a still-image content-type family. */
 export const MEDIA_IMAGE_TYPE_PREFIX = 'image/';
@@ -69,8 +85,7 @@ export function isHlsManifestType(family: string): boolean {
 
 /**
  * True when a (parameter-stripped, lowercased) content-type family is an allowed
- * media type. Callers pass the bare family produced by
- * {@link import('../../utils/safeUpstreamFetch').contentTypeFamily}.
+ * media type. Callers pass the bare family produced by {@link contentTypeFamily}.
  */
 export function isAllowedMediaType(family: string): boolean {
   if (MEDIA_REJECTED_TYPES.has(family)) return false;

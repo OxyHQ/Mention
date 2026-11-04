@@ -1,6 +1,6 @@
 import { createTcoLinkExpander } from '@oxy.so/federation/node';
 import type { PostContentVariant } from '@mention/shared-types';
-import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
+import { safeFetch } from '@oxy.so/core/server';
 import { getRedisClient } from '../../utils/redis';
 import { withRedisFallback } from '../../utils/redisHelpers';
 import { USER_AGENT } from './constants';
@@ -17,7 +17,7 @@ const cacheKey = (id: string) => `tco:${id}`;
 export const expandTcoLinks = createTcoLinkExpander({
   userAgent: USER_AGENT,
   fetchSingleHop: async (url, init) => {
-    const { response, status, headers } = await fetchUpstreamSingleHop(url, init);
+    const { response, status, headers } = await safeFetch(url, { ...init, redirect: 'manual' });
     response.destroy();
     const { location } = headers;
     return new Response(null, {

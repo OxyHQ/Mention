@@ -1,6 +1,6 @@
 import { authorizeFederationDelivery } from '../../services/federation/publicationPolicy';
 import { createDeliveryService, type DeliveryService } from '@oxy.so/federation/node';
-import { assertSafePublicUrl } from '@oxy.so/core/server';
+import { assertSafePublicUrl, safeFetch } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorInboxesByUris, findActorByUri } from '../../db/federation/actorRepository';
@@ -22,7 +22,6 @@ import {
 } from './constants';
 import { actorService } from './actor.service';
 import { buildLocalActorObject, loadProfileBanner } from './actorObject';
-import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { enqueueDelivery } from '../../queue/producers';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 
@@ -35,7 +34,7 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
  * `@oxy.so/federation`'s `createDeliveryService` so every Oxy app federates
  * identically. This module is the Mention wiring: it binds the engine to Mention's
  * private-key custody (oxy-api, via `crypto.ts`), the SSRF-safe single-hop POST
- * (`fetchUpstreamSingleHop`), the BullMQ producer + the `federation_delivery_queue`
+ * (core's `safeFetch`, `redirect: 'manual'`), the BullMQ producer + the `federation_delivery_queue`
  * fallback, the `federated_actors` / `federated_follows` stores, the actor resolver,
  * the fediverse-sharing consent gate, and the canonical actor builder.
  *
@@ -63,7 +62,8 @@ export const deliveryService: DeliveryService = createDeliveryService<EngineFede
   // failure and destroys on success). Does NOT follow redirects (an inbox POST
   // never legitimately redirects).
   deliverSingleHop: (url, init) =>
-    fetchUpstreamSingleHop(url, {
+    safeFetch(url, {
+      redirect: 'manual',
       method: init.method,
       headers: init.headers,
       body: init.body,

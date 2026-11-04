@@ -17,10 +17,9 @@
  * `ensureProfileMediaPublic` does for the banner.
  */
 import { PostVisibility } from '@mention/shared-types';
-import { OxyServices } from '@oxy.so/core';
 import { authorVariants } from './postVariants';
-import { config } from '../config';
 import { logger } from '../utils/logger';
+import { MEDIA_VISIBILITY_TIMEOUT_MS, getServiceOxyClient } from '../utils/oxyHelpers';
 import type { RequestSafetyContext } from '../utils/safetyRequester';
 
 type PostMediaContent = Parameters<typeof authorVariants>[0];
@@ -63,47 +62,6 @@ export function postMediaFileIds(content: PostMediaContent | null | undefined): 
 }
 
 /**
- * Bound on one visibility change, in ms. Oxy moves the original AND every
- * variant under the `public/` prefix before it answers, one S3 copy after
- * another, so a long video takes seconds — past the SDK's 5s default for JSON
- * calls. Timing out there would not undo the change (Oxy finishes it), but the
- * post would be written before its media is servable.
- */
-export const POST_MEDIA_VISIBILITY_TIMEOUT_MS = 60_000;
-
-/**
- * The author's own Oxy session, with room for {@link POST_MEDIA_VISIBILITY_TIMEOUT_MS}.
- *
- * The one user-bearer client still built by hand, and only because the SDK
- * cannot yet do this: `oxy.asUser` inherits the server's request timeout and
- * `assets.setVisibility` takes no per-call `ServiceCallOptions`, so neither can
- * give one call 60 s. It follows the same rules as a user client otherwise —
- * only the VERIFIED bearer (`req.accessToken`), never for an MCP, capability or
- * service request, and no response cache. Replace it with `oxy.withUser` once
- * `setVisibility` accepts a timeout.
- */
-export function createPostMediaOwnerClient(
-  req: RequestSafetyContext,
-): Pick<OxyServices, 'assets'> | undefined {
-  if (req.mcp || req.capability || req.serviceApp || !req.accessToken) return undefined;
-  const client = new OxyServices({
-    baseURL: config.oxyApiUrl,
-    requestTimeout: POST_MEDIA_VISIBILITY_TIMEOUT_MS,
-    enableCache: false,
-  });
-  client.session.setAccessToken(req.accessToken);
-  return client;
-}
-
-/**
- * Make a post's media public with the author's own Oxy session.
- *
- * Awaited by the write paths so the post is never served before its media is,
- * but it never fails the write: no session (an MCP caller, whose uploads are
- * already public), an asset the caller does not own, or an Oxy error is logged
- * and the post goes ahead. Making an already-public asset public is a no-op.
- */
-/**
  * Whether a post of this visibility serves its media from the public CDN.
  *
  * A public post, and a private mention: its recipients — remote ones fetching
@@ -116,16 +74,39 @@ export function servesMediaPublicly(visibility: PostVisibility | undefined): boo
   return visibility === PostVisibility.PUBLIC || visibility === PostVisibility.DIRECT;
 }
 
+/**
+ * Make a post's media public with the author's own Oxy session.
+ *
+ * Awaited by the write paths so the post is never served before its media is,
+ * but it never fails the write: no session (an MCP caller, whose uploads are
+ * already public), an asset the caller does not own, or an Oxy error is logged
+ * and the post goes ahead. Making an already-public asset public is a no-op.
+ *
+ * Only the VERIFIED bearer (`req.accessToken`) is used, and never for an MCP,
+ * capability or service request: those name no person whose session may move
+ * the file.
+ */
 export async function ensurePostMediaPublic(
-  client: Pick<OxyServices, 'assets'> | undefined,
+  req: RequestSafetyContext,
   content: PostMediaContent | null | undefined,
 ): Promise<void> {
-  if (!client) return;
+  const bearer = req.accessToken;
+  if (req.mcp || req.capability || req.serviceApp || !bearer) return;
   const fileIds = postMediaFileIds(content);
   if (fileIds.length === 0) return;
-  const results = await Promise.allSettled(
-    fileIds.map((fileId) => client.assets.setVisibility(fileId, 'public')),
-  );
+  let results: PromiseSettledResult<unknown>[];
+  try {
+    results = await getServiceOxyClient().withUser(bearer, (user) => {
+      const { assets } = user.withCallOptions({ timeout: MEDIA_VISIBILITY_TIMEOUT_MS });
+      return Promise.allSettled(fileIds.map((fileId) => assets.setVisibility(fileId, 'public')));
+    });
+  } catch (error) {
+    // Only `withUser` itself can throw here (a bearer it will not use).
+    logger.warn('[postMediaVisibility] No user client for the post author', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
       logger.warn('[postMediaVisibility] Failed to make post media public', {

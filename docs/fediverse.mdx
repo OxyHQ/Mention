@@ -600,7 +600,8 @@ files are deleted too, including the poster frame of a video.
   - Instagram files uploaded for a post that then has to wait (a later slot
     could not be stored yet) or whose insert fails.
 - A periodic drain (`drainFederatedMediaDeletions`, every minute, at most 5 calls of 20 files, not gated on
-  the connector flags) calls oxy-api's `POST /assets/service/federation/delete`.
+  the connector flags) calls the SDK's `assets.federatedMedia.delete`
+  (`POST /assets/service/federation/delete`).
 - **Kill switch:** `FEDERATED_MEDIA_DELETE_ENABLED=false` (default `true`) pauses
   the drain. Deletions keep being queued, and nothing is lost or settled while
   it is off. Setting it back to `true` resumes from the queue.
@@ -654,8 +655,10 @@ Only an answer from Oxy settles a deletion:
   permanent for that item. Instagram falls back to the poster, or drops the
   item, and never stores the expiring URL. ActivityPub and atproto keep the
   stable URL behind the media proxy.
-- A 429 (honouring `Retry-After`), a 5xx, a transport failure, or a 404 for the
-  route itself (an oxy-api that predates it) is retried with exponential backoff.
+- A 429 (never sooner than the wait Oxy names), a 5xx, any other refusal (a 401
+  included: each delete call is sent once, with no transport replay), a transport
+  failure, or a 404 for the route itself (an oxy-api that predates it) is retried
+  with exponential backoff.
 
 Nothing is sent to Instagram. Replies, likes and boosts of a Graph-imported post
 are not delivered, and the permalink stands in as the object a reply or quote

@@ -75,7 +75,9 @@ async function authorityFetch(
     bodyChunks: [],
   };
   requests.push(captured);
-  if (init?.body instanceof ReadableStream) {
+  if (init?.body instanceof Blob) {
+    captured.bodyChunks.push(Buffer.from(await init.body.arrayBuffer()));
+  } else if (init?.body instanceof ReadableStream) {
     const reader = init.body.getReader();
     while (true) {
       const { value, done } = await reader.read();
@@ -89,7 +91,7 @@ async function authorityFetch(
   const answer = respond(captured);
   return new Response(answer.statusCode === 204 ? null : answer.body, {
     status: answer.statusCode,
-    headers: answer.headers,
+    headers: { 'content-type': 'application/json', ...answer.headers },
   });
 }
 
@@ -149,7 +151,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     expect(requests).toHaveLength(0);
   });
 
-  it('streams the complete disk file again after one real HTTP 401', async () => {
+  it('streams the disk file to a real HTTP server, and a cancelled upload stops mid-body', async () => {
     vi.stubGlobal('fetch', nativeFetch);
     const payload = Buffer.alloc(2 * 1024 * 1024, 0x61);
     const filePath = join(workDir, 'large.bin');
@@ -181,7 +183,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
         expect(req.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
         expect(req.headers['content-type']).toBe('application/octet-stream');
         uploads.push(chunks);
-        res.statusCode = uploads.length === 1 ? 401 : 201;
+        res.statusCode = 201;
         res.end(JSON.stringify({ data: { file: { id: 'streamed-file' } } }));
       });
     });
@@ -203,8 +205,8 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
           sizeBytes: payload.length,
         }),
       ).toMatchObject({ oxyFileId: 'streamed-file' });
-      expect(mint).toHaveBeenCalledTimes(2);
-      expect(uploads).toHaveLength(2);
+      expect(mint).toHaveBeenCalledTimes(1);
+      expect(uploads).toHaveLength(1);
       for (const chunks of uploads) {
         expect(chunks.length).toBeGreaterThan(1);
         expect(Buffer.concat(chunks).equals(payload)).toBe(true);
@@ -221,10 +223,10 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
           sizeBytes: 64 * 1024 * 1024,
           signal: cancelUpload.signal,
         }),
-      ).rejects.toMatchObject({ name: 'AbortError', code: 'CANCELLED' });
+      ).rejects.toMatchObject({ code: 'CANCELLED', cancelled: true });
       await disconnected;
-      expect(mint).toHaveBeenCalledTimes(2);
-      expect(uploads).toHaveLength(2);
+      expect(mint).toHaveBeenCalledTimes(1);
+      expect(uploads).toHaveLength(1);
     } finally {
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -263,7 +265,6 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     expect(sent.options.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
     expect(sent.options.headers['content-type']).toBe('image/png');
     expect(sent.options.headers['x-original-name']).toBe('avatar.png');
-    expect(sent.options.headers['content-length']).toBe(String(payload.byteLength));
 
     // The temp file was STREAMED as the raw request body (not JSON-wrapped).
     expect(Buffer.concat(sent.bodyChunks).toString('utf8')).toBe('hello-fediverse-media');
@@ -299,54 +300,24 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     );
   });
 
-  it('recovers from a 401 by invalidating the service token and retrying ONCE with a fresh stream', async () => {
-    const filePath = join(workDir, 'retry.bin');
-    const payload = Buffer.from('stream-must-be-reopened');
-    await writeFile(filePath, payload);
-
-    // First attempt 401 (stale token), second attempt 200 (re-minted token).
-    respond = () =>
-      requests.length === 1
-        ? { statusCode: 401, body: 'token rejected' }
-        : {
-            statusCode: 200,
-            body: JSON.stringify({ data: { file: { id: 'oxy_file_after_retry' } } }),
-          };
-
-    const result = await uploadCachedMedia({
-      filePath,
-      contentType: 'image/png',
-      originalName: 'avatar.png',
-      sizeBytes: payload.byteLength,
-    });
-
-    expect(result.oxyFileId).toBe('oxy_file_after_retry');
-
-    // The cached token was dropped exactly once, and a fresh token minted per attempt.
-    expect(mint).toHaveBeenCalledTimes(2);
-
-    // Two POSTs were issued; the retry re-opened the file and streamed the FULL body.
-    expect(requests).toHaveLength(2);
-    expect(requests[0].options.method).toBe('POST');
-    expect(requests[1].options.method).toBe('POST');
-    expect(Buffer.concat(requests[1].bodyChunks).toString('utf8')).toBe('stream-must-be-reopened');
-  });
-
-  it('throws OxyMediaStoreRequestError when the upload retry also returns 401', async () => {
-    const filePath = join(workDir, 'retry-fail.bin');
+  it('answers a 401 as a refusal like any other: sent once, never replayed', async () => {
+    const filePath = join(workDir, 'unauthorized.bin');
     await writeFile(filePath, Buffer.from('x'));
-    respond = () => ({ statusCode: 401, body: 'still unauthorized' });
+    respond = () => ({ statusCode: 401, body: JSON.stringify({ message: 'token rejected' }) });
 
-    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
-      OxyMediaStoreRequestError,
+    const refusal = await uploadCachedMedia({ filePath, contentType: 'image/png' }).catch(
+      (error: unknown) => error,
     );
 
-    // Recovered exactly once: 2 requests, 1 invalidation, no infinite retry loop.
-    expect(requests).toHaveLength(2);
-    expect(mint).toHaveBeenCalledTimes(2);
+    expect(refusal).toBeInstanceOf(OxyMediaStoreRequestError);
+    expect((refusal as OxyMediaStoreRequestError).statusCode).toBe(401);
+    // The caller retries a failed write later; no cooldown is opened for it.
+    expect(isMediaStoreThrottled(refusal)).toBe(false);
+    expect(requests).toHaveLength(1);
+    expect(mint).toHaveBeenCalledTimes(1);
   });
 
-  it('does NOT invalidate the token on a non-401 upload failure', async () => {
+  it('sends a failed upload once (no transport retry)', async () => {
     const filePath = join(workDir, 'server-error.bin');
     await writeFile(filePath, Buffer.from('x'));
     respond = () => ({ statusCode: 500, body: 'boom' });
@@ -491,31 +462,19 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     expect(isAbsentFromCacheNamespace(scopeRefused)).toBe(false);
   });
 
-  it('recovers from a 401 by invalidating the service token and retrying the DELETE once', async () => {
-    respond = () =>
-      requests.length === 1
-        ? { statusCode: 401, body: 'token rejected' }
-        : { statusCode: 204, body: '' };
+  it('answers a 401 on a delete as a refusal: sent once, never replayed', async () => {
+    respond = () => ({ statusCode: 401, body: JSON.stringify({ message: 'token rejected' }) });
 
-    await deleteCachedMedia('oxy_file_to_delete');
+    const refusal = await deleteCachedMedia('oxy_file_to_delete').catch((error: unknown) => error);
 
-    expect(mint).toHaveBeenCalledTimes(2);
-    expect(requests).toHaveLength(2);
-    expect(requests[1].options.method).toBe('DELETE');
-    expect(requests[1].options.path).toBe('/assets/service/cache/oxy_file_to_delete');
-    expect(requests[1].options.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+    expect(refusal).toBeInstanceOf(OxyMediaStoreRequestError);
+    expect((refusal as OxyMediaStoreRequestError).statusCode).toBe(401);
+    expect(isAbsentFromCacheNamespace(refusal)).toBe(false);
+    expect(requests).toHaveLength(1);
+    expect(mint).toHaveBeenCalledTimes(1);
   });
 
-  it('throws when the delete retry also returns 401', async () => {
-    respond = () => ({ statusCode: 401, body: 'still unauthorized' });
-
-    await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
-
-    expect(requests).toHaveLength(2);
-    expect(mint).toHaveBeenCalledTimes(2);
-  });
-
-  it('does NOT invalidate the token on a non-401 delete failure', async () => {
+  it('sends a failed delete once (no transport retry)', async () => {
     respond = () => ({ statusCode: 404, body: 'not found' });
 
     await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
@@ -559,11 +518,20 @@ describe('oxyMediaStore write-budget cooldown', () => {
     expect(requests).toHaveLength(1);
   });
 
-  it('sizes the cooldown from Retry-After and resumes once it passes', async () => {
+  it('sizes the cooldown from the wait Oxy names and resumes once it passes', async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-09-16T05:00:00.000Z'));
-      respond = () => ({ statusCode: 429, body: 'slow down', headers: { 'retry-after': '2' } });
+      // oxy-api's `RateLimitedError`: the wait is in the body as well as `Retry-After`.
+      respond = () => ({
+        statusCode: 429,
+        body: JSON.stringify({
+          error: 'RATE_LIMITED',
+          message: 'Too many media cache uploads. Please slow down.',
+          details: { retryAfterSeconds: 2 },
+        }),
+        headers: { 'retry-after': '2' },
+      });
       const filePath = await mediaFile();
 
       const throttled = await uploadCachedMedia({ filePath, contentType: 'image/png' }).catch(
@@ -594,8 +562,11 @@ describe('oxyMediaStore write-budget cooldown', () => {
     }
   });
 
-  it('falls back to the budget window when Retry-After is absent or nonsense', async () => {
-    respond = () => ({ statusCode: 429, body: 'slow down', headers: { 'retry-after': 'soon' } });
+  it('falls back to the budget window when Oxy names no wait, or nonsense', async () => {
+    respond = () => ({
+      statusCode: 429,
+      body: JSON.stringify({ error: 'RATE_LIMITED', details: { retryAfterSeconds: 'soon' } }),
+    });
     const filePath = await mediaFile();
 
     const throttled = (await uploadCachedMedia({ filePath, contentType: 'image/png' }).catch(

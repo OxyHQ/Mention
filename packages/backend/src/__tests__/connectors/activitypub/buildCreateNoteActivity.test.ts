@@ -21,9 +21,9 @@ vi.mock('../../../queue/producers', () => ({
   enqueueDelivery: vi.fn(),
   enqueueInboxActivity: vi.fn(),
 }));
-vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: vi.fn(),
   assertSafePublicUrl: vi.fn(),
 }));
 

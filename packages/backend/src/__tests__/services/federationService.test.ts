@@ -51,8 +51,7 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   assertSafePublicUrl: vi.fn(),
-  fetchUpstreamFollowingRedirects: vi.fn(),
-  fetchUpstreamSingleHop: vi.fn(),
+  safeFetch: vi.fn(),
 }));
 
 vi.mock('../../connectors/activitypub/crypto', () => ({
@@ -64,6 +63,7 @@ vi.mock('../../connectors/activitypub/crypto', () => ({
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   assertSafePublicUrl: mocks.assertSafePublicUrl,
+  safeFetch: mocks.safeFetch,
 }));
 
 // `models/Post` is NOT mocked and `PostEngagementCommandService` is NOT mocked:
@@ -86,15 +86,6 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));
-
-vi.mock('../../utils/safeUpstreamFetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../utils/safeUpstreamFetch')>();
-  return {
-    ...actual,
-    fetchUpstreamFollowingRedirects: mocks.fetchUpstreamFollowingRedirects,
-    fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,
-  };
-});
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
@@ -334,12 +325,12 @@ beforeEach(async () => {
       } satisfies ResolveExternalIdentityResponse;
     },
   );
-  mocks.fetchUpstreamFollowingRedirects.mockReset();
-  // `signedFetch` is built on `fetchUpstreamSingleHop` (IP-pinned, no global
+  mocks.safeFetch.mockReset();
+  // `signedFetch` is built on a single-hop `safeFetch` (IP-pinned, no global
   // `fetch`). Adapt it to the per-test stubbed global `fetch` so existing tests
   // that assert on the `fetch(url, { headers })` shape keep exercising the real
   // signing/redirect logic — the only thing that changed is the transport.
-  mocks.fetchUpstreamSingleHop.mockImplementation(
+  mocks.safeFetch.mockImplementation(
     async (
       url: string,
       options: { headers: Record<string, string>; method?: string; body?: BodyInit },
@@ -374,7 +365,7 @@ describe('federationService.deliverActivity', () => {
 
     const stream = new PassThrough();
     stream.end('accepted');
-    mocks.fetchUpstreamSingleHop.mockResolvedValueOnce({
+    mocks.safeFetch.mockResolvedValueOnce({
       response: stream,
       status: 202,
       headers: {},
@@ -394,9 +385,10 @@ describe('federationService.deliverActivity', () => {
 
     expect(delivered).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledWith(
+    expect(mocks.safeFetch).toHaveBeenCalledWith(
       'https://remote.example/users/bob/inbox',
       expect.objectContaining({
+        redirect: 'manual',
         method: 'POST',
         headers: expect.objectContaining({
           'Content-Type': 'application/activity+json',
@@ -410,7 +402,7 @@ describe('federationService.deliverActivity', () => {
   it('returns false when the SSRF-safe fetcher rejects a blocked inbox URL', async () => {
     const fetchMock = vi.fn(async () => new Response('should not be used', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    mocks.fetchUpstreamSingleHop.mockRejectedValueOnce(new Error('literal ip in blocked range'));
+    mocks.safeFetch.mockRejectedValueOnce(new Error('literal ip in blocked range'));
 
     const delivered = await federationService.deliverActivity(
       {
@@ -425,9 +417,9 @@ describe('federationService.deliverActivity', () => {
     );
 
     expect(delivered).toBe(false);
-    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledWith(
+    expect(mocks.safeFetch).toHaveBeenCalledWith(
       'http://127.0.0.1/internal-admin/inbox',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'POST', redirect: 'manual' }),
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -771,7 +763,7 @@ describe('federationService.fetchRemoteActor', () => {
 
     expect(result).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(mocks.fetchUpstreamSingleHop).not.toHaveBeenCalled();
+    expect(mocks.safeFetch).not.toHaveBeenCalled();
     expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
     expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });

@@ -43,13 +43,14 @@ vi.mock('../../middleware/rateLimitStore', () => ({
 /**
  * The route pre-validates the caller-supplied URL with the real core guard, which
  * would resolve DNS for the Bluesky hosts these fixtures name. Stub only that
- * function; the rest of `@oxy.so/core/server` stays real. Per-hop SSRF blocking is
- * proven against the real guard in `utils/safeUpstreamFetchSsrf.test.ts`.
+ * function and the transport (`safeFetch`, below); the rest of `@oxy.so/core/server`
+ * stays real. Per-hop SSRF blocking is `safeFetch`'s, proven by the SDK's own tests.
  */
 vi.mock('@oxy.so/core/server', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
   return {
     ...actual,
+    safeFetch: (...args: unknown[]) => safeFetch(...args),
     assertSafePublicUrl: async () => ({ ok: true, ip: '203.0.113.10', family: 4 }),
   };
 });
@@ -60,17 +61,7 @@ vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   cachedMediaCdnUrl: vi.fn(),
 }));
 
-const fetchUpstreamFollowingRedirects = vi.fn();
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
-    '../../utils/safeUpstreamFetch',
-  );
-  return {
-    ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
-      fetchUpstreamFollowingRedirects(...args),
-  };
-});
+const safeFetch = vi.fn();
 
 vi.mock('../../services/mediaCache/negativeCache', () => ({
   isNegativelyCached: vi.fn().mockResolvedValue(false),
@@ -171,11 +162,11 @@ function proxiedTargets(res: { text?: string; body: unknown }): string[] {
 
 describe('GET /media/proxy — HLS playlists', () => {
   beforeEach(() => {
-    fetchUpstreamFollowingRedirects.mockReset();
+    safeFetch.mockReset();
   });
 
   it('accepts an application/vnd.apple.mpegurl playlist instead of rejecting it as 415', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, MEDIA_PLAYLIST),
       finalUrl: PLAYLIST_URL,
     });
@@ -194,7 +185,7 @@ describe('GET /media/proxy — HLS playlists', () => {
     'video/x-mpegurl',
     'application/vnd.apple.mpegURL; charset=utf-8',
   ])('accepts and rewrites the %s spelling', async (contentType) => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': contentType }, MEDIA_PLAYLIST),
       finalUrl: PLAYLIST_URL,
     });
@@ -208,7 +199,7 @@ describe('GET /media/proxy — HLS playlists', () => {
   });
 
   it('rewrites every segment url back through the proxy', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, MEDIA_PLAYLIST),
       finalUrl: PLAYLIST_URL,
     });
@@ -224,7 +215,7 @@ describe('GET /media/proxy — HLS playlists', () => {
   });
 
   it('rewrites the nested variant playlists of a master playlist', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, MASTER_PLAYLIST),
       finalUrl: PLAYLIST_URL,
     });
@@ -237,7 +228,7 @@ describe('GET /media/proxy — HLS playlists', () => {
   });
 
   it('resolves relative URIs against the POST-REDIRECT url, not the requested one', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, MEDIA_PLAYLIST),
       finalUrl: 'https://edge.bsky.app/redirected/cid/playlist.m3u8',
     });
@@ -250,7 +241,7 @@ describe('GET /media/proxy — HLS playlists', () => {
   });
 
   it('does not advertise range support on a body it generated', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(
         200,
         { 'content-type': HLS_CONTENT_TYPE, etag: '"upstream"' },
@@ -268,7 +259,7 @@ describe('GET /media/proxy — HLS playlists', () => {
   });
 
   it('refetches the whole playlist when the upstream honoured a client Range', async () => {
-    fetchUpstreamFollowingRedirects
+    safeFetch
       .mockResolvedValueOnce({
         response: fakeBodyResponse(
           206,
@@ -288,14 +279,14 @@ describe('GET /media/proxy — HLS playlists', () => {
       .query({ url: PLAYLIST_URL });
 
     expect(res.status).toBe(200);
-    expect(fetchUpstreamFollowingRedirects).toHaveBeenCalledTimes(2);
+    expect(safeFetch).toHaveBeenCalledTimes(2);
     expect(proxiedTargets(res)).toEqual([
       'https://video.bsky.app/watch/did%3Aplc%3Aabc/cid/video0.ts?session_id=abc',
     ]);
   });
 
   it('rejects a body that is not a playlist despite the playlist content type', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(
         200,
         { 'content-type': HLS_CONTENT_TYPE },
@@ -310,7 +301,7 @@ describe('GET /media/proxy — HLS playlists', () => {
   });
 
   it('signs the urls it emits, so segments can prove where they came from', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, MEDIA_PLAYLIST),
       finalUrl: PLAYLIST_URL,
     });
@@ -328,7 +319,7 @@ describe('GET /media/proxy — HLS playlists', () => {
       Buffer.from('#EXTM3U\n'),
       Buffer.alloc(9 * 1024 * 1024, 0x61),
     ]);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, oversized),
       finalUrl: PLAYLIST_URL,
     });
@@ -344,8 +335,8 @@ describe('GET /media/proxy — HLS segments served as application/octet-stream',
   const SEGMENT_BYTES = Buffer.from('\x47segment-bytes', 'binary');
 
   beforeEach(() => {
-    fetchUpstreamFollowingRedirects.mockReset();
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockReset();
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(
         200,
         { 'content-type': 'application/octet-stream' },
@@ -378,7 +369,7 @@ describe('GET /media/proxy — HLS segments served as application/octet-stream',
   });
 
   it('does not let a signature widen the gate to active content types', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': 'text/html' }, '<html>x</html>'),
       finalUrl: SEGMENT_URL,
     });

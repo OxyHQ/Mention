@@ -40,7 +40,7 @@ const { ThrottledError, AbsentError, mocks } = vi.hoisted(() => {
     ThrottledError,
     AbsentError,
     mocks: {
-      fetchUpstreamFollowingRedirects: vi.fn(),
+      safeFetch: vi.fn(),
       uploadCachedMedia: vi.fn(),
       uploadFederatedMedia: vi.fn(),
       deleteCachedMedia: vi.fn(),
@@ -55,22 +55,10 @@ const { ThrottledError, AbsentError, mocks } = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  class SsrfRejection extends Error {}
-  const contentTypeFamilyFromString = (raw: string | undefined) =>
-    typeof raw === 'string' ? (raw.split(';')[0]?.trim().toLowerCase() ?? '') : '';
-  return {
-    SsrfRejection,
-    fetchUpstreamFollowingRedirects: mocks.fetchUpstreamFollowingRedirects,
-    contentTypeFamilyFromString,
-    contentTypeFamily: (headers: Record<string, unknown>) =>
-      contentTypeFamilyFromString(
-        typeof headers['content-type'] === 'string'
-          ? (headers['content-type'] as string)
-          : undefined,
-      ),
-  };
-});
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: mocks.safeFetch,
+}));
 
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   MediaStoreUnavailableError: class MediaStoreUnavailableError extends Error {},
@@ -119,7 +107,7 @@ function imageResponse(bytes: Buffer) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.incrementMediaCacheFailCount.mockResolvedValue(1);
-  mocks.fetchUpstreamFollowingRedirects.mockImplementation(async () =>
+  mocks.safeFetch.mockImplementation(async () =>
     imageResponse(Buffer.from('\x89PNG\r\n\x1a\nfake-png-bytes')),
   );
 });

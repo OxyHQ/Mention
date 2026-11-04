@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
-  fetchUpstreamSingleHop: vi.fn(),
+  safeFetch: vi.fn(),
   assertSafePublicUrl: vi.fn(),
   getOrFetchActor: vi.fn(),
   fetchRemoteActor: vi.fn(),
@@ -53,13 +53,9 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signViaOxy: mocks.signViaOxy,
 }));
 
-vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>();
-  return { ...actual, fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop };
-});
-
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: mocks.safeFetch,
   assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
@@ -251,7 +247,7 @@ beforeEach(() => {
     getClarityDocument: mocks.getClarityDocument,
   });
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
-  mocks.fetchUpstreamSingleHop.mockImplementation(
+  mocks.safeFetch.mockImplementation(
     async (url: string, options: { headers: Record<string, string> }) => {
       const res: Response = await (globalThis.fetch as typeof fetch)(url, {
         headers: options.headers,

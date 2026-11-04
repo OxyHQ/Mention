@@ -63,7 +63,6 @@ import { loadPublicProfileFacts } from '../services/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
-import { measureOxyFetch } from '../utils/oxyMetrics';
 import { namedRoutePattern } from '../middleware/requestObservability';
 import { isApexHost } from '../middleware/apexFrontendProxy';
 import { getShell } from '../services/webShellDocument';
@@ -76,11 +75,9 @@ import {
   sitemapShard,
 } from '../services/seoSitemap';
 
-/** Hard timeout for the per-request OG data fetch. */
+/** Wall-clock budget for the per-request profile read (sent once, never retried). */
 const OG_FETCH_TIMEOUT_MS = 2500;
 
-/** Oxy API origin — canonical profiles live here. */
-const OXY_API_URL = config.oxyApiUrl;
 /** Backend origin that serves the canonical ActivityPub actor. */
 const API_ORIGIN = config.web.apiOrigin;
 const AP_ACTOR_BASE = `${config.deployment?.publicBaseUrl ?? API_ORIGIN}/ap/users/`;
@@ -124,49 +121,36 @@ function wantsActivityPub(accept: string | undefined): boolean {
 }
 
 /**
- * Fetch a profile from the Oxy API. Returns null on any failure.
+ * A profile from Oxy, or null when Oxy says no such handle exists. Any other
+ * failure throws.
  *
  * The RAW payload rather than the mapped OG, because two callers read it: the OG
  * card, and the channel redirect below — which a BROWSER needs too, so it cannot
  * ride on the crawler-only OG path. One fetch, one cache entry, both answers.
+ *
+ * As Mention, not anonymously: the process `OxyServer` sends a session-less read
+ * with its service token (`serviceIdentity: 'when-anonymous'`). Every web page
+ * for a post or profile reads this, and anonymous calls share Oxy's per-IP
+ * general limit (1000 per 15 minutes) across every Mention task behind the same
+ * egress address: ~9,800 shell 503s a day ("Oxy profile lookup failed (429)",
+ * production 2026-10-11/12). A first-party service token is limited per
+ * application. Uncached in the SDK: `getShellCached` is this read's cache.
  */
 async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), OG_FETCH_TIMEOUT_MS);
   try {
-    // As Mention, not anonymously. Every web page for a post or profile reads
-    // this, and anonymous calls share Oxy's per-IP general limit (1000 per
-    // 15 minutes) across every Mention task behind the same egress address:
-    // ~9,800 shell 503s a day ("Oxy profile lookup failed (429)", production
-    // 2026-10-11/12). A first-party service token is limited per application.
-    const transport = getServiceOxyClient().createServiceClient({
-      baseURL: OXY_API_URL,
-      audience: 'oxy-api',
-    });
-    const path = `/profiles/username/${encodeURIComponent(handle)}`;
-    const response = await measureOxyFetch('GET', path, () =>
-      transport
-        .fetch(`${OXY_API_URL}${path}`, {
-          headers: { Accept: 'application/json' },
-          signal: controller.signal,
-          redirect: 'error',
-        })
-        .finally(() => transport.dispose()),
-    );
+    return await getServiceOxyClient()
+      .withCallOptions({ deadline: OG_FETCH_TIMEOUT_MS, retry: false })
+      .users.byUsername(handle, { cache: false });
+  } catch (error) {
     // A 400 is Oxy refusing the handle itself — shorter or longer than any
     // username can be (`usernameParams`, `MIN/MAX_USERNAME_LENGTH`). It names no
     // profile and never will, so it is a 404 page like any other unknown handle,
     // cached negatively like one. Treating it as an outage made it a 503 that
     // invited the crawler back: 19 of the 74 web-shell 503s on 2026-10-14.
-    if (response.status === 404 || response.status === 400) return null;
-    if (!response.ok) throw new Error(`Oxy profile lookup failed (${response.status})`);
-    const json = (await response.json()) as { data?: OxyProfileData };
-    return json?.data ?? null;
-  } catch (error) {
+    const status = (error as { status?: unknown } | null)?.status;
+    if (status === 404 || status === 400) return null;
     logger.debug('[webShell] Profile fetch failed', error);
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

@@ -841,13 +841,7 @@ export function totalsOf(report: PlatformPurgeReport): Record<string, number> {
  * spend five domains discovering a configuration problem it could state up front.
  */
 async function assertServiceCredentialConfigured(): Promise<void> {
-  const oxy = getServiceOxyClient();
-  const transport = oxy.createServiceClient({ baseURL: oxy.baseURL, audience: 'oxy-api' });
-  try {
-    await transport.getAccessToken(new URL('/assets/service/federation', oxy.baseURL));
-  } finally {
-    transport.dispose();
-  }
+  await getServiceOxyClient().serviceToken();
 }
 
 async function main(): Promise<void> {

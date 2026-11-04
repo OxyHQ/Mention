@@ -14,7 +14,7 @@ import { PassThrough } from 'node:stream';
 const h = vi.hoisted(() => ({
   importAppFile: vi.fn(),
   uploadAppFile: vi.fn(),
-  fetchUpstream: vi.fn(),
+  safeFetch: vi.fn(),
 }));
 
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
@@ -24,9 +24,9 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('../../utils/safeUpstreamFetch', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../utils/safeUpstreamFetch')>()),
-  fetchUpstreamFollowingRedirects: h.fetchUpstream,
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: h.safeFetch,
 }));
 
 import { randomUUID } from 'node:crypto';
@@ -66,7 +66,7 @@ beforeAll(async () => {
 beforeEach(() => {
   h.importAppFile.mockReset();
   h.uploadAppFile.mockReset();
-  h.fetchUpstream.mockReset();
+  h.safeFetch.mockReset();
   oxyImports();
 });
 
@@ -106,7 +106,7 @@ describe('importing a GIF', () => {
     async (visibility) => {
       const gif = candidate({ previewUrl: '' });
       h.importAppFile.mockRejectedValue(Object.assign(new Error('unsupported'), { status: 415 }));
-      h.fetchUpstream.mockImplementation(async () => {
+      h.safeFetch.mockImplementation(async () => {
         const stream = new PassThrough();
         const response = Object.assign(stream, {
           statusCode: 200,

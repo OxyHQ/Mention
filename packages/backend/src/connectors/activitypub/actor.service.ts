@@ -2,7 +2,7 @@ import { resolveAvatarUrl } from '../../utils/mediaResolver';
 import sanitizeHtml from 'sanitize-html';
 import { decode as decodeEntities } from 'he';
 import { normalizeInlineText } from '@oxy.so/core';
-import { readResponseJson } from '@oxy.so/core/server';
+import { readResponseJson, safeFetch } from '@oxy.so/core/server';
 import {
   createActorResolver,
   type ActorResolverConfig,
@@ -26,7 +26,6 @@ import {
 import { recordRemoteMove } from './move.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
-import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { signedFetch, firstStringUrl, normalizeFederatedAcct, domainFromAcct } from './helpers';
 import { reportFederatedActorGone } from '../identity';
 import { resolveOxyIdentity } from '../oxyIdentity';
@@ -195,7 +194,8 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
  * resolution (nothing is cached, so the next lookup tries again).
  */
 const fetchWebFinger: WebFingerFetch = async (url) => {
-  const { response, status } = await fetchUpstreamSingleHop(url, {
+  const { response, status } = await safeFetch(url, {
+    redirect: 'manual',
     headers: { Accept: 'application/jrd+json, application/json' },
     signal: AbortSignal.timeout(WEBFINGER_TIMEOUT_MS),
     headersTimeoutMs: WEBFINGER_TIMEOUT_MS,

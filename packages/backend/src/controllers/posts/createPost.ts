@@ -30,11 +30,7 @@ import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../..
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
-import {
-  createPostMediaOwnerClient,
-  ensurePostMediaPublic,
-  servesMediaPublicly,
-} from '../../services/postMediaVisibility';
+import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
@@ -529,7 +525,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     // Post media renders from the public CDN, and uploads arrive private.
     if (servesMediaPublicly(resolvedVisibility) && publicationPolicy.requiredAudience === null)
-      await ensurePostMediaPublic(createPostMediaOwnerClient(req), postContent);
+      await ensurePostMediaPublic(req, postContent);
 
     const post = await postCreationService.create({
       oxyUserId: userId,

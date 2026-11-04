@@ -1,5 +1,4 @@
 import type { FederatedMediaCacheState } from '../../db/federation/mediaCacheRepository';
-import { contentTypeFamilyFromString } from '../../utils/safeUpstreamFetch';
 import {
   FEDERATED_BANNER_DOWNLOAD_MAX_BYTES,
   FEDERATED_BANNER_MAX_BYTES,
@@ -12,6 +11,7 @@ import {
 import {
   MEDIA_IMAGE_TYPE_PREFIX,
   MEDIA_VIDEO_TYPE_PREFIX,
+  contentTypeFamilyFromString,
   isAllowedMediaType,
   isHlsManifestType,
 } from './mediaTypes';

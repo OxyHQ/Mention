@@ -33,11 +33,7 @@ import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { callerAccountAccess, createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
-import {
-  createPostMediaOwnerClient,
-  ensurePostMediaPublic,
-  servesMediaPublicly,
-} from '../../services/postMediaVisibility';
+import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
@@ -210,7 +206,6 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // lets `PostCreationService` run the real gate itself, so nothing routes
     // around the authorization.
     const batchAccountAccess = callerAccountAccess(req);
-    const mediaOwnerClient = createPostMediaOwnerClient(req);
     /**
      * The account THIS request names for an entry, if any. In thread mode the
      * entry's own field wins and the batch-level one is the default for entries
@@ -618,7 +613,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       const isThreadContinuation = mode === 'thread' && i > 0 && Boolean(previousPostId);
       // Post media renders from the public CDN, and uploads arrive private.
       if (servesMediaPublicly(entryVisibility[i]) && publicationPolicy.requiredAudience === null)
-        await ensurePostMediaPublic(mediaOwnerClient, postContent);
+        await ensurePostMediaPublic(req, postContent);
 
       const post = await postCreationService.create({
         oxyUserId: userId,

@@ -7,8 +7,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 /**
  * Route-level regression proof for `/media/proxy` AFTER the Phase 1 SSRF
  * convergence onto `@oxy.so/core/server`. The transport's SSRF blocking (private
- * IP / redirect-to-internal) is proven against the REAL core guard in
- * `utils/safeUpstreamFetchSsrf.test.ts`; here we prove the Mention-ONLY
+ * IP / redirect-to-internal) is `safeFetch`'s, proven by the SDK's own tests;
+ * here we prove the Mention-ONLY
  * protections that live in the route (NOT in core's safeFetch) still hold:
  *
  *  - the content-type allowlist rejects a non-media type,
@@ -36,14 +36,15 @@ vi.mock('../../middleware/rateLimitStore', () => ({
 
 /**
  * The route pre-validates the caller-supplied URL with the real core guard, which
- * would resolve DNS for the fake `remote.example` host. Stub only that function;
- * the rest of `@oxy.so/core/server` stays real. Per-hop SSRF blocking is proven
- * against the real guard in `utils/safeUpstreamFetchSsrf.test.ts`.
+ * would resolve DNS for the fake `remote.example` host. Stub that function and
+ * the transport (`safeFetch`, below); the rest of `@oxy.so/core/server` stays
+ * real. Per-hop SSRF blocking is `safeFetch`'s, proven by the SDK's own tests.
  */
 vi.mock('@oxy.so/core/server', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
   return {
     ...actual,
+    safeFetch: (...args: unknown[]) => safeFetch(...args),
     assertSafePublicUrl: async () => ({ ok: true, ip: '203.0.113.10', family: 4 }),
   };
 });
@@ -54,17 +55,7 @@ vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   cachedMediaCdnUrl: vi.fn(),
 }));
 
-const fetchUpstreamFollowingRedirects = vi.fn();
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
-    '../../utils/safeUpstreamFetch',
-  );
-  return {
-    ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
-      fetchUpstreamFollowingRedirects(...args),
-  };
-});
+const safeFetch = vi.fn();
 
 const isNegativelyCached = vi.fn().mockResolvedValue(false);
 const markNegativelyCached = vi.fn().mockResolvedValue(undefined);
@@ -117,7 +108,7 @@ function streamingResponse(statusCode: number, headers: Record<string, string>, 
 }
 
 beforeEach(() => {
-  fetchUpstreamFollowingRedirects.mockReset();
+  safeFetch.mockReset();
   isNegativelyCached.mockReset().mockResolvedValue(false);
   markNegativelyCached.mockReset().mockResolvedValue(undefined);
 });
@@ -125,7 +116,7 @@ beforeEach(() => {
 describe('GET /media/proxy — content-type allowlist (Mention-only protection)', () => {
   it('rejects an SVG upstream with 415 and destroys the stream', async () => {
     const upstream = fakeResponse(200, { 'content-type': 'image/svg+xml' });
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
+    safeFetch.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -135,7 +126,7 @@ describe('GET /media/proxy — content-type allowlist (Mention-only protection)'
 
   it('rejects a non-media (text/html) upstream with 415', async () => {
     const upstream = fakeResponse(200, { 'content-type': 'text/html; charset=utf-8' });
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
+    safeFetch.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -145,7 +136,7 @@ describe('GET /media/proxy — content-type allowlist (Mention-only protection)'
 
   it('rejects an application/octet-stream (unknown) upstream with 415', async () => {
     const upstream = fakeResponse(200, { 'content-type': 'application/octet-stream' });
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
+    safeFetch.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -166,7 +157,7 @@ describe('GET /media/proxy — serves a real image with range support', () => {
       },
       imageBytes,
     );
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
+    safeFetch.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
 
     const res = await request(app)
       .get('/media/proxy')
@@ -187,8 +178,8 @@ describe('GET /media/proxy — serves a real image with range support', () => {
     // The real image bytes were streamed through the proxy unchanged.
     expect(Buffer.isBuffer(res.body) ? res.body : Buffer.from(res.body)).toEqual(imageBytes);
     // The Range header was forwarded to the upstream.
-    const [, extras] = fetchUpstreamFollowingRedirects.mock.calls[0];
-    expect(extras).toMatchObject({ range: 'bytes=0-3' });
+    const [, options] = safeFetch.mock.calls[0];
+    expect(options).toMatchObject({ headers: { Range: 'bytes=0-3' }, maxRedirects: 3 });
   });
 
   it('serves a full (200) image body and advertises Accept-Ranges', async () => {
@@ -198,7 +189,7 @@ describe('GET /media/proxy — serves a real image with range support', () => {
       { 'content-type': 'image/jpeg', 'content-length': String(imageBytes.length) },
       imageBytes,
     );
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
+    safeFetch.mockResolvedValue({ response: upstream, finalUrl: REMOTE });
 
     const res = await request(app)
       .get('/media/proxy')

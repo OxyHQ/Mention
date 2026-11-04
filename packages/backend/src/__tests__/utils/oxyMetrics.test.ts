@@ -18,7 +18,6 @@ import { metrics } from '../../utils/metrics';
 import {
   instrumentOxyEgress,
   isOxyInstrumentationEnabled,
-  measureOxyFetch,
   runWithOxyAccounting,
   templateOxyRoute,
 } from '../../utils/oxyMetrics';
@@ -204,39 +203,5 @@ describe('instrumentOxyEgress', () => {
     } finally {
       config.oxy.requestMetricsEnabled = true;
     }
-  });
-
-  describe('measureOxyFetch', () => {
-    it('counts a raw fetch in the request tally and the templated series, by status', async () => {
-      const tally = await runWithOxyAccounting(async (accumulated) => {
-        await measureOxyFetch(
-          'GET',
-          '/profiles/username/alice',
-          async () => new Response('{}', { status: 200 }),
-        );
-        await measureOxyFetch(
-          'POST',
-          '/capabilities/tickets/introspect',
-          async () => new Response('', { status: 401 }),
-        );
-        return accumulated;
-      });
-
-      expect(tally.count).toBe(2);
-      expect(tally.errorCount).toBe(1);
-      expect(metrics.getSeries('oxy_call_duration_ms').length).toBeGreaterThan(0);
-      expect(recordedLabels()).not.toContain('alice');
-    });
-
-    it('counts a rejected fetch as a 5xx and rethrows it', async () => {
-      const failure = new Error('socket hang up');
-      const tally = await runWithOxyAccounting(async (accumulated) => {
-        await expect(
-          measureOxyFetch('GET', '/users/1', () => Promise.reject(failure)),
-        ).rejects.toBe(failure);
-        return accumulated;
-      });
-      expect(tally.errorCount).toBe(1);
-    });
   });
 });

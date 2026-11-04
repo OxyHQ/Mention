@@ -8,13 +8,13 @@ import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
-import { SsrfRejection, assertSafePublicUrl } from '@oxy.so/core/server';
 import {
-  type UpstreamResult,
-  contentTypeFamily,
-  contentTypeFamilyFromString,
-  fetchUpstreamFollowingRedirects,
-} from '../utils/safeUpstreamFetch';
+  SsrfRejection,
+  assertSafePublicUrl,
+  safeFetch,
+  type SafeFetchResult,
+} from '@oxy.so/core/server';
+import { mediaFetchOptions } from '../utils/mediaFetch';
 import {
   MEDIA_VARIANT_AVATAR,
   MEDIA_VARIANT_FULL,
@@ -35,6 +35,8 @@ import {
 import { decideProxyServe } from '../services/mediaCache/policy';
 import {
   MEDIA_IMAGE_TYPE_PREFIX,
+  contentTypeFamily,
+  contentTypeFamilyFromString,
   isAllowedMediaType,
   isHlsManifestType,
 } from '../services/mediaCache/mediaTypes';
@@ -334,7 +336,7 @@ const gifMediaRateLimiter = rateLimit({
 /** Handle for an armed request deadline (see {@link withRequestDeadline}). */
 interface RequestDeadline {
   /**
-   * Abort signal passed to `fetchUpstreamFollowingRedirects`. Firing the deadline
+   * Abort signal passed to `safeFetch`. Firing the deadline
    * aborts it, tearing down the in-flight upstream request.
    */
   signal: AbortSignal;
@@ -557,7 +559,7 @@ function buildSignedProxyUrl(absoluteUrl: string): string {
  */
 async function serveRewrittenHlsManifest(
   rawUrl: string,
-  upstream: UpstreamResult,
+  upstream: SafeFetchResult,
   deadline: RequestDeadline,
   res: Response,
 ): Promise<void> {
@@ -571,7 +573,7 @@ async function serveRewrittenHlsManifest(
   if (source.response.statusCode === HTTP_STATUS.PARTIAL_CONTENT) {
     source.response.destroy();
     try {
-      source = await fetchUpstreamFollowingRedirects(rawUrl, {}, deadline.signal);
+      source = await safeFetch(rawUrl, mediaFetchOptions(deadline.signal));
       deadline.setActiveResponse(source.response);
     } catch (error) {
       if (res.headersSent || res.writableEnded) return;
@@ -791,7 +793,7 @@ function shouldNegativeCacheClientError(
  * SECURITY: the caller-supplied URL is validated by `assertSafePublicUrl` BEFORE
  * it can reach any side effect (see below), and every upstream request —
  * including hop 0 and each redirect hop — is validated the same way inside
- * `fetchUpstreamFollowingRedirects` before a socket is opened, with the TCP
+ * `safeFetch` before a socket is opened, with the TCP
  * connection pinned to the validated IP. A blocked target surfaces as an
  * `SsrfRejection` and maps to 403.
  */
@@ -815,7 +817,7 @@ router.get(
     //
     // Validating here means only a syntactically valid, publicly-resolvable http(s)
     // URL can reach the cache store or the worker queue. The result is handed to
-    // `fetchUpstreamFollowingRedirects` below so hop 0 reuses it: this endpoint
+    // `safeFetch` below (`validated`) so hop 0 reuses it: this endpoint
     // keeps exactly ONE DNS resolution per request, and redirect hops are still
     // resolved and re-validated individually.
     const initialGuard = await assertSafePublicUrl(rawUrl);
@@ -893,14 +895,9 @@ router.get(
       }
     });
 
-    let upstream: UpstreamResult;
+    let upstream: SafeFetchResult;
     try {
-      upstream = await fetchUpstreamFollowingRedirects(
-        rawUrl,
-        extras,
-        deadline.signal,
-        initialGuard,
-      );
+      upstream = await safeFetch(rawUrl, mediaFetchOptions(deadline.signal, extras, initialGuard));
     } catch (error) {
       // The deadline timer may already have responded (it aborts the in-flight
       // request, which surfaces here as an AbortError); don't double-send.
@@ -1084,7 +1081,7 @@ router.get(
  *
  * SECURITY: ffmpeg NEVER touches the network. We (1) SSRF-validate the URL and
  * every redirect hop via `assertSafePublicUrl` inside
- * `fetchUpstreamFollowingRedirects` (BEFORE any socket is opened) with the
+ * `safeFetch` (BEFORE any socket is opened) with the
  * connection pinned to the validated IP — a blocked target surfaces as an
  * `SsrfRejection` and maps to 403, (2) download a bounded prefix
  * (POSTER_MAX_FETCH_BYTES) to a temp file, then (3) run ffmpeg ONLY on that local
@@ -1125,9 +1122,9 @@ router.get(
     });
 
     // --- Fetch the SSRF-validated upstream (redirects re-validated per hop) ---
-    let upstream: UpstreamResult;
+    let upstream: SafeFetchResult;
     try {
-      upstream = await fetchUpstreamFollowingRedirects(rawUrl, {}, deadline.signal);
+      upstream = await safeFetch(rawUrl, mediaFetchOptions(deadline.signal));
     } catch (error) {
       if (res.headersSent || res.writableEnded) {
         return;
@@ -1231,7 +1228,7 @@ router.get(
  * SECURITY (layered):
  *  1. `verifyGifMediaRequest` rejects any request whose signature we did not
  *     produce, and any decoded URL whose host is not Klipy-owned;
- *  2. `fetchUpstreamFollowingRedirects` re-validates every hop with the SSRF
+ *  2. `safeFetch` re-validates every hop with the SSRF
  *     guard (private/reserved-IP denylist) and pins the TCP connection;
  *  3. body size is capped and the request has an absolute wall-clock deadline.
  */
@@ -1265,9 +1262,9 @@ router.get('/gif', gifMediaRateLimiter, async (req: Request, res: Response): Pro
     }
   });
 
-  let upstream: UpstreamResult;
+  let upstream: SafeFetchResult;
   try {
-    upstream = await fetchUpstreamFollowingRedirects(upstreamUrl, extras, deadline.signal);
+    upstream = await safeFetch(upstreamUrl, mediaFetchOptions(deadline.signal, extras));
   } catch (error) {
     if (res.headersSent || res.writableEnded) {
       return;

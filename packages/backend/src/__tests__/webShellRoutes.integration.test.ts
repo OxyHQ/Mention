@@ -41,18 +41,33 @@ const { cachedUserSummaries } = vi.hoisted(() => ({
 
 vi.mock('../services/userSummaryCache', () => ({ mget: cachedUserSummaries }));
 
+/**
+ * The profile read goes through the process `OxyServer`'s call scope. Each
+ * test stubs `fetch` for the Oxy answer, and this stands in for the SDK between
+ * the two: the payload's `data` on a 2xx, an error carrying the status
+ * otherwise, the transport's own rejection as it is.
+ */
+const { callOptions, byUsernameInScope } = vi.hoisted(() => ({
+  callOptions: vi.fn(),
+  byUsernameInScope: vi.fn(async (handle: string, _options?: { cache?: boolean }) => {
+    const response = await globalThis.fetch(
+      `https://api.oxy.test/profiles/username/${encodeURIComponent(handle)}`,
+    );
+    if (!response.ok) {
+      throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
+    }
+    return ((await response.json()) as { data?: unknown })?.data;
+  }),
+}));
+
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     users: { byUsername: getProfileByUsername, getMany: getUsersByIds },
     serviceRequest,
-    createServiceClient: () => ({
-      fetch: (input: string | URL, init: RequestInit) =>
-        globalThis.fetch(input, {
-          ...init,
-          headers: { ...init.headers, Authorization: 'Bearer fixture-mention-service-token' },
-        }),
-      dispose: () => undefined,
-    }),
+    withCallOptions: (options: unknown) => {
+      callOptions(options);
+      return { users: { byUsername: byUsernameInScope } };
+    },
   }),
 }));
 
@@ -264,21 +279,19 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('rel="preconnect"');
   });
 
-  it('asks Oxy for the profile as Mention, never anonymously', async () => {
-    // Anonymous lookups share Oxy's per-IP limit across every Mention task and
-    // turned ~9,800 page loads a day into 503s (429 from Oxy).
+  it('asks Oxy for the profile through the process client, uncached, within the OG budget', async () => {
+    // The process `OxyServer` sends it with Mention's service token
+    // (`runtime/oxyServiceIdentity.test.ts`): anonymous lookups share Oxy's
+    // per-IP limit across every Mention task and turned ~9,800 page loads a
+    // day into 503s (429 from Oxy).
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' } } } });
 
     const res = await request(makeApp()).get('/@nate').set('User-Agent', 'Twitterbot/1.0');
 
     expect(res.status).toBe(200);
-    const fetchMock = vi.mocked(globalThis.fetch);
-    const lookup = fetchMock.mock.calls.find(([url]) =>
-      String(url).includes('/profiles/username/'),
-    );
-    expect(lookup).toBeDefined();
-    const headers = (lookup?.[1] as RequestInit | undefined)?.headers as Record<string, string>;
-    expect(headers.Authorization).toBe('Bearer fixture-mention-service-token');
+    expect(callOptions).toHaveBeenCalledWith({ deadline: 2500, retry: false });
+    // The shell's own SWR cache holds it; a second SDK cache would outlive it.
+    expect(byUsernameInScope).toHaveBeenCalledWith('nate', { cache: false });
   });
 
   const canonicalIdentity = {

@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  fetchUpstreamFollowingRedirects: vi.fn(),
+  safeFetch: vi.fn(),
   uploadFederatedMedia: vi.fn(),
   uploadCachedMedia: vi.fn(),
   deleteCachedMedia: vi.fn(),
@@ -14,22 +14,10 @@ const mocks = vi.hoisted(() => ({
 // asserted in `utils/imageReencode.test.ts`. Here it is the boundary.
 vi.mock('../../utils/imageReencode', () => ({ reencodeFirstFrame: mocks.reencodeFirstFrame }));
 
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  class SsrfRejection extends Error {}
-  const contentTypeFamilyFromString = (raw: string | undefined) =>
-    typeof raw === 'string' ? (raw.split(';')[0]?.trim().toLowerCase() ?? '') : '';
-  return {
-    SsrfRejection,
-    fetchUpstreamFollowingRedirects: mocks.fetchUpstreamFollowingRedirects,
-    contentTypeFamilyFromString,
-    contentTypeFamily: (headers: Record<string, unknown>) =>
-      contentTypeFamilyFromString(
-        typeof headers['content-type'] === 'string'
-          ? (headers['content-type'] as string)
-          : undefined,
-      ),
-  };
-});
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: mocks.safeFetch,
+}));
 
 vi.mock('../../db/federation/mediaDeletionRepository', () => ({
   recordFederatedPoster: vi.fn(async () => undefined),
@@ -81,7 +69,7 @@ describe('durable federated media failure classification', () => {
   });
 
   it('treats non-cacheable content types as cache-policy failures, not unavailable media', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       upstreamResponse(200, { 'content-type': 'text/html', 'content-length': '42' }),
     );
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
@@ -94,7 +82,7 @@ describe('durable federated media failure classification', () => {
   });
 
   it('treats over-cap media as a cache-policy failure, not unavailable media', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       upstreamResponse(200, {
         'content-type': 'image/jpeg',
         'content-length': String(100 * 1024 * 1024),
@@ -116,7 +104,7 @@ describe('durable federated media failure classification', () => {
       headers: { 'content-type': 'image/jpeg', 'content-length': '4' },
       setTimeout: vi.fn(),
     });
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({ response: body });
+    mocks.safeFetch.mockResolvedValue({ response: body });
     mocks.uploadFederatedMedia.mockRejectedValue(new mocks.OwnedElsewhere());
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
       '../../services/mediaCache/cacheWorker'
@@ -128,7 +116,7 @@ describe('durable federated media failure classification', () => {
   });
 
   it('still treats upstream 404/410 as permanently unavailable media', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(upstreamResponse(410, {}));
+    mocks.safeFetch.mockResolvedValue(upstreamResponse(410, {}));
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
       '../../services/mediaCache/cacheWorker'
     );
@@ -220,7 +208,7 @@ describe('federated banner download policy', () => {
     async (declared, bytes, stored) => {
       const headers: Record<string, string> = { 'content-length': String(bytes.length) };
       if (!declared.startsWith('(')) headers['content-type'] = declared;
-      mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(await bodyResponse(bytes, headers));
+      mocks.safeFetch.mockResolvedValue(await bodyResponse(bytes, headers));
 
       await expect(mirror()).resolves.toMatchObject({
         ok: true,
@@ -244,7 +232,7 @@ describe('federated banner download policy', () => {
   ])(
     'refuses %s: not a raster image, whatever the label — permanent, nothing uploaded',
     async (_case, bytes, declared) => {
-      mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      mocks.safeFetch.mockResolvedValue(
         await bodyResponse(bytes, {
           'content-type': declared,
           'content-length': String(bytes.length),
@@ -263,7 +251,7 @@ describe('federated banner download policy', () => {
 
   it('stores an OVERSIZED banner as a re-encoded first-frame WebP instead of dropping it', async () => {
     const big = Buffer.concat([JPEG, Buffer.alloc(12 * MIB, 7)]);
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       await bodyResponse(big, {
         'content-type': 'image/jpeg',
         'content-length': String(big.length),
@@ -289,7 +277,7 @@ describe('federated banner download policy', () => {
   });
 
   it('stores an ANIMATED banner as its first frame', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       await bodyResponse(ANIMATED_GIF, {
         'content-type': 'image/gif',
         'content-length': String(ANIMATED_GIF.length),
@@ -309,7 +297,7 @@ describe('federated banner download policy', () => {
   });
 
   it('keeps an animated banner within the cap as-is when its first frame cannot be taken (it still renders)', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       await bodyResponse(ANIMATED_GIF, {
         'content-type': 'image/gif',
         'content-length': String(ANIMATED_GIF.length),
@@ -325,7 +313,7 @@ describe('federated banner download policy', () => {
 
   it('an oversized banner the re-encoder cannot run on is TRANSIENT (retried), one it cannot decode is permanent', async () => {
     const big = Buffer.concat([JPEG, Buffer.alloc(11 * MIB, 7)]);
-    mocks.fetchUpstreamFollowingRedirects.mockImplementation(async () =>
+    mocks.safeFetch.mockImplementation(async () =>
       bodyResponse(big, { 'content-type': 'image/jpeg', 'content-length': String(big.length) }),
     );
 
@@ -345,7 +333,7 @@ describe('federated banner download policy', () => {
   });
 
   it('downloads up to the 25 MiB hard cap and refuses beyond it before reading the body', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       // 20 MiB was refused under the old 10 MiB ceiling; 30 MiB is over the new download cap.
       upstreamResponse(200, { 'content-type': 'image/jpeg', 'content-length': String(30 * MIB) }),
     );
@@ -359,7 +347,7 @@ describe('federated banner download policy', () => {
   });
 
   it('keeps a transient upstream failure transient', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(upstreamResponse(503, {}));
+    mocks.safeFetch.mockResolvedValue(upstreamResponse(503, {}));
     await expect(mirror()).resolves.toMatchObject({
       ok: false,
       reason: 'upstream-error',
@@ -369,7 +357,7 @@ describe('federated banner download policy', () => {
   });
 
   it('leaves federated POST media on the generic, header-typed rules (the policy is opt-in)', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       await bodyResponse(JPEG, {
         'content-type': 'text/plain',
         'content-length': String(JPEG.length),
@@ -383,7 +371,7 @@ describe('federated banner download policy', () => {
       persistRemoteMediaForFederatedOwnerDetailed('https://remote.example/post.jpg', 'oxy_user'),
     ).resolves.toMatchObject({ ok: false, reason: 'not-media', permanent: false });
 
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+    mocks.safeFetch.mockResolvedValue(
       upstreamResponse(200, { 'content-type': 'video/mp4', 'content-length': String(1024) }),
     );
     // No policy → `video/` is NOT rejected as non-media.

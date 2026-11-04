@@ -12,7 +12,7 @@ import { like } from 'drizzle-orm';
 
 const h = vi.hoisted(() => ({
   creator: null as null | { create: (params: Record<string, unknown>) => Promise<unknown> },
-  fetchUpstreamSingleHop: vi.fn(),
+  safeFetch: vi.fn(),
   /** The Oxy accounts whose kind is `community` — Oxy's answer, not the actor row's. */
   communityAccounts: new Set<string>(),
 }));
@@ -24,11 +24,8 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: h.safeFetch,
   assertSafePublicUrl: vi.fn(async () => ({ ok: true, ip: '93.184.216.34', family: 4 })),
-}));
-vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>()),
-  fetchUpstreamSingleHop: h.fetchUpstreamSingleHop,
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
 vi.mock('../../../services/serviceRegistry', () => ({
@@ -138,7 +135,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await clearScopePosts();
   await clearFederationScope(scope);
-  h.fetchUpstreamSingleHop.mockReset();
+  h.safeFetch.mockReset();
   await seedActor(scope, {
     username: 'technology',
     uri: COMMUNITY_URI,
@@ -186,14 +183,14 @@ describe('a community relaying a member', () => {
       },
     ]);
     // Same origin as the community that signed the delivery: nothing to fetch.
-    expect(h.fetchUpstreamSingleHop).not.toHaveBeenCalled();
+    expect(h.safeFetch).not.toHaveBeenCalled();
   });
 
   it('refuses a relayed activity its own origin does not confirm', async () => {
     // An account of ANOTHER instance: the embedded copy is only the community's
     // claim about it, so the activity is fetched from its origin — which does
     // not have it.
-    h.fetchUpstreamSingleHop.mockImplementation(async () => {
+    h.safeFetch.mockImplementation(async () => {
       const stream = new PassThrough();
       stream.end('{}');
       return { response: stream, status: 404, headers: {} };
@@ -202,7 +199,10 @@ describe('a community relaying a member', () => {
 
     await inboxProcessingService.processInboxActivity(forged, COMMUNITY_URI);
 
-    expect(h.fetchUpstreamSingleHop).toHaveBeenCalledWith(forged.object.id, expect.anything());
+    expect(h.safeFetch).toHaveBeenCalledWith(
+      forged.object.id,
+      expect.objectContaining({ redirect: 'manual' }),
+    );
     expect(await storedPosts()).toEqual([]);
   });
 });
