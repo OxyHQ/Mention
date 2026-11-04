@@ -132,6 +132,8 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 }));
 
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
+import { actorService } from '../../../connectors/activitypub/actor.service';
+import { AUTHOR_FOLLOWERS_RECHECK_MS } from '../../../connectors/activitypub/apMentions';
 
 /** Seed each actor URI (author + federated mentions) with its resolved Oxy id. */
 async function seedActors(byUri: Record<string, string>): Promise<void> {
@@ -532,6 +534,36 @@ describe('handleCreate — a Note addressed to a local user needs no local follo
     expect((mocks.postCreatorCreate.mock.calls[1]?.[0] as { visibility?: string }).visibility).toBe(
       'followers_only',
     );
+  });
+
+  it('re-reads a stale author without a followers collection before judging a non-public Note', async () => {
+    await clearFederationScope(scope);
+    await seedActor(scope, {
+      username: 'carol',
+      uri: AUTHOR_URI,
+      oxyUserId: AUTHOR_OXY_ID,
+      followersUrl: null,
+      lastFetchedAt: new Date(Date.now() - 2 * AUTHOR_FOLLOWERS_RECHECK_MS),
+    });
+    const refresh = vi
+      .spyOn(actorService, 'fetchRemoteActor')
+      .mockResolvedValue({ uri: AUTHOR_URI, followersUrl: `${AUTHOR_URI}/followers` } as never);
+    mocks.getProfileByUsername.mockResolvedValue({ _id: LOCAL_MENTION_OXY_ID, username: 'alice' });
+    const activity = createActivity('<p>@alice hi</p>', [
+      { type: 'Mention', href: LOCAL_MENTION_ACTOR_URI, name: '@alice@mention.earth' },
+    ]);
+    Object.assign(activity.object as Record<string, unknown>, {
+      to: [`${AUTHOR_URI}/followers`],
+      cc: [LOCAL_MENTION_ACTOR_URI],
+    });
+
+    await inboxProcessingService.processInboxActivity(activity, AUTHOR_URI);
+
+    expect(refresh).toHaveBeenCalledWith(AUTHOR_URI);
+    expect((mocks.postCreatorCreate.mock.calls[0]?.[0] as { visibility?: string }).visibility).toBe(
+      'followers_only',
+    );
+    refresh.mockRestore();
   });
 
   it('still drops a Note that concerns no local user', async () => {

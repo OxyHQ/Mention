@@ -11,6 +11,8 @@ interface PostAttachmentLinkProps {
   description?: string;
   image?: string;
   siteName?: string;
+  /** The byline, e.g. `documentByline(document)`. */
+  author?: string;
   /**
    * The card sits in the attachments carousel, whose `className` binds it to the
    * row's height: the cover image then flexes to fill it (`coverFill`) so the
@@ -32,6 +34,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   description,
   image,
   siteName,
+  author,
   coverFill = false,
   className = 'w-[280px]',
   style,
@@ -44,6 +47,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       description={description}
       image={imageSources}
       siteName={siteName}
+      author={author}
       onPress={() => openExternalLink(url)}
       coverFill={coverFill}
       className={className}

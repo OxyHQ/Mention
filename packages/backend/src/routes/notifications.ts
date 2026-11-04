@@ -21,6 +21,7 @@ import {
 } from '../services/PostHydrationService';
 import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
+import { blockedEitherWay } from '../utils/privacyHelpers';
 import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -300,6 +301,15 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
       ),
     );
     const profilesRead = resolveActorProfiles(profileIdsToResolve);
+    // A block in either direction hides the actor's rows, however old: Oxy's
+    // two-way answer for this viewer, asked beside the reads below. A failure
+    // reaches the outer handler — an unanswered check is never "no block".
+    const blockedActorsRead = blockedEitherWay(
+      safetyRequesterFor(req),
+      profileIdsToResolve.filter((id) => uniqueActorIds.includes(id) && id !== userId),
+    );
+    // Reads that fail before this is awaited must not leave it unhandled.
+    blockedActorsRead.catch(() => undefined);
 
     // Resolve every post referenced by a notification through the SAME
     // viewer-aware hydration/ACL path used by feeds and post detail. Never build
@@ -409,6 +419,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
     }
 
     const profilesMap = await profilesRead;
+    const blockedActorIds = await blockedActorsRead;
     if (uniqueActorIds.includes(SYSTEM_NOTIFICATION_ACTOR_ID)) {
       profilesMap.set(SYSTEM_NOTIFICATION_ACTOR_ID, SYSTEM_ACTOR);
     }
@@ -423,7 +434,12 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
     // still counts a dropped notification — muting is evaluated at read time, against
     // the rules as they stand now, rather than stamped onto the row when it was written.
     const notificationList = notificationsToReturn
-      .filter((n) => !mutedPostIds.has(n.entityId) && !deniedPostIds.has(n.entityId))
+      .filter(
+        (n) =>
+          !mutedPostIds.has(n.entityId) &&
+          !deniedPostIds.has(n.entityId) &&
+          !blockedActorIds.has(n.actorId),
+      )
       .map((n) => {
         const actor = profilesMap.get(n.actorId);
         // `preview` now covers post + like/reply/mention/boost/quote (any type

@@ -1,6 +1,6 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import type { BloomIcon } from '@/components/settings/RowIcon';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import {
   getLivePresencePreference,
   updateLivePresencePreference,

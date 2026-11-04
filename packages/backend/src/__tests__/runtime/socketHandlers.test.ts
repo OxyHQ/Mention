@@ -40,6 +40,8 @@ class FakeSocket {
   connected = true;
   user: { id: string } | undefined = { id: 'viewer-1' };
   handshake = { auth: {} };
+  /** What Oxy's socket middleware sets: the verified bearer. */
+  data = { token: 'viewer-token' };
   readonly emitted: Array<{ event: string; payload: unknown }> = [];
 
   on(event: string, handler: Handler) {
@@ -68,7 +70,7 @@ class FakeSocket {
 /** The handler joins after an await, so the assertion has to come after it too. */
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup(): FakeSocket {
+function setup(hidden: ReadonlySet<string> = new Set()): FakeSocket {
   let connectionHandler: Handler = () => undefined;
   const io = {
     on: (event: string, handler: Handler) => {
@@ -76,8 +78,8 @@ function setup(): FakeSocket {
     },
   };
   const presence = {
-    isOnline: vi.fn(async () => false),
-    getBulk: vi.fn(async () => ({})),
+    mayWatch: vi.fn(async (_viewer: unknown, userId: string) => !hidden.has(userId)),
+    onlineFor: vi.fn(async () => ({})),
     broadcastPresence: vi.fn(),
   };
   const namespaces = {
@@ -105,6 +107,18 @@ describe('presence room membership', () => {
     await settle();
 
     expect(socket.rooms.has(presenceRoom('target-1'))).toBe(true);
+  });
+
+  it('never joins the room of a user the presence policy hides, and reports them offline', async () => {
+    const socket = setup(new Set(['target-1']));
+
+    socket.send('subscribePresence', 'target-1');
+    await settle();
+
+    expect(socket.rooms.size).toBe(0);
+    expect(socket.emitted).toEqual([
+      { event: 'user:presence', payload: { userId: 'target-1', online: false } },
+    ]);
   });
 
   it('refuses a target id shaped like an injection attempt', async () => {

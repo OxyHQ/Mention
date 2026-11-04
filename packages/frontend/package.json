@@ -107,7 +107,7 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "22.10.1",
-    "@clarity.surf/sdk": "0.11.0",
+    "@clarity.surf/sdk": "0.12.0",
     "@expo/app-integrity": "~58.0.2",
     "@expo/vector-icons": "^15.1.1",
     "@livekit/react-native": "^3.1.0",
@@ -123,7 +123,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/expo-splash": "^1.1.0",
-    "@oxy.so/homiio-sdk": "0.2.0",
+    "@oxy.so/homiio-sdk": "1.0.0",
     "@oxy.so/mention-contracts": "workspace:*",
     "@oxy.so/services": "catalog:",
     "@oxy.so/stickers": "^0.2.2",

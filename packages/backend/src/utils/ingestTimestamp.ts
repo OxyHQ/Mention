@@ -15,9 +15,12 @@
  * decision, so each caller passes its own window rather than sharing one constant.
  */
 
+import { apDate } from '@oxy.so/federation';
+
 /**
  * Parse an externally-asserted ISO 8601 creation date, rejecting anything we cannot
- * trust as a creation time.
+ * trust as a creation time. Every offset spelling (`Z`, `+00:00`, `+0000`, `+00`)
+ * is read, by `apDate` rather than the engine's own `Date` parser.
  *
  * @param value The raw value from the source (AP `published`, an atproto record's
  *   `createdAt`, an MTN record's `createdAt`). Non-strings are rejected outright.
@@ -29,14 +32,7 @@
  */
 export function clampFutureDate(value: unknown, maxFutureSkewMs: number): Date | undefined {
   if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-
-  const parsed = new Date(trimmed);
-  const ms = parsed.getTime();
-  if (Number.isNaN(ms)) return undefined;
-
-  if (ms > Date.now() + maxFutureSkewMs) return undefined;
-
+  const parsed = apDate(value);
+  if (!parsed || parsed.getTime() > Date.now() + maxFutureSkewMs) return undefined;
   return parsed;
 }

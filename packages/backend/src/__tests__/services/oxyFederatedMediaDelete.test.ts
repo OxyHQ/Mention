@@ -160,13 +160,14 @@ describe('deleteFederatedMedia', () => {
     expect(JSON.parse(h.requests[0].body)).toEqual({ ids: ['file-a', 'file-b'] });
   });
 
-  it('answers a 401 as a refusal: sent once, never replayed — the drain retries it', async () => {
+  it('answers a 401 the fresh token does not cure as a refusal — the drain retries it', async () => {
     h.handler = (_req, _body, res) => json(res, 401, { error: 'UNAUTHORIZED', message: 'expired' });
     const error = await deleteFederatedMedia(['file-a']).catch((err: unknown) => err);
     expect(error).toBeInstanceOf(OxyMediaStoreRequestError);
     expect((error as OxyMediaStoreRequestError).statusCode).toBe(401);
-    expect(h.requests).toHaveLength(1);
-    expect(h.mint).toHaveBeenCalledTimes(1);
+    // The SDK resends once with a freshly minted token (core 7.20), never more.
+    expect(h.requests).toHaveLength(2);
+    expect(h.mint).toHaveBeenCalledTimes(2);
   });
 
   it('reports 429 as throttled, for as long as Oxy says', async () => {

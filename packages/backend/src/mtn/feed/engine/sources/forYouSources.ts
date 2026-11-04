@@ -23,6 +23,7 @@ import {
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { logger } from '../../../../utils/logger';
+import { canViewList, loadListVisibility } from '../../../../services/listAccess';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import {
   type CandidateUserBehavior,
@@ -183,6 +184,10 @@ async function gatherListTimeline(
 ): Promise<CandidatePost[]> {
   let memberIds: string[] = [];
   try {
+    // The same read rule `GET /lists/:id/timeline` applies: a private list's
+    // members are its owner's alone, through this descriptor as anywhere else.
+    const list = await loadListVisibility(listId);
+    if (!list || !canViewList(list, ctx.currentUserId)) return [];
     const rows = await getDb()
       .select({ oxyUserId: accountListMembers.oxyUserId })
       .from(accountListMembers)

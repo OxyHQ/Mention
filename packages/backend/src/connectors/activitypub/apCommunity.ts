@@ -3,7 +3,8 @@ import { logger } from '../../utils/logger';
 import { communityAccountIds } from '../../services/federation/community';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
-import { sameOrigin } from './helpers';
+import { apIriList } from '@oxy.so/federation';
+import { isApPublicAddressee, sameOrigin } from './helpers';
 
 /**
  * Communities: the ActivityPub `Group` actors of Lemmy, PieFed, Mbin and the
@@ -13,14 +14,10 @@ import { sameOrigin } from './helpers';
  * Whether an actor IS one is `communityAccountIds` (`services/federation/community.ts`).
  */
 
-const AS_PUBLIC = new Set(['https://www.w3.org/ns/activitystreams#Public', 'as:Public', 'Public']);
-
 /** Addressees in an AP addressing field (`audience` / `to` / `cc`), bounded. */
 function addressees(value: unknown): string[] {
-  const list = Array.isArray(value) ? value : [value];
-  return list
-    .filter((entry): entry is string => typeof entry === 'string')
-    .filter((uri) => !AS_PUBLIC.has(uri) && isAbsoluteHttpUrl(uri))
+  return apIriList(value)
+    .filter((uri) => !isApPublicAddressee(uri) && isAbsoluteHttpUrl(uri))
     .slice(0, MAX_COMMUNITY_CANDIDATES);
 }
 

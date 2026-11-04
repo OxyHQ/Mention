@@ -38,8 +38,8 @@ const folderTabId = (folder: string) => `${FOLDER_TAB_PREFIX}${folder}`;
 function flattenSavedPages(pages: SavedPostsPage[] | undefined): SavedPost[] {
   if (!pages) return [];
 
-  // Page-number pagination can overlap when a bookmark changes while the user
-  // scrolls. Preserve first-seen order while keeping one mounted row per post.
+  // A bookmark that changes while the user scrolls can still repeat a post
+  // across pages. Preserve first-seen order while keeping one mounted row per post.
   const seen = new Set<string>();
   const posts: SavedPost[] = [];
   for (const page of pages) {
@@ -112,7 +112,7 @@ const SavedPostsScreen: React.FC = () => {
     queryKey: viewerQueryKeys.savedPosts(viewerId, debouncedSearch, selectedFolder),
     queryFn: async ({ pageParam, signal }) => {
       const response = await feedService.getSavedPosts({
-        page: pageParam,
+        cursor: pageParam,
         limit: PAGE_SIZE,
         search: debouncedSearch || undefined,
         folder: selectedFolder ?? undefined,
@@ -120,8 +120,8 @@ const SavedPostsScreen: React.FC = () => {
       });
       return response.data;
     },
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
     enabled: canUsePrivateApi && Boolean(viewerId),
     staleTime: 15_000,
     retry: false,

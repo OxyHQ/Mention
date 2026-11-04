@@ -1368,11 +1368,9 @@
       "clearCacheSuccess": "Cache dihapus."
     },
     "accessibility": {
-      "hapticFeedback": "Umpan balik haptik",
-      "hapticFeedbackDesc": "Getaran sebagai umpan balik saat berinteraksi",
       "interaction": "Interaksi",
       "title": "Aksesibilitas",
-      "nativeHaptics": "Tersedia di aplikasi seluler."
+      "media": "Media"
     },
     "debug": "Debug",
     "interests": {

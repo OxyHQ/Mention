@@ -20,6 +20,17 @@ const stubbedAssetRegistry = jest.requireMock<{
 }>('react-native/asset-registry');
 AssetRegistry.getAssetByID = (assetId) => stubbedAssetRegistry.getAssetByID(assetId);
 
+/**
+ * NetInfo through its own jest mock. Bloom 17.4+ reads the connection from the
+ * provider (its media-autoplay preference and `useNetworkStatus`), and the real
+ * module has no native side under jest: its first refresh rejected with
+ * "Cannot read properties of undefined (reading 'isInternetReachable')" and
+ * took the whole run down.
+ */
+jest.mock('@react-native-community/netinfo', () =>
+  require('@react-native-community/netinfo/jest/netinfo-mock.js'),
+);
+
 // The SDK logger defaults to `debug` whenever `__DEV__` is true, which jest-expo
 // sets. Install the app's own transport policy instead so a test run shows the
 // same (scrubbed, `info`-and-above) output the app itself produces.

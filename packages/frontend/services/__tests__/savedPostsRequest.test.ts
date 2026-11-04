@@ -33,6 +33,13 @@ describe('saved-post request config', () => {
     });
   });
 
+  it('continues by cursor instead of page when the previous page gave one', () => {
+    expect(buildSavedPostsRequestConfig({ cursor: 'next-1', page: 3 })).toEqual({
+      params: { cursor: 'next-1', limit: 20 },
+      signal: undefined,
+    });
+  });
+
   it('moves a bookmark through the explicit viewer-post relation route', () => {
     expect(buildBookmarkFolderMoveRequest('post/unsafe', ' Reading ')).toEqual({
       url: '/posts/bookmarks/by-post/post%2Funsafe/folder',

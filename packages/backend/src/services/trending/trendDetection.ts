@@ -25,6 +25,7 @@ import { buildTrendGraph, type TrendGraphNodeInput, type TrendGraphSnapshot } fr
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { sensitiveExcludeSql } from '../../mtn/feed/feedSafety';
+import { openAudienceAuthorSql } from '../../db/userProfile/profileAudience';
 import type { TrendCandidate } from './trendScoring';
 import { resolveTrendConcept } from './conceptRegistry';
 
@@ -162,6 +163,8 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     gte(posts.createdAt, windowStart),
     eq(posts.status, 'published'),
     eq(posts.visibility, PostVisibility.PUBLIC),
+    // A trend is public; a private or followers-only profile's posts are not.
+    openAudienceAuthorSql(),
     // Boosts are an intentionally-empty mirror shape; the original is what
     // carries the terms, and counting both would double one post.
     sql`${posts.boostOf} is null`,

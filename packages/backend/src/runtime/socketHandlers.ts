@@ -10,7 +10,7 @@ import { createSocketRateLimiter } from '../middleware/socketRateLimit';
 import { callerOxyUser } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { PRESENCE_ROOM_PREFIX, presenceRoom, isValidPresenceUserId } from '@mention/shared-types';
-import type { PresenceRegistry } from './presenceRegistry';
+import type { PresenceRegistry, PresenceViewer } from './presenceRegistry';
 import type { DisconnectReason, SocketNamespaces } from './socketIoServer';
 
 type SocketRateLimiter = ReturnType<typeof createSocketRateLimiter>;
@@ -29,6 +29,14 @@ type SocketRateLimiter = ReturnType<typeof createSocketRateLimiter>;
  * screen.
  */
 const MAX_PRESENCE_ROOMS_PER_SOCKET = 100;
+
+/** The socket's account and the bearer Oxy's socket middleware verified for it. */
+function presenceViewer(socket: AuthenticatedSocket): PresenceViewer | null {
+  const token: unknown = socket.data?.token;
+  return socket.user?.id && typeof token === 'string' && token
+    ? { id: socket.user.id, accessToken: token }
+    : null;
+}
 
 function joinedPresenceRooms(socket: { rooms: Set<string> }): string[] {
   return Array.from(socket.rooms).filter((room) => room.startsWith(PRESENCE_ROOM_PREFIX));
@@ -207,7 +215,7 @@ function registerMainNamespaceHandlers(
       onlineUsers: presence.onlineUsers,
       distributedPresence: presence.distributedPresence,
       broadcastPresence: (presenceUserId, online) => {
-        presence.broadcastPresence(presenceUserId, online);
+        void presence.broadcastPresence(presenceUserId, online);
         logger.debug('User presence changed', { online });
       },
     }).catch((error) => {
@@ -256,6 +264,9 @@ function registerMainNamespaceHandlers(
       logger.error('Failed to reconnect');
     });
 
+    // Every answer below is what THIS viewer may know (`services/presencePolicy.ts`).
+    const viewer = presenceViewer(socket);
+
     // Get online status of a single user
     socket.on(
       'getPresence',
@@ -263,8 +274,8 @@ function registerMainNamespaceHandlers(
         socket,
         'getPresence',
         async (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
-          if (!targetUserId || typeof targetUserId !== 'string') return;
-          const online = await presence.isOnline(targetUserId);
+          if (!targetUserId || typeof targetUserId !== 'string' || !viewer) return;
+          const online = (await presence.onlineFor(viewer, [targetUserId]))[targetUserId] === true;
           if (typeof callback === 'function') {
             callback({ online });
           } else {
@@ -281,7 +292,13 @@ function registerMainNamespaceHandlers(
         socket,
         'getPresenceBulk',
         async (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
-          const result = Array.isArray(userIds) ? await presence.getBulk(userIds) : {};
+          const result =
+            Array.isArray(userIds) && viewer
+              ? await presence.onlineFor(
+                  viewer,
+                  userIds.filter((userId) => typeof userId === 'string' && userId.length > 0),
+                )
+              : {};
           if (typeof callback === 'function') {
             callback(result);
           } else {
@@ -295,8 +312,15 @@ function registerMainNamespaceHandlers(
     socket.on(
       'subscribePresence',
       socketRateLimiter.wrap(socket, 'subscribePresence', async (targetUserId: string) => {
-        if (!isValidPresenceUserId(targetUserId)) return;
+        if (!isValidPresenceUserId(targetUserId) || !viewer) return;
         const room = presenceRoom(targetUserId);
+        // A hidden user is never joined: the room's broadcasts carry the real
+        // state. Their status reads offline, as `onlineFor` answers it.
+        if (!(await presence.mayWatch(viewer, targetUserId))) {
+          socket.leave(room);
+          socket.emit('user:presence', { userId: targetUserId, online: false });
+          return;
+        }
         if (!socket.rooms.has(room)) {
           const occupied = joinedPresenceRooms(socket);
           if (occupied.length >= MAX_PRESENCE_ROOMS_PER_SOCKET) {
@@ -309,7 +333,7 @@ function registerMainNamespaceHandlers(
           }
           socket.join(room);
         }
-        const online = await presence.isOnline(targetUserId);
+        const online = (await presence.onlineFor(viewer, [targetUserId]))[targetUserId] === true;
         socket.emit('user:presence', { userId: targetUserId, online });
       }),
     );

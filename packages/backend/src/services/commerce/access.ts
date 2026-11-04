@@ -1,11 +1,10 @@
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
-import { postHydrationService } from '../PostHydrationService';
+import { canRequestReadPost } from '../postReadAccess';
 import { isAccountErased } from '../accountErasure/erasedAccounts';
 import { callerOxyUser, createScopedOxyClient } from '../../utils/oxyHelpers';
 import { canViewProfileDesign } from '../../utils/privacyHelpers';
-import { safetyRequesterFor } from '../../utils/safetyRequester';
 import type { CommerceMetricTarget } from './metrics';
 
 export async function canReadAccount(req: OxyAuthRequest, accountId: string): Promise<boolean> {
@@ -34,13 +33,6 @@ export async function resolveReadableCommercePost(
   const post = await loadPostRecord(postId);
   if (!post?.oxyUserId || !post.content.commerce?.length || post.status !== 'published')
     return null;
-  if (
-    !(await postHydrationService.canViewerReadPostId(post.id, req.user?.id ?? '', {
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      operatedAccountReader: callerOxyUser(req),
-    }))
-  )
-    return null;
+  if (!(await canRequestReadPost(req, post.id))) return null;
   return { target: { kind: 'post', id: post.id }, ownerId: post.oxyUserId };
 }

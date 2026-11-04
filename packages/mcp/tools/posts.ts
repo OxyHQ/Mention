@@ -521,15 +521,20 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
     'Get your saved (bookmarked) posts (requires authorization).',
     {
       limit: z.number().optional(),
+      cursor: z
+        .string()
+        .optional()
+        .describe('nextCursor from the previous page; preferred over page'),
       page: z.number().optional(),
       search: z.string().optional(),
       folder: z.string().optional(),
     },
-    withAuthGuard(async ({ limit, page, search, folder }) => {
+    withAuthGuard(async ({ limit, cursor, page, search, folder }) => {
       try {
         const query: Record<string, string | number | boolean | undefined> = {};
         if (limit) query.limit = limit;
-        if (page) query.page = page;
+        if (cursor) query.cursor = cursor;
+        else if (page) query.page = page;
         if (search) query.search = search;
         if (folder) query.folder = folder;
 

@@ -10,11 +10,11 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "17.6.1",
-      "@oxy.so/contracts": "6.5.0",
-      "@oxy.so/core": "7.19.0",
+      "@oxy.so/bloom": "17.6.2",
+      "@oxy.so/contracts": "6.7.0",
+      "@oxy.so/core": "7.21.0",
       "@oxy.so/mcp": "1.4.1",
-      "@oxy.so/services": "14.3.4",
+      "@oxy.so/services": "14.3.6",
       "@oxy.so/utils": "^1.5.2",
       "@peable.to/sdk": "2.0.0",
       "@syra.fm/sdk": "0.24.1",
@@ -93,7 +93,6 @@
     "yaml": "^2.9.1"
   },
   "overrides": {
-    "@peable.to/sdk": "catalog:",
     "@expo/cli": "58.1.19",
     "body-parser": "2.4.0",
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -133,8 +132,8 @@
     "metro-transform-worker": "0.87.1",
     "ob1": "0.87.1",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/core": "7.19.0",
-    "@oxy.so/services": "14.3.4",
+    "@oxy.so/core": "7.21.0",
+    "@oxy.so/services": "14.3.6",
     "fast-uri": "3.1.9",
     "fast-xml-parser": "5.12.0",
     "ioredis": "6.0.0",

@@ -1404,11 +1404,9 @@
       "clearCacheSuccess": "Кэш очищен."
     },
     "accessibility": {
-      "hapticFeedback": "Тактильная отдача",
-      "hapticFeedbackDesc": "Вибрация при взаимодействии",
       "interaction": "Взаимодействие",
       "title": "Доступность",
-      "nativeHaptics": "Доступно в мобильном приложении."
+      "media": "Медиа"
     },
     "debug": "Отладка",
     "interests": {

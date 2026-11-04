@@ -40,6 +40,9 @@ import {
   MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED,
 } from '../../services/ListSubscriptionService';
 import { logger } from '../../utils/logger';
+import { listsSource } from '../../mtn/feed/engine/sources/forYouSources';
+import type { FeedEngineContext } from '../../mtn/feed/engine/types';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
 let db: Database;
 const service = new ListSubscriptionService();
@@ -189,6 +192,22 @@ describe('getSubscribedListMemberIds — subscriptions obey list visibility at r
     // `entity_id` is polymorphic and carries no foreign key, so the row survives
     // the list. It must resolve to no members rather than throwing.
     expect(await service.getSubscribedListMemberIds(VIEWER_ID)).toEqual([]);
+  });
+});
+
+describe('the list descriptor obeys list visibility', () => {
+  const scope = postScope('list-descriptor');
+  afterEach(() => clearPostScope(scope));
+
+  it("reads a private list's members' posts for its owner only", async () => {
+    const member = scope.user('member');
+    const post = await seedPost(scope, { oxyUserId: member });
+    const listId = await makeList({ isPublic: false, members: [member] });
+    const read = (currentUserId: string) =>
+      listsSource.gather({ currentUserId } as FeedEngineContext, { listId }, 20);
+
+    expect(await read(VIEWER_ID)).toEqual([]);
+    expect((await read(OWNER_ID)).map((candidate) => candidate.id)).toEqual([post.id]);
   });
 });
 

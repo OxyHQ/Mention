@@ -178,20 +178,19 @@ export async function upsertThreadgate(gate: {
 }
 
 /**
- * The reply-control gate for `postId`, or `null`.
+ * The reply-control gate stored under `postUri`, or `null`.
  *
- * `post_id` is INDEXED but not unique — the gate's identity is `post_uri`, which
- * embeds the id of whoever wrote the gate, so one post can carry more than one
- * row. This returns the oldest, so
- * the same request twice cannot answer differently.
+ * `post_uri` is the gate's identity and is unique. Callers pass the POST's own
+ * URI (its author's), so a row somebody else once wrote against the same post id
+ * is never the answer — reading "the oldest row for this post id" let any
+ * account that wrote first lock the author out of their own reply controls.
  */
-export async function loadThreadgateByPostId(postId: string): Promise<ThreadgateRecord | null> {
+export async function loadThreadgateByPostUri(postUri: string): Promise<ThreadgateRecord | null> {
   const db = getDb();
   const [row] = await db
     .select()
     .from(threadgates)
-    .where(eq(threadgates.postId, postId))
-    .orderBy(asc(threadgates.createdAt), asc(threadgates.id))
+    .where(eq(threadgates.postUri, postUri))
     .limit(1);
   if (!row) return null;
   return {
@@ -251,13 +250,12 @@ export async function upsertPostgate(gate: {
   };
 }
 
-/** The quote-control gate for `postId`, or `null`. Oldest first — see above. */
-export async function loadPostgateByPostId(postId: string): Promise<PostgateRecord | null> {
+/** The quote-control gate stored under `postUri`, or `null` — see {@link loadThreadgateByPostUri}. */
+export async function loadPostgateByPostUri(postUri: string): Promise<PostgateRecord | null> {
   const [row] = await getDb()
     .select()
     .from(postgates)
-    .where(eq(postgates.postId, postId))
-    .orderBy(asc(postgates.createdAt), asc(postgates.id))
+    .where(eq(postgates.postUri, postUri))
     .limit(1);
   if (!row) return null;
   return {
