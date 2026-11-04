@@ -300,7 +300,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     );
   });
 
-  it('answers a 401 as a refusal like any other: sent once, never replayed', async () => {
+  it('answers a 401 as a refusal like any other: sent once, never replayed, token dropped', async () => {
     const filePath = join(workDir, 'unauthorized.bin');
     await writeFile(filePath, Buffer.from('x'));
     respond = () => ({ statusCode: 401, body: JSON.stringify({ message: 'token rejected' }) });
@@ -314,7 +314,8 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     // The caller retries a failed write later; no cooldown is opened for it.
     expect(isMediaStoreThrottled(refusal)).toBe(false);
     expect(requests).toHaveLength(1);
-    expect(mint).toHaveBeenCalledTimes(1);
+    // `@oxy.so/core` >= 7.19.1 drops a refused service token and mints afresh.
+    expect(mint).toHaveBeenCalledTimes(2);
   });
 
   it('sends a failed upload once (no transport retry)', async () => {
@@ -462,7 +463,7 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     expect(isAbsentFromCacheNamespace(scopeRefused)).toBe(false);
   });
 
-  it('answers a 401 on a delete as a refusal: sent once, never replayed', async () => {
+  it('answers a 401 on a delete as a refusal: sent once, never replayed, token dropped', async () => {
     respond = () => ({ statusCode: 401, body: JSON.stringify({ message: 'token rejected' }) });
 
     const refusal = await deleteCachedMedia('oxy_file_to_delete').catch((error: unknown) => error);
@@ -471,7 +472,8 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     expect((refusal as OxyMediaStoreRequestError).statusCode).toBe(401);
     expect(isAbsentFromCacheNamespace(refusal)).toBe(false);
     expect(requests).toHaveLength(1);
-    expect(mint).toHaveBeenCalledTimes(1);
+    // `@oxy.so/core` >= 7.19.1 drops a refused service token and mints afresh.
+    expect(mint).toHaveBeenCalledTimes(2);
   });
 
   it('sends a failed delete once (no transport retry)', async () => {

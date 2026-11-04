@@ -325,17 +325,17 @@ a failed preflight) instead of running unguarded.
 ### Blocks and notifications
 
 A block in either direction keeps an actor's notifications from the other
-account. The inbox read (`GET /notifications`) drops every row whose actor a
-block separates from the viewer, asked of Oxy with the viewer's proof
-(`blockedEitherWay`, two-way; old rows included). The writer
-(`writeNotifications`, which every notification goes through) runs from queues
-and federated inboxes holding neither party's proof, and Oxy discloses blocks
-to nobody else, so it skips a row, and with it the socket emit and push,
-when either party's own block list, retained for 30 minutes after their last
-read, names the other (`separatedByRetainedBlock`). A block whose two parties
-have not read recently can still push once; its row stays out of the inbox.
-Closing that needs an Oxy delivery lane that answers adult blocks for a
-service.
+account. The writer (`writeNotifications`, which every notification goes
+through) runs from queues and federated inboxes with no person's proof, so it
+asks Oxy's background lane, `safety.notificationAccessBatch` (reviewed
+`safety:notification-delivery:v1`): a pair Oxy refuses (`blocked`,
+`unavailable`, an unapproved supervised contact) gets no row, so no socket emit
+and no push. If Oxy cannot answer, the rows are written but nothing is
+delivered live. The inbox read (`GET /notifications`) drops every row whose
+actor a block separates from the viewer, asked of Oxy with the viewer's proof
+(`blockedEitherWay`), so old rows and rows written during an outage follow the
+current block too. System notifications have no actor account and are not
+asked about.
 
 ### Presence
 

@@ -242,34 +242,6 @@ export async function invalidateViewerRelations(viewerId: string): Promise<void>
 }
 
 /**
- * For work that runs on nobody's behalf (notification delivery from a queue or
- * a federated inbox): which `[a, b]` pairs a block separates, as far as either
- * party's OWN block list — retained above from their own proof — says.
- *
- * Oxy discloses a block only to a proof of one of the two accounts, and such
- * work holds neither, so this is the most it can know without a second copy of
- * Oxy's blocks: a list is retained for {@link VIEWER_RELATIONS_RETENTION_SECONDS}
- * after its owner's last read, and a client that blocks drops it
- * ({@link invalidateViewerRelations}) so the next read retains the new one. A
- * pair neither list covers reads as unblocked; the reads that hold a proof
- * (the notification inbox) re-check with {@link blockedEitherWay}. Never rejects:
- * a cache failure reads as no retained list.
- */
-export async function separatedByRetainedBlock(
-  pairs: readonly (readonly [string, string])[],
-): Promise<boolean[]> {
-  const ids = [...new Set(pairs.flat())];
-  if (ids.length === 0) return pairs.map(() => false);
-  const lists = await viewerRelationsCache.getMany<string[]>(
-    ids.map((id) => viewerRelationKey('blocked', id)),
-  );
-  const blockedBy = new Map(ids.map((id, index) => [id, new Set(lists[index] ?? [])]));
-  return pairs.map(
-    ([a, b]) => blockedBy.get(a)?.has(b) === true || blockedBy.get(b)?.has(a) === true,
-  );
-}
-
-/**
  * Read one of the viewer's relation lists through the cache above.
  *
  * `viewerId` is what keys it, so a caller that does not know whose list this is
