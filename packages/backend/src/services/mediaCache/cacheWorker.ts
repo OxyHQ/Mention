@@ -19,8 +19,8 @@ import {
   scheduleMediaCacheRetry,
 } from '../../db/federation/mediaCacheRepository';
 import { logger } from '../../utils/logger';
-import { SsrfRejection } from '@oxy.so/core/server';
-import { fetchUpstreamFollowingRedirects, contentTypeFamily } from '../../utils/safeUpstreamFetch';
+import { SsrfRejection, safeFetch } from '@oxy.so/core/server';
+import { mediaFetchOptions } from '../../utils/mediaFetch';
 import { extractPosterFrame } from '../../utils/videoPoster';
 import { reencodeFirstFrame } from '../../utils/imageReencode';
 import {
@@ -29,6 +29,7 @@ import {
   isWebSafeImageType,
   sniffImageMime,
 } from './imageSniff';
+import { contentTypeFamily } from './mediaTypes';
 import {
   MEDIA_CACHE_POSTER_PREFIX_BYTES,
   MEDIA_CACHE_WORKER_BATCH_SIZE,
@@ -158,7 +159,7 @@ async function downloadToTempFile(
   let response: IncomingMessage | null = null;
 
   try {
-    const upstream = await fetchUpstreamFollowingRedirects(remoteUrl, {}, abortController.signal);
+    const upstream = await safeFetch(remoteUrl, mediaFetchOptions(abortController.signal));
     response = upstream.response;
   } catch (error) {
     if (error instanceof SsrfRejection) {

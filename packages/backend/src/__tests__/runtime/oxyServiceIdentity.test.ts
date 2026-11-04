@@ -54,6 +54,12 @@ describe('process workload identity', () => {
     expect(exchange?.body).toMatchObject({ provider: 'aws-iam', protocolVersion: 2 });
     expect(JSON.stringify(exchange?.body)).not.toContain('test-only-workload-secret');
     expect(requests.at(-1)?.headers.get('authorization')).toBe(`Bearer ${SERVICE_TOKEN}`);
+    // A call scope (the web shell's profile read) is the same client: still Mention.
+    await client
+      .withCallOptions({ deadline: 2_500, retry: false })
+      .users.byUsername('alice', { cache: false });
+    expect(requests.at(-1)?.path).toBe('/profiles/username/alice');
+    expect(requests.at(-1)?.headers.get('authorization')).toBe(`Bearer ${SERVICE_TOKEN}`);
   });
   it('does not dispatch a user read when workload attestation is refused', async () => {
     const paths: string[] = [];

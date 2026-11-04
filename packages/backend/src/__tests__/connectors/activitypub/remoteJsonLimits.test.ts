@@ -24,7 +24,7 @@ import {
   singleHopToResponse,
   withActivityPubDeadline,
 } from '../../../connectors/activitypub/helpers';
-import type { SingleHopResult } from '../../../utils/safeUpstreamFetch';
+import type { SafeFetchResult } from '@oxy.so/core/server';
 
 function singleHop(
   stream: PassThrough,
@@ -32,11 +32,12 @@ function singleHop(
     'content-type': 'application/activity+json',
   },
   status = 200,
-): SingleHopResult {
+): SafeFetchResult {
   return {
     response: stream as unknown as IncomingMessage,
     status,
     headers,
+    finalUrl: 'https://remote.example/actor',
   };
 }
 

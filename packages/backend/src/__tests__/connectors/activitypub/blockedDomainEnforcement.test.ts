@@ -54,7 +54,7 @@ const mocks = vi.hoisted(() => {
     resolveOxyUser: vi.fn(),
     createNotification: vi.fn(),
     isFediverseSharingEnabledFromUser: vi.fn(),
-    fetchUpstreamSingleHop: vi.fn(),
+    safeFetch: vi.fn(),
     loggerWarn: vi.fn(),
     loggerInfo: vi.fn(),
     loggerError: vi.fn(),
@@ -150,10 +150,10 @@ vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
 // `signedFetch` reaches the network through the IP-pinned single-hop fetch. Spy
 // on it so "no outbound request was made" is a direct egress assertion rather
 // than an inference from a missing side effect.
-vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>();
-  return { ...actual, fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop };
-});
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: mocks.safeFetch,
+}));
 
 import { inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
@@ -431,7 +431,7 @@ describe('outbox PULL from a blocked domain', () => {
 
     expect(result.reason).toBe('blocked-domain');
     expect(result.syncedCount).toBe(0);
-    expect(mocks.fetchUpstreamSingleHop).not.toHaveBeenCalled();
+    expect(mocks.safeFetch).not.toHaveBeenCalled();
   });
 
   it('does not stamp a cooldown or mark the outbox unavailable, so unblocking resumes cleanly', async () => {
@@ -459,7 +459,7 @@ describe('outbox PULL from a blocked domain', () => {
       20,
     );
 
-    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalled();
+    expect(mocks.safeFetch).toHaveBeenCalled();
   });
 });
 

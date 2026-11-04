@@ -39,7 +39,10 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: vi.fn(),
   signRequest: vi.fn(),
 }));
-vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: vi.fn(),
+}));
 vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants')>();
   return { ...actual, resolveOxyUser: (...args: unknown[]) => mocks.resolveOxyUser(...args) };

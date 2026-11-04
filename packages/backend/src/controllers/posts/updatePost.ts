@@ -42,11 +42,7 @@ import { mergeHashtags, reconcileMentionIdsForPost } from '../../utils/textProce
 import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
 import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
-import {
-  createPostMediaOwnerClient,
-  ensurePostMediaPublic,
-  servesMediaPublicly,
-} from '../../services/postMediaVisibility';
+import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
@@ -592,7 +588,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // same content/row locks used by shadow claims and content writers.
     // Post media renders from the public CDN, and uploads arrive private.
     if (servesMediaPublicly(loaded.visibility) && publicationPolicy.requiredAudience === null)
-      await ensurePostMediaPublic(createPostMediaOwnerClient(req), content);
+      await ensurePostMediaPublic(req, content);
 
     const written = await updatePostAndContent(
       post.id,

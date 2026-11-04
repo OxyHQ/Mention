@@ -29,17 +29,11 @@ vi.mock('../../utils/videoPoster', () => ({
   extractPosterFrame: (...args: unknown[]) => extractPosterFrame(...args),
 }));
 
-const fetchUpstreamFollowingRedirects = vi.fn();
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
-    '../../utils/safeUpstreamFetch',
-  );
-  return {
-    ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
-      fetchUpstreamFollowingRedirects(...args),
-  };
-});
+const safeFetch = vi.fn();
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: (...args: unknown[]) => safeFetch(...args),
+}));
 
 import mediaRoutes from '../../routes/media';
 
@@ -90,7 +84,7 @@ describe('GET /media/poster — client disconnect cleanup', () => {
   let server: http.Server | undefined;
 
   beforeEach(() => {
-    fetchUpstreamFollowingRedirects.mockReset();
+    safeFetch.mockReset();
     extractPosterFrame.mockReset();
   });
 
@@ -103,12 +97,10 @@ describe('GET /media/poster — client disconnect cleanup', () => {
   it('aborts the upstream response and skips ffmpeg when the requester disconnects', async () => {
     const upstreamResponse = fakeVideoResponse();
     let capturedSignal: AbortSignal | undefined;
-    fetchUpstreamFollowingRedirects.mockImplementation(
-      async (_url: string, _extras: unknown, signal: AbortSignal) => {
-        capturedSignal = signal;
-        return { response: upstreamResponse, finalUrl: REMOTE };
-      },
-    );
+    safeFetch.mockImplementation(async (_url: string, options: { signal: AbortSignal }) => {
+      capturedSignal = options.signal;
+      return { response: upstreamResponse, finalUrl: REMOTE };
+    });
 
     const app = express();
     app.use('/media', mediaRoutes);

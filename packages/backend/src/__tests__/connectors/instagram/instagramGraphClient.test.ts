@@ -17,9 +17,9 @@ const h = vi.hoisted(() => ({
   redis: { isReady: false } as Record<string, unknown>,
 }));
 
-vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>()),
-  fetchUpstreamSingleHop: h.fetch,
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: h.fetch,
 }));
 
 vi.mock('../../../utils/redis', () => ({ getRedisClient: () => h.redis }));
@@ -133,7 +133,12 @@ describe('a successful Business Discovery call', () => {
   it('sends the token in the Authorization header and never in the URL', async () => {
     respond(200, { business_discovery: { ...ZUCK_PROFILE } });
     await fetchBusinessDiscovery('zuck', { kind: 'interactive' });
-    const [url, options] = h.fetch.mock.calls[0] as [string, { headers: Record<string, string> }];
+    const [url, options] = h.fetch.mock.calls[0] as [
+      string,
+      { headers: Record<string, string>; redirect?: string },
+    ];
+    // One hop: a redirect is never followed with the bearer attached.
+    expect(options.redirect).toBe('manual');
     expect(url).toMatch(/^https:\/\/graph\.facebook\.com\/v23\.0\/17841400000000000\?fields=/);
     expect(url).not.toContain(TOKEN);
     expect(url).not.toContain('access_token');

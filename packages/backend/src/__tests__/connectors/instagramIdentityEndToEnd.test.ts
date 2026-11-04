@@ -45,23 +45,6 @@ vi.mock('../../connectors/activitypub/helpers', async () => {
   return { ...actual, signedFetch: mocks.signedFetch };
 });
 
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
-    '../../utils/safeUpstreamFetch',
-  );
-  const { Readable } = await import('node:stream');
-  return {
-    ...actual,
-    fetchUpstreamSingleHop: async (url: string) => {
-      const resource = new URL(url).searchParams.get('resource') ?? '';
-      return {
-        response: Readable.from([Buffer.from(JSON.stringify(webFingerJrdFor(resource)))]),
-        status: 200,
-      };
-    },
-  };
-});
-
 // PARTIAL, and deliberately narrow: only the actor-cache functions this lane
 // reaches are replaced, so anything else fails loudly on an absent connection
 // rather than quietly answering from a stub nobody wrote.
@@ -82,10 +65,20 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('@oxy.so/core/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
-  getRequiredOxyUserId: () => 'local-user-1',
-}));
+vi.mock('@oxy.so/core/server', async (importOriginal) => {
+  const { Readable } = await import('node:stream');
+  return {
+    ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+    getRequiredOxyUserId: () => 'local-user-1',
+    safeFetch: async (url: string) => {
+      const resource = new URL(url).searchParams.get('resource') ?? '';
+      return {
+        response: Readable.from([Buffer.from(JSON.stringify(webFingerJrdFor(resource)))]),
+        status: 200,
+      };
+    },
+  };
+});
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));

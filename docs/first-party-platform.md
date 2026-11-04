@@ -66,7 +66,7 @@ reuse the own path or infer an account from a header.
 | Mention frontend → Clarity                | `clarityForOxySession`, shared linked client; published SDK 0.10                                                                                              | Final frontend composition/build/deployment                                                                                       |
 | Mention memberships → Oxy Files           | Original foreground requester, Mention-owned private copy (no personal/guardian access), authoritative linked-download visibility; shared reference lifecycle | Core 7.5.1 published; deploy Mention and verify a private upload/read/revocation canary                                           |
 | Mention membership receipts → Peable      | Official SDK workload transport with original foreground payer; signed invoice authority and exact offer binding; no status observations accepted as payment  | SDK 0.8.0 published; catalogue empty, so no provider call or paid activation until the Mention merchant/offer binding is approved |
-| Mention media cache → Oxy                 | Shared workload transport and replayable disk body factory                                                                                                    | Core 7.3 includes streaming; verify live cancellation/outbox retry after deployment                                               |
+| Mention media cache → Oxy                 | SDK `assets.mediaCache` / `assets.federatedMedia` as the workload identity; Blob body streamed from disk                                                      | Core 7.19 methods; verify live cancellation/outbox retry after deployment                                                         |
 | Mention backend → Kaana                   | Published SDK 3.3 own factory and immutable attribution                                                                                                       | Producer receiver live; verify one-dispatch ledger and app-paid accounting                                                        |
 | Mention frontend → Syra                   | Linked-session factory, lazy client-only entry                                                                                                                | Published SDK 0.23 pinned and artifact verified; account-switch runtime canary remains                                            |
 | Mention frontend → Alia                   | Existing product SDK client; no backend Alia proxy found                                                                                                      | Coordinate SDK update with Alia owner; do not infer adoption from the foundation version                                          |
@@ -125,16 +125,21 @@ Attribution remains app-paid accounting, never private-data or payer authority.
 Syra podcasts use `syraForOxySession` from the same lazy `/client` boundary, so
 refresh/account switching stay with Oxy and LiveKit is not pulled into that chunk.
 
-Files streaming now uses the shared `fetchReplayable` addition. Each authorized
-attempt opens a fresh disk stream; only the shared transport decides whether a
-401 warrants one retry. File handles close on cancellation, completion and before
-replay. The store retains its 60-second inactivity deadline (not a total upload
-duration), separate upload/delete cooldowns, deduplication and namespace deletion
-behavior. Unknown batch results remain unanswered for the existing outbox to retry.
+The federation media store (`services/mediaCache/oxyMediaStore.ts`) calls the
+SDK's `OxyServer.assets.mediaCache` / `assets.federatedMedia` (core 7.19), as
+Mention's workload identity: no hand-built transport. Upload bodies are a Blob
+over the temp file (`fs.openAsBlob`), streamed from disk and never buffered;
+cancellation aborts the upload. Each write is sent once — no transport retry
+and no 401 replay; the worker, eviction and deletion outbox retry a failed write
+later. One upload is bounded at 5 minutes (request to answer), one delete call
+at 60 seconds. The store keeps its separate upload/delete cooldowns, sized from
+the wait a 429 names (`retryAfterSecondsOf`), its permanent refusals
+(`FEDERATED_MEDIA_OWNED_ELSEWHERE`, not-a-cache-object) and namespace deletion
+behavior; an id the batch delete leaves unanswered stays owed for the outbox.
 Federated owner metadata stays a domain field of the public federation endpoint,
-not requester authority over personal Files. The purge script's preflight also
-uses the shared v2 workload transport. No production backend manual service-token
-calls remain in this branch.
+not requester authority over personal Files. The purge script's preflight mints
+the same workload token (`oxy.serviceToken()`). No production backend manual
+service-token calls remain.
 
 ## Published registry composition, 2026-10-25
 

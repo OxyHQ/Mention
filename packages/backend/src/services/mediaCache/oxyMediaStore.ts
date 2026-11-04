@@ -1,7 +1,9 @@
-import type { IncomingHttpHeaders } from 'node:http';
-import { Readable } from 'node:stream';
-import { createReadStream } from 'node:fs';
-import { URL } from 'node:url';
+import { openAsBlob } from 'node:fs';
+import {
+  type OxyApiError,
+  retryAfterSecondsOf,
+  type ServiceFederatedMediaDeletion,
+} from '@oxy.so/core';
 
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { logger } from '../../utils/logger';
@@ -17,10 +19,12 @@ import { MEDIA_CACHE_WRITE_ENABLED } from './constants';
  *    the proxy 302s to the deterministic by-id CDN form built synchronously by
  *    the SDK (see {@link cachedMediaCdnUrl}). Asking the API for it needed a
  *    session token this client will never hold, and failed 100% of the time.
- *  - UPLOAD + DELETE: the shared workload transport owns authentication,
- *    destination binding, redirects and one safe 401 replay. Upload bodies are
- *    reopened from disk through fetchReplayable; they are never fully buffered.
- *    The store retains its domain cooldowns and 60-second inactivity timeout.
+ *  - UPLOAD + DELETE: the process `OxyServer`'s federation media methods
+ *    (`assets.mediaCache`, `assets.federatedMedia`), as Mention's workload
+ *    identity. Upload bodies are a Blob over the temp file (`fs.openAsBlob`),
+ *    streamed from disk and never buffered. The store keeps its own domain
+ *    rules on top: the write-budget cooldown, the permanent refusals, and no
+ *    transport retries (every caller already retries a failed write later).
  *
  * Both write operations are gated behind {@link isMediaCacheEnabled}: when the
  * cache is disabled they throw {@link MediaStoreUnavailableError}, and the
@@ -52,6 +56,8 @@ export class OxyMediaStoreRequestError extends Error {
 /** The message oxy-api answers for {@link OxyMediaNotCacheObjectError}. */
 const NOT_CACHE_OBJECT_MESSAGE = 'Asset is not a federation media-cache object';
 const HTTP_FORBIDDEN = 403;
+/** The file is not there (any more). */
+const HTTP_NOT_FOUND = 404;
 
 /**
  * oxy-api refused a cache-route delete because the file is not in the cache
@@ -83,7 +89,6 @@ export class OxyMediaOwnedElsewhereError extends Error {
 
 /** The 409 error code oxy-api answers for {@link OxyMediaOwnedElsewhereError}. */
 const OWNED_ELSEWHERE_CODE = 'FEDERATED_MEDIA_OWNED_ELSEWHERE';
-const HTTP_CONFLICT = 409;
 
 /**
  * Raised INSTEAD of issuing a request when this app's Oxy media-write budget for
@@ -124,7 +129,7 @@ export function isMediaStoreThrottled(error: unknown): error is OxyMediaStoreThr
 
 /** The budget window Oxy's media-write limiter uses, and this cooldown's default. */
 const WRITE_BUDGET_WINDOW_MS = 60 * 1000;
-/** Bounds on a server-supplied `Retry-After`, so a bad header cannot park writes for hours. */
+/** Bounds on a server-supplied wait, so a bad answer cannot park writes for hours. */
 const MIN_COOLDOWN_MS = 1_000;
 const MAX_COOLDOWN_MS = 10 * 60 * 1000;
 
@@ -139,17 +144,10 @@ const MAX_COOLDOWN_MS = 10 * 60 * 1000;
  */
 const writeBudgetCooldownUntil: Record<'upload' | 'delete', number> = { upload: 0, delete: 0 };
 
-/** Read `Retry-After` (delta-seconds or HTTP date), bounded; else the budget window. */
-function cooldownFromRetryAfter(header: string | string[] | undefined): number {
-  const raw = Array.isArray(header) ? header[0] : header;
-  if (typeof raw === 'string' && raw.trim().length > 0) {
-    const seconds = Number(raw.trim());
-    const ms = Number.isFinite(seconds) ? seconds * 1000 : new Date(raw).getTime() - Date.now();
-    if (Number.isFinite(ms) && ms > 0) {
-      return Math.min(Math.max(ms, MIN_COOLDOWN_MS), MAX_COOLDOWN_MS);
-    }
-  }
-  return WRITE_BUDGET_WINDOW_MS;
+/** The wait a 429 names (`retryAfterSecondsOf`), bounded; else the budget window. */
+function cooldownFromRetryAfter(retryAfterSeconds: number | undefined): number {
+  if (retryAfterSeconds === undefined) return WRITE_BUDGET_WINDOW_MS;
+  return Math.min(Math.max(retryAfterSeconds * 1000, MIN_COOLDOWN_MS), MAX_COOLDOWN_MS);
 }
 
 /**
@@ -166,9 +164,9 @@ function assertWriteBudget(operation: 'upload' | 'delete'): void {
 /** Open (or extend) the cooldown after Oxy reported the budget spent. */
 function beginWriteBudgetCooldown(
   operation: 'upload' | 'delete',
-  retryAfter: string | string[] | undefined,
+  retryAfterSeconds: number | undefined,
 ): OxyMediaStoreThrottledError {
-  const cooldownMs = cooldownFromRetryAfter(retryAfter);
+  const cooldownMs = cooldownFromRetryAfter(retryAfterSeconds);
   const now = Date.now();
   const until = now + cooldownMs;
   // ONE line per window, not one per refused write — the flood this replaces was
@@ -214,37 +212,21 @@ export interface CachedMediaSource {
   filePath: string;
   /** MIME type sent as the request `Content-Type`. */
   contentType: string;
-  /** Optional original/derived filename sent as `x-original-name`. */
+  /** Optional original/derived filename sent as `x-original-name` (printable ASCII only). */
   originalName?: string;
-  /** Optional known byte length, sent as `Content-Length` when present. */
+  /** Known byte length, reported back on the {@link UploadedAsset}. */
   sizeBytes?: number;
-  /** Cancel the upload, including workload preparation and any safe replay. */
+  /** Cancel the upload. */
   signal?: AbortSignal;
 }
 
-/** Path of the oxy-api service-token asset cache endpoint (relative to the API base). */
-const OXY_ASSET_CACHE_PATH = '/assets/service/cache';
-/** Path of the oxy-api durable federated-media upload endpoint. */
-const OXY_ASSET_FEDERATION_PATH = '/assets/service/federation';
-
-/** Successful upload status returned by the oxy-api cache endpoint. */
-const HTTP_OK = 200;
-const HTTP_CREATED = 201;
-/** A successful delete may answer 200 or 204 (no content). */
-const HTTP_NO_CONTENT = 204;
-/** The file is not there (any more). */
-const HTTP_NOT_FOUND = 404;
-/** Oxy's answer when this app's media-write budget for the window is spent. */
-const HTTP_TOO_MANY_REQUESTS = 429;
-/** Idle socket timeout while streaming a body to / reading a response from oxy-api. */
-const OXY_REQUEST_TIMEOUT_MS = 60_000;
-/** Cap on the error-body snippet captured for diagnostics (avoid unbounded logs). */
-const ERROR_BODY_SNIPPET_BYTES = 1024;
-
-/** Shape of the oxy-api cache-upload success response we depend on. */
-interface OxyCacheUploadResponse {
-  data?: { file?: { id?: unknown }; deduplicated?: unknown };
-}
+/**
+ * Bound on one upload, request to response: up to `MEDIA_CACHE_MAX_VIDEO_BYTES`
+ * streamed to oxy-api, plus Oxy storing it before it answers.
+ */
+const OXY_UPLOAD_TIMEOUT_MS = 5 * 60_000;
+/** Bound on one delete call (a federated batch deletes up to 20 files before answering). */
+const OXY_DELETE_TIMEOUT_MS = 60_000;
 
 /**
  * Master predicate for whether the federated media cache is active.
@@ -305,73 +287,38 @@ export function cachedMediaCdnUrl(oxyFileId: string, variant?: string): string {
 }
 
 /**
- * Resolve the absolute oxy-api base URL from the configured service client. The
- * SDK owns this value (set from `OXY_API_URL`), so we never hardcode a host here.
+ * The store's answer for an Oxy refusal: a 429 opens the write-budget cooldown,
+ * the two permanent refusals get their own types, any other HTTP status is an
+ * {@link OxyMediaStoreRequestError}. A failure with no HTTP status (a network
+ * error, a timeout) is rethrown as it is.
  */
-function getOxyApiBaseUrl(): string {
-  return getServiceOxyClient().baseURL.replace(/\/+$/, '');
-}
-
-type OxyMediaResponse = Readable & {
-  statusCode: number;
-  headers: IncomingHttpHeaders;
-};
-
-type WorkloadClient = ReturnType<ReturnType<typeof getServiceOxyClient>['createServiceClient']>;
-let mediaTransport:
-  | { owner: ReturnType<typeof getServiceOxyClient>; client: WorkloadClient }
-  | undefined;
-
-function getMediaTransport(): WorkloadClient {
-  const owner = getServiceOxyClient();
-  if (mediaTransport?.owner !== owner) {
-    mediaTransport?.client.dispose();
-    mediaTransport = {
-      owner,
-      client: owner.createServiceClient({ baseURL: owner.baseURL, audience: 'oxy-api' }),
-    };
-  }
-  return mediaTransport.client;
-}
-
-/** Read up to {@link ERROR_BODY_SNIPPET_BYTES} of a response body for diagnostics. */
-async function readErrorSnippet(response: OxyMediaResponse): Promise<string> {
-  return new Promise<string>((resolve) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    response.on('data', (chunk: Buffer) => {
-      if (total >= ERROR_BODY_SNIPPET_BYTES) return;
-      const captured = chunk.subarray(0, ERROR_BODY_SNIPPET_BYTES - total);
-      total += captured.length;
-      chunks.push(captured);
-    });
-    response.on('end', () => {
-      resolve(Buffer.concat(chunks).toString('utf8').slice(0, ERROR_BODY_SNIPPET_BYTES));
-    });
-    response.on('error', () => resolve(''));
-  });
-}
-
-/** Read a full JSON response body and parse it (bounded by the upstream contract). */
-async function readJsonResponse(response: OxyMediaResponse): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of response) {
-    chunks.push(chunk as Buffer);
-  }
-  const raw = Buffer.concat(chunks).toString('utf8');
-  if (raw.length === 0) return undefined;
-  return JSON.parse(raw);
+function rethrowAs(operation: 'upload' | 'delete') {
+  return (failure: unknown): never => {
+    // Read by shape (the SDK rejects with an `OxyApiError`): `status`, `code`, `message`.
+    const error = failure as Partial<OxyApiError> | null;
+    if (typeof error?.status !== 'number' || error.status < 400) throw failure;
+    const message = error.message ?? '';
+    if (error.status === 429) {
+      throw beginWriteBudgetCooldown(operation, retryAfterSecondsOf(error));
+    }
+    if (error.status === 409 && error.code === OWNED_ELSEWHERE_CODE) {
+      throw new OxyMediaOwnedElsewhereError();
+    }
+    if (error.status === HTTP_FORBIDDEN && message === NOT_CACHE_OBJECT_MESSAGE) {
+      throw new OxyMediaNotCacheObjectError(message);
+    }
+    throw new OxyMediaStoreRequestError(operation, error.status, message);
+  };
 }
 
 /**
- * Upload a media payload to Oxy from the backend service client by STREAMING the
- * temp file directly as the raw request body (never buffering it in memory). The
- * payload's MIME type is sent verbatim as `Content-Type`; the derived name (when
- * provided) is sent as `x-original-name`. Returns the new Oxy file id.
+ * Upload a media payload to the federation media cache, STREAMING the temp file
+ * as the raw request body (never buffering it in memory). Returns the new Oxy
+ * file id.
  *
  * Gated behind {@link isMediaCacheEnabled}; throws
  * {@link MediaStoreUnavailableError} when the cache is disabled and
- * {@link OxyMediaStoreRequestError} on a non-2xx oxy-api response.
+ * {@link OxyMediaStoreRequestError} when Oxy refuses it.
  */
 export async function uploadCachedMedia(source: CachedMediaSource): Promise<UploadedAsset> {
   if (!isMediaCacheEnabled()) {
@@ -379,7 +326,11 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
   }
   assertWriteBudget('upload');
 
-  return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
+  const bytes = await openAsBlob(source.filePath, { type: source.contentType });
+  const { file } = await getServiceOxyClient()
+    .assets.mediaCache.upload(bytes, source.contentType, uploadDescription(source))
+    .catch(rethrowAs('upload'));
+  return uploaded(source, file?.id);
 }
 
 export interface FederatedMediaSource extends CachedMediaSource {
@@ -391,93 +342,43 @@ export interface FederatedMediaSource extends CachedMediaSource {
  * Upload durable federated media to Oxy as a normal public asset owned by the
  * resolved federated Oxy user. This is used when Mention persists post media
  * references directly to file ids, so the file must not be in the cache eviction
- * namespace.
+ * namespace. Throws {@link OxyMediaOwnedElsewhereError} when the bytes belong to
+ * another owner or application.
  */
 export async function uploadFederatedMedia(source: FederatedMediaSource): Promise<UploadedAsset> {
   if (!isMediaCacheEnabled()) {
     throw new MediaStoreUnavailableError('upload');
   }
-
   assertWriteBudget('upload');
 
-  const metadata = source.metadata ? JSON.stringify(source.metadata).slice(0, 4096) : undefined;
-  return uploadMediaToOxy(OXY_ASSET_FEDERATION_PATH, source, {
-    'x-owner-user-id': source.ownerUserId,
-    ...(metadata ? { 'x-media-metadata': metadata } : {}),
-  });
+  const bytes = await openAsBlob(source.filePath, { type: source.contentType });
+  const { file, deduplicated } = await getServiceOxyClient()
+    .assets.federatedMedia.upload(source.ownerUserId, bytes, source.contentType, {
+      ...uploadDescription(source),
+      ...(source.metadata ? { metadata: source.metadata } : {}),
+    })
+    .catch(rethrowAs('upload'));
+  return { ...uploaded(source, file?.id), ...(deduplicated ? { deduplicated: true } : {}) };
 }
 
-async function uploadMediaToOxy(
-  path: string,
-  source: CachedMediaSource,
-  extraHeaders: Record<string, string> = {},
-): Promise<UploadedAsset> {
-  const target = new URL(`${getOxyApiBaseUrl()}${path}`);
-
-  const headers: Record<string, string> = {
-    'Content-Type': source.contentType,
-    Accept: 'application/json',
-    ...extraHeaders,
+function uploadDescription(source: CachedMediaSource) {
+  return {
+    ...(source.originalName ? { originalName: source.originalName } : {}),
+    ...(source.signal ? { signal: source.signal } : {}),
+    timeout: OXY_UPLOAD_TIMEOUT_MS,
   };
-  if (source.originalName) headers['x-original-name'] = source.originalName;
-  if (typeof source.sizeBytes === 'number' && Number.isFinite(source.sizeBytes)) {
-    headers['Content-Length'] = String(source.sizeBytes);
-  }
-  const response = await streamRequest(
-    'POST',
-    target,
-    headers,
-    source.filePath,
-    undefined,
-    source.signal,
-  );
-  const status = response.statusCode ?? 0;
+}
 
-  if (status === HTTP_TOO_MANY_REQUESTS) {
-    response.resume();
-    throw beginWriteBudgetCooldown('upload', response.headers['retry-after']);
-  }
-
-  if (status !== HTTP_OK && status !== HTTP_CREATED) {
-    const detail = await readErrorSnippet(response);
-    if (status === HTTP_CONFLICT && errorCodeOf(detail) === OWNED_ELSEWHERE_CODE) {
-      throw new OxyMediaOwnedElsewhereError();
-    }
-    throw new OxyMediaStoreRequestError('upload', status, detail || 'no response body');
-  }
-
-  const body = (await readJsonResponse(response)) as OxyCacheUploadResponse | undefined;
-  const fileId = body?.data?.file?.id;
+function uploaded(source: CachedMediaSource, fileId: string | undefined): UploadedAsset {
   if (typeof fileId !== 'string' || fileId.length === 0) {
-    throw new OxyMediaStoreRequestError('upload', status, 'response missing data.file.id');
+    throw new OxyMediaStoreRequestError('upload', 200, 'response missing file.id');
   }
-
   logger.debug('[MediaCache] Uploaded cached media to Oxy', {
     oxyFileId: fileId,
     contentType: source.contentType,
     sizeBytes: source.sizeBytes,
   });
-
-  return {
-    oxyFileId: fileId,
-    sizeBytes: source.sizeBytes,
-    contentType: source.contentType,
-    ...(body?.data?.deduplicated === true ? { deduplicated: true } : {}),
-  };
-}
-
-/** oxy-api's error code (`{ "error": "<CODE>", "message": … }`), when the body is that shape. */
-function errorCodeOf(body: string): string | undefined {
-  return errorFieldOf(body, 'error');
-}
-
-function errorFieldOf(body: string, field: 'error' | 'message'): string | undefined {
-  try {
-    const value = (JSON.parse(body) as Record<string, unknown>)[field];
-    return typeof value === 'string' ? value : undefined;
-  } catch {
-    return undefined;
-  }
+  return { oxyFileId: fileId, sizeBytes: source.sizeBytes, contentType: source.contentType };
 }
 
 /**
@@ -529,214 +430,42 @@ export async function deleteRetiredGifCacheFile(
   }
 }
 
+/** Delete calls: one attempt, a delete's own bound; a failure is the caller's to retry. */
+function deleteScope() {
+  return getServiceOxyClient().withCallOptions({ timeout: OXY_DELETE_TIMEOUT_MS, retry: false })
+    .assets;
+}
+
 async function deleteFromCacheNamespace(oxyFileId: string): Promise<void> {
   assertWriteBudget('delete');
-
-  const target = new URL(
-    `${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}/${encodeURIComponent(oxyFileId)}`,
-  );
-
-  const response = await streamRequest('DELETE', target, { Accept: 'application/json' });
-  const status = response.statusCode ?? 0;
-
-  if (status === HTTP_TOO_MANY_REQUESTS) {
-    response.resume();
-    throw beginWriteBudgetCooldown('delete', response.headers['retry-after']);
-  }
-
-  if (status !== HTTP_OK && status !== HTTP_NO_CONTENT) {
-    const detail = await readErrorSnippet(response);
-    if (status === HTTP_FORBIDDEN && errorFieldOf(detail, 'message') === NOT_CACHE_OBJECT_MESSAGE) {
-      throw new OxyMediaNotCacheObjectError(detail);
-    }
-    throw new OxyMediaStoreRequestError('delete', status, detail || 'no response body');
-  }
-
-  // Drain any success body so the socket can be released back to the pool.
-  response.resume();
+  await deleteScope().mediaCache.delete(oxyFileId).catch(rethrowAs('delete'));
   logger.debug('[MediaCache] Deleted cached media from Oxy', { oxyFileId });
 }
 
-/** Oxy's per-file answer to a federated-media delete. */
-export type FederatedMediaDeleteResult = 'deleted' | 'not_found' | 'forbidden' | 'in_use';
-
-const KNOWN_DELETE_RESULTS: ReadonlySet<string> = new Set([
-  'deleted',
-  'not_found',
-  'forbidden',
-  'in_use',
-]);
-
-/** The batch route's ceiling (oxy-api validates 1–20 ids). */
+/** The batch route's ceiling (oxy-api validates 1–20 ids): one drain batch is one call. */
 export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 20;
 
 /**
- * Delete durable federated media Mention re-hosted (`POST
- * /assets/service/federation/delete`, body `{ ids }`, 1–20 ids). Same raw
- * workload transport and single safe 401 retry as the upload beside it.
+ * Delete durable federated media Mention re-hosted
+ * (`assets.federatedMedia.delete`, `POST /assets/service/federation/delete`).
  *
  * DELIBERATELY NOT gated on {@link isMediaCacheEnabled}: turning media WRITES
  * off must never stop a deletion — a post deleted at its source (or on
  * Instagram) must not live on as a re-hosted file. Returns Oxy's per-id answer
- * (`in_use`: Oxy keeps the file because another owner or app also holds it;
- * an unknown result is left out, so the caller retries that id);
- * throws {@link OxyMediaStoreThrottledError} on 429 and
- * {@link OxyMediaStoreRequestError} on any other non-200 — including 404 for the
+ * (`in_use`: Oxy keeps the file because another owner or app also holds it);
+ * an id missing from the answer — one Oxy did not answer for, or answered with
+ * a result this build does not know — is unanswered, and the caller retries it.
+ * Throws {@link OxyMediaStoreThrottledError} on 429 and
+ * {@link OxyMediaStoreRequestError} on any other refusal — including 404 for the
  * ROUTE itself on an oxy-api that predates it, which the caller must retry, never
  * read as "not found".
  */
 export async function deleteFederatedMedia(
   fileIds: readonly string[],
-): Promise<Array<{ id: string; result: FederatedMediaDeleteResult }>> {
+): Promise<ServiceFederatedMediaDeletion[]> {
   if (fileIds.length === 0) return [];
-  if (fileIds.length > FEDERATED_MEDIA_DELETE_BATCH_MAX) {
-    throw new Error(
-      `deleteFederatedMedia: at most ${FEDERATED_MEDIA_DELETE_BATCH_MAX} ids per call`,
-    );
-  }
   assertWriteBudget('delete');
-
-  const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_FEDERATION_PATH}/delete`);
-  const body = JSON.stringify({ ids: [...fileIds] });
-  const response = await streamRequest(
-    'POST',
-    target,
-    {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'Content-Length': String(Buffer.byteLength(body)),
-    },
-    undefined,
-    body,
-  );
-  const status = response.statusCode ?? 0;
-
-  if (status === HTTP_TOO_MANY_REQUESTS) {
-    response.resume();
-    throw beginWriteBudgetCooldown('delete', response.headers['retry-after']);
-  }
-  if (status !== HTTP_OK) {
-    const detail = await readErrorSnippet(response);
-    throw new OxyMediaStoreRequestError('delete', status, detail || 'no response body');
-  }
-
-  const parsed = (await readJsonResponse(response)) as { data?: { results?: unknown } } | undefined;
-  const results = Array.isArray(parsed?.data?.results) ? parsed.data.results : null;
-  if (!results)
-    throw new OxyMediaStoreRequestError('delete', status, 'response missing data.results');
-  const asked = new Set(fileIds);
-  const unknown: string[] = [];
-  const answers = results.flatMap((entry) => {
-    const record = entry as { id?: unknown; result?: unknown };
-    if (typeof record.id !== 'string' || !asked.has(record.id)) return [];
-    if (typeof record.result === 'string' && KNOWN_DELETE_RESULTS.has(record.result)) {
-      return [{ id: record.id, result: record.result as FederatedMediaDeleteResult }];
-    }
-    unknown.push(String(record.result));
-    return [];
-  });
-  if (unknown.length > 0) {
-    // A result this build does not know is NOT an answer: the caller treats the
-    // id as unanswered and retries it later.
-    logger.warn('[MediaCache] Oxy answered an unknown federated-media delete result; will retry', {
-      results: [...new Set(unknown)].slice(0, 5),
-      files: unknown.length,
-    });
-  }
-  return answers;
-}
-
-/**
- * Stream through the shared transport. A fresh disk stream is created only for
- * an authenticated attempt (and its one safe 401 replay). Activity resets the
- * idle deadline; a large active upload is not subject to a total-duration cap.
- * The returned readable keeps the existing response-consumption contract.
- */
-async function streamRequest(
-  method: 'POST' | 'DELETE',
-  target: URL,
-  headers: Record<string, string>,
-  filePath?: string,
-  jsonBody?: string,
-  signal?: AbortSignal,
-): Promise<OxyMediaResponse> {
-  const controller = new AbortController();
-  let upload: ReturnType<typeof createReadStream> | undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let finished = false;
-  const onAbort = () => controller.abort(signal?.reason);
-  const finish = () => {
-    finished = true;
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
-    upload?.destroy();
-  };
-  const touch = () => {
-    if (finished) return;
-    clearTimeout(timer);
-    timer = setTimeout(
-      () => controller.abort(new Error('oxy-api request timeout')),
-      OXY_REQUEST_TIMEOUT_MS,
-    );
-    timer.unref();
-  };
-  if (signal?.aborted) onAbort();
-  else signal?.addEventListener('abort', onAbort, { once: true });
-  touch();
-  try {
-    const transport = getMediaTransport();
-    const init = { method, headers, signal: controller.signal };
-    const response = filePath
-      ? await transport.fetchReplayable(target, {
-          ...init,
-          bodyFactory: () => {
-            // An early 401 may arrive while the previous disk stream is still
-            // open. The shared transport decides replay; this source owns and
-            // closes its file handle before providing the next fresh body.
-            upload?.destroy();
-            const file = createReadStream(filePath, { signal: controller.signal });
-            upload = file;
-            const chunks: AsyncIterator<Buffer> = file[Symbol.asyncIterator]();
-            return new ReadableStream<Uint8Array>({
-              async pull(output) {
-                const { done, value } = await chunks.next();
-                if (done) output.close();
-                else {
-                  touch();
-                  output.enqueue(value);
-                }
-              },
-              async cancel() {
-                file.destroy();
-                await chunks.return?.();
-              },
-            });
-          },
-        })
-      : await transport.fetch(target, { ...init, body: jsonBody });
-    touch();
-    async function* responseBody() {
-      const reader = response.body?.getReader();
-      try {
-        if (!reader) return;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) return;
-          touch();
-          yield Buffer.from(value);
-        }
-      } finally {
-        finish();
-        await reader?.cancel().catch(() => undefined);
-        reader?.releaseLock();
-      }
-    }
-    const body = Readable.from(responseBody()) as OxyMediaResponse;
-    body.statusCode = response.status;
-    body.headers = Object.fromEntries(response.headers.entries());
-    return body;
-  } catch (error) {
-    finish();
-    throw error;
-  }
+  return deleteScope()
+    .federatedMedia.delete([...fileIds])
+    .catch(rethrowAs('delete'));
 }

@@ -5,8 +5,9 @@ import { postContentVariants } from '../../db/schema/postContent';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { expandFederatedTcoLinks } from '../../scripts/expandFederatedTcoLinks';
 
-vi.mock('../../utils/safeUpstreamFetch', () => ({
-  fetchUpstreamSingleHop: async (url: string) => ({
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: async (url: string) => ({
     response: { destroy: () => undefined },
     status: url === 'https://t.co/abc123' ? 301 : 404,
     headers: url === 'https://t.co/abc123' ? { location: 'https://example.com/' } : {},

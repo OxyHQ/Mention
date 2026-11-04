@@ -32,6 +32,7 @@ vi.mock('@oxy.so/core/server', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
   return {
     ...actual,
+    safeFetch: (...args: unknown[]) => safeFetch(...args),
     assertSafePublicUrl: (...args: unknown[]) => assertSafePublicUrl(...args),
   };
 });
@@ -87,17 +88,7 @@ vi.mock('../../services/mediaCache/oxyMediaStore', async () => {
  * Control the upstream response. Each test sets `nextStatus`; the mock returns a
  * minimal IncomingMessage-like EventEmitter with that status code.
  */
-const fetchUpstreamFollowingRedirects = vi.fn();
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
-    '../../utils/safeUpstreamFetch',
-  );
-  return {
-    ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
-      fetchUpstreamFollowingRedirects(...args),
-  };
-});
+const safeFetch = vi.fn();
 
 /** Control the negative cache (defaults: miss + no-op write). */
 const isNegativelyCached = vi.fn().mockResolvedValue(false);
@@ -171,13 +162,13 @@ beforeEach(() => {
 
 describe('GET /media/proxy — upstream status mapping', () => {
   beforeEach(() => {
-    fetchUpstreamFollowingRedirects.mockReset();
+    safeFetch.mockReset();
     isNegativelyCached.mockReset().mockResolvedValue(false);
     markNegativelyCached.mockReset().mockResolvedValue(undefined);
   });
 
   it('maps an upstream 403 to our 404 (not 502) and negative-caches it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(403),
       finalUrl: REMOTE,
     });
@@ -189,7 +180,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps an upstream 404 to our 404 and negative-caches it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(404),
       finalUrl: REMOTE,
     });
@@ -201,7 +192,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps an upstream 410 (gone) to our 404', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(410),
       finalUrl: REMOTE,
     });
@@ -213,7 +204,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps a genuine upstream 500 to 502 and does NOT negative-cache it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(500),
       finalUrl: REMOTE,
     });
@@ -225,7 +216,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps a genuine upstream 503 to 502 and does NOT negative-cache it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(503),
       finalUrl: REMOTE,
     });
@@ -242,11 +233,11 @@ describe('GET /media/proxy — upstream status mapping', () => {
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
     expect(res.status).toBe(404);
-    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
   });
 
   it('negative-caches a connection failure as connection-error and returns 502', async () => {
-    fetchUpstreamFollowingRedirects.mockRejectedValue(new Error('ECONNREFUSED'));
+    safeFetch.mockRejectedValue(new Error('ECONNREFUSED'));
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -256,7 +247,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
 
   it('rejects an over-large declared body with 413 (not 502)', async () => {
     const huge = String(512 * 1024 * 1024);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(200, { 'content-type': 'image/jpeg', 'content-length': huge }),
       finalUrl: REMOTE,
     });
@@ -267,7 +258,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('does NOT negative-cache request-specific 400 responses', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(400),
       finalUrl: REMOTE,
     });
@@ -282,7 +273,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('does NOT negative-cache transient upstream 429 responses', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(429),
       finalUrl: REMOTE,
     });
@@ -294,7 +285,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('does NOT negative-cache 4xx responses to ranged requests', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(403),
       finalUrl: REMOTE,
     });
@@ -309,7 +300,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('does NOT negative-cache 4xx responses to conditional requests', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(404),
       finalUrl: REMOTE,
     });
@@ -325,7 +316,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
 
   it('does NOT use the URL-only negative cache for ranged requests', async () => {
     isNegativelyCached.mockResolvedValue(true);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(416),
       finalUrl: REMOTE,
     });
@@ -337,11 +328,11 @@ describe('GET /media/proxy — upstream status mapping', () => {
 
     expect(res.status).toBe(416);
     expect(isNegativelyCached).not.toHaveBeenCalled();
-    expect(fetchUpstreamFollowingRedirects).toHaveBeenCalled();
+    expect(safeFetch).toHaveBeenCalled();
   });
 
   it('relays a 416 range-not-satisfiable as 416', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(416, { 'content-range': 'bytes */1024' }),
       finalUrl: REMOTE,
     });
@@ -368,7 +359,7 @@ describe('GET /media/proxy — upstream status mapping', () => {
 describe('GET /media/proxy — URL validated before any cache write', () => {
   beforeEach(() => {
     mediaCacheEnabled.value = true;
-    fetchUpstreamFollowingRedirects.mockReset();
+    safeFetch.mockReset();
     isNegativelyCached.mockReset().mockResolvedValue(false);
     markNegativelyCached.mockReset().mockResolvedValue(undefined);
   });
@@ -382,7 +373,7 @@ describe('GET /media/proxy — URL validated before any cache write', () => {
     expect(cacheStore.recordAccessAndMaybeEnqueue).not.toHaveBeenCalled();
     expect(cacheStore.lookupCacheRow).not.toHaveBeenCalled();
     expect(cacheStore.bumpAccess).not.toHaveBeenCalled();
-    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
   });
 
   it('rejects a non-URL garbage string without reaching the cache store', async () => {
@@ -409,7 +400,7 @@ describe('GET /media/proxy — URL validated before any cache write', () => {
 
   it('still records access and streams for an allowed URL', async () => {
     const imageBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: streamingResponse(200, { 'content-type': 'image/jpeg' }, imageBytes),
       finalUrl: REMOTE,
     });
@@ -421,7 +412,7 @@ describe('GET /media/proxy — URL validated before any cache write', () => {
   });
 
   it('resolves DNS exactly ONCE per request by handing hop 0 the validated guard', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: streamingResponse(200, { 'content-type': 'image/jpeg' }, Buffer.from([0xff, 0xd8])),
       finalUrl: REMOTE,
     });
@@ -432,11 +423,9 @@ describe('GET /media/proxy — URL validated before any cache write', () => {
     expect(assertSafePublicUrl).toHaveBeenCalledTimes(1);
     // ...and passed that exact result through so the transport skips hop 0's
     // resolution instead of dialling DNS a second time on a 240 req/min endpoint.
-    expect(fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
+    expect(safeFetch).toHaveBeenCalledWith(
       REMOTE,
-      expect.anything(),
-      expect.anything(),
-      ALLOWED_GUARD,
+      expect.objectContaining({ validated: ALLOWED_GUARD, maxRedirects: 3 }),
     );
   });
 });
@@ -452,7 +441,7 @@ describe('GET /media/proxy — URL validated before any cache write', () => {
 describe('GET /media/proxy — sized variants', () => {
   beforeEach(() => {
     mediaCacheEnabled.value = true;
-    fetchUpstreamFollowingRedirects.mockReset();
+    safeFetch.mockReset();
     isNegativelyCached.mockReset().mockResolvedValue(false);
     markNegativelyCached.mockReset().mockResolvedValue(undefined);
   });
@@ -468,7 +457,7 @@ describe('GET /media/proxy — sized variants', () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`${OXY_CDN_URL}?variant=w320`);
-    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
   });
 
   /**
@@ -497,7 +486,7 @@ describe('GET /media/proxy — sized variants', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(OXY_CDN_URL);
     // No upstream stream, and no cache-front failure: the fallback never ran.
-    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
     expect(
       warn.mock.calls.some(([message]) =>
         String(message).includes('[MediaProxy] Cache front failed'),
@@ -558,7 +547,7 @@ describe('GET /media/proxy — sized variants', () => {
     // under a `variant` URL would pin the client to the full-size bytes long
     // after the mirror landed, turning a temporary miss into a permanent one.
     cacheStore.lookupCacheRow.mockResolvedValue(undefined);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: streamingResponse(200, { 'content-type': 'image/jpeg' }, Buffer.from([0xff, 0xd8])),
       finalUrl: REMOTE,
     });
@@ -574,7 +563,7 @@ describe('GET /media/proxy — sized variants', () => {
 
   it('keeps the long immutable cache directive for a plain (variant-less) stream', async () => {
     cacheStore.lookupCacheRow.mockResolvedValue(undefined);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: streamingResponse(200, { 'content-type': 'image/jpeg' }, Buffer.from([0xff, 0xd8])),
       finalUrl: REMOTE,
     });
@@ -588,7 +577,7 @@ describe('GET /media/proxy — sized variants', () => {
 describe('GET /media/proxy — cached byte ranges', () => {
   beforeEach(() => {
     mediaCacheEnabled.value = true;
-    fetchUpstreamFollowingRedirects.mockReset();
+    safeFetch.mockReset();
     isNegativelyCached.mockReset().mockResolvedValue(false);
     markNegativelyCached.mockReset().mockResolvedValue(undefined);
   });
@@ -608,7 +597,7 @@ describe('GET /media/proxy — cached byte ranges', () => {
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe(OXY_CDN_URL);
     expect(cacheStore.bumpAccess).toHaveBeenCalledWith(REMOTE);
-    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
     expect(isNegativelyCached).not.toHaveBeenCalled();
   });
 
@@ -627,12 +616,12 @@ describe('GET /media/proxy — cached byte ranges', () => {
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe(OXY_CDN_URL);
     expect(response.headers.vary.split(',').map((name: string) => name.trim())).toContain('Range');
-    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
   });
 
   it('streams the requested range from the origin on a cache miss and schedules caching', async () => {
     cacheStore.lookupCacheRow.mockResolvedValue(undefined);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: streamingResponse(
         206,
         { 'content-type': 'video/mp4', 'content-range': 'bytes 2-5/10', 'content-length': '4' },
@@ -650,18 +639,19 @@ describe('GET /media/proxy — cached byte ranges', () => {
     expect(response.headers['content-range']).toBe('bytes 2-5/10');
     expect(response.headers['content-length']).toBe('4');
     expect(response.body).toEqual(Buffer.from('2345'));
-    expect(fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
+    expect(safeFetch).toHaveBeenCalledWith(
       REMOTE,
-      expect.objectContaining({ range: 'bytes=2-5' }),
-      expect.anything(),
-      ALLOWED_GUARD,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Range: 'bytes=2-5' }),
+        validated: ALLOWED_GUARD,
+      }),
     );
     expect(cacheStore.recordAccessAndMaybeEnqueue).toHaveBeenCalledWith(REMOTE);
   });
 
   it('falls through to the origin if the cache lookup fails', async () => {
     cacheStore.lookupCacheRow.mockRejectedValue(new Error('cache unavailable'));
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
+    safeFetch.mockResolvedValue({
       response: fakeResponse(416, { 'content-range': 'bytes */10' }),
       finalUrl: REMOTE,
     });
@@ -684,7 +674,7 @@ describe('supervised direct media boundary', () => {
       reason: 'unrated_content',
       policyVersion: '2',
     });
-    fetchUpstreamFollowingRedirects.mockClear();
+    safeFetch.mockClear();
     const response = await request(app)
       .get('/media/proxy')
       .query({ url: REMOTE })
@@ -693,7 +683,7 @@ describe('supervised direct media boundary', () => {
     expect(response.body).toMatchObject({ code: 'CONTENT_UNAVAILABLE', reason: 'unrated_content' });
     expect(response.headers['cache-control']).toBe('private, no-store');
     expect(cacheStore.lookupCacheRow).not.toHaveBeenCalled();
-    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
   });
   it('does not use public cached media when its current policy is unavailable', async () => {
     contentAccess.mockRejectedValueOnce(new Error('authority unavailable'));

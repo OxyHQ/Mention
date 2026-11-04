@@ -10,12 +10,12 @@ import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
-import { assertSafePublicUrl } from '@oxy.so/core/server';
-import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
+import { assertSafePublicUrl, safeFetch, type SafeFetchResult } from '@oxy.so/core/server';
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 import { escapeRegExp } from '@oxy.so/utils/text';
 import { networkUrlOf } from '../../utils/federation/mirrorTransports';
 import { isApPostObjectType } from './apSchemas';
+import { contentTypeFamilyFromString } from '../../services/mediaCache/mediaTypes';
 
 /**
  * Low-level ActivityPub helpers used by more than one AP sub-service
@@ -39,13 +39,8 @@ export const ACTIVITYPUB_FETCH_DEADLINE_MS = 15_000;
 /** Maximum silence between ActivityPub response-body chunks. */
 export const ACTIVITYPUB_BODY_IDLE_TIMEOUT_MS = 5_000;
 
-/** The media-type family of a `content-type` header: parameters dropped, lowercased. */
-function contentTypeFamily(raw: string | null): string {
-  return raw?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
-}
-
 function activityPubJsonContentType(raw: string | null): boolean {
-  const family = contentTypeFamily(raw);
+  const family = contentTypeFamilyFromString(raw ?? undefined);
   return (
     family === 'application/json' ||
     family === 'application/activity+json' ||
@@ -139,7 +134,7 @@ export function domainFromAcct(acct: string): string | undefined {
 }
 
 /**
- * Adapt the Node `IncomingMessage` stream returned by {@link fetchUpstreamSingleHop}
+ * Adapt the Node `IncomingMessage` stream a single-hop `safeFetch` returns
  * into a WHATWG `Response`, so every `signedFetch` caller keeps using the
  * standard `Response` surface (`.ok`, `.status`, `.statusText`, `.headers.get()`,
  * `.json()`, `.text()`) unchanged.
@@ -150,7 +145,7 @@ export function domainFromAcct(acct: string): string | undefined {
  * goes through `/media/proxy`, which streams the `IncomingMessage` directly).
  * Redirect responses carry no body of interest, so their stream is destroyed.
  */
-export async function singleHopToResponse(result: SingleHopResult): Promise<Response> {
+export async function singleHopToResponse(result: SafeFetchResult): Promise<Response> {
   const headers = new Headers();
   for (const [key, value] of Object.entries(result.headers)) {
     if (value === undefined) continue;
@@ -187,7 +182,7 @@ export async function singleHopToResponse(result: SingleHopResult): Promise<Resp
     // nothing at all. Only the media-type FAMILY is interpolated (parameters
     // dropped, lowercased, length-capped), so no remote-controlled payload rides
     // into the message.
-    const family = contentTypeFamily(headers.get('content-type'));
+    const family = contentTypeFamilyFromString(headers.get('content-type') ?? undefined);
     throw new Error(
       `ActivityPub response has unsupported content-type: ${family ? family.slice(0, 64) : '(none)'}`,
     );
@@ -296,7 +291,8 @@ function getSignedFetch(): SignedFetch {
       sign: signViaOxy,
       getInstanceKeyId,
       fetchSingleHop: (url, init) =>
-        fetchUpstreamSingleHop(url, {
+        safeFetch(url, {
+          redirect: 'manual',
           headers: init.headers,
           signal: init.signal,
           headersTimeoutMs: init.headersTimeoutMs,
@@ -318,7 +314,7 @@ function getSignedFetch(): SignedFetch {
  * The signing + per-hop re-signing redirect policy lives in `@oxy.so/federation`
  * (`createSignedFetch`); Mention supplies the private-key custody (`signViaOxy`,
  * which calls oxy-api — the key never enters Mention), the instance keyId, and
- * the SSRF-safe single-hop transport ({@link fetchUpstreamSingleHop}, which
+ * the SSRF-safe single-hop transport (core's `safeFetch` with `redirect: 'manual'`, which
  * validates the URL AND pins the TCP connection to the validated IP via a custom
  * DNS `lookup` — DNS is NOT re-resolved at connect time, closing the DNS-rebind
  * TOCTOU window). The engine re-validates AND re-signs each redirect hop, honours

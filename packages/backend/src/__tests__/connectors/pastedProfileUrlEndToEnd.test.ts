@@ -35,20 +35,6 @@ vi.mock('../../connectors/activitypub/helpers', async () => {
   return { ...actual, signedFetch: mocks.signedFetch };
 });
 
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
-    '../../utils/safeUpstreamFetch',
-  );
-  const { Readable } = await import('node:stream');
-  return {
-    ...actual,
-    fetchUpstreamSingleHop: async () => ({
-      response: Readable.from([Buffer.from(JSON.stringify(WEBFINGER_JRD))]),
-      status: 200,
-    }),
-  };
-});
-
 // The actor cache is `federated_actors` in Postgres. PARTIAL, and deliberately
 // narrow: only the functions this lane reaches are replaced, so anything else
 // the route or the resolver were to query fails loudly on an absent connection
@@ -67,10 +53,17 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('@oxy.so/core/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
-  getRequiredOxyUserId: () => 'local-user-1',
-}));
+vi.mock('@oxy.so/core/server', async (importOriginal) => {
+  const { Readable } = await import('node:stream');
+  return {
+    ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+    getRequiredOxyUserId: () => 'local-user-1',
+    safeFetch: async () => ({
+      response: Readable.from([Buffer.from(JSON.stringify(WEBFINGER_JRD))]),
+      status: 200,
+    }),
+  };
+});
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));

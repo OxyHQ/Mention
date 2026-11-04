@@ -317,6 +317,16 @@ export async function uploadServiceUserMedia(params: {
 }
 
 /**
+ * Bound on one visibility change (`assets.setVisibility`), in ms. Oxy moves the
+ * original AND every variant under the `public/` prefix before it answers, one
+ * S3 copy after another, so a long video takes seconds — past the SDK's 5s
+ * default for JSON calls. Timing out there would not undo the change (Oxy
+ * finishes it), but the post or profile would be written before its media is
+ * servable.
+ */
+export const MEDIA_VISIBILITY_TIMEOUT_MS = 60_000;
+
+/**
  * Promote an Oxy asset that a user has set as public-facing profile media
  * (e.g. the Mention profile banner) to `public` visibility, so it renders for
  * anonymous viewers.
@@ -355,7 +365,9 @@ export async function ensureProfileMediaPublic(
 
   try {
     await getServiceOxyClient().withUser(accessToken, (user) =>
-      user.assets.setVisibility(fileId, 'public'),
+      user
+        .withCallOptions({ timeout: MEDIA_VISIBILITY_TIMEOUT_MS })
+        .assets.setVisibility(fileId, 'public'),
     );
     logger.info('[oxyHelpers] Promoted profile media asset to public', { fileId });
   } catch (error) {

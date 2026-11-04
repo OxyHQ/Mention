@@ -1,5 +1,4 @@
-import { readResponseBody } from '@oxy.so/core/server';
-import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
+import { readResponseBody, safeFetch } from '@oxy.so/core/server';
 
 /**
  * Thin, SSRF-safe XRPC client for the AT Protocol.
@@ -7,7 +6,7 @@ import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
  * The atproto connector NEVER uses `@atproto/api`. Every outbound GET — AppView
  * XRPC queries, PLC directory lookups, did:web `did.json`, `.well-known`
  * documents — goes through the same IP-pinned single-hop fetch the federation
- * media proxy and signed ActivityPub fetches use (`fetchUpstreamSingleHop`):
+ * media proxy and signed ActivityPub fetches use (core's `safeFetch`, `redirect: 'manual'`):
  *
  *  - the URL is validated by `assertSafePublicUrl` (DNS resolution + private /
  *    reserved-range denylist) and the TCP connection is PINNED to the validated
@@ -60,7 +59,8 @@ export function buildXrpcUrl(host: string, nsid: string, params: XrpcParams = {}
 /** Common bounded GET used for both JSON and text reads. */
 async function safeGet(url: string, accept: string, maxBytes: number): Promise<Buffer> {
   const deadline = AbortSignal.timeout(XRPC_TIMEOUT_MS);
-  const { response, status } = await fetchUpstreamSingleHop(url, {
+  const { response, status } = await safeFetch(url, {
+    redirect: 'manual',
     headers: { 'User-Agent': USER_AGENT, Accept: accept },
     signal: deadline,
     headersTimeoutMs: XRPC_TIMEOUT_MS,

@@ -160,28 +160,32 @@ describe('deleteFederatedMedia', () => {
     expect(JSON.parse(h.requests[0].body)).toEqual({ ids: ['file-a', 'file-b'] });
   });
 
-  it('re-mints the service token once on a 401', async () => {
-    h.handler = (req, _body, res) => {
-      if (req.headers.authorization === `Bearer ${h.tokens[0]}`)
-        return json(res, 401, { error: 'expired' });
-      json(res, 200, { data: { results: [{ id: 'file-a', result: 'deleted' }] } });
-    };
-    await expect(deleteFederatedMedia(['file-a'])).resolves.toEqual([
-      { id: 'file-a', result: 'deleted' },
-    ]);
-    expect(h.mint).toHaveBeenCalledTimes(2);
-    expect(h.requests.map((r) => r.auth)).toEqual([
-      `Bearer ${h.tokens[0]}`,
-      `Bearer ${h.tokens[1]}`,
-    ]);
+  it('answers a 401 as a refusal: sent once, never replayed — the drain retries it', async () => {
+    h.handler = (_req, _body, res) => json(res, 401, { error: 'UNAUTHORIZED', message: 'expired' });
+    const error = await deleteFederatedMedia(['file-a']).catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(OxyMediaStoreRequestError);
+    expect((error as OxyMediaStoreRequestError).statusCode).toBe(401);
+    expect(h.requests).toHaveLength(1);
+    expect(h.mint).toHaveBeenCalledTimes(1);
   });
 
-  it('reports 429 as throttled, honouring Retry-After', async () => {
+  it('reports 429 as throttled, for as long as Oxy says', async () => {
+    // oxy-api's `RateLimitedError`: the wait is in the body as well as `Retry-After`.
     h.handler = (_req, _body, res) =>
-      json(res, 429, { error: 'slow down' }, { 'retry-after': '120' });
+      json(
+        res,
+        429,
+        {
+          error: 'RATE_LIMITED',
+          message: 'Too many media cache deletions. Please slow down.',
+          details: { retryAfterSeconds: 120 },
+        },
+        { 'retry-after': '120' },
+      );
     const error = await deleteFederatedMedia(['file-a']).catch((err: unknown) => err);
     expect(error).toBeInstanceOf(OxyMediaStoreThrottledError);
     expect((error as OxyMediaStoreThrottledError).retryAfterMs).toBe(120_000);
+    expect(h.requests).toHaveLength(1);
   });
 
   it('reports a MISSING route (older oxy-api, HTTP 404) as a failure, never as "not found"', async () => {
@@ -206,7 +210,7 @@ describe('deleteFederatedMedia', () => {
     ]);
   });
 
-  it('ignores answers for ids it did not ask about, and refuses more than 50 ids', async () => {
+  it('ignores answers for ids it did not ask about', async () => {
     h.handler = (_req, _body, res) =>
       json(res, 200, {
         data: {
@@ -219,9 +223,18 @@ describe('deleteFederatedMedia', () => {
     await expect(deleteFederatedMedia(['file-a'])).resolves.toEqual([
       { id: 'file-a', result: 'forbidden' },
     ]);
-    await expect(
-      deleteFederatedMedia(Array.from({ length: 21 }, (_, i) => `f${i}`)),
-    ).rejects.toThrow(/at most 20/);
-    expect(h.requests).toHaveLength(1);
+  });
+
+  it("sends more than the route's 20 ids as several batches", async () => {
+    h.handler = (_req, body, res) => {
+      const ids = (JSON.parse(body) as { ids: string[] }).ids;
+      json(res, 200, { data: { results: ids.map((id) => ({ id, result: 'deleted' })) } });
+    };
+    const ids = Array.from({ length: 21 }, (_, i) => `f${i}`);
+    const results = await deleteFederatedMedia(ids);
+    expect(results.map((r) => r.id)).toEqual(ids);
+    expect(h.requests.map((r) => (JSON.parse(r.body) as { ids: string[] }).ids.length)).toEqual([
+      20, 1,
+    ]);
   });
 });

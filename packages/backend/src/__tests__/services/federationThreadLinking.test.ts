@@ -44,8 +44,7 @@ const h = vi.hoisted(() => ({
   signRequest: vi.fn(),
   signViaOxy: vi.fn(),
   assertSafePublicUrl: vi.fn(),
-  fetchUpstreamSingleHop: vi.fn(),
-  fetchUpstreamFollowingRedirects: vi.fn(),
+  safeFetch: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   getServiceOxyClient: vi.fn(),
@@ -60,18 +59,10 @@ vi.mock('../../connectors/activitypub/crypto', () => ({
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   assertSafePublicUrl: h.assertSafePublicUrl,
+  safeFetch: h.safeFetch,
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
-
-vi.mock('../../utils/safeUpstreamFetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../utils/safeUpstreamFetch')>();
-  return {
-    ...actual,
-    fetchUpstreamFollowingRedirects: h.fetchUpstreamFollowingRedirects,
-    fetchUpstreamSingleHop: h.fetchUpstreamSingleHop,
-  };
-});
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: h.persistRemoteMedia,
@@ -264,9 +255,9 @@ beforeEach(async () => {
     getUsersByIds: vi.fn(async () => []),
   });
 
-  // signedFetch is built on fetchUpstreamSingleHop; adapt it to the per-test
+  // signedFetch is built on a single-hop safeFetch; adapt it to the per-test
   // stubbed global fetch.
-  h.fetchUpstreamSingleHop.mockImplementation(
+  h.safeFetch.mockImplementation(
     async (
       url: string,
       options: { headers: Record<string, string>; method?: string; body?: BodyInit },
