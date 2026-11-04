@@ -119,6 +119,7 @@
     "hooks/useServerAppearanceSync.ts": {"statements":[0,7],"branches":[0,2],"functions":[0,3],"lines":[0,5]},
     "hooks/useServerDrafts.ts": {"statements":[32,33],"branches":[10,11],"functions":[12,13],"lines":[31,32]},
     "hooks/useSourcesManager.ts": {"statements":[0,25],"branches":[0,6],"functions":[0,13],"lines":[0,21]},
+    "hooks/useStorePost.ts": {"statements":[7,7],"branches":[11,14],"functions":[2,2],"lines":[7,7]},
     "hooks/useSupervisionState.ts": {"statements":[4,4],"branches":[9,9],"functions":[1,1],"lines":[4,4]},
     "hooks/useThreadManager.ts": {"statements":[49,187],"branches":[11,111],"functions":[5,128],"lines":[48,159]},
     "hooks/useThreadPreferences.ts": {"statements":[0,21],"branches":[0,10],"functions":[0,9],"lines":[0,17]},
