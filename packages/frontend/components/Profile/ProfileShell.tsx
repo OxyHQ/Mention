@@ -1,11 +1,10 @@
-import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
+import { resolveProfileColor, type ProfileColor } from '@oxy.so/bloom/color-presets';
 import type React from 'react';
 import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
 import { Platform, View, type ViewProps } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
 import type { ProfileData } from '@/hooks/useProfileData';
@@ -91,15 +90,13 @@ export interface ProfileShellProps {
  * `CoverHeader`, and nowhere else.
  */
 export function ProfileShell(props: ProfileShellProps) {
+  // The profile's colour — a preset or an exact seed alike — is its `Screen`'s
+  // claim, which themes the whole shell (sidebar, frame, bottom bar) on a split
+  // layout and only this column in the Deck.
   const color = resolveProfileColor(props.accentColor ?? props.profileData?.design.color);
-  // A preset is the profile's `Screen` claim, which themes the whole shell (the
-  // sidebar, the frame, the bottom bar) on a split layout and only this column
-  // in the Deck. An exact seed has no claim, so it scopes the content alone.
   return (
     <HeaderDockProvider>
-      <BloomColorScope seed={color?.seed} asChild>
-        <ProfileShellBody {...props} colorPreset={color?.colorPreset} />
-      </BloomColorScope>
+      <ProfileShellBody {...props} color={color} />
     </HeaderDockProvider>
   );
 }
@@ -121,8 +118,8 @@ function ProfileShellBody({
   routeHeader,
   skeletonVariant = 'person',
   isRootTab = false,
-  colorPreset,
-}: ProfileShellProps & Pick<ViewProps, 'style'> & Pick<ScreenProps, 'colorPreset'>) {
+  color,
+}: ProfileShellProps & Pick<ViewProps, 'style'> & { color?: ProfileColor }) {
   const surfaceFill = useSurfaceFill();
   const [summaryHeight, setSummaryHeight] = useState<number>();
 
@@ -193,7 +190,8 @@ function ProfileShellBody({
   return (
     <Screen
       scroll={IS_WEB || active ? 'auto' : 'content'}
-      colorPreset={colorPreset}
+      colorPreset={color?.colorPreset}
+      seed={color?.seed}
       headerPlacement={active && banner ? 'overlay' : 'inset'}
       header={
         drawing ? (

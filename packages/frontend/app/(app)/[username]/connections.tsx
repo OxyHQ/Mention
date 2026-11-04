@@ -1,4 +1,4 @@
-import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { ConnectionsHeader } from '@/components/Profile/ConnectionsHeader';
 import {
@@ -27,8 +27,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
-import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { resolveProfileColor, type ProfileColor } from '@oxy.so/bloom/color-presets';
 import { logger } from '@oxy.so/core/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData as RecommendedProfile } from '@/lib/recommendations';
@@ -142,29 +141,24 @@ function AuthorizedConnectionsScreen() {
     refresh: refreshProfile,
   } = useProfileData(cleanUsername);
 
+  // As in ProfileShell: the profile's colour (preset or seed) is the Screen's claim.
   const color = resolveProfileColor(profileData?.design.color);
-
-  // Same split as ProfileShell: a preset is the Screen's claim, which themes the
-  // whole shell (sidebar, frame, bottom bar) on a split layout and only this
-  // column in the Deck; an exact seed has no claim, so it scopes the content.
   return (
-    <BloomColorScope seed={color?.seed} asChild>
-      <ConnectionsContent
-        colorPreset={color?.colorPreset}
-        username={cleanUsername}
-        profileData={profileData}
-        profileLoading={profileLoading}
-        profileError={profileError}
-        profileNotFound={profileNotFound}
-        refreshProfile={refreshProfile}
-      />
-    </BloomColorScope>
+    <ConnectionsContent
+      color={color}
+      username={cleanUsername}
+      profileData={profileData}
+      profileLoading={profileLoading}
+      profileError={profileError}
+      profileNotFound={profileNotFound}
+      refreshProfile={refreshProfile}
+    />
   );
 }
 
 interface ConnectionsContentProps {
-  /** The profile's color preset: the Screen's claim (see ProfileShell). */
-  colorPreset?: ScreenProps['colorPreset'];
+  /** The profile's colour, preset or seed: the Screen's claim (see ProfileShell). */
+  color?: ProfileColor;
   username: string;
   profileData: ProfileData | null;
   profileLoading: boolean;
@@ -176,7 +170,7 @@ interface ConnectionsContentProps {
 }
 
 function ConnectionsContent({
-  colorPreset,
+  color,
   username,
   profileData,
   profileLoading,
@@ -546,7 +540,8 @@ function ConnectionsContent({
   ) : (
     <Screen
       scroll="content"
-      colorPreset={colorPreset}
+      colorPreset={color?.colorPreset}
+      seed={color?.seed}
       header={<ConnectionsHeader username={username} profileData={profileData} />}
     >
       {list}
