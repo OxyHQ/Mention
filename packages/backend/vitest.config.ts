@@ -188,11 +188,16 @@ export default defineConfig({
             // would itself be fiction. What replaced the lost branches is assertions
             // on stored rows — which is why statements, functions and lines all went
             // UP while branches went down.
+            //
+            // PostEngagementCommandService's statement and line floors moved DOWN a
+            // few hundredths when saves stopped enqueueing an outbox event: the
+            // removed lines were covered ones, so the same uncovered defensive
+            // branches are a slightly larger share of a smaller file.
             'src/services/PostEngagementCommandService.ts': {
-              statements: 96.59,
+              statements: 96.51,
               branches: 86.9,
               functions: 100,
-              lines: 98.78,
+              lines: 98.75,
             },
             'src/services/EngagementOutboxService.ts': {
               statements: 91.66,
