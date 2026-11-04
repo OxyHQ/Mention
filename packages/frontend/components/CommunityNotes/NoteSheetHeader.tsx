@@ -8,7 +8,7 @@ interface NoteSheetHeaderProps {
   onClose: () => void;
 }
 
-/** The close-and-title row every community-note sheet opens with (same shape as `PostSourcesSheet`). */
+/** The close-and-title row every community-note sheet opens with. */
 export function NoteSheetHeader({ title, onClose }: NoteSheetHeaderProps) {
   const { t } = useTranslation();
   return (

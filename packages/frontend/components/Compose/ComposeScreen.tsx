@@ -121,12 +121,7 @@ import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
 import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
-// Deep imports, NOT the `@/components/Compose` barrel. The barrel re-exports
-// seven sheets (`AltTextSheet`, `UnpublishedSheet`, `EmojiPickerSheet`,
-// `GifPickerSheet`, `PodcastPickerSheet`, `ScheduleSheet`,
-// `SourcesSheet`), and naming it pulls the whole module in — so seven of the ten
-// `lazy()` declarations below were loading eagerly anyway, from this very import.
-// None of the components on this list is a sheet.
+// Static on purpose: none of these is a sheet (the sheets below are lazy).
 import { PollCreator } from '@/components/Compose/PollCreator';
 import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import { ArticleEditor } from '@/components/Compose/ArticleEditor';

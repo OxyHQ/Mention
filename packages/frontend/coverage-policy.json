@@ -219,6 +219,12 @@
   "allowedBaselineDecreases": [
     {
       "path": "total",
+      "metric": "lines",
+      "date": "2026-11-04",
+      "reason": "The post menu's reply-settings submenu dropped its covered local copy of the post's settings and its two revert handlers for one shared savePostSettings write; deleting covered lines lowers the overall line ratio by 0.01 points."
+    },
+    {
+      "path": "total",
       "metric": "statements",
       "date": "2026-10-24",
       "reason": "Which video plays now moved to Bloom's @oxy.so/bloom/video-playback (15.48.0, tested there): Mention's fully covered VideoPlaybackContext, stores/video-playback-control.ts and hooks/useReferenceVisibility.ts and their tests were deleted, which lowers the overall ratio by under half a point."
