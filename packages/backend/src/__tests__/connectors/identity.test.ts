@@ -18,11 +18,7 @@ vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-import {
-  deleteFederatedActorIdentity,
-  reportFederatedActorGone,
-  resolveOxyExternalUser,
-} from '../../connectors/identity';
+import { reportFederatedActorGone, resolveOxyExternalUser } from '../../connectors/identity';
 import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
@@ -163,68 +159,5 @@ describe('reportFederatedActorGone', () => {
   it('never throws — a permanent rejection resolves to a discriminant instead', async () => {
     mocks.serviceRequest.mockRejectedValue(httpError(409));
     await expect(reportFederatedActorGone('6981c9178fcdefaf81988ffb')).resolves.toBe('skipped');
-  });
-});
-
-describe('deleteFederatedActorIdentity', () => {
-  it('posts to /federation/actor-delete and returns "deleted" when Oxy removed a live identity', async () => {
-    mocks.serviceRequest.mockResolvedValue({
-      oxyUserId: '6981c9178fcdefaf81988ffb',
-      deleted: true,
-      followEdgesRemoved: 3,
-    });
-
-    const outcome = await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb');
-
-    expect(outcome).toBe('deleted');
-    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/actor-delete', {
-      oxyUserId: '6981c9178fcdefaf81988ffb',
-    });
-  });
-
-  it('returns "absent" on the idempotent no-op (200 with deleted:false — Oxy side already clean)', async () => {
-    mocks.serviceRequest.mockResolvedValue({
-      oxyUserId: '6981c9178fcdefaf81988ffb',
-      deleted: false,
-      followEdgesRemoved: 0,
-    });
-
-    expect(await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).toBe('absent');
-  });
-
-  it('returns "skipped" without any network call for an empty id', async () => {
-    expect(await deleteFederatedActorIdentity('   ')).toBe('skipped');
-    expect(mocks.serviceRequest).not.toHaveBeenCalled();
-  });
-
-  it.each([400, 403, 409])(
-    'log-and-swallows the permanent %i to "skipped" (non-retryable — keep the anchor)',
-    async (status) => {
-      mocks.serviceRequest.mockRejectedValue(httpError(status));
-      expect(await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).toBe('skipped');
-    },
-  );
-
-  it.each([500, 502, 503])(
-    'surfaces the transient %i as "failed" (retryable — keep the anchor)',
-    async (status) => {
-      mocks.serviceRequest.mockRejectedValue(httpError(status));
-      expect(await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).toBe('failed');
-    },
-  );
-
-  it.each([408, 429])('treats the retryable 4xx %i as "failed", not permanent', async (status) => {
-    mocks.serviceRequest.mockRejectedValue(httpError(status));
-    expect(await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).toBe('failed');
-  });
-
-  it('treats a statusless network error as transient "failed"', async () => {
-    mocks.serviceRequest.mockRejectedValue(new Error('socket hang up'));
-    expect(await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).toBe('failed');
-  });
-
-  it('never throws — a permanent rejection resolves to a discriminant instead', async () => {
-    mocks.serviceRequest.mockRejectedValue(httpError(409));
-    await expect(deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).resolves.toBe('skipped');
   });
 });

@@ -18,7 +18,6 @@ import {
   apOrderedCollectionPageSchema,
   parseInboundActivity,
   parseNote,
-  parseActor,
   parseOrderedCollection,
   parseOrderedCollectionPage,
 } from '../../../connectors/activitypub/apSchemas';
@@ -268,9 +267,9 @@ describe('apActorSchema', () => {
       published: '2018-08-25T00:00:00Z',
       attachment: [{ type: 'PropertyValue', name: 'Website', value: '<a href="https://x">x</a>' }],
     };
-    const r = parseActor(actor);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
+    const r = apActorSchema.safeParse(actor);
+    expect(r.success).toBe(true);
+    if (!r.success) return;
     expect(r.data.id).toBe(actor.id);
     expect(r.data.inbox).toBe(actor.inbox);
     expect((r.data.published as Date).toISOString()).toBe('2018-08-25T00:00:00.000Z');
@@ -284,27 +283,27 @@ describe('apActorSchema', () => {
       inbox: 'https://lemmy.example/c/news/inbox',
       icon: 'https://lemmy.example/pictrs/image/icon.png',
     };
-    const r = parseActor(actor);
-    expect(r.ok).toBe(true);
+    const r = apActorSchema.safeParse(actor);
+    expect(r.success).toBe(true);
   });
 
   it('parses a Service actor', () => {
-    const r = parseActor({
+    const r = apActorSchema.safeParse({
       id: 'https://relay.example/actor',
       type: 'Service',
       inbox: 'https://relay.example/inbox',
     });
-    expect(r.ok).toBe(true);
+    expect(r.success).toBe(true);
   });
 
   it('fails when inbox is missing', () => {
-    const r = parseActor({ id: 'https://x/actor', type: 'Person' });
-    expect(r.ok).toBe(false);
+    const r = apActorSchema.safeParse({ id: 'https://x/actor', type: 'Person' });
+    expect(r.success).toBe(false);
   });
 
   it('fails when id is missing', () => {
-    const r = parseActor({ type: 'Person', inbox: 'https://x/inbox' });
-    expect(r.ok).toBe(false);
+    const r = apActorSchema.safeParse({ type: 'Person', inbox: 'https://x/inbox' });
+    expect(r.success).toBe(false);
   });
 });
 

@@ -31,8 +31,7 @@
  *     It is the user's own words and deleting it would destroy their content to
  *     punish someone else's. `PostHydrationService` already tolerates a missing
  *     parent (it soft-fails the parent lookup): the reply still renders, still
- *     marks itself a reply, and simply loses the "Replying to @…" handle. Same
- *     treatment `purgeGoneFederatedActors` gives replies to a 410'd actor.
+ *     marks itself a reply, and simply loses the "Replying to @…" handle.
  *   - A local QUOTE of a removed post is KEPT, `quoteOf` left dangling. The
  *     user's own text renders normally; `attachNestedContext` resolves
  *     `quotedPost` to null, so the quote CARD disappears and the removed content
@@ -70,11 +69,11 @@
  *     this script the only writer of a counter nothing else maintains would put
  *     it in a state no other code path can produce. Reported, not silently fixed.
  *
- * THE OXY IDENTITY IS RETAINED — this is NOT the gone-actor purge
- *   `purgeGoneFederatedActors` deletes the Oxy `User` behind a federated actor,
- *   but only after RE-VERIFYING a 410 from the remote server. We cannot make that
- *   claim here and must not imply it: a blocked instance is alive, we have simply
- *   stopped accepting it. Blocking is our policy about their content, not an
+ * THE OXY IDENTITY IS RETAINED
+ *   Deleting the Oxy `User` behind a federated actor would claim the account is
+ *   gone, which only a re-verified 410 from its server could support. We cannot
+ *   make that claim here and must not imply it: a blocked instance is alive, we
+ *   have simply stopped accepting it. Blocking is our policy about their content, not an
  *   assertion that their identity ceased to exist. Retaining the identity also
  *   keeps the `Report` and `ContentLabel` rows local users filed ABOUT these
  *   actors — evidence about exactly the domains being blocked — which deleting
@@ -1340,8 +1339,7 @@ async function purgeActorPosts(
   issues: RunIssues,
 ): Promise<void> {
   /**
-   * BOTH the denormalized owner and the authorship join — as
-   * `purgeGoneFederatedActors` also does.
+   * BOTH the denormalized owner and the authorship join.
    *
    * Narrowing this to `authoredBy` alone is the mistake to avoid, and it is an
    * easy one: that helper is the ONE spelling of the authorship predicate and the

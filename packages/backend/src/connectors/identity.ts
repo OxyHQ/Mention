@@ -64,14 +64,6 @@ export async function resolveOxyExternalUser(
 export const reportFederatedActorGone = identityBridge.reportActorGone;
 
 /**
- * The irreversible counterpart of {@link reportFederatedActorGone}: ask oxy-api to
- * HARD-DELETE the Oxy identity (User + follow edges/blocks) a permanently-gone
- * actor maps to. Only the `purgeGoneFederatedActors` one-shot calls it, after
- * re-confirming the remote actor still returns 410 Gone. Never throws.
- */
-export const deleteFederatedActorIdentity = identityBridge.deleteActorIdentity;
-
-/**
  * Best-effort outcome of {@link mirrorFederatedBanner}. `permanent` distinguishes a
  * transient failure (bad service credential, upstream 5xx, upload rejection — worth
  * retrying) from a permanently-unavailable banner (dead/oversized/non-image — never

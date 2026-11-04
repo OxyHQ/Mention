@@ -13,14 +13,18 @@
  */
 
 import { isAtUri, isAtprotoHandle, isDid } from './atproto/constants';
-import { OWN_DOMAINS } from './activitypub/ownDomain';
+import { isOwnDomain } from './activitypub/ownDomain';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 const OXY_CONNECTION_FOLLOW_PATH = '/auth/mcp/oauth/connections/follow';
 
-/** A local username: no dots, because a dotted bare name is an atproto handle. */
-const LOCAL_USERNAME_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_-]{0,62}$/;
+/**
+ * The shape of a local username (or an Oxy account id): no dots, because a
+ * dotted bare name is an atproto handle. The one definition — `/resolve`'s
+ * query admission asks it too.
+ */
+export const LOCAL_USERNAME_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_-]{0,62}$/;
 
 /**
  * `username` is certainly a username (it came as `@name` or `name@our-domain`).
@@ -51,8 +55,7 @@ export function parseLocalFollowRef(raw: string): LocalFollowRef | null {
   const at = bare.lastIndexOf('@');
   if (at !== -1) {
     const username = bare.slice(0, at);
-    const host = bare.slice(at + 1).toLowerCase();
-    if (!OWN_DOMAINS.some((domain) => domain.toLowerCase() === host)) return null;
+    if (!isOwnDomain(bare.slice(at + 1))) return null;
     return LOCAL_USERNAME_RE.test(username) ? { kind: 'username', username } : null;
   }
   if (isAtprotoHandle(bare) || !LOCAL_USERNAME_RE.test(bare)) return null;

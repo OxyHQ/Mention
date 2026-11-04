@@ -39,10 +39,6 @@ export const FEDERATION_BLOCKS = resolveFederationBlocks(
 const FEDERATION_BLOCKED_DOMAINS = new Set(FEDERATION_BLOCKS.map((block) => block.domain));
 
 export const AP_CONTENT_TYPE = 'application/activity+json';
-export const AP_ACCEPT_TYPES = [
-  'application/activity+json',
-  'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-];
 
 /**
  * Returns true when an Accept header asks for ActivityPub JSON.

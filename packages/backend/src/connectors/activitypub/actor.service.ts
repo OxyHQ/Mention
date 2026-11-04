@@ -223,12 +223,6 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
 };
 
 /**
- * The remote-actor resolver instance. Every consumer keeps using
- * `actorService.resolveWebFinger / fetchRemoteActor / getOrFetchActor /
- * tombstoneGoneActor / refreshActorInBackground / fetchPublicKey /
- * resolveActorOxyUserId` unchanged.
- */
-/**
  * The resolver's configuration.
  *
  * Deliberately supplies neither `deriveNetworkIdentity` nor `qualifyHandles`:

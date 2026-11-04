@@ -76,6 +76,7 @@ import {
   extractInReplyToUri,
   parseApPublished,
   resolvePostIdFromObjectUri,
+  sameOrigin,
 } from './helpers';
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 import { buildAuthorship } from '../../utils/postAuthorship';
@@ -290,31 +291,6 @@ export type OutboxSyncActor = Pick<
   username?: string;
 };
 
-/**
- * Outbox backfill: fetch a remote actor's outbox, extract Note/Announce
- * candidates, dedup, import new notes (raw insertMany) and boosts, and advance
- * an opaque pagination cursor.
- *
- * Extracted verbatim from the former monolithic FederationService — same behavior,
- * same signatures. Depends on ActorService (actor resolution), the shared
- * low-level helpers, and the registered PostCreator. Registers itself as the
- * BoostImporter so InboxProcessingService can reuse `importAnnounce` without a
- * load-order cycle.
- */
-/**
- * The classification subdoc seeded onto a raw-inserted federated post. Mirrors
- * the schema's `pending` default plus the Stage-A deterministic fields. `status`
- * stays `pending` so the async AI batch still enriches the post.
- */
-function isSameOriginHttpUrl(value: string, sourceUrl: string): boolean {
-  if (!isAbsoluteHttpUrl(value) || !isAbsoluteHttpUrl(sourceUrl)) return false;
-  try {
-    return new URL(value).origin === new URL(sourceUrl).origin;
-  } catch {
-    return false;
-  }
-}
-
 function normalizeActorUriForCompare(uri: string | null | undefined): string | null {
   if (!uri || !isAbsoluteHttpUrl(uri)) return null;
   try {
@@ -335,20 +311,16 @@ function actorUrisMatch(actual: string | null | undefined, expected: string): bo
 }
 
 function activityIdBelongsToActor(activityId: string, actorUri: string): boolean {
-  if (!isAbsoluteHttpUrl(activityId)) return false;
-
-  try {
-    const activityUrl = new URL(activityId);
-    const actorUrl = new URL(actorUri);
-    if (activityUrl.origin !== actorUrl.origin) return false;
-  } catch {
-    return false;
-  }
-
+  if (!sameOrigin(activityId, actorUri)) return false;
   const derivedActorUri = extractActorUriFromActivityId(activityId);
   return !derivedActorUri || actorUrisMatch(derivedActorUri, actorUri);
 }
 
+/**
+ * The classification subdoc seeded onto a raw-inserted federated post. Mirrors
+ * the schema's `pending` default plus the Stage-A deterministic fields. `status`
+ * stays `pending` so the async AI batch still enriches the post.
+ */
 interface RawPostClassificationSeed {
   status: typeof POST_CLASSIFICATION_PENDING;
   attempts: number;
@@ -364,6 +336,12 @@ interface RawPostClassificationSeed {
   classifiedAt: Date;
 }
 
+/**
+ * Outbox backfill: fetch a remote actor's outbox, extract Note/Announce
+ * candidates, dedup, import new notes (raw batch insert) and boosts, and advance
+ * an opaque pagination cursor. Also the dependency importer (boosted originals,
+ * reply ancestors, quoted notes) every ingest path shares.
+ */
 export class OutboxSyncService {
   /**
    * Build the Stage-A classification subdoc for a raw-inserted federated note.
@@ -460,7 +438,7 @@ export class OutboxSyncService {
     actor: Pick<FederatedActorRecord, 'uri' | 'featuredUrl' | 'oxyUserId'>,
   ): Promise<void> {
     const { featuredUrl, oxyUserId } = actor;
-    if (!featuredUrl || !oxyUserId || !isSameOriginHttpUrl(featuredUrl, actor.uri)) return;
+    if (!featuredUrl || !oxyUserId || !sameOrigin(featuredUrl, actor.uri)) return;
     try {
       if (isBlockedDomain(new URL(actor.uri).hostname.toLowerCase())) return;
       const items = await this.featuredItems(featuredUrl);
@@ -485,7 +463,7 @@ export class OutboxSyncService {
     if (items.length > 0 || collection.totalItems === 0) return items;
     const first = collection.first;
     if (typeof first === 'string') {
-      if (!isSameOriginHttpUrl(first, url)) return null;
+      if (!sameOrigin(first, url)) return null;
       const page = await signedFetch(first, AP_CONTENT_TYPE);
       const pageRecord = page.ok ? asRecord(await page.json()) : null;
       return pageRecord ? activityPubItems(pageRecord) : null;
@@ -720,7 +698,7 @@ export class OutboxSyncService {
         }
 
         const nextPageUrl = activityPubLinkUrl(pageData.next);
-        if (nextPageUrl && isSameOriginHttpUrl(nextPageUrl, pageUrl)) {
+        if (nextPageUrl && sameOrigin(nextPageUrl, pageUrl)) {
           nextCursor = { url: nextPageUrl, itemOffset: 0 };
         } else {
           nextCursor = undefined;
@@ -732,7 +710,7 @@ export class OutboxSyncService {
         pageUrl: string,
         startItemOffset: number,
       ): Promise<void> => {
-        if (!isSameOriginHttpUrl(pageUrl, outboxUrl)) {
+        if (!sameOrigin(pageUrl, outboxUrl)) {
           logger.info('[FedSync] rejected cross-origin outbox page');
           paginationFailed = true;
           nextCursor = undefined;
@@ -793,7 +771,7 @@ export class OutboxSyncService {
 
       const firstPageObject = asRecord(collection.first);
       const inlineItems = activityPubItems(collection);
-      if (options.startPageUrl && isSameOriginHttpUrl(options.startPageUrl, outboxUrl)) {
+      if (options.startPageUrl && sameOrigin(options.startPageUrl, outboxUrl)) {
         nextCursor = {
           url: options.startPageUrl,
           itemOffset: Math.max(0, options.startItemOffset),
@@ -805,7 +783,7 @@ export class OutboxSyncService {
       } else {
         const firstPageUrl =
           activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
-        if (firstPageUrl && isSameOriginHttpUrl(firstPageUrl, outboxUrl)) {
+        if (firstPageUrl && sameOrigin(firstPageUrl, outboxUrl)) {
           nextCursor = { url: firstPageUrl, itemOffset: 0 };
         }
       }
@@ -1691,7 +1669,7 @@ export class OutboxSyncService {
     const inlineActivity = asRecord(item);
     if (inlineActivity) return inlineActivity;
 
-    if (typeof item !== 'string' || !isSameOriginHttpUrl(item, sourcePageUrl)) return null;
+    if (typeof item !== 'string' || !sameOrigin(item, sourcePageUrl)) return null;
     return fetchActivityPubObject(item);
   }
 
@@ -1705,10 +1683,7 @@ export class OutboxSyncService {
     const inlineObject = asRecord(activity.object);
     if (inlineObject) return inlineObject;
 
-    if (
-      typeof activity.object === 'string' &&
-      isSameOriginHttpUrl(activity.object, sourcePageUrl)
-    ) {
+    if (typeof activity.object === 'string' && sameOrigin(activity.object, sourcePageUrl)) {
       return fetchActivityPubObject(activity.object);
     }
 

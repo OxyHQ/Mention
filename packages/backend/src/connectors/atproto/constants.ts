@@ -59,12 +59,6 @@ export const FEED_GENERATOR_COLLECTION = 'app.bsky.feed.generator';
  */
 export const DID_PLC_RE = /^did:plc:[a-z2-7]{24}$/;
 
-/**
- * A `did:web:` identifier: the prefix followed by a percent-encoded host
- * (optionally `:`-separated path segments, with `%3A` encoding a port).
- */
-export const DID_WEB_RE = /^did:web:[a-zA-Z0-9._%-]+(?::[a-zA-Z0-9._%-]+)*$/;
-
 /** Any supported atproto DID method (`did:plc:` or `did:web:`). */
 export const ANY_DID_RE = /^did:(?:plc|web):/;
 

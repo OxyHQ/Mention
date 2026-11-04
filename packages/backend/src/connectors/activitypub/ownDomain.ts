@@ -1,4 +1,5 @@
 import { registrableApex } from '@oxy.so/core/server';
+import { isSameFederationHost } from '@oxy.so/federation';
 import { config } from '../../config';
 
 /**
@@ -77,3 +78,22 @@ export const OWN_DOMAINS: readonly string[] = [
   config.federation.actorDomain,
   OXY_IDENTITY_APEX,
 ];
+
+/**
+ * Whether a host is one of {@link OWN_DOMAINS}, compared the way the federation
+ * engine's domain policy compares hosts ({@link isSameFederationHost}: case and
+ * one leading `www.` ignored). The one spelling of "is this host ours" — an acct
+ * domain, a mention's domain and an actor URI's host all ask it.
+ */
+export function isOwnDomain(host: string): boolean {
+  return OWN_DOMAINS.some((own) => isSameFederationHost(own, host));
+}
+
+/** Whether an actor URI is on one of our own hosts — one of our users. */
+export function isOwnActorUri(uri: string): boolean {
+  try {
+    return isOwnDomain(new URL(uri).hostname);
+  } catch {
+    return false;
+  }
+}

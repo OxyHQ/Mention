@@ -12,7 +12,7 @@ const ts = createRequire(path.join(__dirname, 'adminScriptSafety.test.ts'))(
   'typescript',
 ) as typeof TypeScript;
 const SCRIPTS_DIRECTORY = path.resolve(__dirname, '../scripts');
-const SCRIPT_NAME = 'purgeGoneFederatedActors';
+const SCRIPT_NAME = 'purgeBlockedDomainContent';
 const READ_ONLY_SCRIPTS = new Set([
   // Counts rows and exits. Its entire database surface is a bounded
   // `select count(*)` per table — no insert, update or delete — and it runs
