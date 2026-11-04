@@ -77,18 +77,17 @@ export function postLinkCards(
     const shown = cards.get(key);
     if (shown) {
       if (sourceUrl) shown.sourceUrls.push(sourceUrl);
-      return;
+    } else {
+      cards.set(key, {
+        url,
+        sourceUrls: sourceUrl ? [sourceUrl] : [],
+        ...(document ? { document } : {}),
+      });
     }
-    if (cards.size >= MAX_POST_DOCUMENTS) return;
-    cards.set(key, {
-      url,
-      sourceUrls: sourceUrl ? [sourceUrl] : [],
-      ...(document ? { document } : {}),
-    });
   };
   for (const sourceUrl of sourceUrls) add(sourceUrl, sourceUrl);
   for (const document of resolved) add(document.canonicalUrl, undefined);
-  return [...cards.values()];
+  return [...cards.values()].slice(0, MAX_POST_DOCUMENTS);
 }
 
 /**
