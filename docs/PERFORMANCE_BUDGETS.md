@@ -76,13 +76,27 @@ the first Ask Alia, and the `deferredSources` gate asserts the SDK's `AliaChatSh
 initial chunk. What reaches the initial chunk is the provider and the modules the sheet shares
 with the SDK's own lazily loaded voice call, which `extractCommonChunk` hoists into `__common`.
 
-`@peable.to/sdk` 1.0.0 (#1798, 2026-11-04) moves the total-bytes ceiling 21,423,495 →
-21,489,031 bytes (+64 KiB); every other ceiling is unchanged. The merge-queue export measured
-+58.46 KiB JavaScript (+12.28 KiB gzip) against main, all of it deferred: initial JavaScript is
-unchanged (+10 B gzip). The SDK's browser graph newly imports `@peable.to/contracts/vocabulary`
-(66 KB of unminified ESM, absent from 0.20.0's graph) through its error classes (`ERROR_CODES`,
-`errorDocUrl`) and `PEABLE_API_VERSION`, into the lazily loaded Plus checkout; trimming that is
-Peable's to do, in the SDK.
+`@peable.to/sdk` 1.0.0 (#1798, 2026-11-04) moved the total-bytes ceiling 21,423,495 →
+21,489,031 bytes (+64 KiB, measured +58.46 KiB JavaScript, all deferred): its error classes
+imported the whole `@peable.to/contracts/vocabulary` barrel into the lazily loaded Plus checkout.
+Peable fixed that in the SDK (OxyHQ/Peable#217, in 1.0.2 and 2.0): each browser entry now
+imports only the vocabulary modules it reads, and Peable's
+[browser-entries gate](https://github.com/OxyHQ/Peable/blob/main/scripts/browser-entries.test.ts)
+fails a build that reaches any other module, or any Node-only one. With services 14.3.6, which
+pins the same SDK and so needs no override, the ceiling comes down by the measured saving to
+21,441,096 bytes; every other ceiling is unchanged. Measured on one `expo export --platform web`
+each of main `c6fcec8c0` with SDK 1.0.0 and with 1.0.2:
+
+| Signal                        | SDK 1.0.0  | SDK 1.0.2  | Change  |
+| ----------------------------- | ---------- | ---------- | ------- |
+| Total bytes                   | 21,423,313 | 21,375,378 | -47,935 |
+| JavaScript bytes              | 16,012,205 | 15,964,270 | -47,935 |
+| JavaScript gzip bytes         | 4,577,159  | 4,568,457  | -8,702  |
+| Initial JavaScript bytes      | 5,980,844  | 5,980,844  | 0       |
+| Initial JavaScript gzip bytes | 1,701,099  | 1,701,144  | +45     |
+
+`@peable.to/contracts` went from 25.25 KiB to 4.41 KiB of the bundle. The rest of 1.0.0's growth
+(about 11.6 KiB) is SDK code the checkout uses, and stays within the ceiling.
 
 The canonical Experience feature (#1408, 2026-10-16) moves no ceiling. Measured
 on one `expo export --platform web` each of main `fa91c8947` and the merged

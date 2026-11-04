@@ -9,6 +9,13 @@ and typecheck gates before merging.
 current and that the lockfile has no duplicate Oxy versions; CI never rewrites
 the manifest, installs `latest`, or updates dependencies at application startup.
 
+`@oxy.so/services` depends on `@peable.to/sdk` at an exact version (it imports
+`@peable.to/sdk/display`), so the catalog's `@peable.to/sdk` moves only with a
+services release that pins the same version, and both are bumped together.
+There is no root override for it: one would either force services outside the
+version it declares, which `validate-lockfile` refuses, or the app would ship a
+second SDK copy.
+
 ## Expo-managed versions
 
 Native modules the Expo SDK pins (its bundled native-module list) move with
