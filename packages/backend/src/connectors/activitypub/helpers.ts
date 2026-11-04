@@ -3,6 +3,7 @@ import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
+import { apIri, apList, isActivityPubMediaType } from '@oxy.so/federation';
 import { createSignedFetch, type SignedFetch } from '@oxy.so/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
 import { AP_CONTENT_TYPE, USER_AGENT, extractLocalPostIdFromApUri } from './constants';
@@ -61,29 +62,10 @@ export function activityPubItems(value: Record<string, unknown>): unknown[] {
   return [];
 }
 
+/** The absolute http(s) IRI a reference names (string, `{id}` or `{href}`), or null. */
 export function activityPubLinkUrl(value: unknown): string | null {
-  if (typeof value === 'string' && isAbsoluteHttpUrl(value)) return value;
-  const record = asRecord(value);
-  if (!record) return null;
-  if (typeof record.id === 'string' && isAbsoluteHttpUrl(record.id)) return record.id;
-  if (typeof record.href === 'string' && isAbsoluteHttpUrl(record.href)) return record.href;
-  return null;
-}
-
-export function firstStringUrl(value: unknown): string | undefined {
-  if (typeof value === 'string' && isAbsoluteHttpUrl(value)) return value;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const resolved = firstStringUrl(item);
-      if (resolved) return resolved;
-    }
-    return undefined;
-  }
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return firstStringUrl(record.url) || firstStringUrl(record.href);
-  }
-  return undefined;
+  const iri = apIri(value);
+  return iri && isAbsoluteHttpUrl(iri) ? iri : null;
 }
 
 /**
@@ -511,24 +493,25 @@ export async function runWithTimeout<T>(work: Promise<T>, timeoutMs: number): Pr
  * which may be a plain URI string or an embedded object with an `id`.
  */
 export function extractAnnouncedObjectUri(object: unknown): string | undefined {
-  if (typeof object === 'string') return isAbsoluteHttpUrl(object) ? object : undefined;
-  if (object && typeof object === 'object' && 'id' in object) {
-    const id = (object as { id?: unknown }).id;
-    return typeof id === 'string' && isAbsoluteHttpUrl(id) ? id : undefined;
-  }
-  return undefined;
+  return activityPubLinkUrl(object) ?? undefined;
 }
 
 /**
- * Extract the actor URI from an AP attributedTo value,
- * which may be a plain URI string or an object with an id property.
+ * The actor URI an AP `attributedTo` (or `actor`) value names: an IRI, an
+ * embedded actor, or a list of them. PeerTube attributes a video to its author
+ * AND its channel (`[Person, Group]`), so in a list the first entry that is not
+ * a `Group` is the author; a list of only `Group`s yields the first.
  */
 export function extractActorUri(attributedTo: unknown): string | undefined {
-  if (typeof attributedTo === 'string') return attributedTo;
-  if (attributedTo && typeof attributedTo === 'object' && 'id' in attributedTo) {
-    return (attributedTo as { id?: string }).id;
+  let firstGroup: string | undefined;
+  for (const entry of apList(attributedTo)) {
+    const uri = apIri(entry);
+    if (!uri) continue;
+    const type = asRecord(entry)?.type;
+    if (!(type === 'Group' || (Array.isArray(type) && type.includes('Group')))) return uri;
+    firstGroup ??= uri;
   }
-  return undefined;
+  return firstGroup;
 }
 
 /**
@@ -542,16 +525,7 @@ export function extractActorUri(attributedTo: unknown): string | undefined {
  * directly by {@link resolvePostIdFromObjectUri} for thread linking.
  */
 export function extractInReplyToUri(inReplyTo: unknown): string | undefined {
-  if (typeof inReplyTo === 'string') {
-    const trimmed = inReplyTo.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
-  if (inReplyTo && typeof inReplyTo === 'object') {
-    const record = inReplyTo as { id?: unknown; href?: unknown };
-    if (typeof record.id === 'string' && record.id.trim().length > 0) return record.id.trim();
-    if (typeof record.href === 'string' && record.href.trim().length > 0) return record.href.trim();
-  }
-  return undefined;
+  return apIri(inReplyTo)?.trim() || undefined;
 }
 
 /**
@@ -578,34 +552,28 @@ export function extractApQuoteUri(object: Record<string, unknown>): string | und
     if (uri) return uri;
   }
 
-  const tags = object.tag;
-  if (Array.isArray(tags)) {
-    for (const entry of tags) {
-      if (!entry || typeof entry !== 'object') continue;
-      const record = entry as {
-        type?: unknown;
-        rel?: unknown;
-        mediaType?: unknown;
-        href?: unknown;
-      };
-      const isLink =
-        record.type === 'Link' || (Array.isArray(record.type) && record.type.includes('Link'));
-      if (!isLink) continue;
+  for (const entry of apList(object.tag)) {
+    if (typeof entry !== 'object') continue;
+    const record = entry as {
+      type?: unknown;
+      rel?: unknown;
+      mediaType?: unknown;
+      href?: unknown;
+    };
+    const isLink =
+      record.type === 'Link' || (Array.isArray(record.type) && record.type.includes('Link'));
+    if (!isLink) continue;
 
-      const rel = Array.isArray(record.rel)
-        ? record.rel.join(' ')
-        : typeof record.rel === 'string'
-          ? record.rel
-          : '';
-      const isQuoteRel = rel.includes('_misskey_quote');
-      const isApLink =
-        typeof record.mediaType === 'string' &&
-        record.mediaType.toLowerCase().includes('activity+json');
-      if (!isQuoteRel && !isApLink) continue;
+    const rel = Array.isArray(record.rel)
+      ? record.rel.join(' ')
+      : typeof record.rel === 'string'
+        ? record.rel
+        : '';
+    const isQuoteRel = rel.includes('_misskey_quote');
+    if (!isQuoteRel && !isActivityPubMediaType(record.mediaType)) continue;
 
-      const href = typeof record.href === 'string' ? record.href.trim() : '';
-      if (href && isAbsoluteHttpUrl(href)) return href;
-    }
+    const href = typeof record.href === 'string' ? record.href.trim() : '';
+    if (href && isAbsoluteHttpUrl(href)) return href;
   }
 
   return undefined;
@@ -848,10 +816,9 @@ export function extractApMedia(note: Record<string, unknown>): {
  */
 export function extractApHashtags(note: Record<string, unknown>): string[] {
   const hashtags: string[] = [];
-  if (!Array.isArray(note.tag)) return hashtags;
-
-  for (const tag of note.tag) {
-    if (tag?.type === 'Hashtag' && tag.name) {
+  for (const entry of apList(note.tag)) {
+    const tag = asRecord(entry);
+    if (tag?.type === 'Hashtag' && typeof tag.name === 'string' && tag.name) {
       const normalized = normalizeHashtag(tag.name);
       if (normalized.length > 0) {
         hashtags.push(normalized);

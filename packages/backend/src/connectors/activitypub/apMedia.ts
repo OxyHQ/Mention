@@ -1,3 +1,4 @@
+import { apList, apMediaTypeBase } from '@oxy.so/federation';
 import type { MediaItem } from '@mention/shared-types';
 import { mergeMediaItem, patchFromApAttachment } from '../../services/MediaMetadataService';
 
@@ -41,7 +42,7 @@ export interface ApAttachment {
 /** Resolved media classification. */
 export type ApMediaType = 'image' | 'video';
 
-/** A candidate URL resolved to a concrete string href + its (possibly empty) MIME. */
+/** A candidate URL resolved to a concrete string href + its (possibly empty) base MIME. */
 interface ResolvedUrl {
   href: string;
   mimeType: string;
@@ -84,20 +85,15 @@ function toResolvedUrl(
   if (member && typeof member === 'object') {
     const href = typeof member.href === 'string' ? member.href.trim() : '';
     if (!href) return null;
-    const mimeType = (member.mediaType || attachmentMimeType || '').toLowerCase();
+    const mimeType = apMediaTypeBase(member.mediaType) || attachmentMimeType;
     return { href, mimeType };
   }
   return null;
 }
 
-/** Normalize a possibly-empty MIME string for comparison. */
-function normalizeMime(mimeType: string): string {
-  return mimeType.trim().toLowerCase();
-}
-
 /** Classify a resolved URL as image/video, inferring from the extension when MIME is absent. */
 function classify(resolved: ResolvedUrl): ApMediaType | null {
-  const mime = normalizeMime(resolved.mimeType);
+  const mime = resolved.mimeType;
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('video/')) return 'video';
   if (STREAMING_VIDEO_MIMES.has(mime)) return 'video';
@@ -157,7 +153,7 @@ function isImageIshDocument(attachment: ApAttachment): boolean {
  * MIME-less candidates are scored by extension with the same ordering.
  */
 function videoPreferenceScore(resolved: ResolvedUrl): number {
-  const mime = normalizeMime(resolved.mimeType);
+  const mime = resolved.mimeType;
   if (mime === PROGRESSIVE_VIDEO_MIME) return 0;
   if (mime.startsWith('video/')) return 1;
   if (STREAMING_VIDEO_MIMES.has(mime)) return 2;
@@ -181,12 +177,10 @@ export function resolveApAttachment(
   if (!attachment || typeof attachment !== 'object') return null;
   if (attachment.url === undefined || attachment.url === null) return null;
 
-  const attachmentMime = normalizeMime(attachment.mediaType || '');
+  const attachmentMime = apMediaTypeBase(attachment.mediaType);
 
   // Normalize `url` into a flat list of resolved candidates.
-  const members: Array<string | ApUrlEntry> = Array.isArray(attachment.url)
-    ? attachment.url
-    : [attachment.url];
+  const members = apList(attachment.url) as Array<string | ApUrlEntry>;
 
   const resolved: ResolvedUrl[] = [];
   for (const member of members) {
@@ -228,7 +222,7 @@ export function resolveApAttachment(
   // `mediaType`) — fall back to the AP `type` discriminator. A candidate that DID
   // declare a MIME we don't recognize (e.g. `application/pdf`) is a deliberate
   // non-media type and stays skipped, so Mastodon's MIME-first path is preserved.
-  const undeclared = resolved.find((r) => normalizeMime(r.mimeType).length === 0);
+  const undeclared = resolved.find((r) => r.mimeType.length === 0);
   if (undeclared) {
     const apType = classifyFromApType(attachment);
     if (apType) return { href: undeclared.href, type: apType };
@@ -245,7 +239,7 @@ export function resolveApAttachment(
  */
 export function isMediaLinkAttachment(attachment: ApAttachment): boolean {
   if (attachment.type !== 'Link' || typeof attachment.href !== 'string') return false;
-  const mime = normalizeMime(attachment.mediaType ?? '');
+  const mime = apMediaTypeBase(attachment.mediaType);
   return mime.startsWith('image/') || mime.startsWith('video/');
 }
 
@@ -261,9 +255,7 @@ export function extractApMediaFromNote(note: { attachment?: unknown }): {
   const media: MediaItem[] = [];
   const attachments: Array<{ type: 'media'; id: string; mediaType: ApMediaType }> = [];
 
-  if (!Array.isArray(note.attachment)) return { media, attachments };
-
-  for (const entry of note.attachment) {
+  for (const entry of apList(note.attachment)) {
     const att =
       entry && typeof entry === 'object' && isMediaLinkAttachment(entry as ApAttachment)
         ? { ...(entry as ApAttachment), url: (entry as ApAttachment).href }

@@ -31,7 +31,6 @@ vi.mock('../../../connectors/identity', () => ({
 vi.mock('../../../connectors/activitypub/helpers', async (importActual) => ({
   ...(await importActual<typeof import('../../../connectors/activitypub/helpers')>()),
   signedFetch: mocks.signedFetch,
-  firstStringUrl: vi.fn(),
   normalizeFederatedAcct: vi.fn(),
   domainFromAcct: vi.fn(),
 }));

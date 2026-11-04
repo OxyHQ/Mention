@@ -1,3 +1,4 @@
+import { apList } from '@oxy.so/federation';
 import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { logger } from '../../utils/logger';
@@ -155,14 +156,11 @@ function reconstructProfileHrefs(tag: InboundMentionTag): string[] {
   return hrefs;
 }
 
-/** Parse the `Mention` entries out of an AP object's `tag` array. Pure. */
+/** Parse the `Mention` entries out of an AP object's `tag` (one tag or a list). Pure. */
 export function extractMentionTags(object: Record<string, unknown>): InboundMentionTag[] {
-  const tag = object.tag;
-  if (!Array.isArray(tag)) return [];
-
   const tags: InboundMentionTag[] = [];
-  for (const entry of tag) {
-    if (!entry || typeof entry !== 'object') continue;
+  for (const entry of apList(object.tag)) {
+    if (typeof entry !== 'object') continue;
     const record = entry as { type?: unknown; href?: unknown; name?: unknown };
     if (primaryApType(record.type as string | string[] | undefined) !== 'Mention') continue;
     if (typeof record.href !== 'string' || record.href.trim().length === 0) continue;

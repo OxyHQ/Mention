@@ -1,3 +1,4 @@
+import { apList } from '@oxy.so/federation';
 import { asRecord } from './helpers';
 
 /**
@@ -48,11 +49,9 @@ function relTokens(value: unknown): string[] {
 
 /** Every URL an AS2 object declares as its canonical/original elsewhere. */
 export function declaredOriginalUrls(object: Record<string, unknown>): string[] {
-  const raw = object.url;
-  const entries = Array.isArray(raw) ? raw : [raw];
   const urls: string[] = [];
 
-  for (const entry of entries) {
+  for (const entry of apList(object.url)) {
     const link = asRecord(entry);
     if (!link) continue;
     const href = link.href;
