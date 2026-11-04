@@ -14,6 +14,7 @@
  * which is exactly what hydration needs to resolve such an orphan's real author.
  */
 
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { ANY_DID_RE, BSKY_APP_ORIGIN, didFromAtUri } from '../atproto/constants';
 
 /** Bridgy Fed's Bluesky↔fediverse bridge host (where the `/ap/<did>` scheme lives). */
@@ -92,7 +93,7 @@ export function bridgedMentionAnchorHrefs(tag: { href: string; name?: string }):
 
   // `name` is `@<handle>@bsky.brid.gy`; the handle is everything between the
   // leading `@` and the trailing `@<domain>` (a Bluesky handle has no `@`).
-  const cleaned = (tag.name ?? '').replace(/^@+/, '');
+  const cleaned = stripHandlePrefix(tag.name ?? '');
   const lastAt = cleaned.lastIndexOf('@');
   const handle = lastAt > 0 ? cleaned.slice(0, lastAt) : '';
   if (handle) hrefs.push(`${BSKY_APP_ORIGIN}/profile/${handle}`);

@@ -1,6 +1,7 @@
 import { Screen } from '@oxy.so/bloom/screen';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { ConnectionsHeader } from '@/components/Profile/ConnectionsHeader';
+import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 import {
   connectionTabFromPathname,
   type ConnectionTab,
@@ -13,7 +14,7 @@ import {
   ProfileCardSkeletonList,
   type ProfileCardData,
 } from '@/components/ProfileCard';
-import { useLocalSearchParams, usePathname } from '@/lib/navigation/router';
+import { usePathname } from '@/lib/navigation/router';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
@@ -131,8 +132,7 @@ export default function ConnectionsScreen() {
   );
 }
 function AuthorizedConnectionsScreen() {
-  const { username } = useLocalSearchParams<{ username: string }>();
-  const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
+  const cleanUsername = useRoutedProfileUsername();
   const {
     data: profileData,
     loading: profileLoading,

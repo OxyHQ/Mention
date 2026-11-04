@@ -12,6 +12,7 @@
  * local account, and it moves that edge through Oxy.
  */
 
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { isAtUri, isAtprotoHandle, isDid } from './atproto/constants';
 import { OWN_DOMAINS } from './activitypub/ownDomain';
 import { isAbsoluteHttpUrl } from './shared/url';
@@ -47,7 +48,7 @@ export function parseLocalFollowRef(raw: string): LocalFollowRef | null {
   const value = raw.trim();
   if (!value || isAbsoluteHttpUrl(value) || isDid(value) || isAtUri(value)) return null;
 
-  const bare = value.replace(/^@/, '');
+  const bare = stripHandlePrefix(value);
   const at = bare.lastIndexOf('@');
   if (at !== -1) {
     const username = bare.slice(0, at);

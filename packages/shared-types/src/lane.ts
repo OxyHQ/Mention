@@ -41,11 +41,6 @@ export const LANE_DISPLAY_MODES = [
   'hidden',
 ] as const satisfies readonly LaneDisplayMode[];
 
-/** Narrow an arbitrary string to a {@link LaneDisplayMode}. */
-export function isLaneDisplayMode(value: string | undefined): value is LaneDisplayMode {
-  return value !== undefined && (LANE_DISPLAY_MODES as readonly string[]).includes(value);
-}
-
 /** A lane as its owner manages it. */
 export interface Lane {
   id: string;

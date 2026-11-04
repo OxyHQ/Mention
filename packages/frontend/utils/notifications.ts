@@ -27,23 +27,6 @@ export async function canOfferNotificationPermission(): Promise<boolean> {
   return permission.status === 'undetermined' && permission.canAskAgain;
 }
 
-export async function createNotification(
-  title: string,
-  body: string,
-  data: Record<string, unknown> = {},
-) {
-  const Notifications = await getNotifications();
-  if (!Notifications) return;
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      data,
-    },
-    trigger: null, // Shows notification immediately
-  });
-}
-
 export async function setupNotifications() {
   const Notifications = await getNotifications();
   if (!Notifications) return;

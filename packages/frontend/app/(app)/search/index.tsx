@@ -1,3 +1,4 @@
+import { handleKey } from '@mention/shared-types/handle';
 import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
@@ -387,7 +388,7 @@ function externalActorToProfileCardData(actor: ExternalActorResolution): Profile
  */
 function isSameActor(profile: ProfileCardData, actor: ExternalActorResolution): boolean {
   if (actor.oxyUserId && profile.id === actor.oxyUserId) return true;
-  const actorHandle = actor.handle.trim().replace(/^@+/, '').toLowerCase();
+  const actorHandle = handleKey(actor.handle);
   return actorHandle.length > 0 && getNormalizedUserHandle(profile)?.toLowerCase() === actorHandle;
 }
 

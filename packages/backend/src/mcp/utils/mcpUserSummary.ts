@@ -1,3 +1,4 @@
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { degradedActorSummary } from '../../utils/degradedActorSummary';
 
@@ -12,8 +13,7 @@ function safeVisualValue(value: unknown, rawIds: Set<string>): string {
   if (typeof value !== 'string') return '';
   const normalized = value.trim();
   if (!normalized) return '';
-  const withoutAt = normalized.startsWith('@') ? normalized.slice(1) : normalized;
-  return rawIds.has(normalized) || rawIds.has(withoutAt) ? '' : normalized;
+  return rawIds.has(normalized) || rawIds.has(stripHandlePrefix(normalized)) ? '' : normalized;
 }
 
 /** Build an MCP-facing identity without ever promoting an Oxy id to a visual field. */

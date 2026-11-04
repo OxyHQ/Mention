@@ -3,7 +3,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { extractBearerToken } from '@oxy.so/mcp';
 import { requestAccountLink, selectConnectionAccount } from '../services/mcpConnectionDirectory';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { stripMentionHandle } from '../../utils/resolveLocalMentionHandles';
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import type { McpRequestContext, OxyAuthRequestWithMcp } from '../middleware/mcpAuth';
 import { logger } from '../../utils/logger';
 import { toMcpUserSummary, type McpUserSummary } from '../utils/mcpUserSummary';
@@ -165,7 +165,7 @@ async function resolveSwitchTarget(req: AuthRequest, res: Response): Promise<str
   const rawUserId = typeof req.body?.oxyUserId === 'string' ? req.body.oxyUserId : undefined;
 
   if (rawHandle) {
-    const username = stripMentionHandle(rawHandle);
+    const username = stripHandlePrefix(rawHandle);
     try {
       const profile = await getServiceOxyClient().users.byUsername(username, { cache: false });
       return profile.id;

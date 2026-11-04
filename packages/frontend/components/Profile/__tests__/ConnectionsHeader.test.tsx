@@ -42,7 +42,7 @@ function render() {
   act(() => {
     tree = TestRenderer.create(
       <ConnectionsHeader
-        username="@nate"
+        username="nate"
         profileData={mockProfile as unknown as ProfileData | null}
       />,
     );

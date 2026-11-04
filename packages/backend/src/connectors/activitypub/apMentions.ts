@@ -1,3 +1,4 @@
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { apList } from '@oxy.so/federation';
 import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
@@ -132,7 +133,7 @@ function normalizeActorHref(href: string): string {
  * Returns an empty array when the name is absent or carries no usable username.
  */
 function reconstructProfileHrefs(tag: InboundMentionTag): string[] {
-  const cleaned = (tag.name ?? '').replace(/^@+/, '').trim();
+  const cleaned = stripHandlePrefix(tag.name ?? '');
   if (!cleaned) return [];
 
   const at = cleaned.indexOf('@');

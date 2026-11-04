@@ -29,6 +29,7 @@
  * `/@channel` must reach the actor, and a redirect chain is exactly what
  * Mastodon's strict redirector refuses.
  */
+import { handleKey } from '@mention/shared-types/handle';
 import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileRouteFamily } from '@mention/shared-types/profileUrls';
@@ -163,11 +164,10 @@ async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
   // Revalidate cached payloads too: transport lookups may return an Oxy person,
   // but only their canonical username or proven public aliases grant a URL.
   if (!profile?.username) return null;
-  const normalize = (value: string) => value.trim().replace(/^@+/, '').toLowerCase();
-  if (normalize(handle) === normalize(profile.username)) return profile;
+  if (handleKey(handle) === handleKey(profile.username)) return profile;
   const aliases = externalIdentityReferenceSchema.array().safeParse(profile.externalIdentities);
   return aliases.success &&
-    aliases.data.some((alias) => normalize(alias.canonicalAcct) === normalize(handle))
+    aliases.data.some((alias) => handleKey(alias.canonicalAcct) === handleKey(handle))
     ? profile
     : null;
 }

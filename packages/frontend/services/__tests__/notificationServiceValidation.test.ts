@@ -24,7 +24,7 @@ const valid = {
   createdAt: '2026-09-28T00:00:00.000Z',
 };
 
-describe('notificationService.getNotifications', () => {
+describe('notificationService.getNotificationsForViewer', () => {
   it('returns only contract-valid notifications, parsed once at the boundary', async () => {
     mockGet.mockResolvedValue({
       data: {
@@ -34,7 +34,7 @@ describe('notificationService.getNotifications', () => {
       },
     });
 
-    const page = await notificationService.getNotifications();
+    const page = await notificationService.getNotificationsForViewer('viewer');
 
     expect(page.notifications.map((n) => n._id)).toEqual(['n1']);
     expect(page.unreadCount).toBe(1);
@@ -42,7 +42,9 @@ describe('notificationService.getNotifications', () => {
 
   it('keeps an empty page empty', async () => {
     mockGet.mockResolvedValue({ data: {} });
-    expect((await notificationService.getNotifications()).notifications).toEqual([]);
+    expect((await notificationService.getNotificationsForViewer('viewer')).notifications).toEqual(
+      [],
+    );
   });
 });
 

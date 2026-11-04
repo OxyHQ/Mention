@@ -34,6 +34,7 @@
  * and reports the plan. It uploads and writes nothing.
  */
 
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { z } from 'zod';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
@@ -295,7 +296,7 @@ async function main(): Promise<number> {
   const dryRun = (process.env.IMPORT_DRY_RUN ?? 'true') !== 'false';
   const manifestUrl = process.env.IMPORT_MANIFEST_URL ?? '';
   const targetOxyUserId = (process.env.IMPORT_TARGET_OXY_USER_ID ?? '').trim();
-  const targetUsername = (process.env.IMPORT_TARGET_USERNAME ?? '').trim().replace(/^@/, '');
+  const targetUsername = stripHandlePrefix(process.env.IMPORT_TARGET_USERNAME ?? '');
   const batchId = (process.env.IMPORT_BATCH_ID ?? '').trim();
   const taskId = (process.env.IMPORT_OXY_TASK_ID ?? '').trim();
   if (!targetOxyUserId || !targetUsername || !batchId) {

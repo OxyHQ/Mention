@@ -12,6 +12,8 @@
  * testable on its own.
  */
 
+import { handleKey, stripHandlePrefix } from '@mention/shared-types/handle';
+
 /** Operators whose value is a Mention user — the ones `me` is meaningful for. */
 const USER_OPERATOR_PREFIXES = ['from', 'to'] as const;
 
@@ -93,7 +95,7 @@ export function buildOperatorValueSuggestions(
   const closed = CLOSED_OPERATOR_VALUES[token.prefix];
   const candidates = closed ? [...closed] : ['me', ...recentOperands(searchHistory)];
 
-  const typed = token.value.replace(/^@/, '').toLowerCase();
+  const typed = handleKey(token.value);
   const seen = new Set<string>();
   const suggestions: string[] = [];
   for (const candidate of candidates) {
@@ -120,7 +122,7 @@ function recentOperands(searchHistory: readonly string[]): string[] {
   const operands: string[] = [];
   for (const entry of searchHistory) {
     for (const match of entry.matchAll(pattern)) {
-      const operand = match[1].replace(/^"|"$/g, '').replace(/^@/, '');
+      const operand = stripHandlePrefix(match[1].replace(/^"|"$/g, ''));
       if (operand.length > 0 && operand.toLowerCase() !== 'me') operands.push(operand);
     }
   }

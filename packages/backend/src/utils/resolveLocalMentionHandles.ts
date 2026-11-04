@@ -1,8 +1,5 @@
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { getServiceOxyClient } from './oxyHelpers';
-
-export function stripMentionHandle(handle: string): string {
-  return handle.replace(/^@+/, '').trim();
-}
 
 async function resolveOneHandle(username: string): Promise<{ handle: string; oxyUserId: string }> {
   if (username.includes('@')) {
@@ -33,7 +30,7 @@ export async function resolveLocalMentionHandles(
 ): Promise<Array<{ handle: string; oxyUserId: string }>> {
   const handles = rawHandles
     .filter((h): h is string => typeof h === 'string' && h.trim().length > 0)
-    .map((h) => stripMentionHandle(h))
+    .map(stripHandlePrefix)
     .filter((h) => h.length > 0);
 
   if (handles.length === 0) {

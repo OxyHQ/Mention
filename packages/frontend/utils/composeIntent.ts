@@ -1,3 +1,4 @@
+import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { sanitizeHomiioCase, getHomiioCaseUrl } from '@mention/shared-types/homiio';
 /**
  * Parser for compose intent URLs.
@@ -120,7 +121,6 @@ export type ComposeIntentRawParams = Record<string, string | string[] | undefine
 
 const TRUTHY_VALUES: ReadonlySet<string> = new Set(['1', 'true', 'yes', 'on']);
 const HTML_TAG_REGEX = /<[^>]*>/g;
-const LEADING_AT_REGEX = /^@+/;
 
 /**
  * Returns the first string for a possibly-array param.
@@ -252,7 +252,7 @@ const normalizeHashtag = (raw: string): string | undefined => {
  * Returns `undefined` if empty.
  */
 const normalizeHandle = (raw: string): string | undefined => {
-  const cleaned = raw.replace(LEADING_AT_REGEX, '').trim();
+  const cleaned = stripHandlePrefix(raw);
   if (cleaned.length === 0) return undefined;
   // Common handle shape: letters, digits, `_`, `-`, `.`.
   const valid = cleaned.replace(/[^a-zA-Z0-9_\-.]/g, '');

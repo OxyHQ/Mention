@@ -61,12 +61,10 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
-    getNotifications: (...args: unknown[]) => mockGetNotifications(...args),
     getNotificationsForViewer: (...args: unknown[]) => mockGetNotifications(...args),
     markAsRead: (...args: unknown[]) => mockMarkAsRead(...args),
     deleteNotification: (...args: unknown[]) => mockDelete(...args),
     markAllAsRead: (...args: unknown[]) => mockMarkAll(...args),
-    getUnreadCount: jest.fn(),
   },
 }));
 jest.mock('@/components/notifications/NotificationItem', () => {
