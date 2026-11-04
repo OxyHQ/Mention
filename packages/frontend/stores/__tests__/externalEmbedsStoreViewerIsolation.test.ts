@@ -1,4 +1,5 @@
 import { authenticatedClient } from '@/utils/api';
+import { queryClient } from '@/lib/queryClient';
 import { useExternalEmbedsStore } from '../externalEmbedsStore';
 
 const mockGetItem = jest.fn();
@@ -23,6 +24,7 @@ jest.mock('@/utils/api', () => ({
     get: jest.fn(),
     put: jest.fn(),
   },
+  isNotFoundError: () => false,
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({
@@ -75,6 +77,9 @@ describe('external embeds persistence isolation', () => {
     await flushQueue();
     expect(mockSetItem).toHaveBeenCalledTimes(1);
 
+    // The account boundary clears the shared settings read with the store
+    // (`AccountSwitchReset`), so the returning viewer reads the server again.
+    queryClient.clear();
     useExternalEmbedsStore.getState().resetViewerState(viewerId);
     const secondHydrate = useExternalEmbedsStore.getState().hydrate(true, viewerId);
     await flushQueue();

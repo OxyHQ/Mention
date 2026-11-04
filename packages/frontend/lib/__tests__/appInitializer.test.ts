@@ -11,6 +11,7 @@ const mockWarn = jest.fn();
 jest.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 jest.mock('expo-splash-screen', () => ({ hideAsync: () => mockHideSplash() }));
 jest.mock('@react-native-async-storage/async-storage', () => ({
+  getAllKeys: jest.fn().mockResolvedValue([]),
   multiRemove: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('expo-notifications', () => ({

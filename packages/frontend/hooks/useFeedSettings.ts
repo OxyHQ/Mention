@@ -1,14 +1,17 @@
 import type { FollowingFeedSort } from '@mention/shared-types';
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { logger } from '@oxy.so/core/logger';
-import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import {
+  saveViewerSettings,
+  updateCachedViewerSettings,
+  viewerSettingsQuery,
+  type UserSettingsResponse,
+} from '@/lib/viewerSettings';
 
 export interface FeedSettings {
   following: { sort: FollowingFeedSort };
@@ -43,6 +46,9 @@ export const DEFAULT_FEED_SETTINGS: FeedSettings = {
     boostHighQuality: true,
   },
 };
+
+const selectFeedSettings = (settings: UserSettingsResponse): FeedSettings =>
+  withDefaults(settings.feedSettings);
 
 /** Fill in every field the server omitted, so readers never see a partial shape. */
 function withDefaults(partial: Partial<FeedSettings> | undefined): FeedSettings {
@@ -91,51 +97,41 @@ export function useFeedSettings(): UseFeedSettings {
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(() => viewerQueryKeys.feedSettings(user?.id), [user?.id]);
+  const viewerId = user?.id;
 
-  const query = useQuery<FeedSettings>({
-    queryKey,
+  // The shared settings document; this hook reads only its feed section.
+  const query = useQuery({
+    ...viewerSettingsQuery(viewerId),
     enabled: canUsePrivateApi,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async ({ signal }) => {
-      try {
-        const response = await authenticatedClient.get<UserSettingsResponse>(
-          '/profile/settings/me',
-          { signal },
-        );
-        return withDefaults(response.data?.feedSettings);
-      } catch (error: unknown) {
-        // A viewer who has never saved settings has no document yet, and an
-        // expired token resolves to the same "nothing of your own" answer.
-        if (isUnauthorizedError(error) || isNotFoundError(error)) {
-          return DEFAULT_FEED_SETTINGS;
-        }
-        throw error;
-      }
-    },
+    select: selectFeedSettings,
   });
 
+  const paint = useCallback(
+    (next: FeedSettings) =>
+      updateCachedViewerSettings(queryClient, viewerId, (current) => ({
+        ...current,
+        feedSettings: next,
+      })),
+    [queryClient, viewerId],
+  );
+
   const mutation = useMutation<
-    FeedSettings,
+    UserSettingsResponse,
     Error,
     FeedSettings,
-    { previous: FeedSettings | undefined; viewerId?: string }
+    { previous: UserSettingsResponse | undefined; viewerId?: string }
   >({
-    mutationFn: async (next) => {
-      const response = await authenticatedClient.put<UserSettingsResponse>('/profile/settings', {
-        feedSettings: next,
-      });
-      return withDefaults(response.data?.feedSettings ?? next);
-    },
+    mutationFn: (next) => saveViewerSettings(viewerId, { feedSettings: next }, queryClient),
     onMutate: async (next) => {
+      const queryKey = viewerSettingsQuery(viewerId).queryKey;
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<FeedSettings>(queryKey);
-      queryClient.setQueryData<FeedSettings>(queryKey, next);
-      return { previous, viewerId: user?.id };
+      const previous = queryClient.getQueryData<UserSettingsResponse>(queryKey);
+      paint(next);
+      return { previous, viewerId };
     },
     onError: (error, _next, context) => {
       if (context?.previous !== undefined) {
-        queryClient.setQueryData<FeedSettings>(queryKey, context.previous);
+        queryClient.setQueryData(viewerSettingsQuery(context.viewerId).queryKey, context.previous);
       }
       logger.error('Failed to save feed settings', error);
       toast(
@@ -148,17 +144,14 @@ export function useFeedSettings(): UseFeedSettings {
     onSuccess: (_data, _next, context) => {
       notifyFeedRankingChanged(context?.viewerId, false);
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
   });
 
   const preview = useCallback(
     (next: FeedSettings) => {
       if (!canUsePrivateApi) return;
-      queryClient.setQueryData<FeedSettings>(queryKey, next);
+      paint(next);
     },
-    [canUsePrivateApi, queryClient, queryKey],
+    [canUsePrivateApi, paint],
   );
 
   const { mutate } = mutation;

@@ -14,11 +14,12 @@ import { useAuth } from '@oxy.so/services/ui/client';
  * (app-default) value.
  */
 export function useServerAppearanceSync(): void {
-  const { canUsePrivateApi } = useAuth();
+  const { canUsePrivateApi, user } = useAuth();
+  const viewerId = user?.id;
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
 
   useEffect(() => {
-    if (!canUsePrivateApi) return;
-    void loadMySettings(true);
-  }, [canUsePrivateApi, loadMySettings]);
+    if (!canUsePrivateApi || !viewerId) return;
+    void loadMySettings(viewerId);
+  }, [canUsePrivateApi, viewerId, loadMySettings]);
 }

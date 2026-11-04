@@ -1,5 +1,7 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 
 import PrivacyScreen from '../privacy';
 
@@ -18,6 +20,7 @@ jest.mock('@/utils/api', () => ({
     get: (...args: unknown[]) => mockApi.get(...args),
     put: (...args: unknown[]) => mockApi.put(...args),
   },
+  isNotFoundError: () => false,
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
@@ -39,16 +42,11 @@ jest.mock('@/components/SupervisedFeatureGate', () => ({
   SupervisedFeatureGate: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('@/components/loading/ContentSkeleton', () => ({ SettingsSkeleton: () => null }));
-jest.mock('@/hooks/usePrivacySettings', () => ({
-  createPrivacySettingsCacheLease: jest.fn(),
-  updatePrivacySettingsCache: jest.fn(async () => undefined),
-}));
 jest.mock('@/lib/recommendationFilters', () => ({
   DEFAULT_RECOMMENDATION_FILTERS: {},
   getRecommendationFilters: jest.fn(async () => ({})),
   saveRecommendationFilters: jest.fn(async () => undefined),
 }));
-jest.mock('@/lib/queryClient', () => ({ queryClient: { setQueryData: jest.fn() } }));
 jest.mock('@/stores/safetyInvalidation', () => ({ invalidateSafetyFilters: jest.fn() }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiEarthLine', () => ({ RiEarthLine: () => null }));
@@ -79,15 +77,29 @@ jest.mock('@oxy.so/bloom/switch', () => {
   };
 });
 
+/** React Query notifies subscribers on a macrotask; let the read and the save land. */
+async function settle() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
 describe('Settings → Privacy → show my likes', () => {
   it('starts off and saves showLikes when turned on', async () => {
     mockApi.get.mockResolvedValue({ data: { privacy: { profileVisibility: 'public' } } });
-    mockApi.put.mockResolvedValue({ data: {} });
+    mockApi.put.mockResolvedValue({
+      data: { privacy: { profileVisibility: 'public', showLikes: true } },
+    });
 
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      renderer = TestRenderer.create(<PrivacyScreen />);
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={queryClient}>
+          <PrivacyScreen />
+        </QueryClientProvider>,
+      );
     });
+    await settle();
 
     const toggle = () =>
       renderer.root.findByProps({ accessibilityLabel: 'settings.privacy.showLikes' });
@@ -96,9 +108,14 @@ describe('Settings → Privacy → show my likes', () => {
     await act(async () => {
       toggle().props.onCheckedChange(true);
     });
+    await settle();
 
+    // Only the changed field: the server merges a privacy patch field by field.
     expect(mockApi.put).toHaveBeenCalledWith('/profile/settings', {
-      privacy: { profileVisibility: 'public', showLikes: true },
+      privacy: { showLikes: true },
     });
+    expect(toggle().props.checked).toBe(true);
+    // The page read the shared settings document once and did not re-read it to save.
+    expect(mockApi.get).toHaveBeenCalledTimes(1);
   });
 });

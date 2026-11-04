@@ -55,9 +55,19 @@ async function loadVideoMuteState(): Promise<void> {
  */
 export const OBSOLETE_STORAGE_KEYS = ['auto-translate-preference'] as const;
 
+/**
+ * Per-viewer namespaces (`<prefix><viewer>`) a retired feature persisted. The
+ * privacy-settings cache was written by the settings pages and read by nothing;
+ * the viewer's settings are one React Query read now (`lib/viewerSettings`).
+ */
+export const OBSOLETE_STORAGE_PREFIXES = ['@mention_privacy_settings'] as const;
+
 async function removeObsoleteStorage(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([...OBSOLETE_STORAGE_KEYS]);
+    const scoped = (await AsyncStorage.getAllKeys()).filter((key) =>
+      OBSOLETE_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)),
+    );
+    await AsyncStorage.multiRemove([...OBSOLETE_STORAGE_KEYS, ...scoped]);
   } catch (error) {
     logger.warn('Failed to remove obsolete storage keys', { error });
   }

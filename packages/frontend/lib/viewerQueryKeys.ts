@@ -546,16 +546,18 @@ export const viewerQueryKeys = {
    */
   followGraphTarget: (viewerId: ViewerId, uri: string) =>
     [...viewerQueryKeys.all(viewerId), 'follow-graph', 'target', uri] as const,
-  myAppearance: (viewerId: ViewerId) =>
-    [...viewerQueryKeys.all(viewerId), 'appearance', 'mine'] as const,
+  /**
+   * The viewer's own settings document (`GET /profile/settings/me`): appearance,
+   * privacy, feed ranking, notification and embed preferences. ONE cached copy
+   * every settings consumer reads (`lib/viewerSettings`).
+   */
+  settings: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'settings', 'mine'] as const,
   appearanceForUser: (viewerId: ViewerId, userId: string) =>
     [...viewerQueryKeys.all(viewerId), 'appearance', 'user', userId] as const,
   muteWords: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'mute-words'] as const,
   feedPreferences: (viewerId: ViewerId) =>
     [...viewerQueryKeys.all(viewerId), 'feed-preferences'] as const,
   feedTuning: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'feed-tuning'] as const,
-  feedSettings: (viewerId: ViewerId) =>
-    [...viewerQueryKeys.all(viewerId), 'feed-settings'] as const,
   labelers: (viewerId: ViewerId, search: string) =>
     [...viewerQueryKeys.all(viewerId), 'labelers', search] as const,
   postInsights: (viewerId: ViewerId, postId: string) =>
