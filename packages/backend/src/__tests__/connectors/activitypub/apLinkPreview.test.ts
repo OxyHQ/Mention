@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types';
-import {
-  extractApLinkPreviews,
-  linkPreviewKey,
-} from '../../../connectors/activitypub/apLinkPreview';
+import { extractApLinkPreviews } from '../../../connectors/activitypub/apLinkPreview';
+import { linkPreviewKey } from '../../../connectors/shared/linkPreviews';
 
 /**
  * Reading FEP-8967 cards off an inbound Note: the text of each card, nothing a

@@ -112,7 +112,7 @@ import {
   findPostLinkPreviews,
   type StoredLinkPreview,
 } from '../db/posts/postLinkPreviewRepository';
-import { linkPreviewKey } from '../connectors/activitypub/apLinkPreview';
+import { linkPreviewKey } from '../connectors/shared/linkPreviews';
 
 import type { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 

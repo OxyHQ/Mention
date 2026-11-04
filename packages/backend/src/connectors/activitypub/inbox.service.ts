@@ -38,7 +38,7 @@ import {
 import { PostType } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
-import { storeRemoteLinkPreviews } from './apLinkPreview';
+import { storeRemoteLinkPreviews } from '../shared/linkPreviews';
 import { pollVoteService } from '../../services/PollVoteService';
 import {
   isFediverseSharingEnabled,

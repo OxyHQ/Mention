@@ -9,8 +9,8 @@ import { ANY_DID_RE, DID_PLC_RE, PLC_DIRECTORY, PUBLIC_APPVIEW } from './constan
  * atproto identities are anchored by a DID (`did:plc:` or `did:web:`); the
  * human-facing handle is a mutable DNS name that points BACK at the DID. This
  * module turns either form into the other and reads the DID document (which
- * lists the verified handle and the user's PDS service endpoint, needed later by
- * the C4 outbound bridge). Every network read goes through the SSRF-safe XRPC
+ * lists the verified handle and the user's PDS service endpoint, where a post's
+ * video blob is fetched from). Every network read goes through the SSRF-safe XRPC
  * client.
  */
 

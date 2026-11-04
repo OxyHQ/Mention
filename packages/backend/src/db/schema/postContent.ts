@@ -592,10 +592,10 @@ export const postAttachments = pgTable(
 );
 
 /**
- * `post_link_previews` — the link cards a FEDERATED post arrived with (FEP-8967),
- * in attachment order: the text of the card the author's server rendered for a
- * link in the body. Written by the ActivityPub ingest only
- * (`connectors/activitypub/apLinkPreview.ts`).
+ * `post_link_previews` — the link cards a FEDERATED post arrived with (an
+ * ActivityPub FEP-8967 preview, a Bluesky external embed), in order: the text of
+ * the card the author's server rendered for a link the post carries. Written by
+ * the federated ingest only (`connectors/shared/linkPreviews.ts`).
  *
  * A fallback, never the source: hydration shows one only while Clarity has no
  * document for that link, and only on this post. Keyed by post, not by URL, so

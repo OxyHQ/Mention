@@ -12,7 +12,6 @@ import { getDb } from '../../db/postgres';
 import { isUniqueViolation, uuidv7 } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
 import {
-  bumpPostCounters,
   CHRONO_DESC,
   linkReplyToParent,
   UNIQUE_MATCH_NO_ORDER,
@@ -44,7 +43,8 @@ import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { derivePostType } from '../../services/PostCreationService';
-import { storeRemoteLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
+import { storeRemoteLinkPreviews, type RemoteLinkPreview } from '../shared/linkPreviews';
+import { createFederatedBoost } from '../shared/federatedBoost';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { applyDetectedPrimaryTag } from '../../services/postVariants';
 import {
@@ -1598,9 +1598,8 @@ export class OutboxSyncService {
    * Post, then creates a boost Post attributed to the booster — mirroring the
    * native repost shape (`type: 'boost'`, `boostOf: <local note _id>`,
    * `oxyUserId: <booster>`). Idempotent: deduped by the Announce activity id via
-   * the `federation.activityId` unique sparse index. The boosted post's
-   * `stats.boostsCount` is moved +1 in lockstep only when a new boost Post is
-   * created.
+   * the `federation.activityId` unique sparse index. Storing the boost and
+   * moving the counters is the network-neutral {@link createFederatedBoost}.
    *
    * @param announceActivity the full Announce activity (for `published`).
    * @param announcedUri the URI of the announced (boosted) object.
@@ -1646,59 +1645,18 @@ export class OutboxSyncService {
       return false;
     }
 
-    const originalPost = await loadPostRecord(originalPostId);
-    if (
-      !originalPost ||
-      originalPost.status !== 'published' ||
-      originalPost.visibility !== PostVisibility.PUBLIC
-    ) {
-      logger.info('[FedSync] skipped non-public or unpublished boost');
-      return false;
-    }
-
     // The boost Post's date reflects when the BOOST happened (the Announce's
     // `published`), while the embedded original keeps its own date via its own
     // post — matching the native repost shape. Validated/falls back to now.
-    const published = parseApPublished(announceActivity.published);
-
-    try {
-      await getPostCreator().create({
-        oxyUserId: boosterOxyUserId,
-        boostOf: originalPostId,
-        // A boost carries no content of its own — mirror native reposts which
-        // store an empty content body and rely on `boostOf` for hydration.
-        content: { text: '' },
-        visibility: PostVisibility.PUBLIC,
-        federation: {
-          activityId: announceId,
-          importReason,
-          actorUri: typeof announceActivity.actor === 'string' ? announceActivity.actor : undefined,
-          url: typeof announceActivity.url === 'string' ? announceActivity.url : announceId,
-        },
-        status: 'published',
-        skipNotifications: true,
-        skipSocketEmit: true,
-        skipFederationDelivery: true,
-        ...(published ? { createdAt: published, updatedAt: published } : {}),
-      });
-    } catch (err) {
-      // A unique violation means a concurrent import already created the
-      // boost — treat as already-imported, not a failure.
-      if (isUniqueViolation(err)) return false;
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn('[FedSync] failed to create boost', {
-        error: message,
-      });
-      return false;
-    }
-
-    // A new boost Post was created — move the boosted post's counters +1 in
-    // lockstep so stats.boostsCount always equals the number of boost records.
-    // This is the ONLY site where a federated Announce becomes a native boost
-    // count, so federatedBoostsCount is incremented alongside boostsCount here;
-    // `boostsCount - federatedBoostsCount` then isolates the native boost count.
-    await bumpPostCounters(originalPostId, { boosts: 1, federatedBoosts: 1 });
-    return true;
+    return createFederatedBoost({
+      activityId: announceId,
+      originalPostId,
+      boosterOxyUserId,
+      importReason,
+      actorUri: typeof announceActivity.actor === 'string' ? announceActivity.actor : undefined,
+      url: typeof announceActivity.url === 'string' ? announceActivity.url : announceId,
+      createdAt: parseApPublished(announceActivity.published),
+    });
   }
 
   /**

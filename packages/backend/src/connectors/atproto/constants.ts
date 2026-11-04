@@ -3,10 +3,11 @@ import { config } from '../../config';
 /**
  * AT Protocol (Bluesky) connector constants.
  *
- * Read/discovery only (Phase C2): the connector talks to the public Bluesky
- * AppView for profiles/feeds and resolves identities through PLC / did:web /
- * handle resolution. All host/identity strings and the classification regexes a
- * caller needs to recognise atproto subjects live here.
+ * The connector reads: it talks to the public Bluesky AppView for profiles,
+ * author feeds (posts, pins and reposts) and feed generators, and resolves
+ * identities through PLC / did:web / handle resolution. All host/identity strings
+ * and the classification regexes a caller needs to recognise atproto subjects
+ * live here.
  */
 
 /**
@@ -35,6 +36,13 @@ export const PLC_DIRECTORY = config.atproto.plcDirectoryHost;
 
 /** Bluesky's web app origin — the canonical web URL for a post / profile. */
 export const BSKY_APP_ORIGIN = 'https://bsky.app';
+
+/**
+ * Bluesky's own moderation service. The public AppView applies its labels to
+ * every view by default, so a `porn` / `graphic-media` label it put on a post
+ * arrives on `postView.labels` beside the author's self-labels.
+ */
+export const BSKY_MODERATION_LABELER = 'did:plc:ar7c4by46qjdydhdevvrndac';
 
 /** The atproto record collection that holds a feed post. */
 export const POST_COLLECTION = 'app.bsky.feed.post';
