@@ -138,10 +138,10 @@ workarounds.
   with no way to sign it (writer disclosure is gated on `channel` +
   `signPosts`), and inherited memberships are invisible to the gate because
   `GET /accounts/:id/members` returns DIRECT rows only.
-- **A channel post DOES federate and DOES emit an MTN record**, under the
-  channel's own identity. Both were skipped in the first design solely
-  because the post was authored by a person and those are author surfaces;
-  with the channel as the author the exception has no subject.
+- **A channel post DOES federate**, under the channel's own identity. It was
+  skipped in the first design solely because the post was authored by a person
+  and federation is an author surface; with the channel as the author the
+  exception has no subject.
 - **No replies, ever.** The gate reads the post AUTHOR's account `kind`,
   never `replyPermission` (a settings write could flip that), at five
   sites: above the whole permission block in `createReply` (skipped
@@ -185,13 +185,9 @@ workarounds.
     Retention keeps revision 1 — the post AS PUBLISHED — plus the most
     recent `MAX_RETAINED_POST_CORRECTIONS - 1`; a gap in the surviving
     `revision` numbers is where an intermediate body was dropped.
-  - Nothing changes in federation or on the MTN chain, and neither needs
-    to. The existing `Update(Note)` with its `updated` stamp is the only
-    interoperable edit signal. The chain already IS an append-only signed
-    trail: `emitPostCreated` re-emits under the SAME rkey and
-    `mention_signed_records` has no unique index on
-    `(oxy_user_id, nsid, rkey)`, so every version persists, signed, ordered
-    by `seq`, LWW-materialized to the newest.
+  - Nothing changes in federation, and nothing needs to. The existing
+    `Update(Note)` with its `updated` stamp is the only interoperable edit
+    signal.
   - `GET /posts/:id/corrections` is PUBLIC and reuses the post's own ACL by
     hydrating it and 404ing when hydration drops it.
 - **Putting a channel post on your own profile is a BOOST.** `EXCLUDE_CHANNEL_POSTS`

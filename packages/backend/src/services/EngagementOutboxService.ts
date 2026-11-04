@@ -33,7 +33,7 @@
  * `expires_at` is a hard ceiling (`ENGAGEMENT_OUTBOX_RETENTION_SECONDS`) and the
  * sweep in `db/expiry.ts` deletes by that deadline ALONE, not by status. A
  * `pending` event whose dispatcher stalled for the whole window is destroyed
- * rather than retried, so the like/save never reaches MTN, federation or
+ * rather than retried, so the like never reaches federation or
  * notifications. That is deliberate — an unbounded outbox is the worse failure —
  * but it is only safe if operational alerting fires long before the deadline.
  * There is no such alert today; see the module docblock in `db/expiry.ts`.
@@ -526,7 +526,7 @@ function startLeaseHeartbeat(options: { eventId: string; leaseOwner: string; lea
  * Reusable, bounded at-least-once dispatcher.
  *
  * Handlers MUST make each downstream write idempotent with `event.id`. The
- * concrete dispatcher uses strict notification/MTN/federation helpers that
+ * concrete dispatcher uses strict notification/federation helpers that
  * surface persistence or enqueue failures. Relationship revisions are applied in
  * order even when several backend tasks claim work concurrently.
  */

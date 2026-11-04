@@ -29,12 +29,6 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn(async () => undefined),
-  emitRepostCreated: vi.fn(async () => undefined),
-  emitTombstone: vi.fn(async () => undefined),
-  repostRecordUri: vi.fn(() => undefined),
-}));
 vi.mock('../../connectors/outboundFederation', () => ({
   federateAsResolvedActor: vi.fn(async () => undefined),
 }));

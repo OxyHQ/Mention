@@ -379,12 +379,10 @@ const environmentSchema = z
      * ON by default. The read/discovery path it gates has been rolled out and
      * production has carried `ATPROTO_ENABLED=true` since then, so `false` was
      * a default no deployment used and one more line in every task definition.
-     * `ATPROTO_BRIDGE_ENABLED` below stays closed: that one WRITES.
      */
     ATPROTO_ENABLED: booleanFromEnv(true),
     ATPROTO_APPVIEW: z.preprocess(emptyAsUndefined, host.default('public.api.bsky.app')),
     ATPROTO_PLC_DIRECTORY: z.preprocess(emptyAsUndefined, host.default('plc.directory')),
-    ATPROTO_BRIDGE_ENABLED: booleanFromEnv(false),
 
     /**
      * Instagram posts through Meta's Graph API (Business Discovery). OFF by
@@ -446,11 +444,7 @@ const environmentSchema = z
     FIREBASE_SERVICE_ACCOUNT_BASE64: trimmedOptionalString,
     FIREBASE_PROJECT_ID: trimmedOptionalString,
 
-    MENTION_DID: trimmedOptionalString,
     MENTION_PRIVATE_KEY: optionalString(),
-    MENTION_PUBLIC_KEY: optionalString(),
-    MENTION_NODE_PUBLIC_KEY: optionalString(),
-    MENTION_NODE_BASE_URL: optionalHttpOrigin,
 
     SYRA_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.syra.fm')),
     // Mercaria (commerce, #951). Optional, and deliberately WITHOUT a default
@@ -547,20 +541,6 @@ const environmentSchema = z
         code: 'custom',
         path: [hasFirebaseCredential ? 'FIREBASE_PROJECT_ID' : 'FIREBASE_SERVICE_ACCOUNT_BASE64'],
         message: 'Firebase credential and project id must be configured together',
-      });
-    }
-    const mentionSigningValues = [
-      environment.MENTION_DID,
-      environment.MENTION_PRIVATE_KEY,
-      environment.MENTION_PUBLIC_KEY,
-    ];
-    const mentionSigningCount = mentionSigningValues.filter(Boolean).length;
-    if (mentionSigningCount !== 0 && mentionSigningCount !== mentionSigningValues.length) {
-      context.addIssue({
-        code: 'custom',
-        path: ['MENTION_DID'],
-        message:
-          'MENTION_DID, MENTION_PRIVATE_KEY and MENTION_PUBLIC_KEY must be configured together',
       });
     }
   });
@@ -760,64 +740,13 @@ export function getFirebaseConfig():
   };
 }
 
-export interface MentionSigningConfig {
-  did: string;
-  privateKey: string;
-  publicKey: string;
-}
-
-export interface MentionSigningValues {
-  did?: string;
-  privateKey?: string;
-  publicKey?: string;
-}
-
-export function getMentionSigningValues(
-  source: EnvironmentSource = process.env,
-): MentionSigningValues {
-  const parsed = z
-    .object({
-      MENTION_DID: trimmedOptionalString,
-      MENTION_PRIVATE_KEY: optionalString(),
-      MENTION_PUBLIC_KEY: optionalString(),
-    })
-    .parse(source);
-  return {
-    did: parsed.MENTION_DID,
-    privateKey: parsed.MENTION_PRIVATE_KEY,
-    publicKey: parsed.MENTION_PUBLIC_KEY,
-  };
-}
-
-/** Dynamic because signing tests and key rotation intentionally alter the env. */
-export function getMentionSigningConfig(
-  source: EnvironmentSource = process.env,
-): MentionSigningConfig | undefined {
-  const parsed = getMentionSigningValues(source);
-  if (!parsed.did || !parsed.privateKey || !parsed.publicKey) {
-    return undefined;
-  }
-  return {
-    did: parsed.did,
-    privateKey: parsed.privateKey,
-    publicKey: parsed.publicKey,
-  };
-}
-
-export function getMentionNodeConfig(source: EnvironmentSource = process.env): {
-  publicKey?: string;
-  baseUrl?: string;
-} {
-  const parsed = z
-    .object({
-      MENTION_NODE_PUBLIC_KEY: optionalString(),
-      MENTION_NODE_BASE_URL: optionalHttpOrigin,
-    })
-    .parse(source);
-  return {
-    publicKey: parsed.MENTION_NODE_PUBLIC_KEY,
-    baseUrl: parsed.MENTION_NODE_BASE_URL,
-  };
+/**
+ * The root secret Mention derives its media HMAC subkeys from (signed HLS
+ * segments, the GIF media proxy). Read dynamically so tests and key rotation
+ * can change it.
+ */
+export function getMediaHmacRoot(source: EnvironmentSource = process.env): string | undefined {
+  return z.object({ MENTION_PRIVATE_KEY: optionalString() }).parse(source).MENTION_PRIVATE_KEY;
 }
 
 export const config = {
@@ -922,7 +851,6 @@ export const config = {
     enabled: environment.ATPROTO_ENABLED,
     appViewHost: environment.ATPROTO_APPVIEW,
     plcDirectoryHost: environment.ATPROTO_PLC_DIRECTORY,
-    bridgeEnabled: environment.ATPROTO_BRIDGE_ENABLED,
   },
   oxyFiles: {
     webhookSecret: environment.OXY_FILES_WEBHOOK_SECRET,

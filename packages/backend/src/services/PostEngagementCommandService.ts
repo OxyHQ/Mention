@@ -6,7 +6,7 @@
  * A relationship row (`likes` / `bookmarks`), the denormalized counter on
  * `posts`, and the durable `engagement_outbox` event commit together or not at
  * all. That is the whole design: the counter can never disagree with the rows it
- * projects, and no side effect (MTN, federation, notifications) is scheduled for
+ * projects, and no side effect (federation, notifications) is scheduled for
  * a relationship that was rolled back. `enqueueEngagementOutboxEvent` takes a
  * `Transaction`, so "enqueue outside the transaction" does not typecheck.
  *
@@ -86,7 +86,6 @@ export type EngagementPostSnapshot = SelectedRow<typeof POST_SNAPSHOT_COLUMNS>;
 export interface SaveCommandResult {
   changed: boolean;
   bookmarkId?: string;
-  outboxEventId?: string;
   post: EngagementPostSnapshot;
 }
 
@@ -247,18 +246,7 @@ export async function savePostCommand(input: {
       return { changed: false, post: currentPost };
     }
     const post = await updateCounters(input.postId, tx, { saves: 1 });
-    const outboxEventId = await enqueuePostEngagementEvent(
-      {
-        kind: 'post.save',
-        relationshipId: bookmark.id,
-        revision: 1,
-        actorOxyUserId: input.userId,
-        postId: input.postId,
-        post,
-      },
-      tx,
-    );
-    return { changed: true, bookmarkId: bookmark.id, outboxEventId, post };
+    return { changed: true, bookmarkId: bookmark.id, post };
   });
 }
 
@@ -276,18 +264,7 @@ export async function unsavePostCommand(input: {
       return { changed: false, post: currentPost };
     }
     const post = await updateCounters(input.postId, tx, { saves: -1 });
-    const outboxEventId = await enqueuePostEngagementEvent(
-      {
-        kind: 'post.unsave',
-        relationshipId: bookmark.id,
-        revision: 2,
-        actorOxyUserId: input.userId,
-        postId: input.postId,
-        post,
-      },
-      tx,
-    );
-    return { changed: true, bookmarkId: bookmark.id, outboxEventId, post };
+    return { changed: true, bookmarkId: bookmark.id, post };
   });
 }
 
@@ -455,19 +432,19 @@ export async function removeVoteCommand(input: {
 }
 
 /**
- * Project one already-verified MTN relationship without re-emitting it to the
- * engagement outbox. The relationship and its denormalized counter still share
- * the same transaction as native HTTP writes, so reconciliation cannot race a
- * late node/backfill materialization.
+ * Project one relationship that already happened elsewhere (a federated Like)
+ * without re-emitting it to the engagement outbox. The relationship and its
+ * denormalized counter still share the same transaction as native HTTP writes,
+ * so reconciliation cannot race it.
  *
  * `ON CONFLICT DO NOTHING` names NO target on purpose, so it answers for both
- * unique indexes at once: the supplied MTN rkey already existing, and a row for
+ * unique indexes at once: the supplied relationship id already existing, and a row for
  * this (user, post) existing under a DIFFERENT rkey. Both are the same
  * `{ changed: false }`, which is this function's idempotency contract.
  */
 export async function materializeEngagementRelationship(input: {
   kind: MaterializedEngagementKind;
-  /** Preserve a signed MTN rkey when present; external protocols may omit it. */
+  /** Preserve the origin's relationship id when present; external protocols may omit it. */
   relationshipId?: string;
   userId: string;
   postId: string;
@@ -508,8 +485,8 @@ export async function materializeEngagementRelationship(input: {
 }
 
 /**
- * Remove a verified MTN relationship and its counter atomically. The actor is
- * part of the delete predicate: a valid record from account A cannot tombstone
+ * Remove a relationship that was retracted elsewhere, and its counter, atomically.
+ * The actor is part of the delete predicate: a retraction from account A cannot remove
  * account B's relationship merely by naming its rkey.
  *
  * There is no "the post was deleted underneath us" branch any more. Both
@@ -551,8 +528,8 @@ export async function materializeEngagementTombstone(input: {
           input.relationshipId ? eq(likes.id, input.relationshipId) : undefined,
           input.postId ? eq(likes.postId, input.postId) : undefined,
           eq(likes.userId, input.userId),
-          // An MTN like record only ever tombstones an UP-vote; a downvote is
-          // not an `app.mention.feed.like` and must not be removed by one. The
+          // A retracted Like only ever removes an UP-vote; a downvote is not a
+          // Like and must not be removed by one. The
           // predicate is also why only `likes` moves below: a row this delete
           // matched cannot have been a downvote.
           eq(likes.value, 1),

@@ -4,13 +4,6 @@ import { federateAsResolvedActorAndWait } from '../connectors/outboundFederation
 import { getDb } from '../db/postgres';
 import { postAuthorships } from '../db/schema/postContent';
 import {
-  bookmarkRecordUri,
-  emitBookmarkCreatedStrict,
-  emitLikeCreatedStrict,
-  emitTombstoneStrict,
-  likeRecordUri,
-} from './mtn/MentionRecordEmitter';
-import {
   dispatchEngagementOutbox,
   type EngagementOutboxEffect,
   type EngagementOutboxEvent,
@@ -94,8 +87,7 @@ async function deliverFederatedLike(
  * window — and wrong for one held back for days: the post has moved on, and a
  * drained backlog would land on its authors as a burst of stale pushes all at
  * once. Past this age the notification is skipped (and recorded as done); the
- * like itself, its counter, its MTN record and its federation delivery are all
- * unaffected.
+ * like itself, its counter and its federation delivery are unaffected.
  */
 export const LIKE_NOTIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -117,8 +109,8 @@ function errorMessage(error: unknown): string {
  * Run an event's side effects INDEPENDENTLY.
  *
  * They used to run in sequence and stop at the first failure, which made each
- * one hostage to the one before it: an MTN append that could never succeed kept
- * a like's author notification and its federation delivery from ever running.
+ * one hostage to the one before it: a delivery that could never succeed kept
+ * the effects after it from ever running.
  * Now every effect not yet recorded as done is attempted on every attempt, each
  * success is recorded durably before the next effect starts, and the event is
  * failed — and so retried — only if some effect failed, naming each one. A
@@ -149,8 +141,7 @@ async function runEffects(
 
 /**
  * Execute every durable engagement side effect. Each downstream identity is
- * deterministic: MTN preserves the relationship rkey and deduplicates by the
- * durable event id, ActivityPub uses that relation id, and Notification has a
+ * deterministic: ActivityPub uses the relation id, and Notification has a
  * unique actor/type/entity index. On top of that, `completed_effects` keeps a
  * retry from repeating an effect that already landed.
  */
@@ -159,27 +150,11 @@ export async function handleEngagementOutboxEvent(
   context: EngagementOutboxHandlerContext = UNTRACKED,
   now: Date = new Date(),
 ): Promise<void> {
-  const { actorOxyUserId, postId, relationshipId, postOwnerOxyUserId, previousValue } =
-    event.payload;
-  const mtnEventIdentity = {
-    idempotencyKey: event.id,
-    issuedAt: event.createdAt,
-  };
+  const { actorOxyUserId, postId, previousValue } = event.payload;
 
   switch (event.kind) {
     case 'post.like':
       await runEffects(event, context, [
-        {
-          name: 'mtn',
-          run: () =>
-            emitLikeCreatedStrict({
-              likerOxyUserId: actorOxyUserId,
-              likeRkey: relationshipId,
-              likedPostId: postId,
-              likedPostOwnerOxyUserId: postOwnerOxyUserId,
-              ...mtnEventIdentity,
-            }),
-        },
         {
           name: 'notification',
           run: async () => {
@@ -209,16 +184,6 @@ export async function handleEngagementOutboxEvent(
     case 'post.unlike':
       await runEffects(event, context, [
         {
-          name: 'mtn',
-          run: () =>
-            emitTombstoneStrict({
-              authorOxyUserId: actorOxyUserId,
-              tombstoneRkey: relationshipId,
-              subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
-              ...mtnEventIdentity,
-            }),
-        },
-        {
           name: 'federation',
           run: () => deliverFederatedLike(event, 'post.unlike'),
         },
@@ -227,19 +192,9 @@ export async function handleEngagementOutboxEvent(
 
     case 'post.downvote':
       // A new downvote has no cross-network side effect. Switching from an
-      // upvote must durably retract the prior MTN/AP Like.
+      // upvote must durably retract the prior ActivityPub Like.
       if (previousValue === 1) {
         await runEffects(event, context, [
-          {
-            name: 'mtn',
-            run: () =>
-              emitTombstoneStrict({
-                authorOxyUserId: actorOxyUserId,
-                tombstoneRkey: relationshipId,
-                subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
-                ...mtnEventIdentity,
-              }),
-          },
           {
             name: 'federation',
             run: () => deliverFederatedLike(event, 'post.unlike'),
@@ -251,35 +206,10 @@ export async function handleEngagementOutboxEvent(
     case 'post.undownvote':
       return;
 
+    // A save is private and has no cross-network side effect. Saves are no
+    // longer enqueued; this drains rows written before that.
     case 'post.save':
-      await runEffects(event, context, [
-        {
-          name: 'mtn',
-          run: () =>
-            emitBookmarkCreatedStrict({
-              ownerOxyUserId: actorOxyUserId,
-              bookmarkRkey: relationshipId,
-              bookmarkedPostId: postId,
-              bookmarkedPostOwnerOxyUserId: postOwnerOxyUserId,
-              ...mtnEventIdentity,
-            }),
-        },
-      ]);
-      return;
-
     case 'post.unsave':
-      await runEffects(event, context, [
-        {
-          name: 'mtn',
-          run: () =>
-            emitTombstoneStrict({
-              authorOxyUserId: actorOxyUserId,
-              tombstoneRkey: relationshipId,
-              subjectUri: bookmarkRecordUri(actorOxyUserId, relationshipId),
-              ...mtnEventIdentity,
-            }),
-        },
-      ]);
       return;
   }
 }

@@ -591,7 +591,6 @@ export const viewerQueryKeys = {
   viewerFollowing: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'following'] as const,
   postActivity: (viewerId: ViewerId, userId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'post-activity', userId ?? ''] as const,
-  mentionNode: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'mention-node'] as const,
   /** Syra podcast shows the viewer is subscribed to (the podcast card's save button). */
   syraPodcastSubscriptions: (viewerId: ViewerId) =>
     [...viewerQueryKeys.all(viewerId), 'syra-podcast-subscriptions'] as const,

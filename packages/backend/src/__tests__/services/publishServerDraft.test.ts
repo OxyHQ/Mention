@@ -18,7 +18,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *  3. What the draft carried survives the publish untouched: the author's
  *     language variants, the lane, the sources and the collaborator invite.
  *
- * The notification writers, the MTN emitter and the federator are stubbed at the
+ * The notification writers and the federator are stubbed at the
  * module boundary: what they DO is covered by their own suites, and here only
  * whether and how often they are reached matters.
  */
@@ -28,7 +28,6 @@ const hoisted = vi.hoisted(() => ({
   createMentionNotifications: vi.fn(async () => undefined),
   createBatchNotifications: vi.fn(async () => undefined),
   createNotification: vi.fn(async () => undefined),
-  emitPostCreated: vi.fn(async () => undefined),
   federateNewPost: vi.fn(async () => undefined),
 }));
 
@@ -37,10 +36,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createMentionNotifications: hoisted.createMentionNotifications,
   createBatchNotifications: hoisted.createBatchNotifications,
   createPostAuthorNotifications: hoisted.createPostAuthorNotifications,
-}));
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: hoisted.emitPostCreated,
-  emitRepostCreated: vi.fn(async () => undefined),
 }));
 vi.mock('../../services/serviceRegistry', () => ({
   getPostFederator: () => ({ federateNewPost: hoisted.federateNewPost }),
@@ -143,7 +138,6 @@ describe('a server draft at creation', () => {
 
     // The reply notification is the one that used to go out at draft time.
     expect(hoisted.createPostAuthorNotifications).not.toHaveBeenCalled();
-    expect(hoisted.emitPostCreated).not.toHaveBeenCalled();
     expect(hoisted.federateNewPost).not.toHaveBeenCalled();
   });
 });
@@ -163,10 +157,8 @@ describe('publishing a server draft', () => {
     await settle();
 
     expect(published).not.toBeNull();
-    // The invite goes out now that there is something to be invited to, and the
-    // MTN record is written at the publish moment.
+    // The invite goes out now that there is something to be invited to.
     expect(notifyInvites).toHaveBeenCalledTimes(1);
-    expect(hoisted.emitPostCreated).toHaveBeenCalledTimes(1);
     // A pending collaborator still defers federation, exactly as for a
     // scheduled post: the invitee has not consented to the fediverse yet.
     expect(hoisted.federateNewPost).not.toHaveBeenCalled();
@@ -212,7 +204,7 @@ describe('publishing a server draft', () => {
     await settle();
 
     expect(results.filter((result) => result !== null)).toHaveLength(1);
-    expect(hoisted.emitPostCreated).toHaveBeenCalledTimes(1);
+    expect(hoisted.federateNewPost).toHaveBeenCalledTimes(1);
   });
 
   it('refuses a second publish of a draft that already went out', async () => {
@@ -230,7 +222,8 @@ describe('publishing a server draft', () => {
     });
 
     expect(again).toBeNull();
-    expect(hoisted.emitPostCreated).toHaveBeenCalledTimes(1);
+    await settle();
+    expect(hoisted.federateNewPost).toHaveBeenCalledTimes(1);
   });
 
   it("refuses another user's draft and leaves it a draft", async () => {

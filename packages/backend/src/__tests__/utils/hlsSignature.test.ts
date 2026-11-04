@@ -8,11 +8,11 @@ import { describe, it, expect, vi } from 'vitest';
  */
 
 vi.mock('../../config', () => ({
-  // The key is derived from the federation signing key, not from the Oxy
-  // service secret it used to hang off: that pair is being removed from the
-  // deployment, and a signature key that disappears with a credential takes the
+  // The key is derived from `MENTION_PRIVATE_KEY`, not from the Oxy service
+  // secret it used to hang off: that pair is being removed from the deployment,
+  // and a signature key that disappears with a credential takes the
   // octet-stream allowance down with it, silently.
-  getMentionSigningValues: () => ({ privateKey: 'test-federation-private-key' }),
+  getMediaHmacRoot: () => 'test-media-hmac-root',
 }));
 
 import { isSignedHlsComponent, signHlsComponentUrl } from '../../utils/hlsSignature';

@@ -45,11 +45,6 @@ vi.mock('../../services/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
 }));
 vi.mock('../../services/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn(async () => undefined),
-  emitRepostCreated: vi.fn(async () => undefined),
-}));
-
 const { publicationPolicies } = vi.hoisted(() => ({ publicationPolicies: vi.fn() }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: { publicationPolicies } }),

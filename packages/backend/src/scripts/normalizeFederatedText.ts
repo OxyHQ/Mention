@@ -40,13 +40,6 @@
  * author's own text and is not ours to touch. Media `alt` is the one field this
  * script normalizes on native rows too.
  *
- * WHAT IT CANNOT FIX: a native post is also dual-written as a SIGNED record on the
- * author's MTN hash chain, and a signed record is immutable. Rows whose alt was
- * signed before the write boundary was fixed keep that raw alt on-chain forever;
- * this script cleans the database row that every read path actually serves. There is
- * no backfill for the chain, and there must not be one — rewriting a signed record
- * would break the chain it belongs to.
- *
  * Idempotent (a second run writes nothing), batched through a stable ascending
  * `_id` cursor with `bulkWrite` (never loads the collection into memory), and it
  * only writes the documents whose values ACTUALLY change.

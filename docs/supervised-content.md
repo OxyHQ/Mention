@@ -33,7 +33,7 @@ Release requires the canonical Oxy Kids API (oxy ADR 0041) and the registry pack
 Oxy provisioning comes before the backend deploy, through the safety consumer provisioning script in the OxyHQ/oxy API package (oxy ADR 0041), with `SAFETY_CONSUMER=mention`:
 
 1. `SAFETY_STAGE=base` gives both Mention workloads (`oxy-mention-task`, `oxy-mention-mcp-task`) the `safety:decide` scope. Every hydration, adult and anonymous included, asks Oxy for content decisions with a token narrowed to that scope, so without it feeds and post reads fail.
-2. `SAFETY_STAGE=capability SAFETY_ACTIONS=content-publication` lets the background `publicationPolicies` lane answer. Oxy refuses that lane to a consumer without `safety:content-publication:v1` for every author, adults included, so without it federation and MTN records stop for everyone.
+2. `SAFETY_STAGE=capability SAFETY_ACTIONS=content-publication` lets the background `publicationPolicies` lane answer. Oxy refuses that lane to a consumer without `safety:content-publication:v1` for every author, adults included, so without it federation stops for everyone.
 3. `SAFETY_STAGE=capability SAFETY_ACTIONS=content` is what lets a supervised account use the reviewed routes under the policy. Until it is granted, Oxy refuses supervised credentials on every Mention route and ordinary accounts are unaffected. Grant it only after the adult rollout checks succeed in production.
 
 Each step is a dry run first; `APPLY=1` needs the observed plan hash, an actor and a reason, and removing a capability reverses it.

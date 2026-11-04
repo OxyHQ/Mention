@@ -437,12 +437,6 @@
       "functions": 100,
       "lines": 95
     },
-    "hooks/useMentionNode.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
     "hooks/useMentionSearchResults.ts": {
       "statements": 100,
       "branches": 92,

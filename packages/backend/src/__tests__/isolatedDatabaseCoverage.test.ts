@@ -156,7 +156,6 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'recoverFederatedDirectMessages', call: /\brecoverFederatedDirectMessages\s*\(/ },
   { name: 'backfillThreadRootThreadId', call: /\bbackfillThreadRootThreadId\s*\(/ },
   { name: 'migrateThreadFanToChain', call: /\bmigrateThreadFanToChain\s*\(/ },
-  { name: 'backfillMtnRecords', call: /\bbackfillMtnRecords\s*\(/ },
   {
     name: 'backfillFederatedHandleQualification',
     call: /\bbackfillFederatedHandleQualification\s*\(/,

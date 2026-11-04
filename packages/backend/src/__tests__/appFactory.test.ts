@@ -33,9 +33,6 @@ function createRoutes(): AppRoutes {
     apRateLimiter: passThrough,
     actor: routerWith('/users/alice', 'actor'),
     federationContent: passThrough,
-    atprotoBridge: passThrough,
-    atprotoBridgeMeta: passThrough,
-    wellKnownBridge: passThrough,
     media: passThrough,
     crowdSourceWebhook: passThrough,
     oxyAccountEvents: passThrough,
@@ -190,12 +187,7 @@ describe('createApp', () => {
     const { createApp } = await import('../app');
     const app = createApp(createDependencies());
 
-    for (const path of [
-      '/ap/users/alice',
-      '/.well-known/webfinger',
-      '/xrpc/unknown',
-      '/ap-bridge/unknown',
-    ]) {
+    for (const path of ['/ap/users/alice', '/.well-known/webfinger']) {
       const response = await request(app).get(path).set('Host', 'api.mention.earth');
       expect(response.headers['cache-control'] ?? '').not.toContain('no-store');
     }

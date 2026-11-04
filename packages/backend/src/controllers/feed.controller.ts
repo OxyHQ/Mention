@@ -72,12 +72,6 @@ import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxy
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { OperatedAccountReader } from '../services/publishAsAccount';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
-import {
-  emitPostCreated,
-  emitRepostCreated,
-  emitTombstone,
-  repostRecordUri,
-} from '../services/mtn/MentionRecordEmitter';
 import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../utils/jobPostAttachment';
 import { recordRecentReplierForPost } from '../services/PostRecentReplierService';
@@ -586,31 +580,6 @@ class FeedController {
       // inboxes, and the shutdown drain still waits for it.
       trackBackgroundWork(postCreationService.notifyCreatedPost(reply, currentUserId));
 
-      // MTN dual-write: a reply emits an `app.mention.feed.post` record with the
-      // thread position (reply.root / reply.parent). The direct parent is
-      // `parentPost`; the thread root is `parentPost.threadId` (or the parent
-      // itself when it IS the root). Resolve the root owner with a lean lookup
-      // only when the root differs from the parent. Best-effort, never blocks.
-      try {
-        const rootId = parentPost.threadId ?? parentPost.id;
-        const parentOwner = parentPost.oxyUserId ?? undefined;
-        let rootOwner = rootId === parentPost.id ? parentOwner : undefined;
-        if (!rootOwner) {
-          const rootPost = await loadPostRecord(rootId);
-          rootOwner = rootPost?.oxyUserId ?? undefined;
-        }
-        const replyContext =
-          parentOwner && rootOwner
-            ? {
-                root: { postId: rootId, oxyUserId: rootOwner },
-                parent: { postId: String(postId), oxyUserId: parentOwner },
-              }
-            : undefined;
-        await emitPostCreated(reply, { reply: replyContext });
-      } catch (mtnError) {
-        logger.error('createReply: MTN record emission failed', mtnError);
-      }
-
       // Affinity graph: the replier expresses affinity toward the parent post's
       // author. Fire-and-forget — buffering must never block or fail the reply.
       const parentAuthorId = parentPost.oxyUserId ?? undefined;
@@ -801,10 +770,6 @@ class FeedController {
       // both "already boosted" answers returned above.
       trackBackgroundWork(postCreationService.notifyCreatedPost(boost, currentUserId));
 
-      // MTN dual-write: a boost emits an `app.mention.feed.repost` record whose
-      // subject is the boosted original's MTN URI. Best-effort, never blocks.
-      await emitRepostCreated(boost, originalPostId, originalPost?.oxyUserId ?? undefined);
-
       // Outbound federation: announce the boost to the booster's remote
       // followers (and, if the original is federated, its author's instance).
       // Local booster only — a native boost has `federation == null`.
@@ -915,16 +880,6 @@ class FeedController {
 
       if (!boost) {
         return res.status(404).json({ error: 'Boost not found' });
-      }
-
-      // MTN dual-write: tombstone the boost's `app.mention.feed.repost` record.
-      // Only LOCAL boosts ever emitted a record.
-      if (boost.federation == null && boost.oxyUserId) {
-        await emitTombstone({
-          authorOxyUserId: boost.oxyUserId,
-          tombstoneRkey: boost.id,
-          subjectUri: repostRecordUri(boost.oxyUserId, boost.id),
-        });
       }
 
       // Outbound federation: retract the boost with an Undo(Announce). The boost

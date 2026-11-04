@@ -54,16 +54,6 @@ export function startSchedulers(): void {
     logger.warn('Failed to start federation job scheduler', error);
   }
 
-  // MTN Node Scheduler (B3 bidirectional node sync: leader-gated liveness probes
-  // + ingest of pull nodes / export to push nodes). Background only — NEVER on a
-  // request path; the feed/hydration hot path never queries a node.
-  try {
-    const { mentionNodeScheduler } = require('../services/mtn/MentionNodeScheduler');
-    mentionNodeScheduler.start();
-  } catch (error) {
-    logger.warn('Failed to start MTN node scheduler', error);
-  }
-
   // Follower Snapshot Job (leader-gated + env-gated on REDIS_URL): samples
   // follower counts for active authors, powering the `risingCreators` feed
   // source's follower-growth delta. Timers are unref'd; inline no-op without Redis.
@@ -205,13 +195,6 @@ export function stopSchedulers(): void {
     federationJobScheduler.stop();
   } catch (error) {
     logger.warn('Failed to stop federation job scheduler', error);
-  }
-
-  try {
-    const { mentionNodeScheduler } = require('../services/mtn/MentionNodeScheduler');
-    mentionNodeScheduler.stop();
-  } catch (error) {
-    logger.warn('Failed to stop MTN node scheduler', error);
   }
 
   try {

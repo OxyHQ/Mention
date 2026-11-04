@@ -38,10 +38,6 @@ vi.mock('../../services/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
 }));
 vi.mock('../../services/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn(async () => undefined),
-  emitRepostCreated: vi.fn(async () => undefined),
-}));
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 vi.mock('../../services/postSafetyAccess', () => ({
   loadPostSafetyDecisions: async (records: Array<{ id: string }>) =>

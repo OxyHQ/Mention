@@ -107,11 +107,7 @@
       "services/channelWritersService.ts",
       "services/channelDeletionService.ts"
     ],
-    "federation-facing UI state": [
-      "utils/externalActor.ts",
-      "hooks/useExternalActorResolve.ts",
-      "hooks/useMentionNode.ts"
-    ],
+    "federation-facing UI state": ["utils/externalActor.ts", "hooks/useExternalActorResolve.ts"],
     "deep links and share intents": [
       "utils/composeIntent.ts",
       "lib/shareIntent.ts",
@@ -148,11 +144,6 @@
       "since": "2026-08-15",
       "measured": "0%",
       "reason": "No direct test. Its siblings channelAccountService and channelWritersService are both at 100%; this one is the destructive operation and is the odd one out."
-    },
-    "hooks/useMentionNode.ts": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test. Self-hosted node pairing state; low traffic, but it is federation-facing state as the issue defines it."
     },
     "lib/shareIntent.ts": {
       "since": "2026-08-15",
@@ -373,11 +364,11 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 333,
-    "pins": 328,
+    "domainFiles": 332,
+    "pins": 327,
     "unenforceable": 5,
-    "belowBarExemptions": 6,
-    "criticalPaths": 36,
+    "belowBarExemptions": 5,
+    "criticalPaths": 35,
     "snapshotAssertions": 0
   }
 }

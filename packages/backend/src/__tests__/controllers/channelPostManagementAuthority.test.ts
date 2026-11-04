@@ -98,12 +98,6 @@ vi.mock('../../services/PostCreationService', () => ({
   postCreationService: { claimAndPublishScheduledPost: oxy.claimAndPublishScheduledPost },
 }));
 
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn(),
-  emitTombstone: vi.fn(),
-  postRecordUri: () => 'at://test',
-}));
-
 vi.mock('../../connectors/outboundFederation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../connectors/outboundFederation')>()),
   federateAsResolvedActor: vi.fn(),

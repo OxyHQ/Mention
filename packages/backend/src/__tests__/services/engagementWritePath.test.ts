@@ -162,8 +162,8 @@ async function postRow(postId: string) {
 
 beforeAll(async () => {
   db = await connectPostgres();
-  // A deterministic mid-transaction failure. `savePostCommand` writes the
-  // bookmark and the counter BEFORE the outbox row, so a refused insert here is
+  // A deterministic mid-transaction failure. `votePostCommand` writes the
+  // like and the counter BEFORE the outbox row, so a refused insert here is
   // the only clean way to ask "did the earlier writes survive?".
   // The actor id is spliced as a LITERAL, not bound: a `$1` inside a function
   // body has no inferable type and Postgres refuses the whole DDL (42P18). It is
@@ -202,7 +202,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('a save writes the relationship, the counter and the event together', () => {
+describe('a save writes the relationship and the counter together', () => {
   it('creates all three and reports the counter it actually stored', async () => {
     const postId = await seedPost({ oxyUserId: 'oxy-author-1' });
 
@@ -224,18 +224,10 @@ describe('a save writes the relationship, the counter and the event together', (
     // in the partial unique folder index.
     expect(stored[0]?.folder).toBeNull();
 
-    const event = await outboxRow(result.outboxEventId ?? '');
-    expect(event).toMatchObject({
-      kind: 'post.save',
-      revision: 1,
-      status: 'pending',
-      attempts: 0,
-      payloadActorOxyUserId: 'viewer-a',
-      payloadPostId: postId,
-      payloadRelationshipId: result.bookmarkId,
-      payloadPostOwnerOxyUserId: 'oxy-author-1',
-    });
-    expect(event?.id).toBe(`engagement:post.save:${result.bookmarkId}:v1`);
+    // A save is private and has no side effect to deliver, so it queues nothing.
+    expect(
+      await db.select().from(engagementOutbox).where(eq(engagementOutbox.payloadPostId, postId)),
+    ).toHaveLength(0);
   });
 
   it('records the federation activity id so an Undo can be addressed later', async () => {
@@ -273,28 +265,22 @@ describe('a save writes the relationship, the counter and the event together', (
 
     expect(duplicate.changed).toBe(false);
     expect(duplicate.bookmarkId).toBeUndefined();
-    expect(duplicate.outboxEventId).toBeUndefined();
     // The counter did not move a second time, which is the whole point.
     expect(duplicate.post.statsSavesCount).toBe(1);
     expect(after[0]?.updatedAt.getTime()).toBe(before[0]?.updatedAt.getTime());
     expect(after[0]?.createdAt.getTime()).toBe(before[0]?.createdAt.getTime());
   });
 
-  it('unsaves idempotently and emits the removal event only when a row existed', async () => {
+  it('unsaves idempotently', async () => {
     const postId = await seedPost();
     const saved = await savePostCommand({ userId: 'viewer-a', postId });
 
     const removed = await unsavePostCommand({ userId: 'viewer-a', postId });
     const repeat = await unsavePostCommand({ userId: 'viewer-a', postId });
 
-    expect(removed).toMatchObject({
-      changed: true,
-      bookmarkId: saved.bookmarkId,
-      outboxEventId: `engagement:post.unsave:${saved.bookmarkId}:v2`,
-    });
+    expect(removed).toMatchObject({ changed: true, bookmarkId: saved.bookmarkId });
     expect(removed.post.statsSavesCount).toBe(0);
     expect(repeat.changed).toBe(false);
-    expect(repeat.outboxEventId).toBeUndefined();
     expect(await db.select().from(bookmarks).where(eq(bookmarks.postId, postId))).toHaveLength(0);
   });
 });
@@ -304,8 +290,8 @@ describe('the transaction boundary', () => {
     /**
      * THE atomicity assertion. Move `enqueueEngagementOutboxEvent` outside the
      * transaction — or drop the transaction entirely — and this goes red showing
-     * the half-applied state: a bookmark and a counter with no durable event, so
-     * the save never reaches MTN, federation or notifications and nothing ever
+     * the half-applied state: a like and a counter with no durable event, so
+     * the like never reaches federation or notifications and nothing ever
      * retries it.
      */
     const postId = await seedPost();
@@ -313,15 +299,19 @@ describe('the transaction boundary', () => {
     // Read the SQLSTATE rather than the message: drizzle re-wraps the driver
     // error as "Failed query: …", so the plpgsql text is only on `cause`.
     // `P0001` is `raise_exception`, i.e. the probe fired and nothing else did.
-    const rejection = await savePostCommand({ userId: ATOMICITY_PROBE_ACTOR, postId }).then(
+    const rejection = await votePostCommand({
+      userId: ATOMICITY_PROBE_ACTOR,
+      postId,
+      value: 1,
+    }).then(
       () => null,
       (error: unknown) => error,
     );
     expect(rejection).not.toBeNull();
     expect(sqlStateOf(rejection)).toBe('P0001');
 
-    expect(await db.select().from(bookmarks).where(eq(bookmarks.postId, postId))).toHaveLength(0);
-    expect((await postRow(postId))?.statsSavesCount).toBe(0);
+    expect(await db.select().from(likes).where(eq(likes.postId, postId))).toHaveLength(0);
+    expect((await postRow(postId))?.statsLikesCount).toBe(0);
     expect(
       await db.select().from(engagementOutbox).where(eq(engagementOutbox.payloadPostId, postId)),
     ).toHaveLength(0);
@@ -569,8 +559,8 @@ describe('a post that does not exist', () => {
   });
 });
 
-describe('materializing a verified MTN relationship', () => {
-  it('preserves the signed rkey as the row id and emits no outbox event', async () => {
+describe('materializing a relationship that happened elsewhere', () => {
+  it('preserves the origin id as the row id and emits no outbox event', async () => {
     const postId = await seedPost();
     const rkey = '65fdc8c8c8c8c8c8c8c8c8f1';
 
@@ -585,8 +575,8 @@ describe('materializing a verified MTN relationship', () => {
     const [stored] = await db.select().from(likes).where(eq(likes.id, rkey));
     expect(stored).toMatchObject({ userId: 'oxy-node-user', postId, value: 1 });
     expect((await postRow(postId))?.statsLikesCount).toBe(1);
-    // The record was already signed and appended; re-emitting it would sign it
-    // twice and federate a Like the origin never made.
+    // The relationship already happened at its origin; re-emitting it would
+    // federate a Like the origin never made.
     expect(
       await db.select().from(engagementOutbox).where(eq(engagementOutbox.payloadPostId, postId)),
     ).toHaveLength(0);
@@ -810,8 +800,8 @@ describe('enqueueing an event', () => {
      * Break the id derivation — make it non-deterministic, or turn the conflict
      * clause into `DO UPDATE` — and the row count and the DELIVERY count move
      * together: the dispatcher hands the same transition to the handler twice,
-     * which downstream is a second signed MTN record under a fresh rkey, a
-     * second federated Like the origin never made, and a second notification.
+     * which downstream is a second federated Like the origin never made and a
+     * second notification.
      * Asserting the row alone would let a future change keep one row and still
      * double-deliver; asserting the delivery alone would not say why.
      */
@@ -1083,10 +1073,10 @@ describe('dispatching', () => {
     /**
      * The replay guarantee end to end. If the dedup or the completion transition
      * were broken, the second pass would re-claim the same row and the handler
-     * would fire twice — a second signed MTN record and a second federated Like.
+     * would fire twice — a second notification and a second federated Like.
      */
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
     const handler = vi.fn().mockResolvedValue(undefined);
 
     const first = await dispatchEngagementOutbox({
@@ -1104,11 +1094,11 @@ describe('dispatching', () => {
     expect(second).toEqual({ processed: 0, failed: 0 });
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0]?.[0]).toMatchObject({
-      id: saved.outboxEventId,
-      kind: 'post.save',
+      id: voted.outboxEventId,
+      kind: 'post.like',
       payload: { actorOxyUserId: 'viewer-a', postId },
     });
-    expect((await outboxRow(saved.outboxEventId ?? ''))?.status).toBe('processed');
+    expect((await outboxRow(voted.outboxEventId ?? ''))?.status).toBe('processed');
   });
 
   it('bounds the batch and mints its own lease owner when the caller names none', async () => {
@@ -1119,7 +1109,7 @@ describe('dispatching', () => {
      * from every other task's, or two tasks would complete each other's leases.
      */
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
 
     const result = await dispatchEngagementOutbox({
       handler: vi.fn().mockResolvedValue(undefined),
@@ -1127,25 +1117,25 @@ describe('dispatching', () => {
     });
 
     expect(result).toEqual({ processed: 1, failed: 0 });
-    expect((await outboxRow(saved.outboxEventId ?? ''))?.status).toBe('processed');
+    expect((await outboxRow(voted.outboxEventId ?? ''))?.status).toBe('processed');
   });
 
   it('runs on its own defaults when the caller passes only a handler', async () => {
     // How `EngagementOutboxDispatcher` would call it with nothing configured.
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
 
     const result = await dispatchEngagementOutbox({
       handler: vi.fn().mockResolvedValue(undefined),
     });
 
     expect(result).toEqual({ processed: 1, failed: 0 });
-    expect((await outboxRow(saved.outboxEventId ?? ''))?.status).toBe('processed');
+    expect((await outboxRow(voted.outboxEventId ?? ''))?.status).toBe('processed');
   });
 
   it('claims at least one event even when asked for a batch of zero', async () => {
     const postId = await seedPost();
-    await savePostCommand({ userId: 'viewer-a', postId });
+    await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
 
     const result = await dispatchEngagementOutbox({
       handler: vi.fn().mockResolvedValue(undefined),
@@ -1158,7 +1148,7 @@ describe('dispatching', () => {
 
   it('keeps a failed delivery pending, with the reason, for a later reclaim', async () => {
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
 
     const result = await dispatchEngagementOutbox({
       handler: vi.fn().mockRejectedValue(new Error('temporary failure')),
@@ -1167,7 +1157,7 @@ describe('dispatching', () => {
     });
 
     expect(result).toEqual({ processed: 0, failed: 1 });
-    const stored = await outboxRow(saved.outboxEventId ?? '');
+    const stored = await outboxRow(voted.outboxEventId ?? '');
     expect(stored?.status).toBe('pending');
     expect(stored?.lastError).toBe('temporary failure');
     expect(stored?.leaseOwner).toBeNull();
@@ -1175,14 +1165,14 @@ describe('dispatching', () => {
 
   it('records each effect that landed, so the retry sees only what is left', async () => {
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
-    const eventId = saved.outboxEventId ?? '';
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const eventId = voted.outboxEventId ?? '';
 
     const firstPass = await dispatchEngagementOutbox({
       handler: async (_event, context) => {
-        await context.markEffectDone('mtn');
+        await context.markEffectDone('notification');
         // Recording the same effect twice must not duplicate it.
-        await context.markEffectDone('mtn');
+        await context.markEffectDone('notification');
         throw new Error('federation: queue unavailable');
       },
       leaseOwner: 'worker-a',
@@ -1192,7 +1182,7 @@ describe('dispatching', () => {
     expect(firstPass).toEqual({ processed: 0, failed: 1 });
     const stored = await outboxRow(eventId);
     expect(stored?.status).toBe('pending');
-    expect(stored?.completedEffects).toEqual(['mtn']);
+    expect(stored?.completedEffects).toEqual(['notification']);
 
     // The next claim hands the progress back to the handler.
     await db
@@ -1200,13 +1190,13 @@ describe('dispatching', () => {
       .set({ availableAt: new Date(0) })
       .where(eq(engagementOutbox.id, eventId));
     const reclaimed = await claimEngagementOutboxEvent({ leaseOwner: 'worker-b', eventId });
-    expect(reclaimed?.completedEffects).toEqual(['mtn']);
+    expect(reclaimed?.completedEffects).toEqual(['notification']);
   });
 
   it('fails the effect when the lease moved to another worker mid-delivery', async () => {
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
-    const eventId = saved.outboxEventId ?? '';
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const eventId = voted.outboxEventId ?? '';
     let recordError: unknown;
 
     await dispatchEngagementOutbox({
@@ -1217,7 +1207,7 @@ describe('dispatching', () => {
           .update(engagementOutbox)
           .set({ leaseOwner: 'worker-b' })
           .where(eq(engagementOutbox.id, eventId));
-        await context.markEffectDone('mtn').catch((error: unknown) => {
+        await context.markEffectDone('notification').catch((error: unknown) => {
           recordError = error;
         });
       },
@@ -1226,24 +1216,30 @@ describe('dispatching', () => {
     });
 
     expect(recordError).toBeInstanceOf(Error);
-    expect((recordError as Error).message).toBe('lease lost before recording the mtn effect');
+    expect((recordError as Error).message).toBe(
+      'lease lost before recording the notification effect',
+    );
     expect((await outboxRow(eventId))?.completedEffects).toEqual([]);
   });
 
   it('refuses to record progress on a lease this worker no longer holds', async () => {
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
-    const eventId = saved.outboxEventId ?? '';
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const eventId = voted.outboxEventId ?? '';
     await claimEngagementOutboxEvent({ leaseOwner: 'worker-a', eventId });
 
-    await expect(markEngagementOutboxEffectDone(eventId, 'worker-b', 'mtn')).resolves.toBe(false);
-    await expect(markEngagementOutboxEffectDone(eventId, 'worker-a', 'mtn')).resolves.toBe(true);
-    expect((await outboxRow(eventId))?.completedEffects).toEqual(['mtn']);
+    await expect(markEngagementOutboxEffectDone(eventId, 'worker-b', 'notification')).resolves.toBe(
+      false,
+    );
+    await expect(markEngagementOutboxEffectDone(eventId, 'worker-a', 'notification')).resolves.toBe(
+      true,
+    );
+    expect((await outboxRow(eventId))?.completedEffects).toEqual(['notification']);
   });
 
   it('stringifies a non-Error rejection rather than losing the reason', async () => {
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
 
     await dispatchEngagementOutbox({
       handler: vi.fn().mockRejectedValue('string failure'),
@@ -1251,7 +1247,7 @@ describe('dispatching', () => {
       batchSize: 10,
     });
 
-    expect((await outboxRow(saved.outboxEventId ?? ''))?.lastError).toBe('string failure');
+    expect((await outboxRow(voted.outboxEventId ?? ''))?.lastError).toBe('string failure');
   });
 
   it('defers a later revision while an earlier one for the same relationship is unfinished', async () => {
@@ -1286,8 +1282,8 @@ describe('dispatching', () => {
 
   it('stops claiming new work once shutdown is signalled', async () => {
     const postId = await seedPost();
-    await savePostCommand({ userId: 'viewer-a', postId });
-    await savePostCommand({ userId: 'viewer-b', postId });
+    await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    await votePostCommand({ userId: 'viewer-b', postId, value: 1 });
     const controller = new AbortController();
     const handler = vi.fn(async () => {
       controller.abort();
@@ -1315,8 +1311,8 @@ describe('dispatching', () => {
      * which a fake clock cannot demonstrate.
      */
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
-    const eventId = saved.outboxEventId ?? '';
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const eventId = voted.outboxEventId ?? '';
     const leaseMs = 600;
     const claimedUntil: Date[] = [];
 
@@ -1341,8 +1337,8 @@ describe('dispatching', () => {
 
   it('counts an event whose lease was stolen mid-delivery instead of completing it', async () => {
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
-    const eventId = saved.outboxEventId ?? '';
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const eventId = voted.outboxEventId ?? '';
 
     const result = await dispatchEngagementOutbox({
       handler: async () => {
@@ -1371,8 +1367,8 @@ describe('dispatching', () => {
      * that is actively delivering it, which is how one like becomes two.
      */
     const postId = await seedPost();
-    const saved = await savePostCommand({ userId: 'viewer-a', postId });
-    const eventId = saved.outboxEventId ?? '';
+    const voted = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const eventId = voted.outboxEventId ?? '';
 
     const result = await dispatchEngagementOutbox({
       handler: async () => {

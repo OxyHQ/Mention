@@ -105,10 +105,6 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'The same table-wide thread_id grouping, and it reparents what it matches.',
   },
-  'backfill-mtn-records': {
-    scope: 'whole-table',
-    reason: 'Every local published public non-boost post in the database.',
-  },
   backfillFederatedHandleQualification: {
     scope: 'whole-table',
     reason: 'Every federated actor, then every variant body authored by one of them.',

@@ -8,7 +8,7 @@ import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/ho
  * The ONLY module that knows a post is nine tables.
  *
  * Everything above it — hydration, creation, the controllers, and (once their
- * batches land) the feed engine, the federation connectors and the MTN emitter —
+ * batches land) the feed engine and the federation connectors —
  * reads and writes a whole {@link PostRecord}. That boundary is the point: the
  * normalized shape is a storage decision, and letting it leak would put an
  * eight-way join in every consumer and make the child tables impossible to
@@ -969,8 +969,8 @@ export type ClaimablePostStatus = 'scheduled' | 'draft';
  * Flip ONE still-unpublished post to `published`, and return it only to the
  * caller that won the flip.
  *
- * This is a CLAIM, not an update: the publish pipeline behind it federates,
- * writes an MTN record and notifies, so two callers holding the same post must
+ * This is a CLAIM, not an update: the publish pipeline behind it federates
+ * and notifies, so two callers holding the same post must
  * not both run it. That is reachable in practice — the 60s sweep may load a due
  * post moments before its author taps "post now", and an author can tap
  * "publish" on the same draft from two devices.
@@ -2369,8 +2369,7 @@ export async function linkReplyToParent(
  * Delete a post and return the record it was, or `null` when nothing matched.
  *
  * The record is read BEFORE the delete because every caller needs it afterwards:
- * the MTN tombstone needs the author, the outbound `Delete(Tombstone)` needs the
- * id and visibility, and the cascade cleanup needs the poll and article ids.
+ * the outbound `Delete(Tombstone)` needs the author, id and visibility, and the cascade cleanup needs the poll and article ids.
  * Child rows go with it by `ON DELETE CASCADE`; `boostOf` cascades (a boost with
  * no original renders nothing), while `quoteOf`, `threadId` and `parentPostId`
  * are set null so posts with bodies of their own survive.

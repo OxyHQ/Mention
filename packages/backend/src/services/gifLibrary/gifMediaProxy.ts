@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { config, getGifMediaProxySecret, getMentionSigningValues } from '../../config';
+import { config, getGifMediaProxySecret, getMediaHmacRoot } from '../../config';
 import { logger } from '../../utils/logger';
 
 /**
@@ -62,11 +62,10 @@ function getAllowedKlipyDomains(): string[] {
  * down with the credential — silently, because the failure mode here is a
  * suppressed tile, not an error a reader sees.
  *
- * `MENTION_PRIVATE_KEY` is the federation signing key: it is provisioned for
- * every deployment that federates, it is never going to be removed by an
- * identity migration, and it is already a secret this process holds. The label
- * below is what keeps this subkey from being usable as, or derivable from,
- * anything that key signs.
+ * `MENTION_PRIVATE_KEY` is a secret every deployment already holds and no
+ * identity migration takes away (it used to sign the MTN record chain, which is
+ * gone; the key stays as this derivation root). The label below keeps this
+ * subkey purpose-bound.
  *
  * Moving the parent invalidates URLs signed by the previous one. They are
  * short-lived tile links regenerated on the next render, and a stale one is
@@ -85,7 +84,7 @@ function resolveSigningKey(): Buffer | null {
     return cachedKey;
   }
 
-  const federationKey = getMentionSigningValues().privateKey;
+  const federationKey = getMediaHmacRoot();
   if (federationKey && federationKey.length > 0) {
     cachedKey = createHmac('sha256', federationKey).update(GIF_MEDIA_KEY_LABEL).digest();
     return cachedKey;

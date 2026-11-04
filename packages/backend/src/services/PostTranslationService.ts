@@ -25,8 +25,7 @@ import {
  *
  * A machine variant NEVER overrides media (a machine does not choose images) and
  * never declares the post's language: it is derived content, so it stays out of
- * `postClassification.languages`, out of federation, and out of the author's
- * signed MTN record. It does make the post READABLE in its language: its base tag
+ * `postClassification.languages` and out of federation. It does make the post READABLE in its language: its base tag
  * lands in `posts.translated_languages`, which the feed's language gate reads
  * beside the declared languages. It is a cache that grows on demand — unlike
  * author variants, it is deliberately uncapped.

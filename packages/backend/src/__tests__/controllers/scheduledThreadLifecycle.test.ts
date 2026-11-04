@@ -53,12 +53,6 @@ vi.mock('../../services/PostRecentReplierService', () => ({
   repairRecentRepliersAfterPostDelete: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
-  emitPostCreated: vi.fn(),
-  emitTombstone: vi.fn(async () => undefined),
-  postRecordUri: () => 'at://test',
-}));
-
 vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor: vi.fn() }));
 
 // No `models/Article` mock: the article row is REAL, and cancelling the thread

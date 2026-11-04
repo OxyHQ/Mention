@@ -76,7 +76,7 @@ describe('every route a settings screen navigates to exists', () => {
   it('keeps the fediverse area behind one door', () => {
     // The hub and its subscreens exist…
     expect(knownRoutes.has('/settings/fediverse')).toBe(true);
-    expect(knownRoutes.has('/settings/fediverse/node')).toBe(true);
+    expect(knownRoutes.has('/settings/fediverse/transparency')).toBe(true);
     // …and the routes they replaced are gone, with no compatibility stub.
     expect(knownRoutes.has('/settings/node')).toBe(false);
 
