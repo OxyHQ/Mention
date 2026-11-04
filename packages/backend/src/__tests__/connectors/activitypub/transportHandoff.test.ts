@@ -7,7 +7,12 @@ const before = new Date(H.getTime() - 1);
 
 describe('the transport handoff', () => {
   it('gives every post written before the handoff to the keyless transport, and the rest to the keyed one', () => {
-    const post = (keyed: boolean, time: Date, isReply = false) => ({ keyed, time, isReply });
+    const post = (keyed: boolean, time: Date, isReply = false) => ({
+      keyed,
+      role: 'own' as const,
+      time,
+      isReply,
+    });
     const handoff = { at: H };
     // Before H: the keyless copy is kept, the keyed copy is not — never both.
     expect(belongsToTransport(post(false, before), handoff)).toBe(true);
@@ -21,6 +26,10 @@ describe('the transport handoff', () => {
     // No keyless history when the keyed follow was accepted: the keyed transport takes all.
     expect(belongsToTransport(post(false, before), { at: null })).toBe(false);
     expect(belongsToTransport(post(true, before), { at: null })).toBe(true);
+    // A keyed object something references (a boost's original, a quote) is kept
+    // whatever its time; a keyless one stays under the rule.
+    expect(belongsToTransport({ ...post(true, before), role: 'referenced' }, handoff)).toBe(true);
+    expect(belongsToTransport({ ...post(false, H), role: 'referenced' }, handoff)).toBe(false);
     // No keyed subscription yet: both are sources.
     expect(belongsToTransport(post(false, H), undefined)).toBe(true);
   });

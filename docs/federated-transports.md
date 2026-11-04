@@ -114,9 +114,24 @@ belongs to exactly one transport, by the time it was written:
   stored.
 - **Replies are bird.makeup's,** whatever their time; mastox carries none, so
   none is ever duplicated and an old reply a thread needs is not lost.
+- **The rule governs only the account's own timeline:** a post arriving as its
+  live item (inbox) or from its outbox. A bird.makeup object Mention needs
+  because something references it — the original of a boost, a quoted post, a
+  reply's parent or thread ancestor — is stored whatever its time, whenever no
+  copy with its tweet id exists. Retweets therefore always show as boosts of the
+  original. A mastox object has no tweet id to check, so a referenced mastox
+  post stays under the rule.
 
-No tweet can be stored twice. The rule reads only times and whether a post is a
-reply.
+On the account's own timeline no tweet can be stored twice. The rule reads only
+times, whether a post is a reply, and whether it is the account's own timeline
+item or a referenced object.
+
+**The residual:** a referenced tweet written before H that mastox ALSO stored
+exists twice (its bird.makeup copy and its mastox copy). Measured 2026-11-05: of
+the 7 bird.makeup rows written before H on the 3 accounts with a handoff, 2 have
+a mastox row with the identical text; of the 9 recorded boost-original and quote
+imports on accounts held through both bridges, 0 do. (That measurement compared
+text; the runtime never does.)
 
 **H is stored per account** (`federated_transport_handoffs`, keyed by Oxy's
 `canonicalAcct`), written once and never moved. It is the time Mention first holds
@@ -130,9 +145,6 @@ an accepted bird.makeup follow, mastox stays a source as before.
 - A tweet written shortly before H that mastox had not crawled by H: neither copy
   is stored. The window is mastox's crawl lag at that moment (p99 under 8
   minutes, max under 19 measured); more if mastox was stalled at H.
-- A bird.makeup copy of an older tweet (a quoted post, a boosted original) of the
-  account that mastox never stored. A quote of it is then withheld, as any quote
-  of a post Mention cannot hold.
 
 **Generic.** Which hosts are keyed (their status id is the upstream post id) and
 which keyless comes from the mirror registry

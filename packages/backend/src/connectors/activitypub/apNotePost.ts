@@ -208,6 +208,10 @@ export async function buildPostFromNote(
     activityId,
     published,
     isReply: inReplyToUri !== undefined,
+    // The dependency import stores what something else references (a boost's
+    // original, a quote target, a reply ancestor), and only when no copy with
+    // its upstream key exists.
+    role: input.ingestPath === 'dependency' ? 'referenced' : 'own',
   });
   if (handoff) return { skip: true, reason: handoff };
 
