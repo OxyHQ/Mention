@@ -1,5 +1,5 @@
 import { CommerceCard } from './Attachments/CommerceCard';
-import { type HomiioCaseReference, parseHomiioCaseUrl } from '@mention/shared-types/homiio';
+import type { HomiioCaseReference } from '@mention/shared-types/homiio';
 import { HomiioCaseCard } from './Attachments/HomiioCaseCard';
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import {
@@ -23,11 +23,7 @@ import type {
   PostJobContent,
 } from '@mention/shared-types/post';
 import type { GeoJSONPoint } from '@mention/shared-types/common';
-import {
-  MEDIA_VARIANT_THUMB,
-  MEDIA_VARIANT_FULL,
-  MAX_POST_DOCUMENTS,
-} from '@mention/shared-types/post';
+import { MEDIA_VARIANT_THUMB, MEDIA_VARIANT_FULL } from '@mention/shared-types/post';
 import { useRouter } from '@/lib/navigation/router';
 import JobCard from '@/components/Post/JobCard';
 import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
@@ -62,8 +58,7 @@ import {
   PostAttachmentRoom,
 } from './Attachments';
 import { parseEmbedPlayerFromUrl, canEmbed, type EmbedPlayerParams } from '@/utils/embedPlayer';
-import { extractUrls } from '@/utils/extractUrls';
-import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
+import { postLinkCards } from '@/utils/postLinkCards';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import type { NestedPostRenderer } from './Attachments/PostAttachmentNested';
 
@@ -210,16 +205,6 @@ const areClarityDocumentsEqual = (a?: ClarityDocument[], b?: ClarityDocument[]):
 
 const logger = createLogger('PostAttachmentsRow');
 
-function normalizedLinkUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    parsed.hash = ''; // A document preview is shared by anchors within the page.
-    return parsed.href;
-  } catch {
-    return url;
-  }
-}
-
 /** The one height every item of a multi-item row shares. */
 const ROW_HEIGHT = 200;
 /** The shared height of a row holding a poll or a video podcast. */
@@ -279,36 +264,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     const hasHomiioCase = Boolean(homiioCase?.caseId);
     const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
     const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
-    const linkItems = useMemo<AttachmentItem[]>(() => {
-      const resolved = (documents ?? []).filter(
-        (document) =>
-          Boolean(document?.canonicalUrl) && parseHomiioCaseUrl(document.canonicalUrl) === null,
-      );
-      const byUrl = new Map<string, ClarityDocument>();
-      for (const document of resolved) {
-        byUrl.set(normalizedLinkUrl(document.canonicalUrl), document);
-        if (document.requestedUrl) byUrl.set(normalizedLinkUrl(document.requestedUrl), document);
-      }
-      // The cap precedes the profile filter, matching hydration and the composer.
-      const sourceUrls = extractUrls(text ?? '')
-        .slice(0, MAX_POST_DOCUMENTS)
-        .filter(
-          (url) => ownProfileLinkHandle(url) === undefined && parseHomiioCaseUrl(url) === null,
-        );
-      const seen = new Set<string>();
-      const cards: AttachmentItem[] = [];
-      for (const sourceUrl of [
-        ...sourceUrls,
-        ...resolved.map((document) => document.canonicalUrl),
-      ]) {
-        const document = byUrl.get(normalizedLinkUrl(sourceUrl));
-        const url = document?.canonicalUrl ?? sourceUrl;
-        const key = normalizedLinkUrl(url);
-        if (seen.has(key) || cards.length >= MAX_POST_DOCUMENTS) continue;
-        seen.add(key);
-        // A source link is actionable even when indexing has not produced any
-        // metadata. Only Clarity documents supply article titles and cover images.
-        cards.push({
+    const linkItems = useMemo<AttachmentItem[]>(
+      () =>
+        postLinkCards(text, documents).map(({ url, document }) => ({
+          // A source link is actionable even when indexing has not produced any
+          // metadata. Only Clarity documents supply article titles and cover images.
           type: 'link',
           url,
           title: document?.title,
@@ -316,10 +276,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           image: document?.imageUrl,
           siteName: document?.publisher,
           embedParams: parseEmbedPlayerFromUrl(url),
-        });
-      }
-      return cards;
-    }, [text, documents]);
+        })),
+      [text, documents],
+    );
 
     // Resolve a media reference to a final render URL for a given context:
     //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).

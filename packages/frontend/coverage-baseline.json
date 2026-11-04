@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 56.23,
-      "covered": 16827,
-      "total": 29921
+      "pct": 56.38,
+      "covered": 16846,
+      "total": 29879
     },
     "branches": {
-      "pct": 52.66,
-      "covered": 12204,
-      "total": 23174
+      "pct": 52.85,
+      "covered": 12239,
+      "total": 23154
     },
     "functions": {
-      "pct": 50.7,
-      "covered": 3950,
-      "total": 7790
+      "pct": 50.88,
+      "covered": 3955,
+      "total": 7773
     },
     "lines": {
-      "pct": 57.16,
-      "covered": 15190,
-      "total": 26571
+      "pct": 57.32,
+      "covered": 15204,
+      "total": 26523
     }
   },
   "pins": {
@@ -571,7 +571,7 @@
     },
     "hooks/useProfileData.ts": {
       "statements": 92,
-      "branches": 85,
+      "branches": 87,
       "functions": 90,
       "lines": 93
     },
@@ -1398,10 +1398,10 @@
       "lines": 6
     },
     "stores/appearanceStore.ts": {
-      "statements": 66,
-      "branches": 59,
-      "functions": 77,
-      "lines": 66
+      "statements": 70,
+      "branches": 60,
+      "functions": 83,
+      "lines": 69
     },
     "stores/bylineInvalidation.ts": {
       "statements": 100,
@@ -1876,6 +1876,12 @@
       "branches": 91,
       "functions": 100,
       "lines": 100
+    },
+    "utils/postLinkCards.ts": {
+      "statements": 92,
+      "branches": 91,
+      "functions": 100,
+      "lines": 97
     },
     "utils/postPermalink.ts": {
       "statements": 100,

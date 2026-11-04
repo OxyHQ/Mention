@@ -238,6 +238,27 @@ it('sends a connection only to the selected account and preserves refusal feedba
   expect(service.connect).toHaveBeenCalledWith('account-a', 'shop-a');
   expect(service.disconnect).not.toHaveBeenCalled();
 });
+it("shows the connected store's activity, or why it is withheld", async () => {
+  service.metrics.mockResolvedValue({
+    periodDays: 30,
+    minimumOpens: 10,
+    suppressed: false,
+    opens: 12,
+    handoffs: 3,
+  });
+  render(<StorefrontSettings accountId="account-a" />);
+  await waitUntil(() => screen().includes('commerce.metricsSummary'), 'activity summary');
+
+  service.metrics.mockResolvedValue({
+    periodDays: 30,
+    minimumOpens: 10,
+    suppressed: true,
+    opens: null,
+    handoffs: null,
+  });
+  await act(() => client.invalidateQueries());
+  await waitUntil(() => screen().includes('commerce.metricsSuppressed'), 'withheld activity');
+});
 it('disconnects the selected account and refreshes its visible state', async () => {
   service.disconnect.mockImplementation(async () => {
     service.storefront.mockResolvedValue({ state: 'disconnected' });
