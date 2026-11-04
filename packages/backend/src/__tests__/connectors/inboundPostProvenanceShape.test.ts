@@ -47,23 +47,22 @@ const SOURCE_ROOT = path.resolve(__dirname, '../..');
 
 /**
  * The smallest number of `federation:` blocks this scan may find and still be
- * believed. Eight exist today: the three ActivityPub Note ingest sites (inbox
- * `Create`, outbox backfill, `ensureFederatedNote`) which share
- * `buildFederatedNoteProvenance`, the ActivityPub `Announce` importer, the
- * atproto post importer, the mention-repair script's row type and its rebuilt
- * block, plus the federation config, which describes no post and carries no
- * `activityId`. The removed transport-derived user summary was not an ingest
- * site; the identified-post floor below remains unchanged.
+ * believed. Seven exist today: the one ActivityPub Note builder
+ * (`buildPostFromNote`, which the inbox `Create`, the outbox backfill and
+ * `ensureFederatedNote` all build through), the ActivityPub `Announce` importer,
+ * the atproto post importer, the Instagram Graph importer, the mention-repair
+ * script's row type and its rebuilt block, plus the federation config, which
+ * describes no post and carries no `activityId`.
  */
-const MINIMUM_BLOCKS = 8;
+const MINIMUM_BLOCKS = 7;
 
 /**
  * The smallest number of those blocks that name an `activityId` — the subset the
- * rule actually constrains, seven today. A floor here is what stops the rule
+ * rule actually constrains, six today. A floor here is what stops the rule
  * going vacuous if the scan starts matching only the blocks it has nothing to
  * say about.
  */
-const MINIMUM_IDENTIFIED_BLOCKS = 7;
+const MINIMUM_IDENTIFIED_BLOCKS = 6;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];

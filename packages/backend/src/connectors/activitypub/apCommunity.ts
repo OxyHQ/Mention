@@ -43,15 +43,23 @@ const MAX_COMMUNITY_CANDIDATES = 10;
  * from the community's own origin. A reply-ancestor or boost import of a
  * cross-instance post therefore stores no community; the relayed copy does.
  *
+ * The author and the author's own followers collection are never the
+ * community, so they are not looked up: a Mastodon note `cc`s its author's
+ * followers on the note's own origin, and asking about it cost a lookup per
+ * note on every outbox page.
+ *
  * Fail-soft: the community is context on a post that is stored either way.
  */
 export async function resolvePostCommunity(
   object: Record<string, unknown>,
   relayedBy?: string,
+  author?: { uri: string; followersUrl?: string | null },
 ): Promise<string | null> {
   const objectId = typeof object.id === 'string' ? object.id : '';
   const vouches = (uri: string) =>
-    uri === relayedBy || (objectId !== '' && sameOrigin(uri, objectId));
+    uri !== author?.uri &&
+    uri !== author?.followersUrl &&
+    (uri === relayedBy || (objectId !== '' && sameOrigin(uri, objectId)));
   const declared = addressees(object.audience).filter(vouches);
   const addressed = [...addressees(object.to), ...addressees(object.cc)].filter(vouches);
   const candidates = [...new Set([...declared, ...addressed])];

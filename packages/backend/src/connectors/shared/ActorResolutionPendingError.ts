@@ -16,6 +16,13 @@ import type { FederatedActorRecord } from '../../db/federation/actorRecord';
  *    activity is dropped — never stored as an orphan.
  *  - In the inline (no-Redis) fallback, it surfaces as a 500 from the inbox
  *    endpoint, so the remote re-delivers per ActivityPub.
+ *
+ * The outbox backfill applies the same policy without the throw: a page's note
+ * whose author is known but not yet linked is held back, and the run reports
+ * `author-pending` and is not stamped done, so the next run retries it from the
+ * last completed cursor instead of paging past it. A dependency import (boosted
+ * original, reply ancestor, quoted note) answers null instead: its caller's own
+ * post is stored either way.
  */
 export class ActorResolutionPendingError extends Error {
   /** The remote actor URI whose Oxy resolution is still pending. */
@@ -36,10 +43,8 @@ export class ActorResolutionPendingError extends Error {
  * actor is missing or has no `oxyUserId`, so the federated post insert is
  * deferred (and retried) instead of persisting a null author.
  *
- * Use this at federated Post-INSERT call sites where a retry is the right
- * behaviour (the inbox `Create` path). Best-effort batch contexts that should
- * skip — not retry — an unresolvable item (outbox backfill, boosted-original /
- * ancestor import) handle the null case locally rather than calling this.
+ * Used by the inbox `Create`, whose retry is the BullMQ job's. The outbox and
+ * the dependency import retry or decline in their own terms (see the class).
  */
 export function requireActorOxyUserId(
   actor: Pick<FederatedActorRecord, 'oxyUserId'> | null | undefined,

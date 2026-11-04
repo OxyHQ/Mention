@@ -293,87 +293,91 @@ interface BaselineClassification {
   language?: string;
 }
 
-class PostCreationService {
-  /**
-   * Compute the deterministic Stage-A classification for a post, keeping
-   * `status: 'pending'` so the async AI batch (PostClassificationService) still
-   * enriches the post afterward.
-   *
-   * Best-effort and non-fatal: classification MUST NEVER block or fail post
-   * creation. The classifier is pure/synchronous so it should not throw, but any
-   * throw is caught + logged at warn and the post is still stored with the
-   * column defaults (`status: 'pending'`, zeroed scores) untouched.
-   */
-  private async baselineClassification(
-    params: CreatePostParams,
-    primaryText: string,
-  ): Promise<BaselineClassification> {
-    try {
-      const isFederated = params.federation != null;
-      const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)
-        ?.isSensitive;
-      // What the post DECLARES: the federated ingest paths pass `params.languages`
-      // (AP `language` + every `contentMap` key); a native post declares the base
-      // subtags of the author's own language variants (primary first). Either way
-      // the classifier prefers a declared set over detection — a bilingual
-      // post reaches BOTH audiences without the detector having to guess.
-      //
-      // An author who declared NOTHING contributes no languages here, so detection
-      // runs on the body and stays free to revise itself on a later edit. Never
-      // infer a language from the client's UI locale: the classifier trusts a
-      // declaration over the detector, so an English-locale app writing Spanish
-      // would stamp `en` on Spanish posts and the feed would serve them to the
-      // wrong language audience, network-wide and silently.
-      const declaredLanguages = params.languages ?? declaredBaseLanguages(params.content);
-      const signals = await baselineContentClassifier.classify({
-        text: primaryText,
-        hashtags: params.hashtags,
-        language: params.language,
-        languages: declaredLanguages,
-        renditions: authorVariants(params.content),
-        sensitive: params.federation?.sensitive ?? metadataSensitive,
-        isFederated,
-        instanceDomain: params.instanceDomain,
-        actorType: params.actorType,
-      });
+/**
+ * Compute the deterministic Stage-A classification for a post, keeping
+ * `status: 'pending'` so the async AI batch (PostClassificationService) still
+ * enriches the post afterward.
+ *
+ * Best-effort and non-fatal: classification MUST NEVER block or fail post
+ * creation. The classifier is pure/synchronous so it should not throw, but any
+ * throw is caught + logged at warn and the post is still stored with the
+ * column defaults (`status: 'pending'`, zeroed scores) untouched.
+ *
+ * Exported for the one writer that inserts posts without this service — the
+ * ActivityPub outbox backfill's batch insert (`apNotePost.notePostRecord`) — so
+ * the same remote note is classified the same way on every ingest path.
+ */
+export async function classifyPostBaseline(
+  params: CreatePostParams,
+  primaryText: string,
+): Promise<BaselineClassification> {
+  try {
+    const isFederated = params.federation != null;
+    const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)
+      ?.isSensitive;
+    // What the post DECLARES: the federated ingest paths pass `params.languages`
+    // (AP `language` + every `contentMap` key); a native post declares the base
+    // subtags of the author's own language variants (primary first). Either way
+    // the classifier prefers a declared set over detection — a bilingual
+    // post reaches BOTH audiences without the detector having to guess.
+    //
+    // An author who declared NOTHING contributes no languages here, so detection
+    // runs on the body and stays free to revise itself on a later edit. Never
+    // infer a language from the client's UI locale: the classifier trusts a
+    // declaration over the detector, so an English-locale app writing Spanish
+    // would stamp `en` on Spanish posts and the feed would serve them to the
+    // wrong language audience, network-wide and silently.
+    const declaredLanguages = params.languages ?? declaredBaseLanguages(params.content);
+    const signals = await baselineContentClassifier.classify({
+      text: primaryText,
+      hashtags: params.hashtags,
+      language: params.language,
+      languages: declaredLanguages,
+      renditions: authorVariants(params.content),
+      sensitive: params.federation?.sensitive ?? metadataSensitive,
+      isFederated,
+      instanceDomain: params.instanceDomain,
+      actorType: params.actorType,
+    });
 
-      // Populate the Stage-A deterministic fields but LEAVE status 'pending' so
-      // the AI batch's unclassified filter still picks the post up. The
-      // deterministic `scores` are written so ranking can downrank spam/low-quality
-      // posts before any AI runs; the AI batch OVERWRITES `scores` wholesale when a
-      // key is configured (the intended hybrid). The classification carries ONLY
-      // the multi-language `languages` array — there is no single-value field.
-      return {
-        postClassification: {
-          status: POST_CLASSIFICATION_PENDING,
-          attempts: 0,
-          topics: signals.topics,
-          languages: signals.languages,
-          region: signals.region,
-          hashtagsNorm: signals.hashtagsNorm,
-          trendTerms: signals.trendTerms,
-          sensitive: signals.sensitive,
-          scores: signals.scores,
-          version: signals.version,
-          classifiedAt: new Date(signals.classifiedAt),
-        },
-        // Keep the top-level AP `post.language` (single, protocol-facing) in
-        // sync with the resolved primary (`languages[0]`, already normalized to
-        // ISO 639-1). When the classifier could not resolve any language, the
-        // caller's own `params.language` (if any) is left untouched.
-        language: signals.languages[0],
-      };
-    } catch (error) {
-      // Never block creation on classification — fall back to the column
-      // defaults (`status: 'pending'`) so the AI batch still processes the post.
-      logger.warn(
-        'PostCreationService: baseline classification failed; saving without Stage-A signals',
-        error,
-      );
-      return {};
-    }
+    // Populate the Stage-A deterministic fields but LEAVE status 'pending' so
+    // the AI batch's unclassified filter still picks the post up. The
+    // deterministic `scores` are written so ranking can downrank spam/low-quality
+    // posts before any AI runs; the AI batch OVERWRITES `scores` wholesale when a
+    // key is configured (the intended hybrid). The classification carries ONLY
+    // the multi-language `languages` array — there is no single-value field.
+    return {
+      postClassification: {
+        status: POST_CLASSIFICATION_PENDING,
+        attempts: 0,
+        topics: signals.topics,
+        languages: signals.languages,
+        region: signals.region,
+        hashtagsNorm: signals.hashtagsNorm,
+        trendTerms: signals.trendTerms,
+        sensitive: signals.sensitive,
+        scores: signals.scores,
+        version: signals.version,
+        classifiedAt: new Date(signals.classifiedAt),
+      },
+      // Keep the top-level AP `post.language` (single, protocol-facing) in
+      // sync with the resolved primary (`languages[0]`, already normalized to
+      // ISO 639-1). When the classifier could not resolve any language, the
+      // caller's own `params.language` (if any) is left untouched.
+      language: signals.languages[0],
+    };
+  } catch (error) {
+    // Never block creation on classification — fall back to the column
+    // defaults (`status: 'pending'`) so the AI batch still processes the post.
+    logger.warn(
+      'PostCreationService: baseline classification failed; saving without Stage-A signals',
+      error,
+    );
+    return {};
   }
+}
 
+class PostCreationService {
   /**
    * Create a Post document and run the standard side-effect pipeline:
    * mention notifications, reply/quote/boost notifications, subscriber
@@ -561,7 +565,7 @@ class PostCreationService {
     // resolution WINS over the caller's `params.language` — it has already
     // normalized the tag to ISO 639-1 — and falls back to the caller's when it
     // resolved nothing at all.
-    const baseline = await this.baselineClassification(params, primaryText);
+    const baseline = await classifyPostBaseline(params, primaryText);
     const primaryLanguage = baseline.language ?? params.language;
 
     const storedContent = toStoredContent(content, primaryLanguage);

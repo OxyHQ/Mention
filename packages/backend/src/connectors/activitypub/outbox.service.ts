@@ -14,53 +14,31 @@ import { posts } from '../../db/schema/posts';
 import {
   CHRONO_DESC,
   linkReplyToParent,
-  UNIQUE_MATCH_NO_ORDER,
   findPostRecords,
   insertPostRecords,
-  loadPostRecord,
   replacePostContent,
   setFederatedAuthorPinnedPost,
 } from '../../db/posts/postRepository';
-import { syncFederatedPoll, type FederatedPollInput } from '../../db/polls/pollRepository';
-import { POST_CLASSIFICATION_PENDING, type PostRecordInput } from '../../db/posts/postRecord';
+import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { extractActorUriFromActivityId } from '@oxy.so/federation';
+import { AP_CONTENT_TYPE, isBlockedDomain } from './constants';
+import { buildFederatedNoteVariants, apNoteUrl } from './apPostContent';
 import {
-  FEDERATION_MAX_CONTENT_LENGTH,
-  AP_CONTENT_TYPE,
-  isBlockedDomain,
-  extractLocalPostIdFromApUri,
-} from './constants';
-import { parentIsChannelPost } from '../../utils/channelReplyGate';
-import { dropsFlattenedReposts } from './repostTransportPolicy';
-import type { PostVisibility } from '@mention/shared-types';
-import { extractApLanguage, extractApLanguages } from './apLanguage';
-import {
-  buildFederatedNoteContent,
-  buildFederatedNoteProvenance,
-  buildFederatedNoteVariants,
-  apNoteUrl,
-} from './apPostContent';
-import { resolvePostCommunity } from './apCommunity';
+  buildPostFromNote,
+  logSkippedNote,
+  type NoteAuthor,
+  type NotePost,
+  notePostRecord,
+  storeNoteExtras,
+  storeNotePost,
+} from './apNotePost';
 import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
-import { getPostCreator } from '../../services/serviceRegistry';
-import { derivePostType } from '../../services/PostCreationService';
-import { storeRemoteLinkPreviews, type RemoteLinkPreview } from '../shared/linkPreviews';
 import { createFederatedBoost } from '../shared/federatedBoost';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { applyDetectedPrimaryTag } from '../../services/postVariants';
-import {
-  baselineContentClassifier,
-  type ClassifyInput,
-} from '../../services/BaselineContentClassifier';
-import {
-  SPAM_QUALITY_CONFIG,
-  toClassificationScores,
-} from '../../services/contentClassification/spamQuality';
-import type { PostClassificationScores } from '@mention/shared-types';
 import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { actorService } from './actor.service';
-import { identityDomainOfActor } from './identityDomain';
 import {
   asRecord,
   activityPubItems,
@@ -70,16 +48,12 @@ import {
   fetchVerifiedAnnouncedNote,
   runWithTimeout,
   extractActorUri,
-  extractDeclaredQuote,
-  resolveDeclaredQuoteTarget,
-  stripQuoteMarkerFromVariants,
   extractInReplyToUri,
   parseApPublished,
   resolvePostIdFromObjectUri,
   sameOrigin,
 } from './helpers';
-import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
-import { buildAuthorship } from '../../utils/postAuthorship';
+import { isAbsoluteHttpUrl } from '../shared/url';
 import {
   isApPostObjectType,
   parseOrderedCollection,
@@ -90,11 +64,9 @@ import {
 } from './apSchemas';
 import {
   applyMentionPlaceholders,
+  type AuthorRefreshOptions,
   extractMentionTags,
   hasSourceMentionLink,
-  resolveApAudience,
-  resolveApAudienceFor,
-  resolveInboundMentions,
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
 } from './apMentions';
@@ -201,6 +173,47 @@ type OutboxCandidate =
       announcedUri: string;
     };
 
+/** How far one sync pages: the candidate limit, the page budget, and where to start. */
+interface OutboxPagingOptions {
+  limit: number;
+  maxPages: number;
+  startPageUrl?: string;
+  startItemOffset: number;
+}
+
+/** Where one sync's paging stopped. */
+interface OutboxPagingState {
+  pagesFetched: number;
+  nextCursor: OutboxSyncResult['nextCursor'];
+  reachedEnd: boolean;
+  paginationFailed: boolean;
+  pausedMidPage: boolean;
+}
+
+/** An existing post whose @mentions the in-hand note may repair. */
+interface MentionHealCandidate {
+  note: Record<string, unknown>;
+  stored: PostRecord;
+  storedMentions: string[];
+}
+
+/** A new outbox note, built and ready for the batch insert. */
+interface BuiltOutboxNote {
+  post: NotePost;
+  activityId: string;
+  record: PostRecordInput;
+}
+
+/** A note no mention was resolved for (`applyMentionPlaceholders` is then a no-op). */
+const NO_MENTIONS: ResolvedInboundMentions = { ids: [], localIds: [], anchorMap: new Map() };
+
+/** The fields of `value` that are set — so spreading them never erases another value. */
+function definedFields<T extends object>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, field]) => field !== undefined && field !== null),
+  ) as Partial<T>;
+}
+
 /**
  * Typed reason describing why an outbox sync produced no posts (or only a
  * partial result). Replaces the previous ad-hoc reason strings so callers
@@ -222,6 +235,11 @@ export type OutboxSyncFailureReason =
   | 'pagination-failed'
   | 'invalid-collection'
   | 'exception'
+  /**
+   * A note's author is known but Oxy has not linked it yet. The run is not
+   * stamped done, so the next one retries the note rather than paging past it.
+   */
+  | 'author-pending'
   /** The outbox was already marked unavailable, so a profile sync did not fetch it. */
   | 'outbox-unavailable'
   | OutboxHttpFailureReason;
@@ -261,6 +279,8 @@ export interface OutboxSyncResult {
    * imports). Zero on every page that carries no such posts.
    */
   healedMentionCount?: number;
+  /** New notes held back because Oxy has not linked their author yet (`author-pending`). */
+  pendingAuthorCount?: number;
   /** Posts found through the server's public statuses after the outbox showed none. */
   publicStatusesSyncedCount?: number;
   pagesFetched?: number;
@@ -317,103 +337,12 @@ function activityIdBelongsToActor(activityId: string, actorUri: string): boolean
 }
 
 /**
- * The classification subdoc seeded onto a raw-inserted federated post. Mirrors
- * the schema's `pending` default plus the Stage-A deterministic fields. `status`
- * stays `pending` so the async AI batch still enriches the post.
- */
-interface RawPostClassificationSeed {
-  status: typeof POST_CLASSIFICATION_PENDING;
-  attempts: number;
-  topics: string[];
-  languages: string[];
-  region?: string;
-  hashtagsNorm: string[];
-  trendTerms: string[];
-  sensitive: boolean;
-  /** Deterministic spam/quality/toxicity scores (0..1); AI batch overwrites later. */
-  scores: PostClassificationScores;
-  version: number;
-  classifiedAt: Date;
-}
-
-/**
  * Outbox backfill: fetch a remote actor's outbox, extract Note/Announce
  * candidates, dedup, import new notes (raw batch insert) and boosts, and advance
  * an opaque pagination cursor. Also the dependency importer (boosted originals,
  * reply ancestors, quoted notes) every ingest path shares.
  */
 export class OutboxSyncService {
-  /**
-   * Build the Stage-A classification subdoc for a raw-inserted federated note.
-   * Best-effort: the classifier is pure/synchronous so it should not throw, but
-   * any throw is caught + logged at warn and a bare `pending` subdoc is returned
-   * so the AI batch still processes the post and the batch insert is never
-   * aborted by classification.
-   */
-  private async computeBaselineForNote(input: {
-    text: string;
-    hashtags: string[];
-    language?: string;
-    languages?: string[];
-    renditions?: ClassifyInput['renditions'];
-    sensitive: boolean;
-    instanceDomain?: string;
-    actorType?: string;
-  }): Promise<RawPostClassificationSeed> {
-    try {
-      const signals = await baselineContentClassifier.classify({
-        text: input.text,
-        hashtags: input.hashtags,
-        language: input.language,
-        languages: input.languages,
-        renditions: input.renditions,
-        sensitive: input.sensitive,
-        isFederated: true,
-        instanceDomain: input.instanceDomain,
-        actorType: input.actorType,
-      });
-      return {
-        status: POST_CLASSIFICATION_PENDING,
-        attempts: 0,
-        topics: signals.topics,
-        languages: signals.languages,
-        region: signals.region,
-        hashtagsNorm: signals.hashtagsNorm,
-        trendTerms: signals.trendTerms,
-        sensitive: signals.sensitive ?? input.sensitive,
-        scores: signals.scores,
-        version: signals.version,
-        classifiedAt: new Date(signals.classifiedAt),
-      };
-    } catch (error) {
-      logger.warn(
-        '[FedSync] baseline classification failed for federated note; seeding bare pending subdoc',
-        error,
-      );
-      return {
-        status: POST_CLASSIFICATION_PENDING,
-        attempts: 0,
-        topics: [],
-        languages: [],
-        hashtagsNorm: input.hashtags,
-        // The hashtags ARE terms (the extractor would have emitted them
-        // verbatim); what is lost on this path is the prose half, which is the
-        // honest consequence of the extractor having thrown.
-        trendTerms: input.hashtags,
-        sensitive: input.sensitive,
-        // Neutral, valid scores so ranking treats a defensive-fallback post as
-        // unremarkable (not spam, mid quality) rather than skewing it.
-        scores: toClassificationScores({
-          spam: 0,
-          quality: SPAM_QUALITY_CONFIG.quality.base,
-          toxicity: 0,
-        }),
-        version: 0,
-        classifiedAt: new Date(),
-      };
-    }
-  }
-
   /**
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
@@ -567,6 +496,12 @@ export class OutboxSyncService {
     return synced;
   }
 
+  /**
+   * One outbox sync, in stages: the domain policy, {@link collectOutboxCandidates}
+   * (the collection and its pages, into candidates), then
+   * {@link importOutboxCandidates} (dedup, authors, build, batch insert, thread
+   * links, the mention self-heal, and boosts). Never throws.
+   */
   async syncOutboxPostsDetailed(
     actor: OutboxSyncActor,
     limitOrOptions: number | OutboxSyncOptions = 20,
@@ -597,20 +532,13 @@ export class OutboxSyncService {
     if (!actor.outboxUrl) {
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
     }
-    // Capture the narrowed value: `actor.outboxUrl` is `string | undefined`, and
-    // the guard above only narrows the property at the method-body level. The
-    // pagination closures below (`fetchAndProcessPage`) re-widen a property access
-    // back to `string | undefined` because TS cannot prove it is not reassigned.
-    // A `const` preserves the narrowing into those closures.
-    const outboxUrl = actor.outboxUrl;
 
-    const options: Required<Pick<OutboxSyncOptions, 'limit' | 'maxPages' | 'startItemOffset'>> &
-      Pick<OutboxSyncOptions, 'startPageUrl'> =
+    const options: OutboxPagingOptions =
       typeof limitOrOptions === 'number'
-        ? { limit: limitOrOptions, maxPages: 10, startItemOffset: 0 }
+        ? { limit: Math.max(1, limitOrOptions), maxPages: 10, startItemOffset: 0 }
         : {
-            limit: limitOrOptions.limit ?? 20,
-            maxPages: limitOrOptions.maxPages ?? 10,
+            limit: Math.max(1, limitOrOptions.limit ?? 20),
+            maxPages: Math.max(1, limitOrOptions.maxPages ?? 10),
             startPageUrl: limitOrOptions.startPageUrl,
             startItemOffset: limitOrOptions.startItemOffset ?? 0,
           };
@@ -618,829 +546,617 @@ export class OutboxSyncService {
       typeof limitOrOptions === 'number'
         ? 'unknown_outbox'
         : (limitOrOptions.importReason ?? 'unknown_outbox');
-    const limit = Math.max(1, options.limit);
-    const maxPages = Math.max(1, options.maxPages);
 
     try {
-      // Fetch the outbox collection (signed for authorized-fetch servers)
-      const res = await signedFetch(outboxUrl, AP_CONTENT_TYPE);
-      if (!res.ok) {
-        logger.info('[FedSync] outbox fetch failed', {
-          status: res.status,
-          statusText: res.statusText,
-        });
-        return { syncedCount: 0, shouldStampCooldown: false, reason: `outbox-http-${res.status}` };
-      }
+      const collected = await this.collectOutboxCandidates(actor.outboxUrl, actor.uri, options);
+      if (collected.kind === 'failed') return collected.result;
 
-      const rawCollection = await res.json();
-      // The outbox collection comes from an arbitrary remote server. Validate its
-      // shape with zod before reading any field; a malformed collection (e.g.
-      // `orderedItems` not an array, `totalItems` not a number, `first` not a
-      // string/object) aborts THIS sync gracefully — we never trust raw remote
-      // JSON. `.loose()` keeps unknown extension fields, so only genuinely
-      // malformed shapes fail. Not a permanent failure and cooldown is not
-      // stamped, so a transient bad response is retried on the next view.
-      const collectionParse = parseOrderedCollection(rawCollection);
-      if (!collectionParse.ok) {
-        logger.warn('[FedSync] outbox collection failed validation; aborting sync', {
-          error: collectionParse.error.message,
-        });
-        return { syncedCount: 0, shouldStampCooldown: false, reason: 'invalid-collection' };
-      }
-      // Keep reading raw fields below so every existing field access (including
-      // `.loose()` passthrough extensions) behaves identically to before.
-      const collection = rawCollection as Record<string, unknown>;
-      logger.debug('[FedSync] parsed outbox collection', {
-        type: collection.type,
-        totalItems: collection.totalItems,
-        hasOrderedItems: Boolean(collection.orderedItems),
-        hasFirst: Boolean(collection.first),
-      });
-      const remoteTotalItems =
-        typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
-
-      const candidates: OutboxCandidate[] = [];
-      let pagesFetched = 0;
-      let nextCursor: OutboxSyncResult['nextCursor'];
-      let reachedEnd = false;
-      let paginationFailed = false;
-      // Set when a page is processed only partially this run — either the
-      // candidate limit was reached or the per-page inspection cap
-      // (`OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE`) bounded the scan before the page
-      // was exhausted. The returned cursor points back at the SAME page+offset,
-      // so the run must STOP and hand that cursor to the next run instead of
-      // re-fetching the same page to drain its remaining (possibly
-      // attacker-controlled) items in one pass.
-      let pausedMidPage = false;
-      const visitedPageUrls = new Set<string>();
-
-      const processPage = async (
-        pageData: Record<string, unknown>,
-        pageUrl: string,
-        startItemOffset: number,
-      ): Promise<void> => {
-        const items = activityPubItems(pageData);
-        const normalizedOffset = Math.max(0, Math.min(startItemOffset, items.length));
-        if (items.length > 0) {
-          const nextItemOffset = await this.extractCandidates(
-            items,
-            candidates,
-            limit,
-            pageUrl,
-            actor.uri,
-            normalizedOffset,
-          );
-          if (nextItemOffset < items.length) {
-            nextCursor = { url: pageUrl, itemOffset: nextItemOffset };
-            pausedMidPage = true;
-            return;
-          }
-        }
-
-        const nextPageUrl = activityPubLinkUrl(pageData.next);
-        if (nextPageUrl && sameOrigin(nextPageUrl, pageUrl)) {
-          nextCursor = { url: nextPageUrl, itemOffset: 0 };
-        } else {
-          nextCursor = undefined;
-          reachedEnd = true;
-        }
-      };
-
-      const fetchAndProcessPage = async (
-        pageUrl: string,
-        startItemOffset: number,
-      ): Promise<void> => {
-        if (!sameOrigin(pageUrl, outboxUrl)) {
-          logger.info('[FedSync] rejected cross-origin outbox page');
-          paginationFailed = true;
-          nextCursor = undefined;
-          return;
-        }
-
-        if (visitedPageUrls.has(pageUrl)) {
-          logger.info('[FedSync] outbox pagination loop detected');
-          paginationFailed = true;
-          nextCursor = undefined;
-          return;
-        }
-        visitedPageUrls.add(pageUrl);
-
-        if (pagesFetched >= maxPages) {
-          nextCursor = { url: pageUrl, itemOffset: startItemOffset };
-          return;
-        }
-
-        try {
-          const pageRes = await signedFetch(pageUrl, AP_CONTENT_TYPE);
-          if (!pageRes.ok) {
-            logger.info('[FedSync] outbox page fetch failed', {
-              status: pageRes.status,
-            });
-            paginationFailed = true;
-            nextCursor = undefined;
-            return;
-          }
-
-          pagesFetched++;
-          const rawPage = await pageRes.json();
-          // Each outbox page is untrusted remote JSON. Validate its collection
-          // shape before reading items/pagination links; a malformed page aborts
-          // pagination gracefully (same control flow as a page fetch failure)
-          // instead of trusting raw property access. `.loose()` keeps extension
-          // fields, so only genuinely malformed pages fail.
-          const pageParse = parseOrderedCollectionPage(rawPage);
-          if (!pageParse.ok) {
-            logger.warn('[FedSync] outbox page failed validation; stopping pagination', {
-              error: pageParse.error.message,
-            });
-            paginationFailed = true;
-            nextCursor = undefined;
-            return;
-          }
-          // Keep reading raw fields so every existing access is unchanged.
-          const pageData = rawPage as Record<string, unknown>;
-          await processPage(pageData, pageUrl, startItemOffset);
-        } catch (pageErr) {
-          logger.debug('[FedSync] outbox pagination error', {
-            error: pageErr,
-          });
-          paginationFailed = true;
-          nextCursor = undefined;
-        }
-      };
-
-      const firstPageObject = asRecord(collection.first);
-      const inlineItems = activityPubItems(collection);
-      if (options.startPageUrl && sameOrigin(options.startPageUrl, outboxUrl)) {
-        nextCursor = {
-          url: options.startPageUrl,
-          itemOffset: Math.max(0, options.startItemOffset),
-        };
-      } else if (inlineItems.length > 0) {
-        await processPage(collection, outboxUrl, 0);
-      } else if (firstPageObject && activityPubItems(firstPageObject).length > 0) {
-        await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? outboxUrl, 0);
-      } else {
-        const firstPageUrl =
-          activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
-        if (firstPageUrl && sameOrigin(firstPageUrl, outboxUrl)) {
-          nextCursor = { url: firstPageUrl, itemOffset: 0 };
-        }
-      }
-
-      // Paginate through pages until we have enough candidates, pause mid-page
-      // (candidate limit or per-page inspection cap), run out of pages, or
-      // exhaust the per-run page budget. The returned cursor is opaque remote
-      // state: we persist it exactly and never synthesize pagination URLs.
-      while (
-        nextCursor &&
-        candidates.length < limit &&
-        !reachedEnd &&
-        !paginationFailed &&
-        !pausedMidPage
-      ) {
-        const cursor = nextCursor;
-        await fetchAndProcessPage(cursor.url, cursor.itemOffset);
-        if (nextCursor?.url === cursor.url && nextCursor.itemOffset === cursor.itemOffset) {
-          // The page budget was reached before this cursor could be processed.
-          break;
-        }
-      }
-
-      logger.debug('[FedSync] collected outbox candidates', {
-        candidateCount: candidates.length,
-        pagesFetched,
-      });
-
+      const { candidates, paging } = collected;
       if (candidates.length === 0) {
         logger.debug('[FedSync] no candidate notes found');
-        const hasInlineItems = inlineItems.length > 0;
-        const hasFirstPage = Boolean(collection.first || collection.next);
         const nonEmptyButNotInspectable =
           !options.startPageUrl &&
-          !hasInlineItems &&
-          !hasFirstPage &&
-          typeof remoteTotalItems === 'number' &&
-          remoteTotalItems > 0;
+          !collected.inspectable &&
+          typeof collected.remoteTotalItems === 'number' &&
+          collected.remoteTotalItems > 0;
         const reason: OutboxSyncFailureReason = nonEmptyButNotInspectable
           ? 'non-empty-outbox-without-items'
           : 'no-candidates';
         return {
           syncedCount: 0,
-          shouldStampCooldown: !paginationFailed && !isPermanentlyUnavailableOutboxReason(reason),
+          shouldStampCooldown:
+            !paging.paginationFailed && !isPermanentlyUnavailableOutboxReason(reason),
           reason,
           candidateCount: 0,
           newPostCount: 0,
           existingCount: 0,
           importedBoostCount: 0,
-          pagesFetched,
-          reachedEnd,
-          nextCursor,
+          pagesFetched: paging.pagesFetched,
+          reachedEnd: paging.reachedEnd,
+          nextCursor: paging.nextCursor,
         };
       }
 
-      const noteCandidates = candidates.filter(
-        (c): c is Extract<OutboxCandidate, { kind: 'note' }> => c.kind === 'note',
-      );
-      const announceCandidates = candidates.filter(
-        (c): c is Extract<OutboxCandidate, { kind: 'announce' }> => c.kind === 'announce',
-      );
-
-      // Bulk dedup: single query instead of N queries. Also carries the fields the
-      // @mention self-heal below needs — the stored `mentions` allowlist and
-      // whether the post has media — so an existing post whose mentions were never
-      // resolved (imported before the outbox mention fix) can be repaired from the
-      // in-hand note without any extra query or fetch.
-      const allActivityIds = candidates.map((c) => c.activityId);
-      const existingPosts =
-        allActivityIds.length === 0
-          ? []
-          : await findPostRecords(inArray(posts.federationActivityId, allActivityIds), {
-              orderBy: CHRONO_DESC,
-            });
-      await observeFederationImportReason(
-        existingPosts.map((post) => post.id),
-        importReason,
-      );
-      const existingIds = new Set(existingPosts.map((p) => p.federation?.activityId));
-      // activityId → the stored post's mention state, keyed for the self-heal pass.
-      const existingMentionStateByActivityId = new Map<string, { mentions: string[] }>();
-      for (const p of existingPosts) {
-        const activityId = p.federation?.activityId;
-        if (!activityId) continue;
-        existingMentionStateByActivityId.set(activityId, {
-          mentions: normalizeMentionIds(p.mentions),
-        });
-      }
-
-      // Resolve actor URIs → Oxy User IDs (note authors only — the owner, or
-      // the members a community relayed; announce authors are always the outbox
-      // owner, resolved via actor.oxyUserId below).
-      const actorUris = new Set<string>();
-      for (const { authorUri } of noteCandidates) actorUris.add(authorUri);
-
-      // Batch lookup: actor URI → oxyUserId from stored FederatedActors
-      const actorOxyMap = new Map<string, string>();
-      // Seed with caller-provided oxyUserId for the main actor
-      if (actor.oxyUserId) {
-        actorOxyMap.set(actor.uri, actor.oxyUserId);
-      }
-      if (actorUris.size > 0) {
-        // `{ oxyUserId: { $ne: null } }` is dropped rather than translated: the
-        // loop already skips an actor with no `oxyUserId`, so filtering in SQL
-        // would only duplicate the guard — and `<> null` is NULL (not true) in
-        // Postgres, so the literal translation would have matched nothing at all.
-        const actors = await findActorsByUris([...actorUris]);
-        for (const a of actors) {
-          if (a.oxyUserId) actorOxyMap.set(a.uri, a.oxyUserId);
-        }
-
-        // Resolve missing actors with bounded concurrency to avoid fan-out.
-        // Each resolution is bounded by a per-actor timeout so one unresponsive
-        // remote instance can't stall the batch.
-        const missingUris = [...actorUris].filter((uri) => !actorOxyMap.has(uri));
-        for (let i = 0; i < missingUris.length; i += OUTBOX_ACTOR_RESOLVE_CONCURRENCY) {
-          const batch = missingUris.slice(i, i + OUTBOX_ACTOR_RESOLVE_CONCURRENCY);
-          const resolved = await Promise.all(
-            batch.map((uri) =>
-              runWithTimeout(actorService.fetchRemoteActor(uri), OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS),
-            ),
-          );
-          for (let j = 0; j < batch.length; j++) {
-            const resolvedActor = resolved[j];
-            if (resolvedActor?.oxyUserId) {
-              actorOxyMap.set(batch[j], resolvedActor.oxyUserId);
-            }
-          }
-        }
-      }
-
-      logger.debug('[FedSync] classified outbox candidates', {
-        candidateCount: candidates.length,
-        noteCount: noteCandidates.length,
-        announceCount: announceCandidates.length,
-        existingCount: existingIds.size,
-        actorResolutionCount: actorOxyMap.size,
-      });
-
-      // NEW notes to import (not deduped) — their mentions are resolved for the
-      // build loop below to rewrite each anchor into a `[mention:<id>]` placeholder
-      // BEFORE the body is derived and to set the post's `mentions` allowlist,
-      // mirroring the inbox Create path (the raw `insertMany` bypasses that path).
-      const pendingNoteCandidates = noteCandidates.filter((c) => !existingIds.has(c.activityId));
-
-      // SELF-HEAL candidates: notes that match an EXISTING post whose stored body
-      // still shows its @mentions as bare `@name` text. Such posts were imported
-      // before the outbox path resolved mentions, so their anchors were never
-      // rewritten — and the dedup pass above would otherwise skip them forever
-      // (they are never re-inserted). The outbox page just fetched carries each
-      // note's `Mention` tags, so those posts can be repaired with ZERO extra fetch.
-      // A post qualifies only when the in-hand note carries >=1 DISTINCT `Mention`
-      // tag AND the stored `mentions` allowlist is shorter than that (empty/short =>
-      // never fully resolved); an already-resolved post is never a candidate.
-      const mentionHealCandidates: Array<{
-        note: Record<string, unknown>;
-        activityId: string;
-        storedMentions: string[];
-      }> = [];
-      for (const c of noteCandidates) {
-        if (!existingIds.has(c.activityId)) continue;
-        const stored = existingMentionStateByActivityId.get(c.activityId);
-        if (!stored) continue;
-        const distinctMentionHrefs = new Set(extractMentionTags(c.note).map((t) => t.href));
-        if (distinctMentionHrefs.size === 0) continue;
-        if (stored.mentions.length >= distinctMentionHrefs.size) continue;
-        mentionHealCandidates.push({
-          note: c.note,
-          activityId: c.activityId,
-          storedMentions: stored.mentions,
-        });
-      }
-
-      // Resolve the @mentions of the NEW notes AND the heal notes in ONE bounded
-      // pass. Each DISTINCT mentioned actor across the whole page is
-      // fetched-and-created at most once, in capped-concurrency batches with a
-      // per-actor timeout (the SAME bounds this file applies to note-author
-      // resolution), so a page carrying many first-seen mentions can never trigger
-      // the unbounded/serial actor fetch that once hung a re-ingest — and an actor
-      // mentioned by both a new and a healed note is fetched only once. The result
-      // map is keyed by the input note object reference and consumed with NO further
-      // I/O by both the build loop and the self-heal pass below.
-      const mentionsByNote = await resolveInboundMentionsForNotes(
-        [...pendingNoteCandidates.map((c) => c.note), ...mentionHealCandidates.map((h) => h.note)],
-        {
-          concurrency: OUTBOX_ACTOR_RESOLVE_CONCURRENCY,
-          perActorTimeoutMs: OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS,
-        },
-      );
-      // Shared no-mention default for a note the map has no entry for (never
-      // mutated; `applyMentionPlaceholders` treats an empty anchor map as a no-op).
-      const emptyMentions: ResolvedInboundMentions = {
-        ids: [],
-        localIds: [],
-        anchorMap: new Map(),
-      };
-
-      // Build the rows for batch insert. Each carries a PRE-ASSIGNED id, so the
-      // media-enrich pass below can address every post without reading anything
-      // back.
-      const newDocs: PostRecordInput[] = [];
-      const linkPreviewsByPostId = new Map<string, RemoteLinkPreview[]>();
-      const pollsByPostId = new Map<string, { poll: FederatedPollInput; author: string }>();
-      // Federated replies inserted in this batch, to be linked into their threads
-      // AFTER the raw insert (so a self-thread whose root + replies arrive in the
-      // same batch resolve against the now-inserted parents). Captured separately
-      // from `newDocs` to avoid casting the loose insert-doc shape back to read
-      // its federation fields.
-      const repliesToLink: Array<{
-        activityId: string;
-        inReplyToUri: string;
-        oxyUserId: string;
-        visibility: PostVisibility;
-        published?: Date;
-      }> = [];
-      // The owner is re-read at most once per page when its stored row lacks a
-      // followers collection (`authorFollowersUrl`).
-      const authorRefreshes = new Map<
-        string,
-        Promise<{ followersUrl: string | undefined } | null>
-      >();
-      for (const { note, activity, activityId, authorUri, relayedBy } of noteCandidates) {
-        if (existingIds.has(activityId)) continue;
-
-        const rawContent = typeof note.content === 'string' ? note.content : '';
-        if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) continue;
-
-        // Normalize the AP `inReplyTo` (string IRI or embedded Link object) to a
-        // clean string URI. Stored on `federation.inReplyTo` and used by the
-        // post-insert thread-linking pass below to resolve `parentPostId`/`threadId`.
-        const inReplyToUri = extractInReplyToUri(note.inReplyTo);
-
-        // A CHANNEL POST TAKES NO REPLIES, and this batch bypasses every write
-        // guard: the batch insert below skips `PostCreationService` entirely, so a candidate that
-        // is not filtered out HERE is stored unchallenged.
-        //
-        // Only a LOCAL `inReplyTo` can name a channel's post — a remote object,
-        // imported or not, is authored by a remote actor, and a remote actor is
-        // never a local channel account. So the parse runs first and the lookup
-        // only happens for the URIs that could possibly matter, which keeps the
-        // gate free on the ordinary remote-to-remote reply that makes up nearly
-        // every backfilled thread.
-        //
-        // Silently skipped, like every other refusal in this loop: a backfill has
-        // no caller to answer and no job to fail.
-        if (inReplyToUri) {
-          const localParentId = extractLocalPostIdFromApUri(inReplyToUri);
-          if (localParentId && (await parentIsChannelPost(localParentId))) {
-            logger.debug('[FedSync] skipped outbox reply to a channel-authored post');
-            continue;
-          }
-        }
-
-        // Preserve the ORIGINAL remote publish date (validated) so the post is
-        // ordered by when it was authored, not when we backfilled it. The raw
-        // batch insert below bypasses `PostCreationService`, so a valid date is
-        // written directly; an invalid/missing date leaves createdAt/updatedAt
-        // off the doc and the schema default (now) applies.
-        const published = parseApPublished(note.published ?? activity.published);
-
-        // Resolve author's Oxy User ID. The Oxy link is MANDATORY: a federated
-        // post must carry a real Oxy author, never a null one. When the author
-        // didn't resolve (Oxy unreachable / pending), SKIP this note instead of
-        // inserting an orphan — best-effort backfill re-imports it on the next
-        // run once the actor resolves. Throwing here would abort the whole batch
-        // over a single unresolvable item, so the outbox path skips rather than
-        // defers (unlike the inbox `Create` path, which retries the job).
-        const actorUri = authorUri;
-        const resolvedOxyUserId = actorOxyMap.get(actorUri);
-        if (!resolvedOxyUserId) {
-          logger.info('[FedSync] skipped outbox note whose author is unresolved');
-          continue;
-        }
-
-        // Rewrite this note's @mention anchors to internal `[mention:<id>]`
-        // placeholders using the shared page-level resolution, so hydration renders
-        // each mention as a real profile link instead of dead `@user` text. Must
-        // run BEFORE the builder derives the body (the batch insert has no later
-        // hook to do it). `applyMentionPlaceholders`
-        // returns the note unchanged when it has no resolved mentions (zero cost).
-        const mentionResult = mentionsByNote.get(note) ?? emptyMentions;
-        const noteObject = applyMentionPlaceholders(note, mentionResult.anchorMap);
-
-        // Build the storable body via the shared builder: contentMap fallback,
-        // the SAME hashtag normalization the inbox path runs (fixes the ingest
-        // asymmetry), media materialization, and the empty-note guard. The raw
-        // batch insert below bypasses `PostCreationService`, so the builder is the
-        // single place that normalization/guarding happens for this path. A Note
-        // that carries nothing storable is skipped rather than inserted blank.
-        const built = await buildFederatedNoteContent(noteObject, resolvedOxyUserId, {
-          activityId,
-          actorUri: actorUri ?? undefined,
-          // The SAME gate the inbox applies, and it was missing here. A reviewed
-          // bridge flattens a retweet into a plain Note authored by the
-          // retweeter, carrying no reference to the original — so the post
-          // appears under a byline that did not write it, with a dead `@handle`
-          // and no way to reach the real author. `handleCreate` has dropped
-          // those since the gate shipped; this path never did, so the same Note
-          // was kept or discarded depending only on which route imported it.
-          // The outbox owner is carried as a narrow Pick without `domain`, so the
-          // host comes from its URI — the same value `federated_actors.domain`
-          // holds, which is the host that DELIVERED the activity rather than any
-          // re-labelled bridged identity.
-          dropFlattenedRetweets: dropsFlattenedReposts(getRemoteHost(actorUri) ?? ''),
-          ingestPath: 'outbox',
-          // The outbox owner's own notes qualify their bare handles onto the
-          // identity network, exactly as the inbox does; a note by anyone else
-          // (a boosted original) is the dependency path's to qualify.
-          ...(authorUri === actor.uri
-            ? {
-                identityDomain: identityDomainOfActor({
-                  networkAcct: actor.networkAcct,
-                  domain: actor.domain ?? getRemoteHost(actor.uri),
-                }),
-              }
-            : {}),
-        });
-        if (built.skip) {
-          logger.debug('[FedSync] skipped empty outbox note', {
-            result: built.reason,
-          });
-          continue;
-        }
-        const { text, media, attachments, hashtags, summary, sensitive, variants, linkPreviews } =
-          built;
-
-        // When this note QUOTES another post, link it — the SAME rule the inbox
-        // `Create` path applies. This loop knew about `inReplyTo` and nothing
-        // about quotes, so a back catalogue imported through the outbox (which is
-        // how a newly-followed account's history arrives) stored every quote with
-        // `quote_of` null. The reader then saw the remote server's fallback
-        // rendering — a bare `RE: <url>` line — while the very same post, had it
-        // arrived live through the inbox instead, rendered a quote card. Which
-        // path imported a post is not something a reader can see or should feel.
-        //
-        // Resolved locally first (that also covers a quote of a LOCAL post, which
-        // no fetch would ever find); only when we hold nothing is the quoted note
-        // fetched and imported, through the same bounded, signed, SSRF-safe path
-        // a boost and a reply ancestor use.
-        const declaredQuote = extractDeclaredQuote(noteObject, actorUri ?? undefined);
-        const quoteOf = declaredQuote
-          ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) => this.ensureQuotedNote(uri))
-          : null;
-        // The remote's `RE: <url>` fallback is a duplicate of the card we now
-        // render. Untouched when the quote did not resolve.
-        const quoteVariants = await stripQuoteMarkerFromVariants(
-          variants,
-          quoteOf,
-          declaredQuote?.uri,
-        );
-
-        // AP-derived language so federated posts carry their REAL language
-        // instead of the schema default 'en'. `extractApLanguage` is the declared
-        // primary; `extractApLanguages` is the full declared set (top-level
-        // `language` + every `contentMap` key) that feeds the classifier's
-        // `postClassification.languages`.
-        const apLanguage = extractApLanguage(note);
-        const apLanguages = extractApLanguages(note);
-        // Stage-A deterministic baseline. The batch insert bypasses
-        // `PostCreationService`, so the baseline fields are set
-        // explicitly here (mirroring the explicit `postClassification` seed; the
-        // hashtag normalization now runs inside `buildFederatedNoteContent`).
-        // Best-effort: a classifier throw must not abort the whole batch insert —
-        // fall back to the bare pending subdoc on failure.
-        const baseline = await this.computeBaselineForNote({
-          text,
-          hashtags,
-          language: apLanguage,
-          languages: apLanguages,
-          renditions: quoteVariants,
-          sensitive,
-          instanceDomain: actorUri ? getRemoteHost(actorUri) : undefined,
-          // The outbox owner authored every Note in its own outbox, so the
-          // owner's AP type is the note author's type (RSS/bot-mirror signal) —
-          // except a community's relays, whose authors are its members and whose
-          // type the backfill does not know.
-          actorType: relayedBy ? undefined : actor.type,
-        });
-        // Top-level AP `post.language` (single, protocol-facing) = the resolved
-        // primary (`languages[0]`, normalized to ISO 639-1), falling back to the
-        // raw declared primary when the classifier resolved none.
-        const primaryLanguage = baseline.languages[0] ?? apLanguage;
-        // A community relays its members' notes, whose followers it does not know.
-        // A direct note is kept only for the local users it is addressed to.
-        const audience = relayedBy
-          ? await resolveApAudience(note, { uri: authorUri })
-          : await resolveApAudienceFor(
-              note,
-              {
-                uri: authorUri,
-                followersUrl: actor.followersUrl,
-                lastFetchedAt: actor.lastFetchedAt,
-              },
-              { refreshes: authorRefreshes },
-            );
-        if (!audience) {
-          logger.debug('[FedSync] skipped a direct outbox note addressed to no local user');
-          continue;
-        }
-        const { visibility } = audience;
-
-        const communityOxyUserId = await resolvePostCommunity(note, relayedBy);
-
-        const postId = uuidv7();
-        if (linkPreviews.length > 0) linkPreviewsByPostId.set(postId, linkPreviews);
-        if (built.poll) pollsByPostId.set(postId, { poll: built.poll, author: resolvedOxyUserId });
-        newDocs.push({
-          // Assigned here rather than read back afterwards so the post-insert
-          // metadata-enrich pass below can address each row directly.
-          id: postId,
-          oxyUserId: resolvedOxyUserId,
-          authorship: buildAuthorship(resolvedOxyUserId, []),
-          federation: buildFederatedNoteProvenance({
-            importReason,
-            activityId,
-            actorUri,
-            inReplyTo: inReplyToUri,
-            noteUrl: note.url,
-            sensitive,
-            spoilerText: summary,
-          }),
-          // Through the shared rule rather than a second copy of it: a quote is
-          // typed `QUOTE` even when it carries media, and this path used to say
-          // `IMAGE` for the very same Note the inbox typed `QUOTE`.
-          type: derivePostType({ quoteOf, content: { media } }),
-          communityOxyUserId,
-          content: {
-            // The body, and its ONLY home (`contentMap` → author variants,
-            // `variants[0]` primary). There is no `content.text` mirror on any
-            // path — the column does not exist.
-            // The origin's declared primary tag yields to a language the classifier
-            // resolved against it, exactly as on the inbox path (`toStoredContent`).
-            variants:
-              quoteVariants.length > 0
-                ? applyDetectedPrimaryTag(quoteVariants, primaryLanguage)
-                : undefined,
-            title: built.title,
-            linkUrl: built.linkUrl,
-            media: media.length > 0 ? media : undefined,
-            attachments: attachments.length > 0 ? attachments : undefined,
-          },
-          quoteOf,
-          visibility,
-          ...(audience.recipients.length > 0 ? { recipients: audience.recipients } : {}),
-          hashtags,
-          // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist
-          // the inbox path stores, keyed by the `[mention:<id>]` placeholders now in
-          // the body so hydration renders each as a real profile link.
-          ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
-          ...(primaryLanguage ? { language: primaryLanguage } : {}),
-          // WITHHELD when the note quotes something we could not produce. Its
-          // text was written ABOUT that post, so publishing it shows the reader
-          // half a conversation plus the remote server's `RE: <url>` fallback.
-          // Stored rather than dropped so `backfillQuotedPosts` can promote it
-          // if the quote ever resolves — see `PostPublicationStatus`.
-          status: declaredQuote && !quoteOf ? 'incomplete' : 'published',
-          // Engagement counters start at 0 (the column defaults) and only ever
-          // move in lockstep with real native records (Like rows / boost Posts /
-          // reply Posts) created from inbound Like/Announce/Create activities. We
-          // never copy remote aggregate totals
-          // (`note.likes/shares/replies.totalItems`) — those are unverifiable
-          // foreign counts with no backing listable records here.
-          metadata: {
-            isSensitive: sensitive,
-          },
-          // Stage-A deterministic fields are populated here while `status` stays
-          // `pending` so the async AI batch still enriches the post exactly like
-          // locally created posts.
-          postClassification: baseline,
-          ...(published ? { createdAt: published, updatedAt: published } : {}),
-        });
-
-        if (inReplyToUri) {
-          repliesToLink.push({
-            activityId,
-            inReplyToUri,
-            oxyUserId: resolvedOxyUserId,
-            visibility,
-            published,
-          });
-        }
-      }
-
-      // There is no half-written-coordinate strip here, deliberately:
-      // `posts_content_location_pair_check` and
-      // `posts_location_pair_check` make a half-present pair unrepresentable, and
-      // nothing on this path writes a location at all.
-
-      if (newDocs.length > 0) {
-        // Per-row rather than one multi-row INSERT, because a post is nine tables
-        // and `insertPostRecords` writes them in ONE transaction each — so a
-        // duplicate `federation.activity_id` rolls back only its own post instead
-        // of aborting the batch. A unique violation is the EXPECTED outcome of a concurrent
-        // import and is counted, not logged as a failure.
-        //
-        // The batch form, not `insertPostRecord` per row under `allSettled`: that
-        // opened every row's transaction at once and read each post back with its
-        // own ~10 lookups, which took the task's whole connection pool and queued
-        // the request path behind it (#1158). See `insertPostRecords`.
-        const results = await insertPostRecords(newDocs);
-        // A different ingest path can win after the initial dedupe read. Its
-        // original cause stays intact; this path still observed a later need.
-        const racedActivityIds = results.flatMap((result, index) => {
-          const activityId = newDocs[index]?.federation?.activityId;
-          return result.status === 'rejected' && isUniqueViolation(result.reason) && activityId
-            ? [activityId]
-            : [];
-        });
-        if (racedActivityIds.length > 0) {
-          const racedPosts = await findPostRecords(
-            inArray(posts.federationActivityId, racedActivityIds),
-            { orderBy: CHRONO_DESC },
-          );
-          await observeFederationImportReason(
-            racedPosts.map((post) => post.id),
-            importReason,
-          );
-        }
-
-        const inserted = results.flatMap((result) =>
-          result.status === 'fulfilled' ? [result.value] : [],
-        );
-        const unexpected = results.flatMap((result) =>
-          result.status === 'rejected' && !isUniqueViolation(result.reason) ? [result.reason] : [],
-        );
-        if (unexpected.length > 0) {
-          logger.warn('[FedSync] batch insert encountered unexpected errors', {
-            count: unexpected.length,
-            errors: unexpected.map((error) =>
-              error instanceof Error ? error.message : String(error),
-            ),
-          });
-        }
-        const rejected = results.filter((result) => result.status === 'rejected').length;
-        if (rejected > 0 && rejected < newDocs.length) {
-          logger.debug('[FedSync] batch insert partially succeeded', {
-            errorCount: rejected,
-            insertedCount: newDocs.length - rejected,
-          });
-        } else if (rejected === newDocs.length && unexpected.length > 0) {
-          throw unexpected[0];
-        }
-
-        // Post-ingest enrichment for the page just stored. This path bypasses
-        // `PostCreationService` on purpose (whole records built from the remote's
-        // own values), so it cannot inherit enrichment from there — but it does
-        // NOT get its own copy of each enrichment either. Both routes converge on
-        // the one entry point, which is what stops the next enrichment from being
-        // remembered on the native route and forgotten on this one (see
-        // `services/postEnrichment/` for the times that already happened).
-        //
-        // Passed as a page rather than post-by-post so an enrichment can
-        // coalesce across the batch — the link-preview warm dedupes a URL shared
-        // by several notes into a single resolve.
-        //
-        // The INSERTED records, not the inputs: an insert that lost the unique
-        // race on `federation.activity_id` stored nothing, and enqueuing work for
-        // it would be work against a post this task never wrote. It is also where
-        // the generated id lives.
-        enrichIngestedPosts(inserted);
-
-        // FEP-8967 cards and polls, for the INSERTED posts only — a row that
-        // lost the unique race belongs to whichever task stored it.
-        for (const post of inserted) {
-          const previews = linkPreviewsByPostId.get(post.id);
-          if (previews) await storeRemoteLinkPreviews(post.id, previews);
-          const poll = pollsByPostId.get(post.id);
-          if (poll) await syncFederatedPoll(post.id, poll.author, poll.poll);
-        }
-      }
-
-      // Link federated replies into their threads. Done AFTER the insert so a
-      // self-thread whose root + replies arrive in the SAME batch resolves
-      // against the now-inserted parents, and so a parent outside this batch is
-      // backfilled (bounded) before linking. `resolveThreadLink` walks UP to the
-      // thread ROOT via each post's stored `federation.inReplyTo`, so every reply
-      // in the chain shares the same `threadId` regardless of intra-batch insert
-      // order — identical to the native reply rule.
-      for (const { activityId, inReplyToUri, oxyUserId, visibility, published } of repliesToLink) {
-        try {
-          const link = await this.resolveThreadLink(inReplyToUri, 0, true);
-          if (!link) continue;
-          // `is_reply` is not written: `derivesReplyIntent` stamped it at insert
-          // from `federation.inReplyTo`. This pass only attaches the links.
-          const linked = await linkReplyToParent(eq(posts.federationActivityId, activityId), link);
-          if (linked) {
-            await recordRecentReplierForPost({
-              parentPostId: link.parentPostId,
-              oxyUserId,
-              visibility,
-              status: 'published',
-              createdAt: published,
-            });
-          }
-        } catch (linkErr) {
-          const message = linkErr instanceof Error ? linkErr.message : String(linkErr);
-          logger.warn('[FedSync] failed to link federated reply into its thread', {
-            error: message,
-          });
-        }
-      }
-
-      // Organic self-heal: repair EXISTING posts whose @mentions were never
-      // resolved, using the in-hand notes (no extra fetch, mentions already
-      // resolved in the shared bounded pass above). Idempotent + fail-soft.
-      const healedMentionCount = await this.healExistingMentions(
-        mentionHealCandidates,
-        mentionsByNote,
-      );
-
-      // Import boosts (Announce) attributed to the outbox owner. Each announce
-      // ensures the boosted Note exists locally, then creates a boost Post that
-      // mirrors native reposts (type=boost, boostOf=<local note _id>) with the
-      // booster's resolved oxyUserId; deduped by the Announce activity id.
-      // Each import may fetch the boosted Note from a remote instance, so they
-      // run with bounded concurrency rather than strictly sequentially.
-      const boosterOxyUserId = actor.oxyUserId ?? actorOxyMap.get(actor.uri) ?? null;
-      const pendingAnnounces = announceCandidates.filter((a) => !existingIds.has(a.activityId));
-      let importedBoosts = 0;
-      for (let i = 0; i < pendingAnnounces.length; i += OUTBOX_BOOST_IMPORT_CONCURRENCY) {
-        const batch = pendingAnnounces.slice(i, i + OUTBOX_BOOST_IMPORT_CONCURRENCY);
-        const results = await Promise.all(
-          batch.map((announce) =>
-            this.importAnnounce(
-              announce.activity,
-              announce.announcedUri,
-              boosterOxyUserId,
-              importReason,
-            ),
-          ),
-        );
-        importedBoosts += results.filter(Boolean).length;
-      }
-
-      const synced = existingIds.size + newDocs.length + importedBoosts;
-      logger.debug('[FedSync] completed outbox sync', {
-        insertedCount: newDocs.length,
-        importedBoostCount: importedBoosts,
-        existingCount: existingIds.size,
-        healedMentionCount,
-      });
+      const imported = await this.importOutboxCandidates(actor, candidates, importReason);
+      // A run that met an author Oxy has not linked yet is not done: it is not
+      // stamped, so the next sync — which starts again from the cursor the last
+      // COMPLETE run left — retries the note instead of paging past it.
+      const reason: OutboxSyncFailureReason | undefined = paging.paginationFailed
+        ? 'pagination-failed'
+        : imported.pendingAuthorCount > 0
+          ? 'author-pending'
+          : undefined;
       return {
-        syncedCount: synced,
-        shouldStampCooldown: !paginationFailed,
-        reason: paginationFailed ? 'pagination-failed' : undefined,
+        syncedCount: imported.existingCount + imported.newPostCount + imported.importedBoostCount,
+        shouldStampCooldown: reason === undefined,
+        reason,
         candidateCount: candidates.length,
-        newPostCount: newDocs.length,
-        existingCount: existingIds.size,
-        importedBoostCount: importedBoosts,
-        healedMentionCount,
-        pagesFetched,
-        reachedEnd,
-        nextCursor,
+        newPostCount: imported.newPostCount,
+        existingCount: imported.existingCount,
+        importedBoostCount: imported.importedBoostCount,
+        healedMentionCount: imported.healedMentionCount,
+        pendingAuthorCount: imported.pendingAuthorCount,
+        pagesFetched: paging.pagesFetched,
+        reachedEnd: paging.reachedEnd,
+        nextCursor: paging.nextCursor,
       };
     } catch (err) {
       logger.warn('[FedSync] failed to sync outbox posts', err);
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'exception' };
+    }
+  }
+
+  /**
+   * Fetch the outbox collection and page through it into candidates, until the
+   * candidate limit, a mid-page pause, the end, a failure, or the page budget.
+   *
+   * Every collection and page is untrusted remote JSON: its shape is validated
+   * before any field is read, pages must stay on the outbox's origin, and a page
+   * seen twice ends pagination. The cursor is opaque remote state: persisted as
+   * given, never synthesized.
+   */
+  private async collectOutboxCandidates(
+    outboxUrl: string,
+    actorUri: string,
+    options: OutboxPagingOptions,
+  ): Promise<
+    | { kind: 'failed'; result: OutboxSyncResult }
+    | {
+        kind: 'collected';
+        candidates: OutboxCandidate[];
+        paging: OutboxPagingState;
+        /** The collection exposed inline items or a page to inspect. */
+        inspectable: boolean;
+        remoteTotalItems?: number;
+      }
+  > {
+    const res = await signedFetch(outboxUrl, AP_CONTENT_TYPE);
+    if (!res.ok) {
+      logger.info('[FedSync] outbox fetch failed', {
+        status: res.status,
+        statusText: res.statusText,
+      });
+      return {
+        kind: 'failed',
+        result: { syncedCount: 0, shouldStampCooldown: false, reason: `outbox-http-${res.status}` },
+      };
+    }
+
+    const rawCollection = await res.json();
+    // A malformed collection aborts THIS sync gracefully; it is not a permanent
+    // failure and cooldown is not stamped, so a transient bad response is
+    // retried on the next view. `.loose()` keeps unknown extension fields.
+    const collectionParse = parseOrderedCollection(rawCollection);
+    if (!collectionParse.ok) {
+      logger.warn('[FedSync] outbox collection failed validation; aborting sync', {
+        error: collectionParse.error.message,
+      });
+      return {
+        kind: 'failed',
+        result: { syncedCount: 0, shouldStampCooldown: false, reason: 'invalid-collection' },
+      };
+    }
+    const collection = rawCollection as Record<string, unknown>;
+    logger.debug('[FedSync] parsed outbox collection', {
+      type: collection.type,
+      totalItems: collection.totalItems,
+      hasOrderedItems: Boolean(collection.orderedItems),
+      hasFirst: Boolean(collection.first),
+    });
+
+    const candidates: OutboxCandidate[] = [];
+    const paging: OutboxPagingState = {
+      pagesFetched: 0,
+      nextCursor: undefined,
+      reachedEnd: false,
+      paginationFailed: false,
+      // Set when a page is processed only partially this run — the candidate
+      // limit or the per-page inspection cap stopped the scan. The cursor points
+      // back at the SAME page+offset, so the run stops and hands it to the next
+      // run instead of draining the (possibly attacker-controlled) page now.
+      pausedMidPage: false,
+    };
+    const visitedPageUrls = new Set<string>();
+    const failPagination = () => {
+      paging.paginationFailed = true;
+      paging.nextCursor = undefined;
+    };
+
+    const processPage = async (
+      pageData: Record<string, unknown>,
+      pageUrl: string,
+      startItemOffset: number,
+    ): Promise<void> => {
+      const items = activityPubItems(pageData);
+      const normalizedOffset = Math.max(0, Math.min(startItemOffset, items.length));
+      if (items.length > 0) {
+        const nextItemOffset = await this.extractCandidates(
+          items,
+          candidates,
+          options.limit,
+          pageUrl,
+          actorUri,
+          normalizedOffset,
+        );
+        if (nextItemOffset < items.length) {
+          paging.nextCursor = { url: pageUrl, itemOffset: nextItemOffset };
+          paging.pausedMidPage = true;
+          return;
+        }
+      }
+
+      const nextPageUrl = activityPubLinkUrl(pageData.next);
+      if (nextPageUrl && sameOrigin(nextPageUrl, pageUrl)) {
+        paging.nextCursor = { url: nextPageUrl, itemOffset: 0 };
+      } else {
+        paging.nextCursor = undefined;
+        paging.reachedEnd = true;
+      }
+    };
+
+    const fetchAndProcessPage = async (pageUrl: string, startItemOffset: number) => {
+      if (!sameOrigin(pageUrl, outboxUrl)) {
+        logger.info('[FedSync] rejected cross-origin outbox page');
+        return failPagination();
+      }
+      if (visitedPageUrls.has(pageUrl)) {
+        logger.info('[FedSync] outbox pagination loop detected');
+        return failPagination();
+      }
+      visitedPageUrls.add(pageUrl);
+
+      if (paging.pagesFetched >= options.maxPages) {
+        paging.nextCursor = { url: pageUrl, itemOffset: startItemOffset };
+        return;
+      }
+
+      try {
+        const pageRes = await signedFetch(pageUrl, AP_CONTENT_TYPE);
+        if (!pageRes.ok) {
+          logger.info('[FedSync] outbox page fetch failed', { status: pageRes.status });
+          return failPagination();
+        }
+        paging.pagesFetched++;
+        const rawPage = await pageRes.json();
+        const pageParse = parseOrderedCollectionPage(rawPage);
+        if (!pageParse.ok) {
+          logger.warn('[FedSync] outbox page failed validation; stopping pagination', {
+            error: pageParse.error.message,
+          });
+          return failPagination();
+        }
+        await processPage(rawPage as Record<string, unknown>, pageUrl, startItemOffset);
+      } catch (pageErr) {
+        logger.debug('[FedSync] outbox pagination error', { error: pageErr });
+        failPagination();
+      }
+    };
+
+    const firstPageObject = asRecord(collection.first);
+    const inlineItems = activityPubItems(collection);
+    if (options.startPageUrl && sameOrigin(options.startPageUrl, outboxUrl)) {
+      paging.nextCursor = {
+        url: options.startPageUrl,
+        itemOffset: Math.max(0, options.startItemOffset),
+      };
+    } else if (inlineItems.length > 0) {
+      await processPage(collection, outboxUrl, 0);
+    } else if (firstPageObject && activityPubItems(firstPageObject).length > 0) {
+      await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? outboxUrl, 0);
+    } else {
+      const firstPageUrl =
+        activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
+      if (firstPageUrl && sameOrigin(firstPageUrl, outboxUrl)) {
+        paging.nextCursor = { url: firstPageUrl, itemOffset: 0 };
+      }
+    }
+
+    while (
+      paging.nextCursor &&
+      candidates.length < options.limit &&
+      !paging.reachedEnd &&
+      !paging.paginationFailed &&
+      !paging.pausedMidPage
+    ) {
+      const cursor: { url: string; itemOffset: number } = paging.nextCursor;
+      await fetchAndProcessPage(cursor.url, cursor.itemOffset);
+      const next = paging.nextCursor as { url: string; itemOffset: number } | undefined;
+      // The page budget was reached before this cursor could be processed.
+      if (next?.url === cursor.url && next.itemOffset === cursor.itemOffset) break;
+    }
+
+    logger.debug('[FedSync] collected outbox candidates', {
+      candidateCount: candidates.length,
+      pagesFetched: paging.pagesFetched,
+    });
+    return {
+      kind: 'collected',
+      candidates,
+      paging,
+      inspectable: inlineItems.length > 0 || Boolean(collection.first || collection.next),
+      remoteTotalItems:
+        typeof collection.totalItems === 'number' ? collection.totalItems : undefined,
+    };
+  }
+
+  /**
+   * Store a page's candidates: dedup against what is held, resolve the new
+   * notes' authors and mentions in bounded batches, build each note through
+   * {@link buildPostFromNote}, batch-insert them, link replies into their
+   * threads, heal old posts' mentions, and import the boosts.
+   */
+  private async importOutboxCandidates(
+    actor: OutboxSyncActor,
+    candidates: OutboxCandidate[],
+    importReason: FederationImportReason,
+  ): Promise<{
+    newPostCount: number;
+    existingCount: number;
+    importedBoostCount: number;
+    healedMentionCount: number;
+    pendingAuthorCount: number;
+  }> {
+    const noteCandidates = candidates.filter(
+      (c): c is Extract<OutboxCandidate, { kind: 'note' }> => c.kind === 'note',
+    );
+    const announceCandidates = candidates.filter(
+      (c): c is Extract<OutboxCandidate, { kind: 'announce' }> => c.kind === 'announce',
+    );
+
+    // One query for the whole page. The stored records also carry what the
+    // mention self-heal compares against, so it needs no read of its own.
+    const existing = await this.findExistingCandidates(candidates, importReason);
+    const newNotes = noteCandidates.filter((c) => !existing.has(c.activityId));
+    const newAnnounces = announceCandidates.filter((a) => !existing.has(a.activityId));
+    const healCandidates = this.mentionHealCandidates(noteCandidates, existing);
+
+    // Authors: the outbox owner, or the members a community relayed. The owner
+    // is also the booster of every announce.
+    const authorUris = new Set(newNotes.map((c) => c.authorUri));
+    if (newAnnounces.length > 0 && !actor.oxyUserId) authorUris.add(actor.uri);
+    const authors = await this.resolveOutboxAuthors(actor, authorUris);
+
+    // The mentions of the new notes AND the heal notes in ONE bounded pass: each
+    // distinct mentioned actor across the page is fetched at most once, with the
+    // same concurrency and per-actor timeout as the authors.
+    const mentionsByNote = await resolveInboundMentionsForNotes(
+      [...newNotes.map((c) => c.note), ...healCandidates.map((h) => h.note)],
+      {
+        concurrency: OUTBOX_ACTOR_RESOLVE_CONCURRENCY,
+        perActorTimeoutMs: OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS,
+      },
+    );
+
+    logger.debug('[FedSync] classified outbox candidates', {
+      candidateCount: candidates.length,
+      noteCount: noteCandidates.length,
+      announceCount: announceCandidates.length,
+      existingCount: existing.size,
+      actorResolutionCount: authors.size,
+    });
+
+    const { built, pendingAuthorCount } = await this.buildOutboxNotes(
+      newNotes,
+      authors,
+      mentionsByNote,
+      importReason,
+    );
+    await this.insertOutboxNotes(built, importReason);
+    await this.linkOutboxReplies(built);
+    const healedMentionCount = await this.healExistingMentions(healCandidates, mentionsByNote);
+
+    // Boosts (Announce) by the outbox owner: each ensures the boosted note exists
+    // locally, then stores a boost post like a native repost. Bounded concurrency,
+    // since each may fetch the boosted note from a remote instance.
+    const booster = authors.get(actor.uri);
+    const boosterOxyUserId =
+      actor.oxyUserId ?? (booster && booster !== 'pending' ? booster.oxyUserId : null);
+    let importedBoostCount = 0;
+    for (let i = 0; i < newAnnounces.length; i += OUTBOX_BOOST_IMPORT_CONCURRENCY) {
+      const batch = newAnnounces.slice(i, i + OUTBOX_BOOST_IMPORT_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map((announce) =>
+          this.importAnnounce(
+            announce.activity,
+            announce.announcedUri,
+            boosterOxyUserId,
+            importReason,
+          ),
+        ),
+      );
+      importedBoostCount += results.filter(Boolean).length;
+    }
+
+    logger.debug('[FedSync] completed outbox sync', {
+      insertedCount: built.length,
+      importedBoostCount,
+      existingCount: existing.size,
+      healedMentionCount,
+      pendingAuthorCount,
+    });
+    return {
+      newPostCount: built.length,
+      existingCount: existing.size,
+      importedBoostCount,
+      healedMentionCount,
+      pendingAuthorCount,
+    };
+  }
+
+  /** The stored posts this page's candidates already are, by activity id. */
+  private async findExistingCandidates(
+    candidates: OutboxCandidate[],
+    importReason: FederationImportReason,
+  ): Promise<Map<string, PostRecord>> {
+    const stored = await findPostRecords(
+      inArray(
+        posts.federationActivityId,
+        candidates.map((c) => c.activityId),
+      ),
+      { orderBy: CHRONO_DESC },
+    );
+    await observeFederationImportReason(
+      stored.map((post) => post.id),
+      importReason,
+    );
+    const byActivityId = new Map<string, PostRecord>();
+    for (const post of stored) {
+      const activityId = post.federation?.activityId;
+      if (activityId) byActivityId.set(activityId, post);
+    }
+    return byActivityId;
+  }
+
+  /**
+   * Existing posts whose stored body may still show its @mentions as bare
+   * `@name` text: imported before the outbox resolved mentions, and never
+   * re-inserted. A post qualifies only when its in-hand note carries more
+   * distinct `Mention` tags than its stored allowlist has ids.
+   */
+  private mentionHealCandidates(
+    noteCandidates: Extract<OutboxCandidate, { kind: 'note' }>[],
+    existing: Map<string, PostRecord>,
+  ): MentionHealCandidate[] {
+    const heal: MentionHealCandidate[] = [];
+    for (const c of noteCandidates) {
+      const stored = existing.get(c.activityId);
+      if (!stored) continue;
+      const distinctMentionHrefs = new Set(extractMentionTags(c.note).map((t) => t.href));
+      if (distinctMentionHrefs.size === 0) continue;
+      const storedMentions = normalizeMentionIds(stored.mentions);
+      if (storedMentions.length >= distinctMentionHrefs.size) continue;
+      heal.push({ note: c.note, stored, storedMentions });
+    }
+    return heal;
+  }
+
+  /**
+   * The notes' authors as {@link NoteAuthor}s, by actor URI.
+   *
+   * Stored rows first (one query); an author with no row, or a row Oxy has not
+   * linked, is fetched through the resolver with bounded concurrency and a
+   * per-actor timeout, so one unresponsive instance cannot stall the page.
+   * The outcome per author:
+   *  - a {@link NoteAuthor}: linked, its notes are imported;
+   *  - `'pending'`: the actor is known but Oxy has not linked it yet (Oxy was
+   *    unreachable). Its notes wait: the run reports `author-pending`;
+   *  - absent: the actor itself could not be fetched (gone, refused, blocked,
+   *    timed out). Its notes are skipped, which is where the inbox ends up too
+   *    once its retries are spent.
+   */
+  private async resolveOutboxAuthors(
+    owner: OutboxSyncActor,
+    uris: Set<string>,
+  ): Promise<Map<string, NoteAuthor | 'pending'>> {
+    const authors = new Map<string, NoteAuthor | 'pending'>();
+    if (uris.size === 0) return authors;
+    const asAuthor = (row: Omit<NoteAuthor, 'oxyUserId'>, oxyUserId: string): NoteAuthor => ({
+      uri: row.uri,
+      oxyUserId,
+      followersUrl: row.followersUrl,
+      lastFetchedAt: row.lastFetchedAt,
+      type: row.type,
+      domain: row.domain,
+      networkAcct: row.networkAcct,
+    });
+
+    const rows = new Map((await findActorsByUris([...uris])).map((row) => [row.uri, row]));
+    // The owner as the caller passed it, over its stored row: a caller may hold
+    // the Oxy link before the row does.
+    if (uris.has(owner.uri)) {
+      const merged = { ...rows.get(owner.uri), ...definedFields(owner), uri: owner.uri };
+      if (merged.oxyUserId) authors.set(owner.uri, asAuthor(merged, merged.oxyUserId));
+    }
+    for (const uri of uris) {
+      const row = rows.get(uri);
+      if (!authors.has(uri) && row?.oxyUserId) authors.set(uri, asAuthor(row, row.oxyUserId));
+    }
+
+    const missing = [...uris].filter((uri) => !authors.has(uri));
+    for (let i = 0; i < missing.length; i += OUTBOX_ACTOR_RESOLVE_CONCURRENCY) {
+      const batch = missing.slice(i, i + OUTBOX_ACTOR_RESOLVE_CONCURRENCY);
+      const resolved = await Promise.all(
+        batch.map((uri) =>
+          runWithTimeout(actorService.fetchRemoteActor(uri), OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS),
+        ),
+      );
+      batch.forEach((uri, j) => {
+        const actor = resolved[j];
+        if (!actor) return;
+        authors.set(
+          uri,
+          actor.oxyUserId ? asAuthor({ ...actor, uri }, actor.oxyUserId) : 'pending',
+        );
+      });
+    }
+    return authors;
+  }
+
+  /** Build each new note's row; a note whose author is pending is counted, not built. */
+  private async buildOutboxNotes(
+    notes: Extract<OutboxCandidate, { kind: 'note' }>[],
+    authors: Map<string, NoteAuthor | 'pending'>,
+    mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
+    importReason: FederationImportReason,
+  ): Promise<{ built: BuiltOutboxNote[]; pendingAuthorCount: number }> {
+    const built: BuiltOutboxNote[] = [];
+    let pendingAuthorCount = 0;
+    // An author is re-read at most once per page when its row lacks a followers
+    // collection (`resolveApAudienceFor`).
+    const audienceRefreshes: AuthorRefreshOptions['refreshes'] = new Map();
+    for (const { note, activity, activityId, authorUri, relayedBy } of notes) {
+      const author = authors.get(authorUri);
+      if (author === 'pending') {
+        pendingAuthorCount++;
+        continue;
+      }
+      if (!author) {
+        logger.info('[FedSync] skipped outbox note whose author could not be fetched');
+        continue;
+      }
+      const post = await buildPostFromNote({
+        note,
+        activity,
+        activityId,
+        author,
+        importReason,
+        ingestPath: 'outbox',
+        relayedBy,
+        mentions: mentionsByNote.get(note) ?? NO_MENTIONS,
+        audienceRefreshes,
+        importQuoted: (uri) => this.ensureQuotedNote(uri),
+      });
+      if (post.skip) {
+        logSkippedNote('outbox', post);
+        continue;
+      }
+      // A pre-assigned id, so the post-insert passes address each row directly.
+      built.push({ post, activityId, record: await notePostRecord(post, uuidv7()) });
+    }
+    return { built, pendingAuthorCount };
+  }
+
+  /**
+   * Batch-insert the built rows, then enrich them and store their cards and
+   * polls — for the INSERTED rows only: a row that lost the unique race on
+   * `federation.activity_id` belongs to whichever task stored it.
+   *
+   * Per-row transactions (`insertPostRecords`), so a duplicate rolls back only
+   * its own post; a unique violation is the expected outcome of a concurrent
+   * import and is counted, not logged as a failure. The batch form rather than
+   * `insertPostRecord` per row, which took the whole connection pool (#1158).
+   */
+  private async insertOutboxNotes(
+    built: BuiltOutboxNote[],
+    importReason: FederationImportReason,
+  ): Promise<void> {
+    if (built.length === 0) return;
+    const records = built.map((b) => b.record);
+    const results = await insertPostRecords(records);
+
+    // A different ingest path can win after the dedupe read. Its original cause
+    // stays intact; this path still observed a later need.
+    const racedActivityIds = results.flatMap((result, index) => {
+      const activityId = records[index]?.federation?.activityId;
+      return result.status === 'rejected' && isUniqueViolation(result.reason) && activityId
+        ? [activityId]
+        : [];
+    });
+    if (racedActivityIds.length > 0) {
+      const racedPosts = await findPostRecords(
+        inArray(posts.federationActivityId, racedActivityIds),
+        { orderBy: CHRONO_DESC },
+      );
+      await observeFederationImportReason(
+        racedPosts.map((post) => post.id),
+        importReason,
+      );
+    }
+
+    const inserted = results.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
+    const unexpected = results.flatMap((result) =>
+      result.status === 'rejected' && !isUniqueViolation(result.reason) ? [result.reason] : [],
+    );
+    if (unexpected.length > 0) {
+      logger.warn('[FedSync] batch insert encountered unexpected errors', {
+        count: unexpected.length,
+        errors: unexpected.map((error) => (error instanceof Error ? error.message : String(error))),
+      });
+    }
+    const rejected = results.filter((result) => result.status === 'rejected').length;
+    if (rejected > 0 && rejected < records.length) {
+      logger.debug('[FedSync] batch insert partially succeeded', {
+        errorCount: rejected,
+        insertedCount: records.length - rejected,
+      });
+    } else if (rejected === records.length && unexpected.length > 0) {
+      throw unexpected[0];
+    }
+
+    // The one post-ingest enrichment entry point the native route also uses
+    // (`services/postEnrichment/`), passed the page so a link shared by several
+    // notes is resolved once.
+    enrichIngestedPosts(inserted);
+    const byId = new Map(built.map((b) => [b.record.id, b.post]));
+    for (const post of inserted) {
+      const note = byId.get(post.id);
+      if (note) await storeNoteExtras(post.id, note);
+    }
+  }
+
+  /**
+   * Link the page's replies into their threads, AFTER the insert: a self-thread
+   * whose root and replies arrive together resolves against the inserted
+   * parents, and a parent outside the page is backfilled (bounded) first.
+   * {@link resolveThreadLink} walks up to the ROOT, so every reply in a chain
+   * shares one `threadId` whatever the insert order.
+   */
+  private async linkOutboxReplies(built: BuiltOutboxNote[]): Promise<void> {
+    for (const { post, activityId } of built) {
+      if (!post.inReplyToUri) continue;
+      try {
+        const link = await this.resolveThreadLink(post.inReplyToUri, 0, true);
+        if (!link) continue;
+        // `is_reply` was stamped at insert from `federation.inReplyTo`; this
+        // pass only attaches the links.
+        const linked = await linkReplyToParent(eq(posts.federationActivityId, activityId), link);
+        if (linked) {
+          await recordRecentReplierForPost({
+            parentPostId: link.parentPostId,
+            oxyUserId: post.params.oxyUserId,
+            visibility: post.audience.visibility,
+            status: 'published',
+            createdAt: post.params.createdAt,
+          });
+        }
+      } catch (linkErr) {
+        const message = linkErr instanceof Error ? linkErr.message : String(linkErr);
+        logger.warn('[FedSync] failed to link federated reply into its thread', {
+          error: message,
+        });
+      }
     }
   }
 
@@ -1450,7 +1166,8 @@ export class OutboxSyncService {
    * outbox path resolved mentions, which the dedup pass never re-inserts (so they
    * would keep dead-text mentions forever). The in-hand outbox notes already carry
    * the `Mention` tags, so each post is repaired with NO extra fetch beyond the
-   * bounded, shared mention resolution already performed for the page.
+   * bounded, shared mention resolution already performed for the page, and the
+   * stored record comes from the page's dedup read.
    *
    * Bounded batch of `updateOne`s. Idempotent + fail-soft: a note whose mentions
    * add neither an identity nor a restored source link are a no-op. A restored
@@ -1460,11 +1177,7 @@ export class OutboxSyncService {
    * @returns the number of posts actually rewritten this run.
    */
   private async healExistingMentions(
-    healCandidates: Array<{
-      note: Record<string, unknown>;
-      activityId: string;
-      storedMentions: string[];
-    }>,
+    healCandidates: MentionHealCandidate[],
     mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
   ): Promise<number> {
     if (healCandidates.length === 0) return 0;
@@ -1486,11 +1199,7 @@ export class OutboxSyncService {
    * mentions are already resolved is never touched (see {@link healExistingMentions}).
    */
   private async healOnePostMentions(
-    candidate: {
-      note: Record<string, unknown>;
-      activityId: string;
-      storedMentions: string[];
-    },
+    candidate: MentionHealCandidate,
     mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
   ): Promise<boolean> {
     const resolved = mentionsByNote.get(candidate.note);
@@ -1512,13 +1221,8 @@ export class OutboxSyncService {
     // blank an existing post's body — leave it untouched.
     if (variants.length === 0) return false;
 
-    // At most one row: `posts_federation_activity_id_key` is a partial UNIQUE
-    // index on this column, so no ORDER BY has anything to decide.
-    const [stored] = await findPostRecords(eq(posts.federationActivityId, candidate.activityId), {
-      orderBy: UNIQUE_MATCH_NO_ORDER,
-      limit: 1,
-    });
-    if (!stored) return false;
+    // The record the page's dedup read already loaded; no second read per post.
+    const { stored } = candidate;
     // An unresolved source mention can now retain its href without adding an
     // identity. Repair it once, then compare bodies to keep later syncs inert.
     const repairsSourceLink = variants.some(
@@ -1817,14 +1521,20 @@ export class OutboxSyncService {
 
     // 3. Derive the thread-root id. A linked parent already points at the root;
     //    an unlinked federated parent is walked up via its stored inReplyTo.
-    const parent = await loadPostRecord(parentPostId);
+    // Only the two columns the walk reads — not the whole record, which is a
+    // read of every child table per ancestor.
+    const [parent] = await getDb()
+      .select({ id: posts.id, threadId: posts.threadId, inReplyTo: posts.federationInReplyTo })
+      .from(posts)
+      .where(eq(posts.id, parentPostId))
+      .limit(1);
     if (!parent) return null;
 
     if (parent.threadId) {
       return { parentPostId: parent.id, threadId: parent.threadId };
     }
 
-    const parentInReplyToUri = extractInReplyToUri(parent.federation?.inReplyTo);
+    const parentInReplyToUri = extractInReplyToUri(parent.inReplyTo);
     if (parentInReplyToUri && depth < MAX_ANCESTOR_DEPTH) {
       const ancestorLink = await this.resolveThreadLink(
         parentInReplyToUri,
@@ -1840,19 +1550,6 @@ export class OutboxSyncService {
     return { parentPostId: parent.id, threadId: parent.id };
   }
 
-  /**
-   * Ensure a federated post (`AP_POST_OBJECT_TYPES`) exists locally as a Post
-   * and return its local Post `_id` (as a string). Fetches the object via
-   * `signedFetch` when it is not already stored. Returns null when the object
-   * cannot be fetched or is not a post.
-   *
-   * Used by boost import so a boost's `boostOf` always references a real local
-   * Post `_id`, exactly like native reposts (which the hydration layer resolves
-   * by looking the original post up by `_id`). Also used as the ancestor-backfill
-   * step of {@link resolveThreadLink}: when the fetched note is itself a reply,
-   * its own `parentPostId`/`threadId` are resolved (recursing up the chain, with
-   * the depth budget threaded through) so the imported ancestor is fully linked.
-   */
   /**
    * Import the post a Note QUOTES, when we do not already hold it.
    *
@@ -1874,6 +1571,19 @@ export class OutboxSyncService {
     return this.ensureFederatedNote(objectUri, 'quote_dependency');
   }
 
+  /**
+   * Ensure a federated post (`AP_POST_OBJECT_TYPES`) exists locally as a Post
+   * and return its local Post `_id` (as a string). Fetches the object via
+   * `signedFetch` when it is not already stored. Returns null when the object
+   * cannot be fetched or is not a post.
+   *
+   * Used by boost import so a boost's `boostOf` always references a real local
+   * Post `_id`, exactly like native reposts (which the hydration layer resolves
+   * by looking the original post up by `_id`). Also used as the ancestor-backfill
+   * step of {@link resolveThreadLink}: when the fetched note is itself a reply,
+   * its own `parentPostId`/`threadId` are resolved (recursing up the chain, with
+   * the depth budget threaded through) so the imported ancestor is fully linked.
+   */
   private async ensureFederatedNote(
     objectUri: string,
     importReason: FederationImportReason,
@@ -1910,162 +1620,51 @@ export class OutboxSyncService {
       return null;
     }
 
-    const rawContent = typeof note.content === 'string' ? note.content : '';
-    if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) {
-      logger.info('[FedSync] skipped oversized boosted object');
-      return null;
-    }
-
-    // Resolve the original author's actor → Oxy user id so the boosted post is
-    // attributed correctly (same resolution path as handleCreate/syncOutbox).
-    // The Oxy link is MANDATORY: rather than persist an orphan with a null
-    // author, SKIP (return null) when the author can't be resolved yet. The boost
-    // / ancestor link is simply not created this pass; it is re-attempted later
-    // once the actor resolves. This best-effort helper runs in batch contexts
-    // (outbox import, ancestor backfill), so it skips rather than throwing.
+    // The author's actor, linked to Oxy. Unlike the inbox, a dependency is not
+    // retried: it is imported best-effort from an inbox job, an outbox page or a
+    // repair, whose own post is stored either way (unlinked, or withheld as
+    // `incomplete` for a quote), so an author not resolvable yet returns null.
     const authorUri = extractActorUri(note.attributedTo);
     if (!authorUri) {
       logger.info('[FedSync] skipped boosted object without an attributable author');
       return null;
     }
     const authorActor = await actorService.getOrFetchActor(authorUri);
-    const authorOxyUserId = authorActor?.oxyUserId;
-    if (!authorOxyUserId) {
+    if (!authorActor?.oxyUserId) {
       logger.info('[FedSync] skipped boosted object whose author is unresolved');
       return null;
     }
-    const audience = await resolveApAudienceFor(note, {
-      uri: authorUri,
-      followersUrl: authorActor.followersUrl,
-      lastFetchedAt: authorActor.lastFetchedAt,
-    });
-    if (!audience) {
-      logger.info('[FedSync] skipped a direct note addressed to no local user');
-      return null;
-    }
-    const { visibility } = audience;
 
     const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
-    // The boosted original keeps its OWN publish date (validated/falls back to now).
-    const published = parseApPublished(note.published);
-
-    // Build the storable body via the shared builder (contentMap fallback,
-    // hashtag normalization, media materialization, empty-note guard) — the SAME
-    // path handleCreate and the outbox loop use. A boosted/ancestor Note that
-    // carries nothing storable is skipped (return null) rather than creating a
-    // blank post; the boost/ancestor link is simply not made this pass.
-    // The SAME mention resolution the inbox `Create` path runs. Without it an
-    // imported original keeps every mention as the link to its source profile,
-    // which names the host the copy arrived through (`@elonmusk@bird.makeup`)
-    // instead of the identity (`@elonmusk@x.com`).
-    const mentionResult = await resolveInboundMentions(note);
-    const noteObject = applyMentionPlaceholders(note, mentionResult.anchorMap);
-
-    const built = await buildFederatedNoteContent(noteObject, authorOxyUserId, {
+    const post = await buildPostFromNote({
+      note,
       activityId: noteActivityId,
-      actorUri: authorUri ?? undefined,
-      identityDomain: identityDomainOfActor(authorActor),
-      // Third site of the same gate. A boosted original, a reply ancestor and a
-      // quoted note all arrive here, so without it a flattened retweet reaches
-      // the database as somebody else's post the moment anything references it.
-      dropFlattenedRetweets: dropsFlattenedReposts(authorActor?.domain ?? ''),
+      author: { ...authorActor, uri: authorUri, oxyUserId: authorActor.oxyUserId },
+      importReason,
       ingestPath: 'dependency',
+      // Imported through THIS function, so a quote chain shares the ancestor
+      // walk's depth budget and a quote cycle (A quotes B quotes A) terminates.
+      importQuoted: (uri) =>
+        depth < MAX_ANCESTOR_DEPTH
+          ? this.ensureFederatedNote(uri, 'quote_dependency', depth + 1)
+          : Promise.resolve(null),
     });
-    if (built.skip) {
-      logger.debug('[FedSync] skipped empty boosted object', {
-        result: built.reason,
-      });
+    if (post.skip) {
+      logSkippedNote('dependency', post);
       return null;
     }
-    const { media, attachments, hashtags, summary, sensitive, variants } = built;
 
-    // When this note is itself a reply, link it into its thread (resolving /
-    // backfilling its OWN parent chain up to the root). The depth budget is
-    // threaded through so the recursion stays bounded across the chain.
-    const inReplyToUri = extractInReplyToUri(note.inReplyTo);
-    const threadLink = inReplyToUri
-      ? await this.resolveThreadLink(inReplyToUri, depth, true)
+    // A note that is itself a reply is linked into its thread, resolving its own
+    // parent chain up to the root within the same depth budget.
+    const threadLink = post.inReplyToUri
+      ? await this.resolveThreadLink(post.inReplyToUri, depth, true)
       : null;
-
-    // When this note itself QUOTES another post, link it — the same rule the
-    // inbox `Create` path applies, because the ANSWER cannot depend on which
-    // path happened to import the note. A boosted original, a reply ancestor and
-    // a quoted note all arrive here, and every one of them lost its own quote:
-    // `quote_of` stayed null and the body was left rendering the remote server's
-    // `RE: <url>` fallback, which is exactly what a reader is not supposed to see.
-    //
-    // Resolved locally first (that also covers a quote of a LOCAL post, which no
-    // fetch would ever find), then imported through THIS function — so the quote
-    // chain shares the ancestor walk's `MAX_ANCESTOR_DEPTH` budget and a quote
-    // cycle (A quotes B quotes A) terminates instead of recursing forever.
-    const declaredQuote = extractDeclaredQuote(note, authorUri ?? undefined);
-    const quoteOf = declaredQuote
-      ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
-          depth < MAX_ANCESTOR_DEPTH
-            ? this.ensureFederatedNote(uri, 'quote_dependency', depth + 1)
-            : Promise.resolve(null),
-        )
-      : null;
-    const quoteVariants = await stripQuoteMarkerFromVariants(variants, quoteOf, declaredQuote?.uri);
-    // Nothing relayed this import, so only a community on the post's own origin
-    // vouches for it (`resolvePostCommunity`).
-    const communityOxyUserId = await resolvePostCommunity(note);
 
     try {
-      const created = await getPostCreator().create({
-        oxyUserId: authorOxyUserId,
-        federation: buildFederatedNoteProvenance({
-          activityId: noteActivityId,
-          actorUri: authorUri,
-          importReason,
-          inReplyTo: inReplyToUri,
-          noteUrl: note.url,
-          sensitive,
-          spoilerText: summary,
-        }),
-        parentPostId: threadLink?.parentPostId ?? null,
-        threadId: threadLink?.threadId ?? null,
-        quoteOf,
-        communityOxyUserId,
-        content: {
-          // The body, and its ONLY home (`variants[0]` is the primary).
-          variants: quoteVariants.length > 0 ? quoteVariants : undefined,
-          title: built.title,
-          linkUrl: built.linkUrl,
-          media: media.length > 0 ? media : undefined,
-          attachments: attachments.length > 0 ? attachments : undefined,
-        },
-        visibility,
-        ...(audience.recipients.length > 0 ? { recipients: audience.recipients } : {}),
-        hashtags,
-        ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
-        // AP-derived language + author instance for the Stage-A baseline (and the
-        // top-level `post.language`), via PostCreationService's classifier wiring.
-        // The singular `language` is the primary; the full declared set feeds
-        // `postClassification.languages`.
-        language: extractApLanguage(note),
-        languages: extractApLanguages(note),
-        instanceDomain: authorUri ? getRemoteHost(authorUri) : undefined,
-        // The author's AP type feeds the Stage-A RSS/bot-mirror spam signal, as
-        // it does on the inbox `Create` and outbox-backfill paths. Dropped here
-        // for the same reason `actorUri` was — the actor is resolved above and
-        // nothing objected to leaving it out — which classified the SAME remote
-        // Note differently depending on which path happened to import it.
-        actorType: authorActor?.type,
-        // A boosted original / reply ancestor / quoted note is withheld on the
-        // same rule as every other path: it declares a quote we could not
-        // produce. `importAnnounce` then refuses the boost too, because
-        // `resolvePostIdFromObjectUri` only answers for a published post — so a
-        // repost of an incomplete post does not appear either, which is the
-        // behaviour boosts already had and the reason this rule exists.
-        status: declaredQuote && !quoteOf ? 'incomplete' : 'published',
-        metadata: { isSensitive: sensitive },
-        skipNotifications: true,
-        skipSocketEmit: true,
-        skipFederationDelivery: true,
-        ...(published ? { createdAt: published, updatedAt: published } : {}),
+      const created = await storeNotePost(post, {
+        parentPostId: threadLink?.parentPostId,
+        threadId: threadLink?.threadId,
       });
-      if (built.poll) await syncFederatedPoll(created.id, authorOxyUserId, built.poll);
       return created.id;
     } catch (err) {
       // Concurrent import may have created it — re-read to return the id.
