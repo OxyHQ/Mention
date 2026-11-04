@@ -36,7 +36,6 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
-import { FediverseSharingBadge } from '@/components/AccountBadge';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import UserName from '@/components/UserName';
@@ -430,14 +429,6 @@ export function usePersonProfileView({
 
   const identity = useMemo(() => {
     if (!profileData) return null;
-    // Own, non-federated profile opted into fediverse sharing (absent flag ⇒
-    // on): a tappable badge next to the handle explaining the fediverse.
-    // The PROFILE is where the explainer is opted into — the marker is inert
-    // on every other surface (see `AccountBadge`).
-    const fediverseBadge =
-      isOwnProfile && !profileData.isFederated && currentUser?.fediverseSharing !== false ? (
-        <FediverseSharingBadge size={20} onExplainNetwork={showFediverseInfo} />
-      ) : undefined;
     // Passive "Follows you" tag inline to the right of the @handle when this
     // profile follows the viewer. Never shown on the viewer's own profile.
     const followsYouTag =
@@ -517,7 +508,6 @@ export function usePersonProfileView({
             asHeading
             variant="default"
             style={userNameStyle}
-            trailingBadge={fediverseBadge}
             handleTrailing={followsYouTag}
           />
           {/* Non-personal accounts route here too — an organization, a project

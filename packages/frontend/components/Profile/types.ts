@@ -417,8 +417,6 @@ export interface UserNameProps {
    * receive the tap and navigate. Only the profile header enables it.
    */
   copyableHandle?: boolean;
-  /** Extra element rendered inline after the verified/federated/agent icons (name line). */
-  trailingBadge?: React.ReactNode;
   /** Passive element rendered inline to the right of the `@handle` on the handle line (e.g. a "Follows you" tag). */
   handleTrailing?: React.ReactNode;
 }
@@ -452,8 +450,6 @@ export interface ChannelHeaderProps extends ProfileHeaderBaseProps {
    * drawn here; the full list lives on the about screen.
    */
   accountCategories?: ProfileData['accountCategories'];
-  /** Extra element rendered inline after the name (e.g. the fediverse badge). */
-  trailingBadge?: React.ReactNode;
 }
 
 /** The follow control under a channel's header. */

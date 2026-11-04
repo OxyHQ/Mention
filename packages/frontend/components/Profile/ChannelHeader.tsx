@@ -71,7 +71,6 @@ export const ChannelHeader = memo(function ChannelHeader({
   privacySettings,
   accountCategories,
   UserNameComponent,
-  trailingBadge,
 }: ChannelHeaderProps) {
   const surfaceFill = useSurfaceFill();
   return (
@@ -120,7 +119,6 @@ export const ChannelHeader = memo(function ChannelHeader({
         onExplainChannel={showChannelInfo}
         align="center"
         variant="default"
-        trailingBadge={trailingBadge}
         style={{
           name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 12, marginBottom: 4 },
           handle: { fontSize: 15 },

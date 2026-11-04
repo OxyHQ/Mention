@@ -3,7 +3,7 @@ import path from 'node:path';
 import type React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
-import { AccountBadge, FediverseSharingBadge, type AccountBadgeProps } from '../AccountBadge';
+import { AccountBadge, type AccountBadgeProps } from '../AccountBadge';
 import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 import { catalogText } from '@/test-support/catalog';
@@ -45,7 +45,6 @@ jest.mock('react-i18next', () =>
 
 const CHANNEL_LABEL = catalogText('channels.badge.a11yLabel');
 const REMOTE_LABEL = catalogText('fediverse.remoteBadge.a11yLabel');
-const SHARING_LABEL = catalogText('fediverse.badge.a11yLabel');
 
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
@@ -330,23 +329,6 @@ describe('AccountBadge — the channel marker opts in on its own prop', () => {
     expect(icons(renderer, RiFediverseLine)).toHaveLength(1);
     expect(icons(renderer, RiMegaphoneLine)).toHaveLength(0);
     expect(buttons(renderer)).toHaveLength(0);
-  });
-});
-
-describe('FediverseSharingBadge — the own-profile marker obeys the same default', () => {
-  it('is inert with no handler and armed with one', () => {
-    const inert = render(<FediverseSharingBadge />);
-    expect(icons(inert, RiFediverseLine)).toHaveLength(1);
-    expect(labels(inert)).toContain(SHARING_LABEL);
-    expect(buttons(inert)).toHaveLength(0);
-
-    const onExplainNetwork = jest.fn();
-    const armed = render(<FediverseSharingBadge onExplainNetwork={onExplainNetwork} />);
-    expect(buttons(armed)).toHaveLength(1);
-    TestRenderer.act(() => {
-      pressHandlers(armed)[0]();
-    });
-    expect(onExplainNetwork).toHaveBeenCalledTimes(1);
   });
 });
 
