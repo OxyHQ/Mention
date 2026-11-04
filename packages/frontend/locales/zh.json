@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "正在检查链接…",
-      "willMention": "这条帖子将提及"
+      "willMention": "这条帖子将提及",
+      "onlyVisibleTo": "仅以下人可见"
     },
     "newPost": "发新帖",
     "placeholder": "有什么新鲜事？",
@@ -614,6 +615,12 @@
       "allowQuotes": "允许引用发帖",
       "anyoneCanInteract": "任何人都可以互动",
       "limited": "互动受限"
+    },
+    "audience": {
+      "title": "谁可以看到这条帖子",
+      "public": "所有人",
+      "direct": "私密提及：仅你提及的人",
+      "needsRecipient": "请至少提及一个人。只有你提及的人才能看到这条帖子。"
     }
   },
   "post": {
@@ -732,7 +739,8 @@
       "follow": "关注了你",
       "post": "发布了新动态",
       "poke": "戳了你一下",
-      "default": "与你的内容进行了互动"
+      "default": "与你的内容进行了互动",
+      "privateMention": "向你发送了私密提及"
     },
     "forChannel": "{{channel}} 的通知",
     "someone": "某人",
@@ -3443,6 +3451,27 @@
       "heading": "你的个人资料",
       "body": "头像和简短的简介能让别人更愿意回关你。你可以随时在设置中修改。",
       "edit": "编辑个人资料"
+    }
+  },
+  "privateMentions": {
+    "title": "私密提及",
+    "badge": "私密提及",
+    "onlyMentioned": "仅被提及的人可见",
+    "replyPlaceholder": "私密回复",
+    "replyAudience": "仅此对话中的人",
+    "twoNames": "{{first}}和{{second}}",
+    "oneAndMore": "{{first}}和另外 {{others}} 人",
+    "manyNames": "{{first}}、{{second}}和另外 {{others}} 人",
+    "you": "你",
+    "media": "媒体",
+    "signIn": "登录以查看你的私密提及",
+    "error": {
+      "title": "无法加载私密提及",
+      "message": "请检查网络连接后重试。"
+    },
+    "empty": {
+      "title": "还没有私密提及",
+      "subtitle": "只有你和被提及的人能看到的帖子会显示在这里。在编辑器中选择“私密提及”即可开始。"
     }
   }
 }

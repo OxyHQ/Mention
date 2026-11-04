@@ -11,6 +11,7 @@ import type React from 'react';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 
 import PostHeader from '../PostHeader';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 
 /**
@@ -40,6 +41,7 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToa
 // element the header rendered, not by a re-encoding of it.
 jest.mock('@oxy.so/bloom/icons', () => ({
   RiChat3Fill: 'RiChat3Fill',
+  RiLockLine: 'RiLockLine',
   RiMoreFill: 'RiMoreFill',
   RiPencilLine: 'RiPencilLine',
   RiRepeat2Line: 'RiRepeat2Line',
@@ -190,5 +192,23 @@ describe('PostHeader edited marker', () => {
   it('does not toast on a post that was never edited — there is nothing to press', () => {
     render({ isEdited: false });
     expect(mockToast).not.toHaveBeenCalled();
+  });
+});
+
+describe('PostHeader private-mention marker', () => {
+  it('marks only a private mention, and says who can see it on press', () => {
+    expect(render().root.findAll((node) => node.type === RiLockLine)).toHaveLength(0);
+
+    const renderer = render({ isPrivateMention: true });
+    const button = renderer.root.find(
+      (node) =>
+        node.props.testID === 'post-private-mention-badge' &&
+        typeof node.props.onPress === 'function',
+    );
+    expect(button.props.accessibilityLabel).toBe('Private mention');
+    act(() => {
+      button.props.onPress();
+    });
+    expect(mockToast).toHaveBeenCalledWith('Only visible to the people mentioned');
   });
 });

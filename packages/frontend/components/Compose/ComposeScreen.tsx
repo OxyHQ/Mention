@@ -60,7 +60,12 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { Switch } from '@oxy.so/bloom/switch';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
-import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
+import ComposeMentionSummary, {
+  useComposeRecipients,
+} from '@/components/Compose/ComposeMentionSummary';
+import { AudienceMenu, type ComposeAudience } from '@/components/Compose/AudienceMenu';
+import { isPrivateMention } from '@/utils/postReplies';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { SEO } from '@/components/SEO';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
@@ -294,6 +299,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const [editCollabEligible, setEditCollabEligible] = useState(false);
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
+  // Who a NEW post is for. A reply takes its parent's audience on the server
+  // (never wider), so the choice is offered only to an original post.
+  const [audience, setAudience] = useState<ComposeAudience>('public');
+  // Set when a private mention is sent (or refused, 400
+  // DIRECT_POST_WITHOUT_RECIPIENTS) without anybody to address it to.
+  const [directRecipientsError, setDirectRecipientsError] = useState(false);
   const [collaborators, setCollaborators] = useState<CollaboratorUser[]>([]);
   // The collaborator search is opened from the attachment row's people icon, so
   // its open/closed state belongs to the composer rather than to the picker.
@@ -491,6 +502,22 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const postContent = mainMentionState.text;
   const homiioCase = homiioCaseFromText(postContent);
   const mentions = mainMentionState.mentions;
+  /**
+   * Whether this composer may choose a private mention, and whether it has.
+   * Only an original post written by an unsupervised author: an edit cannot
+   * change who already received a post, and a reply's audience is its parent's.
+   */
+  const audienceEligible =
+    supervision.ready && !supervision.supervised && !replyToPostId && !isEditMode;
+  const isDirect = audienceEligible && audience === 'direct';
+  const { recipients: mainRecipients } = useComposeRecipients(
+    [postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)],
+    mentions,
+  );
+  const changeAudience = useCallback((next: ComposeAudience) => {
+    setAudience(next);
+    setDirectRecipientsError(false);
+  }, []);
   const setPostContent = useCallback(
     (next: React.SetStateAction<string>) => {
       setMainMentionState((previous) => {
@@ -508,6 +535,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   );
   const handleMainMentionValueChange = useCallback(
     (next: MentionTextValue) => {
+      // Editing the body is the answer to a "mention someone" refusal.
+      setDirectRecipientsError(false);
       setMainMentionState(
         reconcileMentionTextValue(next, variantTextsForItem(variants, MAIN_ITEM_ID)),
       );
@@ -583,6 +612,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     !supervision.supervised &&
     !replyToPostId &&
     threadItems.length === 0 &&
+    !isDirect &&
     (!isEditMode || editCollabEligible);
 
   /**
@@ -596,7 +626,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * the post's own ⋯ menu. Both are hidden rather than disabled: there is
    * nothing the author could do here to make either work.
    */
-  const laneEligible = !replyToPostId && !isEditMode;
+  const laneEligible = !replyToPostId && !isEditMode && !isDirect;
 
   /**
    * Whether a CONTINUATION box may carry its own lane, answered per posting mode
@@ -625,7 +655,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * rather than a composer-wide one — see the two predicates below.
    */
   const publishAsEligible =
-    supervision.ready && !supervision.supervised && !replyToPostId && !isEditMode;
+    supervision.ready && !supervision.supervised && !replyToPostId && !isEditMode && !isDirect;
 
   /**
    * Whether a box may name its own account, answered per POSTING MODE.
@@ -667,6 +697,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     !isEditMode &&
     (threadItems.length === 0 || postingMode === 'thread') &&
     !effectiveMainPublishAs &&
+    !isDirect &&
     supervision.ready &&
     !supervision.supervised;
   const effectiveCommunity = communityEligible ? community : null;
@@ -1389,6 +1420,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setReplyPermission(['anyone']);
     setQuotesDisabled(false);
     setIsSensitive(false);
+    setAudience('public');
+    setDirectRecipientsError(false);
     setPostingMode('thread');
     setFocusedItemId(MAIN_ITEM_ID);
   };
@@ -1449,6 +1482,37 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         { type: 'error' },
       );
       return;
+    }
+
+    // A private mention is addressed to the people it mentions, so one that
+    // mentions nobody would be refused (400 DIRECT_POST_WITHOUT_RECIPIENTS).
+    // Say so inline before anything is sent. A thread's continuations are
+    // replies and join the root's conversation; a beast post stands alone and
+    // needs its own recipient.
+    if (isDirect) {
+      const addressed = (value: MentionTextValue, texts: readonly string[]) => {
+        const resolved = resolveTypedMentions(value, mentionSearchCache.findUser, {
+          completedOnly: false,
+        }).value;
+        return reconcileMentionData([resolved.text, ...texts], resolved.mentions).length > 0;
+      };
+      const mainAddressed =
+        mainRecipients.length > 0 ||
+        addressed({ text: postContent, mentions }, variantTextsForItem(variants, MAIN_ITEM_ID));
+      const continuationsAddressed =
+        postingMode !== 'beast' ||
+        threadItems.every(
+          (item) =>
+            !boxHasContent(item) ||
+            addressed(
+              { text: item.text, mentions: item.mentions },
+              variantTextsForItem(variants, item.id),
+            ),
+        );
+      if (!mainAddressed || !continuationsAddressed) {
+        setDirectRecipientsError(true);
+        return;
+      }
     }
 
     const submittedDraft = draftSnapshot;
@@ -1551,6 +1615,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         variantContent: mainVariantContent,
       });
       if (supervision.supervised) mainPost.visibility = PostVisibility.PRIVATE;
+      else if (isDirect) mainPost.visibility = PostVisibility.DIRECT;
       allPosts.push(mainPost);
 
       // Add thread items if any. Each item is its own post, so it carries its own
@@ -1575,6 +1640,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             threadLaneEligible && item.laneId ? item.laneId : undefined,
           );
           if (supervision.supervised) threadPost.visibility = PostVisibility.PRIVATE;
+          else if (isDirect) threadPost.visibility = PostVisibility.DIRECT;
           allPosts.push(threadPost);
         }
       });
@@ -1729,6 +1795,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           queryKey: viewerQueryKeys.scheduledPosts(user?.id),
         });
       }
+      // A private mention lives in no feed; its conversations list is where the
+      // author finds it again.
+      if (isDirect || isPrivateMention(replyToPost)) {
+        queryClient.invalidateQueries({
+          queryKey: viewerQueryKeys.privateMentions(user?.id),
+        });
+      }
       // Likewise a server draft: it is only ever read back through that sheet.
       if (isEditMode && editingServerDraft) {
         queryClient.invalidateQueries({
@@ -1775,6 +1848,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         return;
       }
       const { reason, normalized } = classifyApiError(error);
+      if (normalized.code === 'DIRECT_POST_WITHOUT_RECIPIENTS') {
+        // A definitive refusal: nothing was written, so no "may have posted"
+        // warning; the inline message under the audience control says why.
+        requestStarted = false;
+        if (isCurrentOwner()) setDirectRecipientsError(true);
+        retainDraft();
+        return;
+      }
       logger.error('Failed to publish post', undefined, {
         reason,
         status: normalized.status,
@@ -1944,6 +2025,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // Stable callbacks for ComposeThreadItem — these receive threadId as first arg
   const handleThreadMentionValueChange = useCallback(
     (threadId: string, value: MentionTextValue) => {
+      setDirectRecipientsError(false);
       updateThreadMentionState(threadId, value, variantTextsForItem(variants, threadId));
     },
     [updateThreadMentionState, variants],
@@ -3316,6 +3398,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           <ComposeMentionSummary
                             texts={[postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)]}
                             mentions={mentions}
+                            isPrivate={isDirect}
                           />
                         </ComposeIdentityHeader>
 
@@ -4094,23 +4177,59 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       : t('compose.community.chip', { defaultValue: 'Community' })}
                   </Chip>
                 )}
+                {/* WHO can see it: everyone, or only the people it mentions.
+                    A reply inside a private mention cannot choose — the server
+                    keeps it inside the conversation — so it is told instead. */}
+                {audienceEligible ? (
+                  <AudienceMenu audience={audience} onAudienceChange={changeAudience}>
+                    <Chip
+                      size="xl"
+                      variant="subtle"
+                      selected={isDirect}
+                      disabled={isPosting}
+                      leadingIcon={isDirect ? RiLockLine : RiEarthLine}
+                      trailingIcon={RiArrowDownSLine}
+                      testID="compose-audience"
+                    >
+                      {isDirect
+                        ? t('privateMentions.badge', { defaultValue: 'Private mention' })
+                        : t('compose.audience.public', { defaultValue: 'Everyone' })}
+                    </Chip>
+                  </AudienceMenu>
+                ) : isPrivateMention(replyToPost) ? (
+                  <Chip
+                    size="xl"
+                    variant="subtle"
+                    selected
+                    leadingIcon={RiLockLine}
+                    testID="compose-private-reply"
+                  >
+                    {t('privateMentions.replyAudience', {
+                      defaultValue: 'Only people in this conversation',
+                    })}
+                  </Chip>
+                ) : null}
                 {!(postingMode === 'beast' && threadItems.length > 0) && (
                   <>
-                    <ReplySettingsMenu
-                      replyPermission={replyPermission}
-                      onReplyPermissionChange={setReplyPermission}
-                      quotesDisabled={quotesDisabled}
-                      onQuotesDisabledChange={setQuotesDisabled}
-                    >
-                      <Chip
-                        size="xl"
-                        variant="subtle"
-                        leadingIcon={InteractionIcon}
-                        trailingIcon={RiArrowDownSLine}
+                    {/* Who may reply means nothing inside a private mention:
+                        only its participants can. */}
+                    {!isDirect && !isPrivateMention(replyToPost) ? (
+                      <ReplySettingsMenu
+                        replyPermission={replyPermission}
+                        onReplyPermissionChange={setReplyPermission}
+                        quotesDisabled={quotesDisabled}
+                        onQuotesDisabledChange={setQuotesDisabled}
                       >
-                        {interactionLabel}
-                      </Chip>
-                    </ReplySettingsMenu>
+                        <Chip
+                          size="xl"
+                          variant="subtle"
+                          leadingIcon={InteractionIcon}
+                          trailingIcon={RiArrowDownSLine}
+                        >
+                          {interactionLabel}
+                        </Chip>
+                      </ReplySettingsMenu>
+                    ) : null}
                     <Chip
                       size="xl"
                       variant="subtle"
@@ -4127,6 +4246,22 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 )}
               </ChipRow>
 
+              {isDirect && (directRecipientsError || mainRecipients.length === 0) ? (
+                <Text
+                  accessibilityRole={directRecipientsError ? 'alert' : undefined}
+                  className={
+                    directRecipientsError
+                      ? 'text-destructive text-sm'
+                      : 'text-muted-foreground text-sm'
+                  }
+                  testID="compose-direct-recipients-hint"
+                >
+                  {t('compose.audience.needsRecipient', {
+                    defaultValue:
+                      'Mention at least one person. Only the people you mention will see this post.',
+                  })}
+                </Text>
+              ) : null}
               {hasOverlongText && (
                 <Text accessibilityRole="alert" className="text-destructive text-sm">
                   {t('compose.textTooLong', {

@@ -61,7 +61,11 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { postAcceptsReplies, reportableReplyPermission } from '@/utils/postReplies';
+import {
+  isPrivateMention,
+  postAcceptsReplies,
+  reportableReplyPermission,
+} from '@/utils/postReplies';
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
 import { openExternalLink } from '@/utils/openExternalLink';
 
@@ -1169,6 +1173,7 @@ const PostItem: React.FC<PostItemProps> = ({
             boostedBy={repostPlacement === 'headOnly' ? undefined : reposter}
             date={metadata.createdAt}
             isEdited={metadata.isEdited}
+            isPrivateMention={isPrivateMention(viewPost)}
             showBoost={Boolean(viewPost.boost) && !isNested}
             showReply={false}
             laneSlot={laneSlot}

@@ -45,7 +45,8 @@ import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
 import { WEB_BASE_URL } from '@/config';
 import { readServerSEO } from '@/lib/seoHandoff';
-import { postAcceptsReplies } from '@/utils/postReplies';
+import { isPrivateMention, postAcceptsReplies } from '@/utils/postReplies';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { createLogger } from '@oxy.so/core/logger';
 import { getFollowingCachedPost } from '@/modules/mention-widgets';
 
@@ -498,6 +499,17 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     const hasContinuations = continuations.length > 0;
     return (
       <View>
+        {/* A private mention says who can see it before anything else in the
+            thread; replies here stay inside the conversation (server-enforced). */}
+        {isPrivateMention(post) ? (
+          <View className="px-4 pt-3 pb-1" testID="private-mention-hint">
+            <Admonition type="info">
+              {t('privateMentions.onlyMentioned', {
+                defaultValue: 'Only visible to the people mentioned',
+              })}
+            </Admonition>
+          </View>
+        ) : null}
         {/* Ancestor chain rendered top-to-bottom (root first) as ONE
                     connected thread. Each ancestor draws the thread line DOWN from
                     its avatar (`isThreadParent`) and, for every hop below the root,
@@ -642,7 +654,11 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
             <FeedHeader
               showComposeButton
               onComposePress={handleOpenReply}
-              promptText={t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })}
+              promptText={
+                isPrivateMention(post)
+                  ? t('privateMentions.replyPlaceholder', { defaultValue: 'Reply privately' })
+                  : t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
+              }
             />
           </PageFooter>
         ) : undefined

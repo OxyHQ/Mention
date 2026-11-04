@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "memeriksa tautan…",
-      "willMention": "Postingan ini akan menyebut"
+      "willMention": "Postingan ini akan menyebut",
+      "onlyVisibleTo": "Hanya terlihat oleh"
     },
     "newPost": "Postingan baru",
     "placeholder": "Ada apa nih?",
@@ -614,6 +615,12 @@
       "allowQuotes": "Izinkan postingan kutipan",
       "anyoneCanInteract": "Siapa pun bisa berinteraksi",
       "limited": "Interaksi dibatasi"
+    },
+    "audience": {
+      "title": "Siapa yang dapat melihat postingan ini",
+      "public": "Semua orang",
+      "direct": "Sebutan pribadi: hanya orang yang Anda sebut",
+      "needsRecipient": "Sebut setidaknya satu orang. Hanya orang yang Anda sebut yang akan melihat postingan ini."
     }
   },
   "post": {
@@ -732,7 +739,8 @@
       "follow": "mulai mengikutimu",
       "post": "memposting pembaruan baru",
       "poke": "mencolekmu",
-      "default": "berinteraksi dengan kontenmu"
+      "default": "berinteraksi dengan kontenmu",
+      "privateMention": "mengirimi Anda sebutan pribadi"
     },
     "forChannel": "Untuk {{channel}}",
     "someone": "Seseorang",
@@ -3443,6 +3451,27 @@
       "heading": "Profilmu",
       "body": "Foto dan bio singkat membantu orang untuk mengikutimu balik. Kamu bisa mengubahnya kapan saja di Pengaturan.",
       "edit": "Edit profil"
+    }
+  },
+  "privateMentions": {
+    "title": "Sebutan pribadi",
+    "badge": "Sebutan pribadi",
+    "onlyMentioned": "Hanya terlihat oleh orang yang disebut",
+    "replyPlaceholder": "Balas secara pribadi",
+    "replyAudience": "Hanya orang dalam percakapan ini",
+    "twoNames": "{{first}} dan {{second}}",
+    "oneAndMore": "{{first}} dan {{others}} lainnya",
+    "manyNames": "{{first}}, {{second}}, dan {{others}} lainnya",
+    "you": "Anda",
+    "media": "Media",
+    "signIn": "Masuk untuk melihat sebutan pribadi Anda",
+    "error": {
+      "title": "Tidak dapat memuat sebutan pribadi",
+      "message": "Periksa koneksi Anda dan coba lagi."
+    },
+    "empty": {
+      "title": "Belum ada sebutan pribadi",
+      "subtitle": "Postingan yang hanya bisa dilihat Anda dan orang yang disebut akan muncul di sini. Mulai dari editor dengan memilih \"Sebutan pribadi\"."
     }
   }
 }

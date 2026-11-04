@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "comprobando enlaces…",
-      "willMention": "Esta publicación mencionará a"
+      "willMention": "Esta publicación mencionará a",
+      "onlyVisibleTo": "Solo visible para"
     },
     "newPost": "Nueva publicación",
     "placeholder": "¿Qué hay de nuevo?",
@@ -619,7 +620,13 @@
     "hoursAgo_many": "hace {{count}} de horas",
     "daysAgo_many": "hace {{count}} de días",
     "draftWithMedia_many": "{{count}} de medios",
-    "draftWithThread_many": "Hilo ({{count}} de publicaciones)"
+    "draftWithThread_many": "Hilo ({{count}} de publicaciones)",
+    "audience": {
+      "title": "Quién puede ver esta publicación",
+      "public": "Todo el mundo",
+      "direct": "Mención privada: solo las personas que menciones",
+      "needsRecipient": "Menciona al menos a una persona. Solo las personas que menciones verán esta publicación."
+    }
   },
   "post": {
     "threadPosition": "Publicación {{index}} de {{total}} del hilo",
@@ -744,7 +751,8 @@
       "follow": "comenzó a seguirte",
       "post": "publicó una nueva actualización",
       "poke": "te hizo un poke",
-      "default": "interactuó con tu contenido"
+      "default": "interactuó con tu contenido",
+      "privateMention": "te envió una mención privada"
     },
     "forChannel": "Para {{channel}}",
     "someone": "Alguien",
@@ -3473,6 +3481,27 @@
       "heading": "Tu perfil",
       "body": "Una foto y una bio corta ayudan a que la gente te siga de vuelta. Puedes cambiarlas cuando quieras en Ajustes.",
       "edit": "Editar perfil"
+    }
+  },
+  "privateMentions": {
+    "title": "Menciones privadas",
+    "badge": "Mención privada",
+    "onlyMentioned": "Solo visible para las personas mencionadas",
+    "replyPlaceholder": "Responder en privado",
+    "replyAudience": "Solo las personas de esta conversación",
+    "twoNames": "{{first}} y {{second}}",
+    "oneAndMore": "{{first}} y {{others}} más",
+    "manyNames": "{{first}}, {{second}} y {{others}} más",
+    "you": "Tú",
+    "media": "Multimedia",
+    "signIn": "Inicia sesión para ver tus menciones privadas",
+    "error": {
+      "title": "No se pudieron cargar las menciones privadas",
+      "message": "Comprueba tu conexión e inténtalo de nuevo."
+    },
+    "empty": {
+      "title": "Aún no hay menciones privadas",
+      "subtitle": "Aquí aparecerán las publicaciones que solo tú y las personas mencionadas podéis ver. Empieza una desde el editor eligiendo \"Mención privada\"."
     }
   }
 }

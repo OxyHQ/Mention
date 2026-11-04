@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "リンクを確認中…",
-      "willMention": "この投稿がメンションする相手"
+      "willMention": "この投稿がメンションする相手",
+      "onlyVisibleTo": "表示されるのは"
     },
     "newPost": "新しい投稿",
     "placeholder": "いま何してる？",
@@ -614,6 +615,12 @@
       "allowQuotes": "引用投稿を許可",
       "anyoneCanInteract": "誰でもやり取りできます",
       "limited": "やり取りが制限されています"
+    },
+    "audience": {
+      "title": "この投稿を見られる人",
+      "public": "全員",
+      "direct": "非公開メンション：メンションした人のみ",
+      "needsRecipient": "少なくとも1人をメンションしてください。メンションした人だけがこの投稿を見られます。"
     }
   },
   "post": {
@@ -732,7 +739,8 @@
       "follow": "あなたをフォローしました",
       "post": "新しい投稿を公開しました",
       "poke": "あなたをつつきました",
-      "default": "あなたのコンテンツに反応しました"
+      "default": "あなたのコンテンツに反応しました",
+      "privateMention": "あなたに非公開メンションを送りました"
     },
     "forChannel": "{{channel}}宛て",
     "someone": "誰か",
@@ -3443,6 +3451,27 @@
       "heading": "あなたのプロフィール",
       "body": "写真と短い自己紹介があると、フォローを返してもらいやすくなります。設定からいつでも変更できます。",
       "edit": "プロフィールを編集"
+    }
+  },
+  "privateMentions": {
+    "title": "非公開メンション",
+    "badge": "非公開メンション",
+    "onlyMentioned": "メンションされた人にのみ表示されます",
+    "replyPlaceholder": "非公開で返信",
+    "replyAudience": "この会話の参加者のみ",
+    "twoNames": "{{first}}、{{second}}",
+    "oneAndMore": "{{first}}、ほか{{others}}人",
+    "manyNames": "{{first}}、{{second}}、ほか{{others}}人",
+    "you": "あなた",
+    "media": "メディア",
+    "signIn": "非公開メンションを見るにはログインしてください",
+    "error": {
+      "title": "非公開メンションを読み込めませんでした",
+      "message": "接続を確認して、もう一度お試しください。"
+    },
+    "empty": {
+      "title": "非公開メンションはまだありません",
+      "subtitle": "あなたとメンションされた人だけが見られる投稿がここに表示されます。作成画面で「非公開メンション」を選んで始めましょう。"
     }
   }
 }

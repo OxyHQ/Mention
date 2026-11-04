@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "bağlantılar kontrol ediliyor…",
-      "willMention": "Bu gönderi şunlardan bahsedecek"
+      "willMention": "Bu gönderi şunlardan bahsedecek",
+      "onlyVisibleTo": "Yalnızca şunlar görebilir"
     },
     "newPost": "Yeni gönderi",
     "placeholder": "Ne var ne yok?",
@@ -614,6 +615,12 @@
       "allowQuotes": "Alıntı gönderilere izin ver",
       "anyoneCanInteract": "Herkes etkileşime geçebilir",
       "limited": "Etkileşim sınırlı"
+    },
+    "audience": {
+      "title": "Bu gönderiyi kimler görebilir",
+      "public": "Herkes",
+      "direct": "Özel bahsetme: yalnızca bahsettiğin kişiler",
+      "needsRecipient": "En az bir kişiden bahset. Bu gönderiyi yalnızca bahsettiğin kişiler görür."
     }
   },
   "post": {
@@ -732,7 +739,8 @@
       "follow": "seni takip etmeye başladı",
       "post": "yeni bir gönderi paylaştı",
       "poke": "seni dürttü",
-      "default": "içeriğinle etkileşime geçti"
+      "default": "içeriğinle etkileşime geçti",
+      "privateMention": "sana özel bir bahsetme gönderdi"
     },
     "forChannel": "{{channel}} için",
     "someone": "Birisi",
@@ -3443,6 +3451,27 @@
       "heading": "Profilin",
       "body": "Bir fotoğraf ve kısa bir biyografi, insanların seni geri takip etmesine yardımcı olur. İstediğin zaman Ayarlar'dan değiştirebilirsin.",
       "edit": "Profili düzenle"
+    }
+  },
+  "privateMentions": {
+    "title": "Özel bahsetmeler",
+    "badge": "Özel bahsetme",
+    "onlyMentioned": "Yalnızca bahsedilen kişiler görebilir",
+    "replyPlaceholder": "Özel olarak yanıtla",
+    "replyAudience": "Yalnızca bu sohbetteki kişiler",
+    "twoNames": "{{first}} ve {{second}}",
+    "oneAndMore": "{{first}} ve {{others}} kişi daha",
+    "manyNames": "{{first}}, {{second}} ve {{others}} kişi daha",
+    "you": "Sen",
+    "media": "Medya",
+    "signIn": "Özel bahsetmelerini görmek için giriş yap",
+    "error": {
+      "title": "Özel bahsetmeler yüklenemedi",
+      "message": "Bağlantını kontrol edip tekrar dene."
+    },
+    "empty": {
+      "title": "Henüz özel bahsetme yok",
+      "subtitle": "Yalnızca senin ve bahsedilen kişilerin görebildiği gönderiler burada görünür. Düzenleyicide \"Özel bahsetme\"yi seçerek bir tane başlat."
     }
   }
 }

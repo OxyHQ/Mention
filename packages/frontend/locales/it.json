@@ -473,7 +473,8 @@
     },
     "mentions": {
       "checkingLinks": "controllo dei link…",
-      "willMention": "Questo post menzionerà"
+      "willMention": "Questo post menzionerà",
+      "onlyVisibleTo": "Visibile solo a"
     },
     "newPost": "Nuovo post",
     "placeholder": "Che c'è di nuovo?",
@@ -619,7 +620,13 @@
     "hoursAgo_many": "{{count}} ore fa",
     "daysAgo_many": "{{count}} giorni fa",
     "draftWithMedia_many": "{{count}} media",
-    "draftWithThread_many": "Thread ({{count}} post)"
+    "draftWithThread_many": "Thread ({{count}} post)",
+    "audience": {
+      "title": "Chi può vedere questo post",
+      "public": "Tutti",
+      "direct": "Menzione privata: solo le persone che menzioni",
+      "needsRecipient": "Menziona almeno una persona. Solo le persone menzionate vedranno questo post."
+    }
   },
   "post": {
     "threadPosition": "Post {{index}} di {{total}} del thread",
@@ -744,7 +751,8 @@
       "follow": "ha iniziato a seguirti",
       "post": "ha pubblicato un nuovo aggiornamento",
       "poke": "ti ha fatto un poke",
-      "default": "ha interagito con i tuoi contenuti"
+      "default": "ha interagito con i tuoi contenuti",
+      "privateMention": "ti ha inviato una menzione privata"
     },
     "forChannel": "Per {{channel}}",
     "someone": "Qualcuno",
@@ -3473,6 +3481,27 @@
       "heading": "Il tuo profilo",
       "body": "Una foto e una breve bio aiutano le persone a ricambiare il follow. Puoi cambiarle quando vuoi nelle Impostazioni.",
       "edit": "Modifica profilo"
+    }
+  },
+  "privateMentions": {
+    "title": "Menzioni private",
+    "badge": "Menzione privata",
+    "onlyMentioned": "Visibile solo alle persone menzionate",
+    "replyPlaceholder": "Rispondi in privato",
+    "replyAudience": "Solo le persone in questa conversazione",
+    "twoNames": "{{first}} e {{second}}",
+    "oneAndMore": "{{first}} e altri {{others}}",
+    "manyNames": "{{first}}, {{second}} e altri {{others}}",
+    "you": "Tu",
+    "media": "Media",
+    "signIn": "Accedi per vedere le tue menzioni private",
+    "error": {
+      "title": "Impossibile caricare le menzioni private",
+      "message": "Controlla la connessione e riprova."
+    },
+    "empty": {
+      "title": "Ancora nessuna menzione privata",
+      "subtitle": "Qui compariranno i post che solo tu e le persone menzionate potete vedere. Iniziane uno dall'editor scegliendo \"Menzione privata\"."
     }
   }
 }

@@ -16,6 +16,7 @@ import { RiChat3Fill } from '@oxy.so/bloom/icons/RiChat3Fill';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { useTimeAgo } from '@/hooks/useTimeAgo';
@@ -131,6 +132,12 @@ interface PostHeaderProps {
    */
   isEdited?: boolean;
   /**
+   * Marks a private mention (`direct`): only its author and the people it is
+   * addressed to can read it. A quiet fact beside the time, like
+   * {@link isEdited}; tapping it says what the lock means and nothing else.
+   */
+  isPrivateMention?: boolean;
+  /**
    * Oxy user id of the post author. When that author is currently live in a Syra
    * room, the avatar shows a live badge and tapping it joins the room instead of
    * opening the profile. Omit it for non-user avatars (e.g. the compose preview).
@@ -232,6 +239,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   timeSlot,
   laneSlot,
   isEdited,
+  isPrivateMention,
   authorUserId,
   placeholderColor,
   userHref,
@@ -591,6 +599,29 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               onPress={() => toast(t('post.editedToast', { defaultValue: 'This post was edited' }))}
             >
               <RiPencilLine
+                width={INDICATOR_ICON_SIZE}
+                height={INDICATOR_ICON_SIZE}
+                fill={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          ) : null}
+          {isPrivateMention ? (
+            // Same placement and alignment as the edited marker above.
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t('privateMentions.badge', { defaultValue: 'Private mention' })}
+              hitSlop={tokens.hitSlop.md}
+              style={{ flexShrink: 0, alignSelf: 'center' }}
+              onPress={() =>
+                toast(
+                  t('privateMentions.onlyMentioned', {
+                    defaultValue: 'Only visible to the people mentioned',
+                  }),
+                )
+              }
+              testID="post-private-mention-badge"
+            >
+              <RiLockLine
                 width={INDICATOR_ICON_SIZE}
                 height={INDICATOR_ICON_SIZE}
                 fill={theme.colors.textSecondary}

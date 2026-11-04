@@ -247,6 +247,15 @@ export const viewerQueryKeys = {
    */
   serverDrafts: (viewerId: ViewerId) => [...viewerQueryKeys.postsRoot(viewerId), 'drafts'] as const,
   /**
+   * The viewer's private-mention conversations (`GET /posts/private-mentions`).
+   * Only their participants may read them, so the key is never shared.
+   */
+  privateMentions: (viewerId: ViewerId) =>
+    [...viewerQueryKeys.postsRoot(viewerId), 'private-mentions'] as const,
+  /** The batched profile warm-up for the participants those conversations name. */
+  privateMentionParticipants: (viewerId: ViewerId, participantIds: readonly string[]) =>
+    [...viewerQueryKeys.privateMentions(viewerId), 'participants', participantIds] as const,
+  /**
    * Community notes, always viewer-scoped: every list here is "yours" — the
    * queue CrowdSource assigned to you, the notes you wrote, the ones you rated.
    * None of them may be shared across viewers, and the anonymous key is never
