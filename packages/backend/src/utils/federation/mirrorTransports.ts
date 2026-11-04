@@ -12,9 +12,9 @@ import { scanTextEntities, trimUrlTrailingPunctuation } from '@mention/shared-ty
  * an id looks like and how the network spells its URL. That id is what makes one
  * upstream post reached through several transports ONE post here (the upstream
  * post key, `connectors/shared/upstreamPostKey.ts`). A mirror without it is
- * KEYLESS: nothing in its posts names the upstream post, so it is read only for
- * history the keyed transports never delivered
- * (`connectors/activitypub/keylessTransport.ts`, `docs/federated-transports.md`). `bsky.brid.gy` is read by `./bridgy`, not here.
+ * KEYLESS: nothing in its posts names the upstream post, so for an account a
+ * keyed mirror also delivers it is read only for the history before the handoff
+ * (`connectors/activitypub/transportHandoff.ts`, `docs/federated-transports.md`). `bsky.brid.gy` is read by `./bridgy`, not here.
  *
  * THE one list of mirror hosts in Mention: the repost gate, the upstream post
  * key and the keyless-transport rule derive theirs from it, so a new mirror is
@@ -30,13 +30,22 @@ interface Mirror {
     id: RegExp;
     /** The upstream URL of one post, from the mirror's handle and the post id. */
     url: (handle: string, id: string) => string;
+    /** When the post was written, read off its id, when the id encodes it. */
+    time?: (id: string) => Date;
   };
 }
+
+/** Twitter's snowflake epoch: a tweet id's top bits are milliseconds since it. */
+const TWITTER_EPOCH_MS = 1288834974657;
 
 const MIRRORS: Readonly<Record<string, Mirror>> = {
   'bird.makeup': {
     network: 'x',
-    post: { id: /^\d{1,20}$/, url: (handle, id) => `${profileOf('x', handle)}/status/${id}` },
+    post: {
+      id: /^\d{1,20}$/,
+      url: (handle, id) => `${profileOf('x', handle)}/status/${id}`,
+      time: (id) => new Date(Number((BigInt(id) >> 22n) + BigInt(TWITTER_EPOCH_MS))),
+    },
   },
   // A stock Mastodon: its status ids are its own, and nothing in a post names
   // the tweet it copies.
@@ -67,10 +76,23 @@ export function keyedMirrorHosts(network: MirroredNetwork): string[] {
     .map(([host]) => host);
 }
 
-/** The network a KEYLESS mirror host republishes, or undefined for any other host. */
-export function keylessMirrorNetwork(host: string): MirroredNetwork | undefined {
+/** The mirror hosts of `network` whose posts do NOT carry the upstream post id. */
+export function keylessMirrorHosts(network: MirroredNetwork): string[] {
+  return Object.entries(MIRRORS)
+    .filter(([, mirror]) => mirror.network === network && !mirror.post)
+    .map(([host]) => host);
+}
+
+/**
+ * What a mirror host is to the handoff rule (`connectors/activitypub/transportHandoff.ts`):
+ * the network it republishes, and whether its posts carry the upstream post id.
+ * Undefined for a host that is no mirror.
+ */
+export function mirrorTransportOf(
+  host: string,
+): { network: MirroredNetwork; keyed: boolean } | undefined {
   const mirror = mirrorOf(host.trim().toLowerCase());
-  return mirror && !mirror.post ? mirror.network : undefined;
+  return mirror ? { network: mirror.network, keyed: Boolean(mirror.post) } : undefined;
 }
 
 /**
@@ -93,6 +115,18 @@ export function mirrorPostKey(objectUri: string): string | undefined {
   if (segments.length !== 4 || segments[0] !== 'users' || segments[2] !== 'statuses')
     return undefined;
   return mirror.post.id.test(segments[3]) ? `${mirror.network}:${segments[3]}` : undefined;
+}
+
+/**
+ * When the upstream post a keyed mirror's Note id names was written — exact for
+ * a tweet (its id is a snowflake) — or undefined when the mirror's ids do not
+ * encode it.
+ */
+export function mirrorPostTime(objectUri: string): Date | undefined {
+  const key = mirrorPostKey(objectUri);
+  if (!key) return undefined;
+  const mirror = mirrorOf(new URL(objectUri).hostname.toLowerCase());
+  return mirror?.post?.time?.(key.slice(key.indexOf(':') + 1));
 }
 
 function profileOf(network: MirroredNetwork, handle: string): string {

@@ -40,7 +40,7 @@ import {
 } from './helpers';
 import { identityDomainOfActor } from './identityDomain';
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
-import { keylessTransportRefusal } from './keylessTransport';
+import { transportHandoffRefusal } from './transportHandoff';
 
 /**
  * AN ACTIVITYPUB NOTE → A POST, ONCE.
@@ -179,7 +179,7 @@ async function refusedReplyReason(inReplyToUri: string): Promise<string | null> 
 /**
  * Turn a Note into the post it stores as, or say why it stores as nothing.
  *
- * In order: the size cap, the keyless-transport rule (`./keylessTransport`), the reply gates, who the note is for (a direct note
+ * In order: the size cap, the transport handoff (`./transportHandoff`), the reply gates, who the note is for (a direct note
  * to none of our users is dropped before any mention is resolved), the
  * mentions, the body and media (`buildFederatedNoteContent`), the quote (a
  * quoted post we lack is imported through `importQuoted`, and an unresolved one
@@ -200,12 +200,17 @@ export async function buildPostFromNote(
   if (isBridgeFlattenedRetweet(note, author.uri))
     return { skip: true, reason: 'flattened-retweet' };
 
-  // A transport whose posts name no upstream post is a history source only.
+  // An account reached through a keyless and a keyed transport takes each post
+  // from exactly one of them, split at the account's handoff (`./transportHandoff`).
   const published = parseApPublished(note.published ?? input.activity?.published);
-  const keyless = await keylessTransportRefusal(author, published);
-  if (keyless) return { skip: true, reason: keyless };
-
   const inReplyToUri = extractInReplyToUri(note.inReplyTo);
+  const handoff = await transportHandoffRefusal(author, {
+    activityId,
+    published,
+    isReply: inReplyToUri !== undefined,
+  });
+  if (handoff) return { skip: true, reason: handoff };
+
   const refused = inReplyToUri ? await refusedReplyReason(inReplyToUri) : null;
   if (refused) return { skip: true, reason: refused };
 

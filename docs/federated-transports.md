@@ -12,7 +12,7 @@ once:
 
 Mention reads from all of them and stores each upstream post once. Code:
 `packages/backend/src/connectors/shared/upstreamPostKey.ts`,
-`…/shared/transportCopies.ts`, `…/activitypub/keylessTransport.ts`,
+`…/shared/transportCopies.ts`, `…/activitypub/transportHandoff.ts`,
 `…/connectors/transportFollows.ts`. The list of mirror hosts and what their
 post ids look like is `packages/backend/src/utils/federation/mirrorTransports.ts`;
 a new bridge is one entry there.
@@ -83,41 +83,62 @@ own); a Graph copy is ranked by its `instagram:` object id, since it shares the
 kilogram actor. A post fetched as a dependency (a reply parent, a quote) is not
 refetched just to merge it.
 
-## mastox.eu: history only, and why
+## mastox.eu and bird.makeup: one handoff per account
 
 mastox.eu copies X accounts as a stock Mastodon instance. Its posts carry no
-tweet id, no x.com link and no card. Its `published` is when it crawled the
-tweet, not when the tweet was written. Nothing in a mastox post proves which
-tweet it is, so a bird.makeup copy and a mastox copy of the same tweet cannot be
-proven equal. Comparing content cannot prove it either. Measured in production
-on the accounts held through both bridges:
+tweet id, no x.com link and no card; its `published` is when it crawled the
+tweet. Nothing in a mastox post names its tweet, so a mastox copy and a
+bird.makeup copy of the same tweet can never be matched, and comparing their
+content is never done. Measured in production (2026-11-04), on 695 tweets paired
+between the two bridges (34 accounts):
 
-- The same account posts identical text several times within an hour (three
-  mastox copies of one sentence in 82 minutes; a tweet deleted and reposted two
-  minutes later).
-- mastox drops media: 5% of its posts carry any, against 34% on bird.makeup.
-  "Same media count" would refuse most real pairs.
-- Its crawl lag is not bounded, so any time window is a guess.
+- mastox's time is never earlier than the tweet (0 of 695).
+- Its lag is short when it keeps up: on the 522 tweets of the last 30 days the
+  median is 146 s, p99 466 s, max 1,127 s. When it stalls it catches up days later
+  (the >1 h tail, 53 pairs, up to 188 days).
+- It carries no replies (0 of 6,686 stored posts) and often no media.
 
-A wrong merge would attach one post's replies, likes and boosts to a different
-post. So the two are never compared. Their time ranges are kept apart instead.
-Once an account's keyed transport delivers by subscription, mastox stops being
-a source for anything published at or after that moment. Before that moment
-mastox is the only source that ever delivered those posts (bird.makeup has no
-outbox), so its history is kept and the mastox outbox is still read to fill it.
+bird.makeup's status id is the tweet id, a snowflake, so a tweet's time is exact.
+A follow only adds us to its follower list: its next crawl delivers every tweet
+newer than its cursor, including tweets written before our Accept, and an
+account it never crawled before gets its whole first timeline page.
 
-The moment is the publication time of the first post Mention stored from a
-keyed transport of the same account because it follows that transport (an
-inbox `Create` or `Announce`). A keyed post fetched as a quote or reply parent
-does not count. Until that first delivery, mastox stays live, so an account
-whose bird.makeup mirror never delivers is not silenced.
+**The rule.** Each such account has ONE handoff instant H, and each tweet
+belongs to exactly one transport, by the time it was written:
 
-What this rule costs:
+- **Before H: mastox.** A mastox post is stored only when its crawl time is
+  before H. Since mastox's time is never earlier than the tweet, that proves the
+  tweet was written before H.
+- **From H on: bird.makeup.** A bird.makeup post written before H (by its tweet
+  id) is not stored: that period is mastox's. Live mastox posts after H are not
+  stored.
+- **Replies are bird.makeup's,** whatever their time; mastox carries none, so
+  none is ever duplicated and an old reply a thread needs is not lost.
 
-- The few tweets mastox stored between the bird.makeup follow and bird.makeup's
-  first delivery can be stored twice.
-- Once bird.makeup has delivered, mastox stays history-only even after everyone
-  unfollows. New posts arrive again only when someone follows the account.
+No tweet can be stored twice. The rule reads only times and whether a post is a
+reply.
+
+**H is stored per account** (`federated_transport_handoffs`, keyed by Oxy's
+`canonicalAcct`), written once and never moved. It is the time Mention first holds
+an accepted follow of bird.makeup for the account — written when the Accept
+arrives. If Mention held no mastox post of the account by then, the account's
+handoff is "none": bird.makeup takes everything, mastox nothing. Until there is
+an accepted bird.makeup follow, mastox stays a source as before.
+
+**What is lost, and its bound:**
+
+- A tweet written shortly before H that mastox had not crawled by H: neither copy
+  is stored. The window is mastox's crawl lag at that moment (p99 under 8
+  minutes, max under 19 measured); more if mastox was stalled at H.
+- A bird.makeup copy of an older tweet (a quoted post, a boosted original) of the
+  account that mastox never stored. A quote of it is then withheld, as any quote
+  of a post Mention cannot hold.
+
+**Generic.** Which hosts are keyed (their status id is the upstream post id) and
+which keyless comes from the mirror registry
+(`packages/backend/src/utils/federation/mirrorTransports.ts`). Another keyless
+bridge of a network with a keyed one follows the same rule with no new code.
+Code: `packages/backend/src/connectors/activitypub/transportHandoff.ts`.
 
 Retweets: mastox flattens them into `RT: @original …` posts, which are dropped.
 bird.makeup delivers them as `Announce`s of the original, stored as boosts under
