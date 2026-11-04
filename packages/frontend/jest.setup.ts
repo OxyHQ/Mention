@@ -67,3 +67,14 @@ timeoutManager.setTimeoutProvider({
   setInterval: (callback, delay) => releaseTheEventLoop(setInterval(callback, delay)),
   clearInterval: (id) => clearInterval(id),
 });
+
+/**
+ * netinfo's own Jest mock (the package documents it for exactly this). Bloom
+ * 17.5 reads the connection through one shared subscription, so any test that
+ * renders a Bloom surface now subscribes; the real module has no native side
+ * under Jest and its reachability probe threw `state` undefined asynchronously,
+ * taking the whole run down.
+ */
+jest.mock('@react-native-community/netinfo', () =>
+  require('@react-native-community/netinfo/jest/netinfo-mock.js'),
+);
