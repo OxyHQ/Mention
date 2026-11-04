@@ -4,11 +4,11 @@
  * This script DELETES production posts and there is no soft-delete to undo it
  * with, so what these cases pin is not "does it work" but "what can it possibly
  * touch". Two terms stand between it and a real post, and each has a case that
- * reds if it is removed: the author must be on a REVIEWED BRIDGE, and the body
- * must satisfy the INGEST PREDICATE rather than a lookalike regex.
+ * reds if it is removed: the post must come from a REVIEWED BRIDGE, and the body
+ * must satisfy the INGEST DECISION rather than a lookalike regex.
  *
- * The asymmetry is the predicate's own: a missed retweet stores exactly what we
- * store today, while a false match destroys somebody's post.
+ * A missed retweet leaves a post under the wrong byline; a false match destroys
+ * somebody's post.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -17,7 +17,6 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { federatedActors } from '../../db/schema/federation';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { purgeFlattenedRetweets } from '../../scripts/purgeFlattenedRetweets';
 import { REVIEWED_REPOST_TRANSPORT_HOSTS } from '../../connectors/activitypub/repostTransportPolicy';
@@ -27,32 +26,18 @@ const BRIDGE_HOST = REVIEWED_REPOST_TRANSPORT_HOSTS[0];
 const ORDINARY_HOST = 'ordinary-instance.test';
 
 const createdPosts: string[] = [];
-const createdActors: string[] = [];
 
-async function seedActorOn(host: string, local: string): Promise<string> {
-  const oxyUserId = `purge-rt-${local}`;
-  await getDb()
-    .insert(federatedActors)
-    .values({
-      uri: `https://${host}/users/${local}`,
-      username: local,
-      domain: host,
-      acct: `${local}@${host}`,
-      oxyUserId,
-    });
-  createdActors.push(oxyUserId);
-  return oxyUserId;
-}
-
-async function seedPost(oxyUserId: string, body: string): Promise<string> {
+/** A federated post stored from `host`, stamped with its actor as ingest stamps it. */
+async function seedPost(host: string, body: string): Promise<string> {
+  const actorUri = `https://${host}/users/someone`;
   const record = await insertPostRecord({
-    oxyUserId,
-    authorship: [{ oxyUserId, role: 'owner', status: 'accepted' }],
+    oxyUserId: 'purge-rt-author',
+    authorship: [{ oxyUserId: 'purge-rt-author', role: 'owner', status: 'accepted' }],
     type: PostType.TEXT,
     visibility: PostVisibility.PUBLIC,
     status: 'published',
     content: { variants: [{ source: 'author', text: body }] },
-    federation: { activityId: `https://purge.test/notes/${createdPosts.length + 1}` },
+    federation: { activityId: `${actorUri}/statuses/${createdPosts.length + 1}`, actorUri },
   });
   createdPosts.push(record.id);
   return record.id;
@@ -78,31 +63,27 @@ afterEach(async () => {
       .where(inArray(posts.id, [...createdPosts]));
     createdPosts.length = 0;
   }
-  if (createdActors.length > 0) {
-    await getDb()
-      .delete(federatedActors)
-      .where(inArray(federatedActors.oxyUserId, [...createdActors]));
-    createdActors.length = 0;
-  }
 });
 
 describe('purgeFlattenedRetweets', () => {
-  it('deletes a flattened retweet on a reviewed bridge', async () => {
-    const author = await seedActorOn(BRIDGE_HOST, 'bridged');
-    const postId = await seedPost(author, 'RT: @ThomasitaD BUENAVENTURA NECESITA MÉDICOS');
+  it('deletes a flattened retweet on a reviewed bridge, its tagged author stored as a placeholder too', async () => {
+    // The second is the shape the old gate missed: the bridge tagged the
+    // original author, so the stored body opens with the resolved mention.
+    const bare = await seedPost(BRIDGE_HOST, 'RT: @someone the text of the tweet');
+    const tagged = await seedPost(BRIDGE_HOST, 'RT: [mention:abc123] the text of the tweet');
 
     const result = await purgeFlattenedRetweets({ dryRun: false });
 
-    expect(await exists(postId)).toBe(false);
-    expect(result.deleted).toBe(1);
-    expect(result.noOpWrites).toBe(false);
+    expect(await exists(bare)).toBe(false);
+    expect(await exists(tagged)).toBe(false);
+    expect(result.deleted).toBe(2);
+    expect(result.matchedByHost).toEqual({ [BRIDGE_HOST]: 2 });
   });
 
   it('SPARES the same body from an ordinary instance', async () => {
-    // The host gate, and the case that reds if the bridge join is dropped. A
-    // human writing "RT:" is not a bridge artefact and must never be destroyed.
-    const author = await seedActorOn(ORDINARY_HOST, 'human');
-    const postId = await seedPost(author, 'RT: @someone quoting a friend');
+    // The host gate. A human writing "RT:" is not a bridge artefact and must
+    // never be destroyed.
+    const postId = await seedPost(ORDINARY_HOST, 'RT: @someone quoting a friend');
 
     const result = await purgeFlattenedRetweets({ dryRun: false });
 
@@ -111,12 +92,10 @@ describe('purgeFlattenedRetweets', () => {
   });
 
   it('SPARES a bridge post that merely mentions RT without the ingest shape', async () => {
-    // The predicate gate. `isBridgeFlattenedRetweet` anchors at position 0 and
-    // requires `@` immediately after, so neither of these is a retweet — and a
-    // widened regex would destroy both.
-    const author = await seedActorOn(BRIDGE_HOST, 'bridged2');
-    const midSentence = await seedPost(author, 'talking about an RT: @someone said this');
-    const noHandle = await seedPost(author, 'RT: https://example.com/a-link');
+    // The predicate gate: the marker is anchored at position 0 and needs a
+    // mention right after it, so neither of these is a retweet.
+    const midSentence = await seedPost(BRIDGE_HOST, 'talking about an RT: @someone said this');
+    const noHandle = await seedPost(BRIDGE_HOST, 'RT: https://example.com/a-link');
 
     const result = await purgeFlattenedRetweets({ dryRun: false });
 
@@ -126,8 +105,7 @@ describe('purgeFlattenedRetweets', () => {
   });
 
   it('a DRY RUN reports the work and deletes nothing', async () => {
-    const author = await seedActorOn(BRIDGE_HOST, 'bridged3');
-    const postId = await seedPost(author, 'RT: @someone the text of the tweet');
+    const postId = await seedPost(BRIDGE_HOST, 'RT: @someone the text of the tweet');
 
     const result = await purgeFlattenedRetweets({ dryRun: true });
 

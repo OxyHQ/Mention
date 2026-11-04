@@ -32,6 +32,7 @@ import {
   storeNoteExtras,
   storeNotePost,
 } from './apNotePost';
+import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { createFederatedBoost } from '../shared/federatedBoost';
@@ -816,8 +817,13 @@ export class OutboxSyncService {
     healedMentionCount: number;
     pendingAuthorCount: number;
   }> {
+    // A retweet a reviewed bridge flattened into a Note under the retweeter's
+    // byline is no candidate at all: it is decided on the bridge's own text
+    // before the page's mentions are resolved. It still counts as inspected
+    // (`candidates`), so the backfill cursor moves on.
     const noteCandidates = candidates.filter(
-      (c): c is Extract<OutboxCandidate, { kind: 'note' }> => c.kind === 'note',
+      (c): c is Extract<OutboxCandidate, { kind: 'note' }> =>
+        c.kind === 'note' && !isBridgeFlattenedRetweet(c.note, c.authorUri),
     );
     const announceCandidates = candidates.filter(
       (c): c is Extract<OutboxCandidate, { kind: 'announce' }> => c.kind === 'announce',

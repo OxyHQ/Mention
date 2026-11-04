@@ -38,7 +38,7 @@ import {
   stripQuoteMarkerFromVariants,
 } from './helpers';
 import { identityDomainOfActor } from './identityDomain';
-import { dropsFlattenedReposts } from './repostTransportPolicy';
+import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 
 /**
  * AN ACTIVITYPUB NOTE → A POST, ONCE.
@@ -191,6 +191,13 @@ export async function buildPostFromNote(
   const rawContent = typeof note.content === 'string' ? note.content : '';
   if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) return { skip: true, reason: 'oversized' };
 
+  // A retweet a reviewed bridge flattened into a Note under the retweeter's
+  // byline, with no reference to the original. Decided on the bridge's own text,
+  // before any mention becomes a placeholder; every road (inbox Create, outbox
+  // backfill, dependency import) builds here, so this is the one gate.
+  if (isBridgeFlattenedRetweet(note, author.uri))
+    return { skip: true, reason: 'flattened-retweet' };
+
   const inReplyToUri = extractInReplyToUri(note.inReplyTo);
   const refused = inReplyToUri ? await refusedReplyReason(inReplyToUri) : null;
   if (refused) return { skip: true, reason: refused };
@@ -212,9 +219,6 @@ export async function buildPostFromNote(
     // The author's IDENTITY network, so the bare handles they typed are stored
     // qualified (`x.com` for a bridged actor, nothing for an ordinary one).
     identityDomain: identityDomainOfActor({ networkAcct: author.networkAcct, domain: authorHost }),
-    // A reviewed bridge flattens a retweet into a plain Note by the retweeter,
-    // with no reference to the original; it is dropped until it can be shown.
-    dropFlattenedRetweets: dropsFlattenedReposts(authorHost),
     ingestPath: input.ingestPath,
   });
   if (built.skip) return built;

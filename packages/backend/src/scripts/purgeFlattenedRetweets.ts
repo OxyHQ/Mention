@@ -1,124 +1,129 @@
 /**
- * One-shot repair: DELETE the bridge-flattened retweets that were stored before
- * every ingest path applied the gate.
+ * One-shot repair: DELETE the bridge-flattened retweets stored before the
+ * ingest gate decided on the bridge's own text.
  *
- * A reviewed bridge does not emit an `Announce` for a retweet. It publishes a
- * plain Note authored by the RETWEETER whose body opens `RT: @original`, and the
- * object carries nothing else — `inReplyTo` null, `tag` empty, no `quoteUrl`, no
- * id of any kind. So the post appears under a byline that did not write it, with
- * a dead `@handle` and no route to the real author. `apPostContent` has refused
- * those since the gate shipped.
+ * A reviewed bridge (mastox.eu) does not emit an `Announce` for a retweet. It
+ * publishes a plain Note authored by the RETWEETER whose body opens
+ * `RT: @original`, carrying no reference to the original: no quote field, no
+ * upstream link, no tweet id. So the post appears under a byline that did not
+ * write it, with no route to the real author, and ingest drops such Notes
+ * (`flattenedRetweet.ts`).
  *
- * It refused them ONLY when the caller asked, and until #936 `handleCreate` was
- * the only caller that did — so a Note pulled through the outbox backfill or
- * fetched as a boost original / reply ancestor / quoted note was stored anyway.
- * Measured: 934 posts whose body opens `RT:`, 794 of them from a single
- * registered bridge that `findBridge` already knew about.
+ * It missed every one whose author the bridge tagged as a mention: the gate read
+ * the body after the mention had become a `[mention:<id>]` placeholder, and
+ * `RT: [mention:…]` does not open `RT: @`. Those rows are what this removes. A
+ * flattened retweet carries nothing that could ever be resolved into the boost it
+ * is, so there is nothing to repair and withholding would only hide a row that
+ * can never be shown. The same retweets arrive correctly — as a boost of the
+ * original under its real author — only through a bridge that sends `Announce`.
  *
- * THIS DELETES, and that is deliberate parity with ingest rather than an
- * escalation: ingest DROPS such a Note, so the row would not exist had it
- * arrived by any other route. Withholding was considered and rejected — a
- * flattened retweet carries no reference to anything, so `incomplete` would
- * promise a promotion that can never happen.
+ * THE DECISION IS THE INGEST'S. `isStoredBridgeFlattenedRetweet` reads a stored
+ * mention back as the `@` it was and tests the same marker on the same reviewed
+ * hosts, so this pass applies the ingest decision to rows already stored. The
+ * SQL `^RT:` term is only a cheap prefilter; the function decides.
  *
- * IT REUSES THE INGEST PREDICATE RATHER THAN RESTATING IT. `isBridgeFlattenedRetweet`
- * and `REVIEWED_REPOST_TRANSPORT_HOSTS` are the same two things the ingest gate
- * consults, so this pass is provably the same decision applied to rows already
- * stored — not a regex that happens to look similar. The SQL `^RT:` term is only
- * a cheap prefilter to keep the scan off bodies that cannot match; what DECIDES
- * is the function.
+ * THE HOST GATE IS THE SAFETY. A row is a candidate only when the transport that
+ * stored it — its actor URI, or for the rows the dependency import once stored
+ * without one, its own activity id — is a REVIEWED bridge. A human on an ordinary
+ * instance writing "RT:" is never selected.
  *
- * THE HOST GATE IS THE SAFETY. A human on an ordinary instance writing "RT:" is
- * never selected, because the join restricts candidates to actors on a REVIEWED
- * bridge. That is the same asymmetry the predicate's own docblock states: a
- * missed retweet stores what we store today, a false match destroys a real post.
- *
- * Deletion goes through `deletePostRecord`, the repository's one deletion path,
- * so the child rows and the parent's reply counter are handled exactly as any
- * other delete — this script does not know how a post is taken apart and must
- * not learn.
+ * Deletion goes through `deleteFederatedPostSubtree`, the path an inbound
+ * `Delete` takes, so the cascade, the surviving counters and the recent-replier
+ * projection are handled exactly as for any other removed federated post.
  *
  * Runnable as a Fargate one-shot:
  *   PURGE_DRY_RUN=false CONFIRM_ADMIN_MUTATION=purgeFlattenedRetweets \
  *   bun packages/backend/dist/src/scripts/purgeFlattenedRetweets.js
  *
  * Env:
- *   DATABASE_URL      the Postgres database (injected by ECS from SSM)
- *   PURGE_DRY_RUN     defaults to `true`; only `=false` deletes
- *   PURGE_MAX         candidate cap (default 5000)
+ *   DATABASE_URL       the Postgres database (injected by ECS from SSM)
+ *   PURGE_DRY_RUN      defaults to `true`; only `=false` deletes
+ *   PURGE_MAX          candidate cap (default 5000)
+ *   PURGE_OXY_USER_ID  optional: only this author's posts
  *   CONFIRM_ADMIN_MUTATION=purgeFlattenedRetweets  required for a real apply
  */
 
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
-import { federatedActors } from '../db/schema/federation';
-import { deletePostRecord } from '../db/posts/postRepository';
-import { isBridgeFlattenedRetweet } from '../connectors/activitypub/flattenedRetweet';
+import { deleteFederatedPostSubtree } from '../services/FederatedPostDeletionService';
+import { isStoredBridgeFlattenedRetweet } from '../connectors/activitypub/flattenedRetweet';
 import { REVIEWED_REPOST_TRANSPORT_HOSTS } from '../connectors/activitypub/repostTransportPolicy';
+import { getRemoteHost } from '../connectors/shared/url';
 
 export interface PurgeFlattenedRetweetResult {
   /** Rows on a reviewed bridge whose body opens `RT:` — the cheap prefilter. */
   candidates: number;
-  /** Of those, the ones the INGEST PREDICATE actually calls a flattened retweet. */
+  /** Of those, the ones the INGEST DECISION calls a flattened retweet. */
   matched: number;
-  /** Posts `deletePostRecord` reported removing. */
+  /** `matched` per transport host. */
+  matchedByHost: Record<string, number>;
+  /** Posts the deletion path removed. */
   deleted: number;
+  /** Matched posts whose subtree the cascade refused as too large. */
+  tooLarge: number;
   /** True when work was identified and none of it landed. */
   noOpWrites: boolean;
 }
 
 export async function purgeFlattenedRetweets(
-  opts: { dryRun?: boolean; max?: number } = {},
+  opts: { dryRun?: boolean; max?: number; oxyUserId?: string } = {},
 ): Promise<PurgeFlattenedRetweetResult> {
   const DRY_RUN = opts.dryRun ?? true;
   const MAX = opts.max ?? 5000;
-  const db = getDb();
 
-  /** Every host the ingest gate treats as a reviewed bridge — one source, not a copy. */
-  const bridgeHosts = [...REVIEWED_REPOST_TRANSPORT_HOSTS];
-  if (bridgeHosts.length === 0) {
-    return { candidates: 0, matched: 0, deleted: 0, noOpWrites: false };
-  }
-
-  const rows = await db
-    .select({ id: posts.id, body: postContentVariants.body })
+  /** The transport that stored the row: its actor, else its own activity id. */
+  const transport = sql<string>`coalesce(${posts.federationActorUri}, ${posts.federationActivityId})`;
+  const rows = await getDb()
+    .select({
+      id: posts.id,
+      actorUri: posts.federationActorUri,
+      transport,
+      body: postContentVariants.body,
+    })
     .from(posts)
     .innerJoin(
       postContentVariants,
       and(eq(postContentVariants.postId, posts.id), eq(postContentVariants.position, 0)),
     )
-    .innerJoin(federatedActors, eq(federatedActors.oxyUserId, posts.oxyUserId))
     .where(
       and(
         isNotNull(posts.federationActivityId),
-        inArray(federatedActors.domain, bridgeHosts),
-        sql`${postContentVariants.body} ~ '^RT:'`,
+        opts.oxyUserId ? eq(posts.oxyUserId, opts.oxyUserId) : undefined,
+        inArray(sql`lower(split_part(${transport}, '/', 3))`, [...REVIEWED_REPOST_TRANSPORT_HOSTS]),
+        sql`${postContentVariants.body} ~ '^\\s*RT:'`,
       ),
     )
+    .orderBy(asc(posts.id))
     .limit(MAX);
 
+  const matchedByHost: Record<string, number> = {};
   let matched = 0;
   let deleted = 0;
+  let tooLarge = 0;
 
   for (const row of rows) {
-    // THE decision, and it is the ingest function — not a restatement of it.
-    if (!isBridgeFlattenedRetweet(row.body.trim())) continue;
+    if (!isStoredBridgeFlattenedRetweet(row.body, row.transport)) continue;
     matched += 1;
+    const host = getRemoteHost(row.transport) ?? 'unknown';
+    matchedByHost[host] = (matchedByHost[host] ?? 0) + 1;
     if (DRY_RUN) continue;
 
-    const record = await deletePostRecord(row.id, undefined);
-    if (record) deleted += 1;
+    const result = await deleteFederatedPostSubtree(row.id, row.actorUri);
+    if (result === 'deleted') deleted += 1;
+    else if (result === 'too-large') tooLarge += 1;
   }
 
   return {
     candidates: rows.length,
     matched,
+    matchedByHost,
     deleted,
+    tooLarge,
     noOpWrites: !DRY_RUN && matched > 0 && deleted === 0,
   };
 }
@@ -133,15 +138,17 @@ async function main(): Promise<void> {
 
   await connectPostgres();
   const max = Number.parseInt(process.env.PURGE_MAX ?? '', 10);
+  const oxyUserId = process.env.PURGE_OXY_USER_ID?.trim();
 
   try {
     const result = await purgeFlattenedRetweets({
       dryRun,
       ...(Number.isFinite(max) && max > 0 ? { max } : {}),
+      ...(oxyUserId ? { oxyUserId } : {}),
     });
     logger.info('[Purge] flattened retweets complete', { dryRun, ...result });
-    if (result.noOpWrites) {
-      logger.error('[Purge] identified work but deleted nothing');
+    if (result.noOpWrites || result.tooLarge > 0) {
+      logger.error('[Purge] flattened retweets incomplete');
       process.exitCode = 1;
     }
   } catch (error) {

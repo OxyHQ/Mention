@@ -550,12 +550,10 @@ describe("the remote's `RE:` fallback goes once we can render the quote ourselve
 
 describe('a bridge-flattened retweet is dropped on THIS path too, not only the inbox', () => {
   /**
-   * `dropFlattenedRetweets` was passed by `handleCreate` and by nothing else, so
-   * the same Note was kept or discarded depending only on which route imported
-   * it — the identical three-path asymmetry #905 fixed for quotes. Measured in
-   * production: 934 stored posts whose body opens `RT:`, 794 of them from ONE
-   * reviewed bridge (mastox.eu), each appearing under a byline that did not
-   * write it with a dead `@handle` and no route to the real author.
+   * The gate once ran in `handleCreate` alone, so the same Note was kept or
+   * discarded depending only on which route imported it — the three-path
+   * asymmetry #905 fixed for quotes. Every ingest path calls
+   * `isBridgeFlattenedRetweet` on the bridge's own Note.
    */
   const BRIDGE_ACTOR = 'https://bird.makeup/users/someone';
   const BRIDGE_OUTBOX = `${BRIDGE_ACTOR}/outbox`;
