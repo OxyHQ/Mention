@@ -143,6 +143,15 @@ mention, reply or subscriber notice. Its push copy names only the sender, and
 the Mentions push toggle governs it. See
 [post lifecycle](./post-lifecycle.md#visibility).
 
+In the app, `private_mention` notices sit under the Mentions tab with a lock
+badge, and the notifications header opens `/notifications/private-mentions`,
+the conversations list (`usePrivateMentionConversations`). A direct post shows a
+lock in its identity line and its thread opens with "Only visible to the people
+mentioned". The composer's audience chip (Everyone / Private mention) is offered
+to original posts only; a private mention hides collaborators, lanes,
+publish-as and communities and must mention someone before it is sent. A reply
+in a private conversation is labelled as staying in it; the server narrows it.
+
 ## ActivityPub
 
 Inbound and outbound federation preserve the same storage invariant.

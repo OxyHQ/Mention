@@ -252,6 +252,9 @@ export const viewerQueryKeys = {
    */
   privateMentions: (viewerId: ViewerId) =>
     [...viewerQueryKeys.postsRoot(viewerId), 'private-mentions'] as const,
+  /** The batched profile warm-up for the participants those conversations name. */
+  privateMentionParticipants: (viewerId: ViewerId, participantIds: readonly string[]) =>
+    [...viewerQueryKeys.privateMentions(viewerId), 'participants', participantIds] as const,
   /**
    * Community notes, always viewer-scoped: every list here is "yours" — the
    * queue CrowdSource assigned to you, the notes you wrote, the ones you rated.

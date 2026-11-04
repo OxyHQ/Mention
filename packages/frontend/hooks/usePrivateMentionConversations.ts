@@ -64,7 +64,7 @@ export function usePrivateMentionConversations(): UsePrivateMentionConversations
   );
 
   useQuery({
-    queryKey: [...viewerQueryKeys.privateMentions(viewerId), 'participants', participantIds],
+    queryKey: viewerQueryKeys.privateMentionParticipants(viewerId, participantIds),
     queryFn: () => prewarmUsersByIds(participantIds, (ids) => oxyServices.users.getMany(ids)),
     enabled: enabled && participantIds.length > 0,
     staleTime: PARTICIPANTS_STALE_TIME,
