@@ -1613,7 +1613,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             postContent: mainValue.text,
             mediaIds,
             mentions: mainPost.mentions || [],
-            hashtags: mainPost.hashtags || [],
             collaboratorIds: collaborators.map((c) => c.id),
             variantContent: mainVariantContent,
             formattedSources,

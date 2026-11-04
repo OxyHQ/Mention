@@ -344,6 +344,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       "shared database would also make the counters this file asserts describe other suites' rows.",
   },
   {
+    path: 'src/__tests__/scripts/stripTrailingHashtagLinesRows.test.ts',
+    jobEntryPoint: 'stripTrailingHashtagLines',
+    reason:
+      'Selects every author rendition whose body contains a `#` and REWRITES the ones ending in ' +
+      'hashtag lines. A foreign row entering the scan would have its text edited mid-assertion, ' +
+      "and the counters this file asserts would describe other suites' rows.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillMediaMetadataRows.test.ts',
     jobEntryPoint: 'backfillMediaMetadata',
     reason:

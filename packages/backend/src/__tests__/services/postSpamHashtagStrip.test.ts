@@ -105,7 +105,7 @@ import {
 } from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
 import { updatePost } from '../../controllers/posts/updatePost';
-import { stripSpamHashtagBlocks } from '../../services/postVariants';
+import { stripHiddenHashtags } from '../../services/postVariants';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-spam-hashtag-strip');
@@ -190,7 +190,7 @@ describe('a native post is stored without its trailing hashtag block — CREATE'
     expect(post.hashtags).toEqual(['startup', 'social', 'tech', 'ai', 'growth']);
   });
 
-  it('drops a block with nothing in front of it entirely', async () => {
+  it('keeps a body of nothing but hashtags — a post is never emptied', async () => {
     const post = await createAndReload({
       oxyUserId: scope.user('author'),
       content: { text: '#startup #social #tech #ai #growth' },
@@ -198,7 +198,7 @@ describe('a native post is stored without its trailing hashtag block — CREATE'
       skipSocketEmit: true,
     });
 
-    expect(bodyOf(post)).toBe('');
+    expect(bodyOf(post)).toBe('#startup #social #tech #ai #growth');
     expect(post.hashtags).toEqual(['startup', 'social', 'tech', 'ai', 'growth']);
   });
 
@@ -273,9 +273,9 @@ describe('a native post is stored without its trailing hashtag block — EDIT', 
   });
 });
 
-describe('stripSpamHashtagBlocks', () => {
+describe('stripHiddenHashtags', () => {
   it('never touches a MACHINE rendition — a translation comes from the cleaned primary', () => {
-    const [author, machine] = stripSpamHashtagBlocks([
+    const [author, machine] = stripHiddenHashtags([
       { source: 'author', text: 'Shipping today. #a #b #c #d' },
       { source: 'machine', tag: 'es', text: 'Lanzamos hoy. #a #b #c #d' },
     ]);
@@ -285,10 +285,8 @@ describe('stripSpamHashtagBlocks', () => {
   });
 
   it('is idempotent — a body already cleaned on ingest passes through unchanged', () => {
-    const once = stripSpamHashtagBlocks([
-      { source: 'author', text: 'Shipping today. #a #b #c #d' },
-    ]);
-    const twice = stripSpamHashtagBlocks(once);
+    const once = stripHiddenHashtags([{ source: 'author', text: 'Shipping today. #a #b #c #d' }]);
+    const twice = stripHiddenHashtags(once);
 
     expect(twice[0]?.text).toBe('Shipping today. #a');
     // The same object, not an equal copy: an unchanged rendition is returned as-is.

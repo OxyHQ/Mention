@@ -16,6 +16,21 @@ post is classified and ranked once it exists.
   waits causes a409 rather than using its former unpublished carve-out. External
   federation/repair callers of `replacePostContent` retain their existing paths.
 
+- **Trailing hashtags are filing, not prose.** `normalizePostHashtags`
+  (`utils/textProcessing.ts`) is the one rule every write applies — native
+  create/edit through `stripHiddenHashtags` (`services/postVariants.ts`), the
+  federated ingest in `connectors/activitypub/apPostContent.ts`. Hashtag-only
+  lines at the END of a body are removed from the visible text whole, whatever
+  their count; a 4+ block elsewhere keeps only its first tag; a hashtag inside
+  a sentence (`I love #Apple`, even as the last word) stays. Every tag still
+  lands in the `hashtags` column (derived from the RAW body) and federates in
+  the Note's `tag` array. So a post ending in a link ends with that link, and
+  the card alone shows it (`frontend/utils/postLinkCards.ts`). Any word,
+  emoji, mention or punctuation on a hashtag line keeps the whole line, and a
+  post is never emptied: a body of nothing but hashtags stays as written. The
+  composer's edit sends no `hashtags`, so an edit keeps the stored tags it
+  cannot see. `packages/backend/src/scripts/stripTrailingHashtagLines.ts`
+  applied the rule to bodies stored before it.
 - **A cascade delete filter naming a field the schema lacks is a silent
   no-op that reports success.** `deletePost` passes the deleted post
   DOCUMENT to `cascadeDeletedPost` (`services/PostDeletionCascade.ts`),
