@@ -47,6 +47,8 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 const mocks = vi.hoisted(() => ({
   getProfileByUsername: vi.fn(),
   getUserFollowing: vi.fn(),
+  /** Posts the read gate refuses this viewer — hydration drops them. */
+  hiddenIds: new Set<string>(),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -70,20 +72,22 @@ vi.mock('../../runtime/oxyClient', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: {
     hydratePosts: vi.fn(async (records: Array<Record<string, never>>) =>
-      records.map((record) => {
-        const post = record as unknown as {
-          id: string;
-          oxyUserId: string | null;
-          hashtags: string[];
-          content: { variants?: Array<{ text?: string }> };
-        };
-        return {
-          id: post.id,
-          content: { text: post.content.variants?.[0]?.text ?? '' },
-          metadata: { hashtags: post.hashtags },
-          user: { id: post.oxyUserId },
-        };
-      }),
+      records
+        .filter((record) => !mocks.hiddenIds.has((record as unknown as { id: string }).id))
+        .map((record) => {
+          const post = record as unknown as {
+            id: string;
+            oxyUserId: string | null;
+            hashtags: string[];
+            content: { variants?: Array<{ text?: string }> };
+          };
+          return {
+            id: post.id,
+            content: { text: post.content.variants?.[0]?.text ?? '' },
+            metadata: { hashtags: post.hashtags },
+            user: { id: post.oxyUserId },
+          };
+        }),
     ),
   },
 }));
@@ -217,6 +221,7 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getUserFollowing.mockResolvedValue([]);
+  mocks.hiddenIds.clear();
 });
 
 afterEach(async () => {
@@ -510,6 +515,29 @@ describe('GET /search — order and pagination', () => {
 
     expect((await search({ query: `${TERM}`, limit: 2 })).hasMore).toBe(false);
     expect((await search({ query: `${TERM}`, limit: 1 })).hasMore).toBe(true);
+  });
+
+  it('derives hasMore and the cursor from readable posts only', async () => {
+    // A matching post the viewer may not read must not show through the page
+    // flags: neither as `hasMore` on an empty page nor as the cursor's anchor.
+    const readable = await seedPost(scope, {
+      content: body('readable'),
+      createdAt: new Date('2026-04-02T00:00:00.000Z'),
+    });
+    const hidden = await seedPost(scope, {
+      content: body('hidden'),
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+    });
+    mocks.hiddenIds.add(hidden.id);
+
+    expect(await search({ query: `${TERM} hidden`, limit: 1 })).toEqual({
+      posts: [],
+      hasMore: false,
+    });
+    const page = await search({ query: TERM, limit: 1 });
+    expect(page.posts.map((post) => post.id)).toEqual([readable.id]);
+    expect(page.hasMore).toBe(false);
+    expect(page.nextCursor).toBeUndefined();
   });
 
   it('rejects a legacy or malformed cursor instead of restarting page one', async () => {
@@ -879,10 +907,7 @@ describe('GET /search — muted words', () => {
     expect(mocks.getUserFollowing).not.toHaveBeenCalled();
   });
 
-  it('takes the cursor from the UNFILTERED page window, so a drop skips nothing', async () => {
-    // Three matches, page size two. The second is muted, so the page returns one
-    // post — but the cursor must still be the second post, or the third is
-    // skipped forever on the next page.
+  it('fills the page past a muted post, so a drop skips nothing', async () => {
     const first = await seedPost(scope, {
       content: body('ordinary one'),
       createdAt: new Date('2026-03-03T00:00:00.000Z'),
@@ -898,14 +923,7 @@ describe('GET /search — muted words', () => {
     await mute(VIEWER, { value: 'spoilers', targets: ['content'] });
 
     const page = await search({ query: `${TERM} ordinary OR spoilers`, limit: 2 });
-    expect(page.posts.map((post) => post.id)).toEqual([first.id]);
-    expect(page.hasMore).toBe(true);
-
-    const next = await search({
-      query: `${TERM} ordinary OR spoilers`,
-      limit: 2,
-      cursor: page.nextCursor as string,
-    });
-    expect(next.posts.map((post) => post.id)).toEqual([third.id]);
+    expect(page.posts.map((post) => post.id)).toEqual([first.id, third.id]);
+    expect(page.hasMore).toBe(false);
   });
 });

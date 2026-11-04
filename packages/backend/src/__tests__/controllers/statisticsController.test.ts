@@ -35,9 +35,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
-const { inferenceChat, followingIds } = vi.hoisted(() => ({
+const { inferenceChat, followingIds, unreadablePostIds } = vi.hoisted(() => ({
   inferenceChat: vi.fn(async () => 'a summary'),
   followingIds: { value: [] as string[] },
+  unreadablePostIds: new Set<string>(),
 }));
 
 vi.mock('../../utils/inference', () => ({ isInferenceEnabled: () => true, inferenceChat }));
@@ -46,6 +47,12 @@ vi.mock('../../runtime/oxyClient', () => ({
 }));
 vi.mock('../../services/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
+}));
+/** The read gate itself has its own suites; here it only refuses what a case marks unreadable. */
+vi.mock('../../services/postReadAccess', () => ({
+  canRequestReadPost: vi.fn(
+    async (_req: unknown, postId: string) => !unreadablePostIds.has(postId),
+  ),
 }));
 vi.mock('../../services/feedViewCounter', () => ({
   // `null` is "no view counted", which is what sends `trackPostView` down the
@@ -523,6 +530,12 @@ describe('POST /statistics/post/:postId/view', () => {
       params: { postId: uuidv7() },
     });
     expect(missing.status).toBe(404);
+
+    // A post the viewer may not read answers exactly as a missing one.
+    unreadablePostIds.add(postId);
+    const unreadable = await call(trackPostView, { user: { id: owner() }, params: { postId } });
+    expect(unreadable.status).toBe(404);
+    expect(unreadable.body).toEqual(missing.body);
   });
 });
 

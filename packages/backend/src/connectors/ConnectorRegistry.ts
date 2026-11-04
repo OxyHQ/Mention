@@ -1,4 +1,5 @@
 import { authorsMayFederate, postAuthorIds } from '../services/postPublicationPolicy';
+import { accountsWithClosedAudience } from '../db/userProfile/profileAudience';
 import { loadPostRecord } from '../db/posts/postRepository';
 import type { PostContent } from '@mention/shared-types';
 import type {
@@ -144,6 +145,15 @@ export class ConnectorRegistry implements PostFederator {
         authorIds.push(...postAuthorIds(post));
       }
       if (!(await authorsMayFederate(authorIds))) return { failures: [], dispatched: false };
+      // A public post or a boost is the author's content addressed beyond the
+      // people Mention checks; a private or followers-only profile keeps it home.
+      // A private mention is addressed to its recipients alone, so it still goes.
+      if (
+        !directOnly &&
+        ['post.create', 'post.update', 'post.boost'].includes(event.kind) &&
+        (await accountsWithClosedAudience(authorIds)).size > 0
+      )
+        return { failures: [], dispatched: false };
     }
     const connectors = directOnly
       ? this.connectors.filter(

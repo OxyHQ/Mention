@@ -19,6 +19,7 @@ import { profileRouteFamily } from '@mention/shared-types/profileUrls';
 import type { HydratedPost } from '@mention/shared-types';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
 import { siteStructuredData } from '@mention/shared-types/seo';
+import { toReaderText } from '@mention/shared-types/textEntities';
 import { resolveMediaRef } from '../utils/mediaResolver';
 import { config } from '../config';
 
@@ -541,7 +542,7 @@ export function mapPostOg(
   // live on the boosted original (embedded at maxDepth:1), so a boost's card
   // describes that.
   const original = post.originalPost?.content;
-  const bodyText = (post.content?.text?.trim() || original?.text || '').replace(/\s+/g, ' ').trim();
+  const bodyText = cardText(post.content?.text?.trim() || original?.text);
   const media = (post.content?.media?.length ? post.content.media : original?.media) ?? [];
 
   // `og:image` must be an IMAGE: a video's own file is not one, its poster is.
@@ -668,7 +669,7 @@ function authorJsonLd(
 export function mapReplyComment(reply: HydratedPost, id: string): Record<string, unknown> | null {
   const handle = getNormalizedUserHandle(reply.user);
   if (!handle) return null;
-  const text = (reply.content?.text ?? '').replace(/\s+/g, ' ').trim();
+  const text = cardText(reply.content?.text);
   const images = (reply.content?.media ?? [])
     .filter((item) => item.type !== 'video')
     .map((item) => item.url || item.thumbUrl)
@@ -685,6 +686,13 @@ export function mapReplyComment(reply: HydratedPost, id: string): Record<string,
     ...(createdAt ? { datePublished: createdAt } : {}),
     author: authorJsonLd(reply.user, name, handle, ogImageForAvatar(reply.user.avatar)),
   };
+}
+
+/** A hydrated body as one line of reader text: mentions as their labels, whitespace collapsed. */
+function cardText(text: string | undefined): string {
+  return toReaderText(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /** The opening of a post, cut at a word, for a page title. */

@@ -79,7 +79,7 @@ import {
 import {
   applyMentionPlaceholders,
   extractMentionTags,
-  resolveApAudience,
+  resolveApAudienceFor,
   resolveInboundMentions,
 } from './apMentions';
 import { OWN_DOMAINS } from './ownDomain';
@@ -683,9 +683,10 @@ export class InboxProcessingService {
     const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${note.id}`);
     // A direct message is stored as a private mention for the local users it is
     // addressed to — and not at all when it names none of them.
-    const audience = await resolveApAudience(object, {
+    const audience = await resolveApAudienceFor(object, {
       uri: actorUri,
       followersUrl: actor?.followersUrl,
+      lastFetchedAt: actor?.lastFetchedAt,
     });
     if (!audience) {
       logger.debug('[Federation] skipped a direct note addressed to no local user');

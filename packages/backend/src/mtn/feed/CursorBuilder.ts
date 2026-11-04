@@ -277,11 +277,18 @@ export async function chronoCursorSql(
 ): Promise<SQL | undefined> {
   const boundary = await chronoCursorBoundary(cursor);
   if (!boundary) return undefined;
+  return chronoAfterSql({ createdAt: boundary.at, id: boundary.id }, direction);
+}
 
+/** The keyset predicate continuing a chronological page after a known `(created_at, id)`. */
+export function chronoAfterSql(
+  anchor: { createdAt: Date; id: string },
+  direction: ChronoDirection = 'desc',
+): SQL {
   const beyond = direction === 'asc' ? gt : lt;
   return or(
-    beyond(posts.createdAt, boundary.at),
-    and(eq(posts.createdAt, boundary.at), beyond(posts.id, boundary.id)),
+    beyond(posts.createdAt, anchor.createdAt),
+    and(eq(posts.createdAt, anchor.createdAt), beyond(posts.id, anchor.id)),
   ) as SQL;
 }
 

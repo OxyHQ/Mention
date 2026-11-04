@@ -10,6 +10,7 @@ import {
   type NOTIFICATION_TYPES,
 } from '../db/schema/discovery';
 import { getServiceOxyClient } from './oxyHelpers';
+import { separatedByRetainedBlock } from './privacyHelpers';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import {
   formatPushForNotification,
@@ -168,6 +169,17 @@ async function writeNotifications(
     const key = dedupKey(item);
     if (!unique.has(key)) unique.set(key, item);
   }
+  // Nor from across a block, either way: no row, so no socket emit and no push.
+  // The writer holds neither party's proof, so this is what their own retained
+  // block lists say (`separatedByRetainedBlock`); the inbox read re-checks with
+  // the recipient's proof and hides whatever got past this.
+  const candidates = [...unique.entries()];
+  const separated = await separatedByRetainedBlock(
+    candidates.map(([, item]) => [item.recipientId, item.actorId] as const),
+  );
+  candidates.forEach(([key], index) => {
+    if (separated[index]) unique.delete(key);
+  });
   if (unique.size === 0) return;
 
   const inserted: (typeof notifications.$inferSelect)[] = [];

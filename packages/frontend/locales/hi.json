@@ -1368,11 +1368,9 @@
       "clearCacheSuccess": "कैश साफ़ हो गया।"
     },
     "accessibility": {
-      "hapticFeedback": "हैप्टिक फ़ीडबैक",
-      "hapticFeedbackDesc": "इंटरैक्शन पर कंपन के रूप में फ़ीडबैक",
       "interaction": "इंटरैक्शन",
       "title": "सुगम्यता",
-      "nativeHaptics": "मोबाइल ऐप में उपलब्ध है।"
+      "media": "मीडिया"
     },
     "debug": "डिबग",
     "interests": {

@@ -6,6 +6,7 @@ import {
   type PostContentVariant,
 } from '@mention/shared-types';
 import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
+import { apIri, apList, apMediaTypeBase } from '@oxy.so/federation';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
@@ -16,7 +17,7 @@ import { extractApPoll } from './apPoll';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { isMediaLinkAttachment, type ApAttachment } from './apMedia';
-import { extractApHashtags, extractApMedia } from './helpers';
+import { asRecord, extractApHashtags, extractApMedia } from './helpers';
 import { extractApLinkPreviews } from './apLinkPreview';
 import type { RemoteLinkPreview } from '../shared/linkPreviews';
 import { declaredApLanguage, extractApLanguage, getApContentMap } from './apLanguage';
@@ -171,11 +172,9 @@ function recordContentDecision(
 
 /** Exact custom-emoji names the origin declared on this ActivityPub object. */
 export function extractDeclaredCustomEmojiNames(object: Record<string, unknown>): string[] {
-  if (!Array.isArray(object.tag)) return [];
-
   const names = new Set<string>();
-  for (const entry of object.tag.slice(0, MAX_CUSTOM_EMOJI_TAGS)) {
-    if (!entry || typeof entry !== 'object') continue;
+  for (const entry of apList(object.tag).slice(0, MAX_CUSTOM_EMOJI_TAGS)) {
+    if (typeof entry !== 'object') continue;
     const tag = entry as Record<string, unknown>;
     if (primaryApType(tag.type) !== 'Emoji') continue;
     const name = tag.name;
@@ -483,9 +482,9 @@ export function extractApTitle(
  * attachments are FEP-8967 cards for links already in its body.
  */
 export function extractApSubjectLink(object: Record<string, unknown>): string | undefined {
-  if (!hasHeadline(object) || !Array.isArray(object.attachment)) return undefined;
-  for (const entry of object.attachment) {
-    if (!entry || typeof entry !== 'object') continue;
+  if (!hasHeadline(object)) return undefined;
+  for (const entry of apList(object.attachment)) {
+    if (typeof entry !== 'object') continue;
     const attachment = entry as ApAttachment;
     if (primaryApType(attachment.type) !== 'Link' || isMediaLinkAttachment(attachment)) continue;
     const href = typeof attachment.href === 'string' ? attachment.href.trim() : '';
@@ -728,7 +727,7 @@ export function buildFederatedNoteProvenance(input: {
     actorUri: input.actorUri,
     ...(input.importReason ? { importReason: input.importReason } : {}),
     inReplyTo: input.inReplyTo,
-    url: typeof input.noteUrl === 'string' ? input.noteUrl : input.activityId,
+    url: apNoteUrl(input.noteUrl) ?? input.activityId,
     sensitive: input.sensitive,
     spoilerText: input.spoilerText,
     // A Note from an Instagram bridge carries the Instagram post's source key,
@@ -736,6 +735,23 @@ export function buildFederatedNoteProvenance(input: {
     // imported after this one) collides on `post_source_keys_source_key_key`.
     ...withInstagramSourceKey(input.activityId),
   };
+}
+
+/**
+ * The page a Note's `url` names for people: the string itself, or, for a `Link`
+ * or a list of them (PeerTube, Pleroma), the `text/html` entry's `href`, else the
+ * first entry that names one. Undefined when it names none.
+ */
+export function apNoteUrl(value: unknown): string | undefined {
+  if (typeof value === 'string') return value || undefined;
+  let first: string | undefined;
+  for (const entry of apList(value)) {
+    const href = apIri(entry);
+    if (!href || !isAbsoluteHttpUrl(href)) continue;
+    if (apMediaTypeBase(asRecord(entry)?.mediaType) === 'text/html') return href;
+    first ??= href;
+  }
+  return first;
 }
 
 /** `{ sourcePostKey }` for a bridged Instagram Note, else no key at all. */

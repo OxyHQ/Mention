@@ -74,11 +74,15 @@ describe('apPublished', () => {
     if (r.success) expect(r.data).toBeUndefined();
   });
 
-  it('rejects malformed datetimes', () => {
-    expect(apPublished.safeParse('not-a-date').success).toBe(false);
-    expect(apPublished.safeParse('2021-03-15').success).toBe(false); // date only
-    expect(apPublished.safeParse('2021-03-15 08:30:00').success).toBe(false); // space sep
-    expect(apPublished.safeParse(1615797000000).success).toBe(false); // epoch number
+  it('reads every offset spelling, and never rejects over a date', () => {
+    for (const value of ['2021-03-15T08:30:00+0000', '2021-03-15T08:30:00+00']) {
+      const r = apPublished.safeParse(value);
+      expect(r.success && (r.data as Date).toISOString()).toBe('2021-03-15T08:30:00.000Z');
+    }
+    for (const value of ['not-a-date', 1615797000000, null]) {
+      const r = apPublished.safeParse(value);
+      expect(r.success && r.data).toBeUndefined();
+    }
   });
 });
 
@@ -111,6 +115,21 @@ describe('apType + primaryApType', () => {
 // ---------------------------------------------------------------------------
 
 describe('apNoteSchema', () => {
+  it('accepts every shape the spec allows for descriptive fields (never drops a post over them)', () => {
+    const r = parseNote({
+      id: 'https://example.social/notes/1',
+      type: 'Note',
+      // Mastodon: an image without alt text carries `"name": null`.
+      attachment: { type: 'Document', mediaType: null, name: null, url: 'https://x/y.jpg' },
+      // JSON-LD compaction: a one-element list arrives as the value itself.
+      tag: { type: 'Hashtag', name: '#a', href: null },
+      to: 'as:Public',
+      cc: { id: 'https://example.social/users/a/followers' },
+      attributedTo: ['https://example.social/users/a'],
+    });
+    expect(r.ok).toBe(true);
+  });
+
   it('parses a realistic Mastodon Note with published, tags and attachment', () => {
     const note = {
       '@context': 'https://www.w3.org/ns/activitystreams',
@@ -189,9 +208,9 @@ describe('apNoteSchema', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('fails when published is a malformed datetime', () => {
+  it('keeps a Note whose published names no date, with the date absent', () => {
     const r = parseNote({ id: 'https://x/y', type: 'Note', published: 'yesterday' });
-    expect(r.ok).toBe(false);
+    expect(r.ok && r.data.published).toBeUndefined();
   });
 });
 

@@ -315,6 +315,22 @@ describe('mapPostOg', () => {
     expect(mapPostOg(post, 'p1', SAFE).title).toBe('@nate on Mention: "hello world"');
   });
 
+  it('describes mentions by the labels a reader sees, never their markup', () => {
+    const post = {
+      ...base,
+      content: {
+        text: 'Thanks [@Nate](nate). Publicado en El Intermedio [@@el-intermedio-laSexta@flipboard.com](https://flipboard.com/@lasexta/el-intermedio-ojb3t28iz)',
+      },
+    } as HydratedPost;
+    const og = mapPostOg(post, 'p1', SAFE);
+    const reader = 'Thanks Nate. Publicado en El Intermedio @el-intermedio-laSexta@flipboard.com';
+    expect(og.description).toBe(reader);
+    expect(og.jsonLd).toMatchObject({ text: reader });
+    expect(og.title).toBe(
+      'Nate on Mention: "Thanks Nate. Publicado en El Intermedio @el-intermedio-laSexta@flipboa…"',
+    );
+  });
+
   it('truncates the description to 200 characters', () => {
     const post = { ...base, content: { text: 'x'.repeat(500) } } as HydratedPost;
     expect(mapPostOg(post, 'p1', SAFE).description).toHaveLength(200);

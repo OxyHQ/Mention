@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { AP_CONTEXT } from '@oxy.so/federation';
+import { AP_CONTEXT, apIriList } from '@oxy.so/federation';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { logger } from '../../utils/logger';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
@@ -108,10 +108,7 @@ export async function resolveCommunityAudience(
 
 /** Addressees of an AP addressing field, bounded so a hostile object costs little. */
 function addressees(value: unknown): string[] {
-  const list = Array.isArray(value) ? value : [value];
-  return list
-    .filter((entry): entry is string => typeof entry === 'string' && isAbsoluteHttpUrl(entry))
-    .slice(0, 10);
+  return apIriList(value).filter(isAbsoluteHttpUrl).slice(0, 10);
 }
 
 /**

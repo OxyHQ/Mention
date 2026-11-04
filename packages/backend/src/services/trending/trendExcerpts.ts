@@ -17,6 +17,7 @@ import { logger } from '../../utils/logger';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from './termSpace';
 import { sensitiveExcludeSql } from '../../mtn/feed/feedSafety';
+import { openAudienceAuthorSql } from '../../db/userProfile/profileAudience';
 
 /**
  * Posts sampled per term as naming evidence.
@@ -78,6 +79,9 @@ export function termExcerptBranch(term: string, since: Date) {
         gte(posts.createdAt, since),
         eq(posts.status, 'published'),
         eq(posts.visibility, PostVisibility.PUBLIC),
+        // Excerpts are shown to everyone and sent to the summary model, so a
+        // private or followers-only profile's posts are never evidence.
+        openAudienceAuthorSql(),
         sensitiveExcludeSql(),
       ),
     )

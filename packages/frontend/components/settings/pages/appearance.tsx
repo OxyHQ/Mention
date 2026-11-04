@@ -1,4 +1,4 @@
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import {
   useAppearanceStore,
   type PostReadMoreAction,

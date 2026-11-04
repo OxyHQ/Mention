@@ -129,9 +129,10 @@ The federation media store (`services/mediaCache/oxyMediaStore.ts`) calls the
 SDK's `OxyServer.assets.mediaCache` / `assets.federatedMedia` (core 7.19), as
 Mention's workload identity: no hand-built transport. Upload bodies are a Blob
 over the temp file (`fs.openAsBlob`), streamed from disk and never buffered;
-cancellation aborts the upload. Each write is sent once — no transport retry
-and no 401 replay; the worker, eviction and deletion outbox retry a failed write
-later. One upload is bounded at 5 minutes (request to answer), one delete call
+cancellation aborts the upload. Each write is sent once — no transport retry,
+except that the SDK resends once with a fresh service token when Oxy answers
+401 to a rotated or revoked one (core 7.20); the worker, eviction and deletion
+outbox retry a failed write later. One upload is bounded at 5 minutes (request to answer), one delete call
 at 60 seconds. The store keeps its separate upload/delete cooldowns, sized from
 the wait a 429 names (`retryAfterSecondsOf`), its permanent refusals
 (`FEDERATED_MEDIA_OWNED_ELSEWHERE`, not-a-cache-object) and namespace deletion

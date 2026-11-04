@@ -1368,11 +1368,9 @@
       "clearCacheSuccess": "Önbellek temizlendi."
     },
     "accessibility": {
-      "hapticFeedback": "Dokunsal geri bildirim",
-      "hapticFeedbackDesc": "Etkileşimlerde titreşimli geri bildirim",
       "interaction": "Etkileşim",
       "title": "Erişilebilirlik",
-      "nativeHaptics": "Mobil uygulamada kullanılabilir."
+      "media": "Medya"
     },
     "debug": "Hata ayıklama",
     "interests": {

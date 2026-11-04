@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 56.45,
-      "covered": 16886,
-      "total": 29911
+      "pct": 56.5,
+      "covered": 16888,
+      "total": 29888
     },
     "branches": {
-      "pct": 52.96,
-      "covered": 12270,
-      "total": 23168
+      "pct": 53.02,
+      "covered": 12289,
+      "total": 23178
     },
     "functions": {
-      "pct": 50.87,
-      "covered": 3959,
-      "total": 7782
+      "pct": 51.01,
+      "covered": 3962,
+      "total": 7766
     },
     "lines": {
-      "pct": 57.39,
-      "covered": 15239,
-      "total": 26553
+      "pct": 57.42,
+      "covered": 15237,
+      "total": 26536
     }
   },
   "pins": {
@@ -42,9 +42,9 @@
       "lines": 97
     },
     "components/Feed/postMenuActions.tsx": {
-      "statements": 88,
-      "branches": 83,
-      "functions": 63,
+      "statements": 89,
+      "branches": 84,
+      "functions": 66,
       "lines": 94
     },
     "components/providers/AccountSwitchReset.tsx": {
@@ -1369,7 +1369,7 @@
     },
     "services/searchService.ts": {
       "statements": 74,
-      "branches": 58,
+      "branches": 59,
       "functions": 80,
       "lines": 78
     },
@@ -1462,12 +1462,6 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
-    },
-    "stores/hapticsStore.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
     },
     "stores/identityUpdates.ts": {
       "statements": 99,
@@ -1884,7 +1878,7 @@
       "lines": 100
     },
     "utils/postLinkCards.ts": {
-      "statements": 94,
+      "statements": 95,
       "branches": 95,
       "functions": 100,
       "lines": 97

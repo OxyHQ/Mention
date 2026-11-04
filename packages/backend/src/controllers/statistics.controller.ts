@@ -19,6 +19,7 @@ import { queryInt, queryString } from '../utils/queryParams';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 import { callerAccountAccess } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
+import { canRequestReadPost } from '../services/postReadAccess';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 
 /**
@@ -702,6 +703,12 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
 
     if (!postId) {
       return res.status(400).json({ message: 'Post ID is required' });
+    }
+
+    // A post the viewer may not read answers exactly as a missing one: its
+    // count is not theirs to learn and their view is not one to record.
+    if (!(await canRequestReadPost(req, postId))) {
+      return res.status(404).json({ message: 'Post not found' });
     }
 
     // Deduplicate the view per (viewer, post) through the SAME canonical

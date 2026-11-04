@@ -15,6 +15,7 @@ import type {
   PostRoomContent,
 } from '@mention/shared-types/post';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import { toReaderText } from '@mention/shared-types/textEntities';
 import type { FeedPostSlice } from '@mention/shared-types/feed';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { usePostSelector } from '../../stores/postsStore';
@@ -770,7 +771,7 @@ const PostItem: React.FC<PostItemProps> = ({
     author.name?.displayName,
     authorHandle ? `@${authorHandle}` : '',
   );
-  const summaryText = content.title ?? content.text;
+  const summaryText = content.title ?? toReaderText(content.text ?? '');
   const postTextSummary = summaryText
     ? summaryText.length > 80
       ? `${summaryText.substring(0, 80)}...`

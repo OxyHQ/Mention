@@ -451,8 +451,11 @@ export interface StripTextEntitiesOptions extends ScanTextEntitiesOptions {
    * A space rather than an empty string, because these strips feed text
    * ANALYSIS: deleting a `#tag` outright fuses the words either side of it into
    * one token that nobody wrote.
+   *
+   * A function receives the entity and returns its replacement, for a caller
+   * that keeps part of it — {@link toReaderText} keeps a mention's label.
    */
-  replacement?: string;
+  replacement?: string | ((entity: TextEntity) => string);
 }
 
 /**
@@ -474,10 +477,34 @@ export function stripTextEntities(text: string, options: StripTextEntitiesOption
   let out = '';
   let cursor = 0;
   for (const entity of scanTextEntities(text, scanOptions)) {
-    out += text.slice(cursor, entity.start) + replacement;
+    out +=
+      text.slice(cursor, entity.start) +
+      (typeof replacement === 'function' ? replacement(entity) : replacement);
     cursor = entity.end;
   }
   return out + text.slice(cursor);
+}
+
+const MENTION_DISPLAY_ONLY: readonly TextEntityKind[] = ['mentionDisplay'];
+
+/**
+ * A hydrated post body as a reader sees it, for a surface that shows plain text
+ * instead of rendering the body: a page's meta description and structured data,
+ * a share sheet, a screen reader's summary of a row.
+ *
+ * Each `[@Label](target)` mention becomes its label, exactly what the app draws
+ * for it — `Nate` for a resolved mention (`[@Nate](nate)`), and
+ * `@alice@example.social` for an unresolved one kept as a link to its source
+ * profile (`[@@alice@example.social](https://…)`). Printed as stored, a reader
+ * sees the markup instead: a doubled `@`, brackets and the target URL.
+ *
+ * Everything else is left as written; a URL stays a URL a reader can follow.
+ */
+export function toReaderText(text: string): string {
+  return stripTextEntities(text, {
+    kinds: MENTION_DISPLAY_ONLY,
+    replacement: (entity) => entity.label ?? '',
+  });
 }
 
 /** Count located entities by kind, for callers that need both the strip and the tally. */

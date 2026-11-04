@@ -23,6 +23,8 @@ import { PostType, PostVisibility } from '@mention/shared-types';
  */
 const hydratePosts = vi.fn();
 
+// The post read gate has its own suites; this one is about what happens past it.
+vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: (...a: unknown[]) => hydratePosts(...a) },
 }));
@@ -45,6 +47,7 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { feedController } from '../../controllers/feed.controller';
+import { canRequestReadPost } from '../../services/postReadAccess';
 
 const AUTHOR = 'oxy-quote-author';
 const created: string[] = [];
@@ -150,33 +153,15 @@ describe('FeedController.getQuotesFeed', () => {
     expect(body.items.map((item) => item.id)).toEqual([newest, middle, backfilled]);
   });
 
-  it('does not enumerate quotes when the anchor is unavailable to the viewer', async () => {
-    // `getQuotesFeed` is a public route, but "who quoted this" is only public
-    // when the quoted post itself is viewable. The anchor goes through the same
-    // post/profile ACL as post detail BEFORE any quote is enumerated, so an
-    // anonymous caller learns nothing about a private post's quote graph.
-    //
-    // Hydration is mocked in this suite, so the ACL verdict has to be INJECTED:
-    // seeding a private anchor would prove nothing, because the mock returns a
-    // DTO for whatever it is handed. Dropping the anchor on its own (first)
-    // hydration call is exactly the verdict the real ACL returns for a post the
-    // viewer may not read.
+  it('answers an anchor the viewer may not read (or that does not exist) with 404, enumerating nothing', async () => {
+    // "Who quoted this" is only public when the quoted post itself is. The read
+    // gate answers both a hidden and a missing anchor `false`, and the response
+    // is the same for both.
     await seed({ quoteOf: quotedId });
-    hydratePosts.mockResolvedValueOnce([]);
+    vi.mocked(canRequestReadPost).mockResolvedValueOnce(false);
     const res = makeRes();
 
     await feedController.getQuotesFeed(makeReq(), res as never);
-
-    expect(res.statusCode).toBe(404);
-    // ONE hydration — the anchor's. The quote page was never built, so the
-    // quote graph of an unreadable post is not disclosed even in part.
-    expect(hydratePosts).toHaveBeenCalledTimes(1);
-  });
-
-  it('returns not found without enumerating quotes when the anchor does not exist', async () => {
-    const res = makeRes();
-
-    await feedController.getQuotesFeed(makeReq({}, 'no-such-post-id'), res as never);
 
     expect(res.statusCode).toBe(404);
     expect(hydratePosts).not.toHaveBeenCalled();

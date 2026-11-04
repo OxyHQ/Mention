@@ -25,7 +25,7 @@ import {
   type DeckSource,
 } from './deckSettings';
 export { DECK_SOURCES } from './deckSettings';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 
 /** Column actions compose into the current screen header through Bloom. */
 export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {

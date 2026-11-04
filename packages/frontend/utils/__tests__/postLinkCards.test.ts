@@ -1,4 +1,4 @@
-import { postLinkCards, withoutCardLinks } from '../postLinkCards';
+import { documentByline, postLinkCards, withoutCardLinks } from '../postLinkCards';
 
 const ARTICLE =
   'https://www.nytimes.com/2026/09/18/technology/google-gemini-ai.html?unlocked_article_code=1.CVE&smid=nytcore-ios-share';
@@ -26,5 +26,14 @@ describe('postLinkCards / withoutCardLinks', () => {
     const uncarded = `Line\n${ARTICLE}`;
     expect(withoutCardLinks(uncarded, [])).toBe(uncarded);
     expect(withoutCardLinks(uncarded, [{ url: 'https://other.example/' }])).toBe(uncarded);
+  });
+
+  it("joins a document's authors into the card's byline", () => {
+    expect(
+      documentByline({
+        authors: [{ name: 'Kate Conger' }, { name: 'Ana Ruiz', url: 'https://example.com/ana' }],
+      } as Parameters<typeof documentByline>[0]),
+    ).toBe('Kate Conger, Ana Ruiz');
+    expect(documentByline(undefined)).toBeUndefined();
   });
 });

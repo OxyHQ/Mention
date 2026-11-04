@@ -7,6 +7,10 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   decisions: vi.fn(),
   profile: vi.fn(),
+  closedAudience: vi.fn(),
+}));
+vi.mock('../../db/userProfile/profileAudience', () => ({
+  accountsWithClosedAudience: mocks.closedAudience,
 }));
 vi.mock('../../services/postPublicationPolicy', () => ({
   authorsMayFederate: mocks.mayFederate,
@@ -55,6 +59,7 @@ beforeEach(() => {
     new Map([['post-1', { allowed: true, reason: 'allowed', policyVersion: '2' }]]),
   );
   mocks.profile.mockResolvedValue({ allowed: true, reason: 'public', policyVersion: '2' });
+  mocks.closedAudience.mockResolvedValue(new Set());
 });
 describe('persisted-resource federation authorization', () => {
   it('permits a current public persisted post, then refuses revoked coauthor or private audience', async () => {
@@ -74,6 +79,13 @@ describe('persisted-resource federation authorization', () => {
     mocks.policies.mockResolvedValue(new Map([['alice-account', policy]]));
     mocks.load.mockResolvedValue({ ...post, visibility: 'private' });
     expect(await authorize(create())).toBe(false);
+  });
+  it('keeps a private or followers-only profile home: its posts and its boosts', async () => {
+    mocks.closedAudience.mockResolvedValue(new Set(['alice-account']));
+    expect(await authorize(create())).toBe(false);
+    expect(await authorize({ id: `${note}/announce`, type: 'Announce', actor, object: note })).toBe(
+      false,
+    );
   });
   it.each(['https://foreign.example/note/1', `https://${FEDERATION_DOMAIN}/unknown`])(
     'refuses unbound Create and Update Note resources: %s',

@@ -6,9 +6,9 @@ const mockUpdate = jest.fn();
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: { getState: () => ({ updatePostEverywhere: mockUpdate }) },
 }));
-const mockSettings = jest.fn(async (_id: string, _patch: object) => undefined);
-jest.mock('@/services/feedService', () => ({
-  feedService: { updatePostSettings: (id: string, patch: object) => mockSettings(id, patch) },
+const mockSave = jest.fn(async (_id: string, _patch: object) => true);
+jest.mock('../postSettings', () => ({
+  savePostSettings: (id: string, patch: object) => mockSave(id, patch),
 }));
 const mockSetLane = jest.fn(async (_id: string, _lane: string | null) => null);
 jest.mock('@/services/lanesService', () => ({
@@ -44,17 +44,18 @@ function render(element: React.ReactElement) {
 
 beforeEach(() => jest.clearAllMocks());
 
-it('writes reply settings as they change, and puts a refused choice back', async () => {
+it('saves reply settings as they change, and says when one is refused', async () => {
   const tree = render(<PostReplySettingsSubmenu post={post} />);
   const items = () => tree.root.findByType('ReplySettingsMenuItems' as never).props;
+  expect(items().replyPermission).toEqual(['anyone']);
 
   await act(() => items().onReplyPermissionChange(['followers']));
-  expect(mockSettings).toHaveBeenCalledWith('p1', { replyPermission: ['followers'] });
-  expect(items().replyPermission).toEqual(['followers']);
+  expect(mockSave).toHaveBeenCalledWith('p1', { replyPermission: ['followers'] });
+  expect(mockToast).not.toHaveBeenCalled();
 
-  mockSettings.mockRejectedValueOnce(new Error('no'));
+  mockSave.mockResolvedValueOnce(false);
   await act(() => items().onQuotesDisabledChange(true));
-  expect(items().quotesDisabled).toBe(false);
+  expect(mockSave).toHaveBeenLastCalledWith('p1', { quotesDisabled: true });
   expect(mockToast).toHaveBeenCalledWith('postActions.failedToUpdateQuoteSettings', {
     type: 'error',
   });

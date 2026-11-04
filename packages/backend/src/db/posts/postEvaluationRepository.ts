@@ -29,6 +29,7 @@ import { federatedActors, federatedFollows } from '../schema/federation';
 import { postImports } from '../schema/imports';
 import { userSettings } from '../schema/userProfile';
 import { lockProfileVisibility } from '../userProfile/userSettingsRepository';
+import { openAudienceAuthorSql } from '../userProfile/profileAudience';
 import { lockPostContent } from './postRepository';
 import { logger } from '../../utils/logger';
 import {
@@ -157,17 +158,7 @@ export async function listShadowCandidates(
         isNull(posts.boostOf),
         gte(posts.createdAt, new Date(Date.now() - SHADOW_CANDIDATE_WINDOW_MS)),
         eligibleSource(db),
-        notExists(
-          db
-            .select({ id: userSettings.oxyUserId })
-            .from(userSettings)
-            .where(
-              and(
-                eq(userSettings.oxyUserId, posts.oxyUserId),
-                ne(userSettings.privacyProfileVisibility, 'public'),
-              ),
-            ),
-        ),
+        openAudienceAuthorSql(),
         notExists(
           db
             .select({ id: postEvaluations.id })
