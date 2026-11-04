@@ -98,6 +98,7 @@ import {
   type ResolvedInboundMentions,
 } from './apMentions';
 import { recordRecentReplierForPost } from '../../services/PostRecentReplierService';
+import { mastodonPublicStatusUris } from './mastodonPublicStatuses';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
@@ -155,6 +156,25 @@ const OUTBOX_RELAYED_TYPES: ReadonlySet<string> = new Set(['Create']);
  * the reply is left linked as far as we got (best-effort), never spinning.
  */
 const MAX_ANCESTOR_DEPTH = 30;
+
+/**
+ * Outbox answers that showed nothing importable, after which a profile sync
+ * asks the server's public statuses instead ({@link OutboxSyncOptions.publicStatusesFallback}):
+ * an empty or itemless collection, and an outbox refused to our signed fetch.
+ */
+const PUBLIC_STATUSES_FALLBACK_REASONS: ReadonlySet<OutboxSyncFailureReason> = new Set([
+  'no-candidates',
+  'non-empty-outbox-without-items',
+  'outbox-http-401',
+  'outbox-http-403',
+]);
+
+/**
+ * Consecutive public statuses that fail to import before a run stops: the
+ * server is most likely refusing our signed object fetches, and every further
+ * status would only be another refused request.
+ */
+const PUBLIC_STATUSES_MAX_CONSECUTIVE_FAILURES = 5;
 
 /**
  * A candidate extracted from a remote actor's outbox during backfill.
@@ -237,6 +257,8 @@ export interface OutboxSyncResult {
    * imports). Zero on every page that carries no such posts.
    */
   healedMentionCount?: number;
+  /** Posts found through the server's public statuses after the outbox showed none. */
+  publicStatusesSyncedCount?: number;
   pagesFetched?: number;
   reachedEnd?: boolean;
   nextCursor?: {
@@ -251,7 +273,26 @@ export interface OutboxSyncOptions {
   maxPages?: number;
   startPageUrl?: string;
   startItemOffset?: number;
+  /**
+   * When the outbox shows nothing importable, list the account's public
+   * statuses through its server's Mastodon API and import each through the
+   * verified note path ({@link OutboxSyncService.syncPublicStatuses}). For the
+   * profile-view syncs, which exist to fill an empty profile.
+   */
+  publicStatusesFallback?: boolean;
 }
+
+/** The actor fields an outbox sync reads. */
+export type OutboxSyncActor = Pick<
+  FederatedActorRecord,
+  'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
+> & {
+  oxyUserId?: string;
+  type?: string;
+  networkAcct?: string | null;
+  domain?: string | null;
+  username?: string;
+};
 
 /**
  * Outbox backfill: fetch a remote actor's outbox, extract Note/Announce
@@ -404,15 +445,7 @@ export class OutboxSyncService {
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
   async syncOutboxPosts(
-    actor: Pick<
-      FederatedActorRecord,
-      'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
-    > & {
-      oxyUserId?: string;
-      type?: string;
-      networkAcct?: string | null;
-      domain?: string | null;
-    },
+    actor: OutboxSyncActor,
     limit = 20,
     importReason: FederationImportReason = 'unknown_outbox',
   ): Promise<number> {
@@ -478,16 +511,71 @@ export class OutboxSyncService {
   }
 
   async syncOutboxPostsDetailed(
-    actor: Pick<
-      FederatedActorRecord,
-      'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
-    > & {
-      oxyUserId?: string;
-      type?: string;
-      networkAcct?: string | null;
-      domain?: string | null;
-    },
+    actor: OutboxSyncActor,
     limitOrOptions: number | OutboxSyncOptions = 20,
+  ): Promise<OutboxSyncResult> {
+    const result = await this.syncOutbox(actor, limitOrOptions);
+    if (
+      typeof limitOrOptions === 'number' ||
+      !limitOrOptions.publicStatusesFallback ||
+      result.syncedCount > 0 ||
+      !result.reason ||
+      !PUBLIC_STATUSES_FALLBACK_REASONS.has(result.reason)
+    ) {
+      return result;
+    }
+    const synced = await this.syncPublicStatuses(actor, {
+      limit: limitOrOptions.limit ?? 20,
+      importReason: limitOrOptions.importReason ?? 'unknown_outbox',
+    });
+    if (synced === 0) return result;
+    // The outbox's own verdict (`reason`) stands — a permanently unavailable
+    // outbox is still recorded as one — but the sync found posts, so it cools down.
+    return {
+      ...result,
+      syncedCount: synced,
+      publicStatusesSyncedCount: synced,
+      shouldStampCooldown: true,
+    };
+  }
+
+  /**
+   * Import the account's public statuses as its Mastodon-compatible server
+   * lists them (`mastodonPublicStatuses.ts`), each through
+   * {@link ensureFederatedNote} — the signed, origin-verified note path that
+   * boosts and pinned posts take — so audience, authorship, media and dedup
+   * stay in one place. Statuses go one at a time; the run stops at `limit`, or
+   * after {@link PUBLIC_STATUSES_MAX_CONSECUTIVE_FAILURES} statuses in a row
+   * that would not import. Never throws.
+   *
+   * @returns how many of the account's posts are stored (new or already here).
+   */
+  async syncPublicStatuses(
+    actor: Pick<FederatedActorRecord, 'uri' | 'acct'> & { username?: string },
+    options: { limit: number; importReason: FederationImportReason },
+  ): Promise<number> {
+    let synced = 0;
+    let consecutiveFailures = 0;
+    try {
+      for await (const statusUri of mastodonPublicStatusUris(actor)) {
+        if (await this.ensureFederatedNote(statusUri, options.importReason)) {
+          synced++;
+          consecutiveFailures = 0;
+          if (synced >= options.limit) break;
+        } else if (++consecutiveFailures >= PUBLIC_STATUSES_MAX_CONSECUTIVE_FAILURES) {
+          break;
+        }
+      }
+    } catch (err) {
+      logger.warn('[FedSync] public statuses import failed', { error: String(err) });
+    }
+    if (synced > 0) logger.info('[FedSync] imported public statuses', { count: synced });
+    return synced;
+  }
+
+  private async syncOutbox(
+    actor: OutboxSyncActor,
+    limitOrOptions: number | OutboxSyncOptions,
   ): Promise<OutboxSyncResult> {
     // Instance domain policy on the PULL path.
     //

@@ -347,7 +347,18 @@ class FederatedProfileSync {
 
         const outboxStatus = this.currentOutboxBackfillStatus(actor);
         if (outboxStatus === 'unavailable') {
-          logger.info('[FedSync] outbox sync skipped because it is unavailable');
+          // The outbox will not answer again, but a Mastodon-compatible server
+          // may still list the account's public statuses. That discovery keeps
+          // its own per-actor and per-host throttle, since an unavailable outbox
+          // carries no cooldown stamp.
+          await stampActorOxyUserId();
+          const synced = await activityPubConnector.syncPublicStatuses(actor, {
+            limit: OUTBOX_SYNC_LIMIT,
+            importReason: 'requested_profile',
+          });
+          logger.info('[FedSync] outbox sync skipped because it is unavailable', {
+            publicStatusesSynced: synced,
+          });
           return;
         }
 
@@ -378,6 +389,7 @@ class FederatedProfileSync {
         const syncResult = await activityPubConnector.syncOutboxPostsDetailed(actor, {
           limit: OUTBOX_SYNC_LIMIT,
           importReason: 'requested_profile',
+          publicStatusesFallback: true,
         });
         const syncedCount = syncResult.syncedCount;
         logger.info('[FedSync] completed outbox sync', {

@@ -802,7 +802,11 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
 
         // Fire-and-forget: sync in background, return syncing flag to client
         activityPubConnector
-          .syncOutboxPostsDetailed(actor, { limit, importReason: 'requested_profile' })
+          .syncOutboxPostsDetailed(actor, {
+            limit,
+            importReason: 'requested_profile',
+            publicStatusesFallback: true,
+          })
           .then(async (result) => {
             if (isPermanentlyUnavailableOutboxReason(result.reason)) {
               await activityPubConnector.markOutboxBackfillUnavailable(actor, result.reason);

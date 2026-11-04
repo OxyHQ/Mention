@@ -463,10 +463,18 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri' | 'followersUrl'> & {
       oxyUserId?: string;
       type?: string;
+      username?: string;
     },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     return outboxSyncService.syncOutboxPostsDetailed(actor, limitOrOptions);
+  }
+
+  syncPublicStatuses(
+    actor: Pick<FederatedActorRecord, 'uri' | 'acct' | 'username'>,
+    options: { limit: number; importReason: FederationImportReason },
+  ): Promise<number> {
+    return outboxSyncService.syncPublicStatuses(actor, options);
   }
 
   syncFeaturedPost(
