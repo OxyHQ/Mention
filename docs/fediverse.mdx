@@ -62,6 +62,16 @@ The `/federation` router is distinct from the protocol surface:
 Write handlers enforce identity even though the router supports optional
 identity for public reads.
 
+`/federation/resolve` answers with the identity Oxy verified
+(`POST /federation/identities/resolve`) and makes no remote fetch of its own:
+Oxy owns discovery and verification, and its answer already binds the source
+actor to the person. The route only applies Mention's connector and instance
+policy to that answer. Mention imports its own copy of the actor where it uses
+it (sync-on-profile-view, follow delivery, inbound activity), never on this
+path. The search box sends every spelling of a fediverse handle as one
+(`normalizeFederatedAcct` in `@mention/shared-types`), and a miss is never kept
+as fresh.
+
 ## Consent
 
 Oxy owns `privacySettings.fediverseSharing`; Mention does not persist a second

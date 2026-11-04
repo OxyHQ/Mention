@@ -93,21 +93,7 @@ export function parseApPublished(published: unknown): Date | undefined {
   return clampFutureDate(published, AP_PUBLISHED_MAX_FUTURE_SKEW_MS);
 }
 
-export function normalizeFederatedAcct(acct: string | undefined): string | undefined {
-  if (!acct) return undefined;
-  const cleaned = acct
-    .trim()
-    .replace(/^acct:/i, '')
-    .replace(/^@/, '');
-  const atIndex = cleaned.indexOf('@');
-  if (atIndex <= 0 || atIndex === cleaned.length - 1) return undefined;
-
-  const localPart = cleaned.substring(0, atIndex).toLowerCase();
-  const domain = cleaned.substring(atIndex + 1).toLowerCase();
-  if (!localPart || !domain) return undefined;
-
-  return `${localPart}@${domain}`;
-}
+export { normalizeFederatedAcct } from '@mention/shared-types/federation';
 
 export function domainFromAcct(acct: string): string | undefined {
   const atIndex = acct.indexOf('@');

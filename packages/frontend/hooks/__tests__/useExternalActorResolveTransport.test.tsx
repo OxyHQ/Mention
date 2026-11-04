@@ -28,7 +28,7 @@ it('cancels the actual transport and rejects a late answer for an obsolete searc
   global.fetch = jest.fn((url: string | URL | Request, init?: RequestInit) => {
     const handle = new URL(String(url)).searchParams.get('handle') ?? '';
     requests.push({ handle, signal: init?.signal as AbortSignal });
-    if (handle.startsWith('@alice')) {
+    if (handle.startsWith('alice')) {
       // Some transports finish even after abort: the late response must not
       // replace the new search or trigger a retry.
       return new Promise((resolve) => {
@@ -63,7 +63,7 @@ it('cancels the actual transport and rejects a late answer for an obsolete searc
     await act(async () => finishOld(ok('alice@example.org')));
     await act(async () => jest.advanceTimersByTime(1000));
     expect(tree.toJSON()).toBe('bob@example.org');
-    expect(requests.map((r) => r.handle)).toEqual(['@alice@example.org', '@bob@example.org']);
+    expect(requests.map((r) => r.handle)).toEqual(['alice@example.org', 'bob@example.org']);
   } finally {
     await act(async () => tree?.unmount());
     client.clear();

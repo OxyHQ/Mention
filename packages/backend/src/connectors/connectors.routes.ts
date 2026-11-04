@@ -24,14 +24,18 @@ import { existsFollow, findFollows } from '../db/federation/followRepository';
 import { and, eq, isNotNull, lt, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
-import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
+import { FEDERATION_BLOCKS, FEDERATION_ENABLED, isBlockedDomain } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
 import {
   instagramGraphConnector,
   isInstagramGraphEnabled,
 } from './instagram/InstagramGraphConnector';
 import { isInstagramGraphActorUri } from './instagram/constants';
-import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
+import {
+  activityIdUnderActor,
+  domainFromAcct,
+  normalizeFederatedAcct,
+} from './activitypub/helpers';
 import { resolveOxyIdentity } from './oxyIdentity';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
@@ -270,7 +274,36 @@ router.get('/blocked-domains', (_req: AuthRequest, res: Response) => {
   return res.json(body);
 });
 
-/** Resolve public identifiers through Oxy, then import the returned protocol source. */
+/**
+ * Whether Mention's instance policy refuses a resolved source: an ActivityPub
+ * actor on a blocked instance, our own domains or the Oxy identity apex, judged
+ * by the actor's host and its transport acct's host, as the actor fetch judges
+ * them before it stores one. Other protocols' ids carry no instance host.
+ */
+function isRefusedSource(source: { actorUri: string; transportAcct: string }): boolean {
+  if (!isAbsoluteHttpUrl(source.actorUri)) return false;
+  const transportHost = domainFromAcct(source.transportAcct);
+  return (
+    isBlockedDomain(new URL(source.actorUri).hostname.toLowerCase()) ||
+    Boolean(transportHost && isBlockedDomain(transportHost))
+  );
+}
+
+/**
+ * Resolve a public identifier to the person Oxy verified behind it.
+ *
+ * Oxy owns discovery and verification (`POST /federation/identities/resolve`):
+ * its answer binds the source actor to the person, and `resolveOxyIdentity`
+ * refuses one whose actor is not among that person's verified identities or
+ * whose ids disagree, so a row can never pair one person's handle with another's
+ * actor. This route adds no remote fetch of its own. It used to re-fetch the
+ * actor and answer `null` when that fetch failed or saw anything else, which
+ * vetoed Oxy's verified answer whenever the source answered badly: bird.makeup
+ * 404s a freshly mirrored actor on most requests, so an X account Oxy had just
+ * created (`elctrixr@x.com`, 2026-11-04) was "nobody" here on nearly every try,
+ * after 1–4 s. Mention's own copy of the actor is imported where Mention uses it
+ * — sync-on-profile-view, follow delivery, inbound activity — all off this path.
+ */
 router.get('/resolve', async (req: AuthRequest, res: Response) => {
   if (!requireAnyConnector(res)) return;
 
@@ -304,31 +337,24 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
     const resolved = await resolveOxyIdentity({ handle: query });
     const source = resolved.externalIdentity;
     const connector = connectorRegistry.connectorFor(source.actorUri);
-    if (!connector?.enabled || connector.id !== source.protocol) return res.json({ actor: null });
-    const actor = await connector.fetchProfile(source.actorUri);
-    if (
-      !actor ||
-      actor.externalId !== source.actorUri ||
-      (actor.oxyUserId && actor.oxyUserId !== resolved.user.id)
-    )
+    if (!connector?.enabled || connector.id !== source.protocol || isRefusedSource(source))
       return res.json({ actor: null });
 
     // Follow state for the (optional) viewer — keyed on the actor's protocol id.
-    let followed = false;
     const viewerId = req.user?.id;
-    if (viewerId) {
-      followed = await existsFollow({
-        localUserId: viewerId,
-        remoteActorUri: actor.externalId,
-        direction: 'outbound',
-        statuses: ['accepted', 'pending'],
-      });
-    }
+    const followed = viewerId
+      ? await existsFollow({
+          localUserId: viewerId,
+          remoteActorUri: source.actorUri,
+          direction: 'outbound',
+          statuses: ['accepted', 'pending'],
+        })
+      : false;
 
     return res.json({
       actor: {
         network: source.protocol,
-        externalId: actor.externalId,
+        externalId: source.actorUri,
         // The IDENTITY, never the protocol address. `handle` is the account this
         // row IS — the same `local@domain` the ingest just stored in Oxy — while
         // `externalId` stays the protocol id the follow is addressed to. The two
