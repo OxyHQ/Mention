@@ -12,7 +12,12 @@ import {
 } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { articles } from '../../db/schema/articles';
-import { authorFollowerSnapshots, notifications, pushTokens } from '../../db/schema/discovery';
+import {
+  authorFollowerSnapshots,
+  notifications,
+  notificationsAboutPosts,
+  pushTokens,
+} from '../../db/schema/discovery';
 import {
   bookmarkFolders,
   bookmarks,
@@ -253,14 +258,7 @@ function buildPostReferenceProbes(
     'post_evaluations.post_id': () =>
       anyRow(postEvaluations, postEvaluations.id, inArray(postEvaluations.postId, idStrings)),
     'notifications.entity_id': () =>
-      anyRow(
-        notifications,
-        notifications.id,
-        and(
-          inArray(notifications.entityType, ['post', 'reply']),
-          inArray(notifications.entityId, idStrings),
-        ),
-      ),
+      anyRow(notifications, notifications.id, notificationsAboutPosts(idStrings)),
     'polls.post_id': () => anyRow(polls, polls.id, inArray(polls.postId, idStrings)),
     'articles.post_id': () => anyRow(articles, articles.id, inArray(articles.postId, idStrings)),
     'postgates.post_id/post_uri': () =>

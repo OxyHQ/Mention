@@ -51,10 +51,6 @@ export async function deleteFederatedPostSubtree(
   } catch (error) {
     recordDeletionSideEffectFailure('surviving_counters', error);
   }
-  try {
-    await reportResidue(allDeletionTargets(deletion.targets), postId);
-  } catch (error) {
-    recordDeletionSideEffectFailure('residue_check', error);
-  }
+  reportResidue(allDeletionTargets(deletion.targets), postId);
   return 'deleted';
 }

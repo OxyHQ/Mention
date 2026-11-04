@@ -65,7 +65,7 @@ import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { deletePostRecord, lockPostContent } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
-import { notifications } from '../db/schema/discovery';
+import { notifications, notificationsAboutPosts } from '../db/schema/discovery';
 import { contentLabels } from '../db/schema/moderation';
 import { postgates, threadgates } from '../db/schema/gates';
 import { feedInteractions } from '../db/schema/feeds';
@@ -370,17 +370,13 @@ function referenceLegs(
 
   return [
     {
-      // Both entity types the enum can hold for a post row. `'post'` alone
-      // missed every reply notification — `PostCreationService` and the
-      // ActivityPub inbox both write `entityType: 'reply'`.
       reference: 'notifications.entity_id',
       run: () =>
         tx
           .delete(notifications)
           .where(
             and(
-              inArray(notifications.entityType, ['post', 'reply']),
-              inArray(notifications.entityId, ids),
+              notificationsAboutPosts(ids),
               preserveCancellationNotices ? ne(notifications.type, 'event_cancelled') : undefined,
             ),
           ),
@@ -665,37 +661,55 @@ export async function repairSurvivingCounters(
  * Runs OUTSIDE the transaction on purpose. Inside it, the probes would read the
  * transaction's own uncommitted deletes and pass by construction, which is a
  * check that cannot fail.
+ *
+ * DETACHED from the caller: it checks every committed deletion, but its only
+ * outcome is a log line (and a counted failure if the check itself cannot
+ * run), so the request that deleted the post does not wait for it. Every probe
+ * is an index lookup and they run concurrently, so it costs one round trip.
  */
-export async function reportResidue(
+export function reportResidue(
   targets: readonly CascadedPostRow[],
   postId: string,
   preserveCancellationNotices = false,
-): Promise<void> {
+): void {
+  collectResidue(targets, preserveCancellationNotices).then(
+    (residue) => {
+      if (residue.length === 0) return;
+      logger.error('Post deletion cascade left references behind', { postId, residue });
+    },
+    (error: unknown) => recordDeletionSideEffectFailure('residue_check', error),
+  );
+}
+
+async function collectResidue(
+  targets: readonly CascadedPostRow[],
+  preserveCancellationNotices: boolean,
+): Promise<string[]> {
+  if (targets.length === 0) return [];
   const probeTargets: PostDeletionTarget[] = targets.map((row) => ({
     id: row.id,
     uris: postUris(row),
   }));
-  const references = preserveCancellationNotices
-    ? CASCADED_POST_REFERENCES.filter((name) => name !== 'notifications.entity_id')
-    : CASCADED_POST_REFERENCES;
-  const residue = await collectPostCascadeResidue(probeTargets, references);
-  if (preserveCancellationNotices && targets.length) {
-    const [unexpected] = await getDb()
+  if (!preserveCancellationNotices) {
+    return collectPostCascadeResidue(probeTargets, CASCADED_POST_REFERENCES);
+  }
+  // The cascade kept `event_cancelled` notices on purpose, so the shared
+  // probe would report them; ask the leg's own narrower question instead.
+  const [residue, [unexpected]] = await Promise.all([
+    collectPostCascadeResidue(
+      probeTargets,
+      CASCADED_POST_REFERENCES.filter((name) => name !== 'notifications.entity_id'),
+    ),
+    getDb()
       .select({ id: notifications.id })
       .from(notifications)
       .where(
         and(
-          inArray(notifications.entityType, ['post', 'reply']),
-          inArray(
-            notifications.entityId,
-            targets.map((row) => row.id),
-          ),
+          notificationsAboutPosts(targets.map((row) => row.id)),
           ne(notifications.type, 'event_cancelled'),
         ),
       )
-      .limit(1);
-    if (unexpected) residue.push('notifications.entity_id');
-  }
-  if (residue.length === 0) return;
-  logger.error('Post deletion cascade left references behind', { postId, residue });
+      .limit(1),
+  ]);
+  return unexpected ? [...residue, 'notifications.entity_id'] : residue;
 }
