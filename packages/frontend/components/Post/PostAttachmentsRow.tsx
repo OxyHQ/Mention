@@ -58,7 +58,7 @@ import {
   PostAttachmentRoom,
 } from './Attachments';
 import { parseEmbedPlayerFromUrl, canEmbed, type EmbedPlayerParams } from '@/utils/embedPlayer';
-import { postLinkCards } from '@/utils/postLinkCards';
+import { documentByline, postLinkCards } from '@/utils/postLinkCards';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import type { NestedPostRenderer } from './Attachments/PostAttachmentNested';
 
@@ -148,6 +148,7 @@ type AttachmentItem =
       description?: string;
       image?: string;
       siteName?: string;
+      author?: string;
       embedParams?: EmbedPlayerParams;
     }
   | {
@@ -275,6 +276,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           description: document?.description,
           image: document?.imageUrl,
           siteName: document?.publisher,
+          author: documentByline(document),
           embedParams: parseEmbedPlayerFromUrl(url),
         })),
       [text, documents],
@@ -1002,6 +1004,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
               description={item.description}
               image={item.image}
               siteName={item.siteName}
+              author={item.author}
             />
           );
         }
@@ -1013,6 +1016,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             description={item.description}
             image={item.image}
             siteName={item.siteName}
+            author={item.author}
             coverFill={!isSingleItem}
             className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
           />
