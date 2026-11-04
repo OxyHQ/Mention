@@ -14,9 +14,8 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { postCreationService } from '../../services/PostCreationService';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
-import { createScopedOxyClient, callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
-import { safetyRequesterFor } from '../../utils/safetyRequester';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
+import { callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { listOperatedChannelIds } from '../../services/publishAsAccount';
 import { postManagementRefusal } from '../../services/postManagementAccess';
 import { loadScheduledChain } from '../../services/scheduledChain';
@@ -56,13 +55,10 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
     );
 
     const hydratedPosts = await postHydrationService.hydratePosts(drafts, {
+      ...hydrationOptionsFor(req),
       // Not published yet: nobody has read these, so nobody has written a note
       // about one.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
       operatedAccountIds: operatedChannelIds,
@@ -201,13 +197,10 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     }
 
     const hydratedPosts = await postHydrationService.hydratePosts([published], {
+      ...hydrationOptionsFor(req),
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -297,13 +290,10 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
     );
 
     const hydratedPosts = await postHydrationService.hydratePosts(scheduledPosts, {
+      ...hydrationOptionsFor(req),
       // Not published yet: nobody has read these, so nobody has written a note
       // about one.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
       operatedAccountIds: operatedChannelIds,

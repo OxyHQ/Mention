@@ -33,6 +33,7 @@ import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEnga
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
+import { hydrationOptionsFor } from '../utils/hydrationOptions';
 import { canRequestReadPost } from '../services/postReadAccess';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import {
@@ -613,9 +614,7 @@ class FeedController {
       // quote, the embedded quoted card) — matching the feed/detail DTO instead
       // of a raw `.toObject()`.
       const [hydratedReply] = await postHydrationService.hydratePosts([reply], {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: createScopedOxyClient(req),
+        ...hydrationOptionsFor(req),
         maxDepth: 1,
         includeLinkMetadata: true,
       });
@@ -811,9 +810,7 @@ class FeedController {
       // payload carry the embedded original, the author summary, and the engagement
       // shape — matching the feed/detail DTO instead of a raw `.toObject()`.
       const [hydratedBoost] = await postHydrationService.hydratePosts([boost], {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: createScopedOxyClient(req),
+        ...hydrationOptionsFor(req),
         maxDepth: 1,
         includeLinkMetadata: true,
       });
@@ -1080,9 +1077,7 @@ class FeedController {
       // performance, so hydrate directly here.
       const hydrated = (
         await postHydrationService.hydratePosts([...filteredPosts, ...children], {
-          viewerId: currentUserId,
-          safetyRequester: safetyRequesterFor(req),
-          oxyClient: requestOxyClient,
+          ...hydrationOptionsFor(req, requestOxyClient),
           maxDepth: 1,
           includeLinkMetadata: true,
           viewerPrivacy: viewerRelations?.viewerPrivacy,
@@ -1171,9 +1166,7 @@ class FeedController {
       // maxDepth 1: every row here quotes the post being viewed, so without the
       // nested original each one renders as a bare comment with no context.
       const hydrated = await postHydrationService.hydratePosts(filteredPosts, {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: requestOxyClient,
+        ...hydrationOptionsFor(req, requestOxyClient),
         maxDepth: 1,
         publicReferencesOnly: true,
         includeLinkMetadata: true,
@@ -1212,8 +1205,6 @@ class FeedController {
         return res.json({ items: [] });
       }
 
-      const currentUserId = req.user?.id;
-
       // The spine only applies to a public, published root post whose `threadId`
       // points at itself — the canonical self-thread root signature. A mid-thread
       // continuation has `threadId === <root id> !== <its own id>`, so this guard
@@ -1243,9 +1234,7 @@ class FeedController {
       // Hydrate at maxDepth 1 (mirrors getRepliesFeed) so quoted/embedded context
       // on a continuation renders.
       const hydrated = await postHydrationService.hydratePosts(continuations, {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: createScopedOxyClient(req),
+        ...hydrationOptionsFor(req),
         maxDepth: 1,
         includeLinkMetadata: true,
       });
@@ -1375,9 +1364,7 @@ class FeedController {
       }
 
       const [hydrated] = await postHydrationService.hydratePosts([pinnedPost], {
-        viewerId: currentUserId,
-        safetyRequester: safetyRequesterFor(req),
-        oxyClient: createScopedOxyClient(req),
+        ...hydrationOptionsFor(req),
         maxDepth: 1,
         includeLinkMetadata: true,
       });

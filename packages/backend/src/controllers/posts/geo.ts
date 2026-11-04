@@ -15,12 +15,10 @@ import { CHRONO_DESC, findPostRecords } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { config } from '../../config';
-import { createScopedOxyClient } from '../../utils/oxyHelpers';
-import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { queryString } from '../../utils/queryParams';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 
 const DEFAULT_NEARBY_RADIUS_METERS = config.posts.defaultNearbyRadiusMeters;
 const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
@@ -90,10 +88,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
     );
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
-      viewerId: req.user?.id,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
+      ...hydrationOptionsFor(req),
       maxDepth: 1,
       includeLinkMetadata: false,
     });
@@ -161,10 +156,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     );
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
-      viewerId: req.user?.id,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
+      ...hydrationOptionsFor(req),
       maxDepth: 1,
       includeLinkMetadata: false,
     });
@@ -215,12 +207,8 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
       { orderBy: CHRONO_DESC, limit: MAX_NEARBY_BOTH_LOCATIONS_POSTS },
     );
 
-    const currentUserId = req.user?.id;
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
-      viewerId: currentUserId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
+      ...hydrationOptionsFor(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });

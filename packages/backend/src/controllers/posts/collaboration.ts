@@ -9,9 +9,7 @@ import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
-import { createScopedOxyClient } from '../../utils/oxyHelpers';
-import { safetyRequesterFor } from '../../utils/safetyRequester';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
+import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import {
   postCollaborationService,
   CollabStateError,
@@ -25,13 +23,10 @@ export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {
 
     const post = await postCollaborationService.accept(String(req.params.id), userId);
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      ...hydrationOptionsFor(req),
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -61,13 +56,10 @@ export const declineCollabInvite = async (req: AuthRequest, res: Response) => {
     // state. For a private/followers-only post the decliner loses view access, so
     // hydration yields no post and the client simply drops the actionable UI.
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      ...hydrationOptionsFor(req),
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -92,13 +84,10 @@ export const stopCollabSharing = async (req: AuthRequest, res: Response) => {
 
     const post = await postCollaborationService.stopSharing(String(req.params.id), userId);
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      ...hydrationOptionsFor(req),
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
-      viewerId: userId,
-      safetyRequester: safetyRequesterFor(req),
-      oxyClient: createScopedOxyClient(req),
-      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });

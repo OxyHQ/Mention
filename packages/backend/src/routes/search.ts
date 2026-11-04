@@ -10,8 +10,8 @@ import { findPostSearchPage } from '../services/search/postSearch';
 import { collectReadable } from '../services/readablePage';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
+import { hydrationOptionsFor } from '../utils/hydrationOptions';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
-import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
@@ -476,9 +476,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       const hydrate = async (rows: SearchRow[]) => {
         const [hydrated, followedAuthorIds] = await Promise.all([
           postHydrationService.hydratePosts(rows, {
-            viewerId: currentUserId,
-            safetyRequester: safetyRequesterFor(req),
-            oxyClient: scopedOxyClient,
+            ...hydrationOptionsFor(req, scopedOxyClient),
             maxDepth: 1,
             includeLinkMetadata: true,
             includeFullArticleBody: false,
