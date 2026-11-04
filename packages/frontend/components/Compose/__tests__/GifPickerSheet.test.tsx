@@ -94,7 +94,7 @@ it('shows loading immediately and never replaces a newer search with a late resp
   await search('frog');
   expect(tree.root.findAllByType(FlatList)).toHaveLength(0);
   expect(
-    tree.root.findAllByType(Text).some((node) => node.props.children === 'Loading GIFs...'),
+    tree.root.findAllByType(Text).some((node) => node.props.children === 'compose.gif.loading'),
   ).toBe(true);
   mockGet.mockResolvedValue(result('rocket'));
   await search('rocket');
@@ -110,7 +110,7 @@ it('shows a failed search with a retry action instead of stale trending results'
   await search('frog');
   expect(tree.root.findAllByType(FlatList)).toHaveLength(0);
   expect(
-    tree.root.findAllByType(Text).some((node) => node.props.children === 'Failed to load GIFs'),
+    tree.root.findAllByType(Text).some((node) => node.props.children === 'compose.gif.loadFailed'),
   ).toBe(true);
   mockGet.mockResolvedValue(result('frog'));
   const retry = tree.root

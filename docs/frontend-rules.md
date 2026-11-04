@@ -294,6 +294,20 @@ for display.
 - **Do NOT re-enable GET caching on any linked client** (`utils/api.ts`, the Syra client at `lib/syraApi.ts`). Syra live-rooms talk to Syra's own backend, never `api.mention.earth`.
 - **Mention keeps its own CORS middleware on purpose** (`app.ts` + `utils/allowedOrigins.ts`) — do NOT switch it to `createOxyCors`, which cannot express the dev LAN pattern and would broaden production CORS to the whole `*.oxy.so` family.
 
+## Translation keys
+
+Every key in `packages/frontend/locales/*.json` follows the Oxy-wide convention
+(oxy `docs/adr/0055-translation-keys.md`). A key is a path of identifier
+segments stored as nested objects (`compose.replySettings.nobody`), never the
+English text and never a flat dotted string. The first segment is the feature.
+Copy shared across features lives under `common` (`common.save`,
+`common.errors.offline`). English (`en.json`) is the source. A translation holds
+only its keys, plus the extra plural forms its language needs. A key no code
+reads is deleted from every catalog. `bun run validate:i18n` checks call sites
+against the catalog, and `oxy-doctor-i18n --ci` checks the key shape. Tests read
+copy through `test-support/catalog.ts` (`catalogText`,
+`catalogTranslationMock`), never by indexing `en.json` themselves.
+
 ## typedRoutes gate
 
 `typedRoutes` is ON and INERT — the general finding (why, and the fix) lives

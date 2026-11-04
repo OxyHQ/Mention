@@ -6,7 +6,7 @@ import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 're
 import { AccountBadge, FediverseSharingBadge, type AccountBadgeProps } from '../AccountBadge';
 import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
-import enStrings from '@/locales/en.json';
+import { catalogText } from '@/test-support/catalog';
 
 /**
  * The identity marker beside a name, and the two rules that decide what it does.
@@ -39,26 +39,13 @@ import enStrings from '@/locales/en.json';
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { text: '#000', textSecondary: '#666', primary: '#7c3aed' } }),
 }));
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => {
-      const catalog: Record<string, unknown> = require('@/locales/en.json');
-      if (typeof catalog[key] === 'string') return catalog[key];
-      const resolved = key
-        .split('.')
-        .reduce<unknown>(
-          (node, part) =>
-            node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined,
-          catalog,
-        );
-      return typeof resolved === 'string' ? resolved : `MISSING_I18N_KEY:${key}`;
-    },
-  }),
-}));
+jest.mock('react-i18next', () =>
+  jest.requireActual('@/test-support/catalog').catalogTranslationMock(),
+);
 
-const CHANNEL_LABEL = enStrings.channels.badge.a11yLabel;
-const REMOTE_LABEL = enStrings['fediverse.remoteBadge.a11yLabel'];
-const SHARING_LABEL = enStrings['fediverse.badge.a11yLabel'];
+const CHANNEL_LABEL = catalogText('channels.badge.a11yLabel');
+const REMOTE_LABEL = catalogText('fediverse.remoteBadge.a11yLabel');
+const SHARING_LABEL = catalogText('fediverse.badge.a11yLabel');
 
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;

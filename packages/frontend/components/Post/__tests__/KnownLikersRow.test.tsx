@@ -36,25 +36,9 @@ jest.mock('@/hooks/useKnownLikers', () => ({
 // Interpolate against the REAL en.json copy, including i18next's `_one`/`_other`
 // plural suffixes, so a missing or misnamed key fails here instead of silently
 // falling back to the inline `defaultValue`.
-jest.mock('react-i18next', () => {
-  const messages = jest.requireActual<Record<string, string>>('../../../locales/en.json');
-  return {
-    useTranslation: () => ({
-      t: (key: string, options: Record<string, unknown> = {}) => {
-        const count = options.count;
-        const suffixed =
-          typeof count === 'number' ? `${key}_${count === 1 ? 'one' : 'other'}` : key;
-        const template = messages[suffixed] ?? messages[key];
-        if (template === undefined) {
-          throw new Error(`Missing i18n key: ${key}`);
-        }
-        return template.replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
-          String(options[name] ?? ''),
-        );
-      },
-    }),
-  };
-});
+jest.mock('react-i18next', () =>
+  jest.requireActual('@/test-support/catalog').catalogTranslationMock(),
+);
 
 // The face pile is Bloom's; this suite is about the copy, so record the props
 // and render nothing.

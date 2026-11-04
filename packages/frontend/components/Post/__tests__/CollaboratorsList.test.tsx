@@ -31,10 +31,9 @@ jest.mock('@oxy.so/core', () => ({ getNormalizedUserHandle: () => 'nate' }));
 
 // Resolves against the real `en.json` and ignores `defaultValue`, so a deleted
 // key renders its raw name and fails rather than silently falling back.
-jest.mock('react-i18next', () => {
-  const strings: Record<string, string> = require('@/locales/en.json');
-  return { useTranslation: () => ({ t: (key: string) => strings[key] ?? key }) };
-});
+jest.mock('react-i18next', () =>
+  jest.requireActual('@/test-support/catalog').catalogTranslationMock(),
+);
 
 const authors: PostUser[] = [
   { id: 'acct-notas', username: 'notas', name: { displayName: 'Notas de Nate' } },

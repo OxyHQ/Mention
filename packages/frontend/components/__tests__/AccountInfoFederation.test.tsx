@@ -61,18 +61,13 @@ jest.mock('@/components/Profile/hooks/useProfileAccount', () => ({
   }),
   useProfileCanonicalHref: () => null,
 }));
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string }) => {
-      const catalog: Record<string, unknown> = require('@/locales/en.json');
-      return typeof catalog[key] === 'string' ? catalog[key] : (options?.defaultValue ?? key);
-    },
-  }),
-}));
+jest.mock('react-i18next', () =>
+  jest.requireActual('@/test-support/catalog').catalogTranslationMock(),
+);
 
 import { AccountInfoScreen } from '../AccountInfoScreen';
 import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
-import enStrings from '@/locales/en.json';
+import { catalogText } from '@/test-support/catalog';
 
 function render(profile: Record<string, unknown>): ReactTestRenderer {
   mockProfile.current = {
@@ -94,8 +89,8 @@ function federationSection(renderer: ReactTestRenderer): ReactTestInstance {
     (node) =>
       node.type === ('SettingsListGroup' as unknown) &&
       node.props.footer !== undefined &&
-      node.findAll((child) => child.props?.title === enStrings['fediverse.about.network']).length >
-        0,
+      node.findAll((child) => child.props?.title === catalogText('fediverse.about.network'))
+        .length > 0,
   );
   return section;
 }
@@ -135,13 +130,13 @@ describe('AccountInfoScreen — one Fediverse section for every non-Oxy account'
     (_case, profile, networkKey, original) => {
       const section = federationSection(render({ ...profile }));
 
-      expect(section.props.title).toBe(enStrings['fediverse.about.title']);
-      const network = row(section, enStrings['fediverse.about.network']);
+      expect(section.props.title).toBe(catalogText('fediverse.about.title'));
+      const network = row(section, catalogText('fediverse.about.network'));
       expect(network.props.icon.type).toBe(RiFediverseLine);
-      expect(network.props.value).toBe(enStrings[`fediverse.about.${networkKey}`]);
+      expect(network.props.value).toBe(catalogText(`fediverse.about.${networkKey}`));
 
       // Kept: the link to the ORIGINAL profile.
-      const view = row(section, enStrings['fediverse.about.viewOriginal']);
+      const view = row(section, catalogText('fediverse.about.viewOriginal'));
       const { openExternalLink } = jest.requireMock('@/utils/openExternalLink') as {
         openExternalLink: jest.Mock;
       };
