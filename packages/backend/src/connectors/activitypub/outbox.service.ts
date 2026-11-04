@@ -98,6 +98,8 @@ import {
   type ResolvedInboundMentions,
 } from './apMentions';
 import { recordRecentReplierForPost } from '../../services/PostRecentReplierService';
+import { mastodonPublicStatusUris } from './mastodonPublicStatuses';
+import { isOutboxMarkedUnavailable } from './outboxSyncCooldown';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
@@ -157,6 +159,25 @@ const OUTBOX_RELAYED_TYPES: ReadonlySet<string> = new Set(['Create']);
 const MAX_ANCESTOR_DEPTH = 30;
 
 /**
+ * Outbox answers that showed nothing importable, after which a profile sync
+ * asks the server's public statuses instead ({@link OutboxSyncService.syncProfileOutbox}):
+ * an empty or itemless collection, and an outbox refused to our signed fetch.
+ */
+const PUBLIC_STATUSES_FALLBACK_REASONS: ReadonlySet<OutboxSyncFailureReason> = new Set([
+  'no-candidates',
+  'non-empty-outbox-without-items',
+  'outbox-http-401',
+  'outbox-http-403',
+]);
+
+/**
+ * Consecutive public statuses that fail to import before a run stops: the
+ * server is most likely refusing our signed object fetches, and every further
+ * status would only be another refused request.
+ */
+const PUBLIC_STATUSES_MAX_CONSECUTIVE_FAILURES = 5;
+
+/**
  * A candidate extracted from a remote actor's outbox during backfill.
  * Either a post — authored by the actor, or by a member of the community whose
  * outbox this is — or an Announce (boost) of another actor's object.
@@ -200,6 +221,8 @@ export type OutboxSyncFailureReason =
   | 'pagination-failed'
   | 'invalid-collection'
   | 'exception'
+  /** The outbox was already marked unavailable, so a profile sync did not fetch it. */
+  | 'outbox-unavailable'
   | OutboxHttpFailureReason;
 
 /**
@@ -237,6 +260,8 @@ export interface OutboxSyncResult {
    * imports). Zero on every page that carries no such posts.
    */
   healedMentionCount?: number;
+  /** Posts found through the server's public statuses after the outbox showed none. */
+  publicStatusesSyncedCount?: number;
   pagesFetched?: number;
   reachedEnd?: boolean;
   nextCursor?: {
@@ -252,6 +277,18 @@ export interface OutboxSyncOptions {
   startPageUrl?: string;
   startItemOffset?: number;
 }
+
+/** The actor fields an outbox sync reads. */
+export type OutboxSyncActor = Pick<
+  FederatedActorRecord,
+  'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
+> & {
+  oxyUserId?: string;
+  type?: string;
+  networkAcct?: string | null;
+  domain?: string | null;
+  username?: string;
+};
 
 /**
  * Outbox backfill: fetch a remote actor's outbox, extract Note/Announce
@@ -404,15 +441,7 @@ export class OutboxSyncService {
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
   async syncOutboxPosts(
-    actor: Pick<
-      FederatedActorRecord,
-      'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
-    > & {
-      oxyUserId?: string;
-      type?: string;
-      networkAcct?: string | null;
-      domain?: string | null;
-    },
+    actor: OutboxSyncActor,
     limit = 20,
     importReason: FederationImportReason = 'unknown_outbox',
   ): Promise<number> {
@@ -477,16 +506,91 @@ export class OutboxSyncService {
     });
   }
 
+  /**
+   * The outbox sync of a profile view — the one decision both entry points
+   * (`federatedProfileSync` and `GET /federation/actor/posts`) take, since a
+   * profile sync exists to fill an empty profile:
+   *
+   *  - an outbox already marked unavailable is not fetched again, but the
+   *    account's public statuses are tried ({@link syncPublicStatuses}, which
+   *    keeps its own per-actor and per-host throttle — such an actor carries no
+   *    cooldown stamp);
+   *  - otherwise the outbox is synced, the public statuses are tried when it
+   *    showed nothing importable, and an outbox found permanently unavailable is
+   *    marked so. The outbox's own `reason` stands either way; a sync that found
+   *    posts cools down.
+   */
+  async syncProfileOutbox(
+    actor: OutboxSyncActor & Pick<FederatedActorRecord, 'id' | 'outboxBackfill'>,
+    options: { limit: number; importReason: FederationImportReason },
+  ): Promise<OutboxSyncResult> {
+    if (isOutboxMarkedUnavailable(actor)) {
+      const synced = await this.syncPublicStatuses(actor, options);
+      return {
+        syncedCount: synced,
+        publicStatusesSyncedCount: synced,
+        shouldStampCooldown: false,
+        reason: 'outbox-unavailable',
+      };
+    }
+    let result = await this.syncOutboxPostsDetailed(actor, options);
+    if (
+      result.syncedCount === 0 &&
+      result.reason &&
+      PUBLIC_STATUSES_FALLBACK_REASONS.has(result.reason)
+    ) {
+      const synced = await this.syncPublicStatuses(actor, options);
+      if (synced > 0) {
+        result = {
+          ...result,
+          syncedCount: synced,
+          publicStatusesSyncedCount: synced,
+          shouldStampCooldown: true,
+        };
+      }
+    }
+    if (isPermanentlyUnavailableOutboxReason(result.reason)) {
+      await this.markOutboxBackfillUnavailable(actor, result.reason);
+    }
+    return result;
+  }
+
+  /**
+   * Import the account's public statuses as its Mastodon-compatible server
+   * lists them (`mastodonPublicStatuses.ts`), each through
+   * {@link ensureFederatedNote} — the signed, origin-verified note path that
+   * boosts and pinned posts take — so audience, authorship, media and dedup
+   * stay in one place. Statuses go one at a time; the run stops at `limit`, or
+   * after {@link PUBLIC_STATUSES_MAX_CONSECUTIVE_FAILURES} statuses in a row
+   * that would not import. Never throws.
+   *
+   * @returns how many of the account's posts are stored (new or already here).
+   */
+  async syncPublicStatuses(
+    actor: Pick<FederatedActorRecord, 'uri' | 'acct'> & { username?: string },
+    options: { limit: number; importReason: FederationImportReason },
+  ): Promise<number> {
+    let synced = 0;
+    let consecutiveFailures = 0;
+    try {
+      for await (const statusUri of mastodonPublicStatusUris(actor)) {
+        if (await this.ensureFederatedNote(statusUri, options.importReason)) {
+          synced++;
+          consecutiveFailures = 0;
+          if (synced >= options.limit) break;
+        } else if (++consecutiveFailures >= PUBLIC_STATUSES_MAX_CONSECUTIVE_FAILURES) {
+          break;
+        }
+      }
+    } catch (err) {
+      logger.warn('[FedSync] public statuses import failed', { error: String(err) });
+    }
+    if (synced > 0) logger.info('[FedSync] imported public statuses', { count: synced });
+    return synced;
+  }
+
   async syncOutboxPostsDetailed(
-    actor: Pick<
-      FederatedActorRecord,
-      'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
-    > & {
-      oxyUserId?: string;
-      type?: string;
-      networkAcct?: string | null;
-      domain?: string | null;
-    },
+    actor: OutboxSyncActor,
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     // Instance domain policy on the PULL path.

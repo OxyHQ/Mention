@@ -13,7 +13,7 @@ import {
 import { logger } from '../utils/logger';
 import {
   activityPubConnector,
-  isPermanentlyUnavailableOutboxReason,
+  isOutboxMarkedUnavailable,
 } from './activitypub/ActivityPubConnector';
 import {
   findActorByUri,
@@ -199,17 +199,6 @@ async function resolveTargetConnector(
     if (byProtocol) return byProtocol;
   }
   return connectorRegistry.connectorFor(target);
-}
-
-function hasUnavailableCurrentOutbox(actor: {
-  outboxUrl?: string;
-  outboxBackfill?: { outboxUrl?: string; status?: string };
-}): boolean {
-  return Boolean(
-    actor.outboxUrl &&
-      actor.outboxBackfill?.outboxUrl === actor.outboxUrl &&
-      actor.outboxBackfill.status === 'unavailable',
-  );
 }
 
 /** Batch Oxy profiles by source URI, including historical IDs redirected to the same person. */
@@ -820,23 +809,19 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
         return res.json({ posts: [], hasMore: false });
       }
 
-      // ActivityPub outbox backfill.
+      // ActivityPub outbox backfill, through the same decision as the profile
+      // sync: an outbox marked unavailable is not fetched again, but the
+      // account's public statuses are still tried. It reports no `syncing`
+      // then, because nothing promises the empty feed will fill.
       if (actor.outboxUrl) {
-        if (hasUnavailableCurrentOutbox(actor)) {
-          return res.json({ posts: [], hasMore: false, syncing: false, syncUnavailable: true });
-        }
-
-        // Fire-and-forget: sync in background, return syncing flag to client
         activityPubConnector
-          .syncOutboxPostsDetailed(actor, { limit, importReason: 'requested_profile' })
-          .then(async (result) => {
-            if (isPermanentlyUnavailableOutboxReason(result.reason)) {
-              await activityPubConnector.markOutboxBackfillUnavailable(actor, result.reason);
-            }
-          })
+          .syncProfileOutbox(actor, { limit, importReason: 'requested_profile' })
           .catch((err) => {
             logger.warn('Background outbox sync failed:', err);
           });
+        if (isOutboxMarkedUnavailable(actor)) {
+          return res.json({ posts: [], hasMore: false, syncing: false, syncUnavailable: true });
+        }
         return res.json({ posts: [], hasMore: false, syncing: true });
       }
     }

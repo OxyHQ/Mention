@@ -37,6 +37,7 @@ import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { normalizeFederatedAcct, domainFromAcct } from './helpers';
+import { isOutboxMarkedUnavailable } from './outboxSyncCooldown';
 import {
   isPermanentlyUnavailableOutboxReason,
   PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS,
@@ -49,6 +50,7 @@ import {
 // single import site (`activityPubConnector` + these helpers) serves every
 // caller that used to read them from the deleted FederationService facade.
 export {
+  isOutboxMarkedUnavailable,
   isPermanentlyUnavailableOutboxReason,
   PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS,
   type OutboxSyncResult,
@@ -467,6 +469,14 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     return outboxSyncService.syncOutboxPostsDetailed(actor, limitOrOptions);
+  }
+
+  /** A profile view's outbox sync; see {@link OutboxSyncService.syncProfileOutbox}. */
+  syncProfileOutbox(
+    actor: FederatedActorRecord,
+    options: { limit: number; importReason: FederationImportReason },
+  ): Promise<OutboxSyncResult> {
+    return outboxSyncService.syncProfileOutbox(actor, options);
   }
 
   syncFeaturedPost(

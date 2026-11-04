@@ -27,3 +27,22 @@ export function shouldForceUntrackedOutboxSync({
   if (typeof postsCount !== 'number' || postsCount <= 0) return false;
   return !isWithinOutboxSyncCooldown(lastOutboxSyncAt, cooldownMs, nowMs);
 }
+
+/**
+ * The backfill status of the actor's CURRENT outbox; a status recorded for an
+ * outbox the actor no longer advertises says nothing about this one.
+ */
+export function currentOutboxBackfillStatus(actor: {
+  outboxUrl?: string;
+  outboxBackfill?: { outboxUrl?: string; status?: string };
+}): string | undefined {
+  if (!actor.outboxUrl || actor.outboxBackfill?.outboxUrl !== actor.outboxUrl) return undefined;
+  return actor.outboxBackfill.status;
+}
+
+/** Whether the actor's current outbox is marked permanently unavailable. */
+export function isOutboxMarkedUnavailable(
+  actor: Parameters<typeof currentOutboxBackfillStatus>[0],
+): boolean {
+  return currentOutboxBackfillStatus(actor) === 'unavailable';
+}
