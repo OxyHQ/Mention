@@ -13,6 +13,10 @@
  * A pair is scored by the SMALLER of its two directions. Mention's topics are
  * asymmetric (every post about a small topic is about a large one, not the
  * reverse), and the weaker direction is the honest strength of the link.
+ *
+ * Proposed in oxy ADR 0060 (a universal topic catalog and relatedness), which
+ * names this module as the reference implementation; nothing consumes it yet.
+ * See docs/multilingual-trends.md#topic-relatedness-proposed.
  */
 
 /** The Beta prior over a relation's strength. Default mean 0.01, weight 50. */
