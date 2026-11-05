@@ -469,7 +469,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         if (hasRoom) results.push({ type: 'room' });
         if (hasPodcast) results.push({ type: 'podcast' });
         if (hasJob) results.push({ type: 'job' });
-        results.push(...linkItems);
       }
 
       mediaArray.forEach((m) => {
@@ -493,25 +492,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         results.push({ type: 'job' });
       }
 
-      // The descriptor switch above has no `link` case, so a descriptor-driven post
-      // never picks its link cards up there — insert them all here (after the last
-      // poll/article, else before the first media), keeping their text order.
-      if (attachmentDescriptors.length && linkItems.length) {
-        let insertIdx = -1;
-        for (let i = results.length - 1; i >= 0; i--) {
-          if (results[i].type === 'poll' || results[i].type === 'article') {
-            insertIdx = i + 1;
-            break;
-          }
-        }
-        if (insertIdx === -1) {
-          const firstMediaIdx = results.findIndex(
-            (item) => item.type === 'image' || item.type === 'video' || item.type === 'gif',
-          );
-          insertIdx = firstMediaIdx !== -1 ? firstMediaIdx : results.length;
-        }
-        results.splice(insertIdx, 0, ...linkItems);
-      }
+      // Link previews always come last, in text order: they come from the post's
+      // text, so the author's own attachments (media, poll, article…) come first.
+      results.push(...linkItems);
 
       return results;
     }, [
