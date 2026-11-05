@@ -87,10 +87,13 @@ jobs:
         env:
           OXY_SHIP_CLIENT_ID: ${{ env.OXY_CLIENT_ID }}
           OXY_API_URL: https://api.oxy.so
-          SHIP_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        # The update's message is the commit's subject line: oxy-api takes at
+        # most 500 characters, and a squash merge's body is the whole PR.
         run: |
+          subject="${COMMIT_MESSAGE%%$'\n'*}"
           bunx --no-install oxy-ship publish \
             --channel production \
             --platform all \
             --git-commit "$GITHUB_SHA" \
-            --message "$SHIP_MESSAGE"
+            --message "${subject:0:500}"
