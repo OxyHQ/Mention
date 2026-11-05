@@ -32,6 +32,18 @@ import { getRemoteHost } from '../shared/url';
  * A tweet therefore has exactly one transport it may be stored from — zero
  * duplicates, decided from times alone.
  *
+ * The rule governs only what an account's OWN timeline delivers: a post arriving
+ * as its live item (inbox) or from its outbox. A keyed object Mention needs
+ * because something references it — the original of a boost, a quoted post, a
+ * reply's parent or thread ancestor — is stored whatever its time, whenever no
+ * copy with its upstream key exists (the dependency import checks the key
+ * first). Dropping it would withhold the boost or quote that needs it. The
+ * residual: a referenced tweet written before H that mastox also stored exists
+ * twice (2 of the 7 such stored rows on the 3 accounts with a handoff, 0 of the 9
+ * recorded boost/quote imports on accounts held through both bridges, measured
+ * 2026-11-05). A keyless referenced object has no key to check, so it stays under
+ * the rule.
+ *
  * H is written once per account, when Mention first holds an accepted follow of
  * the keyed transport (the Accept's time), and never moved. If Mention held no
  * keyless post of the account by then, H is "none": nothing of that period was
@@ -43,17 +55,21 @@ import { getRemoteHost } from '../shared/url';
  *
  * What is lost, and its bound: a tweet written shortly before H that mastox had
  * not crawled by H — mastox's crawl lag (p99 466 s, max 1,127 s on the 522
- * measured tweets of the last 30 days; longer while mastox is stalled) — and a
- * bird.makeup copy of an older tweet (a quote, a boosted original) that mastox
- * never stored.
+ * measured tweets of the last 30 days; longer while mastox is stalled).
  *
  * Generic: the transports come from the mirror registry. Any keyless mirror of a
  * network with a keyed mirror behaves the same, with no new code.
  */
 
-/** A post's transport and the times the rule reads. */
+/** A post's transport, why it is being stored, and the times the rule reads. */
 export interface HandoffSubject {
   keyed: boolean;
+  /**
+   * `own`: the account's own timeline item (inbox delivery, outbox page).
+   * `referenced`: an object something else references (a boost's original, a
+   * quote target, a reply parent or thread ancestor).
+   */
+  role: 'own' | 'referenced';
   /** Keyed: when the upstream post was written. Keyless: when the transport crawled it. */
   time: Date | undefined;
   isReply: boolean;
@@ -66,6 +82,9 @@ export function belongsToTransport(
 ): boolean {
   // No keyed subscription yet: each transport is a source, as before.
   if (!handoff) return true;
+  // A keyed object something references is stored whatever its time: the caller
+  // only gets here when no copy with its upstream key exists.
+  if (subject.keyed && subject.role === 'referenced') return true;
   if (subject.isReply) return subject.keyed;
   if (handoff.at === null) return subject.keyed;
   if (subject.keyed) return subject.time === undefined || subject.time >= handoff.at;
@@ -98,7 +117,12 @@ export async function transportHandoff(
  */
 export async function transportHandoffRefusal(
   author: { uri: string; domain?: string | null; networkAcct?: string | null },
-  note: { activityId: string; published: Date | undefined; isReply: boolean },
+  note: {
+    activityId: string;
+    published: Date | undefined;
+    isReply: boolean;
+    role: HandoffSubject['role'];
+  },
 ): Promise<string | null> {
   const transport = mirrorTransportOf(author.domain ?? getRemoteHost(author.uri) ?? '');
   if (!transport || !author.networkAcct) return null;
@@ -106,7 +130,10 @@ export async function transportHandoffRefusal(
   const time = transport.keyed
     ? (mirrorPostTime(note.activityId) ?? note.published)
     : note.published;
-  return belongsToTransport({ keyed: transport.keyed, time, isReply: note.isReply }, handoff)
+  return belongsToTransport(
+    { keyed: transport.keyed, role: note.role, time, isReply: note.isReply },
+    handoff,
+  )
     ? null
     : transport.keyed
       ? 'keyed-before-handoff'
