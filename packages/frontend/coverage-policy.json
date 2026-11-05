@@ -237,11 +237,11 @@
   "minimumTestFiles": 140,
   "$comment:expectedCounts": [
     "Equalities, not bounds. Each of these lists is a way to switch the gate off",
-    "one defensible line at a time, and a bound cannot tell growth from shrinkage."
+    "one defensible line at a time, and a bound cannot tell growth from shrinkage.",
+    "Only hand-curated lists are counted: domain files and pins are derived, and",
+    "checks 2 and 3 already fail a file left unpinned or a pin left behind."
   ],
   "expectedCounts": {
-    "domainFiles": 338,
-    "pins": 333,
     "unenforceable": 5,
     "belowBarExemptions": 5,
     "criticalPaths": 35,

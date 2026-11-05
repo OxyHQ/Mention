@@ -29,8 +29,9 @@
  *      defensible line at a time.
  *   4. The RATCHET holds the whole report to the RULE against the recorded
  *      baseline. Falling more than `uncoveredSlackAllowance` items inside it
- *      also fails, telling you to re-anchor — without that, tests added today
- *      could be deleted next month unnoticed.
+ *      means the baseline is stale; the daily `coverage-reanchor` workflow
+ *      re-anchors main then — without that, tests added today could be deleted
+ *      next month unnoticed.
  *   5. The baseline file itself may not RELAX against the base revision. This is
  *      what stops the obvious escape: re-recording a looser baseline in the same
  *      pull request that removed the tests.
@@ -438,7 +439,7 @@ if (unclassified.length > 0) {
     `${unclassified.length} behavioural-logic file(s) are inside a coverage domain but classified nowhere:`,
     `${unclassified.map((path) => `    ${path}  (domain: ${domainOf.get(path)})`).join('\n')}\n` +
       '  Cover it and record the pin, or add it to `unenforceable` in\n' +
-      '  coverage-policy.json with a reason and bump `expectedCounts`.\n' +
+      '  coverage-policy.json with a reason and bump `expectedCounts.unenforceable`.\n' +
       '    bun run --cwd packages/frontend coverage:record\n' +
       `  ${REPRO}`,
   );
@@ -498,20 +499,24 @@ if (staleEntries.length > 0) {
   fail(
     `${staleEntries.length} coverage-policy entr(ies) no longer describe anything:`,
     `${staleEntries.map((entry) => `    ${entry}`).join('\n')}\n` +
-      '  Remove them and bump `expectedCounts` in coverage-policy.json.',
+      '  Remove them (`coverage:record` drops stale pins) and, for a hand-curated\n' +
+      '  list, adjust its `expectedCounts` entry in coverage-policy.json.',
   );
 }
 
 /*
- * 4. Exact counts.
+ * 4. Exact counts of the hand-curated lists.
  *
  * Absent-check: a floor ("at most N exemptions") is satisfied by every value
  * below it, so a list that shrinks by accident — losing a critical path from
  * the bar — reads as an improvement. Only equality notices both directions.
+ *
+ * Domain files and pins are not counted: both are derived, and checks 2 and 3
+ * already fail a domain file with no pin and a pin with no domain file. A count
+ * of them only made two pull requests that each add a file make the same +1
+ * edit, which git merges cleanly and the merge queue then rejects.
  */
 const actualCounts = {
-  domainFiles: domainFiles.length,
-  pins: Object.keys(baseline.pins).length,
   unenforceable: Object.keys(policy.unenforceable).length,
   belowBarExemptions: Object.keys(policy.belowBarExemptions).length,
   criticalPaths: new Set(Object.values(policy.criticalPaths).flat()).size,
@@ -684,10 +689,11 @@ if (webForkFailures.length > 0) {
  * still allows their absence.
  *
  * The stale-baseline half (more than the allowance INSIDE the rule) is advisory
- * outside a pull request (COVERAGE_POLICY_STALE_BASELINE=warn): in the merge
- * queue two changes that each bank less than the allowance can bank more
- * together, and that is no reason to eject either. The next pull request is
- * asked to re-anchor instead.
+ * in CI (COVERAGE_POLICY_STALE_BASELINE=warn): two changes that each re-anchor
+ * the baseline conflict, and two queued changes that each bank less than the
+ * allowance can bank more together. `main` turns the ratchet instead: the daily
+ * `coverage-reanchor` workflow runs this check with the variable unset, and
+ * when it fails re-anchors and opens an auto-merging pull request.
  */
 const staleIsWarning = process.env.COVERAGE_POLICY_STALE_BASELINE === 'warn';
 const measuredSizes = sizesOf(report);
@@ -719,8 +725,8 @@ for (const [index, metric] of METRICS.entries()) {
     const detail =
       `  ${counts}.\n` +
       '  A stale baseline is a ratchet that stopped turning: those items could\n' +
-      '  become uncovered again later without a word. Re-anchor it in\n' +
-      '  this change:\n' +
+      '  become uncovered again later without a word. The daily coverage-reanchor\n' +
+      '  workflow re-anchors main; to do it by hand:\n' +
       '    bun run --cwd packages/frontend coverage:record -- --refresh\n' +
       `  (the allowance before this fires is ${policy.uncoveredSlackAllowance[metric]} uncovered ${metric}).`;
     if (staleIsWarning) warnings.push(`${headline}\n${detail}`);

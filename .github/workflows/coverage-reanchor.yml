@@ -1,0 +1,154 @@
+name: Coverage re-anchor
+
+# Turns the frontend coverage ratchet on `main`, so pull requests never have to.
+#
+# The policy (packages/frontend/scripts/coverage-policy.mjs) calls the baseline
+# stale when the suite sits more than `uncoveredSlackAllowance` items inside
+# what it allows: tests were added and the baseline has not caught up, so they
+# could be deleted later without a word. That check used to fail pull requests
+# and make each one re-record coverage-baseline.json, and two pull requests
+# that each re-recorded it conflicted in the merge queue. CI now only warns
+# (`COVERAGE_POLICY_STALE_BASELINE: warn` in ci.yml), and this runs it on `main`
+# once a day with the variable unset. When it fails, `coverage:record --
+# --refresh` re-anchors the baseline, the check must then pass against `main`
+# (so a real regression is never re-anchored away; check 10 refuses a looser
+# baseline), and ONE branch, `autobump/coverage-baseline`, is force-pushed with
+# ONE pull request that auto-merges through the queue once CI is green.
+#
+# A push or pull request made with GITHUB_TOKEN starts no workflow, so CI is
+# started with `workflow_dispatch` and the pull request's own run, which the
+# org holds for approval because the Actions bot counts as an outside
+# contributor, is approved here — the same as OxyHQ/oxy's oxy-autobump.yml.
+
+on:
+  schedule:
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: coverage-reanchor
+  cancel-in-progress: false
+
+env:
+  # Same as ci.yml.
+  BUN_VERSION: '1.4.4'
+  NODE_VERSION: '24.21.0'
+
+jobs:
+  reanchor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      BRANCH: autobump/coverage-baseline
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run build:shared-types
+      - name: Measure coverage the way CI does
+        run: bun run --cwd packages/frontend test:coverage -- --coverageDirectory="$RUNNER_TEMP/frontend-coverage"
+
+      - name: Is the baseline stale?
+        id: stale
+        env:
+          COVERAGE_POLICY_BASE: HEAD
+        run: |
+          if bun run --cwd packages/frontend coverage:check -- --coverage-dir "$RUNNER_TEMP/frontend-coverage"; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Against HEAD (main as measured): the re-anchored baseline must pass every
+      # check, the no-relaxation one included. A failure here is a regression on
+      # main, not a stale baseline, and is left red for a person.
+      - name: Re-anchor and re-check
+        if: steps.stale.outputs.stale == 'true'
+        env:
+          COVERAGE_POLICY_BASE: HEAD
+        run: |
+          bun run --cwd packages/frontend coverage:record -- --refresh --coverage-dir "$RUNNER_TEMP/frontend-coverage"
+          bun run --cwd packages/frontend coverage:check -- --coverage-dir "$RUNNER_TEMP/frontend-coverage"
+
+      - name: Commit and push the branch
+        id: push
+        if: steps.stale.outputs.stale == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add packages/frontend/coverage-baseline.json
+          git commit -q -m "chore(coverage): re-anchor the frontend baseline" \
+            -m "Opened by coverage-reanchor.yml: main's suite sat more than the allowance inside the recorded baseline."
+          # A branch whose pull request is in the merge queue cannot be updated;
+          # it is about to merge, and the next run re-anchors on top of it.
+          if out=$(git push --force origin "$BRANCH" 2>&1); then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          elif echo "$out" | grep -q "added to a merge queue"; then
+            echo "::notice::$BRANCH is in the merge queue; the next run re-anchors on top of it"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$out"
+            exit 1
+          fi
+
+      - name: Open the pull request
+        id: pr
+        if: steps.push.outputs.pushed == 'true'
+        run: |
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            number=$(gh pr create --head "$BRANCH" --base main \
+              --title "chore(coverage): re-anchor the frontend baseline" \
+              --body "main's frontend suite covers more than coverage-baseline.json records, past the allowance. This re-anchors it (\`coverage:record -- --refresh\`) so the added tests cannot be deleted later unnoticed; the re-anchored baseline passed the policy against main, the no-relaxation check included.
+
+          Opened daily by \`.github/workflows/coverage-reanchor.yml\`; auto-merges once the required checks are green.
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)" | grep -oE '[0-9]+$')
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Start CI on the branch
+        if: steps.push.outputs.pushed == 'true'
+        run: gh workflow run ci.yml --ref "$BRANCH"
+
+      - name: Approve the pull request's own CI run
+        if: steps.push.outputs.pushed == 'true'
+        run: |
+          sha=$(git rev-parse HEAD)
+          for attempt in $(seq 1 12); do
+            ids=$(gh run list --commit "$sha" --event pull_request --json databaseId,conclusion \
+              --jq '.[] | select(.conclusion == "action_required") | .databaseId')
+            if [ -n "$ids" ]; then
+              for id in $ids; do
+                gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/$id/approve" >/dev/null \
+                  || echo "::warning::could not approve run $id"
+              done
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::no pull_request run waiting for approval on $sha"
+
+      # Never `--delete-branch`: on a merge-queue repository it closes the pull
+      # request unmerged. `--auto` enqueues once the required checks are green.
+      - name: Merge when green
+        if: steps.pr.outputs.number != ''
+        env:
+          NUMBER: ${{ steps.pr.outputs.number }}
+        run: gh pr merge "$NUMBER" --auto
