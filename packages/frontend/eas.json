@@ -1,6 +1,6 @@
 {
   "cli": {
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -12,37 +12,36 @@
         "buildType": "apk"
       },
       "extends": "production",
-      "distribution": "internal",
-      "env": {
-        "API_URL": "https://api.mention.earth"
-      }
+      "distribution": "internal"
     },
     "production": {
       "bun": "1.4.4",
       "env": {
-        "API_URL": "https://api.mention.earth",
         "EXPO_PUBLIC_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api.mention.earth"
+        "EXPO_PUBLIC_API_URL": "https://api.mention.earth",
+        "EXPO_PUBLIC_OXY_CLIENT_ID": "oxy_dk_463c7d9366ca7cfd442da884d4963dc78dca829412fd1125",
+        "EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID": "mention",
+        "EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY": "plus",
+        "EXPO_PUBLIC_MENTION_PLUS_OFFER_ID": "mention_plus_monthly",
+        "EXPO_PUBLIC_MENTION_PLUS_OFFER_VERSION": "1",
+        "EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_ID": "mention_plus_annual",
+        "EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_VERSION": "1"
       },
       "android": {
         "buildType": "app-bundle"
-      },
-      "autoIncrement": true
+      }
     },
     "staging": {
       "extends": "production",
       "distribution": "internal"
     },
     "apk": {
+      "extends": "production",
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
       },
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api.mention.earth"
-      }
+      "distribution": "internal"
     }
   }
 }

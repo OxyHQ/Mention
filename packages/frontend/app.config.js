@@ -51,6 +51,16 @@ module.exports = (_config) => {
     (process.env.NODE_ENV === 'production' ? 'https://api.mention.earth' : 'http://localhost:4110');
   const WIDGET_WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
 
+  /**
+   * The same Oxy client id the app's OxyProvider uses (`config.ts`): the
+   * production id comes from the build env (eas.json `production`), the
+   * committed fallback keeps a local build running. Both ids belong to the
+   * Mention application, which is what Oxy Updates resolves the manifest by.
+   */
+  const OXY_CLIENT_ID =
+    process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
+    'oxy_dk_ba07b16e89bd180d2b58c09b02db550e727fa598ed73e2f2';
+
   const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development';
   const APP_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app';
   const IOS_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app';
@@ -95,7 +105,6 @@ module.exports = (_config) => {
           monochromeImage: './assets/images/mention-icon_monochrome.png',
         },
         permissions: ['android.permission.CAMERA', 'android.permission.RECORD_AUDIO'],
-        versionCode: 2,
         // Must match a client package_name in google-services.json.
         package: APP_ID,
         // Bloom previews root history; Expo/RNScreens own pushed routes. The
@@ -414,6 +423,13 @@ module.exports = (_config) => {
           // certificate is the Oxy ecosystem one. No signing plugin of
           // Mention's own may edit build.gradle; prebuild refuses one.
           '@oxy.so/services/plugins/withOxySharedPermissions',
+          // OTA updates from Oxy Updates (oxy-api), published on every push to
+          // main by `.github/workflows/publish-update.yml`. Runtime version is
+          // the app `version` (appVersion policy): bump it for a native change,
+          // which is also what releases a new binary (android-release.yml).
+          // It also derives android.versionCode / ios.buildNumber from
+          // `version`, so neither is kept here.
+          ['@oxy.so/app-preset/plugin/withOxyUpdates', { clientId: OXY_CLIENT_ID }],
         ];
 
         // Only include native-only plugins for native builds (android/ios)

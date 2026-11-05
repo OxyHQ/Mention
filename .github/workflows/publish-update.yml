@@ -1,0 +1,96 @@
+name: Publish OTA update
+
+# Publishes Mention's JS bundle and assets to Oxy Updates (oxy-api), channel
+# `production`, on every push to main that can change what the app runs. The
+# binary polls https://api.oxy.so/updates/v1/apps/<client id>/manifest
+# (`withOxyUpdates` in packages/frontend/app.config.js) and accepts an update
+# only for its own runtime: the app `version` (appVersion policy). A native
+# change bumps `version`, which also makes android-release.yml build and
+# release a new binary.
+#
+# No secret. Authentication is GitHub trusted publishing (oxy ADR 0057): the job
+# asks GitHub for an OIDC token addressed to https://api.oxy.so, and oxy-api
+# exchanges it for a five-minute `updates:publish` token of the Mention app,
+# only for this repository, refs/heads/main and THIS file's path
+# (.github/workflows/publish-update.yml; renaming it breaks publishing).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/frontend/**
+      - packages/shared-types/**
+      - packages/contracts/**
+      - package.json
+      - bun.lock
+      - .github/workflows/publish-update.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: oxy-updates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_DIR: packages/frontend
+      # Mention's PUBLIC client id (not a secret): the one in the manifest URL.
+      OXY_CLIENT_ID: oxy_dk_463c7d9366ca7cfd442da884d4963dc78dca829412fd1125
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --minimum-release-age=0
+
+      # The update must be built with the binary's environment, so it comes from
+      # the same place oxy's android-release.yml reads it: the eas.json
+      # `production` profile's `env` (following `extends`), plus NODE_ENV.
+      - name: Build environment from eas.json
+        run: |
+          node - <<'JS' >> "$GITHUB_ENV"
+          const { readFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          const eas = JSON.parse(readFileSync(join(process.env.APP_DIR, 'eas.json'), 'utf8'));
+          const resolve = (name, seen = new Set()) => {
+            const profile = eas.build?.[name];
+            if (!profile) throw new Error(`eas.json has no build profile "${name}"`);
+            if (seen.has(name)) throw new Error(`eas.json profile "${name}" extends itself`);
+            seen.add(name);
+            const base = profile.extends ? resolve(profile.extends, seen) : {};
+            return { ...base, ...profile.env };
+          };
+          for (const [key, value] of Object.entries(resolve('production'))) {
+            if (!/^[A-Z_][A-Z0-9_]*$/.test(key) || /[\r\n]/.test(String(value))) {
+              throw new Error(`eas.json env ${key} cannot be exported`);
+            }
+            console.log(`${key}=${value}`);
+          }
+          console.log('NODE_ENV=production');
+          JS
+
+      - name: Publish to Oxy Updates
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          OXY_SHIP_CLIENT_ID: ${{ env.OXY_CLIENT_ID }}
+          OXY_API_URL: https://api.oxy.so
+          SHIP_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          bunx --no-install oxy-ship publish \
+            --channel production \
+            --platform all \
+            --git-commit "$GITHUB_SHA" \
+            --message "$SHIP_MESSAGE"

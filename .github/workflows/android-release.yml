@@ -1,0 +1,23 @@
+name: Android release
+
+# Builds and releases the signed Android app on Oxy's build machine whenever
+# packages/frontend's `version` has no GitHub release yet (`android-v<version>`);
+# any other push ends after reading the version, because a JS-only change ships
+# as an OTA update (publish-update.yml). The build environment is the eas.json
+# `production` profile's `env`. oxy docs/engineering/build-and-deploy.md#native-android-releases.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: OxyHQ/oxy/.github/workflows/android-release.yml@main
+    with:
+      app-dir: packages/frontend

@@ -44,6 +44,18 @@ CI's `merge_group` trigger is inert until the merge-queue ruleset is enabled on
 | `mcp.mention.earth`                              | AWS ECS service `mention-mcp`, port `3100` | `oxy/mention-mcp` | `.github/workflows/deploy-mcp-aws.yml`   |
 | `shell.mention.earth` (static Expo web export)   | Cloudflare Worker `mention-frontend`       | —                 | `.github/workflows/deploy-frontends.yml` |
 
+The native apps ship outside AWS:
+
+| Surface                              | How it ships                                                                                                                                   | Workflow                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Android binary (`earth.mention.app`) | Signed AAB + APK built on Oxy's build machine, GitHub release `android-v<version>`, only when `packages/frontend` `version` has no release yet | `.github/workflows/android-release.yml` (calls oxy's) |
+| OTA update (iOS and Android JS)      | Oxy Updates, channel `production`, on every push to main touching the app; GitHub trusted publishing, no secret                                | `.github/workflows/publish-update.yml`                |
+
+The app `version` is both the OTA runtime and the store build number
+(`@oxy.so/app-preset` derives `versionCode` 2.0.0 → 2000000): bump it for a
+native change, never for a JS-only one. Both builds take their environment
+from the eas.json `production` profile's `env`.
+
 GitHub Actions assumes the OIDC role `oxy-github-deploy` to push images and
 deploy. Runtime secrets live only in SSM `/oxy/mention/*` and
 `/oxy/mention-mcp/*`; no workflow writes them (see [Runtime secrets](#runtime-secrets)).
