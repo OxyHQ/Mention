@@ -86,7 +86,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
-    "@oxy.so/doctor": "1.6.1",
+    "@oxy.so/doctor": "1.7.0",
     "@types/node": "catalog:",
     "semver": "^7.8.6",
     "typescript": "catalog:",
