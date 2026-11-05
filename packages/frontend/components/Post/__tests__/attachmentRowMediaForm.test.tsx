@@ -17,14 +17,19 @@ import PostAttachmentsRow from '../PostAttachmentsRow';
  * when it is alone.
  */
 const captured: { hasSingleMedia?: boolean; type?: string }[] = [];
+const renderOrder: string[] = [];
 
 jest.mock('../Attachments', () => ({
   PostAttachmentMedia: (props: { hasSingleMedia?: boolean; type?: string }) => {
     captured.push(props);
+    renderOrder.push('media');
     return null;
   },
   PostAttachmentArticle: () => null,
-  PostAttachmentLink: () => null,
+  PostAttachmentLink: () => {
+    renderOrder.push('link');
+    return null;
+  },
   PostAttachmentExternalEmbed: () => null,
   PostAttachmentPoll: () => null,
   PostAttachmentNested: () => null,
@@ -96,4 +101,16 @@ describe('a media cell is the hero form only when it is alone in the row', () =>
   ])('yields the row form beside %s', (_label, props) => {
     expect(formOfVideo(props)).toBe(false);
   });
+});
+
+it('renders link previews after the media and other attachments', () => {
+  renderOrder.length = 0;
+  const props: Record<string, unknown> = {
+    documents: [{ canonicalUrl: 'https://example.com' }],
+    attachments: [{ type: 'media', id: 'm1', mediaType: 'video' }],
+  };
+  act(() => {
+    TestRenderer.create(<PostAttachmentsRow postId="post-1" media={video} {...props} />);
+  });
+  expect(renderOrder).toEqual(['media', 'link']);
 });
