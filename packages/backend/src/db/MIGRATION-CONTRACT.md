@@ -66,6 +66,25 @@ The full rules and the outage behind them: oxy's
 `packages/api/src/db/MIGRATION-CONTRACT.md` ("Every migration keeps its locks
 short").
 
+## When another branch's migration landed first
+
+Two branches cut from one base both take the next number. `db:check-locks` then
+fails the second: a number taken twice, a journal `when` not newer than the
+entry before it (the migrator would skip it on every database that applied the
+newer one), or a snapshot not chained to the previous one. Fix it with:
+
+```bash
+git merge origin/main                 # resolve the code conflicts first
+bun run --cwd packages/backend db:rebase-migrations
+```
+
+It renumbers the branch's migrations after main's, makes each `when` newer,
+chains the snapshots, regenerates the last one with `db:generate` (it needs the
+`DATABASE_URL` drizzle.config.ts asks for; drizzle-kit never connects) and keeps
+the hand-written SQL, saying whether drizzle-kit's matches it. The result is
+staged; replace the old number in comments and tests that name the file, then
+commit.
+
 ## Where the rest went
 
 The id-remapping decision, the `select: false` replacement, the TTL registry, the
