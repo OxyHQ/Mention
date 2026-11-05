@@ -70,15 +70,6 @@ export const ANY_DID_RE = /^did:(?:plc|web):/;
 export const AT_URI_RE =
   /^at:\/\/(did:(?:plc|web):[^/]+|[a-z0-9][a-z0-9.-]*\.[a-z]{2,})(?:\/([a-zA-Z0-9.]+)(?:\/([a-zA-Z0-9._~-]+))?)?$/i;
 
-/**
- * An atproto handle: a DNS domain name (≥2 labels, e.g. `alice.bsky.social` or a
- * custom domain `example.com`). Deliberately excludes anything containing `@`
- * (that is a fediverse `user@host` acct, owned by the ActivityPub connector) or a
- * URL scheme. The TLD label must be alphabetic so a bare IP / numeric form never
- * matches.
- */
-export const HANDLE_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
-
 /** True when `subject` is a supported atproto DID. */
 export function isDid(subject: string): boolean {
   return ANY_DID_RE.test(subject);
@@ -104,11 +95,5 @@ export function didFromAtUri(value: string): string | undefined {
   return did && ANY_DID_RE.test(did) ? did : undefined;
 }
 
-/**
- * True when `subject` looks like an atproto handle (a bare DNS name with no `@`
- * and no URL scheme). `*.bsky.social` and any other registrable domain qualify.
- */
-export function isAtprotoHandle(subject: string): boolean {
-  if (subject.includes('@') || subject.includes('://') || subject.includes(' ')) return false;
-  return HANDLE_RE.test(subject);
-}
+/** The handle rule is shared with the frontend (`@mention/shared-types/handle`). */
+export { isAtprotoHandle } from '@mention/shared-types/handle';

@@ -44,6 +44,7 @@ describe('looksLikeRemoteHandle — the shapes it already recognised', () => {
     '@alice@mastodon.social',
     'alice@mastodon.social',
     'alice.bsky.social',
+    '@alice.bsky.social',
     'did:plc:ewvi7nxzyoun6zhxrhs64oiz',
     'at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/app.bsky.feed.post/3k',
   ])('still asks about %s', (query) => {

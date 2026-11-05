@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { normalizeFederatedAcct } from '@mention/shared-types/federation';
+import { stripAtprotoHandlePrefix } from '@mention/shared-types/handle';
 import { feedService, type ExternalActorResolution } from '@/services/feedService';
 import { looksLikeRemoteHandle } from '@/utils/externalActor';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
@@ -46,7 +47,8 @@ export function useExternalActorResolve(rawQuery: string): ExternalActorResoluti
   const isRemoteQuery = useMemo(() => looksLikeRemoteHandle(debounced), [debounced]);
   // One spelling per account, so `@Alice@Host` and `alice@host` share one cache
   // entry and send one identical request.
-  const handle = normalizeFederatedAcct(debounced) ?? debounced;
+  // `@alice.bsky.social` and `alice.bsky.social` likewise.
+  const handle = normalizeFederatedAcct(debounced) ?? stripAtprotoHandlePrefix(debounced);
 
   const { data } = useQuery<ExternalActorResolution | null>({
     queryKey: publicQueryKeys.externalActorResolve(handle),

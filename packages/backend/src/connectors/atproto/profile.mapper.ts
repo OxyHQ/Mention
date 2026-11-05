@@ -1,7 +1,7 @@
 import { resolveAvatarUrl } from '../../utils/mediaResolver';
 import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { logger } from '../../utils/logger';
-import type { FederatedActorRecord } from '../../db/federation/actorRecord';
+import type { FederatedActorField, FederatedActorRecord } from '../../db/federation/actorRecord';
 import { upsertActor } from '../../db/federation/actorRepository';
 import type { ResolveExternalIdentityResponse } from '@oxy.so/contracts';
 import { observeOxySource, resolveOxyIdentity, type ObservedOxySource } from '../oxyIdentity';
@@ -50,6 +50,37 @@ export interface AtprotoProfileView {
   createdAt?: string;
   /** `com.atproto.label.defs#label`s on the account, its own self-labels among them. */
   labels?: { val?: string }[];
+  /** The profile's links (`app.bsky.actor.link` records, hydrated by the AppView). */
+  links?: { url?: string; title?: string }[];
+}
+
+/** No profile shows more links than this; Bluesky's own editor allows fewer. */
+const MAX_PROFILE_LINKS = 10;
+
+/**
+ * The profile's links as the actor's metadata rows: the title as the name and the
+ * URL as the value, the shape an ActivityPub `PropertyValue` is stored in, so one
+ * table and one renderer serve both networks. Only `http(s)` URLs are kept, and a
+ * link with no title is named by its host. Never verified: Bluesky does not prove
+ * a link the way `rel="me"` does.
+ */
+export function atprotoProfileLinks(profile: AtprotoProfileView): FederatedActorField[] {
+  if (!Array.isArray(profile.links)) return [];
+  const fields: FederatedActorField[] = [];
+  for (const link of profile.links) {
+    if (fields.length >= MAX_PROFILE_LINKS) break;
+    if (typeof link?.url !== 'string') continue;
+    let url: URL;
+    try {
+      url = new URL(link.url);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') continue;
+    const title = typeof link.title === 'string' ? normalizeInlineText(link.title) : '';
+    fields.push({ name: title || url.hostname, value: url.href });
+  }
+  return fields;
 }
 
 /**
@@ -74,6 +105,8 @@ export interface AtprotoProfileFacts {
   remoteCreatedAt?: Date;
   /** {@link atprotoRequiresSignIn}. Absent is false. */
   requiresSignIn?: boolean;
+  /** {@link atprotoProfileLinks}. Absent is none. */
+  links?: FederatedActorField[];
 }
 
 /**
@@ -203,9 +236,9 @@ export async function upsertAtprotoActor(
     // The AP-shaped columns this profile has no analogue for are written at their
     // schema defaults rather than left alone. That is safe precisely because this
     // is the ONLY writer of an `atproto` actor row: a Bluesky account has no AP
-    // inbox, no locked-followers flag and no verified-links table, so there is no
-    // other writer whose values could be clobbered — and an empty `fields` list
-    // therefore clears nothing that was ever populated.
+    // inbox and no locked-followers flag, so there is no other writer whose values
+    // could be clobbered. The metadata rows are the profile's links, replaced on
+    // every read, so a link removed on Bluesky is removed here.
     fedActor = await upsertActor(
       did,
       {
@@ -235,7 +268,7 @@ export async function upsertAtprotoActor(
         remoteCreatedAt: profileFacts.remoteCreatedAt,
         lastFetchedAt: new Date(),
       },
-      [],
+      profileFacts.links ?? [],
     );
   } catch (err) {
     // Continuing with no row must not abort discovery — but it is NOT a benign
@@ -358,5 +391,6 @@ export async function fetchAndUpsertAtprotoProfile(
         ? trustedRemoteCreatedAt(new Date(profile.createdAt))
         : undefined,
     requiresSignIn: atprotoRequiresSignIn(profile),
+    links: atprotoProfileLinks(profile),
   });
 }

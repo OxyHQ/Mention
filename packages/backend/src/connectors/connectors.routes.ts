@@ -41,6 +41,7 @@ import {
   resolveTargetConnector,
   syncOtherTransports,
 } from './transportFollows';
+import { stripAtprotoHandlePrefix } from '@mention/shared-types/handle';
 import { classifyQuery } from './resolve';
 import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { postHydrationService } from '../services/PostHydrationService';
@@ -157,7 +158,7 @@ const actorPostsQuerySchema = z.object({
 });
 
 const resolveQuerySchema = z.object({
-  handle: z.string().min(1).max(512).refine(isResolvableQuery, {
+  handle: z.string().min(1).max(512).transform(stripAtprotoHandlePrefix).refine(isResolvableQuery, {
     message: 'handle must be a fediverse acct, atproto handle/DID, or username',
   }),
 });
