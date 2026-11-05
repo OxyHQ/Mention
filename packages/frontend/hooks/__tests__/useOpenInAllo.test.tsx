@@ -75,7 +75,7 @@ it('hands the app link to the OS', async () => {
 
 it('offers "Get Allo" and the web app, under the caller\'s label, when Allo is not installed', async () => {
   setOS('android');
-  const store = 'https://play.google.com/store/apps/details?id=com.allo.app';
+  const store = 'https://play.google.com/store/apps/details?id=you.allo.app';
   mockPlayStoreUrl = store;
   openURL
     .mockRejectedValueOnce(new Error('No Activity found to handle Intent'))
