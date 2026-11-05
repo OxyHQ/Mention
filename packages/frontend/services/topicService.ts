@@ -3,28 +3,20 @@ import { logger } from '@oxy.so/core/logger';
 import type { TopicData, TopicType } from '@oxy.so/core';
 
 class TopicService {
+  // Errors propagate: an empty list would read as "no topics exist", and the
+  // picker needs to tell a failed load apart from an empty catalogue.
   async getCategories(locale?: string): Promise<TopicData[]> {
-    try {
-      const res = await authenticatedClient.get<{ topics?: TopicData[] }>('/topics/categories', {
-        params: locale ? { locale } : undefined,
-      });
-      return res.data.topics || [];
-    } catch (error) {
-      logger.warn('Failed fetching topic categories', { error });
-      return [];
-    }
+    const res = await authenticatedClient.get<{ topics?: TopicData[] }>('/topics/categories', {
+      params: locale ? { locale } : undefined,
+    });
+    return res.data.topics || [];
   }
 
   async search(query: string, limit: number = 10): Promise<TopicData[]> {
-    try {
-      const res = await authenticatedClient.get<{ topics?: TopicData[] }>('/topics/search', {
-        params: { q: query, limit },
-      });
-      return res.data.topics || [];
-    } catch (error) {
-      logger.warn('Failed searching topics', { error });
-      return [];
-    }
+    const res = await authenticatedClient.get<{ topics?: TopicData[] }>('/topics/search', {
+      params: { q: query, limit },
+    });
+    return res.data.topics || [];
   }
 
   async list(options?: {

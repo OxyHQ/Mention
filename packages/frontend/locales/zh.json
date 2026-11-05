@@ -3442,6 +3442,8 @@
       "description": "一键关注一个新手包，或逐个挑选。",
       "packsTitle": "新手包",
       "suggestionsTitle": "你可能喜欢的人",
+      "packsDescription": "一次关注整组人。",
+      "suggestionsDescription": "根据你的兴趣推荐的账号。",
       "followAll": "全部关注",
       "followingAll": "已全部关注"
     },

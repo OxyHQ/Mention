@@ -43,7 +43,6 @@ export async function installDraftFixture(
   ].join('.');
   await context.addInitScript(
     ({ user, token, expiresAt, draftKey, seedDrafts }) => {
-      localStorage.setItem('welcome_modal_seen', 'true');
       localStorage.setItem(
         'oxy.auth.v1',
         JSON.stringify({

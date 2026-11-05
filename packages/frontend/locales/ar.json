@@ -3561,6 +3561,8 @@
       "description": "تابع حزمة بداية بنقرة واحدة، أو اختر الأشخاص واحدًا تلو الآخر.",
       "packsTitle": "حزم البداية",
       "suggestionsTitle": "أشخاص قد يعجبونك",
+      "packsDescription": "تابع مجموعة كاملة دفعة واحدة.",
+      "suggestionsDescription": "حسابات مختارة وفق اهتماماتك.",
       "followAll": "متابعة الجميع",
       "followingAll": "تتابع الجميع"
     },

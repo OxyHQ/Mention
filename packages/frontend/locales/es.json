@@ -3472,6 +3472,8 @@
       "description": "Sigue un starter pack con un toque, o elige a las personas una a una.",
       "packsTitle": "Starter packs",
       "suggestionsTitle": "Personas que te pueden gustar",
+      "packsDescription": "Sigue a un grupo entero de una vez.",
+      "suggestionsDescription": "Cuentas elegidas según tus intereses.",
       "followAll": "Seguir a todos",
       "followingAll": "Siguiendo a todos"
     },

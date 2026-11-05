@@ -3442,6 +3442,8 @@
       "description": "Bir başlangıç paketini tek dokunuşla takip et ya da kişileri tek tek seç.",
       "packsTitle": "Başlangıç paketleri",
       "suggestionsTitle": "Hoşuna gidebilecek kişiler",
+      "packsDescription": "Bir grubun tamamını tek seferde takip et.",
+      "suggestionsDescription": "İlgi alanlarına göre seçilmiş hesaplar.",
       "followAll": "Tümünü takip et",
       "followingAll": "Tümünü takip ediyorsun"
     },

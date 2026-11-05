@@ -3472,6 +3472,8 @@
       "description": "Segueix un starter pack amb un toc, o tria les persones una a una.",
       "packsTitle": "Starter packs",
       "suggestionsTitle": "Persones que et poden agradar",
+      "packsDescription": "Segueix un grup sencer de cop.",
+      "suggestionsDescription": "Comptes triats segons els teus interessos.",
       "followAll": "Segueix-los tots",
       "followingAll": "Els segueixes tots"
     },

@@ -3442,6 +3442,8 @@
       "description": "スターターパックをワンタップでフォローするか、一人ずつ選びましょう。",
       "packsTitle": "スターターパック",
       "suggestionsTitle": "おすすめの人",
+      "packsDescription": "グループ全体をまとめてフォローできます。",
+      "suggestionsDescription": "興味に合わせて選ばれたアカウントです。",
       "followAll": "すべてフォロー",
       "followingAll": "すべてフォロー中"
     },

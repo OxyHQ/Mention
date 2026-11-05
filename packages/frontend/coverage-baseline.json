@@ -757,8 +757,6 @@
     "components/SuggestedProfileCard.tsx": [9,10,2,9],
     "components/SupervisedFeatureGate.tsx": [10,9,2,9],
     "components/UserName.tsx": [36,54,3,35],
-    "components/WelcomeModal.tsx": [29,23,10,28],
-    "components/WelcomeModalGate.tsx": [27,11,6,26],
     "components/WelcomeRedirectGate.tsx": [5,6,1,4],
     "components/WhoToFollowTab.tsx": [55,55,11,54],
     "components/ZoomableAvatar.tsx": [58,72,12,47],

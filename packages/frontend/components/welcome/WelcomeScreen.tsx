@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
+import { CardBody, CardDescription, CardHeader } from '@oxy.so/bloom/card';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { PageFooter } from '@oxy.so/bloom/page-footer';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Muted, Title } from '@oxy.so/bloom/typography';
-import { WizardFooter, WizardProgress, type WizardStep } from '@oxy.so/bloom/wizard';
+import { WizardProgress, type WizardStep } from '@oxy.so/bloom/wizard';
 import { TopicPicker } from '@/components/interests/TopicPicker';
 import { requestSettings } from '@/components/settings/settingsRoutes';
 import { LazyWhoToFollowTab } from '@/components/sharedRouteScreens';
@@ -19,6 +22,16 @@ import { WelcomeStarterPacks } from './WelcomeStarterPacks';
  */
 function destination(next: string | undefined): string {
   return next?.startsWith('/') && !next.startsWith('//') ? next : '/';
+}
+
+/** A step's heading: its title, and the line under it, in Bloom's card header. */
+function StepHeading({ title, description }: { title: string; description?: string }) {
+  return (
+    <CardHeader>
+      <Title variant="display-3-semibold">{title}</Title>
+      {description ? <CardDescription>{description}</CardDescription> : null}
+    </CardHeader>
+  );
 }
 
 /**
@@ -58,47 +71,76 @@ export function WelcomeScreen() {
     });
   };
 
+  const primaryAction = (
+    <Button
+      size="lg"
+      onPress={isLast ? finish : () => setStep(step + 1)}
+      loading={complete.isPending}
+    >
+      {isLast ? t('welcome.finish') : t('welcome.next')}
+    </Button>
+  );
+
   return (
     <Screen
+      // Content passes under the floating header and footer, as in Bloom's own
+      // floating chrome, instead of stopping at a bar.
+      bottomBarPlacement="overlay"
       header={
-        <View className="px-4 pt-4">
-          <WizardProgress
-            steps={steps}
-            current={step}
-            formatStepCount={(position, total) => t('welcome.stepCount', { position, total })}
-            action={
-              <Button size="sm" appearance="subtle" tone="neutral" onPress={finish}>
-                {t('welcome.skip')}
-              </Button>
-            }
-          />
-        </View>
+        <PageHeader
+          onBack={null}
+          actions={
+            <Button size="sm" appearance="subtle" tone="neutral" onPress={finish}>
+              {t('welcome.skip')}
+            </Button>
+          }
+          accessory={
+            <WizardProgress
+              steps={steps}
+              current={step}
+              hideTitle
+              formatStepCount={(position, total) => t('welcome.stepCount', { position, total })}
+            />
+          }
+        />
       }
       bottomBar={
-        <WizardFooter
-          onBack={step > 0 ? () => setStep(step - 1) : undefined}
-          backLabel={t('welcome.back')}
-          onNext={isLast ? finish : () => setStep(step + 1)}
-          nextLabel={isLast ? t('welcome.finish') : t('welcome.next')}
-          loading={complete.isPending}
-        />
+        <PageFooter scrim="always" actions={primaryAction}>
+          {/* Always present, so the primary action stays on the right on every step. */}
+          <ButtonGroup separated>
+            {step > 0 ? (
+              <ButtonGroupItem onPress={() => setStep(step - 1)}>
+                {t('welcome.back')}
+              </ButtonGroupItem>
+            ) : null}
+          </ButtonGroup>
+        </PageFooter>
       }
     >
       {step === 0 ? (
-        <ScreenScrollView contentContainerClassName="pt-2">
+        <ScreenScrollView>
+          <StepHeading title={steps[0].title} description={steps[0].description} />
           <TopicPicker query="" />
         </ScreenScrollView>
       ) : step === 1 ? (
-        <LazyWhoToFollowTab listHeaderComponent={<WelcomeStarterPacks />} />
+        <LazyWhoToFollowTab
+          showInviteBanner={false}
+          listHeaderComponent={
+            <>
+              <StepHeading title={steps[1].title} description={steps[1].description} />
+              <WelcomeStarterPacks />
+            </>
+          }
+        />
       ) : (
-        <ScreenScrollView contentContainerClassName="gap-3 px-4 pt-4">
-          <Title variant="headline-semibold">{t('welcome.profile.heading')}</Title>
-          <Muted>{t('welcome.profile.body')}</Muted>
-          <View className="flex-row">
+        <ScreenScrollView>
+          <StepHeading title={steps[2].title} description={steps[2].description} />
+          <CardBody>
+            <Muted>{t('welcome.profile.body')}</Muted>
             <Button onPress={() => requestSettings('/settings/edit-profile')}>
               {t('welcome.profile.edit')}
             </Button>
-          </View>
+          </CardBody>
         </ScreenScrollView>
       )}
     </Screen>

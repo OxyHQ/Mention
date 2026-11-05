@@ -71,7 +71,6 @@ async function serveDocument(context: BrowserContext, path: string, og: OgData |
     route.fulfill({ json: seoAuthor }),
   );
 
-  await context.addInitScript(() => localStorage.setItem('welcome_modal_seen', 'true'));
   await context.route(
     (url) => url.origin === APP_ORIGIN,
     async (route) => {

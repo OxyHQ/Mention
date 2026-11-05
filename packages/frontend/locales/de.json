@@ -3442,6 +3442,8 @@
       "description": "Folge einem Starterpaket mit einem Tipp oder wähle Personen einzeln aus.",
       "packsTitle": "Starterpakete",
       "suggestionsTitle": "Leute, die dir gefallen könnten",
+      "packsDescription": "Folge einer ganzen Gruppe auf einmal.",
+      "suggestionsDescription": "Konten, die zu deinen Interessen passen.",
       "followAll": "Allen folgen",
       "followingAll": "Du folgst allen"
     },

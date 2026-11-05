@@ -3442,6 +3442,8 @@
       "description": "Ikuti starter pack dengan satu ketukan, atau pilih orang satu per satu.",
       "packsTitle": "Starter pack",
       "suggestionsTitle": "Orang yang mungkin kamu sukai",
+      "packsDescription": "Ikuti satu kelompok sekaligus.",
+      "suggestionsDescription": "Akun yang dipilih sesuai minatmu.",
       "followAll": "Ikuti semua",
       "followingAll": "Mengikuti semua"
     },

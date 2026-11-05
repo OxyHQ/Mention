@@ -1,7 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
-import { Title } from '@oxy.so/bloom/typography';
+import { CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { ResponsiveGrid } from '@oxy.so/bloom/grid';
+import { Button } from '@oxy.so/bloom/button';
+import { Muted } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import { FollowButton } from '@/components/FollowButton';
@@ -30,10 +32,12 @@ export function WelcomeStarterPacks() {
   const router = useRouter();
   const { user, canUsePrivateApi } = useAuth();
 
+  // The catalogue is public, so it loads for a visitor too; only following a
+  // pack needs a session. Gating the query on the session left a visitor with a
+  // skeleton that never resolved.
   const query = useQuery({
     queryKey: viewerQueryKeys.feedInterstitial(user?.id, 'suggested-starter-packs'),
     queryFn: () => starterPacksService.list({ excludeUsed: true }),
-    enabled: canUsePrivateApi,
   });
 
   // Following is the FollowButton's job; recording that the pack was USED (which
@@ -46,36 +50,64 @@ export function WelcomeStarterPacks() {
   });
 
   const packs = (query.data?.items ?? []).slice(0, WELCOME_STARTER_PACKS);
-  if (!query.isPending && packs.length === 0) return null;
+  // A failed load is shown as one, with a retry, and never as a missing section.
+  if (!query.isPending && !query.isError && packs.length === 0) return null;
 
+  // One CardBody per pack: each body carries its own vertical padding, so the
+  // packs stack with Bloom's spacing between them and align with the header.
   return (
-    <View className="gap-3 px-4 pb-6">
-      <Title variant="headline-semibold">{t('welcome.people.packsTitle')}</Title>
-      {query.isPending ? (
-        <StarterPackCardSkeleton />
-      ) : (
-        packs.map((pack) => {
-          const id = starterPackId(pack);
-          return (
-            <View key={id} className="gap-2">
-              <StarterPackCard
-                pack={starterPackCardData(pack)}
-                onPress={() => router.push(`/starter-packs/${id}`)}
-              />
-              <FollowButton
-                userIds={pack.memberOxyUserIds ?? []}
-                size="sm"
-                followAllLabel={t('welcome.people.followAll')}
-                followedAllLabel={t('welcome.people.followingAll')}
-                onBulkFollow={() => recordUse.mutate(id)}
-              />
-            </View>
-          );
-        })
-      )}
-      <Title variant="headline-semibold" className="pt-4">
-        {t('welcome.people.suggestionsTitle')}
-      </Title>
-    </View>
+    <>
+      <CardHeader>
+        <CardTitle>{t('welcome.people.packsTitle')}</CardTitle>
+        <CardDescription>{t('welcome.people.packsDescription')}</CardDescription>
+      </CardHeader>
+      <CardBody>
+        {query.isPending ? (
+          <StarterPackCardSkeleton />
+        ) : query.isError ? (
+          <>
+            <Muted>{t('welcome.people.loadError')}</Muted>
+            <Button
+              size="sm"
+              appearance="subtle"
+              tone="neutral"
+              onPress={() => void query.refetch()}
+            >
+              {t('common.retry')}
+            </Button>
+          </>
+        ) : (
+          <ResponsiveGrid minItemWidth={260} maxColumns={2}>
+            {packs.map((pack) => {
+              const id = starterPackId(pack);
+              return (
+                <StarterPackCard
+                  key={id}
+                  pack={starterPackCardData(pack)}
+                  onPress={() => router.push(`/starter-packs/${id}`)}
+                  footer={
+                    canUsePrivateApi ? (
+                      <FollowButton
+                        userIds={pack.memberOxyUserIds ?? []}
+                        size="sm"
+                        followAllLabel={t('welcome.people.followAll')}
+                        followedAllLabel={t('welcome.people.followingAll')}
+                        onBulkFollow={() => recordUse.mutate(id)}
+                      />
+                    ) : (
+                      <Muted>{t('welcome.people.signInToFollow')}</Muted>
+                    )
+                  }
+                />
+              );
+            })}
+          </ResponsiveGrid>
+        )}
+      </CardBody>
+      <CardHeader>
+        <CardTitle>{t('welcome.people.suggestionsTitle')}</CardTitle>
+        <CardDescription>{t('welcome.people.suggestionsDescription')}</CardDescription>
+      </CardHeader>
+    </>
   );
 }
