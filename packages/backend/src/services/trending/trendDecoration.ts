@@ -12,7 +12,7 @@ import { MtnConfig } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { trending } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
-import { isFallbackUserSummary, resolveUserSummaries } from '../PostHydrationService';
+import { resolveKnownUsers } from '../../utils/knownUsers';
 import { buildTrendSeries } from './trendSeries';
 import type { SerializedTrend } from './trendRow';
 import type { PostUser } from '@mention/shared-types';
@@ -89,28 +89,14 @@ export async function loadVolumeSeries(
  * Resolve the stored actor ids of a page of trends into renderable users.
  *
  * ONE batched call for the whole page (at most `limit × maxActors` ids), on
- * the same Redis-backed resolver feed hydration uses — never a per-trend or
- * per-actor fetch, which is the N+1 this resolver exists to collapse.
- *
- * Fail-soft: a resolution failure costs the faces, never the trends. Degraded
- * (unresolvable) ids are dropped rather than rendered, on the same rule the
- * rest of the app follows — an avatar with no identity behind it is not
- * evidence that people are posting, which is the only thing these faces claim.
+ * the shared cached identity lookup ({@link resolveKnownUsers}) — never a
+ * per-trend or per-actor fetch. Fail-soft: a resolution failure costs the
+ * faces, never the trends. Unresolvable ids are dropped rather than rendered —
+ * an avatar with no identity behind it is not evidence that people are
+ * posting, which is the only thing these faces claim.
  */
-export async function loadTrendActors(
+export function loadTrendActors(
   trends: readonly Pick<SerializedTrend, 'actorIds'>[],
 ): Promise<Map<string, PostUser>> {
-  const resolved = new Map<string, PostUser>();
-  const actorIds = [...new Set(trends.flatMap((trend) => trend.actorIds ?? []))];
-  if (actorIds.length === 0) return resolved;
-
-  try {
-    for (const [actorId, summary] of await resolveUserSummaries(actorIds)) {
-      if (!isFallbackUserSummary(summary.user)) resolved.set(actorId, summary.user);
-    }
-  } catch (error) {
-    logger.warn('[Trending] Actor resolution failed; trends will render without faces', { error });
-  }
-
-  return resolved;
+  return resolveKnownUsers(trends.flatMap((trend) => trend.actorIds ?? []));
 }

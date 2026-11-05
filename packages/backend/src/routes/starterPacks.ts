@@ -10,7 +10,8 @@ import {
   starterPacks,
 } from '../db/schema/lists';
 import { starterPackSearchPredicate } from '../utils/searchPredicates';
-import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
+import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveKnownUsers } from '../utils/knownUsers';
 import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
 import type { AvatarIdentitySummary, PostUser } from '@mention/shared-types';
 import { avatarIdentitySummary } from '../utils/avatarIdentitySummary';
@@ -276,36 +277,21 @@ async function replaceMembers(tx: Transaction, packId: string, memberIds: string
  * Resolve a starter pack's members to ready-to-render summaries server-side, in
  * the SAME order the owner arranged them.
  *
- * Member identity MUST be resolved on the backend: {@link resolveUserSummaries}
- * goes through the Oxy bulk `/users/by-ids` endpoint, which requires a SERVICE
- * credential that only exists on the server. A browser client calling
- * `getUsersByIds` silently resolves nothing (the SDK swallows the missing-token
- * error and returns `[]`), which is exactly what left the detail screen showing
- * "0 accounts". This mirrors the list path's {@link enrichWithMemberAvatars}.
+ * Member identity MUST be resolved on the backend: the cached identity lookup
+ * ({@link resolveKnownUsers}) goes through the Oxy bulk `/users/by-ids`
+ * endpoint, which requires a SERVICE credential that only exists on the server.
+ * A browser client calling `getUsersByIds` silently resolves nothing (the SDK
+ * swallows the missing-token error and returns `[]`), which is exactly what left
+ * the detail screen showing "0 accounts". This mirrors the list path's
+ * {@link enrichWithMemberAvatars}.
  *
- * Ids that don't resolve to a real Oxy user (deleted/unknown — the resolver
- * returns its degraded fallback summary) are skipped so we never render a
- * nameless/handle-less placeholder row. Best-effort: a resolution failure
- * returns `[]` so the detail still renders (the caller keeps `memberCount`).
+ * Ids that don't resolve to a real Oxy user (deleted/unknown) are skipped so we
+ * never render a nameless/handle-less placeholder row. Best-effort: a resolution
+ * failure yields `[]` so the detail still renders (the caller keeps `memberCount`).
  */
 async function hydratePackMembers(memberIds: string[]): Promise<StarterPackMember[]> {
-  if (memberIds.length === 0) return [];
-  try {
-    const summaries = await resolveUserSummaries(memberIds);
-    const members: StarterPackMember[] = [];
-    for (const id of memberIds) {
-      const resolved = summaries.get(id);
-      if (!resolved || isFallbackUserSummary(resolved.user)) continue;
-      members.push(resolved.user);
-    }
-    return members;
-  } catch (error) {
-    logger.warn('[StarterPacks] Failed to resolve members for detail', {
-      memberCount: memberIds.length,
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-    return [];
-  }
+  const users = await resolveKnownUsers(memberIds);
+  return memberIds.flatMap((id) => users.get(id) ?? []);
 }
 
 /**

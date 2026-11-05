@@ -20,7 +20,8 @@ import {
 import { logger } from './logger';
 import type { PostAuthorshipEntry, PostUser } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
-import { resolveActorProfiles, toPopulatedActor } from './notificationActor';
+import { resolveKnownUsers } from './knownUsers';
+import { toPopulatedActor } from './notificationActor';
 import { mapWithConcurrency } from './concurrency';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 
@@ -288,7 +289,7 @@ async function refreshRepeatedNotifications(
 
 /**
  * The actor lookups for ONE fan-out: every actor of the batch in one read of
- * the shared user-summary cache ({@link resolveActorProfiles}), made on first
+ * the shared user-summary cache ({@link resolveKnownUsers}), made on first
  * use. A fan-out is about one actor (and usually one post), and the socket
  * payload and the push body both need it: without the batch, a post to 200
  * subscribers asked Oxy for its author 400 times. An unresolved actor is
@@ -300,7 +301,7 @@ function createDeliveryLookups(actorIds: readonly string[]): PushLookups & {
   let profiles: Promise<Map<string, PostUser>> | undefined;
   return {
     async actor(actorId) {
-      profiles ??= resolveActorProfiles(actorIds);
+      profiles ??= resolveKnownUsers(actorIds);
       return (await profiles).get(actorId) ?? null;
     },
   };

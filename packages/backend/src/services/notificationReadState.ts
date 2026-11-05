@@ -30,7 +30,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { notifications } from '../db/schema/discovery';
-import { resolveActorProfiles, toPopulatedActor } from '../utils/notificationActor';
+import { resolveKnownUsers } from '../utils/knownUsers';
+import { toPopulatedActor } from '../utils/notificationActor';
 import { serializeNotification } from '../utils/notificationUtils';
 
 /** The wire shape both the REST response and the socket event carry. */
@@ -48,7 +49,7 @@ export async function enrichNotificationActor(
   notification: typeof notifications.$inferSelect,
 ): Promise<EnrichedNotification> {
   const actorId = notification.actorId;
-  const actor = (await resolveActorProfiles([actorId])).get(actorId);
+  const actor = (await resolveKnownUsers([actorId])).get(actorId);
   return {
     ...serializeNotification(notification),
     actorId_populated: toPopulatedActor(actor, actorId),

@@ -1,9 +1,6 @@
 import type { AccountKind, AvatarCharacter } from '@oxy.so/contracts';
-import type { PostUser } from '@mention/shared-types';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
-import { isFallbackUserSummary, resolveUserSummaries } from '../services/PostHydrationService';
 import { degradedActorSummary } from './degradedActorSummary';
-import { logger } from './logger';
 import { resolveAvatarUrl } from './mediaResolver';
 
 /** Minimal actor shape accepted from Oxy and realtime notification callers. */
@@ -16,45 +13,6 @@ export interface NotificationActorProfile {
   avatar?: string | null;
   kind?: AccountKind;
   character?: AvatarCharacter | null;
-}
-
-/** The synthetic actor of server-authored notifications; it is not an Oxy account. */
-const SYSTEM_ACTOR: PostUser = {
-  id: SYSTEM_NOTIFICATION_ACTOR_ID,
-  username: 'system',
-  name: { displayName: 'System' },
-};
-
-/**
- * Public profiles for notification actors (and the channels and people a
- * notification surface names), through the shared Redis user-summary cache —
- * the ONE resolver behind the notification list, mark-read, the socket event,
- * the push body and the pokes lists, so none of them asks Oxy for an identity
- * the cache already holds.
- *
- * The synthetic `system` actor is answered here and never sent to Oxy. An id
- * Oxy could not resolve is left OUT, so the caller renders its neutral
- * identity. Never rejects: every caller treats the actor as best-effort.
- */
-export async function resolveActorProfiles(ids: Iterable<string>): Promise<Map<string, PostUser>> {
-  const profiles = new Map<string, PostUser>();
-  const oxyIds: string[] = [];
-  for (const id of new Set(ids)) {
-    if (id === SYSTEM_NOTIFICATION_ACTOR_ID) profiles.set(id, SYSTEM_ACTOR);
-    else if (id) oxyIds.push(id);
-  }
-  if (oxyIds.length === 0) return profiles;
-  try {
-    for (const [id, summary] of await resolveUserSummaries(oxyIds)) {
-      if (!isFallbackUserSummary(summary.user)) profiles.set(id, summary.user);
-    }
-  } catch (error) {
-    logger.warn('[Notifications] Failed to resolve actor profiles', {
-      count: oxyIds.length,
-      error,
-    });
-  }
-  return profiles;
 }
 
 function safeVisualValue(value: unknown, rawIds: Set<string>): string {
