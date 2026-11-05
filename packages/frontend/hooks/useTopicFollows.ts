@@ -10,7 +10,7 @@
  * per rendered row" — and without it a grid of twenty chips opens with twenty
  * status requests.
  *
- * `useTopicFollowTargetId` resolves ONE topic's target id, because following
+ * `useTopicFollowTarget` resolves ONE topic's target id, because following
  * takes a target id and never a URI: registration is the moment an application
  * vouches that a thing exists, and if following created targets a typo would
  * become a permanent row one person follows and nobody else can reach.
@@ -109,12 +109,12 @@ export function useFollowedTopics(): FollowedTopicsResult {
  * above already named — the id is right there on the record, so a chip the
  * viewer follows costs nothing.
  */
-export function useTopicFollowTargetId(input: {
+export function useTopicFollowTarget(input: {
   slug: string | undefined;
   displayName?: string;
   icon?: string;
   seededTargetId?: string;
-}): string | undefined {
+}): { targetId: string | undefined; error: unknown } {
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const uri = input.slug ? topicFollowUri(input.slug) : '';
 
@@ -153,5 +153,10 @@ export function useTopicFollowTargetId(input: {
     staleTime: Infinity,
   });
 
-  return input.seededTargetId ?? query.data;
+  return {
+    targetId: input.seededTargetId ?? query.data,
+    // Registering a target can be refused (the session was not granted through an
+    // application authorization). The chip must say so, not stay silently inert.
+    error: input.seededTargetId ? undefined : query.error,
+  };
 }

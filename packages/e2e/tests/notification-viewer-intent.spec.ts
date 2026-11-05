@@ -41,7 +41,6 @@ function profile(id: string) {
 
 async function installSwitchingFixture(page: Page) {
   const context = page.context();
-  await context.addInitScript(() => localStorage.setItem('welcome_modal_seen', 'true'));
   await context.routeWebSocket('**/*', (socket) => socket.close());
   await installNotificationFixture(context, undefined, true);
   let remote: string | null = userA;

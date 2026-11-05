@@ -39,16 +39,6 @@ const WIRE_FRAMING_HEADERS = new Set(['content-encoding', 'content-length', 'tra
 /** Path prefix Expo emits every hashed JavaScript bundle and route chunk under. */
 const CANDIDATE_SCRIPT_PREFIX = '/_expo/static/js/';
 
-/**
- * `WelcomeModalGate` shows a viewport-covering first-visit modal to anonymous
- * web visitors 300ms after the app reports ready, and records the dismissal in
- * `localStorage` under this key. Left alone it would land on top of every flow
- * at a moment nothing can wait on, so the gate browses as a RETURNING anonymous
- * visitor instead. That is a deliberate narrowing: the first-visit modal itself
- * is not covered here.
- */
-const WELCOME_MODAL_SEEN_KEY = 'welcome_modal_seen';
-
 export interface CandidateBuild {
   /** Every app-origin path answered from the candidate deployment, in request order. */
   readonly servedPaths: string[];
@@ -60,10 +50,6 @@ export const test = base.extend<{ candidate: CandidateBuild }>({
   candidate: async ({ context, page }, use) => {
     const servedPaths: string[] = [];
     const scriptErrors: string[] = [];
-
-    await context.addInitScript((key: string) => {
-      window.localStorage.setItem(key, 'true');
-    }, WELCOME_MODAL_SEEN_KEY);
 
     // Matching on the parsed origin rather than a glob keeps this exact: only
     // the app's own origin is rerouted. Calls to api.mention.earth and the media

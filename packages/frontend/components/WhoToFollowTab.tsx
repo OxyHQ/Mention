@@ -37,10 +37,15 @@ export interface WhoToFollowTabProps {
    * which pass the same trends strip as the Feed's `listHeaderComponent`.
    */
   listHeaderComponent?: React.ReactElement;
+  /** The invite-friends banner above the list. Default `true`; a first-run flow turns it off. */
+  showInviteBanner?: boolean;
 }
 
 /** Explore › Who to follow: recommended accounts for the viewer. */
-export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}) {
+export function WhoToFollowTab({
+  listHeaderComponent,
+  showInviteBanner,
+}: WhoToFollowTabProps = {}) {
   const { t } = useTranslation();
   const query = useInfiniteRecommendations();
   return (
@@ -51,6 +56,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
       // contract), so each button starts at Follow instead of asking.
       excludesFollowed
       listHeaderComponent={listHeaderComponent}
+      showInviteBanner={showInviteBanner}
     />
   );
 }
@@ -80,6 +86,7 @@ function ProfileDiscoveryList({
   emptyTitle,
   excludesFollowed,
   listHeaderComponent,
+  showInviteBanner = true,
 }: ProfileDiscoveryListProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -172,28 +179,37 @@ function ProfileDiscoveryList({
     () => (
       <>
         {listHeaderComponent}
-        <TouchableOpacity
-          className="bg-card border-border"
-          style={styles.inviteBanner}
-          onPress={handleInviteFriends}
-          activeOpacity={0.7}
-        >
-          <View className="bg-primary" style={styles.inviteIconContainer}>
-            <RiGroupFill width={18} fill={theme.colors.card} />
-          </View>
-          <View style={styles.inviteContent}>
-            <Text className="leading-6 text-foreground" style={styles.inviteTitle}>
-              {t('settings.inviteContacts.inviteBannerTitle')}
-            </Text>
-            <Text className="leading-6 text-muted-foreground" style={styles.inviteSubtitle}>
-              {t('settings.inviteContacts.inviteBannerSubtitle')}
-            </Text>
-          </View>
-          <RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
+        {showInviteBanner ? (
+          <TouchableOpacity
+            className="bg-card border-border"
+            style={styles.inviteBanner}
+            onPress={handleInviteFriends}
+            activeOpacity={0.7}
+          >
+            <View className="bg-primary" style={styles.inviteIconContainer}>
+              <RiGroupFill width={18} fill={theme.colors.card} />
+            </View>
+            <View style={styles.inviteContent}>
+              <Text className="leading-6 text-foreground" style={styles.inviteTitle}>
+                {t('settings.inviteContacts.inviteBannerTitle')}
+              </Text>
+              <Text className="leading-6 text-muted-foreground" style={styles.inviteSubtitle}>
+                {t('settings.inviteContacts.inviteBannerSubtitle')}
+              </Text>
+            </View>
+            <RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        ) : null}
       </>
     ),
-    [listHeaderComponent, handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t],
+    [
+      listHeaderComponent,
+      showInviteBanner,
+      handleInviteFriends,
+      theme.colors.card,
+      theme.colors.textSecondary,
+      t,
+    ],
   );
 
   // The first load paints the row skeletons (the list header stays put), so the

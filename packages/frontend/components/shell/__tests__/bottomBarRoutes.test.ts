@@ -6,6 +6,18 @@ describe('hidesBottomBar', () => {
     expect(hidesBottomBar('/compose')).toBe(true);
   });
 
+  // The first-run flow owns its own Back/Next footer: the tab bar and the
+  // sign-in invitation stacked under it (the wizard's footer was covered).
+  it('hides the bar over the first-run welcome flow', () => {
+    expect(hidesBottomBar('/welcome')).toBe(true);
+    expect(
+      bottomBarContent({ pathname: '/welcome', isAuthenticated: true, isAuthResolved: true }),
+    ).toBeNull();
+    expect(
+      bottomBarContent({ pathname: '/welcome', isAuthenticated: false, isAuthResolved: true }),
+    ).toBeNull();
+  });
+
   it.each([
     '/',
     '/videos',

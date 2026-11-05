@@ -7,7 +7,7 @@
  * TAB, is not listed: it is a pager page, and the bar fades out over it with
  * the swipe.
  */
-const FULL_SCREEN_ROUTES = ['/compose'] as const;
+const FULL_SCREEN_ROUTES = ['/compose', '/welcome'] as const;
 
 export function hidesBottomBar(pathname: string | null | undefined): boolean {
   if (!pathname) return false;

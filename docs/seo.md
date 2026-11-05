@@ -83,9 +83,9 @@ indexed only while a listable post carries the tag.
 
 ## Interstitials
 
-The first-visit welcome modal covers the page, so it is shown only wider than a
-phone (`useIsScreenNotMobile`): Google indexes the phone layout and ranks down
-pages an interstitial hides. Phones get the sign-in banner instead.
+Mention shows no interstitial over public pages. Anonymous visitors get the
+sign-in banner instead, because Google indexes the page underneath and ranks
+down pages an interstitial hides.
 
 ## URLs
 

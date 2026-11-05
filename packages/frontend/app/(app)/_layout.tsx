@@ -27,7 +27,6 @@ import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
 import { RightBar } from '@/components/RightBar';
 import { useMentionSidebar } from '@/components/navigation/useMentionSidebar';
 import { SignInBanner } from '@/components/SignInBanner';
-import WelcomeModalGate from '@/components/WelcomeModalGate';
 import { WelcomeRedirectGate } from '@/components/WelcomeRedirectGate';
 import { BootMilestone } from '@/components/BootMilestone';
 import { reportBoundaryError } from '@/components/AppErrorBoundary';
@@ -273,7 +272,6 @@ export default function AppLayout() {
       <RegisterPush />
       <PushNotificationOpener />
       <BootMilestone name="route-mounted" />
-      <WelcomeModalGate appIsReady={true} />
       <WelcomeRedirectGate />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}
     </>

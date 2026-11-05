@@ -37,8 +37,8 @@
  * mounted, laid out, and carrying geometry, and still have no image element to
  * measure. Measured on the build that was blocked: twelve rows mounted, three of
  * them carrying media the DTO had dimensions for, all three past that threshold,
- * and zero of their media `<img>` in the DOM — leaving link previews and the
- * welcome-modal background to satisfy a wait that was supposed to mean "the post
+ * and zero of their media `<img>` in the DOM — leaving link previews and a
+ * background image to satisfy a wait that was supposed to mean "the post
  * images have loaded".
  *
  * It then tried to recover the real set by asking whether a rendered URL

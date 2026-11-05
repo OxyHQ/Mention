@@ -1,6 +1,6 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
@@ -64,6 +64,8 @@ interface StarterPackCardProps {
   onPress?: () => void;
   /** Hide description (compact variant for notifications) */
   noDescription?: boolean;
+  /** An action drawn inside the card, under its stats (e.g. a Follow-all button). */
+  footer?: ReactNode;
 }
 
 /** Max avatars shown in the compact row cluster before the "+N" overflow chip. */
@@ -78,7 +80,7 @@ const MAX_ROW_AVATARS = 6;
  * - "N users have joined!" stat (shown when useCount >= 50)
  * - Falls back to the starter-pack mark when no member avatars available
  */
-export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCardProps) {
+export function StarterPackCard({ pack, onPress, noDescription, footer }: StarterPackCardProps) {
   const router = useRouter();
   const theme = useTheme();
   const { user } = useAuth();
@@ -212,6 +214,8 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
             {formatCompactNumber(pack.useCount)} users have joined!
           </Text>
         )}
+
+        {footer}
       </Card>
     </PressableScale>
   );
