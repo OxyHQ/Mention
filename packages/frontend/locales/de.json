@@ -867,9 +867,7 @@
     },
     "joined": "Dabei seit",
     "links": {
-      "title": "Links",
-      "other": "und {{count}} weiterer Link",
-      "others": "und {{count}} weitere Links"
+      "title": "Links"
     },
     "media": {
       "title": "Profilmedien",

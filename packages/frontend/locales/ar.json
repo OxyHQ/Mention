@@ -927,9 +927,7 @@
     },
     "joined": "انضم في",
     "links": {
-      "title": "الروابط",
-      "other": "و{{count}} آخر",
-      "others": "و{{count}} آخرين"
+      "title": "الروابط"
     },
     "media": {
       "title": "وسائط الملف الشخصي",

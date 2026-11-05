@@ -867,9 +867,7 @@
     },
     "joined": "Bergabung",
     "links": {
-      "title": "Tautan",
-      "other": "dan {{count}} lainnya",
-      "others": "dan {{count}} lainnya"
+      "title": "Tautan"
     },
     "media": {
       "title": "Media profil",

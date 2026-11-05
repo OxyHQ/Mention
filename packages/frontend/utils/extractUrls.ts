@@ -1,6 +1,6 @@
 /**
  * URL extraction for the composer's link-preview cards and the profile
- * `LinkSummary`.
+ * profile link chips.
  *
  * What counts as a URL, where the run ends, and which trailing punctuation
  * belongs to the sentence rather than the link all come from

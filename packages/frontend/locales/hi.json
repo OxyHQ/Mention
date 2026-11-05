@@ -867,9 +867,7 @@
     },
     "joined": "शामिल हुए",
     "links": {
-      "title": "लिंक",
-      "other": "और {{count}} अन्य",
-      "others": "और {{count}} अन्य"
+      "title": "लिंक"
     },
     "media": {
       "title": "प्रोफ़ाइल मीडिया",

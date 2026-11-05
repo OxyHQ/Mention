@@ -867,9 +867,7 @@
     },
     "joined": "加入于",
     "links": {
-      "title": "链接",
-      "other": "以及另外 {{count}} 个",
-      "others": "以及另外 {{count}} 个"
+      "title": "链接"
     },
     "media": {
       "title": "主页媒体",

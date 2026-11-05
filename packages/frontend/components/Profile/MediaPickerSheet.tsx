@@ -216,7 +216,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
  * - Song: audition a result, choose a 30s start offset, save `{type:'song'}`.
  * - Podcast: pick a show (no preview, no start), save `{type:'podcast'}`.
  * Saving either kind replaces the other (the backend stores a single field), and
- * "Remove" clears it. Mirrors `LinkSummary`'s sheet shell + debounced search.
+ * "Remove" clears it. Mirrors `ProfileLinkChips`' sheet shell + debounced search.
  */
 export const MediaPickerSheet = memo(function MediaPickerSheet({
   currentMedia,

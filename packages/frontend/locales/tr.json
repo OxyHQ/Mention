@@ -867,9 +867,7 @@
     },
     "joined": "Katılma tarihi",
     "links": {
-      "title": "Bağlantılar",
-      "other": "ve {{count}} bağlantı daha",
-      "others": "ve {{count}} bağlantı daha"
+      "title": "Bağlantılar"
     },
     "media": {
       "title": "Profil medyası",
