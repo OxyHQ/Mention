@@ -274,7 +274,8 @@ const ANON_FEED_CACHE_NAMESPACE = 'mtn:quote-v2';
  *
  * Nothing here blocks on remote I/O — `syncOnProfileView` awaits one indexed
  * lookup and detaches the network work. A later page (`cursor` present) is a
- * genuine end-of-feed, and a page WITH items needs no sync.
+ * genuine end-of-feed. A first page WITH items is never pending, but it still
+ * refreshes a federated author in the background (`refreshOnProfileView`).
  *
  * LANES change what an empty first page MEANS. An author who curated every one of
  * their lanes off the profile has an empty tab and a full archive — that page is
@@ -291,11 +292,17 @@ async function resolveAuthorFeedPending(
   cursor: string | undefined,
   response: SlicedFeedResponse,
 ): Promise<boolean> {
-  if (cursor || response.items.length > 0) return false;
+  if (cursor) return false;
   const { source, params } = parseFeedDescriptor(descriptor);
   if (source !== 'author') return false;
   const authorId = params[0];
   if (!authorId) return false;
+  if (response.items.length > 0) {
+    // A profile that already has posts is refreshed in the background, so an
+    // account nobody follows does not stay frozen at its first import.
+    federatedProfileSync.refreshOnProfileView(authorId);
+    return false;
+  }
   if (await ownerHasProfileAffectingLane(authorId)) return false;
   return federatedProfileSync.syncOnProfileView(authorId);
 }

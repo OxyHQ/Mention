@@ -34,11 +34,17 @@ deduped on its AT-URI (`posts.federation_activity_id`). The triggers differ:
 
 | Trigger                            | What it reads                                              | Where                                |
 | ---------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
-| Someone opens a profile            | The newest author-feed page                                | `connectors/federatedProfileSync.ts` |
+| Someone opens a profile            | The newest author-feed page, at most every 15 minutes      | `connectors/federatedProfileSync.ts` |
 | Someone follows the account        | The newest author-feed page                                | `AtprotoConnector.followActor`       |
 | Periodic sync of followed accounts | The newest page of each due account                        | `syncFollowedAtprotoAccounts`        |
 | Periodic history backfill          | Older pages, from a saved cursor                           | `advanceAtprotoHistoryBackfills`     |
 | Jetstream, live                    | New posts of followed accounts; deletes of any stored post | `connectors/atproto/jetstream/`      |
+
+An account nobody here follows gets no other refresh: Jetstream and the periodic
+sync read followed accounts only. Opening its profile therefore refreshes it
+whether or not its posts were imported before (`refreshOnProfileView` when the
+first page has posts, `syncOnProfileView` when it is empty), off the request path
+and at most once per cooldown.
 
 ### Followed accounts are re-read in the background
 

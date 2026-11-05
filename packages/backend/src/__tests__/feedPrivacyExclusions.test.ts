@@ -111,7 +111,10 @@ vi.mock('../services/anonFeedCache', () => ({
   },
 }));
 vi.mock('../connectors/federatedProfileSync', () => ({
-  federatedProfileSync: { syncOnProfileView: vi.fn(async () => false) },
+  federatedProfileSync: {
+    syncOnProfileView: vi.fn(async () => false),
+    refreshOnProfileView: vi.fn(),
+  },
 }));
 /**
  * Pass-through tuner pipeline.
