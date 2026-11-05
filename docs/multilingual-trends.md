@@ -37,6 +37,18 @@ author floors in the same window.
 The graph exposes each edge's normalized strength and reason (`cooccurrence` or
 `canonical-alias`) so every merge is auditable.
 
+## Topic relatedness (proposed)
+
+[Oxy ADR 0060](https://github.com/OxyHQ/oxy/blob/main/docs/adr/0060-universal-topic-catalog.md)
+proposes one Oxy topic catalog and a derived table of related topics that every
+product feeds with co-occurrence observations. Its scoring core lives here,
+pure and storage-free: `services/topics/relatedness.ts`. A direction A → B is a
+Beta posterior `(co + α) / (volume(A) + α + β)` (default α = 0.5, β = 49.5), a
+pair is scored by its weaker direction, a pair needs at least 3 shared items,
+each topic keeps its top 20, and one item contributes at most 8 topics (28
+pairs). Nothing reads it yet; trends keep the admission rules above until the
+ADR's rollout reaches them.
+
 ## Post membership and presentation
 
 `trend_story_posts` materializes which posts belong to each stored story and its
