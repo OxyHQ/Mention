@@ -1389,6 +1389,8 @@
       "searchLabel": "Themen suchen",
       "noMatches": "Keine Themen passen zu „{{query}}“.",
       "noTopics": "Es sind noch keine Themen verfügbar.",
+      "loadError": "Themen konnten nicht geladen werden.",
+      "followUnavailable": "Themen folgen ist für dieses Konto gerade nicht verfügbar.",
       "chipFollow": "{{topic}} folgen",
       "chipUnfollow": "{{topic}} nicht mehr folgen",
       "chipOffHere": "{{topic}} in Mention wieder anzeigen",
@@ -3444,6 +3446,8 @@
       "suggestionsTitle": "Leute, die dir gefallen könnten",
       "packsDescription": "Folge einer ganzen Gruppe auf einmal.",
       "suggestionsDescription": "Konten, die zu deinen Interessen passen.",
+      "loadError": "Starter-Packs konnten nicht geladen werden.",
+      "signInToFollow": "Melde dich an, um einem Starter-Pack zu folgen.",
       "followAll": "Allen folgen",
       "followingAll": "Du folgst allen"
     },

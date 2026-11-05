@@ -1389,6 +1389,8 @@
       "searchLabel": "বিষয় খুঁজুন",
       "noMatches": "“{{query}}”-এর সাথে কোনো বিষয় মেলেনি।",
       "noTopics": "এখনও কোনো বিষয় উপলব্ধ নেই।",
+      "loadError": "বিষয়গুলো লোড করা যায়নি।",
+      "followUnavailable": "এই অ্যাকাউন্টের জন্য বিষয় অনুসরণ করা এখন সম্ভব নয়।",
       "chipFollow": "{{topic}} ফলো করুন",
       "chipUnfollow": "{{topic}} আনফলো করুন",
       "chipOffHere": "Mention-এ আবার {{topic}} দেখান",
@@ -3444,6 +3446,8 @@
       "suggestionsTitle": "যাদের আপনার ভালো লাগতে পারে",
       "packsDescription": "একসাথে পুরো দলকে অনুসরণ করুন।",
       "suggestionsDescription": "আপনার আগ্রহ অনুযায়ী বাছাই করা অ্যাকাউন্ট।",
+      "loadError": "স্টার্টার প্যাক লোড করা যায়নি।",
+      "signInToFollow": "একটি স্টার্টার প্যাক অনুসরণ করতে সাইন ইন করুন।",
       "followAll": "সবাইকে অনুসরণ করুন",
       "followingAll": "সবাইকে অনুসরণ করছেন"
     },

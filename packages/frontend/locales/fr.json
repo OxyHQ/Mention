@@ -1407,6 +1407,8 @@
       "searchLabel": "Rechercher des sujets",
       "noMatches": "Aucun sujet ne correspond à « {{query}} ».",
       "noTopics": "Aucun sujet n'est disponible pour l'instant.",
+      "loadError": "Impossible de charger les sujets.",
+      "followUnavailable": "Le suivi des sujets n'est pas disponible pour ce compte pour le moment.",
       "chipFollow": "Suivre {{topic}}",
       "chipUnfollow": "Ne plus suivre {{topic}}",
       "chipOffHere": "Afficher de nouveau {{topic}} dans Mention",
@@ -3474,6 +3476,8 @@
       "suggestionsTitle": "Des personnes qui pourraient vous plaire",
       "packsDescription": "Suivez un groupe entier d'un coup.",
       "suggestionsDescription": "Comptes choisis selon vos centres d'intérêt.",
+      "loadError": "Impossible de charger les packs de démarrage.",
+      "signInToFollow": "Connectez-vous pour suivre un pack de démarrage.",
       "followAll": "Tout suivre",
       "followingAll": "Tous suivis"
     },

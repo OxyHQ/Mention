@@ -1407,6 +1407,8 @@
       "searchLabel": "Pesquisar temas",
       "noMatches": "Nenhum tema corresponde a “{{query}}”.",
       "noTopics": "Ainda não há temas disponíveis.",
+      "loadError": "Não foi possível carregar os temas.",
+      "followUnavailable": "Seguir temas não está disponível para esta conta agora.",
       "chipFollow": "Seguir {{topic}}",
       "chipUnfollow": "Deixar de seguir {{topic}}",
       "chipOffHere": "Voltar a mostrar {{topic}} no Mention",
@@ -3474,6 +3476,8 @@
       "suggestionsTitle": "Pessoas de que você pode gostar",
       "packsDescription": "Siga um grupo inteiro de uma vez.",
       "suggestionsDescription": "Contas escolhidas com base nos seus interesses.",
+      "loadError": "Não foi possível carregar os pacotes iniciais.",
+      "signInToFollow": "Entre para seguir um pacote inicial.",
       "followAll": "Seguir todos",
       "followingAll": "Seguindo todos"
     },

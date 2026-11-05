@@ -3446,8 +3446,8 @@
       "suggestionsTitle": "People you might like",
       "packsDescription": "Follow a whole group at once.",
       "suggestionsDescription": "Accounts picked for your interests.",
-"loadError": "Starter packs couldn't load.",
-"signInToFollow": "Sign in to follow a starter pack.",
+      "loadError": "Starter packs couldn't load.",
+      "signInToFollow": "Sign in to follow a starter pack.",
       "followAll": "Follow all",
       "followingAll": "Following all"
     },
