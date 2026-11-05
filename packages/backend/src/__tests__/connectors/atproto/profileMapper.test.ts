@@ -45,6 +45,7 @@ import {
 } from '../../../connectors/atproto/profile.mapper';
 import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
 import { findFederatedVisibilityOptOuts } from '../../../db/federation/actorRepository';
+import { loadRemoteProfileStats } from '../../../services/federation/remoteProfileStats';
 import { metrics } from '../../../utils/metrics';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
@@ -295,6 +296,26 @@ describe('fetchAndUpsertAtprotoProfile', () => {
       oxyUserId: 'oxy-alice',
       actorUri: DID,
       bannerUrl: PROFILE.banner,
+    });
+  });
+
+  it("stores the profile's links as its metadata rows", async () => {
+    mocks.getProfile.mockResolvedValue({
+      ...PROFILE,
+      links: [
+        { url: 'https://youtube.com/@alice', title: 'Alice on YouTube' },
+        { url: 'https://example.com/pod' },
+        { url: 'javascript:alert(1)', title: 'dropped' },
+      ],
+    });
+
+    await fetchAndUpsertAtprotoProfile(DID);
+
+    expect(await loadRemoteProfileStats('oxy-alice')).toMatchObject({
+      fields: [
+        { name: 'Alice on YouTube', value: 'https://youtube.com/@alice' },
+        { name: 'example.com', value: 'https://example.com/pod' },
+      ],
     });
   });
 
