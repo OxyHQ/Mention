@@ -22,7 +22,7 @@ interface ProfileSongProps {
  * compact row (a play/pause circle, the track artwork, and "Title · Artist" on
  * one line) that auditions a 30s preview when tapped. Owners can open the picker
  * (long-press the row or tap the edit affordance). Placed right after the profile
- * stats. Mirrors `LinkSummary`'s compact-row shape.
+ * stats. Mirrors `ProfileLinkChips`' compact-row shape.
  */
 export const ProfileSong = memo(function ProfileSong({
   song,

@@ -882,9 +882,7 @@
     },
     "joined": "Inscrit en",
     "links": {
-      "title": "Liens",
-      "other": "et {{count}} autre",
-      "others": "et {{count}} autres"
+      "title": "Liens"
     },
     "media": {
       "title": "Média du profil",

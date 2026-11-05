@@ -867,9 +867,7 @@
     },
     "joined": "登録日",
     "links": {
-      "title": "リンク",
-      "other": "ほか{{count}}件",
-      "others": "ほか{{count}}件"
+      "title": "リンク"
     },
     "media": {
       "title": "プロフィールメディア",

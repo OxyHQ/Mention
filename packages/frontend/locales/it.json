@@ -882,9 +882,7 @@
     },
     "joined": "Iscritto",
     "links": {
-      "title": "Link",
-      "other": "e {{count}} altro",
-      "others": "e altri {{count}}"
+      "title": "Link"
     },
     "media": {
       "title": "Contenuto del profilo",

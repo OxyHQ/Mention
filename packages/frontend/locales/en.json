@@ -867,9 +867,7 @@
     },
     "joined": "Joined",
     "links": {
-      "title": "Links",
-      "other": "and {{count}} other",
-      "others": "and {{count}} others"
+      "title": "Links"
     },
     "media": {
       "title": "Profile media",

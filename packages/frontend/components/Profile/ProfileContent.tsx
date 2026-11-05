@@ -5,7 +5,7 @@ import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { ProfileFields } from './ProfileFields';
-import { LinkSummary } from './LinkSummary';
+import { ProfileLinkChips } from './ProfileLinkChips';
 import { ProfileMedia } from './ProfileMedia';
 import { FollowedByRow } from './FollowedByRow';
 import { ProfileCommunities } from './ProfileCommunities';
@@ -96,6 +96,15 @@ export const ProfileContent = memo(function ProfileContent({
         />
       )}
 
+      {/* Links as pills, under the bio (Bluesky's layout) */}
+      <ProfileLinkChips
+        links={mergeBioAndProfileLinks(
+          profileData.linksMetadata,
+          profileData.links,
+          profileData.bio,
+        )}
+      />
+
       <ProfileFields fields={profileData.fields} />
 
       {/* Meta info (location, join date) */}
@@ -134,15 +143,6 @@ export const ProfileContent = memo(function ProfileContent({
 
       {/* Social proof — mutual followers ("Followed by Ana, Luis and N others") */}
       <FollowedByRow profileId={profileData.id} username={profileHandle} />
-
-      {/* Links (Instagram-style summary row + bottom sheet) */}
-      <LinkSummary
-        links={mergeBioAndProfileLinks(
-          profileData.linksMetadata,
-          profileData.links,
-          profileData.bio,
-        )}
-      />
 
       {/* Communities */}
       {profileData.communities &&

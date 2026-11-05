@@ -13,7 +13,7 @@ function normalizedKey(url: string): string {
 
 /**
  * Merges URLs found in the profile bio into the explicit profile-link set so the
- * `LinkSummary` row and sheet show both. Explicit links come first (keeping their
+ * profile link chips and their sheet show both. Explicit links come first (keeping their
  * title/description/image metadata); bio-only URLs are appended in bio order.
  * Dedup is by normalized URL and explicit links always win.
  */

@@ -882,9 +882,7 @@
     },
     "joined": "Aderiu",
     "links": {
-      "title": "Ligações",
-      "other": "e mais {{count}}",
-      "others": "e mais {{count}}"
+      "title": "Ligações"
     },
     "media": {
       "title": "Multimédia do perfil",

@@ -882,9 +882,7 @@
     },
     "joined": "S'hi va unir el",
     "links": {
-      "title": "Enllaços",
-      "other": "i {{count}} més",
-      "others": "i {{count}} més"
+      "title": "Enllaços"
     },
     "media": {
       "title": "Multimèdia del perfil",
