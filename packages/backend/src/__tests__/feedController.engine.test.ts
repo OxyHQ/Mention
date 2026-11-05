@@ -99,8 +99,9 @@ vi.mock('../services/anonFeedCache', () => ({ anonFeedCache: anonCache }));
 // Federated sync-on-view: the side effect an empty author feed triggers. Defaults
 // to "nothing to sync" so unrelated tests are unaffected.
 const syncOnProfileView = vi.hoisted(() => vi.fn(async (): Promise<boolean> => false));
+const refreshOnProfileView = vi.hoisted(() => vi.fn());
 vi.mock('../connectors/federatedProfileSync', () => ({
-  federatedProfileSync: { syncOnProfileView },
+  federatedProfileSync: { syncOnProfileView, refreshOnProfileView },
 }));
 
 import * as feedContext from '../mtn/feed/feedContext';
@@ -333,7 +334,7 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
     expect(body.data.pending).toBeUndefined();
   });
 
-  it('does not sync when the profile feed already has posts', async () => {
+  it('refreshes a profile that already has posts without marking it pending', async () => {
     const req = {
       accessToken: 'test-viewer-session',
       query: { descriptor: 'author|fed1' },
@@ -344,6 +345,9 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
     await mtnFeedController.getFeed(req, res as never);
 
     expect(syncOnProfileView).not.toHaveBeenCalled();
+    expect(refreshOnProfileView).toHaveBeenCalledWith('fed1');
+    const body = res.body as { data: { pending?: boolean } };
+    expect(body.data.pending).toBeUndefined();
   });
 
   it('does not sync on a later page — an empty page 2 is just the end of the feed', async () => {

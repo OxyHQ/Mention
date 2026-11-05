@@ -160,6 +160,31 @@ class FederatedProfileSync {
   }
 
   /**
+   * Entry point for the feed layer: an author feed was just served WITH posts on
+   * its first page for `oxyUserId`.
+   *
+   * Viewing is the only refresh an account nobody here follows gets: Jetstream
+   * and the periodic sync read followed accounts only. Without this, a profile
+   * whose posts were imported once stayed frozen at that import. Fire-and-forget:
+   * the page is already built, and nothing here touches the request path.
+   *
+   * A page with posts but no actor row is a local author, so there is no Oxy
+   * lookup here; and a profile synced inside the cooldown does no further work.
+   */
+  refreshOnProfileView(oxyUserId: string): void {
+    if (!FEDERATION_ENABLED && !ATPROTO_ENABLED && !instagramGraphConnector.enabled) return;
+    void findActorByOxyUserId(oxyUserId)
+      .then((actor) => {
+        if (!actor) return;
+        if (isWithinOutboxSyncCooldown(actor.lastOutboxSyncAt, OUTBOX_SYNC_MIN_INTERVAL_MS)) return;
+        this.runInBackground(oxyUserId, actor);
+      })
+      .catch((error) => {
+        logger.warn('[FedSync] actor lookup for profile refresh failed', error);
+      });
+  }
+
+  /**
    * Fire-and-forget background sync for a (potentially) federated profile.
    *
    * Performs ALL federation network I/O off the client request path:
