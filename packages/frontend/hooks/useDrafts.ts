@@ -131,10 +131,7 @@ function sameJsonValue(a: unknown, b: unknown): boolean {
   const keys = Object.keys(left);
   return (
     keys.length === Object.keys(right).length &&
-    keys.every(
-      (key) =>
-        Object.prototype.hasOwnProperty.call(right, key) && sameJsonValue(left[key], right[key]),
-    )
+    keys.every((key) => Object.hasOwn(right, key) && sameJsonValue(left[key], right[key]))
   );
 }
 

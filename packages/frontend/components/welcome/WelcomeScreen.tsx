@@ -17,7 +17,7 @@ import { WelcomeStarterPacks } from './WelcomeStarterPacks';
 
 /**
  * Where to go once the flow is done: the in-app path the person was opening
- * when `WelcomeRedirectGate` sent them here, or home. Only an app-relative path
+ * when the flow was opened, or home. Only an app-relative path
  * is honoured, so `next` can never send anyone off-site.
  */
 function destination(next: string | undefined): string {
