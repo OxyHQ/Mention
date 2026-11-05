@@ -28,8 +28,9 @@ For the hosted web app, store these six public identities in the repository or
 them explicitly to the Expo build; they are not secrets. Changing a value requires
 a new verified frontend build/deploy. Setting Worker runtime variables does not
 change the already-inlined bundle. Missing values continue to disable purchasing.
-For native builds, supply the same reviewed identities in the selected EAS build
-environment before building; the hosted-web workflow does not configure native apps.
+Native builds and OTA updates read them from the `production` profile's `env` in
+`packages/frontend/eas.json` (`android-release.yml`, `publish-update.yml`); keep it
+in step with the repository variables.
 The frontend never receives provider credentials or a client-supplied price.
 
 The central catalogue must be configured, allow purchases, and expose exactly one
