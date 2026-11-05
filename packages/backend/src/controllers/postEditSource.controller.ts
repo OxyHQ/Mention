@@ -7,13 +7,13 @@ import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import type { PostContent, PostEditSource, PostUser } from '@mention/shared-types/post';
+import type { PostContent, PostEditSource } from '@mention/shared-types/post';
 import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
 import { authorVariants } from '../services/postVariants';
-import { isFallbackUserSummary, resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveKnownUsers } from '../utils/knownUsers';
 import { logger } from '../utils/logger';
 import { callerAccountAccess } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
@@ -114,26 +114,11 @@ export const getPostEditSource = async (
     };
     const mentions = reconcileMentionIdsForPost(mentionTextsFromContent(content), post.mentions);
 
-    let mentionUsers: PostUser[] = [];
-    try {
-      const resolved = await resolveUserSummaries(mentions);
-      mentionUsers = mentions.flatMap((id) => {
-        const summary = resolved.get(id);
-        return summary && !isFallbackUserSummary(summary.user) ? [summary.user] : [];
-      });
-    } catch (error) {
-      if (error instanceof PostPublicationPolicyError)
-        return res
-          .status(error.status)
-          .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
-      // The stable ids and placeholders are sufficient to preserve the edit.
-      // Identity resolution only improves display and must never make the source
-      // unreadable during an Oxy/Redis outage.
-      logger.warn('Failed to resolve mention identities for post edit source', {
-        postId,
-        error,
-      });
-    }
+    // The stable ids and placeholders are sufficient to preserve the edit; the
+    // identities only improve display, so the lookup never rejects and an
+    // Oxy/Redis outage leaves `mentionUsers` empty rather than the source unreadable.
+    const mentionUsersById = await resolveKnownUsers(mentions);
+    const mentionUsers = mentions.flatMap((id) => mentionUsersById.get(id) ?? []);
 
     const response: PostEditSource = {
       id: post.id,

@@ -10,7 +10,7 @@ import { blockedEitherWay } from '../utils/privacyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { User } from '@oxy.so/core';
 import type { PostUser } from '@mention/shared-types';
-import { resolveActorProfiles } from '../utils/notificationActor';
+import { resolveKnownUsers } from '../utils/knownUsers';
 
 const router = Router();
 
@@ -72,7 +72,7 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
             .from(pokes)
             .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, pokerIds)))
         : [],
-      resolveActorProfiles(pokerIds),
+      resolveKnownUsers(pokerIds),
     ]);
 
     const pokedBackSet = new Set(pokedBackRows.map((p) => p.pokedId));
@@ -111,7 +111,7 @@ router.get('/sent', async (req: AuthRequest, res: Response) => {
       .orderBy(desc(pokes.createdAt))
       .limit(POKES_LIMIT);
     const pokedIds = sent.map((p) => p.pokedId);
-    const profiles = await resolveActorProfiles(pokedIds);
+    const profiles = await resolveKnownUsers(pokedIds);
 
     const items = sent.flatMap((p) => {
       const user = profiles.get(p.pokedId);
@@ -178,7 +178,7 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
       .slice(0, POKE_SUGGESTION_BLOCK_WINDOW);
     const blockedIds = await blockedEitherWay(safetyRequesterFor(req), unpoked);
     const limitedIds = unpoked.filter((id) => !blockedIds.has(id)).slice(0, 20);
-    const profiles = await resolveActorProfiles(limitedIds);
+    const profiles = await resolveKnownUsers(limitedIds);
 
     const items = limitedIds.flatMap((id) => {
       const user = profiles.get(id);

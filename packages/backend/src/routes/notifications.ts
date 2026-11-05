@@ -25,7 +25,8 @@ import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import { requireExpectedViewer } from '../middleware/requireExpectedViewer';
-import { resolveActorProfiles, toPopulatedActor } from '../utils/notificationActor';
+import { resolveKnownUsers } from '../utils/knownUsers';
+import { toPopulatedActor } from '../utils/notificationActor';
 import { serializeNotification } from '../utils/notificationUtils';
 import {
   enrichNotificationActor,
@@ -292,7 +293,7 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
     // One batch for every actor and channel, through the user-summary cache,
     // and BESIDE the post hydration below rather than before it: the two share
     // nothing. It never rejects, so nothing waits on it to fail.
-    const profilesRead = resolveActorProfiles([...uniqueActorIds, ...channelRecipientIds]);
+    const profilesRead = resolveKnownUsers([...uniqueActorIds, ...channelRecipientIds]);
     // A block in either direction hides the actor's rows, however old: Oxy's
     // two-way answer for this viewer, asked beside the reads below. A failure
     // reaches the outer handler — an unanswered check is never "no block".
