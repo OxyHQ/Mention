@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -70,6 +71,13 @@ function buildPublicRouterApp(options: { mountOptionalMcpAuth: boolean }) {
   const app = express();
   app.use(express.json());
   const router = express.Router();
+  const authRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  router.use(authRateLimiter);
   if (options.mountOptionalMcpAuth) {
     router.use(createOptionalMcpAuth());
   }
