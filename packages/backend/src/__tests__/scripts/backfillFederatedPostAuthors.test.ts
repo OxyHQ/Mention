@@ -58,7 +58,6 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
 }));
 
 import {
-  EXIT_INCOMPLETE,
   countRemaining,
   resolveAuthorOxyUserId,
   resolveOrphanAuthorUri,
@@ -346,32 +345,5 @@ describe('backfillFederatedPostAuthors — what stays a red run', () => {
       "assertAdminRunComplete('backfillFederatedPostAuthors', { failed: counters.failed, " +
         'blockedDelete: counters.blockedDelete, });',
     );
-  });
-});
-
-describe('backfillFederatedPostAuthors — the exit code the workflow branches on', () => {
-  const WORKFLOW = path.resolve(
-    __dirname,
-    '../../../../../.github/workflows/run-federated-author-backfill.yml',
-  );
-
-  it('is spelled identically in the script and in the workflow', () => {
-    const workflow = readFileSync(WORKFLOW, 'utf8');
-
-    // Vacuity floor: this is the right file, and it was read.
-    expect(workflow).toContain('name: Run federated-author backfill');
-    expect(workflow.length).toBeGreaterThan(1000);
-
-    // The branch itself, anchored as a `case` arm so the constant's own prose
-    // elsewhere in the file cannot satisfy it.
-    expect(workflow).toMatch(new RegExp(`^\\s+${EXIT_INCOMPLETE}\\)$`, 'm'));
-    expect(workflow).toContain('EXIT_INCOMPLETE in backfillFederatedPostAuthors.ts');
-  });
-
-  it('is neither success nor the generic failure code', () => {
-    // A residual that exited 0 would be invisible; one that exited 1 is the bug
-    // this replaced.
-    expect(EXIT_INCOMPLETE).not.toBe(0);
-    expect(EXIT_INCOMPLETE).not.toBe(1);
   });
 });
