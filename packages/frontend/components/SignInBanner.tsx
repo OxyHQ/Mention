@@ -16,9 +16,9 @@ export const SignInBanner = memo(function SignInBanner() {
   return (
     <BottomPromo
       testID="sign-in-banner"
-      title={t('Don’t miss what’s happening')}
-      description={t('People on Mention are the first to know.')}
-      actionLabel={t('Sign In')}
+      title={t('auth.banner.title')}
+      description={t('auth.banner.subtitle')}
+      actionLabel={t('auth.banner.signIn')}
       onAction={() => signIn().catch(() => {})}
     />
   );
