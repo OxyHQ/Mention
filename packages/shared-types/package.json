@@ -23,6 +23,11 @@
       "import": "./dist/post.js",
       "require": "./dist/post.js"
     },
+    "./applePodcast": {
+      "types": "./dist/applePodcast.d.ts",
+      "import": "./dist/applePodcast.js",
+      "require": "./dist/applePodcast.js"
+    },
     "./mentions": {
       "types": "./dist/mentions.d.ts",
       "import": "./dist/mentions.js",

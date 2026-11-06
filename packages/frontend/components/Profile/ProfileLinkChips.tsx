@@ -10,7 +10,7 @@ import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { supportProviderOf, type ProfileLink } from '@oxy.so/core';
-import { applePodcastCollectionId } from '@mention/shared-types';
+import { applePodcastCollectionId } from '@mention/shared-types/applePodcast';
 import { api } from '@/utils/api';
 import { presentSheet } from '@/utils/sheet';
 import { openExternalLink } from '@/utils/openExternalLink';
