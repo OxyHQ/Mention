@@ -23,7 +23,6 @@ jest.mock('@peable.to/sdk/checkout/ui', () => ({
       : null;
   },
 }));
-jest.mock('@/hooks/usePeableSheetMessages', () => ({ usePeableSheetMessages: () => ({}) }));
 const SESSION = 'cs_0123456789abcdef01234567';
 const SECRET = `${SESSION}_secret_0123456789abcdef`;
 const HOSTED = `https://checkout.peable.to/c/${SESSION}#cs=${SECRET}`;

@@ -17,7 +17,6 @@ jest.mock('@peable.to/sdk/checkout/ui', () => ({
   intentSource: (id: string, clientSecret: string) =>
     clientSecret.startsWith(`${id}_secret_`) ? { type: 'payment_intent', id, clientSecret } : null,
 }));
-jest.mock('@/hooks/usePeableSheetMessages', () => ({ usePeableSheetMessages: () => ({}) }));
 jest.mock('@/lib/payments/localProviderTest', () => ({
   createLocalProviderTestBinding: (...args: unknown[]) => mockCreate(...args),
 }));

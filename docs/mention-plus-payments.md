@@ -9,10 +9,10 @@ the selected monthly or annual standalone offer from Oxy's published product-pla
 static replacement price when it is unavailable. Continue asks Oxy for the
 authoritative checkout and pays that Peable order in **Peable's own payment sheet**,
 `PeableSheetCheckout` from `@peable.to/sdk/checkout/ui` — the same sheet Mercaria opens
-for its plans and its marketplace. Mention keeps no copy of the payment logic: it hands
-the sheet the order, its words (`hooks/usePeableSheetMessages.ts` maps the SDK's keys onto
-`plus.checkout.*`, so every Mention locale reads it) and how to open a page, and answers
-the outcome. The sheet never collects a card number or signs a FairCoin payment itself.
+for its plans and its marketplace. Mention keeps no copy of the payment logic and none
+of its words: it hands the sheet the order, the language (`i18n.language`; the SDK ships
+the sheet's copy in all fifteen Mention locales, one catalog in `@peable.to/sdk`) and how
+to open a page, and answers the outcome. Do not translate the sheet here. The sheet never collects a card number or signs a FairCoin payment itself.
 
 ## Card and FairCoin (Peable ADR 0021)
 
@@ -35,9 +35,13 @@ session has `automatic_tax`. It never asks for a shipping address.
   amount, the quote's fiat price, rate and expiry, and the Peable wallet request: a
   Continue that opens Peable on a phone, a QR of the same request elsewhere. A lapsed
   quote reads as expired and offers a new price.
-- **The card** is paid in Peable's secure fields inside the sheet on the web (the
-  card payment is created only when the payer continues), and on Peable's secure page
-  in the in-app browser on iOS and Android, where no DOM can host those fields. An
+- **The card and the wallets.** The billing country comes first (it prices the
+  tax), then the card step: on the web Apple Pay or Google Pay above Peable's secure
+  card fields, both paying the session's card payment (created when the card step
+  opens, so the wallets show its taxed amount and only when Peable's payment method
+  configuration, a registered wallet domain for `mention.earth` and the device allow
+  them). On iOS and Android the card, Apple Pay and Google Pay are on Peable's secure
+  page in the in-app browser, where no DOM can host those fields. An
   unpaid FairCoin payment is replaced by the card one; a FairCoin payment already
   confirming cannot be.
 - **Completion is the gateway's, access is Oxy's.** When Peable closes the order the
