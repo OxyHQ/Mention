@@ -74,6 +74,25 @@ export const ProfileContent = memo(function ProfileContent({
     >
       {identity}
 
+      {/* Stats (following, followers, posts) */}
+      {(!isPrivate || isOwnProfile) && (
+        <ProfileStats
+          followingCount={followingCount}
+          followerCount={followerCount}
+          accountKind={profileData.kind}
+          postsCount={profileData.postsCount ?? 0}
+          boostsCount={profileData.boostsCount ?? 0}
+          repliesCount={profileData.repliesCount ?? 0}
+          reputationTotal={reputationTotal}
+          showReplies={showReplies}
+          followingHref={followingHref}
+          followersHref={followersHref}
+          onPostsPress={onPostsPress}
+          onBoostsPress={onBoostsPress}
+          onRepliesPress={onRepliesPress}
+        />
+      )}
+
       {/* Bio. Not a view-layer nicety: the same text ships on the user DTO and
           federates as the actor's ActivityPub `summary`, so hiding it here would
           make the page disagree with what the rest of the network already reads
@@ -114,26 +133,7 @@ export const ProfileContent = memo(function ProfileContent({
         aboutHref={aboutHref}
       />
 
-      {/* Stats (following, followers, posts) */}
-      {(!isPrivate || isOwnProfile) && (
-        <ProfileStats
-          followingCount={followingCount}
-          followerCount={followerCount}
-          accountKind={profileData.kind}
-          postsCount={profileData.postsCount ?? 0}
-          boostsCount={profileData.boostsCount ?? 0}
-          repliesCount={profileData.repliesCount ?? 0}
-          reputationTotal={reputationTotal}
-          showReplies={showReplies}
-          followingHref={followingHref}
-          followersHref={followersHref}
-          onPostsPress={onPostsPress}
-          onBoostsPress={onBoostsPress}
-          onRepliesPress={onRepliesPress}
-        />
-      )}
-
-      {/* Profile media — SONG branch renders here, right after the stats, when
+      {/* Profile media — SONG branch renders here, right after the profile meta, when
           pinned (nothing renders when empty; management now lives on the Edit
           Profile screen). The PODCAST branch renders as a card at the bottom
           of the header instead (Threads-style), so it is skipped here. */}

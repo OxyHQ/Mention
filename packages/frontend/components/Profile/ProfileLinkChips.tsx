@@ -1,13 +1,15 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { View } from 'react-native';
+import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { CappedChipRow, Chip } from '@oxy.so/bloom/chip';
 import { Item } from '@oxy.so/bloom/item';
+import { RiArrowRightUpLine } from '@oxy.so/bloom/icons/RiArrowRightUpLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
 import { useTheme } from '@oxy.so/bloom/theme';
-import type { ProfileLink } from '@oxy.so/core';
+import { supportProviderOf, type ProfileLink } from '@oxy.so/core';
 import { presentSheet } from '@/utils/sheet';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { prettifyUrl } from '@/utils/prettifyUrl';
@@ -24,6 +26,40 @@ interface ProfileLinkChipsProps {
 /** What a link is called on its pill: the owner's title, else the bare address. */
 function chipLabel(link: ProfileLink): string {
   return link.title?.trim() || prettifyUrl(link.url);
+}
+
+/**
+ * The outbound arrow after a pill's label, drawn at Bluesky's 12px so it sits
+ * with the label instead of at the pill's own icon size.
+ */
+function OutboundArrow({ support }: { support: boolean }) {
+  const { colors } = useTheme();
+  return (
+    <RiArrowRightUpLine
+      size="xs"
+      fill={support ? colors.primaryForeground : colors.textSecondary}
+    />
+  );
+}
+
+/**
+ * The link's site icon, as Clarity serves it for the link's host. Where Clarity
+ * has none, or the image fails to load, the pill shows the generic link icon.
+ */
+function LinkIcon({ link }: { link: ProfileLink }) {
+  const { colors } = useTheme();
+  const [failed, setFailed] = useState(false);
+  if (!link.faviconUrl || failed) {
+    return <RiLink size="sm" fill={colors.textSecondary} />;
+  }
+  return (
+    <Image
+      source={{ uri: link.faviconUrl }}
+      className="size-4 rounded"
+      contentFit="cover"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 interface LinkActionsSheetProps {
@@ -87,14 +123,21 @@ export const ProfileLinkChips = memo(function ProfileLinkChips({
     <View className="mb-3">
       <CappedChipRow maxLines={MAX_LINES} accessibilityLabel={t('profile.links.title', 'Links')}>
         {links.map((link) => {
-          const label = chipLabel(link);
+          const support = supportProviderOf(link.url);
+          const label = support
+            ? t('profile.links.supportOn', {
+                provider: support.name,
+                defaultValue: 'Support on {{provider}}',
+              })
+            : chipLabel(link);
           return (
             <Chip
               key={link.id}
               size="md"
-              variant="subtle"
-              leadingIcon={RiLink}
-              trailingIcon={RiExternalLinkLine}
+              variant={support ? 'solid' : 'subtle'}
+              color={support ? 'success' : undefined}
+              leading={<LinkIcon link={link} />}
+              endIcon={<OutboundArrow support={support !== null} />}
               accessibilityLabel={label}
               onPress={() => open(link.url)}
               onLongPress={() =>
