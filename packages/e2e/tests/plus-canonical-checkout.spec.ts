@@ -38,12 +38,19 @@ const session = {
   total_details: { amount_discount: '0', amount_tax: '0', amount_shipping: '0' },
   discount: null,
   allow_promotion_codes: false,
-  automatic_tax: { enabled: false, status: null },
+  automatic_tax: { enabled: true, status: 'requires_location_inputs' },
   customer_details: {
     email: null,
     name: null,
     phone: null,
-    address: null,
+    address: {
+      country: 'US',
+      state: null,
+      postal_code: '19802',
+      line1: null,
+      line2: null,
+      city: null,
+    },
     tax_ids: [],
   },
   customer_email_locked: false,
@@ -194,5 +201,20 @@ for (const width of [1440, 390]) {
     await expect(sheet).toHaveAttribute('data-preparation-probe', 'same-sheet');
     await expect(sheet.getByRole('textbox', { name: 'Email address', exact: true })).toHaveCount(0);
     await page.screenshot({ path: `/tmp/mention-canonical-${width}.png` });
+    await sheet.getByRole('button', { name: 'Add another card', exact: true }).click();
+    const region = sheet.getByRole('textbox', {
+      name: 'State / province code (2 letters)',
+      exact: true,
+    });
+    await expect(region).toBeVisible();
+    const billingContinue = sheet.getByRole('button', { name: 'Continue', exact: true });
+    await expect(billingContinue).toBeDisabled();
+    await region.fill('ZZ');
+    await expect(billingContinue).toBeDisabled();
+    await region.fill('de');
+    await expect(region).toHaveValue('DE');
+    await expect(billingContinue).toBeEnabled();
+    expect(confirms).toBe(0);
+    expect(candidate.scriptErrors.filter((error) => error.startsWith('uncaught'))).toEqual([]);
   });
 }
