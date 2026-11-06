@@ -1,7 +1,9 @@
 /**
  * The two documents that let the native apps own `https://mention.earth/...`
  * links: Android App Links (`/.well-known/assetlinks.json`) and iOS Universal
- * Links (`/.well-known/apple-app-site-association`).
+ * Links (`/.well-known/apple-app-site-association`). Also Stripe's Apple Pay
+ * domain-association file (`applePayDomainAssociation.ts`), for Apple Pay in
+ * Peable's sheet on the web.
  *
  * They are served HERE, by the backend, because `mention.earth` resolves to this
  * process and `/.well-known/*` is the backend's namespace (docs/AWS_DEPLOYMENT.md).
@@ -18,6 +20,7 @@
  */
 import express from 'express';
 import { config } from '../config';
+import { APPLE_PAY_DOMAIN_ASSOCIATION } from './applePayDomainAssociation';
 
 /** `android.package` / `ios.bundleIdentifier` of the production app. */
 export const MENTION_APP_ID = 'earth.mention.app';
@@ -127,6 +130,12 @@ export function createAppAssociationRouter(
     }
     res.setHeader('Cache-Control', CACHE_CONTROL);
     res.json(aasa);
+  });
+
+  // Apple Pay on the web (Peable's sheet, Mention Plus): Stripe's file, as is.
+  router.get('/.well-known/apple-developer-merchantid-domain-association', (_req, res) => {
+    res.setHeader('Cache-Control', CACHE_CONTROL);
+    res.type('text/plain').send(APPLE_PAY_DOMAIN_ASSOCIATION);
   });
 
   return router;
