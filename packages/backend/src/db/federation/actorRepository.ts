@@ -33,6 +33,7 @@
  * assembly stays one flat object literal instead of fifteen conditional spreads.
  */
 
+import { isLinkField } from '../../utils/federation/profileFieldLinks';
 import {
   and,
   asc,
@@ -717,10 +718,13 @@ export async function upsertActor(
       .returning();
     if (!row) return undefined;
 
+    // A field that is a link is the account's profile link (Oxy holds it with the
+    // native links), so it is not kept again as a metadata row.
+    const metadataFields = fields.filter((field) => !isLinkField(field.value));
     await tx.delete(federatedActorFields).where(eq(federatedActorFields.actorId, row.id));
-    if (fields.length > 0) {
+    if (metadataFields.length > 0) {
       await tx.insert(federatedActorFields).values(
-        fields.map((field, position) => ({
+        metadataFields.map((field, position) => ({
           actorId: row.id,
           position,
           name: field.name,

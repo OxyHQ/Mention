@@ -299,24 +299,15 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     });
   });
 
-  it("stores the profile's links as its metadata rows", async () => {
+  it("keeps the profile's links out of its metadata rows: Oxy holds them on the account", async () => {
     mocks.getProfile.mockResolvedValue({
       ...PROFILE,
-      links: [
-        { url: 'https://youtube.com/@alice', title: 'Alice on YouTube' },
-        { url: 'https://example.com/pod' },
-        { url: 'javascript:alert(1)', title: 'dropped' },
-      ],
+      links: [{ url: 'https://youtube.com/@alice', title: 'Alice on YouTube' }],
     });
 
     await fetchAndUpsertAtprotoProfile(DID);
 
-    expect(await loadRemoteProfileStats('oxy-alice')).toMatchObject({
-      fields: [
-        { name: 'Alice on YouTube', value: 'https://youtube.com/@alice' },
-        { name: 'example.com', value: 'https://example.com/pod' },
-      ],
-    });
+    expect(await loadRemoteProfileStats('oxy-alice')).not.toHaveProperty('fields');
   });
 
   it('carries a `!no-unauthenticated` self-label to the actor row', async () => {
