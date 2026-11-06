@@ -292,7 +292,7 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
               ),
             }
           : {}),
-        canContinue: canUsePrivateApi && (started.current || (purchaseAvailable && !hasAccess)),
+        canContinue: canUsePrivateApi && (operation !== null || (purchaseAvailable && !hasAccess)),
         createSession: async (_details, { signal }) => {
           const result = await purchase(true, signal);
           if (!result) throw new SheetPreparationError(t('plus.payment.pending'), 'unknown');
