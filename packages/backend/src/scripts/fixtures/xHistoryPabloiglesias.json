@@ -1,0 +1,20 @@
+{
+  "handle": "PabloIglesias",
+  "source": "FxTwitter timeline (api.fxtwitter.com/2/profile/<handle>/statuses), read 2026-11-06: the account's own tweets written after mastox.eu's last crawl stored before the handoff (2026-11-03T20:25:02Z) and before the handoff (2026-11-04T22:49:45Z), none held; every id checked against bird.makeup before inclusion.",
+  "items": [
+    {
+      "kind": "post",
+      "id": "2118035806602354721"
+    },
+    {
+      "kind": "post",
+      "id": "2118042052902711333"
+    },
+    {
+      "kind": "repost",
+      "id": "2117895003846414700",
+      "author": "nega_maiz",
+      "publishedAt": "2026-11-04T08:21:32Z"
+    }
+  ]
+}
