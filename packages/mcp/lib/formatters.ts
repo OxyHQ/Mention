@@ -54,6 +54,13 @@ export function formatPost(post: PostView): string {
     parts.push(`Tags: ${hashtags.map((h) => `#${h}`).join(' ')}`);
   }
 
+  const variantTags = (post.content?.variants ?? [])
+    .map((variant) => variant.tag)
+    .filter((tag): tag is string => Boolean(tag));
+  if (variantTags.length > 1) {
+    parts.push(`Languages: ${variantTags.join(', ')}`);
+  }
+
   if (post.content?.media && post.content.media.length > 0) {
     parts.push(`Media: ${post.content.media.map((m) => `${m.type}(${m.id})`).join(', ')}`);
   }

@@ -76,7 +76,7 @@ const collaboratorFields = {
 export function registerPostsTools(server: MentionToolRegistrar): void {
   server.tool(
     'create-post',
-    'Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; invitees accept through their own authorized account connection. Write the same post in several languages with variants, and file it into one of your lanes with laneId.',
+    'Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; invitees accept through their own authorized account connection. To publish the same post in several languages, pass variants (e.g. [{tag:"es",text:"…"},{tag:"en",text:"…"}]) instead of text; the first is the primary. File it into one of your lanes with laneId.',
     createPostFields,
     withAuthGuard(async (args) => {
       if (sendsTextAndVariants(args)) {
@@ -205,10 +205,11 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
 
   server.tool(
     'update-post',
-    'Update an existing post including media, sources, and collaborators within the 30-minute edit window (requires authorization).',
+    'Update an existing post including media, sources, language variants, and collaborators within the 30-minute edit window (requires authorization). To change or add language versions send variants (replaces all author variants; the first is the primary) instead of text; editing the primary body drops machine translations.',
     {
       id: z.string(),
       text: z.string().optional(),
+      variants: languageVariantsSchema,
       media: z.array(mediaInputSchema).max(10).optional(),
       sources: z.array(sourceLinkSchema).max(5).optional(),
       visibility: visibilitySchema,
@@ -219,6 +220,7 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
       async ({
         id,
         text,
+        variants,
         media,
         sources,
         visibility,
@@ -226,10 +228,17 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         collaboratorIds,
         collaboratorHandles,
       }) => {
+        if (text !== undefined && variants !== undefined) {
+          return {
+            content: [{ type: 'text' as const, text: TEXT_AND_VARIANTS_ERROR }],
+            isError: true,
+          };
+        }
         try {
           const body: Record<string, unknown> = {};
           const content: Record<string, unknown> = {};
           if (text !== undefined) content.text = text;
+          if (variants !== undefined) content.variants = variants;
           if (media !== undefined) {
             content.media = await resolveMediaInputs(media);
           }

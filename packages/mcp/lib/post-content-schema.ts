@@ -96,6 +96,10 @@ export const attachmentDescriptorSchema = z.object({
 export const languageVariantSchema = z.object({
   tag: z.string().min(2).max(35).describe('BCP-47 language tag, e.g. "en" or "es-ES"'),
   text: z.string().describe('The post body in this language'),
+  alt: z
+    .record(z.string(), z.string().max(2000))
+    .optional()
+    .describe('Alt text in this language, keyed by the media id it describes'),
   article: articleInputSchema
     .optional()
     .describe('The article in this language, when the post has one'),
