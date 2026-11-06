@@ -27,6 +27,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {
   findOutboxBackfillCandidates,
+  loadActorFields,
   setActorMovedTo,
   upsertActor,
 } from '../../db/federation/actorRepository';
@@ -346,5 +347,37 @@ describe('upsertActor — remote counts: unknown is not zero (OxyHQ/Mention#1126
 
     expect((await readActor(uri))?.movedTo).toBe(`${scope.origin}/users/moved-new`);
     expect(await setActorMovedTo(`${scope.origin}/users/nobody`, uri)).toBe(false);
+  });
+});
+
+describe('upsertActor — a link field is a profile link, not a metadata row', () => {
+  it('keeps the text fields as metadata and leaves the link fields to the account', async () => {
+    const uri = `${scope.origin}/users/linked-fields`;
+    await upsertActor(
+      uri,
+      {
+        protocol: 'activitypub',
+        username: 'linked-fields',
+        domain: scope.domain,
+        acct: `linked-fields@${scope.domain}`,
+        summary: '',
+        type: 'Person',
+        manuallyApprovesFollowers: false,
+        discoverable: true,
+        memorial: false,
+        suspended: false,
+        lastFetchedAt: new Date(),
+      },
+      [
+        { name: 'Web', value: '<a href="https://example.test/me">example.test/me</a>' },
+        { name: 'Pronouns', value: 'they/them' },
+      ],
+    );
+
+    const row = await readActor(uri);
+    expect(row).not.toBeNull();
+    expect(await loadActorFields(row?.id ?? '')).toEqual([
+      { name: 'Pronouns', value: 'they/them', verifiedAt: undefined },
+    ]);
   });
 });
