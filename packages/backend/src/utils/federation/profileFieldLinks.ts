@@ -25,3 +25,17 @@ function httpsUrl(value: string): string | null {
     return null;
   }
 }
+
+/**
+ * A remote profile field that names the account's pronouns. Oxy holds them as the
+ * account's structured pronoun (the closed list), so the field is not kept again
+ * as a metadata row. Matches the name rule Oxy applies (`pronounsFromFields` in
+ * oxy's external identity policy).
+ */
+export function isPronounField(name: string): boolean {
+  const normalized = name
+    .replace(/[\s:]+$/, '')
+    .trim()
+    .toLowerCase();
+  return normalized === 'pronouns' || normalized === 'pronoun';
+}
