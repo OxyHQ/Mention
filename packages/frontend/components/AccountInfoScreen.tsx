@@ -40,6 +40,16 @@ import { useTheme } from '@oxy.so/bloom/theme';
 
 const ABOUT_AVATAR_SIZE = 80;
 
+/** The pronoun pairs a person account can name, as they read on the About page. */
+const PRONOUN_LABELS: Record<string, string> = {
+  he_him: 'He/him',
+  she_her: 'She/her',
+  they_them: 'They/them',
+  he_they: 'He/they',
+  she_they: 'She/they',
+  it_its: 'It/its',
+};
+
 /**
  * An account's "about" surface — joined date, location, website, verification,
  * and where else on the network it can be reached.
@@ -192,6 +202,8 @@ function AccountInfoContent({
       ? website
       : `https://${website}`
     : null;
+  // The account's structured pronouns; `unspecified` (or none) shows no row.
+  const pronouns = profileData.pronouns ? PRONOUN_LABELS[profileData.pronouns] : undefined;
   const hasAccountDetails =
     Boolean(joinDate) ||
     Boolean(profileData.primaryLocation) ||
@@ -270,6 +282,28 @@ function AccountInfoContent({
                   ? t('accountCategories.primary', { defaultValue: 'Primary' })
                   : undefined
               }
+            />
+          ))}
+        </SettingsListGroup>
+      )}
+
+      {/* Profile details — the source's own fields (pronouns, and the like). A link
+          is never one of them: links are the profile's chips. */}
+      {(pronouns || (profileData.fields && profileData.fields.length > 0)) && (
+        <SettingsListGroup
+          title={t('profile.about.profileDetails', { defaultValue: 'Profile details' })}
+        >
+          {pronouns && (
+            <SettingsListItem
+              title={t('profile.about.pronouns', { defaultValue: 'Pronouns' })}
+              value={pronouns}
+            />
+          )}
+          {profileData.fields?.map((field) => (
+            <SettingsListItem
+              key={`${field.name}:${field.value}`}
+              title={field.name}
+              value={field.value}
             />
           ))}
         </SettingsListGroup>

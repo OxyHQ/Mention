@@ -92,6 +92,8 @@ export interface ProfileData {
   connectedVia?: string;
   links?: User['links'];
   linksMetadata?: User['linksMetadata'];
+  /** How a person account names its pronouns (structured, from Oxy); `unspecified` shows no row. */
+  pronouns?: User['pronouns'];
   /** A federated profile's metadata table, off the profile-design DTO's `remote`. */
   fields?: RemoteProfileField[];
   /** A federated account that approves each follower. */

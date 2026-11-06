@@ -33,7 +33,7 @@
  * assembly stays one flat object literal instead of fifteen conditional spreads.
  */
 
-import { isLinkField } from '../../utils/federation/profileFieldLinks';
+import { isLinkField, isPronounField } from '../../utils/federation/profileFieldLinks';
 import {
   and,
   asc,
@@ -719,8 +719,11 @@ export async function upsertActor(
     if (!row) return undefined;
 
     // A field that is a link is the account's profile link (Oxy holds it with the
-    // native links), so it is not kept again as a metadata row.
-    const metadataFields = fields.filter((field) => !isLinkField(field.value));
+    // native links), and a pronoun field is its structured pronoun, so neither is
+    // kept again as a metadata row.
+    const metadataFields = fields.filter(
+      (field) => !isLinkField(field.value) && !isPronounField(field.name),
+    );
     await tx.delete(federatedActorFields).where(eq(federatedActorFields.actorId, row.id));
     if (metadataFields.length > 0) {
       await tx.insert(federatedActorFields).values(

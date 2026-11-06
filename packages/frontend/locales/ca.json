@@ -1107,6 +1107,8 @@
     },
     "about": {
       "title": "Quant a",
+      "profileDetails": "Detalls del perfil",
+      "pronouns": "Pronoms",
       "basedIn": "Compte amb seu a",
       "details": "Detalls del compte",
       "connectedVia": "Connectat mitjançant",

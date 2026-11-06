@@ -1089,6 +1089,8 @@
     },
     "about": {
       "title": "Hakkında",
+      "profileDetails": "Profil ayrıntıları",
+      "pronouns": "Zamirler",
       "basedIn": "Hesabın bulunduğu yer",
       "details": "Hesap ayrıntıları",
       "connectedVia": "Bağlantı yöntemi",
