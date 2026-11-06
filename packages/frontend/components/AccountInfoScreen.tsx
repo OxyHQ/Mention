@@ -275,6 +275,22 @@ function AccountInfoContent({
         </SettingsListGroup>
       )}
 
+      {/* Profile details — the source's own fields (pronouns, and the like). A link
+          is never one of them: links are the profile's chips. */}
+      {profileData.fields && profileData.fields.length > 0 && (
+        <SettingsListGroup
+          title={t('profile.about.profileDetails', { defaultValue: 'Profile details' })}
+        >
+          {profileData.fields.map((field) => (
+            <SettingsListItem
+              key={`${field.name}:${field.value}`}
+              title={field.name}
+              value={field.value}
+            />
+          ))}
+        </SettingsListGroup>
+      )}
+
       {/* Account details — dates, location, activity */}
       {hasAccountDetails && (
         <SettingsListGroup title={t('profile.about.details', { defaultValue: 'Account details' })}>

@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
-import { ProfileFields } from './ProfileFields';
 import { ProfileLinkChips } from './ProfileLinkChips';
 import { ProfileMedia } from './ProfileMedia';
 import { FollowedByRow } from './FollowedByRow';
@@ -123,8 +122,6 @@ export const ProfileContent = memo(function ProfileContent({
           profileData.bio,
         )}
       />
-
-      <ProfileFields fields={profileData.fields} />
 
       {/* Meta info (location, join date) */}
       <ProfileMeta
