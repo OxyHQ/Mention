@@ -7,9 +7,12 @@ a second price catalogue or paid-access flag.
 Subscribe opens a Bloom detached **Pay with Peable** bottom sheet. The page and sheet both read
 the selected monthly or annual standalone offer from Oxy's published product-plan catalogue; they show no
 static replacement price when it is unavailable. Continue asks Oxy for the
-authoritative checkout and drives that Peable order in Mention's own Peable sheet,
-where the payer chooses the card or FairCoin (below). The sheet never collects a
-card number or signs a FairCoin payment itself.
+authoritative checkout and pays that Peable order in **Peable's own payment sheet**,
+`PeableSheetCheckout` from `@peable.to/sdk/checkout/ui` — the same sheet Mercaria opens
+for its plans and its marketplace. Mention keeps no copy of the payment logic: it hands
+the sheet the order, its words (`hooks/usePeableSheetMessages.ts` maps the SDK's keys onto
+`plus.checkout.*`, so every Mention locale reads it) and how to open a page, and answers
+the outcome. The sheet never collects a card number or signs a FairCoin payment itself.
 
 ## Card and FairCoin (Peable ADR 0021)
 
@@ -18,39 +21,34 @@ the merchant's fiat method. Oxy creates the session without `payment_method_type
 (a list without `faircoin` is `payment_method_locked`), so a Plus session lists
 `['card', 'faircoin']`. Oxy answers Peable's hosted URL,
 `https://checkout.peable.to/c/<cs_…>#cs=<client secret>`; the fragment is the payer's
-capability for that session (`lib/payments/plusSessionCheckout.ts`
-`hostedSessionCapability`, which also requires the secret to name the same session).
-`PlusSessionCheckout` reads the session with the payer client
-(`createPeableCheckout().getCheckoutSession`) and refuses one whose total, currency
-or mode differ from the reviewed offer.
+capability for that session, read by the SDK's `sheetSourceFromUrl` (Peable's origin
+only, and the secret must name the same session). The sheet refuses a session whose
+price before tax or currency differ from the reviewed offer (`expected`); tax is
+priced once the payer gives a billing country, which the sheet asks for because the
+session has `automatic_tax`. It never asks for a shipping address.
 
 - **FairCoin is always listed.** When `faircoin.available` is false it is a disabled
   row with the gateway's `unavailable_reason` in words
-  (`plus.checkout.faircoin.unavailable.*`, every locale): the merchant's Peable wallet
-  is not set up, FairCoin is not open on this network, no fresh price, or not
-  checkable now. It is never hidden and never faked.
+  (`plus.checkout.faircoin.unavailable.*`, every locale). It is never hidden and never faked.
 - **Choosing FairCoin** confirms the session with `payment_method_type: 'faircoin'`.
   Peable quotes the order total in FAIR for 10 minutes; the sheet shows the FAIR
-  amount, the quote's fiat price, rate and expiry, and the Peable wallet request
-  (`peable://pay?…`, the SDK's `payDeepLinkFor`) through the SDK's own FairCoin
-  presentation: a Continue that opens Peable on a phone, a QR of the same request
-  elsewhere. Only the Peable wallet reports the transaction to the payment, so the
-  bare `faircoin:` URI is not offered: a payment from another wallet would never
-  settle the order. A lapsed quote leaves the session open; choosing FairCoin again
-  gets a fresh quote.
-- **The card** is entered on Peable's hosted page, opened from the payer's press (a
-  window reserved before any await on web, the in-app browser on native). If an
-  unpaid FairCoin payment is linked, the sheet first confirms `card`, which replaces
-  it, so the hosted page opens on the card; a FairCoin payment already confirming
-  cannot be replaced.
-- **Completion is the gateway's, access is Oxy's.** The sheet polls the session;
-  only `status: 'complete'` (or `expired`) closes it, and then Mention asks Oxy
-  (`startProductPlanCheckout` with the same key) for the outcome. Only an
-  authoritative `fulfilled` refreshes access. A Plus subscription paid in FairCoin
-  becomes `send_invoice` at Peable: each renewal is an invoice the payer pays.
-- **Fallback.** A URL that is not a Peable session, or a session the browser cannot
-  read (the gateway does not yet admit Mention's web origin in CORS), keeps the
-  hosted page, which offers the same two methods, behind an Open checkout press.
+  amount, the quote's fiat price, rate and expiry, and the Peable wallet request: a
+  Continue that opens Peable on a phone, a QR of the same request elsewhere. A lapsed
+  quote reads as expired and offers a new price.
+- **The card** is paid in Peable's secure fields inside the sheet on the web (the
+  card payment is created only when the payer continues), and on Peable's secure page
+  in the in-app browser on iOS and Android, where no DOM can host those fields. An
+  unpaid FairCoin payment is replaced by the card one; a FairCoin payment already
+  confirming cannot be.
+- **Completion is the gateway's, access is Oxy's.** When Peable closes the order the
+  sheet calls `onSettled`; Mention then asks Oxy (`startProductPlanCheckout` with the
+  same key) every 3 s until the answer is no longer `pending`. Only `fulfilled`
+  refreshes access and lets the sheet show success (`outcome: 'succeeded'`), after
+  which it closes itself. A Plus subscription paid in FairCoin becomes
+  `send_invoice` at Peable: each renewal is an invoice the payer pays.
+- **Fallback.** A URL that is not a Peable session, or a session the sheet cannot
+  read, keeps the hosted page, which offers the same two methods, behind an Open
+  checkout press.
 
 ## Deployment binding
 
@@ -360,13 +358,11 @@ the same operation key, duplicate presses are blocked, and a failed bootstrap
 shows a canonical Bloom error toast without falling back to simulation. The
 small development badge is outside the checkout flow.
 
-`PeableEmbeddedCheckout` is transport-neutral: its binding declares the gateway,
-payer capability, Peable mode (`livemode`) and authoritative subscription terms.
-The same view checks that the intent and the provider key are of that mode. Its numeric tax breakdown,
-when supplied, comes from the actual invoice; preview tax fixtures are never
-reused. It serializes readiness polling and only completes when the first payment
-has succeeded, the invoice is paid and the subscription is active. No development
-payment grants the real user's Mention Plus access.
+The local provider test (`PreparedPlusCheckout`) pays that binding's PaymentIntent in
+the same `PeableSheetCheckout`, refusing a payment that is not the reviewed price, mode
+or currency. It completes only when the subscription is observed active with its first
+invoice paid (`observeEmbeddedSubscription`), never on the payment alone. No
+development payment grants the real user's Mention Plus access.
 
 The product view uses Bloom's CardForm in both cases. In actual payment handling,
 only its number, expiry and security-code slots contain secure provider-origin

@@ -145,8 +145,7 @@
         "countryES": "Spain",
         "generic": "Card",
         "hint": "Du gibst deine Karte auf der sicheren Zahlungsseite von Peable ein.",
-        "open": "Weiter zur Kartenzahlung",
-        "failed": "Wechsel zur Karte nicht möglich. Versuche es erneut."
+        "open": "Weiter zur Kartenzahlung"
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -180,11 +179,9 @@
         "title": "Mit FairCoin bezahlen",
         "quote": "Preis {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
         "holdsUntil": "Dieser Preis gilt bis {{time}}.",
-        "expired": "Dieser FairCoin-Preis ist abgelaufen. Geh zurück und wähle erneut FairCoin für einen neuen Preis.",
         "hint": "Scanne diesen Code mit der Peable-App auf deinem Handy oder öffne Peable auf diesem Gerät.",
         "peableOnly": "Nur die Peable-App kann diese Zahlung abschließen.",
         "qr": "Peable-Zahlungscode",
-        "failed": "Die FairCoin-Zahlung konnte nicht gestartet werden. Versuche es erneut oder zahle mit Karte.",
         "confirming": "Eine FairCoin-Zahlung für diese Bestellung wird bereits bestätigt. Warte, bis sie abgeschlossen ist.",
         "noPeable": "Peable ist auf diesem Gerät nicht installiert. Scanne den Code mit Peable auf deinem Handy.",
         "otherMethod": "Andere Zahlungsart wählen",

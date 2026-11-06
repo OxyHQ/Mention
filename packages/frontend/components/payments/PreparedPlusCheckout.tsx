@@ -1,20 +1,29 @@
 import {
-  configurationMatchesReview,
   configurationMatchesBinding,
   type CheckoutConfiguration,
 } from '@/lib/payments/checkoutConfiguration';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
+import { intentSource, PeableSheetCheckout, type SheetOutcome } from '@peable.to/sdk/checkout/ui';
 import {
+  observeEmbeddedSubscription,
   prepareEmbeddedCheckout,
   type EmbeddedCheckoutBinding,
 } from '@/lib/payments/embeddedCheckout';
 import { createLocalProviderTestBinding } from '@/lib/payments/localProviderTest';
 import { checkoutMatchesReview, type CheckoutReview } from '@/lib/payments/checkoutReview';
-import { PeableEmbeddedCheckout } from './PeableEmbeddedCheckout';
+import { usePeableSheetMessages } from '@/hooks/usePeableSheetMessages';
 
-/** One mounted sheet for review, preparation and authorization. No operation starts on page view. */
+/** How often a settled local subscription is asked whether it is active. */
+const OBSERVE_MS = 3000;
+
+/**
+ * The local provider test: Mention Plus's subscription payment, prepared on
+ * the press, paid in Peable's sheet (`PeableSheetCheckout`, the one /plus and
+ * Mercaria use). Success is the subscription's own observation — active, its
+ * first invoice paid — never the payment alone. No operation starts on page view.
+ */
 export function PreparedPlusCheckout({
   review,
   configuration,
@@ -30,9 +39,13 @@ export function PreparedPlusCheckout({
   initialBinding?: EmbeddedCheckoutBinding;
   onClose(): void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const messages = usePeableSheetMessages();
   const [binding, setBinding] = useState<EmbeddedCheckoutBinding>();
-  const [failed, setFailed] = useState(false);
+  const [settled, setSettled] = useState<'complete' | 'expired' | null>(null);
+  const [active, setActive] = useState(false);
+  // Expired is the gateway's own word; success is the subscription's observation.
+  const outcome: SheetOutcome = settled === 'expired' ? 'failed' : active ? 'succeeded' : null;
   const [attempt, setAttempt] = useState(0);
   const failureMessage = useRef(t('plus.checkout.providerTest.bootstrapFailed'));
   failureMessage.current = t('plus.checkout.providerTest.bootstrapFailed');
@@ -48,7 +61,6 @@ export function PreparedPlusCheckout({
   useEffect(() => {
     const controller = new AbortController();
     let failureToast: string | number | undefined;
-    setFailed(false);
     void (async () => {
       try {
         const pending =
@@ -73,7 +85,6 @@ export function PreparedPlusCheckout({
         setBinding(ready);
       } catch {
         if (!controller.signal.aborted) {
-          setFailed(true);
           failureToast = toast(failureMessage.current, {
             type: 'error',
             action: {
@@ -91,19 +102,61 @@ export function PreparedPlusCheckout({
       if (failureToast !== undefined) toast.dismiss(failureToast);
     };
   }, [operationKey, review, attempt, href]);
+  // A paid first invoice alone is not an active subscription: observe until it is.
+  useEffect(() => {
+    if (!binding || settled !== 'complete') return;
+    let disposed = false;
+    const observe = () => {
+      observeEmbeddedSubscription(binding)
+        .then((ready) => {
+          if (!disposed && ready) setActive(true);
+        })
+        .catch(() => {
+          // The next observation retries; the sheet stays on "confirming".
+        });
+    };
+    observe();
+    const timer = setInterval(observe, OBSERVE_MS);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+    };
+  }, [binding, settled]);
+
+  const source = binding ? intentSource(binding.intentId, binding.clientSecret) : null;
+  if (!binding || !source) return null;
   return (
-    <PeableEmbeddedCheckout
-      binding={binding}
-      review={review}
-      configuration={
-        configuration &&
-        configurationMatchesReview(configuration, review) &&
-        (!binding || configurationMatchesBinding(configuration, binding))
-          ? configuration
-          : undefined
-      }
+    <PeableSheetCheckout
+      source={source}
+      gatewayUrl={binding.apiUrl}
+      locale={i18n.language}
+      messages={messages}
+      expected={{
+        amount: String(review.amountMinorUnits),
+        currency: review.currency,
+        livemode: binding.livemode,
+      }}
+      order={{
+        merchant: 'Mention',
+        items: [
+          {
+            id: review.offerId,
+            name: 'Mention Plus',
+            detail: t(`plus.payment.cadence${review.interval === 'year' ? 'Year' : 'Month'}`),
+            quantity: 1,
+            amountMinorUnits: review.amountMinorUnits,
+          },
+        ],
+        recurring: { interval: review.interval },
+      }}
+      returnUrl={href}
+      onSettled={setSettled}
+      outcome={outcome}
+      onUnavailable={() => {
+        toast(failureMessage.current, { type: 'error' });
+        onClose();
+      }}
       onClose={onClose}
-      onRetry={failed ? () => setAttempt((value) => value + 1) : undefined}
     />
   );
 }

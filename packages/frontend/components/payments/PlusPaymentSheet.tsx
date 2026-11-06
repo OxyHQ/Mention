@@ -1,7 +1,5 @@
-import type { EmbeddedCheckoutBinding } from '@/lib/payments/embeddedCheckout';
-import { PeableEmbeddedCheckout } from './PeableEmbeddedCheckout';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, View } from 'react-native';
 import { BottomSheet } from '@oxy.so/bloom/bottom-sheet';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
@@ -26,12 +24,16 @@ import {
   type PlusOfferBinding,
 } from '@/lib/payments/plusCheckout';
 import { PlusDisplayEstimate } from './PlusDisplayEstimate';
-import { PlusSessionCheckout, type OpenHostedCheckout } from './PlusSessionCheckout';
 import {
-  hostedSessionCapability,
-  type PlusSessionCapability,
-} from '@/lib/payments/plusSessionCheckout';
+  PeableSheetCheckout,
+  sheetSourceFromUrl,
+  type SheetCheckoutSource,
+} from '@peable.to/sdk/checkout/ui';
+import { usePeableSheetMessages } from '@/hooks/usePeableSheetMessages';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
+
+/** How often Mention asks Oxy for the outcome once Peable closed the order. */
+const OUTCOME_POLL_MS = 3000;
 
 type Message =
   | 'loading'
@@ -51,22 +53,12 @@ type Message =
 export function PlusPaymentSheet({
   onClose,
   cadence = 'month',
-  embeddedBinding,
 }: {
   onClose(): void;
   cadence?: PlusCadence;
-  embeddedBinding?: EmbeddedCheckoutBinding;
 }) {
   const { user } = useAuth();
   const { activeSessionId } = useOxy();
-  if (embeddedBinding)
-    return (
-      <PeableEmbeddedCheckout
-        key={embeddedBinding.intentId}
-        binding={embeddedBinding}
-        onClose={onClose}
-      />
-    );
   return (
     <PaymentContent
       key={`${user?.id}:${activeSessionId}:${cadence}`}
@@ -103,11 +95,14 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false);
   const [hasOperation, setHasOperation] = useState(false);
-  // The pending Peable order, driven in Mention's own sheet while it can be read.
+  // The pending Peable order, paid in Peable's sheet (the SDK's PeableSheetCheckout).
   const [sessionCheckout, setSessionCheckout] = useState<{
-    capability: PlusSessionCapability;
+    source: SheetCheckoutSource;
     url: string;
   } | null>(null);
+  // Peable closed the order; until Oxy answers, Mention keeps asking.
+  const [settled, setSettled] = useState(false);
+  const sheetMessages = usePeableSheetMessages();
   // A pending checkout Mention cannot drive itself: opened only from a press.
   const [hostedUrl, setHostedUrl] = useState<string | null>(null);
   const scope = useRef({ active: false });
@@ -210,14 +205,18 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         setMessage('pending');
         if (startCheckout && result.checkoutUrl) {
           const url = checkoutUrl(result.checkoutUrl);
-          const capability = hostedSessionCapability(url);
-          // Card and FairCoin are chosen in Mention's sheet over the same order;
-          // anything Mention cannot drive stays a hosted page.
-          if (capability) setSessionCheckout({ capability, url });
-          else setHostedUrl(url);
+          const source = sheetSourceFromUrl(url);
+          // Card and FairCoin are chosen in Peable's sheet over the same order;
+          // a URL that is not a Peable session stays a hosted page.
+          if (source?.type === 'checkout_session') {
+            setSettled(false);
+            setSessionCheckout({ source, url });
+          } else setHostedUrl(url);
         }
       } else {
-        setSessionCheckout(null);
+        // Fulfilled: the sheet shows Peable's success and closes itself. Anything
+        // else ends the sheet, and this dialog says what Oxy answered.
+        if (result.state !== 'fulfilled') setSessionCheckout(null);
         setHostedUrl(null);
         setMessage(result.state === 'unconfigured' ? 'unavailable' : result.state);
         if (result.state === 'closed' || result.state === 'fulfilled') {
@@ -264,9 +263,20 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
       }
     }
   }
+  // Once Peable closed the order, only Oxy's answer can grant access: ask until
+  // it is no longer pending.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `purchase` reads the current scope itself.
+  useEffect(() => {
+    if (!settled || message !== 'pending') return;
+    const poll = setInterval(() => {
+      void purchase(false);
+    }, OUTCOME_POLL_MS);
+    return () => clearInterval(poll);
+  }, [settled, message]);
+
   /** The hosted page, from the press that asked for it: the web window is
    * reserved before any await, so a popup blocker sees the gesture. */
-  const openHosted: OpenHostedCheckout = async (url, before) => {
+  const openHosted = async (url: string) => {
     const attemptScope = scope.current;
     const isCurrent = () => attemptScope.active && scope.current === attemptScope;
     popup.current?.close();
@@ -276,10 +286,6 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         : null;
     if (windowForAttempt) windowForAttempt.opener = null;
     popup.current = windowForAttempt;
-    if (before && !(await before())) {
-      windowForAttempt?.close();
-      return;
-    }
     if (!isCurrent()) {
       windowForAttempt?.close();
       return;
@@ -301,24 +307,45 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
     message === 'closed' ||
     message === 'review' ||
     message === 'included';
-  if (sessionCheckout && offer && !done && canUsePrivateApi)
+  if (sessionCheckout && offer?.price && canUsePrivateApi)
     return (
-      <PlusSessionCheckout
-        key={sessionCheckout.capability.sessionId}
-        capability={sessionCheckout.capability}
-        hostedUrl={sessionCheckout.url}
-        offer={offer}
-        openHosted={openHosted}
+      <PeableSheetCheckout
+        key={sessionCheckout.source.id}
+        source={sessionCheckout.source}
+        locale={i18n.language}
+        messages={sheetMessages}
+        // The reviewed offer: Peable compares it with the session's price before tax.
+        expected={{
+          amount: String(offer.price.amountMinorUnits),
+          currency: offer.price.currency,
+        }}
+        presentation={{
+          merchant: 'Mention',
+          recurring: { interval: offer.price.interval },
+          itemDetail: () =>
+            t(`plus.payment.cadence${offer.price?.interval === 'year' ? 'Year' : 'Month'}`),
+        }}
+        openUrl={async (url, kind) => {
+          // The Peable wallet's request by its link; Peable's secure page (the
+          // card on a phone) the way every hosted page here opens.
+          if (kind === 'hosted') await openHosted(url);
+          else if (Platform.OS === 'web') window.location.href = url;
+          else await Linking.openURL(url);
+        }}
         onSettled={() => {
           // The gateway closed the order; only Oxy's answer can grant access.
-          setSessionCheckout(null);
+          setSettled(true);
           void purchase(false);
         }}
+        outcome={message === 'fulfilled' ? 'succeeded' : null}
         onUnavailable={() => {
           setHostedUrl(sessionCheckout.url);
           setSessionCheckout(null);
         }}
-        onClose={() => setSessionCheckout(null)}
+        onClose={() => {
+          setSessionCheckout(null);
+          if (message === 'fulfilled') onClose();
+        }}
       />
     );
   return (

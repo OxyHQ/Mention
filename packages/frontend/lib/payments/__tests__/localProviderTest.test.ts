@@ -9,7 +9,6 @@ jest.mock('@peable.to/sdk/checkout', () => ({
 import {
   createLocalProviderTestBinding,
   isTestProviderAction,
-  localProviderPhase,
   localProviderTestBinding,
 } from '../localProviderTest';
 const link =
@@ -37,14 +36,6 @@ it('refuses live provider actions in local test mode', () => {
   expect(isTestProviderAction({ kind: 'redirect', publishable_key: 'pk_test_example' })).toBe(
     false,
   );
-});
-it('only announces success from a succeeded intent and permits declined retries', () => {
-  expect(localProviderPhase('processing')).toBe('pending');
-  expect(localProviderPhase('requires_capture')).toBe('pending');
-  expect(localProviderPhase('requires_payment_method')).toBe('entry');
-  expect(localProviderPhase('succeeded')).toBe('success');
-  expect(localProviderPhase('canceled')).toBe('failure');
-  expect(localProviderPhase('requires_action')).toBe('entry');
 });
 
 /** `POST /__local/checkout-test` as the Peable harness answers it: the snapshot plus the payer capability. */

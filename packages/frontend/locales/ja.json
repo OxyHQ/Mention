@@ -145,8 +145,7 @@
         "countryES": "Spain",
         "generic": "Card",
         "hint": "カード情報は Peable の安全な支払いページで入力します。",
-        "open": "カード支払いに進む",
-        "failed": "カードに切り替えられませんでした。もう一度お試しください。"
+        "open": "カード支払いに進む"
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -180,11 +179,9 @@
         "title": "FairCoin で支払う",
         "quote": "価格 {{amount}} · 1 FAIR = {{rate}} {{currency}}。",
         "holdsUntil": "この価格は {{time}} まで有効です。",
-        "expired": "この FairCoin の価格は期限切れです。戻ってもう一度 FairCoin を選ぶと新しい価格になります。",
         "hint": "このコードをスマートフォンの Peable アプリでスキャンするか、このデバイスで Peable を開いてください。",
         "peableOnly": "この支払いは Peable アプリでのみ完了できます。",
         "qr": "Peable 支払いコード",
-        "failed": "FairCoin の支払いを開始できませんでした。もう一度試すか、カードで支払ってください。",
         "confirming": "この注文の FairCoin 支払いはすでに確認中です。完了するまでお待ちください。",
         "noPeable": "このデバイスには Peable がインストールされていません。スマートフォンの Peable でコードをスキャンしてください。",
         "otherMethod": "別の支払い方法を選ぶ",

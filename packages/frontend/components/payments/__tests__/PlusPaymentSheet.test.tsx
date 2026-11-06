@@ -1,24 +1,29 @@
-jest.mock('../PeableEmbeddedCheckout', () => ({ PeableEmbeddedCheckout: () => null }));
 import type { ComponentProps } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
+import type { PeableSheetCheckout } from '@peable.to/sdk/checkout/ui';
 import { PlusPaymentSheet } from '../PlusPaymentSheet';
-import type { PlusSessionCheckout } from '../PlusSessionCheckout';
 
 const mockSessionCheckout = jest.fn();
-let mockSessionProps: ComponentProps<typeof PlusSessionCheckout> | undefined;
-jest.mock('../PlusSessionCheckout', () => ({
-  PlusSessionCheckout: (props: ComponentProps<typeof PlusSessionCheckout>) => {
+let mockSessionProps: ComponentProps<typeof PeableSheetCheckout> | undefined;
+// The SDK's UI entry is ESM-only under Jest: the sheet is a probe, and the URL
+// reader keeps the SDK's rule (Peable's origin, a secret naming the session).
+jest.mock('@peable.to/sdk/checkout/ui', () => ({
+  PeableSheetCheckout: (props: ComponentProps<typeof PeableSheetCheckout>) => {
     mockSessionProps = props;
     mockSessionCheckout(props);
     return <>Peable session checkout</>;
   },
+  sheetSourceFromUrl: (url: string) => {
+    const parsed = new URL(url);
+    const secret = new URLSearchParams(parsed.hash.slice(1)).get('cs') ?? '';
+    const id = /^(cs_[0-9a-f]{24,})_secret_[0-9a-f]{16,}$/.exec(secret)?.[1];
+    return parsed.origin === 'https://checkout.peable.to' && id && parsed.pathname === `/c/${id}`
+      ? { type: 'checkout_session', id, clientSecret: secret }
+      : null;
+  },
 }));
-// The SDK's browser entry is ESM-only under Jest; this is its own definition.
-jest.mock('@peable.to/sdk/checkout', () => ({
-  sessionIdFromClientSecret: (secret: string) =>
-    /^(cs_[0-9a-f]{24,})_secret_[0-9a-f]{16,}$/.exec(secret)?.[1] ?? null,
-}));
+jest.mock('@/hooks/usePeableSheetMessages', () => ({ usePeableSheetMessages: () => ({}) }));
 const SESSION = 'cs_0123456789abcdef01234567';
 const SECRET = `${SESSION}_secret_0123456789abcdef`;
 const HOSTED = `https://checkout.peable.to/c/${SESSION}#cs=${SECRET}`;
@@ -219,9 +224,10 @@ it("drives the pending Peable order in Mention's sheet, and checks status withou
   });
   expect(mockSessionCheckout).toHaveBeenCalledWith(
     expect.objectContaining({
-      capability: { sessionId: SESSION, clientSecret: SECRET },
-      hostedUrl: HOSTED,
-      offer: expect.objectContaining({ offerId: 'approved', offerVersion: 2 }),
+      source: { type: 'checkout_session', id: SESSION, clientSecret: SECRET },
+      // The reviewed offer, compared by Peable with the session's price before tax.
+      expected: { amount: String(offer.price.amountMinorUnits), currency: 'USD' },
+      outcome: null,
     }),
   );
   // Nothing opens until the payer chooses the card.
@@ -232,45 +238,59 @@ it("drives the pending Peable order in Mention's sheet, and checks status withou
   expect(mockClearKey).not.toHaveBeenCalled();
   expect(mockInvalidate).not.toHaveBeenCalled();
 });
-it('opens the hosted card page from the payer’s press, in a window without an opener', async () => {
+it('opens a page the sheet asks for in a window without an opener', async () => {
   await mount();
   await press('plus.payment.continue');
   await act(async () => {
-    await mockSessionProps?.openHosted(HOSTED);
+    await mockSessionProps?.openUrl?.(HOSTED, 'hosted');
   });
   expect(window.open).toHaveBeenCalledTimes(1);
   expect(mockPopup.opener).toBeNull();
   expect(mockLocation.replace).toHaveBeenCalledWith(HOSTED);
 });
-it('keeps the window closed when switching the order to the card fails', async () => {
+it('opens the Peable wallet request by its link on a phone', async () => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   await mount();
   await press('plus.payment.continue');
   await act(async () => {
-    await mockSessionProps?.openHosted(HOSTED, async () => false);
+    await mockSessionProps?.openUrl?.('peable://pay?intent=pi_x', 'wallet');
   });
-  expect(mockClose).toHaveBeenCalled();
-  expect(mockLocation.replace).not.toHaveBeenCalled();
+  expect(openURL).toHaveBeenCalledWith('peable://pay?intent=pi_x');
+  expect(mockNativeBrowser).not.toHaveBeenCalled();
+  openURL.mockRestore();
 });
-it('asks Oxy, never the sheet, once the gateway closed the order', async () => {
-  await mount();
-  await press('plus.payment.continue');
-  mockCheckout.mockResolvedValue({ state: 'pending', intentId: 'intent' });
-  await act(async () => {
-    mockSessionProps?.onSettled();
-  });
-  expect(mockCheckout).toHaveBeenCalledTimes(2);
-  expect(mockInvalidate).not.toHaveBeenCalled();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.pending');
-  mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
-  await press('plus.payment.checkStatus');
-  expect(mockInvalidate).toHaveBeenCalled();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.fulfilled');
+it('asks Oxy, never the sheet, once the gateway closed the order, until Oxy answers', async () => {
+  jest.useFakeTimers();
+  try {
+    await mount();
+    await press('plus.payment.continue');
+    mockCheckout.mockResolvedValue({ state: 'pending', intentId: 'intent' });
+    await act(async () => {
+      mockSessionProps?.onSettled('complete');
+    });
+    expect(mockCheckout).toHaveBeenCalledTimes(2);
+    expect(mockInvalidate).not.toHaveBeenCalled();
+    expect(mockSessionProps?.outcome).toBeNull();
+    // Still pending: Mention keeps asking Oxy, and the sheet keeps waiting.
+    mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+    await act(async () => {});
+    expect(mockCheckout).toHaveBeenCalledTimes(3);
+    expect(mockInvalidate).toHaveBeenCalled();
+    // Only Oxy's `fulfilled` lets the sheet say the payment succeeded.
+    expect(mockSessionProps?.outcome).toBe('succeeded');
+  } finally {
+    jest.useRealTimers();
+  }
 });
 it('falls back to the hosted page when the order cannot be driven in the sheet', async () => {
   await mount();
   await press('plus.payment.continue');
   await act(async () => {
-    mockSessionProps?.onUnavailable();
+    mockSessionProps?.onUnavailable('unreadable');
   });
   expect(JSON.stringify(renderer.toJSON())).not.toContain('Peable session checkout');
   await press('plus.payment.openCheckout');
@@ -362,7 +382,7 @@ it('refreshes authoritative access only after fulfilled, never after native brow
   await mount();
   await press('plus.payment.continue');
   await act(async () => {
-    await mockSessionProps?.openHosted(HOSTED);
+    await mockSessionProps?.openUrl?.(HOSTED, 'hosted');
   });
   expect(mockNativeBrowser).toHaveBeenCalledWith(HOSTED);
   expect(mockInvalidate).not.toHaveBeenCalled();
