@@ -8,6 +8,7 @@
  * and never reaches the SPA, and the ids in the documents are the ids the app
  * is actually built with (`packages/frontend/app.config.js`).
  */
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
@@ -21,6 +22,10 @@ import {
   MENTION_APP_ID,
   createAppAssociationRouter,
 } from '../routes/appAssociation.routes';
+import {
+  APPLE_PAY_DOMAIN_ASSOCIATION,
+  APPLE_PAY_DOMAIN_ASSOCIATION_SHA256,
+} from '../routes/applePayDomainAssociation';
 
 import { config, parseRuntimeEnvironment } from '../config';
 
@@ -127,6 +132,36 @@ describe('app association documents', () => {
         },
       },
     ]);
+  });
+
+  it("serves Stripe's Apple Pay domain file on the apex, byte for byte, without the SPA", async () => {
+    // https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association
+    const STRIPE_FILE_SHA256 = '2de7b483319c713bf649352f7f158f1fedbda92f546bebfe576ae0a2d2c526c6';
+    expect(APPLE_PAY_DOMAIN_ASSOCIATION_SHA256).toBe(STRIPE_FILE_SHA256);
+    expect(createHash('sha256').update(APPLE_PAY_DOMAIN_ASSOCIATION).digest('hex')).toBe(
+      STRIPE_FILE_SHA256,
+    );
+
+    const { app, apexProxy } = createTestApp();
+    const res = await request(app)
+      .get('/.well-known/apple-developer-merchantid-domain-association')
+      .set('Host', APEX)
+      .buffer(true)
+      .parse((response, done) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => done(null, Buffer.concat(chunks)));
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/plain\b/);
+    expect(res.headers.location).toBeUndefined();
+    expect(apexProxy).not.toHaveBeenCalled();
+    expect(
+      createHash('sha256')
+        .update(res.body as Buffer)
+        .digest('hex'),
+    ).toBe(STRIPE_FILE_SHA256);
   });
 
   it('lists only well-formed fingerprints, and never the public React Native debug key', () => {

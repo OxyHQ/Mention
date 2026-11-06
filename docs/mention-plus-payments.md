@@ -40,7 +40,11 @@ session has `automatic_tax`. It never asks for a shipping address.
   card fields, both paying the session's card payment (created when the card step
   opens, so the wallets show its taxed amount and only when Peable's payment method
   configuration, a registered wallet domain for `mention.earth` and the device allow
-  them). On iOS and Android the card, Apple Pay and Google Pay are on Peable's secure
+  them). `mention.earth` is Peable wallet domain `pmd_c94063dcd8e3606cb895864f` of
+  Oxy's central billing merchant, registered through Peable's `payment_method_domains`
+  API, and the backend serves Stripe's Apple Pay file at
+  `/.well-known/apple-developer-merchantid-domain-association`
+  (`routes/applePayDomainAssociation.ts`). On iOS and Android the card, Apple Pay and Google Pay are on Peable's secure
   page in the in-app browser, where no DOM can host those fields. An
   unpaid FairCoin payment is replaced by the card one; a FairCoin payment already
   confirming cannot be.
