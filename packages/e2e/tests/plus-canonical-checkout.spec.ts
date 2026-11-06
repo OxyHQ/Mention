@@ -91,6 +91,23 @@ for (const width of [1440, 390]) {
     candidate,
   }) => {
     expect(candidate.servedPaths).toBeDefined();
+    const paymentPolicyViolations: string[] = [];
+    await page.exposeFunction('recordPaymentPolicyViolation', (value: string) => {
+      paymentPolicyViolations.push(value);
+    });
+    await context.addInitScript(() => {
+      document.addEventListener('securitypolicyviolation', (event) => {
+        if (
+          /^https:\/\/(api\.peable\.to|checkout\.peable\.to|api\.stripe\.com|js\.stripe\.com|hooks\.stripe\.com)(\/|$)/.test(
+            event.blockedURI,
+          )
+        ) {
+          const recorder = Reflect.get(window, 'recordPaymentPolicyViolation');
+          if (typeof recorder === 'function')
+            recorder(`${event.effectiveDirective}: ${event.blockedURI}`);
+        }
+      });
+    });
     await page.setViewportSize({ width, height: 900 });
     await installDraftFixture(context, { seedDrafts: false });
     const headers = {
@@ -215,6 +232,7 @@ for (const width of [1440, 390]) {
     await expect(region).toHaveValue('DE');
     await expect(billingContinue).toBeEnabled();
     expect(confirms).toBe(0);
+    expect(paymentPolicyViolations).toEqual([]);
     expect(candidate.scriptErrors.filter((error) => error.startsWith('uncaught'))).toEqual([]);
   });
 }

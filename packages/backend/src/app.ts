@@ -69,12 +69,18 @@ const MENTION_CSP_EXTENSIONS = {
     'wss://livekit.oxy.so',
     // Homiio case cards: `@oxy.so/homiio-sdk` reads its public batch API directly.
     'https://api.homiio.com',
+    // Peable's payer API; sensitive card inputs stay inside provider-owned frames.
+    'https://api.peable.to',
+    'https://api.stripe.com',
   ],
   // Federated media is user-supplied and lives on arbitrary remote instances.
   imgSrc: ['blob:', 'https:'],
   mediaSrc: ['data:', 'blob:', 'https:'],
   // External embed players (`utils/embedPlayer.ts`) mount these in an iframe.
   frameSrc: [
+    'https://checkout.peable.to',
+    'https://js.stripe.com',
+    'https://hooks.stripe.com',
     'https://www.youtube-nocookie.com',
     'https://www.youtube.com',
     'https://player.vimeo.com',
@@ -92,7 +98,8 @@ const MENTION_CSP_EXTENSIONS = {
   // ThorVG compiled to WebAssembly; the binary is served from this origin
   // (`frontend/lib/lottieWeb.web.ts`), so no script source is added. Without
   // it Bloom's `Sticker` still works — it shows the still image.
-  scriptSrc: ["'wasm-unsafe-eval'"],
+  // Only secure card fields are provider-hosted; the checkout layout remains Peable.
+  scriptSrc: ["'wasm-unsafe-eval'", 'https://js.stripe.com'],
 } satisfies OxyCspExtensions;
 
 const ACTIVITY_PUB_BODY_TYPES = ['application/activity+json', 'application/ld+json'];
