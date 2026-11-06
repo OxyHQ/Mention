@@ -38,7 +38,7 @@
  * A Fargate one-shot taking its network configuration and secrets from the LIVE
  * service, rather than naming a task definition here: a pinned name is a claim
  * about infrastructure this repo does not own, and it goes stale silently.
- * `.github/workflows/run-federated-text-backfill.yml` is the worked example —
+ * the removed `run-federated-text-backfill` workflow was the worked example —
  * `describe-services` -> `taskDefinition` + `networkConfiguration` -> register a
  * throwaway revision -> `run-task` with a container override whose command is:
  *

@@ -133,15 +133,6 @@ for (const workflowName of workflowNames) {
           `${workflowName}: deploy role lacks ecs:StopTask; workflow must not depend on it`,
         );
       }
-      if (
-        workflowName === 'run-federated-text-backfill.yml' &&
-        (!source.includes('"busybox","timeout","-s","TERM","-k","30","3300"') ||
-          !source.includes("EXPECTED_RUNTIME_COMMANDS: 'bun,busybox'"))
-      ) {
-        failures.push(
-          `${workflowName}: backfill command must remain container-bounded and the image audit must verify BusyBox`,
-        );
-      }
     }
     if (workflow?.on?.workflow_run && workflowName.startsWith('deploy-')) {
       const currentMainGuardCount = source.split('require-current-main.sh').length - 1;
