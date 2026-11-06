@@ -756,15 +756,9 @@ describe('federationService.fetchRemoteActor', () => {
       networkAcct: 'carol@remote.example',
       summary: 'Oxy verified bio\n\n@friend@remote.example',
     });
-    // The verified-links table is a SECOND table now, so it is read back rather
-    // than compared inside the upsert payload.
-    expect(await loadActorFields(stored!.id)).toEqual([
-      {
-        name: 'Sitio web',
-        value: '<a href="https://carol.example">carol.example</a>',
-        verifiedAt: undefined,
-      },
-    ]);
+    // The link field is the account's profile link (Oxy holds it with the native
+    // links), so no metadata row is kept for it here.
+    expect(await loadActorFields(stored!.id)).toEqual([]);
     // Mention sends source coordinates only; Oxy verifies the public profile.
     expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       actorUri: 'https://remote.example/users/carol',
