@@ -172,6 +172,7 @@
     "lib/payments/peableWire.ts": {"statements":[13,13],"branches":[26,26],"functions":[3,3],"lines":[12,12]},
     "lib/payments/plusCheckout.ts": {"statements":[36,36],"branches":[58,59],"functions":[10,10],"lines":[32,32]},
     "lib/payments/plusCheckoutStorage.ts": {"statements":[23,25],"branches":[8,10],"functions":[7,7],"lines":[19,19]},
+    "lib/payments/plusSessionCheckout.ts": {"statements":[48,50],"branches":[66,71],"functions":[9,9],"lines":[42,42]},
     "lib/precacheActorsFromPosts.ts": {"statements":[15,15],"branches":[17,17],"functions":[1,1],"lines":[10,10]},
     "lib/queryClient.ts": {"statements":[1,1],"branches":[0,0],"functions":[0,0],"lines":[1,1]},
     "lib/recommendationFilters.ts": {"statements":[33,39],"branches":[9,19],"functions":[10,12],"lines":[33,35]},

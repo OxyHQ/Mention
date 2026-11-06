@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "Introduiràs la targeta a la pàgina de pagament segura de Peable.",
+        "open": "Continua al pagament amb targeta",
+        "failed": "No s'ha pogut canviar a targeta. Torna-ho a provar."
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "Tria com vols pagar.",
+      "faircoin": {
+        "available": "Paga des del teu moneder de Peable",
+        "title": "Paga amb FairCoin",
+        "quote": "Preu de {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
+        "holdsUntil": "Aquest preu és vàlid fins a les {{time}}.",
+        "expired": "Aquest preu en FairCoin ha caducat. Torna enrere i tria FairCoin de nou per obtenir un preu nou.",
+        "hint": "Escaneja aquest codi amb l'app Peable al telèfon o obre Peable en aquest dispositiu.",
+        "peableOnly": "Només l'app Peable pot completar aquest pagament.",
+        "qr": "Codi de pagament de Peable",
+        "failed": "No s'ha pogut iniciar el pagament amb FairCoin. Torna-ho a provar o paga amb targeta.",
+        "confirming": "Ja s'està confirmant un pagament en FairCoin per a aquesta comanda. Espera que acabi.",
+        "noPeable": "Peable no està instal·lat en aquest dispositiu. Escaneja el codi amb Peable al telèfon.",
+        "otherMethod": "Tria una altra forma de pagament",
+        "unavailable": {
+          "walletMissing": "El moneder de Peable de Mention encara no està configurat, així que no pot rebre FairCoin.",
+          "networkClosed": "Els pagaments en FairCoin encara no estan oberts en aquesta xarxa.",
+          "priceUnavailable": "Ara no es pot calcular el preu en FairCoin. Torna-ho a provar d'aquí a un moment o paga amb targeta.",
+          "temporarilyUnavailable": "Ara no es pot comprovar FairCoin. Torna-ho a provar d'aquí a un moment."
+        },
+        "transfer": {
+          "awaiting": "Esperant el teu pagament",
+          "detected": "Pagament detectat",
+          "processing": "Confirmant el teu pagament",
+          "succeeded": "Pagament rebut",
+          "failure": "No s'ha pogut completar el pagament",
+          "expired": "Aquesta sol·licitud de pagament ha caducat"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "Obre el pagament"
     },
     "planFree": "Gratuït",
     "selectorLabel": "Tria un pla",

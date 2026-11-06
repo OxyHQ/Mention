@@ -26,6 +26,11 @@ import {
   type PlusOfferBinding,
 } from '@/lib/payments/plusCheckout';
 import { PlusDisplayEstimate } from './PlusDisplayEstimate';
+import { PlusSessionCheckout, type OpenHostedCheckout } from './PlusSessionCheckout';
+import {
+  hostedSessionCapability,
+  type PlusSessionCapability,
+} from '@/lib/payments/plusSessionCheckout';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
 
 type Message =
@@ -98,6 +103,13 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false);
   const [hasOperation, setHasOperation] = useState(false);
+  // The pending Peable order, driven in Mention's own sheet while it can be read.
+  const [sessionCheckout, setSessionCheckout] = useState<{
+    capability: PlusSessionCapability;
+    url: string;
+  } | null>(null);
+  // A pending checkout Mention cannot drive itself: opened only from a press.
+  const [hostedUrl, setHostedUrl] = useState<string | null>(null);
   const scope = useRef({ active: false });
   const locked = useRef(false);
   const popup = useRef<Window | null>(null);
@@ -142,14 +154,14 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
     purchaseAvailable,
   ]);
 
-  async function purchase(openWindow: boolean) {
+  async function purchase(startCheckout: boolean) {
     if (
       !offer ||
       !mentionPlusBinding ||
       !user?.id ||
       !canUsePrivateApi ||
-      (openWindow && (!purchaseAvailable || hasAccess || checkingAccess || accessFailed)) ||
-      (!openWindow && !hasOperation) ||
+      (startCheckout && (!purchaseAvailable || hasAccess || checkingAccess || accessFailed)) ||
+      (!startCheckout && !hasOperation) ||
       locked.current
     )
       return;
@@ -160,16 +172,8 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
     setOperation({ offer, binding: mentionPlusBinding });
     setStarted(true);
     setBusy(true);
-    // Reserve the browser window in the click gesture, before network awaits.
-    if (openWindow) popup.current?.close();
-    const windowForAttempt =
-      openWindow && Platform.OS === 'web'
-        ? window.open('about:blank', '_blank', 'popup,width=480,height=720')
-        : null;
-    if (windowForAttempt) windowForAttempt.opener = null;
-    if (openWindow) popup.current = windowForAttempt;
     try {
-      if (openWindow) {
+      if (startCheckout) {
         const access = await authenticatedApiCall(oxyServices, activeSessionId, () => {
           if (!isCurrent()) throw new Error('Account changed');
           return oxyServices.billing.productAccess(
@@ -182,7 +186,6 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         });
         if (!isCurrent()) return;
         if (includesPlus(access, user.id, mentionPlusBinding)) {
-          windowForAttempt?.close();
           setMessage('included');
           return;
         }
@@ -205,22 +208,17 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
       if (!isCurrent()) return;
       if (result.state === 'pending') {
         setMessage('pending');
-        if (openWindow && result.checkoutUrl) {
+        if (startCheckout && result.checkoutUrl) {
           const url = checkoutUrl(result.checkoutUrl);
-          if (Platform.OS === 'web') {
-            if (!windowForAttempt || windowForAttempt.closed) setMessage('blocked');
-            else windowForAttempt.location.replace(url);
-          } else {
-            ownsNativeBrowser.current = true;
-            try {
-              await WebBrowser.openBrowserAsync(url);
-            } finally {
-              ownsNativeBrowser.current = false;
-            }
-          }
-        } else windowForAttempt?.close();
+          const capability = hostedSessionCapability(url);
+          // Card and FairCoin are chosen in Mention's sheet over the same order;
+          // anything Mention cannot drive stays a hosted page.
+          if (capability) setSessionCheckout({ capability, url });
+          else setHostedUrl(url);
+        }
       } else {
-        windowForAttempt?.close();
+        setSessionCheckout(null);
+        setHostedUrl(null);
         setMessage(result.state === 'unconfigured' ? 'unavailable' : result.state);
         if (result.state === 'closed' || result.state === 'fulfilled') {
           await clearPlusCheckoutKey(user.id, mentionPlusBinding, key).catch(() => undefined);
@@ -251,7 +249,6 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         }
       }
     } catch (error) {
-      windowForAttempt?.close();
       if (isCurrent())
         setMessage(
           error instanceof Error &&
@@ -267,11 +264,63 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
       }
     }
   }
+  /** The hosted page, from the press that asked for it: the web window is
+   * reserved before any await, so a popup blocker sees the gesture. */
+  const openHosted: OpenHostedCheckout = async (url, before) => {
+    const attemptScope = scope.current;
+    const isCurrent = () => attemptScope.active && scope.current === attemptScope;
+    popup.current?.close();
+    const windowForAttempt =
+      Platform.OS === 'web'
+        ? window.open('about:blank', '_blank', 'popup,width=480,height=720')
+        : null;
+    if (windowForAttempt) windowForAttempt.opener = null;
+    popup.current = windowForAttempt;
+    if (before && !(await before())) {
+      windowForAttempt?.close();
+      return;
+    }
+    if (!isCurrent()) {
+      windowForAttempt?.close();
+      return;
+    }
+    if (Platform.OS === 'web') {
+      if (!windowForAttempt || windowForAttempt.closed) setMessage('blocked');
+      else windowForAttempt.location.replace(url);
+      return;
+    }
+    ownsNativeBrowser.current = true;
+    try {
+      await WebBrowser.openBrowserAsync(url);
+    } finally {
+      ownsNativeBrowser.current = false;
+    }
+  };
   const done =
     message === 'fulfilled' ||
     message === 'closed' ||
     message === 'review' ||
     message === 'included';
+  if (sessionCheckout && offer && !done && canUsePrivateApi)
+    return (
+      <PlusSessionCheckout
+        key={sessionCheckout.capability.sessionId}
+        capability={sessionCheckout.capability}
+        hostedUrl={sessionCheckout.url}
+        offer={offer}
+        openHosted={openHosted}
+        onSettled={() => {
+          // The gateway closed the order; only Oxy's answer can grant access.
+          setSessionCheckout(null);
+          void purchase(false);
+        }}
+        onUnavailable={() => {
+          setHostedUrl(sessionCheckout.url);
+          setSessionCheckout(null);
+        }}
+        onClose={() => setSessionCheckout(null)}
+      />
+    );
   return (
     <BottomSheet open detached onDismiss={onClose} accessibilityLabel={t('plus.payment.title')}>
       <View className="gap-4 p-5">
@@ -322,6 +371,16 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
               {t('plus.payment.continue')}
             </Button>
           )}
+        {offer && hostedUrl && (message === 'pending' || message === 'blocked') && (
+          <Button
+            disabled={busy}
+            onPress={() => {
+              void openHosted(hostedUrl);
+            }}
+          >
+            {t('plus.payment.openCheckout')}
+          </Button>
+        )}
         {offer && hasOperation && !done && (
           <Button
             disabled={busy}

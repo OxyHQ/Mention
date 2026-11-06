@@ -1,7 +1,27 @@
 jest.mock('../PeableEmbeddedCheckout', () => ({ PeableEmbeddedCheckout: () => null }));
+import type { ComponentProps } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Platform } from 'react-native';
 import { PlusPaymentSheet } from '../PlusPaymentSheet';
+import type { PlusSessionCheckout } from '../PlusSessionCheckout';
+
+const mockSessionCheckout = jest.fn();
+let mockSessionProps: ComponentProps<typeof PlusSessionCheckout> | undefined;
+jest.mock('../PlusSessionCheckout', () => ({
+  PlusSessionCheckout: (props: ComponentProps<typeof PlusSessionCheckout>) => {
+    mockSessionProps = props;
+    mockSessionCheckout(props);
+    return <>Peable session checkout</>;
+  },
+}));
+// The SDK's browser entry is ESM-only under Jest; this is its own definition.
+jest.mock('@peable.to/sdk/checkout', () => ({
+  sessionIdFromClientSecret: (secret: string) =>
+    /^(cs_[0-9a-f]{24,})_secret_[0-9a-f]{16,}$/.exec(secret)?.[1] ?? null,
+}));
+const SESSION = 'cs_0123456789abcdef01234567';
+const SECRET = `${SESSION}_secret_0123456789abcdef`;
+const HOSTED = `https://checkout.peable.to/c/${SESSION}#cs=${SECRET}`;
 
 let mockOffer: typeof offer | null;
 const mockPlans = jest.fn();
@@ -135,8 +155,15 @@ async function press(label: string) {
     button(label)?.props.onPress();
   });
 }
+/** The payer dismisses Mention's Peable sheet; the pending operation stays. */
+async function closeSession() {
+  await act(async () => {
+    mockSessionProps?.onClose();
+  });
+}
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSessionProps = undefined;
   mockUser = { id: 'account-a' };
   mockSession = 'session-a';
   mockHasAccess = false;
@@ -163,7 +190,7 @@ beforeEach(() => {
   mockCheckout.mockResolvedValue({
     state: 'pending',
     intentId: 'intent',
-    checkoutUrl: 'https://checkout.peable.to/c/session#cs=secret',
+    checkoutUrl: HOSTED,
   });
 });
 afterEach(() => {
@@ -180,7 +207,7 @@ it('never creates a checkout for an unavailable or mismatched central catalogue'
   expect(button('plus.payment.continue')).toBeUndefined();
   expect(mockCheckout).not.toHaveBeenCalled();
 });
-it('opens a gesture-owned window with a durable key, and checks status without a new operation', async () => {
+it("drives the pending Peable order in Mention's sheet, and checks status without a new operation", async () => {
   await mount();
   await press('plus.payment.continue');
   expect(mockCheckout).toHaveBeenCalledWith({
@@ -190,20 +217,88 @@ it('opens a gesture-owned window with a durable key, and checks status without a
     offerVersion: 2,
     idempotencyKey: 'durable-key',
   });
-  expect(mockPopup.opener).toBeNull();
-  expect(mockLocation.replace).toHaveBeenCalledWith(
-    'https://checkout.peable.to/c/session#cs=secret',
+  expect(mockSessionCheckout).toHaveBeenCalledWith(
+    expect.objectContaining({
+      capability: { sessionId: SESSION, clientSecret: SECRET },
+      hostedUrl: HOSTED,
+      offer: expect.objectContaining({ offerId: 'approved', offerVersion: 2 }),
+    }),
   );
+  // Nothing opens until the payer chooses the card.
+  expect(window.open).not.toHaveBeenCalled();
+  await closeSession();
   await press('plus.payment.checkStatus');
   expect(mockCheckout).toHaveBeenCalledTimes(2);
-  expect(window.open).toHaveBeenCalledTimes(1);
   expect(mockClearKey).not.toHaveBeenCalled();
   expect(mockInvalidate).not.toHaveBeenCalled();
 });
-it('handles popup blocking without clearing the pending operation', async () => {
-  window.open = jest.fn().mockReturnValue(null);
+it('opens the hosted card page from the payer’s press, in a window without an opener', async () => {
   await mount();
   await press('plus.payment.continue');
+  await act(async () => {
+    await mockSessionProps?.openHosted(HOSTED);
+  });
+  expect(window.open).toHaveBeenCalledTimes(1);
+  expect(mockPopup.opener).toBeNull();
+  expect(mockLocation.replace).toHaveBeenCalledWith(HOSTED);
+});
+it('keeps the window closed when switching the order to the card fails', async () => {
+  await mount();
+  await press('plus.payment.continue');
+  await act(async () => {
+    await mockSessionProps?.openHosted(HOSTED, async () => false);
+  });
+  expect(mockClose).toHaveBeenCalled();
+  expect(mockLocation.replace).not.toHaveBeenCalled();
+});
+it('asks Oxy, never the sheet, once the gateway closed the order', async () => {
+  await mount();
+  await press('plus.payment.continue');
+  mockCheckout.mockResolvedValue({ state: 'pending', intentId: 'intent' });
+  await act(async () => {
+    mockSessionProps?.onSettled();
+  });
+  expect(mockCheckout).toHaveBeenCalledTimes(2);
+  expect(mockInvalidate).not.toHaveBeenCalled();
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.pending');
+  mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
+  await press('plus.payment.checkStatus');
+  expect(mockInvalidate).toHaveBeenCalled();
+  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.fulfilled');
+});
+it('falls back to the hosted page when the order cannot be driven in the sheet', async () => {
+  await mount();
+  await press('plus.payment.continue');
+  await act(async () => {
+    mockSessionProps?.onUnavailable();
+  });
+  expect(JSON.stringify(renderer.toJSON())).not.toContain('Peable session checkout');
+  await press('plus.payment.openCheckout');
+  expect(mockLocation.replace).toHaveBeenCalledWith(HOSTED);
+});
+it('keeps any other checkout URL hosted, opened only from a press', async () => {
+  mockCheckout.mockResolvedValue({
+    state: 'pending',
+    intentId: 'intent',
+    checkoutUrl: 'https://pay.example.test/session',
+  });
+  await mount();
+  await press('plus.payment.continue');
+  expect(mockSessionCheckout).not.toHaveBeenCalled();
+  expect(window.open).not.toHaveBeenCalled();
+  await press('plus.payment.openCheckout');
+  expect(mockLocation.replace).toHaveBeenCalledWith('https://pay.example.test/session');
+});
+it('handles popup blocking without clearing the pending operation', async () => {
+  window.open = jest.fn().mockReturnValue(null);
+  mockCheckout.mockResolvedValue({
+    state: 'pending',
+    intentId: 'intent',
+    checkoutUrl: 'https://pay.example.test/session',
+  });
+  await mount();
+  await press('plus.payment.continue');
+  await press('plus.payment.openCheckout');
   expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.blocked');
   expect(mockClearKey).not.toHaveBeenCalled();
 });
@@ -237,7 +332,7 @@ it('retains the durable key on failed transport and review-required responses', 
   expect(button('plus.payment.continue')).toBeUndefined();
   expect(mockClearKey).not.toHaveBeenCalled();
 });
-it('closes the old popup and discards a response after switching accounts', async () => {
+it('discards a response after switching accounts', async () => {
   let resolve: ((value: unknown) => void) | undefined;
   mockCheckout.mockReturnValue(
     new Promise((done) => {
@@ -255,10 +350,10 @@ it('closes the old popup and discards a response after switching accounts', asyn
     resolve?.({
       state: 'pending',
       intentId: 'old',
-      checkoutUrl: 'https://checkout.peable.to/c/old',
+      checkoutUrl: HOSTED,
     });
   });
-  expect(mockClose).toHaveBeenCalled();
+  expect(mockSessionCheckout).not.toHaveBeenCalled();
   expect(mockLocation.replace).not.toHaveBeenCalled();
   expect(mockInvalidate).not.toHaveBeenCalled();
 });
@@ -266,8 +361,12 @@ it('refreshes authoritative access only after fulfilled, never after native brow
   Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
   await mount();
   await press('plus.payment.continue');
-  expect(mockNativeBrowser).toHaveBeenCalled();
+  await act(async () => {
+    await mockSessionProps?.openHosted(HOSTED);
+  });
+  expect(mockNativeBrowser).toHaveBeenCalledWith(HOSTED);
   expect(mockInvalidate).not.toHaveBeenCalled();
+  await closeSession();
   mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
   await press('plus.payment.checkStatus');
   expect(mockClearKey).toHaveBeenCalledWith(
@@ -312,6 +411,7 @@ it('rechecks individual or bundle access immediately before creating checkout', 
 it('recovers a pending operation after access becomes included without creating another payment', async () => {
   await mount();
   await press('plus.payment.continue');
+  await closeSession();
   mockHasAccess = true;
   await act(async () => {
     renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
@@ -326,6 +426,7 @@ it('recovers a pending operation after access becomes included without creating 
 it('freezes the reviewed amount and offer while an operation is pending', async () => {
   await mount();
   await press('plus.payment.continue');
+  await closeSession();
   mockOffer = {
     ...offer,
     offerId: 'replacement',
@@ -359,6 +460,7 @@ it('uses the selected annual offer for checkout and recovery', async () => {
     offerVersion: 3,
   });
   expect(mockKey.mock.calls[0][1]).toMatchObject({ offerId: 'approved-year', offerVersion: 3 });
+  await closeSession();
   await press('plus.payment.checkStatus');
   expect(mockCheckout.mock.calls[1][0]).toEqual(mockCheckout.mock.calls[0][0]);
 });

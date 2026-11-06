@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "আপনি Peable-এর সুরক্ষিত পেমেন্ট পেজে কার্ডের তথ্য দেবেন।",
+        "open": "কার্ডে পেমেন্টে এগিয়ে যান",
+        "failed": "কার্ডে বদলানো যায়নি। আবার চেষ্টা করুন।"
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "কীভাবে পেমেন্ট করবেন বেছে নিন।",
+      "faircoin": {
+        "available": "আপনার Peable ওয়ালেট থেকে পেমেন্ট করুন",
+        "title": "FairCoin দিয়ে পেমেন্ট",
+        "quote": "মূল্য {{amount}} · 1 FAIR = {{rate}} {{currency}}।",
+        "holdsUntil": "এই মূল্য {{time}} পর্যন্ত বহাল থাকবে।",
+        "expired": "এই FairCoin মূল্যের মেয়াদ শেষ। নতুন মূল্যের জন্য ফিরে গিয়ে আবার FairCoin বেছে নিন।",
+        "hint": "আপনার ফোনের Peable অ্যাপ দিয়ে এই কোডটি স্ক্যান করুন, অথবা এই ডিভাইসে Peable খুলুন।",
+        "peableOnly": "শুধু Peable অ্যাপ এই পেমেন্ট সম্পন্ন করতে পারে।",
+        "qr": "Peable পেমেন্ট কোড",
+        "failed": "FairCoin পেমেন্ট শুরু করা যায়নি। আবার চেষ্টা করুন বা কার্ডে পেমেন্ট করুন।",
+        "confirming": "এই অর্ডারের একটি FairCoin পেমেন্ট ইতিমধ্যে নিশ্চিত হচ্ছে। শেষ হওয়া পর্যন্ত অপেক্ষা করুন।",
+        "noPeable": "এই ডিভাইসে Peable ইনস্টল করা নেই। আপনার ফোনের Peable দিয়ে কোডটি স্ক্যান করুন।",
+        "otherMethod": "অন্য পেমেন্ট পদ্ধতি বেছে নিন",
+        "unavailable": {
+          "walletMissing": "Mention-এর Peable ওয়ালেট এখনও সেট আপ করা হয়নি, তাই এটি FairCoin গ্রহণ করতে পারে না।",
+          "networkClosed": "এই নেটওয়ার্কে FairCoin পেমেন্ট এখনও চালু হয়নি।",
+          "priceUnavailable": "এখন FairCoin-এর মূল্য নির্ধারণ করা যাচ্ছে না। একটু পরে আবার চেষ্টা করুন বা কার্ডে পেমেন্ট করুন।",
+          "temporarilyUnavailable": "এখন FairCoin যাচাই করা যাচ্ছে না। একটু পরে আবার চেষ্টা করুন।"
+        },
+        "transfer": {
+          "awaiting": "আপনার পেমেন্টের অপেক্ষায়",
+          "detected": "পেমেন্ট শনাক্ত হয়েছে",
+          "processing": "আপনার পেমেন্ট নিশ্চিত করা হচ্ছে",
+          "succeeded": "পেমেন্ট পাওয়া গেছে",
+          "failure": "পেমেন্ট সম্পন্ন করা যায়নি",
+          "expired": "এই পেমেন্ট অনুরোধের মেয়াদ শেষ"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "পেমেন্ট খুলুন"
     },
     "planFree": "বিনামূল্যে",
     "selectorLabel": "একটি প্ল্যান বেছে নিন",
