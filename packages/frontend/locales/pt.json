@@ -1107,6 +1107,7 @@
     },
     "about": {
       "title": "Acerca",
+      "profileDetails": "Detalhes do perfil",
       "basedIn": "Conta sediada em",
       "details": "Detalhes da conta",
       "connectedVia": "Ligado através de",

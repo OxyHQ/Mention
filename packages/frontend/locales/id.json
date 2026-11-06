@@ -1089,6 +1089,7 @@
     },
     "about": {
       "title": "Tentang",
+      "profileDetails": "Detail profil",
       "basedIn": "Akun berbasis di",
       "details": "Detail akun",
       "connectedVia": "Terhubung melalui",

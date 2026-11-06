@@ -1089,6 +1089,7 @@
     },
     "about": {
       "title": "Über",
+      "profileDetails": "Profildetails",
       "basedIn": "Konto ansässig in",
       "details": "Kontodetails",
       "connectedVia": "Verbunden über",

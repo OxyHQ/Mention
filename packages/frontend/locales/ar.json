@@ -1161,6 +1161,7 @@
     },
     "about": {
       "title": "حول",
+      "profileDetails": "تفاصيل الملف الشخصي",
       "basedIn": "مقر الحساب في",
       "details": "تفاصيل الحساب",
       "connectedVia": "متصل عبر",

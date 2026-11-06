@@ -1107,6 +1107,7 @@
     },
     "about": {
       "title": "Quant a",
+      "profileDetails": "Detalls del perfil",
       "basedIn": "Compte amb seu a",
       "details": "Detalls del compte",
       "connectedVia": "Connectat mitjançant",
