@@ -122,7 +122,7 @@ Klipy hosts are imported. The `gifs` row's insert marks both files (`gif`).
 Rows from before (`storage = 'federation_cache'`, also the column default, so a
 row the previous image writes during the deploy is classified right) are moved
 by `scripts/migrateGifLibraryToApplicationFiles.ts`
-(`.github/workflows/run-gif-library-migration.yml`, dry run first): Oxy imports
+(run as an ECS one-shot task on the live backend image, dry run first): Oxy imports
 each file from its own CDN as an application file, 25 GIFs per
 `importAppFiles` batch (one request of Oxy's 30 imports a minute per
 application, which the live picker shares; batches are 10 s apart and one
@@ -148,8 +148,8 @@ Finish Oxy's rendition repair first: the original's display dimensions and
 cache must have been purged. Mention then copies that authoritative metadata
 onto its existing references; it does not probe media during feed hydration.
 
-Use **Run media-metadata backfill** (`run-media-metadata-backfill.yml`) from
-`main`, with `file_id` set to the repaired Oxy video id and `dry_run=true`.
+Run `backfillMediaMetadata` as an ECS one-shot task on the live backend image
+(the Actions workflow was removed), with `file_id` set to the repaired Oxy video id and `dry_run=true`.
 Review the post counts, then use `dry_run=false` and the existing exact phrase
 `BACKFILL MEDIA METADATA`. Dispatcher authorization is unchanged. Leaving
 `file_id` empty and `refresh_videos=false` retain the ordinary missing-metadata sweep.

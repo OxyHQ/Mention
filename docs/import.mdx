@@ -281,7 +281,7 @@ A channel cannot be imported by Move: a channel is never the subject of a
 delegation (`isDelegatedActAsEligibleKind`), and Move imports by acting as the
 user. Until that exists, a Telegram Desktop channel export is imported by the
 operator-run one-shot `packages/backend/src/scripts/importTelegramChannelExport.ts`
-(workflow `.github/workflows/run-telegram-channel-import.yml`):
+(run as an ECS one-shot task on the live backend image, not a GitHub workflow):
 
 1. Convert the export into a manifest: one item per post, an album folded into
    one post, dates from `date_unixtime` (the export's `date` is the exporting
