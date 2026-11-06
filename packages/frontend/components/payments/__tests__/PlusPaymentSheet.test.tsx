@@ -28,7 +28,7 @@ let mockSession = 'session-a';
 let mockPrivate = true;
 let mockIncluded = false;
 let mockAvailable = true;
-const offer = {
+const offer: PlusOffer = {
   productId: 'mention',
   offerId: 'mention_plus_monthly',
   offerVersion: 1,
@@ -418,4 +418,16 @@ it('does not grant Plus when a native browser is dismissed', async () => {
   expect(mockProps?.outcome).toBeNull();
   expect(mockInvalidate).not.toHaveBeenCalled();
   expect(mockClearKey).not.toHaveBeenCalled();
+});
+
+it('exits an unconfigured operation after settlement without clearing its recovery key', async () => {
+  await mount();
+  await prepare();
+  mockCheckout.mockResolvedValue({ state: 'unconfigured', reason: 'provider_unconfigured' });
+  await act(async () => mockProps?.onSettled('complete'));
+  expect(mockToast).toHaveBeenCalledWith('plus.payment.unavailable', { type: 'error' });
+  expect(mockClose).toHaveBeenCalledTimes(1);
+  expect(mockProps?.outcome).toBeNull();
+  expect(mockClearKey).not.toHaveBeenCalled();
+  expect(mockInvalidate).not.toHaveBeenCalled();
 });

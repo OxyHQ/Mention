@@ -203,6 +203,12 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         return;
       }
       if (result.state === 'closed') setOutcome('closed');
+      if (!prepare && result.state === 'unconfigured') {
+        setOutcome('review');
+        toast(t('plus.payment.unavailable'), { type: 'error' });
+        onClose();
+        return;
+      }
       throw new SheetPreparationError(
         t(`plus.payment.${result.state === 'unconfigured' ? 'unavailable' : result.state}`),
         'unknown',
