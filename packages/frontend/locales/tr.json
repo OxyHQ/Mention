@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "Kartını Peable'ın güvenli ödeme sayfasında gireceksin.",
+        "open": "Kartla ödemeye devam et",
+        "failed": "Karta geçilemedi. Tekrar dene."
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "Nasıl ödeyeceğini seç.",
+      "faircoin": {
+        "available": "Peable cüzdanından öde",
+        "title": "FairCoin ile öde",
+        "quote": "Fiyat {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
+        "holdsUntil": "Bu fiyat {{time}} saatine kadar geçerli.",
+        "expired": "Bu FairCoin fiyatının süresi doldu. Geri dön ve yeni bir fiyat için FairCoin'i yeniden seç.",
+        "hint": "Bu kodu telefonundaki Peable uygulamasıyla tara veya Peable'ı bu cihazda aç.",
+        "peableOnly": "Bu ödemeyi yalnızca Peable uygulaması tamamlayabilir.",
+        "qr": "Peable ödeme kodu",
+        "failed": "FairCoin ödemesi başlatılamadı. Tekrar dene veya kartla öde.",
+        "confirming": "Bu sipariş için bir FairCoin ödemesi zaten onaylanıyor. Bitmesini bekle.",
+        "noPeable": "Bu cihazda Peable yüklü değil. Kodu telefonundaki Peable ile tara.",
+        "otherMethod": "Başka bir ödeme yöntemi seç",
+        "unavailable": {
+          "walletMissing": "Mention'ın Peable cüzdanı henüz kurulmadı, bu yüzden FairCoin alamıyor.",
+          "networkClosed": "FairCoin ödemeleri bu ağda henüz açık değil.",
+          "priceUnavailable": "FairCoin fiyatı şu anda hesaplanamıyor. Birazdan tekrar dene veya kartla öde.",
+          "temporarilyUnavailable": "FairCoin şu anda kontrol edilemiyor. Birazdan tekrar dene."
+        },
+        "transfer": {
+          "awaiting": "Ödemen bekleniyor",
+          "detected": "Ödeme algılandı",
+          "processing": "Ödemen onaylanıyor",
+          "succeeded": "Ödeme alındı",
+          "failure": "Ödeme tamamlanamadı",
+          "expired": "Bu ödeme isteğinin süresi doldu"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "Ödemeyi aç"
     },
     "planFree": "Ücretsiz",
     "selectorLabel": "Bir plan seç",

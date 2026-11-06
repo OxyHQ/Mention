@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "你将在 Peable 的安全付款页面输入银行卡。",
+        "open": "继续用银行卡付款",
+        "failed": "无法切换到银行卡。请重试。"
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "选择付款方式。",
+      "faircoin": {
+        "available": "用你的 Peable 钱包付款",
+        "title": "用 FairCoin 付款",
+        "quote": "价格 {{amount}} · 1 FAIR = {{rate}} {{currency}}。",
+        "holdsUntil": "此价格有效期至 {{time}}。",
+        "expired": "此 FairCoin 价格已过期。请返回并重新选择 FairCoin 以获取新价格。",
+        "hint": "用手机上的 Peable 应用扫描此码，或在此设备上打开 Peable。",
+        "peableOnly": "只有 Peable 应用可以完成此付款。",
+        "qr": "Peable 付款码",
+        "failed": "无法开始 FairCoin 付款。请重试或用银行卡付款。",
+        "confirming": "此订单的一笔 FairCoin 付款正在确认中。请等待其完成。",
+        "noPeable": "此设备未安装 Peable。请用手机上的 Peable 扫描此码。",
+        "otherMethod": "选择其他付款方式",
+        "unavailable": {
+          "walletMissing": "Mention 的 Peable 钱包尚未设置，因此无法接收 FairCoin。",
+          "networkClosed": "此网络尚未开放 FairCoin 付款。",
+          "priceUnavailable": "目前无法计算 FairCoin 价格。请稍后再试，或用银行卡付款。",
+          "temporarilyUnavailable": "目前无法检查 FairCoin。请稍后再试。"
+        },
+        "transfer": {
+          "awaiting": "正在等待你的付款",
+          "detected": "已检测到付款",
+          "processing": "正在确认你的付款",
+          "succeeded": "已收到付款",
+          "failure": "无法完成付款",
+          "expired": "此付款请求已过期"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "打开付款页面"
     },
     "planFree": "免费",
     "selectorLabel": "选择方案",

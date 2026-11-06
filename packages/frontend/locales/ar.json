@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "ستُدخل بطاقتك في صفحة الدفع الآمنة من Peable.",
+        "open": "المتابعة إلى الدفع بالبطاقة",
+        "failed": "تعذّر التبديل إلى البطاقة. حاول مرة أخرى."
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "اختر طريقة الدفع.",
+      "faircoin": {
+        "available": "ادفع من محفظة Peable",
+        "title": "الدفع بعملة FairCoin",
+        "quote": "السعر {{amount}} · ‏1 FAIR = {{rate}} {{currency}}.",
+        "holdsUntil": "هذا السعر صالح حتى {{time}}.",
+        "expired": "انتهت صلاحية سعر FairCoin هذا. ارجع واختر FairCoin مرة أخرى للحصول على سعر جديد.",
+        "hint": "امسح هذا الرمز بتطبيق Peable على هاتفك، أو افتح Peable على هذا الجهاز.",
+        "peableOnly": "لا يمكن إتمام هذا الدفع إلا من تطبيق Peable.",
+        "qr": "رمز الدفع من Peable",
+        "failed": "تعذّر بدء الدفع بعملة FairCoin. حاول مرة أخرى أو ادفع بالبطاقة.",
+        "confirming": "يجري بالفعل تأكيد دفعة FairCoin لهذا الطلب. انتظر حتى تكتمل.",
+        "noPeable": "تطبيق Peable غير مثبّت على هذا الجهاز. امسح الرمز باستخدام Peable على هاتفك.",
+        "otherMethod": "اختر طريقة دفع أخرى",
+        "unavailable": {
+          "walletMissing": "لم يتم إعداد محفظة Peable الخاصة بـ Mention بعد، لذا لا يمكنها استلام FairCoin.",
+          "networkClosed": "مدفوعات FairCoin غير متاحة على هذه الشبكة بعد.",
+          "priceUnavailable": "لا يمكن تسعير FairCoin الآن. حاول مرة أخرى بعد قليل أو ادفع بالبطاقة.",
+          "temporarilyUnavailable": "لا يمكن التحقق من FairCoin الآن. حاول مرة أخرى بعد قليل."
+        },
+        "transfer": {
+          "awaiting": "في انتظار دفعتك",
+          "detected": "تم رصد الدفعة",
+          "processing": "جارٍ تأكيد دفعتك",
+          "succeeded": "تم استلام الدفعة",
+          "failure": "تعذّر إتمام الدفع",
+          "expired": "انتهت صلاحية طلب الدفع هذا"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "فتح صفحة الدفع"
     },
     "planFree": "مجاني",
     "selectorLabel": "اختر خطة",

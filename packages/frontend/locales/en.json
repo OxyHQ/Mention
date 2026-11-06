@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "You'll enter your card on Peable's secure checkout page.",
+        "open": "Continue to card payment",
+        "failed": "Could not switch to card. Try again."
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "Choose how to pay.",
+      "faircoin": {
+        "available": "Pay from your Peable wallet",
+        "title": "Pay with FairCoin",
+        "quote": "Priced at {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
+        "holdsUntil": "This price holds until {{time}}.",
+        "expired": "This FairCoin price has expired. Go back and choose FairCoin again for a new price.",
+        "hint": "Scan this code with the Peable app on your phone, or open Peable on this device.",
+        "peableOnly": "Only the Peable app can complete this payment.",
+        "qr": "Peable payment code",
+        "failed": "FairCoin could not be started. Try again or pay by card.",
+        "confirming": "A FairCoin payment for this order is already confirming. Wait for it to finish.",
+        "noPeable": "Peable isn't installed on this device. Scan the code with Peable on your phone.",
+        "otherMethod": "Choose another way to pay",
+        "unavailable": {
+          "walletMissing": "Mention's Peable wallet isn't set up yet, so it can't receive FairCoin.",
+          "networkClosed": "FairCoin payments aren't open on this network yet.",
+          "priceUnavailable": "FairCoin can't be priced right now. Try again in a moment, or pay by card.",
+          "temporarilyUnavailable": "FairCoin can't be checked right now. Try again in a moment."
+        },
+        "transfer": {
+          "awaiting": "Waiting for your payment",
+          "detected": "Payment detected",
+          "processing": "Confirming your payment",
+          "succeeded": "Payment received",
+          "failure": "The payment could not be completed",
+          "expired": "This payment request has expired"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "Open checkout"
     },
     "planFree": "Free",
     "selectorLabel": "Choose a plan",

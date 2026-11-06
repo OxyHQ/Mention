@@ -6,10 +6,51 @@ a second price catalogue or paid-access flag.
 
 Subscribe opens a Bloom detached **Pay with Peable** bottom sheet. The page and sheet both read
 the selected monthly or annual standalone offer from Oxy's published product-plan catalogue; they show no
-static replacement price when it is unavailable. Continue opens the authoritative
-hosted payment URL in a browser popup on web or an in-app browser on native. The
-hosted surface depends on the selected provider/rail; the sheet does not embed a
-card form or sign a FairCoin payment itself.
+static replacement price when it is unavailable. Continue asks Oxy for the
+authoritative checkout and drives that Peable order in Mention's own Peable sheet,
+where the payer chooses the card or FairCoin (below). The sheet never collects a
+card number or signs a FairCoin payment itself.
+
+## Card and FairCoin (Peable ADR 0021)
+
+FairCoin is offered on every Peable order and cannot be turned off; the card is
+the merchant's fiat method. Oxy creates the session without `payment_method_types`
+(a list without `faircoin` is `payment_method_locked`), so a Plus session lists
+`['card', 'faircoin']`. Oxy answers Peable's hosted URL,
+`https://checkout.peable.to/c/<cs_…>#cs=<client secret>`; the fragment is the payer's
+capability for that session (`lib/payments/plusSessionCheckout.ts`
+`hostedSessionCapability`, which also requires the secret to name the same session).
+`PlusSessionCheckout` reads the session with the payer client
+(`createPeableCheckout().getCheckoutSession`) and refuses one whose total, currency
+or mode differ from the reviewed offer.
+
+- **FairCoin is always listed.** When `faircoin.available` is false it is a disabled
+  row with the gateway's `unavailable_reason` in words
+  (`plus.checkout.faircoin.unavailable.*`, every locale): the merchant's Peable wallet
+  is not set up, FairCoin is not open on this network, no fresh price, or not
+  checkable now. It is never hidden and never faked.
+- **Choosing FairCoin** confirms the session with `payment_method_type: 'faircoin'`.
+  Peable quotes the order total in FAIR for 10 minutes; the sheet shows the FAIR
+  amount, the quote's fiat price, rate and expiry, and the Peable wallet request
+  (`peable://pay?…`, the SDK's `payDeepLinkFor`) through the SDK's own FairCoin
+  presentation: a Continue that opens Peable on a phone, a QR of the same request
+  elsewhere. Only the Peable wallet reports the transaction to the payment, so the
+  bare `faircoin:` URI is not offered: a payment from another wallet would never
+  settle the order. A lapsed quote leaves the session open; choosing FairCoin again
+  gets a fresh quote.
+- **The card** is entered on Peable's hosted page, opened from the payer's press (a
+  window reserved before any await on web, the in-app browser on native). If an
+  unpaid FairCoin payment is linked, the sheet first confirms `card`, which replaces
+  it, so the hosted page opens on the card; a FairCoin payment already confirming
+  cannot be replaced.
+- **Completion is the gateway's, access is Oxy's.** The sheet polls the session;
+  only `status: 'complete'` (or `expired`) closes it, and then Mention asks Oxy
+  (`startProductPlanCheckout` with the same key) for the outcome. Only an
+  authoritative `fulfilled` refreshes access. A Plus subscription paid in FairCoin
+  becomes `send_invoice` at Peable: each renewal is an invoice the payer pays.
+- **Fallback.** A URL that is not a Peable session, or a session the browser cannot
+  read (the gateway does not yet admit Mention's web origin in CORS), keeps the
+  hosted page, which offers the same two methods, behind an Open checkout press.
 
 ## Deployment binding
 
@@ -405,9 +446,9 @@ and real Mention Plus entitlement activation are not provided by this local test
 The reusable Bloom/Peable checkout is published independently of activating a
 commercial offer. Production keeps the existing catalogue launch gate: an
 unavailable offer displays Coming soon and cannot initiate payment. A configured
-offer continues through the authenticated Oxy `startProductPlanCheckout` flow and
-its validated hosted checkout URL until central billing supplies an embedded
-payer binding. Development alone uses the guarded loopback test harness.
+offer continues through the authenticated Oxy `startProductPlanCheckout` flow; its
+hosted checkout URL carries the session's payer capability, which Mention's sheet
+uses (above). Development alone uses the guarded loopback test harness.
 
 At Oxy main `d2a80c156`, `PersonalPlanCheckoutResult` exposes pending intent ID and
 an optional HTTPS checkout URL, not a payer capability or embedded readiness

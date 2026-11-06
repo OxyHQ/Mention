@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "Kamu akan memasukkan kartu di halaman pembayaran aman Peable.",
+        "open": "Lanjut ke pembayaran kartu",
+        "failed": "Tidak bisa beralih ke kartu. Coba lagi."
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "Pilih cara membayar.",
+      "faircoin": {
+        "available": "Bayar dari dompet Peable kamu",
+        "title": "Bayar dengan FairCoin",
+        "quote": "Harga {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
+        "holdsUntil": "Harga ini berlaku hingga {{time}}.",
+        "expired": "Harga FairCoin ini sudah kedaluwarsa. Kembali dan pilih FairCoin lagi untuk harga baru.",
+        "hint": "Pindai kode ini dengan aplikasi Peable di ponselmu, atau buka Peable di perangkat ini.",
+        "peableOnly": "Hanya aplikasi Peable yang bisa menyelesaikan pembayaran ini.",
+        "qr": "Kode pembayaran Peable",
+        "failed": "Pembayaran FairCoin tidak bisa dimulai. Coba lagi atau bayar dengan kartu.",
+        "confirming": "Pembayaran FairCoin untuk pesanan ini sedang dikonfirmasi. Tunggu hingga selesai.",
+        "noPeable": "Peable tidak terpasang di perangkat ini. Pindai kode dengan Peable di ponselmu.",
+        "otherMethod": "Pilih cara bayar lain",
+        "unavailable": {
+          "walletMissing": "Dompet Peable milik Mention belum disiapkan, jadi belum bisa menerima FairCoin.",
+          "networkClosed": "Pembayaran FairCoin belum dibuka di jaringan ini.",
+          "priceUnavailable": "Harga FairCoin tidak bisa dihitung sekarang. Coba lagi sebentar lagi atau bayar dengan kartu.",
+          "temporarilyUnavailable": "FairCoin tidak bisa diperiksa sekarang. Coba lagi sebentar lagi."
+        },
+        "transfer": {
+          "awaiting": "Menunggu pembayaranmu",
+          "detected": "Pembayaran terdeteksi",
+          "processing": "Mengonfirmasi pembayaranmu",
+          "succeeded": "Pembayaran diterima",
+          "failure": "Pembayaran tidak dapat diselesaikan",
+          "expired": "Permintaan pembayaran ini sudah kedaluwarsa"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "Buka pembayaran"
     },
     "planFree": "Gratis",
     "selectorLabel": "Pilih paket",

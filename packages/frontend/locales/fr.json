@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "Vous saisirez votre carte sur la page de paiement sécurisée de Peable.",
+        "open": "Continuer vers le paiement par carte",
+        "failed": "Impossible de passer à la carte. Réessayez."
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "Choisissez comment payer.",
+      "faircoin": {
+        "available": "Payez depuis votre portefeuille Peable",
+        "title": "Payer en FairCoin",
+        "quote": "Prix de {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
+        "holdsUntil": "Ce prix est valable jusqu’à {{time}}.",
+        "expired": "Ce prix en FairCoin a expiré. Revenez en arrière et choisissez de nouveau FairCoin pour obtenir un nouveau prix.",
+        "hint": "Scannez ce code avec l’app Peable sur votre téléphone, ou ouvrez Peable sur cet appareil.",
+        "peableOnly": "Seule l’app Peable peut finaliser ce paiement.",
+        "qr": "Code de paiement Peable",
+        "failed": "Le paiement en FairCoin n’a pas pu démarrer. Réessayez ou payez par carte.",
+        "confirming": "Un paiement en FairCoin pour cette commande est déjà en cours de confirmation. Attendez qu’il se termine.",
+        "noPeable": "Peable n’est pas installé sur cet appareil. Scannez le code avec Peable sur votre téléphone.",
+        "otherMethod": "Choisir un autre moyen de paiement",
+        "unavailable": {
+          "walletMissing": "Le portefeuille Peable de Mention n’est pas encore configuré : il ne peut pas recevoir de FairCoin.",
+          "networkClosed": "Les paiements en FairCoin ne sont pas encore ouverts sur ce réseau.",
+          "priceUnavailable": "Le prix en FairCoin n’est pas disponible pour le moment. Réessayez dans un instant ou payez par carte.",
+          "temporarilyUnavailable": "FairCoin ne peut pas être vérifié pour le moment. Réessayez dans un instant."
+        },
+        "transfer": {
+          "awaiting": "En attente de votre paiement",
+          "detected": "Paiement détecté",
+          "processing": "Confirmation de votre paiement",
+          "succeeded": "Paiement reçu",
+          "failure": "Le paiement n’a pas pu aboutir",
+          "expired": "Cette demande de paiement a expiré"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "Ouvrir le paiement"
     },
     "planFree": "Gratuit",
     "selectorLabel": "Choisissez une offre",

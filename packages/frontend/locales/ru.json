@@ -143,7 +143,10 @@
         "countryUS": "United States",
         "countryCA": "Canada",
         "countryES": "Spain",
-        "generic": "Card"
+        "generic": "Card",
+        "hint": "Данные карты вводятся на защищённой странице оплаты Peable.",
+        "open": "Перейти к оплате картой",
+        "failed": "Не удалось переключиться на карту. Попробуйте ещё раз."
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -170,6 +173,35 @@
         "installmentsUnavailable": "This subscription does not offer installment payments.",
         "faircoinUnavailable": "The merchant has not enabled FairCoin for this payment yet.",
         "methodUnavailable": "Not available for this payment."
+      },
+      "choosePayment": "Выберите способ оплаты.",
+      "faircoin": {
+        "available": "Оплата из кошелька Peable",
+        "title": "Оплатить в FairCoin",
+        "quote": "Цена {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
+        "holdsUntil": "Цена действует до {{time}}.",
+        "expired": "Срок действия цены в FairCoin истёк. Вернитесь и снова выберите FairCoin, чтобы получить новую цену.",
+        "hint": "Отсканируйте этот код приложением Peable на телефоне или откройте Peable на этом устройстве.",
+        "peableOnly": "Завершить этот платёж может только приложение Peable.",
+        "qr": "Код оплаты Peable",
+        "failed": "Не удалось начать оплату в FairCoin. Попробуйте ещё раз или оплатите картой.",
+        "confirming": "Платёж в FairCoin по этому заказу уже подтверждается. Дождитесь завершения.",
+        "noPeable": "Peable не установлен на этом устройстве. Отсканируйте код приложением Peable на телефоне.",
+        "otherMethod": "Выбрать другой способ оплаты",
+        "unavailable": {
+          "walletMissing": "Кошелёк Peable у Mention ещё не настроен, поэтому он не может принимать FairCoin.",
+          "networkClosed": "Платежи в FairCoin в этой сети пока не открыты.",
+          "priceUnavailable": "Сейчас не удаётся рассчитать цену в FairCoin. Попробуйте чуть позже или оплатите картой.",
+          "temporarilyUnavailable": "Сейчас не удаётся проверить FairCoin. Попробуйте чуть позже."
+        },
+        "transfer": {
+          "awaiting": "Ожидаем ваш платёж",
+          "detected": "Платёж обнаружен",
+          "processing": "Подтверждаем ваш платёж",
+          "succeeded": "Платёж получен",
+          "failure": "Не удалось завершить платёж",
+          "expired": "Срок действия запроса на оплату истёк"
+        }
       }
     },
     "payment": {
@@ -216,7 +248,8 @@
         "failed": "Preview: payment failed. Try another preview state."
       },
       "cadenceYearShort": "Annual",
-      "annualDiscount": "Save 20% with annual billing."
+      "annualDiscount": "Save 20% with annual billing.",
+      "openCheckout": "Открыть оплату"
     },
     "planFree": "Бесплатно",
     "selectorLabel": "Выберите план",
