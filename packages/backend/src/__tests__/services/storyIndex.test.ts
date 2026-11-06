@@ -113,6 +113,11 @@ describe('refreshStoryIndex', () => {
     // behind it — a ranking refinement becoming an outage. A cold index costs
     // one page its story penalty instead.
     expect(getStoryIndex(0).size).toBe(0);
+
+    // The read remains synchronous, but this test must own the refresh it
+    // started. A single event-loop turn does not settle a real database query:
+    // letting it finish after the next cache reset can overwrite that test's memo.
+    await vi.waitFor(() => expect(getStoryIndex(0).get('kyiv')).toBe('ukraine'));
   });
 
   it('memoizes an empty index on failure, so a broken database is not retried per request', async () => {
