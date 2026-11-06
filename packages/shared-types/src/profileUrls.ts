@@ -26,6 +26,8 @@
  * author's choosing. Every answer in this module is syntactic.
  */
 
+import { federatedUsernameFromUpstreamUrl } from '@oxy.so/federation/network';
+
 import type { AccountKind } from '@oxy.so/contracts';
 import { stripHandlePrefix } from './handle';
 
@@ -85,11 +87,25 @@ export function fediverseProfilePathSegment(url: string): string | undefined {
 }
 
 /**
+ * The `user@network` an upstream profile URL names — `instagram.com/nasa` is
+ * `nasa@instagram.com`, `bsky.app/profile/alice.bsky.social` is
+ * `alice@bsky.social` — or `undefined` for any other URL.
+ *
+ * Read from `@oxy.so/federation`'s network table, the declaration Oxy stores
+ * those accounts under, so a link here names the same account the server holds.
+ * Syntactic: the URL is never fetched.
+ */
+export function upstreamProfileAcct(url: string): string | undefined {
+  return federatedUsernameFromUpstreamUrl(url);
+}
+
+/**
  * True when a URL could name a user AT ALL — the gate for treating it as a
  * mention candidate rather than as an ordinary link.
  *
- * The two clauses are the two ways an identity can be found: a stored actor's
- * profile shape on any host, or a profile on one of OUR hosts (which resolves
+ * The three clauses are the three ways an identity can be found: a stored actor's
+ * profile shape on any host, a profile page on a network we bridge
+ * ({@link upstreamProfileAcct}), or a profile on one of OUR hosts (which resolves
  * through Oxy instead). Purely syntactic and I/O-free, so a composer can run it
  * on every keystroke and the write boundary can run it before spending a lookup
  * — and, being ONE function, the two cannot disagree about which links compete
@@ -102,6 +118,7 @@ export function fediverseProfilePathSegment(url: string): string | undefined {
 export function isProfileLikeUrl(url: string, ownHosts: readonly string[]): boolean {
   return (
     fediverseProfilePathSegment(url) !== undefined ||
+    upstreamProfileAcct(url) !== undefined ||
     ownProfileUrlHandle(url, ownHosts) !== undefined
   );
 }
