@@ -912,7 +912,8 @@
     },
     "joined": "Aderiu",
     "links": {
-      "title": "Ligações"
+      "title": "Ligações",
+      "supportOn": "Apoie no {{provider}}"
     },
     "media": {
       "title": "Multimédia do perfil",

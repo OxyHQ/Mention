@@ -897,7 +897,8 @@
     },
     "joined": "Joined",
     "links": {
-      "title": "Links"
+      "title": "Links",
+      "supportOn": "Support on {{provider}}"
     },
     "media": {
       "title": "Profile media",

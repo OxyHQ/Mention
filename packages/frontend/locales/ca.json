@@ -912,7 +912,8 @@
     },
     "joined": "S'hi va unir el",
     "links": {
-      "title": "Enllaços"
+      "title": "Enllaços",
+      "supportOn": "Dona suport a {{provider}}"
     },
     "media": {
       "title": "Multimèdia del perfil",

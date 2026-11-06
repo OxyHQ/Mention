@@ -912,7 +912,8 @@
     },
     "joined": "Iscritto",
     "links": {
-      "title": "Link"
+      "title": "Link",
+      "supportOn": "Supporta su {{provider}}"
     },
     "media": {
       "title": "Contenuto del profilo",

@@ -897,7 +897,8 @@
     },
     "joined": "Katılma tarihi",
     "links": {
-      "title": "Bağlantılar"
+      "title": "Bağlantılar",
+      "supportOn": "{{provider}} üzerinden destekle"
     },
     "media": {
       "title": "Profil medyası",
