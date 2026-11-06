@@ -183,7 +183,7 @@
     "react-native": "0.88.1",
     "react-native-audio-api": "^0.13.6",
     "react-native-compressor": "^2.0.6",
-    "react-native-css": "3.1.0-rc.0",
+    "react-native-css": "3.1.0-rc.1",
     "react-native-gesture-handler": "~3.4.0",
     "react-native-keyboard-controller": "1.22.9",
     "react-native-nitro-modules": "^0.37.2",
