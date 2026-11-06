@@ -47,6 +47,11 @@ import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { outboxSyncService } from '../connectors/activitypub/outbox.service';
+import {
+  bridgeActorUri,
+  bridgeStatusUri,
+  repostActivityId,
+} from '../connectors/activitypub/xTimeline';
 import { mapWithConcurrency } from '../utils/concurrency';
 import enricdurang from './fixtures/xHistoryEnricdurang.json';
 
@@ -54,8 +59,6 @@ const SCRIPT_NAME = 'importBridgedXHistory';
 
 /** Exit code for "some items still failed; re-run" — the split `backfillMediaMetadata` uses. */
 export const EXIT_INCOMPLETE = 75;
-
-const BRIDGE_ORIGIN = 'https://bird.makeup';
 
 /** bird.makeup is one volunteer-run host; this is a courtesy, not a throughput knob. */
 const CONCURRENCY = 3;
@@ -101,20 +104,6 @@ export const xHistoryFixtureSchema = z
 export type XHistoryFixture = z.infer<typeof xHistoryFixtureSchema>;
 
 export const X_HISTORY_FIXTURES: Readonly<Record<string, unknown>> = { enricdurang };
-
-/** bird.makeup addresses every account in lower case (Oxy's bridge policy: `caseRule: lowercase`). */
-export function bridgeActorUri(handle: string): string {
-  return `${BRIDGE_ORIGIN}/users/${handle.toLowerCase()}`;
-}
-
-export function bridgeStatusUri(handle: string, tweetId: string): string {
-  return `${bridgeActorUri(handle)}/statuses/${tweetId}`;
-}
-
-/** The boost's minted activity id: stable per (account, original), and never fetchable. */
-export function repostActivityId(handle: string, originalTweetId: string): string {
-  return `tag:mention.earth,2026:x-history/${handle.toLowerCase()}/repost/${originalTweetId}`;
-}
 
 export interface XHistoryImportResult {
   items: number;

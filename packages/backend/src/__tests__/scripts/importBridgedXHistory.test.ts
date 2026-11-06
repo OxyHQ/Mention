@@ -24,11 +24,10 @@ import { connectPostgres, closePostgres } from '../../db/postgres';
 import { outboxSyncService } from '../../connectors/activitypub/outbox.service';
 import { actorService } from '../../connectors/activitypub/actor.service';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import { bridgeStatusUri, repostActivityId } from '../../connectors/activitypub/xTimeline';
 import {
   X_HISTORY_FIXTURES,
-  bridgeStatusUri,
   importBridgedXHistory,
-  repostActivityId,
   xHistoryFixtureSchema,
   type XHistoryFixture,
 } from '../../scripts/importBridgedXHistory';

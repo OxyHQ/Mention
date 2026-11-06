@@ -1,6 +1,6 @@
 import { observeFederationImportReason } from '../../db/federation/importProvenanceRepository';
 import type { FederationImportReason } from '../../db/schema/federationImports';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   findPostsByFederatedObjects,
   postMatchesFederatedObjectSql,
@@ -59,7 +59,7 @@ import {
   resolvePostIdFromObjectUri,
   sameOrigin,
 } from './helpers';
-import { isAbsoluteHttpUrl } from '../shared/url';
+import { getRemoteHost, isAbsoluteHttpUrl } from '../shared/url';
 import {
   isApPostObjectType,
   parseOrderedCollection,
@@ -79,12 +79,28 @@ import {
 import { recordRecentReplierForPost } from '../../services/PostRecentReplierService';
 import { mastodonPublicStatusUris } from './mastodonPublicStatuses';
 import { isOutboxMarkedUnavailable } from './outboxSyncCooldown';
+import { transportHandoff } from './transportHandoff';
+import {
+  bridgeStatusUri,
+  fetchXTimelinePage,
+  isXTimelinePageUrl,
+  repostActivityId,
+  xTimelineHandle,
+  xTimelinePageUrl,
+} from './xTimeline';
+import { mirrorPostTime, mirrorTransportOf } from '../../utils/federation/mirrorTransports';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
  * Keeps remote fan-out small so we don't hammer a single instance.
  */
 const OUTBOX_ACTOR_RESOLVE_CONCURRENCY = 3;
+
+/**
+ * Pages of an X account's timeline (20 items each) one sync from the top reads
+ * at most (`collectXTimelineCandidates`): about a day of a prolific account.
+ */
+const X_TIMELINE_MAX_PAGES = 5;
 
 /**
  * Per-actor wall-clock budget for `fetchRemoteActor` during outbox backfill.
@@ -248,6 +264,8 @@ export type OutboxSyncFailureReason =
   | 'author-pending'
   /** The outbox was already marked unavailable, so a profile sync did not fetch it. */
   | 'outbox-unavailable'
+  /** FxTwitter did not list an X account's timeline this run (`./xTimeline`); the next run retries. */
+  | 'x-timeline-unavailable'
   | OutboxHttpFailureReason;
 
 /**
@@ -554,7 +572,12 @@ export class OutboxSyncService {
         : (limitOrOptions.importReason ?? 'unknown_outbox');
 
     try {
-      const collected = await this.collectOutboxCandidates(actor.outboxUrl, actor.uri, options);
+      // An X account's bird.makeup outbox is always empty: its timeline is read
+      // through FxTwitter instead (`./xTimeline`), and every later stage is shared.
+      const xHandle = xTimelineHandle(actor.uri);
+      const collected = xHandle
+        ? await this.collectXTimelineCandidates(actor, actor.outboxUrl, xHandle, options)
+        : await this.collectOutboxCandidates(actor.outboxUrl, actor.uri, options);
       if (collected.kind === 'failed') return collected.result;
 
       const { candidates, paging } = collected;
@@ -803,6 +826,128 @@ export class OutboxSyncService {
       remoteTotalItems:
         typeof collection.totalItems === 'number' ? collection.totalItems : undefined,
     };
+  }
+
+  /**
+   * The candidates of an X account's timeline as FxTwitter lists it
+   * (`./xTimeline`), newest first.
+   *
+   * From the top (every sync but a stored backfill cursor) it pages down until a
+   * page on which everything is already here, the account's handoff instant (an
+   * own tweet written before it is mastox's, `./transportHandoff`), or
+   * {@link X_TIMELINE_MAX_PAGES}, and takes EVERYTHING it found that is not here
+   * yet, whatever the candidate limit: a run after FxTwitter or this job was down
+   * for a while fills the whole gap, never only its newest end. From a stored
+   * cursor (the recent backfill) it walks the history like any outbox.
+   *
+   * Only what is not held is fetched. An own tweet is the bridge's status URI,
+   * fetched and validated by {@link extractCandidates} exactly like an outbox
+   * item. A retweet is an `Announce` of the original under its minted id
+   * ({@link repostActivityId}). X gives a retweet no time of its own, so its
+   * boost is dated by the timeline's order: no later than the account's own
+   * tweet listed just above it (now, above the first one of a run from the top)
+   * and never earlier than the original. A run from a stored cursor has no such
+   * bound before its first own tweet and dates those as the original.
+   */
+  private async collectXTimelineCandidates(
+    actor: Pick<OutboxSyncActor, 'uri' | 'networkAcct'>,
+    outboxUrl: string,
+    handle: string,
+    options: OutboxPagingOptions,
+  ): Promise<
+    | { kind: 'failed'; result: OutboxSyncResult }
+    | {
+        kind: 'collected';
+        candidates: OutboxCandidate[];
+        paging: OutboxPagingState;
+        inspectable: boolean;
+        remoteTotalItems?: number;
+      }
+  > {
+    const fromTop = !(options.startPageUrl && isXTimelinePageUrl(options.startPageUrl, handle));
+    const maxPages = fromTop ? X_TIMELINE_MAX_PAGES : options.maxPages;
+    const handoff = actor.networkAcct
+      ? (await transportHandoff(actor.networkAcct, 'x'))?.at
+      : undefined;
+    const paging: OutboxPagingState = {
+      pagesFetched: 0,
+      nextCursor: undefined,
+      reachedEnd: false,
+      paginationFailed: false,
+      pausedMidPage: false,
+    };
+    const candidates: OutboxCandidate[] = [];
+    let ceiling: Date | undefined = fromTop ? new Date() : undefined;
+    let pageUrl: string | undefined = fromTop ? xTimelinePageUrl(handle) : options.startPageUrl;
+
+    while (pageUrl) {
+      if (paging.pagesFetched >= maxPages) {
+        paging.nextCursor = { url: pageUrl, itemOffset: 0 };
+        break;
+      }
+      const page = await fetchXTimelinePage(handle, pageUrl);
+      if (!page) {
+        if (paging.pagesFetched === 0) {
+          return {
+            kind: 'failed',
+            result: {
+              syncedCount: 0,
+              shouldStampCooldown: false,
+              reason: 'x-timeline-unavailable',
+            },
+          };
+        }
+        paging.paginationFailed = true;
+        paging.nextCursor = undefined;
+        break;
+      }
+      paging.pagesFetched++;
+      paging.nextCursor = page.next ? { url: page.next, itemOffset: 0 } : undefined;
+      paging.reachedEnd = !page.next;
+
+      const objectUri = (entry: (typeof page.entries)[number]) =>
+        entry.kind === 'post'
+          ? bridgeStatusUri(handle, entry.id)
+          : repostActivityId(handle, entry.id);
+      const held = await findPostsByFederatedObjects(page.entries.map(objectUri));
+      let lastOwnAt: Date | undefined;
+      for (const entry of page.entries) {
+        const uri = objectUri(entry);
+        if (entry.kind === 'post') {
+          const writtenAt = mirrorPostTime(uri);
+          lastOwnAt = writtenAt ?? lastOwnAt;
+          if (writtenAt && (!ceiling || writtenAt < ceiling)) ceiling = writtenAt;
+          // Before the handoff an own tweet is mastox's; a reply never is.
+          const mastoxs = !entry.reply && handoff && writtenAt && writtenAt < handoff;
+          if (!held.has(uri) && !mastoxs)
+            await this.extractCandidates([uri], candidates, Infinity, outboxUrl, actor.uri);
+          continue;
+        }
+        if (held.has(uri)) continue;
+        const announcedUri = bridgeStatusUri(entry.author, entry.id);
+        const original = mirrorPostTime(announcedUri);
+        const boostedAt = ceiling && original && ceiling > original ? ceiling : original;
+        candidates.push({
+          kind: 'announce',
+          activityId: uri,
+          announcedUri,
+          activity: {
+            id: uri,
+            type: 'Announce',
+            actor: actor.uri,
+            ...(boostedAt ? { published: boostedAt.toISOString() } : {}),
+            url: `https://x.com/${entry.author}/status/${entry.id}`,
+          },
+        });
+      }
+      // The page reached the handoff: everything older is mastox's or already here.
+      if (fromTop && handoff && lastOwnAt && lastOwnAt < handoff) break;
+      if (fromTop && held.size === page.entries.length) break;
+      if (!fromTop && candidates.length >= options.limit) break;
+      pageUrl = page.next;
+    }
+
+    return { kind: 'collected', candidates, paging, inspectable: true };
   }
 
   /**
@@ -1469,6 +1614,30 @@ export class OutboxSyncService {
       return false;
     }
 
+    // A keyed mirror's account (an X account on bird.makeup) boosts a post once:
+    // X has one retweet per account and tweet. Its retweet reaches us as the
+    // bridge's Announce, under an id the bridge mints at crawl time, and from the
+    // account's timeline under ours (`./xTimeline`), so the ids never meet; the
+    // boost the account already holds of this original is the same retweet.
+    const boosterUri = extractActorUri(announceActivity.actor);
+    if (boosterUri && mirrorTransportOf(getRemoteHost(boosterUri) ?? '')?.keyed) {
+      const [held] = await getDb()
+        .select({ id: posts.id })
+        .from(posts)
+        .where(
+          and(
+            eq(posts.boostOf, originalPostId),
+            eq(posts.oxyUserId, boosterOxyUserId),
+            eq(posts.type, 'boost'),
+          ),
+        )
+        .limit(1);
+      if (held) {
+        await observeFederationImportReason([held.id], importReason);
+        return false;
+      }
+    }
+
     // The boost Post's date reflects when the BOOST happened (the Announce's
     // `published`), while the embedded original keeps its own date via its own
     // post — matching the native repost shape. Validated/falls back to now.
@@ -1477,7 +1646,7 @@ export class OutboxSyncService {
       originalPostId,
       boosterOxyUserId,
       importReason,
-      actorUri: extractActorUri(announceActivity.actor),
+      actorUri: boosterUri,
       url: apNoteUrl(announceActivity.url) ?? announceId,
       createdAt: parseApPublished(announceActivity.published),
     });

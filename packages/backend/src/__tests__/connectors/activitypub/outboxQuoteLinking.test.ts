@@ -555,7 +555,8 @@ describe('a bridge-flattened retweet is dropped on THIS path too, not only the i
    * asymmetry #905 fixed for quotes. Every ingest path calls
    * `isBridgeFlattenedRetweet` on the bridge's own Note.
    */
-  const BRIDGE_ACTOR = 'https://bird.makeup/users/someone';
+  // mastox.eu: the bridge that flattens retweets, and whose outbox is read as one.
+  const BRIDGE_ACTOR = 'https://mastox.eu/users/someone';
   const BRIDGE_OUTBOX = `${BRIDGE_ACTOR}/outbox`;
   const BRIDGE_OXY_ID = scope.user('bridge');
 
@@ -597,7 +598,7 @@ describe('a bridge-flattened retweet is dropped on THIS path too, not only the i
     return outboxSyncService.syncOutboxPostsDetailed(
       {
         uri: BRIDGE_ACTOR,
-        acct: 'someone@bird.makeup',
+        acct: 'someone@mastox.eu',
         outboxUrl: BRIDGE_OUTBOX,
         oxyUserId: BRIDGE_OXY_ID,
       },
@@ -616,7 +617,7 @@ describe('a bridge-flattened retweet is dropped on THIS path too, not only the i
   beforeEach(() => {
     mocks.getOrFetchActor.mockImplementation(async (uri: string) =>
       uri === BRIDGE_ACTOR
-        ? { uri: BRIDGE_ACTOR, oxyUserId: BRIDGE_OXY_ID, type: 'Person', domain: 'bird.makeup' }
+        ? { uri: BRIDGE_ACTOR, oxyUserId: BRIDGE_OXY_ID, type: 'Person', domain: 'mastox.eu' }
         : { uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' },
     );
   });
