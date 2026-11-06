@@ -90,7 +90,7 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
       let target = typeof entry === 'string' ? entry : entry?.default;
       if (target && wildcard && exportKey === wildcard) {
         const [prefix, suffix] = wildcard.split('*');
-        target = target.replace('*', key.slice(prefix.length, suffix ? -suffix.length : undefined));
+        target = target.replace(/\*/g, key.slice(prefix.length, suffix ? -suffix.length : undefined));
       }
       if (!target?.startsWith('./src/')) throw new Error(`No local Bloom source for ${moduleName}`);
       const source = path.resolve(bloomRoot, target).replace(/\.(tsx?|jsx?)$/, '');
