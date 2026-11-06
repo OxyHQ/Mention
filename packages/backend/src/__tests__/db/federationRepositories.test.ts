@@ -350,8 +350,8 @@ describe('upsertActor — remote counts: unknown is not zero (OxyHQ/Mention#1126
   });
 });
 
-describe('upsertActor — a link field is a profile link, not a metadata row', () => {
-  it('keeps the text fields as metadata and leaves the link fields to the account', async () => {
+describe('upsertActor — a link or pronoun field is not a metadata row', () => {
+  it('keeps the text fields as metadata; links and pronouns are held by the account', async () => {
     const uri = `${scope.origin}/users/linked-fields`;
     await upsertActor(
       uri,
@@ -376,8 +376,7 @@ describe('upsertActor — a link field is a profile link, not a metadata row', (
 
     const row = await readActor(uri);
     expect(row).not.toBeNull();
-    expect(await loadActorFields(row?.id ?? '')).toEqual([
-      { name: 'Pronouns', value: 'they/them', verifiedAt: undefined },
-    ]);
+    // The link goes to the account's links; the pronoun is its structured pronoun.
+    expect(await loadActorFields(row?.id ?? '')).toEqual([]);
   });
 });
