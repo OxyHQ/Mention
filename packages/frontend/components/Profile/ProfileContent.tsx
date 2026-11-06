@@ -11,7 +11,7 @@ import { FollowedByRow } from './FollowedByRow';
 import { ProfileCommunities } from './ProfileCommunities';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
-import { mergeBioAndProfileLinks } from '@/utils/mergeBioAndProfileLinks';
+import { nonLinkFields, profileLinksList } from '@/utils/profileLinksList';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
 
@@ -98,14 +98,15 @@ export const ProfileContent = memo(function ProfileContent({
 
       {/* Links as pills, under the bio (Bluesky's layout) */}
       <ProfileLinkChips
-        links={mergeBioAndProfileLinks(
-          profileData.linksMetadata,
-          profileData.links,
-          profileData.bio,
-        )}
+        links={profileLinksList({
+          linksMetadata: profileData.linksMetadata,
+          links: profileData.links,
+          bio: profileData.bio,
+          fields: profileData.fields,
+        })}
       />
 
-      <ProfileFields fields={profileData.fields} />
+      <ProfileFields fields={nonLinkFields(profileData.fields)} />
 
       {/* Meta info (location, join date) */}
       <ProfileMeta
