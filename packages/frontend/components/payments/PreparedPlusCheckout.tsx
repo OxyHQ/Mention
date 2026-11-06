@@ -13,7 +13,6 @@ import {
 } from '@/lib/payments/embeddedCheckout';
 import { createLocalProviderTestBinding } from '@/lib/payments/localProviderTest';
 import { checkoutMatchesReview, type CheckoutReview } from '@/lib/payments/checkoutReview';
-import { usePeableSheetMessages } from '@/hooks/usePeableSheetMessages';
 
 /** How often a settled local subscription is asked whether it is active. */
 const OBSERVE_MS = 3000;
@@ -40,7 +39,6 @@ export function PreparedPlusCheckout({
   onClose(): void;
 }) {
   const { t, i18n } = useTranslation();
-  const messages = usePeableSheetMessages();
   const [binding, setBinding] = useState<EmbeddedCheckoutBinding>();
   const [settled, setSettled] = useState<'complete' | 'expired' | null>(null);
   const [active, setActive] = useState(false);
@@ -130,7 +128,6 @@ export function PreparedPlusCheckout({
       source={source}
       gatewayUrl={binding.apiUrl}
       locale={i18n.language}
-      messages={messages}
       expected={{
         amount: String(review.amountMinorUnits),
         currency: review.currency,

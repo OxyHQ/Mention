@@ -29,7 +29,6 @@ import {
   sheetSourceFromUrl,
   type SheetCheckoutSource,
 } from '@peable.to/sdk/checkout/ui';
-import { usePeableSheetMessages } from '@/hooks/usePeableSheetMessages';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
 
 /** How often Mention asks Oxy for the outcome once Peable closed the order. */
@@ -102,7 +101,6 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
   } | null>(null);
   // Peable closed the order; until Oxy answers, Mention keeps asking.
   const [settled, setSettled] = useState(false);
-  const sheetMessages = usePeableSheetMessages();
   // A pending checkout Mention cannot drive itself: opened only from a press.
   const [hostedUrl, setHostedUrl] = useState<string | null>(null);
   const scope = useRef({ active: false });
@@ -313,7 +311,6 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
         key={sessionCheckout.source.id}
         source={sessionCheckout.source}
         locale={i18n.language}
-        messages={sheetMessages}
         // The reviewed offer: Peable compares it with the session's price before tax.
         expected={{
           amount: String(offer.price.amountMinorUnits),
