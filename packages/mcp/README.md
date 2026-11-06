@@ -132,7 +132,7 @@ user bearer, so intent-media uploads through the service-token
 
 ### Languages and lanes
 
-- `create-post` and each `create-thread` post take `variants: [{ tag, text, article? }]`, the same post written in up to 3 languages. The first variant is the primary body; readers get the one in their language. Send `variants` or `text`, never both.
+- `create-post`, `update-post` and each `create-thread` post take `variants: [{ tag, text, alt?, article? }]`, the same post written in up to 3 languages. The first variant is the primary body; readers get the one in their language. Send `variants` or `text`, never both.
 - `laneId` on `create-post` / `create-thread` files the post into one of the author's lanes; `move-post-to-lane` moves an existing post (or takes it out with `null`). Replies and boosts cannot sit in a lane.
 
 | Tool                        | Backend                           | Capability            |

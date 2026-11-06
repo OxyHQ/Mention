@@ -43,6 +43,12 @@ Valid values: \`public\`, \`private\`, \`followers_only\` (alias \`followers\` a
 
 Typical flow: \`upload-media-from-url\` → \`create-post\` with \`media: [{ kind: "fileId", fileId: "..." }]\`, or inline \`media: [{ kind: "url", url: "https://..." }]\`.
 
+## Languages (multilingual posts)
+To publish the same post in several languages, do NOT post once per language and do not look for a separate tool: pass \`variants\` on \`create-post\`, on each post of \`create-thread\`, or on \`update-post\`.
+- \`variants: [{ tag: "es", text: "Hola" }, { tag: "en", text: "Hello" }]\` — BCP-47 tags, no repeats, up to 3. The FIRST variant is the primary body; readers see the version in their language.
+- Send \`variants\` or \`text\`, never both. Everything else (media, poll, location, sources, hashtags) is shared by all languages; use \`alt\` per variant (keyed by media id) for translated alt text and \`article\` for a translated article.
+- \`update-post\` with \`variants\` replaces the author's language versions; editing the primary body drops machine translations. \`get-post\` prints \`Languages:\` so you can verify the result.
+
 ## Undoing actions
 Every reversible action has its inverse: \`unlike-post\`, \`unsave-post\`, \`unboost\` (the original post's id), \`delete-post\` for posts, quotes and drafts or scheduled posts, \`unpin-post\`, \`unfollow-user\`, \`unfollow-entity\`, \`unmute-user\`, \`unmute-word\`, \`unmute-lane\`, \`unsubscribe-from-user\`, \`unpoke-user\`, \`remove-list-members\`. A poll vote is final.
 

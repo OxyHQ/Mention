@@ -96,6 +96,34 @@ describe('language variants and lanes on create-post', () => {
     expect(captured).toHaveLength(0);
   });
 
+  test('update-post sends variants (with per-language alt) as a PUT', async () => {
+    const captured = captureFetch({ success: true, data: { id: 'post-1' } });
+    const variants = [
+      { tag: 'es', text: 'Hola', alt: { m1: 'Un gato' } },
+      { tag: 'en', text: 'Hello', alt: { m1: 'A cat' } },
+    ];
+    const result = await callAs(['social.posts.update'], 'update-post', {
+      id: 'post-1',
+      variants,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(captured[0]).toMatchObject({ method: 'PUT', path: '/posts/post-1' });
+    expect(captured[0]?.body).toEqual({ content: { variants } });
+  });
+
+  test('update-post refuses text and variants together', async () => {
+    const captured = captureFetch({});
+    const result = await callAs(['social.posts.update'], 'update-post', {
+      id: 'post-1',
+      text: 'hello',
+      variants: [{ tag: 'en', text: 'hello' }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(captured).toHaveLength(0);
+  });
+
   test('create-thread carries laneId and variants per post', async () => {
     const captured = captureFetch({ success: true, data: { posts: [{ id: 'a' }, { id: 'b' }] } });
     const result = await callAs(['social.posts.publish'], 'create-thread', {
