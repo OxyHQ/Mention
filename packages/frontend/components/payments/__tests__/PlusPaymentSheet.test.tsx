@@ -1,90 +1,101 @@
-import type { ComponentProps } from 'react';
+import { useEffect as mockUseEffect, type ComponentProps } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Linking, Platform } from 'react-native';
-import type { PeableSheetCheckout } from '@peable.to/sdk/checkout/ui';
+import type { PeableSheetCheckout, SheetCheckoutDetails } from '@peable.to/sdk/checkout/ui';
 import { PlusPaymentSheet } from '../PlusPaymentSheet';
+import type { PlusOffer } from '@/lib/payments/plusCheckout';
 
-const mockSessionCheckout = jest.fn();
-let mockSessionProps: ComponentProps<typeof PeableSheetCheckout> | undefined;
-// The SDK's UI entry is ESM-only under Jest: the sheet is a probe, and the URL
-// reader keeps the SDK's rule (Peable's origin, a secret naming the session).
-jest.mock('@peable.to/sdk/checkout/ui', () => ({
-  PeableSheetCheckout: (props: ComponentProps<typeof PeableSheetCheckout>) => {
-    mockSessionProps = props;
-    mockSessionCheckout(props);
-    return <>Peable session checkout</>;
-  },
-  sheetSourceFromUrl: (url: string) => {
-    const parsed = new URL(url);
-    const secret = new URLSearchParams(parsed.hash.slice(1)).get('cs') ?? '';
-    const id = /^(cs_[0-9a-f]{24,})_secret_[0-9a-f]{16,}$/.exec(secret)?.[1];
-    return parsed.origin === 'https://checkout.peable.to' && id && parsed.pathname === `/c/${id}`
-      ? { type: 'checkout_session', id, clientSecret: secret }
-      : null;
-  },
-}));
-const SESSION = 'cs_0123456789abcdef01234567';
-const SECRET = `${SESSION}_secret_0123456789abcdef`;
-const HOSTED = `https://checkout.peable.to/c/${SESSION}#cs=${SECRET}`;
-
-let mockOffer: typeof offer | null;
-const mockPlans = jest.fn();
-const mockAccess = jest.fn();
-let mockHasAccess = false;
-let mockPreview = false;
-let mockPurchaseAvailable = true;
-let mockSignedIn = true;
-let mockDisplayCurrency = 'USD';
-const mockFormatUsd = jest.fn(() => 'EUR conversion unavailable');
-const mockSheet = jest.fn();
-const mockPreviewContent = jest.fn();
-jest.mock('../LocalCheckoutPreview', () => ({
-  LocalCheckoutPreview: (props: unknown) => {
-    mockPreviewContent(props);
-    return <>Local checkout preview</>;
-  },
-}));
+let mockProps: ComponentProps<typeof PeableSheetCheckout> | undefined;
+let mockMounts = 0;
+let mockUnmounts = 0;
+const mockToast = jest.fn();
 const mockCheckout = jest.fn();
+const mockAccess = jest.fn();
 const mockKey = jest.fn();
 const mockClearKey = jest.fn();
 const mockInvalidate = jest.fn().mockResolvedValue(undefined);
-const mockNativeBrowser = jest.fn().mockResolvedValue({ type: 'cancel' });
+const mockSignIn = jest.fn();
+const mockBrowser = jest.fn().mockResolvedValue({ type: 'cancel' });
 const mockDismiss = jest.fn();
-let mockUser = { id: 'account-a' };
-let mockSession = 'session-a';
-const mockServices = {
-  billing: {
-    productPlans: mockPlans,
-    startProductPlanCheckout: mockCheckout,
-    productAccess: mockAccess,
-  },
-};
-const mockLocation = { replace: jest.fn() };
 const mockClose = jest.fn();
-let mockPopup: {
-  closed: boolean;
-  close: typeof mockClose;
-  location: typeof mockLocation;
-  opener: unknown;
+let mockUser = {
+  id: 'account-a',
+  username: 'alex',
+  email: 'alex@example.test',
+  name: { displayName: 'Alex' },
 };
-jest.mock('@/config', () => ({
-  get MENTION_PLUS_UI_PREVIEW() {
-    return mockPreview;
+let mockSession = 'session-a';
+let mockPrivate = true;
+let mockIncluded = false;
+let mockAvailable = true;
+const offer = {
+  productId: 'mention',
+  offerId: 'mention_plus_monthly',
+  offerVersion: 1,
+  displayName: 'Mention Plus',
+  price: {
+    currency: 'USD',
+    amountMinorUnits: 599,
+    interval: 'month' as const,
+    trial: 'none',
+    taxTreatment: 'inclusive',
+    merchantTotal: 'final',
   },
-  MENTION_PLUS_PRODUCT_ID: 'mention-product',
-  MENTION_PLUS_CAPABILITY_KEY: 'plus',
-  MENTION_PLUS_OFFER_ID: 'approved',
-  MENTION_PLUS_OFFER_VERSION: '2',
-  MENTION_PLUS_ANNUAL_OFFER_ID: 'approved-year',
-  MENTION_PLUS_ANNUAL_OFFER_VERSION: '3',
+};
+let mockOffer: PlusOffer | null = offer;
+const binding = {
+  productId: 'mention',
+  capabilityKey: 'plus',
+  offerId: 'mention_plus_monthly',
+  offerVersion: 1,
+};
+let mockBinding = binding;
+const mockSessionId = 'cs_0123456789abcdef01234567';
+const mockSecret = `${mockSessionId}_secret_0123456789abcdef`;
+const mockUrl = `https://checkout.peable.to/c/${mockSessionId}#cs=${mockSecret}`;
+const mockServices = {
+  billing: { startProductPlanCheckout: mockCheckout, productAccess: mockAccess },
+};
+
+jest.mock('@peable.to/sdk/checkout/ui', () => ({
+  PeableSheetCheckout: (props: ComponentProps<typeof PeableSheetCheckout>) => {
+    mockProps = props;
+    mockUseEffect(() => {
+      mockMounts++;
+      return () => {
+        mockUnmounts++;
+      };
+    }, []);
+    return <>Canonical Peable sheet</>;
+  },
+  SheetPreparationError: class extends Error {
+    outcome: string;
+    constructor(message: string, outcome: string) {
+      super(message);
+      this.outcome = outcome;
+    }
+  },
+  sheetSourceFromUrl: (url: string) =>
+    url === mockUrl
+      ? { type: 'checkout_session', id: mockSessionId, clientSecret: mockSecret }
+      : null,
+}));
+jest.mock('@/hooks/usePlusOffer', () => ({
+  usePlusOffer: () => ({
+    offer: mockOffer,
+    binding: mockBinding,
+    loading: false,
+    failed: false,
+    hasAccess: mockIncluded,
+    purchaseAvailable: mockAvailable,
+  }),
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useDisplayPrice: () => ({ currency: mockDisplayCurrency, formatUsd: mockFormatUsd }),
   useAuth: () => ({
     user: mockUser,
     oxyServices: mockServices,
-    canUsePrivateApi: mockSignedIn,
-    signIn: jest.fn(),
+    canUsePrivateApi: mockPrivate,
+    signIn: mockSignIn,
   }),
   useOxy: () => ({ activeSessionId: mockSession }),
 }));
@@ -93,463 +104,318 @@ jest.mock('@oxy.so/core', () => ({
 }));
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidate }),
-  useQuery: (options: { queryKey: string[] }) => ({
-    data: options.queryKey.includes('mention-plus-access')
-      ? mockHasAccess
-      : { offer: mockOffer, purchaseAvailable: mockPurchaseAvailable },
-    isError: false,
-    isPending: false,
-  }),
 }));
 jest.mock('@/lib/payments/plusCheckoutStorage', () => ({
   getPlusCheckoutKey: (...args: unknown[]) => mockKey(...args),
   clearPlusCheckoutKey: (...args: unknown[]) => mockClearKey(...args),
 }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@oxy.so/bloom/button', () => ({ Button: (props: object) => <button {...props} /> }));
 jest.mock('expo-web-browser', () => ({
-  openBrowserAsync: (...args: unknown[]) => mockNativeBrowser(...args),
+  openBrowserAsync: (...args: unknown[]) => mockBrowser(...args),
   dismissBrowser: () => mockDismiss(),
 }));
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { estimate?: string }) =>
-      options?.estimate ? `${key}:${options.estimate}` : key,
-    i18n: { language: 'en' },
-  }),
-}));
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
-  BottomSheet: (props: { children: React.ReactNode }) => {
-    mockSheet(props);
-    return <>{props.children}</>;
-  },
-}));
-jest.mock('@oxy.so/bloom/button', () => ({ Button: (props: object) => <button {...props} /> }));
-jest.mock('@oxy.so/bloom/typography', () => ({
-  Text: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
 }));
 
-const offer = {
-  offerId: 'approved',
-  offerVersion: 2,
-  displayName: 'Approved bundle',
-  productId: 'mention-product',
-  price: {
-    currency: 'USD',
-    amountMinorUnits: 500,
-    interval: 'month',
-    trial: 'none',
-    taxTreatment: 'inclusive',
-    merchantTotal: 'final',
+const details: SheetCheckoutDetails = {
+  email: 'alex@example.test',
+  selectedAddressId: null,
+  shipping: {
+    name: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: '',
+    phone: '',
   },
 };
-const catalogue = { schemaVersion: 1, state: 'configured', purchase: 'available', plans: [offer] };
-const originalWindowOpen = window.open;
-const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
-const originalPlatformOS = Platform.OS;
 let renderer: TestRenderer.ReactTestRenderer;
-function button(label: string) {
-  return renderer.root.findAllByType('button').find((node) => node.props.children === label);
+const originalOpen = window.open;
+const originalOS = Platform.OS;
+function preparation() {
+  if (!mockProps?.preparation) throw new Error('canonical preparation missing');
+  return mockProps.preparation;
 }
 async function mount() {
   await act(async () => {
-    renderer = TestRenderer.create(<PlusPaymentSheet onClose={jest.fn()} />);
+    renderer = TestRenderer.create(<PlusPaymentSheet onClose={mockClose} />);
   });
 }
-async function press(label: string) {
+async function prepare() {
+  let result: Awaited<ReturnType<ReturnType<typeof preparation>['createSession']>> | undefined;
   await act(async () => {
-    button(label)?.props.onPress();
+    result = await preparation().createSession(details, { signal: new AbortController().signal });
   });
-}
-/** The payer dismisses Mention's Peable sheet; the pending operation stays. */
-async function closeSession() {
-  await act(async () => {
-    mockSessionProps?.onClose();
-  });
+  return result;
 }
 beforeEach(() => {
   jest.clearAllMocks();
-  mockSessionProps = undefined;
-  mockUser = { id: 'account-a' };
+  mockProps = undefined;
+  mockMounts = 0;
+  mockUnmounts = 0;
+  mockUser = {
+    id: 'account-a',
+    username: 'alex',
+    email: 'alex@example.test',
+    name: { displayName: 'Alex' },
+  };
   mockSession = 'session-a';
-  mockHasAccess = false;
-  mockPreview = false;
-  mockPurchaseAvailable = true;
-  mockSignedIn = true;
-  mockDisplayCurrency = 'USD';
-  mockAccess.mockImplementation(async () => ({
+  mockPrivate = true;
+  mockIncluded = false;
+  mockAvailable = true;
+  mockOffer = offer;
+  mockBinding = binding;
+  mockAccess.mockResolvedValue({
     schemaVersion: 1,
-    subjectAccountId: mockUser.id,
-    productId: 'mention-product',
+    subjectAccountId: 'account-a',
+    productId: 'mention',
     evaluatedAt: new Date().toISOString(),
     capabilities: [],
     quotas: [],
     conflicts: [],
-  }));
-  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
-  mockPopup = { closed: false, close: mockClose, location: mockLocation, opener: 'parent' };
-  window.open = jest.fn().mockImplementation(() => mockPopup);
-  mockPlans.mockResolvedValue(catalogue);
-  mockOffer = offer;
+  });
   mockKey.mockResolvedValue('durable-key');
   mockClearKey.mockResolvedValue(undefined);
-  mockCheckout.mockResolvedValue({
-    state: 'pending',
-    intentId: 'intent',
-    checkoutUrl: HOSTED,
-  });
+  mockCheckout.mockResolvedValue({ state: 'pending', intentId: 'intent', checkoutUrl: mockUrl });
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  window.open = jest.fn();
 });
 afterEach(() => {
-  if (originalLocation) Object.defineProperty(window, 'location', originalLocation);
-  else Reflect.deleteProperty(window, 'location');
   act(() => renderer?.unmount());
-  window.open = originalWindowOpen;
-  Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatformOS });
+  window.open = originalOpen;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: originalOS });
+  jest.useRealTimers();
 });
 
-it('never creates a checkout for an unavailable or mismatched central catalogue', async () => {
-  mockOffer = null;
+it('opens the canonical item and subscription review immediately without creating an operation', async () => {
   await mount();
-  expect(button('plus.payment.continue')).toBeUndefined();
+  expect(mockMounts).toBe(1);
+  expect(preparation().request).toMatchObject({
+    dueTodayMinorUnits: 599,
+    requiresShipping: false,
+    requiresContact: false,
+    paymentMethods: ['card', 'faircoin'],
+    recurring: { amountMinorUnits: 599, interval: 'month' },
+    items: [
+      { id: 'mention_plus_monthly', name: 'Mention Plus', quantity: 1, amountMinorUnits: 599 },
+    ],
+  });
+  expect(preparation().renderAdditionalDetails).toBeUndefined();
+  expect(renderer.root.findAllByType('button')).toHaveLength(0);
+  expect(mockAccess).not.toHaveBeenCalled();
   expect(mockCheckout).not.toHaveBeenCalled();
+  expect(mockKey).not.toHaveBeenCalled();
 });
-it("drives the pending Peable order in Mention's sheet, and checks status without a new operation", async () => {
+it('hands the authoritative session to the same mounted SDK only after Continue', async () => {
   await mount();
-  await press('plus.payment.continue');
+  const result = await prepare();
+  expect(result).toEqual({
+    source: { type: 'checkout_session', id: mockSessionId, clientSecret: mockSecret },
+    expected: { amount: '599', currency: 'USD' },
+  });
   expect(mockCheckout).toHaveBeenCalledWith({
     expectedSubjectAccountId: 'account-a',
-    productId: 'mention-product',
-    offerId: 'approved',
-    offerVersion: 2,
+    productId: 'mention',
+    offerId: 'mention_plus_monthly',
+    offerVersion: 1,
     idempotencyKey: 'durable-key',
   });
-  expect(mockSessionCheckout).toHaveBeenCalledWith(
-    expect.objectContaining({
-      source: { type: 'checkout_session', id: SESSION, clientSecret: SECRET },
-      // The reviewed offer, compared by Peable with the session's price before tax.
-      expected: { amount: String(offer.price.amountMinorUnits), currency: 'USD' },
-      outcome: null,
-    }),
-  );
-  // Nothing opens until the payer chooses the card.
-  expect(window.open).not.toHaveBeenCalled();
-  await closeSession();
-  await press('plus.payment.checkStatus');
-  expect(mockCheckout).toHaveBeenCalledTimes(2);
-  expect(mockClearKey).not.toHaveBeenCalled();
+  expect(mockMounts).toBe(1);
+  expect(mockUnmounts).toBe(0);
   expect(mockInvalidate).not.toHaveBeenCalled();
+  expect(window.open).not.toHaveBeenCalled();
 });
-it('opens a page the sheet asks for in a window without an opener', async () => {
+it('retains the original offer and durable key through ambiguous retries', async () => {
+  mockCheckout.mockRejectedValueOnce(new Error('network lost'));
   await mount();
-  await press('plus.payment.continue');
-  await act(async () => {
-    await mockSessionProps?.openUrl?.(HOSTED, 'hosted');
-  });
-  expect(window.open).toHaveBeenCalledTimes(1);
-  expect(mockPopup.opener).toBeNull();
-  expect(mockLocation.replace).toHaveBeenCalledWith(HOSTED);
+  await expect(prepare()).rejects.toThrow('plus.payment.failed');
+  mockOffer = { ...offer, price: { ...offer.price, amountMinorUnits: 999 } };
+  await act(async () => renderer.update(<PlusPaymentSheet onClose={mockClose} />));
+  expect(preparation().request.dueTodayMinorUnits).toBe(599);
+  expect(await prepare()).toMatchObject({ expected: { amount: '599' } });
+  expect(mockKey).toHaveBeenCalledTimes(1);
+  expect(mockClearKey).not.toHaveBeenCalled();
+  expect(mockCheckout.mock.calls[1]).toEqual(mockCheckout.mock.calls[0]);
 });
-it('opens the Peable wallet request by its link on a phone', async () => {
-  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
-  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
-  await mount();
-  await press('plus.payment.continue');
-  await act(async () => {
-    await mockSessionProps?.openUrl?.('peable://pay?intent=pi_x', 'wallet');
-  });
-  expect(openURL).toHaveBeenCalledWith('peable://pay?intent=pi_x');
-  expect(mockNativeBrowser).not.toHaveBeenCalled();
-  openURL.mockRestore();
-});
-it('asks Oxy, never the sheet, once the gateway closed the order, until Oxy answers', async () => {
+it('never grants access merely because Peable closes; it polls Oxy until fulfilled', async () => {
   jest.useFakeTimers();
-  try {
-    await mount();
-    await press('plus.payment.continue');
-    mockCheckout.mockResolvedValue({ state: 'pending', intentId: 'intent' });
-    await act(async () => {
-      mockSessionProps?.onSettled('complete');
-    });
-    expect(mockCheckout).toHaveBeenCalledTimes(2);
-    expect(mockInvalidate).not.toHaveBeenCalled();
-    expect(mockSessionProps?.outcome).toBeNull();
-    // Still pending: Mention keeps asking Oxy, and the sheet keeps waiting.
-    mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
-    await act(async () => {
-      jest.advanceTimersByTime(3000);
-    });
-    await act(async () => {});
-    expect(mockCheckout).toHaveBeenCalledTimes(3);
-    expect(mockInvalidate).toHaveBeenCalled();
-    // Only Oxy's `fulfilled` lets the sheet say the payment succeeded.
-    expect(mockSessionProps?.outcome).toBe('succeeded');
-  } finally {
-    jest.useRealTimers();
-  }
-});
-it('falls back to the hosted page when the order cannot be driven in the sheet', async () => {
   await mount();
-  await press('plus.payment.continue');
+  await prepare();
   await act(async () => {
-    mockSessionProps?.onUnavailable('unreadable');
+    mockProps?.onSettled('complete');
   });
-  expect(JSON.stringify(renderer.toJSON())).not.toContain('Peable session checkout');
-  await press('plus.payment.openCheckout');
-  expect(mockLocation.replace).toHaveBeenCalledWith(HOSTED);
-});
-it('keeps any other checkout URL hosted, opened only from a press', async () => {
-  mockCheckout.mockResolvedValue({
-    state: 'pending',
-    intentId: 'intent',
-    checkoutUrl: 'https://pay.example.test/session',
-  });
-  await mount();
-  await press('plus.payment.continue');
-  expect(mockSessionCheckout).not.toHaveBeenCalled();
-  expect(window.open).not.toHaveBeenCalled();
-  await press('plus.payment.openCheckout');
-  expect(mockLocation.replace).toHaveBeenCalledWith('https://pay.example.test/session');
-});
-it('handles popup blocking without clearing the pending operation', async () => {
-  window.open = jest.fn().mockReturnValue(null);
-  mockCheckout.mockResolvedValue({
-    state: 'pending',
-    intentId: 'intent',
-    checkoutUrl: 'https://pay.example.test/session',
-  });
-  await mount();
-  await press('plus.payment.continue');
-  await press('plus.payment.openCheckout');
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.blocked');
-  expect(mockClearKey).not.toHaveBeenCalled();
-});
-it('ignores repeated clicks while the first request is unresolved', async () => {
-  let resolve: ((value: unknown) => void) | undefined;
-  mockCheckout.mockReturnValue(
-    new Promise((done) => {
-      resolve = done;
-    }),
-  );
-  await mount();
-  const action = button('plus.payment.continue')?.props.onPress;
-  await act(async () => {
-    action();
-    action();
-  });
-  expect(mockCheckout).toHaveBeenCalledTimes(1);
-  await act(async () => {
-    resolve?.({ state: 'pending', intentId: 'intent' });
-  });
-});
-it('retains the durable key on failed transport and review-required responses', async () => {
-  mockCheckout
-    .mockRejectedValueOnce(new Error('connection lost'))
-    .mockRejectedValueOnce(new Error('PAYMENT_REVIEW_REQUIRED'));
-  await mount();
-  await press('plus.payment.continue');
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.failed');
-  await press('plus.payment.continue');
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.review');
-  expect(button('plus.payment.continue')).toBeUndefined();
-  expect(mockClearKey).not.toHaveBeenCalled();
-});
-it('discards a response after switching accounts', async () => {
-  let resolve: ((value: unknown) => void) | undefined;
-  mockCheckout.mockReturnValue(
-    new Promise((done) => {
-      resolve = done;
-    }),
-  );
-  await mount();
-  await press('plus.payment.continue');
-  await act(async () => {
-    mockUser = { id: 'account-b' };
-    mockSession = 'session-b';
-    renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
-  });
-  await act(async () => {
-    resolve?.({
-      state: 'pending',
-      intentId: 'old',
-      checkoutUrl: HOSTED,
-    });
-  });
-  expect(mockSessionCheckout).not.toHaveBeenCalled();
-  expect(mockLocation.replace).not.toHaveBeenCalled();
+  expect(mockProps?.outcome).toBeNull();
   expect(mockInvalidate).not.toHaveBeenCalled();
-});
-it('refreshes authoritative access only after fulfilled, never after native browser dismissal', async () => {
-  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
-  await mount();
-  await press('plus.payment.continue');
-  await act(async () => {
-    await mockSessionProps?.openUrl?.(HOSTED, 'hosted');
-  });
-  expect(mockNativeBrowser).toHaveBeenCalledWith(HOSTED);
-  expect(mockInvalidate).not.toHaveBeenCalled();
-  await closeSession();
   mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
-  await press('plus.payment.checkStatus');
-  expect(mockClearKey).toHaveBeenCalledWith(
-    'account-a',
-    { productId: 'mention-product', capabilityKey: 'plus', offerId: 'approved', offerVersion: 2 },
-    'durable-key',
+  await act(async () => {
+    jest.advanceTimersByTime(3000);
+  });
+  expect(mockProps?.outcome).toBe('succeeded');
+  expect(mockInvalidate).toHaveBeenCalledTimes(2);
+  expect(mockClearKey).toHaveBeenCalledWith('account-a', binding, 'durable-key');
+});
+it('stops a late account A response from becoming account B checkout', async () => {
+  let resolve: (value: unknown) => void = () => {};
+  mockCheckout.mockReturnValue(
+    new Promise((done) => {
+      resolve = done;
+    }),
   );
-  expect(mockInvalidate).toHaveBeenCalled();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.fulfilled');
-});
-
-it('uses the detached Bloom sheet, not an adaptive centered dialog', async () => {
   await mount();
-  expect(mockSheet).toHaveBeenCalledWith(expect.objectContaining({ open: true, detached: true }));
+  let attempt: Promise<unknown> = Promise.resolve();
+  await act(async () => {
+    attempt = preparation()
+      .createSession(details, { signal: new AbortController().signal })
+      .catch(() => undefined);
+  });
+  mockUser = { ...mockUser, id: 'account-b' };
+  mockSession = 'session-b';
+  await act(async () => renderer.update(<PlusPaymentSheet onClose={mockClose} />));
+  await act(async () => {
+    resolve({ state: 'fulfilled' });
+    await attempt;
+  });
+  expect(mockProps?.outcome).toBeNull();
+  expect(mockClearKey).not.toHaveBeenCalled();
+  expect(mockInvalidate).not.toHaveBeenCalled();
+  expect(preparation().key).toContain('account-b');
 });
-it('shows sign-in independently of offer availability', async () => {
-  mockSignedIn = false;
+it('does not offer another purchase when Oxy One or standalone access already includes Plus', async () => {
+  mockIncluded = true;
   await mount();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.signInRequired');
-  expect(button('plus.payment.continue')).toBeUndefined();
+  expect(mockClose).toHaveBeenCalled();
+  expect(mockCheckout).not.toHaveBeenCalled();
+  expect(preparation().canContinue).toBe(false);
 });
-it('does not sell Plus again when authoritative access already includes it', async () => {
-  mockHasAccess = true;
+it('keeps signed-out review in the same SDK and makes sign-in an explicit prerequisite', async () => {
+  mockPrivate = false;
   await mount();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.included');
-  expect(button('plus.payment.continue')).toBeUndefined();
+  expect(preparation().canContinue).toBe(false);
+  expect(preparation().renderAdditionalDetails).toBeDefined();
+  await expect(prepare()).rejects.toThrow('plus.payment.signInRequired');
   expect(mockCheckout).not.toHaveBeenCalled();
 });
-it('rechecks individual or bundle access immediately before creating checkout', async () => {
+it('refuses unknown URLs without opening an alternative checkout or losing the key', async () => {
+  mockCheckout.mockResolvedValue({
+    state: 'pending',
+    checkoutUrl: 'https://checkout.peable.to/legacy',
+  });
+  await mount();
+  await expect(prepare()).rejects.toThrow();
+  expect(window.open).not.toHaveBeenCalled();
+  expect(mockClearKey).not.toHaveBeenCalled();
+});
+it('preserves the durable key when the session cannot be read and on dismissal', async () => {
+  await mount();
+  await prepare();
+  await act(async () => mockProps?.onUnavailable('unreadable'));
+  expect(mockClose).toHaveBeenCalled();
+  expect(mockClearKey).not.toHaveBeenCalled();
+});
+it('opens a requested secure page with no opener, and a native wallet through its link', async () => {
+  const page = { opener: 'parent', location: { replace: jest.fn() }, close: jest.fn() };
+  window.open = jest.fn().mockReturnValue(page);
+  await mount();
+  await act(async () => {
+    await mockProps?.openUrl?.(mockUrl, 'hosted');
+  });
+  expect(page.opener).toBeNull();
+  expect(page.location.replace).toHaveBeenCalledWith(mockUrl);
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  await act(async () => {
+    await mockProps?.openUrl?.('peable://pay?intent=pi_fixture', 'wallet');
+  });
+  expect(open).toHaveBeenCalled();
+  open.mockRestore();
+});
+
+it('exits an authoritative review hold after settlement without granting or inventing failure', async () => {
+  await mount();
+  await prepare();
+  mockCheckout.mockRejectedValue(new Error('PAYMENT_REVIEW_REQUIRED'));
+  await act(async () => mockProps?.onSettled('complete'));
+  expect(mockToast).toHaveBeenCalledWith('plus.payment.review', { type: 'error' });
+  expect(mockClose).toHaveBeenCalledTimes(1);
+  expect(mockProps?.outcome).toBeNull();
+  expect(mockInvalidate).not.toHaveBeenCalled();
+  expect(mockClearKey).not.toHaveBeenCalled();
+});
+it('recovers a submitted operation when the catalog later disables new purchases', async () => {
+  mockCheckout.mockRejectedValueOnce(new Error('connection lost'));
+  await mount();
+  await expect(prepare()).rejects.toThrow();
+  mockAvailable = false;
+  await act(async () => renderer.update(<PlusPaymentSheet onClose={mockClose} />));
+  expect(preparation().canContinue).toBe(true);
+  expect(await prepare()).toMatchObject({ expected: { amount: '599' } });
+  expect(mockClose).not.toHaveBeenCalled();
+  expect(mockKey).toHaveBeenCalledTimes(1);
+});
+it('refuses a duplicate Continue while the original operation is still pending', async () => {
+  let resolve: (value: unknown) => void = () => {};
+  mockCheckout.mockReturnValue(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  await mount();
+  let first: Promise<unknown> = Promise.resolve();
+  await act(async () => {
+    first = preparation().createSession(details, { signal: new AbortController().signal });
+  });
+  await expect(prepare()).rejects.toThrow('plus.payment.pending');
+  expect(mockCheckout).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    resolve({ state: 'pending', checkoutUrl: mockUrl });
+    await first;
+  });
+});
+
+it('rechecks bundle inclusion before obtaining a key or starting an order', async () => {
   mockAccess.mockResolvedValue({
     subjectAccountId: 'account-a',
-    productId: 'mention-product',
+    productId: 'mention',
     capabilities: [{ key: 'plus', grantIds: ['bundle-grant'] }],
   });
   await mount();
-  await press('plus.payment.continue');
-  expect(mockCheckout).not.toHaveBeenCalled();
+  await expect(prepare()).rejects.toThrow();
+  expect(mockClose).toHaveBeenCalledTimes(1);
   expect(mockKey).not.toHaveBeenCalled();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.included');
+  expect(mockCheckout).not.toHaveBeenCalled();
 });
-
-it('recovers a pending operation after access becomes included without creating another payment', async () => {
-  await mount();
-  await press('plus.payment.continue');
-  await closeSession();
-  mockHasAccess = true;
-  await act(async () => {
-    renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
-  });
-  mockCheckout.mockResolvedValue({ state: 'fulfilled', intentId: 'intent' });
-  await press('plus.payment.checkStatus');
-  expect(mockCheckout).toHaveBeenCalledTimes(2);
-  expect(mockAccess).toHaveBeenCalledTimes(1);
-  expect(mockClearKey).toHaveBeenCalled();
-});
-
-it('freezes the reviewed amount and offer while an operation is pending', async () => {
-  await mount();
-  await press('plus.payment.continue');
-  await closeSession();
+it('uses the approved annual offer and amount without deriving a price in the browser', async () => {
   mockOffer = {
     ...offer,
-    offerId: 'replacement',
-    offerVersion: 7,
-    price: { ...offer.price, amountMinorUnits: 900 },
+    offerId: 'mention_plus_annual',
+    price: { ...offer.price, amountMinorUnits: 5750, interval: 'year' },
   };
+  mockBinding = { ...binding, offerId: 'mention_plus_annual' };
   await act(async () => {
-    renderer.update(<PlusPaymentSheet onClose={jest.fn()} />);
+    renderer = TestRenderer.create(<PlusPaymentSheet onClose={mockClose} cadence="year" />);
   });
-  await press('plus.payment.checkStatus');
-  expect(mockCheckout.mock.calls[1][0]).toMatchObject({
-    offerId: 'approved',
-    offerVersion: 2,
-    idempotencyKey: 'durable-key',
+  expect(preparation().request.recurring).toMatchObject({
+    amountMinorUnits: 5750,
+    interval: 'year',
   });
-  expect(mockKey.mock.calls[1][1]).toMatchObject({ offerId: 'approved', offerVersion: 2 });
+  expect(await prepare()).toMatchObject({ expected: { amount: '5750', currency: 'USD' } });
+  expect(mockCheckout).toHaveBeenCalledWith(
+    expect.objectContaining({ offerId: 'mention_plus_annual' }),
+  );
 });
-it('uses the selected annual offer for checkout and recovery', async () => {
-  mockOffer = {
-    ...offer,
-    offerId: 'approved-year',
-    offerVersion: 3,
-    price: { ...offer.price, amountMinorUnits: 4800, interval: 'year' },
-  };
+it('does not grant Plus when a native browser is dismissed', async () => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
+  await mount();
+  await prepare();
   await act(async () => {
-    renderer = TestRenderer.create(<PlusPaymentSheet cadence="year" onClose={jest.fn()} />);
+    await mockProps?.openUrl?.(mockUrl, 'hosted');
   });
-  await press('plus.payment.continue');
-  expect(mockCheckout.mock.calls[0][0]).toMatchObject({
-    offerId: 'approved-year',
-    offerVersion: 3,
-  });
-  expect(mockKey.mock.calls[0][1]).toMatchObject({ offerId: 'approved-year', offerVersion: 3 });
-  await closeSession();
-  await press('plus.payment.checkStatus');
-  expect(mockCheckout.mock.calls[1][0]).toEqual(mockCheckout.mock.calls[0][0]);
-});
-
-it('unavailable EUR display conversion does not block or alter the USD checkout', async () => {
-  mockDisplayCurrency = 'EUR';
-  await mount();
-  expect(JSON.stringify(renderer.toJSON())).toContain('EUR conversion unavailable');
-  expect(mockFormatUsd).toHaveBeenCalledWith(500);
-  await press('plus.payment.continue');
-  expect(mockCheckout.mock.calls[0][0]).toEqual({
-    expectedSubjectAccountId: 'account-a',
-    productId: 'mention-product',
-    offerId: 'approved',
-    offerVersion: 2,
-    idempotencyKey: 'durable-key',
-  });
-});
-it('USD display preference adds no estimate or rate dependency to checkout', async () => {
-  await mount();
-  expect(mockFormatUsd).not.toHaveBeenCalled();
-  await press('plus.payment.continue');
-  expect(mockCheckout).toHaveBeenCalledTimes(1);
-});
-
-it('displays published terms without starting payment when the catalogue is not ready', async () => {
-  mockPurchaseAvailable = false;
-  await mount();
-  expect(JSON.stringify(renderer.toJSON())).toContain(offer.displayName);
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.notReady');
-  expect(button('plus.payment.continue')).toBeUndefined();
-  expect(mockCheckout).not.toHaveBeenCalled();
-  expect(mockKey).not.toHaveBeenCalled();
-  expect(window.open).not.toHaveBeenCalled();
-});
-
-it('never falls back to simulation in product checkout, even on an opted-in developer host', async () => {
-  mockPreview = true;
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: { hostname: 'localhost' },
-  });
-  mockPurchaseAvailable = false;
-  mockSignedIn = false;
-  await mount();
-  expect(mockPreviewContent).not.toHaveBeenCalled();
-  expect(mockCheckout).not.toHaveBeenCalled();
-  expect(mockKey).not.toHaveBeenCalled();
-  expect(mockClearKey).not.toHaveBeenCalled();
+  expect(mockBrowser).toHaveBeenCalledWith(mockUrl);
+  expect(mockProps?.outcome).toBeNull();
   expect(mockInvalidate).not.toHaveBeenCalled();
-  expect(window.open).not.toHaveBeenCalled();
-});
-it('refuses UI simulation on a non-loopback host even when the preview flag is set', async () => {
-  mockPreview = true;
-  mockPurchaseAvailable = false;
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: { hostname: 'mention.earth' },
-  });
-  await mount();
-  expect(JSON.stringify(renderer.toJSON())).not.toContain('plus.payment.previewLabel');
-  expect(mockPreviewContent).not.toHaveBeenCalled();
-  expect(mockCheckout).not.toHaveBeenCalled();
-});
-
-it('allows signed-out users to inspect a prelaunch plan without an authentication step', async () => {
-  mockSignedIn = false;
-  mockPurchaseAvailable = false;
-  await mount();
-  expect(JSON.stringify(renderer.toJSON())).toContain('plus.payment.notReady');
-  expect(button('plus.payment.signIn')).toBeUndefined();
-  expect(mockCheckout).not.toHaveBeenCalled();
+  expect(mockClearKey).not.toHaveBeenCalled();
 });
