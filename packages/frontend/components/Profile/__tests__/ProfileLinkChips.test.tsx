@@ -48,6 +48,8 @@ jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
 const mockOpen = jest.fn();
 jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: (url: string) => mockOpen(url) }));
+const mockApiGet = jest.fn();
+jest.mock('@/utils/api', () => ({ api: { get: (...args: unknown[]) => mockApiGet(...args) } }));
 
 /** The pill labels, read from the rendered tree (each pill is one Text). */
 function pillLabels(tree: TestRenderer.ReactTestRenderer): string[] {
@@ -85,16 +87,51 @@ describe('ProfileLinkChips', () => {
     expect(labels).toEqual(['My site', 'github.com/nate']);
   });
 
-  it('opens the link when its pill is pressed', () => {
+  it('opens the link when its pill is pressed', async () => {
     let tree!: TestRenderer.ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(
         <ProfileLinkChips links={[{ id: 'a', url: 'https://example.com/me' }]} />,
       );
     });
-    act(() => {
+    await act(async () => {
       pressPill(tree, 'example.com/me');
     });
     expect(mockOpen).toHaveBeenCalledWith('https://example.com/me');
+  });
+
+  it('opens an Apple Podcasts show at its Syra show', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: { data: { url: 'https://syra.fm/podcasts/show_1' } },
+    });
+    let tree!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(
+        <ProfileLinkChips
+          links={[{ id: 'a', url: 'https://podcasts.apple.com/us/podcast/x/id1234567890' }]}
+        />,
+      );
+    });
+    await act(async () => {
+      pressPill(tree, 'podcasts.apple.com/us/podcast/x/id1234567890');
+    });
+    expect(mockApiGet).toHaveBeenCalledWith('/apple-podcasts/1234567890');
+    expect(mockOpen).toHaveBeenCalledWith('https://syra.fm/podcasts/show_1');
+  });
+
+  it('opens an Apple show as written when Syra cannot give it', async () => {
+    mockApiGet.mockRejectedValueOnce(new Error('down'));
+    let tree!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(
+        <ProfileLinkChips
+          links={[{ id: 'a', url: 'https://podcasts.apple.com/us/podcast/x/id1234567890' }]}
+        />,
+      );
+    });
+    await act(async () => {
+      pressPill(tree, 'podcasts.apple.com/us/podcast/x/id1234567890');
+    });
+    expect(mockOpen).toHaveBeenCalledWith('https://podcasts.apple.com/us/podcast/x/id1234567890');
   });
 });

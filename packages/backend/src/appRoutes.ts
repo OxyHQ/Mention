@@ -37,6 +37,7 @@ import articlesRoutes from './routes/articles';
 import muteRoutes from './routes/mute.routes';
 import muteWordsRoutes from './routes/muteWords.routes';
 import privacyRoutes from './routes/privacy.routes';
+import applePodcastRoutes, { applePodcastRateLimiter } from './routes/applePodcast.routes';
 import profileLinkMentionsRoutes, {
   profileLinkMentionsRateLimiter,
 } from './routes/profileLinkMentions.routes';
@@ -132,6 +133,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   const mcpEffectIdempotency = createMcpEffectIdempotency();
   publicApi.use(mcpEffectIdempotency);
   publicApi.use('/hashtags', hashtagsRoutes);
+  publicApi.use('/apple-podcasts', applePodcastRateLimiter, applePodcastRoutes);
   // `/search/overview` on the PUBLIC api, one mount before the authenticated
   // `/search` below. This router declares only `/overview`, so `GET /search`
   // falls straight through to the authenticated one — the same

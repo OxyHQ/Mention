@@ -10,6 +10,8 @@ import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { supportProviderOf, type ProfileLink } from '@oxy.so/core';
+import { applePodcastCollectionId } from '@mention/shared-types';
+import { api } from '@/utils/api';
 import { presentSheet } from '@/utils/sheet';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { prettifyUrl } from '@/utils/prettifyUrl';
@@ -40,6 +42,22 @@ function OutboundArrow({ support }: { support: boolean }) {
       fill={support ? colors.primaryForeground : colors.textSecondary}
     />
   );
+}
+
+/**
+ * Where a link opens. An Apple Podcasts show opens its show on Syra, which Mention
+ * asks for; a link that is not an Apple show, or a show Syra cannot give, opens as
+ * written.
+ */
+async function showUrl(url: string): Promise<string> {
+  const collectionId = applePodcastCollectionId(url);
+  if (!collectionId) return url;
+  try {
+    const { data } = await api.get<{ data: { url: string } }>(`/apple-podcasts/${collectionId}`);
+    return data.data.url;
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -109,8 +127,11 @@ export const ProfileLinkChips = memo(function ProfileLinkChips({
   const { t } = useTranslation();
   const open = useCallback(
     (url: string) => {
-      if (onPressLink) onPressLink(url);
-      else void openExternalLink(url);
+      void (async () => {
+        const target = await showUrl(url);
+        if (onPressLink) onPressLink(target);
+        else await openExternalLink(target);
+      })();
     },
     [onPressLink],
   );
