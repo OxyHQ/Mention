@@ -1,4 +1,4 @@
-import { isLinkField } from '../profileFieldLinks';
+import { isLinkField } from '../../../utils/federation/profileFieldLinks';
 
 describe('isLinkField', () => {
   it('is true for a value that is a URL, or an anchor to one', () => {
