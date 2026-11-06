@@ -79,7 +79,7 @@ vi.mock('../../utils/redis', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedPosts } from '../helpers/postFixtures';
 import { forgetTrendingHashtags } from '../../services/trendingHashtagsCache';
 
 import hashtagsRoutes, { TRENDING_HASHTAG_LIMIT } from '../../routes/hashtags';
@@ -118,14 +118,17 @@ const WINDOWS = { cached: 91, keyed: 92, shape: 93 } as const;
 const POSTS_WITH_TAG = 15;
 
 async function seedTaggedPosts(): Promise<void> {
-  for (let index = 0; index < POSTS_WITH_TAG; index += 1) {
-    await seedPost(scope, {
+  // Use the fixture's bounded batch writer and one read-back, rather than
+  // repeating the full post hydration for every row under parallel CI load.
+  await seedPosts(
+    scope,
+    Array.from({ length: POSTS_WITH_TAG }, (_, index) => ({
       content: {
         variants: [{ source: 'author', text: `a trending probe ${index} #${TAG}`, tag: 'en' }],
       },
       hashtags: [TAG],
-    });
-  }
+    })),
+  );
 }
 
 interface TrendingBody {
