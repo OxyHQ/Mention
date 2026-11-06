@@ -10,11 +10,11 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "17.14.1",
+      "@oxy.so/bloom": "17.16.0",
       "@oxy.so/contracts": "6.12.0",
-      "@oxy.so/core": "7.30.0",
+      "@oxy.so/core": "7.35.0",
       "@oxy.so/mcp": "1.4.1",
-      "@oxy.so/services": "14.9.0",
+      "@oxy.so/services": "14.12.0",
       "@oxy.so/utils": "^1.5.2",
       "@peable.to/sdk": "6.2.1",
       "@syra.fm/sdk": "0.25.0",
@@ -24,7 +24,7 @@
       "jsonwebtoken": "^9.0.3",
       "typescript": "~6.0.3",
       "zod": "^4.6.7",
-      "@oxy.so/protocol": "1.9.0"
+      "@oxy.so/protocol": "1.10.0"
     }
   },
   "scripts": {
@@ -132,8 +132,8 @@
     "metro-transform-worker": "0.87.1",
     "ob1": "0.87.1",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/core": "7.30.0",
-    "@oxy.so/services": "14.9.0",
+    "@oxy.so/core": "7.35.0",
+    "@oxy.so/services": "14.12.0",
     "fast-uri": "3.1.9",
     "fast-xml-parser": "5.12.0",
     "ioredis": "6.0.0",
