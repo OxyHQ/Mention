@@ -6,13 +6,15 @@ a second price catalogue or paid-access flag.
 
 Subscribe opens a Bloom detached **Pay with Peable** bottom sheet. The page and sheet both read
 the selected monthly or annual standalone offer from Oxy's published product-plan catalogue; they show no
-static replacement price when it is unavailable. Continue asks Oxy for the
-authoritative checkout and pays that Peable order in **Peable's own payment sheet**,
+static replacement price when it is unavailable. The canonical SDK preparation shows the item,
+recurring amount and Oxy account immediately, without creating an order. Continue asks Oxy for the
+authoritative checkout inside the same mounted **Peable payment sheet**,
 `PeableSheetCheckout` from `@peable.to/sdk/checkout/ui` — the same sheet Mercaria opens
 for its plans and its marketplace. Mention keeps no copy of the payment logic and none
 of its words: it hands the sheet the order, the language (`i18n.language`; the SDK ships
 the sheet's copy in all fifteen Mention locales, one catalog in `@peable.to/sdk`) and how
-to open a page, and answers the outcome. Do not translate the sheet here. The sheet never collects a card number or signs a FairCoin payment itself.
+to open a page, and answers the outcome. An unchanged reviewed total advances to payment-method
+selection; a changed total or missing details requires review before proceeding. Do not translate the sheet here. The sheet never collects a card number or signs a FairCoin payment itself.
 
 ## Card and FairCoin (Peable ADR 0021)
 
@@ -25,7 +27,11 @@ capability for that session, read by the SDK's `sheetSourceFromUrl` (Peable's or
 only, and the secret must name the same session). The sheet refuses a session whose
 price before tax or currency differ from the reviewed offer (`expected`); tax is
 priced once the payer gives a billing country, which the sheet asks for because the
-session has `automatic_tax`. It never asks for a shipping address.
+session has `automatic_tax`. US/Canadian billing also collects an explicit state/province code
+and postal code; it never derives a region from a postcode. Plus never asks for a shipping address.
+Oxy creates account checkouts with `contact_collection: merchant_account`; that delegates receipts
+to the merchant account channel rather than asserting a Peable-verified identity or collecting the
+same account email again.
 
 - **FairCoin is always listed.** When `faircoin.available` is false it is a disabled
   row with the gateway's `unavailable_reason` in words
@@ -54,9 +60,11 @@ session has `automatic_tax`. It never asks for a shipping address.
   refreshes access and lets the sheet show success (`outcome: 'succeeded'`), after
   which it closes itself. A Plus subscription paid in FairCoin becomes
   `send_invoice` at Peable: each renewal is an invoice the payer pays.
-- **Fallback.** A URL that is not a Peable session, or a session the sheet cannot
-  read, keeps the hosted page, which offers the same two methods, behind an Open
-  checkout press.
+- **Recovery.** An unrecognized source remains a retryable preparation error with the same
+  operation key. An unreadable session closes with an explanatory notice and retains that key.
+  A review hold or unconfigured operation after settlement exits honestly without granting access,
+  inventing payment failure, or discarding recovery identity. Native secure-page handoff is owned
+  by the SDK; Mention does not render a second checkout dialog.
 
 ## Deployment binding
 
@@ -160,7 +168,7 @@ the sheet does not open a payment window or create a checkout operation until
 the catalogue reports `purchase: available`. An existing pending operation can
 still be checked. Missing offers never receive a client-supplied price.
 
-The initial inactive Mention catalogue uses product `mention`, capability
+The Mention catalogue uses product `mention`, capability
 `plus`, monthly offer `mention_plus_monthly` version `1`, and annual offer
 `mention_plus_annual` version `1`. Configure the six public bindings above to
 these identifiers after that catalogue is published. The approved USD totals
@@ -169,9 +177,8 @@ terms alone do not activate a payment provider or establish tax readiness.
 
 ## Local UI preview
 
-`Subscribe` opens the detached Peable sheet before purchase activation so the
-plan can be inspected without signing in. Real payment confirmation remains
-gated by the public catalogue and authoritative account access.
+The explicit local preview below is for fixture inspection only. Production Subscribe uses the
+canonical preparation and authoritative Oxy operation; it never falls back to a simulation.
 
 For local UI work only, start Expo development mode with
 `EXPO_PUBLIC_MENTION_PLUS_UI_PREVIEW=true` and open the web app on `localhost`,
@@ -463,3 +470,16 @@ paid-invoice/subscription observation and the existing entitlement reconciliatio
 Neither client-side confirmation nor the local test endpoint can substitute for
 those authorities. Provider, merchant and fiscal activation remain separate from
 shipping the UI; this release does not enable a live sale or grant access.
+
+## Browser regression
+
+The payment browser suite serves a production Expo export through the standard candidate fixture,
+with synthetic Oxy and Peable responses. It checks immediate review, one Continue to card/FairCoin,
+the same mounted dialog, no duplicate contact field and no payment writes on desktop and phone:
+
+```bash
+MENTION_E2E_CANDIDATE_ORIGIN=http://127.0.0.1:8175 bunx playwright test --config packages/e2e/playwright.payments.config.ts
+```
+
+The candidate must contain the published Mention Plus build bindings. The fixture owns every
+remote request and aborts payment creation/confirmation; it never performs a live charge.

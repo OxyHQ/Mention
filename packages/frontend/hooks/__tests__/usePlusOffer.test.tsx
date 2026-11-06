@@ -28,6 +28,7 @@ const mockOffer = {
 let mockHasAccess = false;
 let mockPurchaseAvailable = true;
 let mockQueryError = false;
+let mockPricingPending = false;
 jest.mock('@/config', () => ({
   MENTION_PLUS_OFFER_ID: 'offer',
   MENTION_PLUS_OFFER_VERSION: '1',
@@ -50,8 +51,10 @@ jest.mock('@tanstack/react-query', () => ({
     return {
       data: options.queryKey.includes('mention-plus-access')
         ? mockHasAccess
-        : { offer: mockOffer, purchaseAvailable: mockPurchaseAvailable },
-      isPending: false,
+        : mockPricingPending
+          ? undefined
+          : { offer: mockOffer, purchaseAvailable: mockPurchaseAvailable },
+      isPending: !options.queryKey.includes('mention-plus-access') && mockPricingPending,
       isError: mockQueryError,
     };
   },
@@ -68,6 +71,7 @@ beforeEach(() => {
   mockHasAccess = false;
   mockPurchaseAvailable = true;
   mockQueryError = false;
+  mockPricingPending = false;
   mockQueryOptions = [];
   mockPlans.mockResolvedValue({ productId: 'product', purchase: 'available', plans: [mockOffer] });
   mockAccess.mockResolvedValue({
@@ -227,4 +231,19 @@ it('shows an exact published price while purchase readiness remains unavailable'
   });
   expect(mockResult.offer).toEqual(mockOffer);
   expect(mockResult.purchaseAvailable).toBe(false);
+});
+
+it('keeps checkout unavailable while the authoritative catalogue has not arrived', () => {
+  mockPricingPending = true;
+  act(() => {
+    renderer = TestRenderer.create(<Probe />);
+  });
+  expect(mockResult.loading).toBe(true);
+  expect(mockResult.offer).toBeNull();
+  expect(mockResult.purchaseAvailable).toBe(false);
+  mockPricingPending = false;
+  act(() => renderer.update(<Probe />));
+  expect(mockResult.loading).toBe(false);
+  expect(mockResult.offer).toEqual(mockOffer);
+  expect(mockResult.purchaseAvailable).toBe(true);
 });

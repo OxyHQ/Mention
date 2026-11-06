@@ -943,6 +943,13 @@ jobs:
           EXPO_PUBLIC_ENV: production
           EXPO_PUBLIC_API_URL: https://api.mention.earth
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
+          # Match the production export: catalogue bindings are inlined by Expo.
+          EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID: ${{ vars.EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID }}
+          EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY: ${{ vars.EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY }}
+          EXPO_PUBLIC_MENTION_PLUS_OFFER_ID: ${{ vars.EXPO_PUBLIC_MENTION_PLUS_OFFER_ID }}
+          EXPO_PUBLIC_MENTION_PLUS_OFFER_VERSION: ${{ vars.EXPO_PUBLIC_MENTION_PLUS_OFFER_VERSION }}
+          EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_ID: ${{ vars.EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_ID }}
+          EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_VERSION: ${{ vars.EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_VERSION }}
       - name: Validate static hosting contract
         if: steps.scope.outputs.run == 'true'
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist

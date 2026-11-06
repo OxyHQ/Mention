@@ -16,7 +16,7 @@
       "@oxy.so/mcp": "1.4.1",
       "@oxy.so/services": "14.9.0",
       "@oxy.so/utils": "^1.5.2",
-      "@peable.to/sdk": "4.3.0",
+      "@peable.to/sdk": "6.2.1",
       "@syra.fm/sdk": "0.25.0",
       "@types/bun": "1.4.4",
       "@types/jsonwebtoken": "^9.0.10",
