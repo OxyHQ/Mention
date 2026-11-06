@@ -117,7 +117,7 @@
     "@lottiefiles/dotlottie-web": "0.82.1",
     "@mention/shared-types": "workspace:*",
     "@oxy.so/allo-sdk": "^1.0.0",
-    "@oxy.so/app-preset": "6.2.0",
+    "@oxy.so/app-preset": "6.4.0",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/bloom-avatar-native": "0.1.1",
     "@oxy.so/contracts": "catalog:",

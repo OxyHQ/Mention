@@ -16,7 +16,7 @@
       "@oxy.so/mcp": "1.4.1",
       "@oxy.so/services": "14.9.0",
       "@oxy.so/utils": "^1.5.2",
-      "@peable.to/sdk": "4.3.0",
+      "@peable.to/sdk": "6.2.1",
       "@syra.fm/sdk": "0.25.0",
       "@types/bun": "1.4.4",
       "@types/jsonwebtoken": "^9.0.10",
@@ -155,7 +155,8 @@
     "@fastify/busboy": "3.2.4",
     "@oxy.so/protocol": "catalog:",
     "react-native-css": "3.1.0-rc.0",
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "@peable.to/sdk": "6.2.1"
   },
   "patchedDependencies": {
     "react-native-css@3.1.0-rc.0": "patches/react-native-css@3.1.0-rc.0.patch",
