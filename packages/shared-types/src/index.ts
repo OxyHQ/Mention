@@ -88,3 +88,4 @@ export * from './deck';
 
 export * from './membership';
 export type { SerializedMute, MutedUsersResponse } from './mute';
+export * from './applePodcast';
