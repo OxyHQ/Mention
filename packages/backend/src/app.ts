@@ -98,7 +98,7 @@ const MENTION_CSP_EXTENSIONS = {
   // ThorVG compiled to WebAssembly; the binary is served from this origin
   // (`frontend/lib/lottieWeb.web.ts`), so no script source is added. Without
   // it Bloom's `Sticker` still works — it shows the still image.
-  // SDK providerJs loads the versioned Stripe.js script; no provider UI is embedded.
+  // Only secure card fields are provider-hosted; the checkout layout remains Peable.
   scriptSrc: ["'wasm-unsafe-eval'", 'https://js.stripe.com'],
 } satisfies OxyCspExtensions;
 
