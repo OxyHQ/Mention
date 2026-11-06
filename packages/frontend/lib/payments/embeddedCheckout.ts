@@ -59,19 +59,6 @@ export function intentMatchesBinding(intent: PeableIntent, binding: EmbeddedChec
   );
 }
 
-/**
- * Peable's PaymentIntent statuses are Stripe's seven (Peable ADR 0019): an
- * expired, rejected or underpaid intent is `canceled`; a declined card returns
- * to `requires_payment_method` with `last_payment_error` set.
- */
-export function embeddedCheckoutPhase(status: string): 'entry' | 'pending' | 'success' | 'failure' {
-  if (status === 'succeeded') return 'success';
-  if (status === 'canceled') return 'failure';
-  if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(status))
-    return 'entry';
-  return 'pending';
-}
-
 /** Reads only payer-authorized observation; a paid first invoice alone is not subscription activation. */
 export async function observeEmbeddedSubscription(
   binding: EmbeddedCheckoutBinding,

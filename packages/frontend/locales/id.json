@@ -145,8 +145,7 @@
         "countryES": "Spain",
         "generic": "Card",
         "hint": "Kamu akan memasukkan kartu di halaman pembayaran aman Peable.",
-        "open": "Lanjut ke pembayaran kartu",
-        "failed": "Tidak bisa beralih ke kartu. Coba lagi."
+        "open": "Lanjut ke pembayaran kartu"
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -180,11 +179,9 @@
         "title": "Bayar dengan FairCoin",
         "quote": "Harga {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
         "holdsUntil": "Harga ini berlaku hingga {{time}}.",
-        "expired": "Harga FairCoin ini sudah kedaluwarsa. Kembali dan pilih FairCoin lagi untuk harga baru.",
         "hint": "Pindai kode ini dengan aplikasi Peable di ponselmu, atau buka Peable di perangkat ini.",
         "peableOnly": "Hanya aplikasi Peable yang bisa menyelesaikan pembayaran ini.",
         "qr": "Kode pembayaran Peable",
-        "failed": "Pembayaran FairCoin tidak bisa dimulai. Coba lagi atau bayar dengan kartu.",
         "confirming": "Pembayaran FairCoin untuk pesanan ini sedang dikonfirmasi. Tunggu hingga selesai.",
         "noPeable": "Peable tidak terpasang di perangkat ini. Pindai kode dengan Peable di ponselmu.",
         "otherMethod": "Pilih cara bayar lain",

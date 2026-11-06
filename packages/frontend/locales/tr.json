@@ -145,8 +145,7 @@
         "countryES": "Spain",
         "generic": "Card",
         "hint": "Kartını Peable'ın güvenli ödeme sayfasında gireceksin.",
-        "open": "Kartla ödemeye devam et",
-        "failed": "Karta geçilemedi. Tekrar dene."
+        "open": "Kartla ödemeye devam et"
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -180,11 +179,9 @@
         "title": "FairCoin ile öde",
         "quote": "Fiyat {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
         "holdsUntil": "Bu fiyat {{time}} saatine kadar geçerli.",
-        "expired": "Bu FairCoin fiyatının süresi doldu. Geri dön ve yeni bir fiyat için FairCoin'i yeniden seç.",
         "hint": "Bu kodu telefonundaki Peable uygulamasıyla tara veya Peable'ı bu cihazda aç.",
         "peableOnly": "Bu ödemeyi yalnızca Peable uygulaması tamamlayabilir.",
         "qr": "Peable ödeme kodu",
-        "failed": "FairCoin ödemesi başlatılamadı. Tekrar dene veya kartla öde.",
         "confirming": "Bu sipariş için bir FairCoin ödemesi zaten onaylanıyor. Bitmesini bekle.",
         "noPeable": "Bu cihazda Peable yüklü değil. Kodu telefonundaki Peable ile tara.",
         "otherMethod": "Başka bir ödeme yöntemi seç",

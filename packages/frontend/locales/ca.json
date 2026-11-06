@@ -145,8 +145,7 @@
         "countryES": "Spain",
         "generic": "Card",
         "hint": "Introduiràs la targeta a la pàgina de pagament segura de Peable.",
-        "open": "Continua al pagament amb targeta",
-        "failed": "No s'ha pogut canviar a targeta. Torna-ho a provar."
+        "open": "Continua al pagament amb targeta"
       },
       "taxPending": "Calculated at checkout",
       "transfer": {
@@ -180,11 +179,9 @@
         "title": "Paga amb FairCoin",
         "quote": "Preu de {{amount}} · 1 FAIR = {{rate}} {{currency}}.",
         "holdsUntil": "Aquest preu és vàlid fins a les {{time}}.",
-        "expired": "Aquest preu en FairCoin ha caducat. Torna enrere i tria FairCoin de nou per obtenir un preu nou.",
         "hint": "Escaneja aquest codi amb l'app Peable al telèfon o obre Peable en aquest dispositiu.",
         "peableOnly": "Només l'app Peable pot completar aquest pagament.",
         "qr": "Codi de pagament de Peable",
-        "failed": "No s'ha pogut iniciar el pagament amb FairCoin. Torna-ho a provar o paga amb targeta.",
         "confirming": "Ja s'està confirmant un pagament en FairCoin per a aquesta comanda. Espera que acabi.",
         "noPeable": "Peable no està instal·lat en aquest dispositiu. Escaneja el codi amb Peable al telèfon.",
         "otherMethod": "Tria una altra forma de pagament",

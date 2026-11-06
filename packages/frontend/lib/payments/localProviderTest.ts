@@ -1,8 +1,4 @@
-import {
-  type EmbeddedCheckoutBinding,
-  embeddedCheckoutPhase,
-  providerActionMatchesMode,
-} from './embeddedCheckout';
+import { type EmbeddedCheckoutBinding, providerActionMatchesMode } from './embeddedCheckout';
 import { parseBaseUnits, parsePaymentMethods } from './peableWire';
 /** Explicit local payer capability; never an application/server credential. */
 export type LocalProviderTestBinding = EmbeddedCheckoutBinding;
@@ -30,7 +26,6 @@ export function localProviderTestBinding(
 export function isTestProviderAction(action: { kind: string; publishable_key?: string }): boolean {
   return providerActionMatchesMode(action, false);
 }
-export const localProviderPhase = embeddedCheckoutPhase;
 
 type SubscriptionTax = NonNullable<EmbeddedCheckoutBinding['subscription']>['tax'];
 
