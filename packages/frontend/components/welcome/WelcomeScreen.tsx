@@ -12,7 +12,7 @@ import { TopicPicker } from '@/components/interests/TopicPicker';
 import { requestSettings } from '@/components/settings/settingsRoutes';
 import { LazyWhoToFollowTab } from '@/components/sharedRouteScreens';
 import { useCompleteWelcome } from '@/hooks/useWelcome';
-import { useLocalSearchParams, useRouter } from '@/lib/navigation/router';
+import { useLocalSearchParams, useRouter, type Href } from '@/lib/navigation/router';
 import { WelcomeStarterPacks } from './WelcomeStarterPacks';
 
 /**
@@ -20,8 +20,8 @@ import { WelcomeStarterPacks } from './WelcomeStarterPacks';
  * when `WelcomeRedirectGate` sent them here, or home. Only an app-relative path
  * is honoured, so `next` can never send anyone off-site.
  */
-function destination(next: string | undefined): string {
-  return next?.startsWith('/') && !next.startsWith('//') ? next : '/';
+function destination(next: string | undefined): Href {
+  return next?.startsWith('/') && !next.startsWith('//') ? (next as Href) : '/';
 }
 
 /** A step's heading: its title, and the line under it, in Bloom's card header. */
