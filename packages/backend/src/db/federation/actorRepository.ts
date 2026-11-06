@@ -1328,6 +1328,8 @@ export interface OutboxSyncActorRef {
   acct: string;
   outboxUrl: string;
   oxyUserId?: string;
+  /** The account's identity on its own network (`alice@x.com`), for a bridged actor. */
+  networkAcct?: string;
 }
 
 /** Followed actors that advertise an outbox, for the periodic catch-up sync. */
@@ -1342,6 +1344,7 @@ export async function findActorsWithOutboxByUris(
       acct: federatedActors.acct,
       outboxUrl: federatedActors.outboxUrl,
       oxyUserId: federatedActors.oxyUserId,
+      networkAcct: federatedActors.networkAcct,
     })
     .from(federatedActors)
     .where(and(inArray(federatedActors.uri, [...uris]), isNotNull(federatedActors.outboxUrl)));
@@ -1355,6 +1358,7 @@ export async function findActorsWithOutboxByUris(
             acct: row.acct,
             outboxUrl: row.outboxUrl,
             oxyUserId: optional(row.oxyUserId),
+            networkAcct: optional(row.networkAcct),
           },
         ],
   );

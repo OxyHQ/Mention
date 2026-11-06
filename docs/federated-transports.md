@@ -10,12 +10,49 @@ once:
 | Instagram | kilogram.makeup, Meta Graph API             | the shortcode                          |
 | Bluesky   | native atproto, Bridgy Fed (`bsky.brid.gy`) | the at-URI                             |
 
-Mention reads from all of them and stores each upstream post once. Code:
+Mention reads from all of them and stores each upstream post once. An X
+account's timeline is listed by FxTwitter and its posts are fetched from
+bird.makeup (below). Code:
 `packages/backend/src/connectors/shared/upstreamPostKey.ts`,
 `…/shared/transportCopies.ts`, `…/activitypub/transportHandoff.ts`,
 `…/connectors/transportFollows.ts`. The list of mirror hosts and what their
 post ids look like is `packages/backend/src/utils/federation/mirrorTransports.ts`;
 a new bridge is one entry there.
+
+## An X account's timeline: FxTwitter lists it, bird.makeup serves it
+
+bird.makeup serves any tweet by id, but its outbox is always empty and it crawls
+each account rarely, one timeline page at a time: an account that tweets a lot
+loses tweets between crawls, and what it does deliver comes hours late.
+FxTwitter's public API (`https://api.fxtwitter.com/2/profile/<handle>/statuses`,
+no key, 1,000 requests a minute per IP) lists an account's timeline live, by
+tweet id: its own tweets (self-thread replies included) and its retweets.
+
+So the outbox sync of a bird.makeup actor reads that listing instead of the
+empty outbox (`connectors/activitypub/xTimeline.ts`, `collectXTimelineCandidates`
+in `outbox.service.ts`). FxTwitter only says which tweets exist; nothing is built
+from its JSON:
+
+- **An own tweet** not held yet is fetched from bird.makeup at
+  `/users/<handle>/statuses/<tweet id>` and imported as an ordinary outbox item:
+  same validation, same Note-to-post builder, same upstream key `x:<tweet id>`,
+  same handoff rule. A copy bird.makeup delivers later merges into it.
+- **A retweet** becomes a boost of the original under the minted id
+  `tag:mention.earth,2026:x-history/<handle>/repost/<tweet id>` (X gives a retweet
+  no id). Its time is the timeline's order: no later than the own tweet listed
+  above it, never earlier than the original. bird.makeup's own `Announce` of the
+  same retweet, under an id it mints at crawl time, finds the boost the account
+  already holds of that original and stores nothing: an X account retweets a
+  tweet once.
+
+Every sync that runs an outbox runs this: the followed-account sync every 15
+minutes, the profile-view refresh and the recent backfill. From the top, a sync
+pages down until a page on which everything is held, the account's handoff, or
+five pages, and takes everything it found missing, so a run after an outage
+fills the whole gap. FxTwitter answers 404 for a live account on many calls; a
+page is asked up to five times, and a run that still gets nothing is retried by
+the next one. If FxTwitter goes away, bird.makeup and mastox keep delivering as
+before.
 
 ## Following follows every transport
 
