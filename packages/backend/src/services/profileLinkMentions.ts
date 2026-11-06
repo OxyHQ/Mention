@@ -10,6 +10,7 @@ import {
   fediverseProfilePathSegment,
   isProfileLikeUrl,
   ownProfileUrlHandle,
+  upstreamProfileAcct,
 } from '@mention/shared-types/profileUrls';
 import {
   scanTextEntities,
@@ -223,6 +224,11 @@ function profileHrefKeys(href: string): ProfileHrefKeys | undefined {
  * author wrote it — never fetched, never created.
  */
 const lookupExistingActorByProfileHref: RemoteMentionResolver = async (href) => {
+  // A profile page on a network we bridge (`instagram.com/nasa`) names the account
+  // by its network acct (`nasa@instagram.com`), which a bridged actor is stored
+  // under beside its transport acct.
+  const upstream = upstreamProfileAcct(href);
+  if (upstream) return (await findActorOxyUserIdsByAccts([upstream])).get(upstream) ?? null;
   const keys = profileHrefKeys(href);
   if (!keys) return null;
   // Two indexed point lookups rather than one `OR`: both `uri` and `acct` are

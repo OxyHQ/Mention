@@ -256,6 +256,16 @@ describe('a profile link on a FOREIGN fediverse host', () => {
     expect(content.text).toBe(`see [mention:${BOB_OXY_ID}]`);
   });
 
+  it('resolves a profile page on a bridged network by the account it names', async () => {
+    stubStoredActors({ acct: { 'nasa@instagram.com': BOB_OXY_ID } });
+    const content = body('watch https://www.instagram.com/nasa?igsh=abc');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(content.text).toBe(`watch [mention:${BOB_OXY_ID}]`);
+    expect(fold.mentions).toEqual([BOB_OXY_ID]);
+  });
+
   it('STAYS A LINK when no stored actor names it', async () => {
     const content = body('see https://mastodon.social/@a-stranger-we-never-synced');
 

@@ -29,7 +29,7 @@
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
         "@oxy.so/db": "^1.5.0",
-        "@oxy.so/federation": "^3.1.0",
+        "@oxy.so/federation": "^3.2.0",
         "@oxy.so/mcp": "catalog:",
         "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/telemetry": "^2.1.0",
@@ -258,6 +258,7 @@
         "@clarity.surf/sdk": "0.12.0",
         "@mercaria.co/sdk": "0.8.0",
         "@oxy.so/contracts": "catalog:",
+        "@oxy.so/federation": "^3.2.0",
         "@oxy.so/homiio-contracts": "0.2.2",
         "@oxy.so/utils": "catalog:",
         "zod": "catalog:",
@@ -1075,7 +1076,7 @@
 
     "@oxy.so/expo-splash": ["@oxy.so/expo-splash@1.1.0", "", { "dependencies": { "@expo/image-utils": ">=0.7.0", "xml2js": "^0.6.2" }, "peerDependencies": { "expo": ">=51.0.0", "expo-splash-screen": ">=0.27.0", "react": ">=18.0.0", "react-native": ">=0.74.0" } }, "sha512-oLlRHLc0pzEIsujaPiOOAJqrAXo41pNxT4zN3WxkvwU0VNWj8AQ+h+KxPPvSmWqnck1F/pCUfFYAfftHtp4ATw=="],
 
-    "@oxy.so/federation": ["@oxy.so/federation@3.1.0", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || 4.11.0-oxy-one.0", "@oxy.so/core": "^6.14.0 || ^7.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-3edFa/C4HOetkls/DWU6dNgqWFQkg0VbW0J8LHWXZQMB3kypwAqSuublpbLvOOVuUbM4PlBnlKi8S9bK6CX7Qg=="],
+    "@oxy.so/federation": ["@oxy.so/federation@3.2.0", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || 4.11.0-oxy-one.0", "@oxy.so/core": "^6.14.0 || ^7.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-g02yP+Bzu7dp5QeCO631H1sW52ZpNqCvpFEy6BSHHfuKjng9NYzwOK0WBBpEUwsW72XFT7DUVu5SLweshtGFmA=="],
 
     "@oxy.so/homiio-contracts": ["@oxy.so/homiio-contracts@0.2.2", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-j7JpjG7LW/ejpOmGIjrKLqwM4xlZ7vReeNzpz6Gzza9lw9er9s/HIou7er4L2c3N+BTbd4IE2l9jFcySzy+Umg=="],
 

@@ -1,4 +1,5 @@
 import { PostVisibility } from '@mention/shared-types';
+import { MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
 import { normalizeMultilineText } from '@oxy.so/core';
 import { isUniqueViolation } from '@oxy.so/db';
 import { logger } from '../../utils/logger';
@@ -9,6 +10,7 @@ import { findActorByUri, findActorsByUris } from '../../db/federation/actorRepos
 import { setFederatedAuthorPinnedPost } from '../../db/posts/postRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { isProfileLikeHref, resolveProfileLinkIdentity } from '../../services/profileLinkMentions';
 import { previewableUrls } from '../../utils/clarityDocuments';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
@@ -240,6 +242,49 @@ function extractHashtags(record: AtprotoPostRecord): string[] {
   return Array.from(tags);
 }
 
+/**
+ * The `#link` facet URIs of a record that could name a profile
+ * ({@link isProfileLikeHref}), at most {@link MAX_PROFILE_LINKS_PER_BODY}. Pure.
+ */
+function extractProfileLinkUris(record: AtprotoPostRecord | undefined): string[] {
+  if (!record) return [];
+  const uris = new Set<string>();
+  for (const facet of record.facets ?? []) {
+    for (const feature of facet.features ?? []) {
+      if (uris.size >= MAX_PROFILE_LINKS_PER_BODY) return [...uris];
+      if (
+        feature?.$type === 'app.bsky.richtext.facet#link' &&
+        typeof feature.uri === 'string' &&
+        isProfileLikeHref(feature.uri)
+      ) {
+        uris.add(feature.uri);
+      }
+    }
+  }
+  return [...uris];
+}
+
+/**
+ * Each profile link that names an account we already hold, mapped to that
+ * account's Oxy user: the same lookup-only question an ActivityPub note's profile
+ * links and a post composed here are asked ({@link resolveProfileLinkIdentity}).
+ * A link to anyone else stays a link. Fail-soft per link.
+ */
+async function resolveProfileLinkUris(uris: Set<string>): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  await Promise.all(
+    [...uris].map(async (uri) => {
+      try {
+        const identity = await resolveProfileLinkIdentity(uri);
+        if (identity) map.set(uri, identity.oxyUserId);
+      } catch (err) {
+        logger.warn('[atproto] profile link lookup failed', err);
+      }
+    }),
+  );
+  return map;
+}
+
 /** Every atproto DID referenced by a record's richtext `#mention` facets. Pure. */
 function extractMentionDids(record: AtprotoPostRecord | undefined): string[] {
   if (!record) return [];
@@ -270,7 +315,9 @@ interface FacetReplacement {
  * richtext facets:
  *   - `#link`: replace the (truncated) display text with the feature's FULL `uri`
  *     — this is what surfaces `gothamist.com/news/long-arti…` as the real URL so
- *     the link is never broken and the link-preview pipeline can unfurl it.
+ *     the link is never broken and the link-preview pipeline can unfurl it. A
+ *     link to a profile we hold (its `uri` is in `mentionMap`) becomes that
+ *     account's `[mention:<oxyUserId>]` instead.
  *   - `#mention`: replace the `@handle` display text with the internal
  *     `[mention:<oxyUserId>]` placeholder when the DID resolved (from `mentionMap`);
  *     when it did not, emit no op so the bare `@handle` text is left in place.
@@ -294,7 +341,15 @@ function buildFacetReplacements(
         typeof feature.uri === 'string' &&
         feature.uri
       ) {
-        ops.push({ byteStart, byteEnd, replacement: feature.uri });
+        // A link to a profile we hold is that person's mention, as it is in a
+        // note or a post composed here; any other link keeps its full URL.
+        const oxyUserId = mentionMap.get(feature.uri);
+        if (oxyUserId) {
+          ops.push({ byteStart, byteEnd, replacement: `[mention:${oxyUserId}]` });
+          mentionIds.add(oxyUserId);
+        } else {
+          ops.push({ byteStart, byteEnd, replacement: feature.uri });
+        }
         break; // one replacement per facet byte range
       }
       if (
@@ -1026,7 +1081,17 @@ async function importPostViewBatch(
     for (const mentionedDid of extractMentionDids(candidate.view.record))
       mentionDids.add(mentionedDid);
   }
-  const mentionMap = await resolveMentionDids(mentionDids);
+  // One map, two kinds of key that cannot collide: a mentioned DID, and a
+  // profile-link URI (`https://…`) that names an account we hold.
+  const profileLinks = new Set<string>();
+  for (const candidate of candidates) {
+    for (const uri of extractProfileLinkUris(candidate.view.record)) profileLinks.add(uri);
+  }
+  const [mentionMap, profileLinkMap] = await Promise.all([
+    resolveMentionDids(mentionDids),
+    resolveProfileLinkUris(profileLinks),
+  ]);
+  for (const [uri, oxyUserId] of profileLinkMap) mentionMap.set(uri, oxyUserId);
   const pdsMap = await resolvePdsEndpoints([
     ...new Set(candidates.filter((c) => embedsVideo(c.view)).map((c) => c.did)),
   ]);

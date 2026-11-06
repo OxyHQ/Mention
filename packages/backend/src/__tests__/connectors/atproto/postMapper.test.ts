@@ -304,6 +304,27 @@ describe('mapPostViewToNormalizedPost', () => {
     expect(post?.text).toBe('Read https://gothamist.com/news/long-article');
   });
 
+  it("turns a #link facet to a profile we hold into that account's mention", () => {
+    const uri = 'https://www.instagram.com/nasa';
+    const text = 'watch instagram.com/nasa';
+    const post = mapPostViewToNormalizedPost(
+      postView('profilelink', text, {
+        record: {
+          facets: [
+            {
+              index: { byteStart: 6, byteEnd: Buffer.byteLength(text, 'utf8') },
+              features: [{ $type: 'app.bsky.richtext.facet#link', uri }],
+            },
+          ],
+        },
+      }),
+      DID,
+      new Map([[uri, 'oxy-nasa']]),
+    );
+    expect(post?.text).toBe('watch [mention:oxy-nasa]');
+    expect(post?.mentions).toEqual(['oxy-nasa']);
+  });
+
   it('handles multiple #link facets with a multibyte emoji before them', () => {
     // '👋' is 4 UTF-8 bytes: a JS-string (UTF-16) index would mis-target the facet.
     const text = '👋 foo.co and bar.co';
