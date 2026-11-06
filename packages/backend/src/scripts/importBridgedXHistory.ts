@@ -49,6 +49,9 @@ import { actorService } from '../connectors/activitypub/actor.service';
 import { outboxSyncService } from '../connectors/activitypub/outbox.service';
 import { mapWithConcurrency } from '../utils/concurrency';
 import enricdurang from './fixtures/xHistoryEnricdurang.json';
+import mistralai from './fixtures/xHistoryMistralai.json';
+import nycmayor from './fixtures/xHistoryNycmayor.json';
+import pabloiglesias from './fixtures/xHistoryPabloiglesias.json';
 
 const SCRIPT_NAME = 'importBridgedXHistory';
 
@@ -100,7 +103,12 @@ export const xHistoryFixtureSchema = z
 
 export type XHistoryFixture = z.infer<typeof xHistoryFixtureSchema>;
 
-export const X_HISTORY_FIXTURES: Readonly<Record<string, unknown>> = { enricdurang };
+export const X_HISTORY_FIXTURES: Readonly<Record<string, unknown>> = {
+  enricdurang,
+  mistralai,
+  nycmayor,
+  pabloiglesias,
+};
 
 /** bird.makeup addresses every account in lower case (Oxy's bridge policy: `caseRule: lowercase`). */
 export function bridgeActorUri(handle: string): string {
