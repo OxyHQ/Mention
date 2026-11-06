@@ -900,7 +900,8 @@
     },
     "joined": "加入于",
     "links": {
-      "title": "链接"
+      "title": "链接",
+      "supportOn": "在 {{provider}} 上支持"
     },
     "media": {
       "title": "主页媒体",

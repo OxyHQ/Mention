@@ -915,7 +915,8 @@
     },
     "joined": "Se unió",
     "links": {
-      "title": "Enlaces"
+      "title": "Enlaces",
+      "supportOn": "Apoya en {{provider}}"
     },
     "media": {
       "title": "Contenido del perfil",

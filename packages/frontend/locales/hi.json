@@ -900,7 +900,8 @@
     },
     "joined": "शामिल हुए",
     "links": {
-      "title": "लिंक"
+      "title": "लिंक",
+      "supportOn": "{{provider}} पर समर्थन करें"
     },
     "media": {
       "title": "प्रोफ़ाइल मीडिया",

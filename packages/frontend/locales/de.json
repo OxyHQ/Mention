@@ -900,7 +900,8 @@
     },
     "joined": "Dabei seit",
     "links": {
-      "title": "Links"
+      "title": "Links",
+      "supportOn": "Unterstützen auf {{provider}}"
     },
     "media": {
       "title": "Profilmedien",

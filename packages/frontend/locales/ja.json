@@ -900,7 +900,8 @@
     },
     "joined": "登録日",
     "links": {
-      "title": "リンク"
+      "title": "リンク",
+      "supportOn": "{{provider}}で支援"
     },
     "media": {
       "title": "プロフィールメディア",

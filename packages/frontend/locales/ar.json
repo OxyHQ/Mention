@@ -960,7 +960,8 @@
     },
     "joined": "انضم في",
     "links": {
-      "title": "الروابط"
+      "title": "الروابط",
+      "supportOn": "ادعم على {{provider}}"
     },
     "media": {
       "title": "وسائط الملف الشخصي",

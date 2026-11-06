@@ -915,7 +915,8 @@
     },
     "joined": "Inscrit en",
     "links": {
-      "title": "Liens"
+      "title": "Liens",
+      "supportOn": "Soutenir sur {{provider}}"
     },
     "media": {
       "title": "Média du profil",

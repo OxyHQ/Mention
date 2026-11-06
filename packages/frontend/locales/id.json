@@ -900,7 +900,8 @@
     },
     "joined": "Bergabung",
     "links": {
-      "title": "Tautan"
+      "title": "Tautan",
+      "supportOn": "Dukung di {{provider}}"
     },
     "media": {
       "title": "Media profil",
