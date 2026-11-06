@@ -533,6 +533,37 @@ describe('createApp', () => {
     expect(response.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
   });
 
+  it('allows Peable checkout and hosted card fields on the actual apex document', async () => {
+    const { createApp } = await import('../app');
+    const response = await request(createApp(createDependencies()))
+      .get('/plus')
+      .set('Host', 'mention.earth')
+      .expect(200);
+    const policy = String(response.headers['content-security-policy']);
+    const sources = (name: string) =>
+      policy
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${name} `))
+        ?.split(/\s+/)
+        .slice(1);
+    expect(sources('connect-src')).toContain('https://api.peable.to');
+    expect(sources('connect-src')).toContain('https://api.stripe.com');
+    expect(sources('script-src')).toContain('https://js.stripe.com');
+    for (const origin of [
+      'https://checkout.peable.to',
+      'https://js.stripe.com',
+      'https://hooks.stripe.com',
+    ]) {
+      expect(sources('frame-src')).toContain(origin);
+    }
+    for (const directive of ['connect-src', 'script-src', 'frame-src']) {
+      expect(sources(directive)).not.toContain('*');
+      expect(sources(directive)).not.toContain('https:');
+      expect(sources(directive)).not.toContain('https://*.stripe.com');
+    }
+  });
+
   it('allows the embedded Alia client to reach only its exact API origin', async () => {
     const { createApp } = await import('../app');
     const deps = createDependencies();
