@@ -229,7 +229,9 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
     apRateLimiter,
     actor: actorRouter,
     federationContent: federationContentRoutes,
-    media: express.Router().use(createOptionalMcpAuth(), optionalAuth, mediaRoutes),
+    media: express
+      .Router()
+      .use(postWriteRateLimiter, createOptionalMcpAuth(), optionalAuth, mediaRoutes),
     crowdSourceWebhook: createCrowdSourceWebhookRoutes(),
     oxyAccountEvents: createOxyAccountEventsRoutes(),
     oxyFileEvents: createOxyFileEventsRoutes(),
