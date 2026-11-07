@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 // This domain fixture already replaces Oxy identity. Community notes are a
 // separate network boundary; the workload transport has its own real HTTP gate.
 vi.mock('../../services/moderation/crowdSourceClient', () => ({
@@ -51,7 +52,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
-    users: { getMany: mocks.getUsersByIds },
+    users: {
+      getMany: mocks.getUsersByIds,
+      lookupMany: lookupManyOf((ids: string[]) => mocks.getUsersByIds(ids)),
+    },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),

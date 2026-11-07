@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 /**
  * `/pokes` against real rows, including the notification it writes.
  *
@@ -30,7 +31,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', async () => ({
   getServiceOxyClient: () => ({
-    users: { getMany: mocks.getUsersByIds, get: mocks.getUserById },
+    users: {
+      getMany: mocks.getUsersByIds,
+      lookupMany: lookupManyOf((ids: string[]) => mocks.getUsersByIds(ids)),
+      get: mocks.getUserById,
+    },
     follows: { followers: mocks.getUserFollowers, following: mocks.getUserFollowing },
     safety: adultSafetyFixture(),
   }),

@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
@@ -26,7 +27,10 @@ vi.mock('../../runtime/oxyClient', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    users: { getMany: getUsersByIds },
+    users: {
+      getMany: getUsersByIds,
+      lookupMany: lookupManyOf((ids: string[]) => getUsersByIds(ids)),
+    },
     assets: { publicUrl: (id: string) => id },
     getClarityDocuments: vi.fn(async () => ({})),
   }),

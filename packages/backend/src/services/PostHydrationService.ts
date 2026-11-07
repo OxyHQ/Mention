@@ -574,9 +574,20 @@ export const OXY_USER_RESOLUTION_DEADLINE_MS = 1_500;
  * lets a recovered Oxy show real names on the next scroll.
  */
 export const OXY_USER_FAILURE_TTL_MS = 5_000;
+/**
+ * How long an author Oxy ANSWERED without (the account is gone, archived or
+ * restricted) is answered with the placeholder without asking again. Longer than
+ * a failure's: absence is the server's word, not a blip, and a recovered account
+ * is also announced by Oxy's user-invalidation broadcast.
+ */
+export const OXY_USER_ABSENT_TTL_MS = 60_000;
 const OXY_USER_FAILURE_MAX_ENTRIES = 10_000;
 
-/** Authors whose resolution just failed, with when they may be asked again. Per task. */
+/**
+ * Authors whose resolution just failed, or that Oxy answered without, with when
+ * they may be asked again ({@link OXY_USER_FAILURE_TTL_MS} / {@link OXY_USER_ABSENT_TTL_MS}).
+ * Per task.
+ */
 const failedUserLookups = new Map<string, number>();
 
 /** Forget every remembered failure: a test that fails an author, then serves it. */
@@ -592,8 +603,8 @@ function recentlyFailedUserLookup(userId: string, now: number): boolean {
   return false;
 }
 
-function rememberFailedUserLookups(userIds: readonly string[]): void {
-  const retryAt = Date.now() + OXY_USER_FAILURE_TTL_MS;
+function rememberFailedUserLookups(userIds: readonly string[], ttlMs: number): void {
+  const retryAt = Date.now() + ttlMs;
   for (const userId of userIds) {
     failedUserLookups.delete(userId);
     failedUserLookups.set(userId, retryAt);
@@ -751,13 +762,23 @@ async function resolveOxyUserSummaryMisses(
   const requestedIds = new Set(missIds);
   const freshlyResolved = new Map<string, CachedUserSummary>();
   let bulkFailure: unknown;
+  /** Ids Oxy answered WITHOUT: the account does not exist or is not visible. */
+  let lookupMissing: readonly string[] = [];
+  /** Ids Oxy could not be asked about (a chunk timed out, 429, 5xx). */
+  let lookupFailed: readonly string[] = [];
 
   try {
-    const users = await runBoundedOxyUserResolutionCall(
-      () => getServiceOxyClient().users.getMany(missIds),
+    // `lookupMany`, not `getMany`: `getMany` folds a failed chunk into "not
+    // returned", so an Oxy blip and an account that is gone were the same
+    // answer, and every gone account cost a per-id read on every render.
+    const lookup = await runBoundedOxyUserResolutionCall(
+      () => getServiceOxyClient().users.lookupMany(missIds),
       deadlineAt,
     );
-    for (const user of Array.isArray(users) ? users : []) {
+    lookupMissing = lookup.missing;
+    lookupFailed = lookup.failed;
+    if (lookup.error !== undefined) bulkFailure = lookup.error;
+    for (const user of lookup.found) {
       const id = String((user as { id?: unknown }).id ?? '');
       const aliases = (user as unknown as { redirectedUserIds?: unknown }).redirectedUserIds;
       const keys = [
@@ -770,14 +791,21 @@ async function resolveOxyUserSummaryMisses(
         if (key && requestedIds.has(key)) freshlyResolved.set(key, toCachedUser(id, user));
     }
   } catch (error) {
+    // The whole read was abandoned (the shared deadline): nothing is known.
     bulkFailure = error;
+    lookupFailed = missIds;
   }
 
-  const unresolved = missIds.filter((userId) => !freshlyResolved.has(userId));
+  // An id the server answered without that a found user's `redirectedUserIds`
+  // covers is resolved, not absent.
+  const absentIds = lookupMissing.filter((userId) => !freshlyResolved.has(userId));
+  const unresolved = lookupFailed.filter((userId) => !freshlyResolved.has(userId));
   let perIdFailures = 0;
   let deadlineExceeded = bulkFailure instanceof OxyUserResolutionDeadlineError;
   const overloaded = bulkFailure !== undefined && isOxyOverloaded(bulkFailure);
 
+  // Only ids that could not be ASKED about are read again. An absent one is the
+  // server's answer already.
   if (unresolved.length > 0 && overloaded) {
     perIdFailures = unresolved.length;
   } else if (unresolved.length > 0 && Date.now() < deadlineAt) {
@@ -806,14 +834,30 @@ async function resolveOxyUserSummaryMisses(
     perIdFailures = unresolved.length;
   }
 
-  if (bulkFailure || perIdFailures > 0) {
-    rememberFailedUserLookups(missIds.filter((userId) => !freshlyResolved.has(userId)));
+  const stillFailed = unresolved.filter((userId) => !freshlyResolved.has(userId));
+  if (stillFailed.length > 0) rememberFailedUserLookups(stillFailed, OXY_USER_FAILURE_TTL_MS);
+  if (absentIds.length > 0) rememberFailedUserLookups(absentIds, OXY_USER_ABSENT_TTL_MS);
+
+  if (stillFailed.length > 0 || absentIds.length > 0) {
+    // Absence and failure are different problems with different owners: a gone
+    // account is data to clean up, a failure is Oxy's availability.
     metrics.incrementCounter('oxy_user_resolution_partial_total', 1, {
-      reason: deadlineExceeded ? 'deadline' : bulkFailure ? 'bulk_error' : 'per_id_error',
+      reason:
+        stillFailed.length === 0
+          ? 'absent'
+          : deadlineExceeded
+            ? 'deadline'
+            : bulkFailure
+              ? 'bulk_error'
+              : 'per_id_error',
     });
     logger.warn('[PostHydration] Oxy user resolution was partial', {
       requested: missIds.length,
       resolved: freshlyResolved.size,
+      absent: absentIds.length,
+      // A few opaque ids, enough to look the accounts up in Oxy.
+      absentSample: absentIds.slice(0, 3),
+      failed: stillFailed.length,
       fallbackFailures: perIdFailures,
       fallbackSkipped: overloaded,
       deadlineExceeded,
@@ -866,7 +910,8 @@ export async function resolveUserSummaries(
     if (hit) {
       resolved.set(userId, hit);
     } else if (recentlyFailedUserLookup(userId, now)) {
-      // Asked a moment ago and Oxy could not answer: the placeholder again.
+      // Asked a moment ago and Oxy could not answer, or answered without it: the
+      // placeholder again.
       resolved.set(userId, fallbackSummary(userId));
     } else {
       missIds.push(userId);

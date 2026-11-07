@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 // This domain fixture already replaces Oxy identity. Community notes are a
 // separate network boundary; the workload transport has its own real HTTP gate.
 vi.mock('../../services/moderation/crowdSourceClient', () => ({
@@ -27,7 +28,7 @@ const { getMany, getUser, me, blocked, restricted, following, followers, cache }
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
-    users: { getMany, get: getUser },
+    users: { getMany, lookupMany: lookupManyOf((ids: string[]) => getMany(ids)), get: getUser },
   }),
 }));
 vi.mock('../../runtime/oxyClient', () => ({
@@ -55,7 +56,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {
-  OXY_USER_FAILURE_TTL_MS,
+  OXY_USER_ABSENT_TTL_MS,
   PostHydrationService,
   resetOxyUserFailureMemory,
 } from '../../services/PostHydrationService';
@@ -235,15 +236,16 @@ describe('feed hydration latency', () => {
     expect(result.every((post) => post.content.text === `Hello [mention:${missing}]`)).toBe(true);
     expect(cache.has(missing)).toBe(false);
     expect(getMany).toHaveBeenCalledTimes(1);
-    expect(getUser).toHaveBeenCalledTimes(1);
+    // Oxy answered without it: that is the answer, so it is not asked for again one by one.
+    expect(getUser).not.toHaveBeenCalled();
     getMany.mockClear();
-    // The next request inside the failure window answers from this task's memory...
+    // The next request inside the absence window answers from this task's memory...
     await service.hydratePosts(posts);
     expect(getMany).not.toHaveBeenCalled();
     // ...and the one after it asks Oxy again.
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
-      vi.setSystemTime(Date.now() + OXY_USER_FAILURE_TTL_MS);
+      vi.setSystemTime(Date.now() + OXY_USER_ABSENT_TTL_MS);
       await service.hydratePosts(posts);
       expect(getMany).toHaveBeenCalledWith([missing]);
     } finally {

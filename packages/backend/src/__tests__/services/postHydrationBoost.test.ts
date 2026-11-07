@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { ContentAccessInput, SafetyRequester } from '@oxy.so/contracts';
@@ -80,7 +81,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     safety: { contentAccessBatch },
-    users: { getMany: getUsersByIds },
+    users: {
+      getMany: getUsersByIds,
+      lookupMany: lookupManyOf((ids: string[]) => getUsersByIds(ids)),
+    },
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
 }));
