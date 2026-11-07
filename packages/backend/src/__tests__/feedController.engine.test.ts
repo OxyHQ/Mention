@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const engineRun = vi.fn(async (_definition?: unknown, _context?: Record<string, unknown>) => ({
   slices: [],
-  items: [{ id: 'p1', user: { id: 'u1' } }],
+  items: [{ id: 'p1', user: { id: 'u1', username: 'ana' } }],
   hasMore: false,
   nextCursor: undefined,
   totalCount: 1,
@@ -444,6 +444,24 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
         revisions: expect.any(Object),
       }),
     );
+  });
+
+  it('never caches a page whose author Oxy could not resolve', async () => {
+    anonCache.read.mockResolvedValueOnce(null);
+    engineRun.mockResolvedValueOnce({
+      slices: [],
+      items: [{ id: 'p1', user: { id: 'u1', username: '' } }],
+      hasMore: false,
+      nextCursor: undefined,
+      totalCount: 1,
+    });
+    const req = { query: { descriptor: 'for_you' }, user: undefined } as never;
+
+    await mtnFeedController.getFeed(req, makeRes() as never);
+
+    // The page records an Oxy failure, not the feed: caching it would show
+    // "Unknown user" to every reader for the TTL after Oxy recovered.
+    expect(anonCache.write).not.toHaveBeenCalled();
   });
 
   /**
