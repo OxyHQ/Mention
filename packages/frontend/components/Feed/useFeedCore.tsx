@@ -242,7 +242,11 @@ export function useFeedCore(props: FeedProps) {
   // "loading": no rows, no leading element, no footer.
   const presentedRows = holdForLeading ? EMPTY_ROWS : feedRows;
   const isLoadingMore = feedState.isLoading && presentedRows.length > 0;
-  const showFooter = isLoadingMore || (!isAuthenticated && presentedRows.length > 0);
+  // `error` is reported only while nothing is in flight, so with rows on screen
+  // it is the next page that failed, not the feed.
+  const loadMoreFailed = Boolean(feedState.error) && presentedRows.length > 0;
+  const showFooter =
+    isLoadingMore || loadMoreFailed || (!isAuthenticated && presentedRows.length > 0);
 
   const { listHeaderComponent, showComposeButton, onComposePress, hideHeader } = merged;
   const header = useMemo(
@@ -293,9 +297,11 @@ export function useFeedCore(props: FeedProps) {
           hasMore={footerHasMore}
           isLoadingMore={isLoadingMore}
           hasItems={hasPresentedRows}
+          loadFailed={loadMoreFailed}
+          onRetryLoadMore={feedLoadMore}
         />
       ) : null,
-    [showFooter, footerHasMore, isLoadingMore, hasPresentedRows],
+    [showFooter, footerHasMore, isLoadingMore, hasPresentedRows, loadMoreFailed, feedLoadMore],
   );
 
   return {

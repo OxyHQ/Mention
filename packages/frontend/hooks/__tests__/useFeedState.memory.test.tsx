@@ -1,6 +1,6 @@
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
@@ -769,6 +769,21 @@ describe('useFeedState memory mode: one feed query', () => {
       await mount();
 
       expect(latest?.errorKind).toBe('offline');
+    });
+
+    it('reports a query that is waiting for the network as offline, not as an empty feed', async () => {
+      onlineManager.setOnline(false);
+      try {
+        await mount();
+
+        // Paused: nothing was asked, so there is no error and no rows. Without a
+        // kind the empty state would say "No posts yet" about a feed nobody read.
+        expect(getFeedMock).not.toHaveBeenCalled();
+        expect(latest?.errorKind).toBe('offline');
+        expect(latest?.isLoading).toBe(false);
+      } finally {
+        onlineManager.setOnline(true);
+      }
     });
 
     it('keeps the rows and clears the error once the retry succeeds', async () => {
