@@ -107,6 +107,8 @@ describe('privacyHelpers', () => {
     await expect(getBlockedUserIds(client)).rejects.toMatchObject({
       name: 'OxyPrivacyUnavailableError',
       listType: 'blocked',
+      statusCode: 503,
+      code: 'PRIVACY_CONTEXT_UNAVAILABLE',
     });
 
     expect(logger.warn).toHaveBeenCalledWith(
@@ -130,12 +132,12 @@ describe('privacyHelpers', () => {
     await expect(getBlockedUserIds()).rejects.toMatchObject({
       name: 'OxyPrivacyUnavailableError',
       listType: 'blocked',
-      code: 'MISSING_PRIVACY_CLIENT',
+      upstreamCode: 'MISSING_PRIVACY_CLIENT',
     });
     await expect(getRestrictedUserIds()).rejects.toMatchObject({
       name: 'OxyPrivacyUnavailableError',
       listType: 'restricted',
-      code: 'MISSING_PRIVACY_CLIENT',
+      upstreamCode: 'MISSING_PRIVACY_CLIENT',
     });
   });
 });

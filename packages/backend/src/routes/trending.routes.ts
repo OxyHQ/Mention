@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { trendingService } from '../services/TrendingService';
 import { TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
+import { errorResponse } from '../utils/error';
 import { config } from '../config';
 import { cachePublicMedium } from '../middleware/cacheControl';
 import { feedIPRateLimiter } from '../middleware/security';
@@ -52,6 +53,9 @@ router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
       parseRegion(req.query.region),
     );
 
+    // An empty answer means no batch has landed yet, not "nothing is trending":
+    // a shared cache must not hold it for the TTL a real list gets.
+    if (result.trending.length === 0) res.set('Cache-Control', 'no-store');
     res.json({
       trending: result.trending,
       summary: result.summary,
@@ -62,10 +66,7 @@ router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching trending topics:', { error, query: req.query });
-    res.status(500).json({
-      message: 'Error fetching trending topics',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    errorResponse(res, 500, 'Error fetching trending topics');
   }
 });
 
@@ -91,10 +92,7 @@ router.get('/history', cachePublicMedium, async (req: Request, res: Response) =>
     res.json(result);
   } catch (error) {
     logger.error('Error fetching trending history:', { error, query: req.query });
-    res.status(500).json({
-      message: 'Error fetching trending history',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    errorResponse(res, 500, 'Error fetching trending history');
   }
 });
 
@@ -237,7 +235,7 @@ router.get('/graph', cachePublicMedium, async (req: Request, res: Response) => {
     );
   } catch (error) {
     logger.error('[Trending] Failed to serve the co-occurrence graph', error);
-    res.status(500).json({ error: 'Failed to load trend graph' });
+    errorResponse(res, 500, 'Failed to load trend graph');
   }
 });
 

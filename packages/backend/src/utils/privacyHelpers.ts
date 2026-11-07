@@ -1,6 +1,7 @@
 import type { SafetyRequester } from '@oxy.so/contracts';
 import { createCache } from './cache';
 import { getServiceOxyClient } from './oxyHelpers';
+import { ApiError } from './error';
 import { logger } from './logger';
 
 /**
@@ -158,19 +159,28 @@ export class OxyPrivacyAuthorizationError extends Error {
  * Oxy could not provide an authoritative privacy list. Authenticated request
  * paths must fail closed instead of treating an outage or malformed response as
  * proof that the viewer has no blocks/restrictions.
+ *
+ * It is an {@link ApiError} (503) so every handler that already answers typed
+ * errors tells the client "try again" rather than a generic 500: the viewer did
+ * nothing wrong and the same request succeeds once Oxy answers. The upstream
+ * status and code are kept for the log line, not the response.
  */
-export class OxyPrivacyUnavailableError extends Error {
+export class OxyPrivacyUnavailableError extends ApiError {
   readonly listType: 'blocked' | 'restricted';
-  readonly status?: number;
-  readonly code?: string;
+  readonly upstreamStatus?: number;
+  readonly upstreamCode?: string;
   readonly network: boolean;
 
   constructor(listType: 'blocked' | 'restricted', upstreamError: unknown) {
-    super(`Oxy could not resolve the delegated ${listType} privacy context`);
+    super(
+      503,
+      `Oxy could not resolve the delegated ${listType} privacy context`,
+      'PRIVACY_CONTEXT_UNAVAILABLE',
+    );
     this.name = 'OxyPrivacyUnavailableError';
     this.listType = listType;
-    this.status = getErrorStatus(upstreamError);
-    this.code = getErrorCode(upstreamError);
+    this.upstreamStatus = getErrorStatus(upstreamError);
+    this.upstreamCode = getErrorCode(upstreamError);
     this.network = isNetworkError(upstreamError);
   }
 }

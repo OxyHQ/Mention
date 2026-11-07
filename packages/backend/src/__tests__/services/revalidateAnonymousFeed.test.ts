@@ -7,11 +7,15 @@ const { records, hydrate, authorize } = vi.hoisted(() => ({
 }));
 vi.mock('../../db/posts/postRepository', () => ({ loadPostRecords: records }));
 vi.mock('../../services/PostHydrationService', () => ({
+  isFallbackUserSummary: (user: { username?: string }) => !user.username,
   postHydrationService: { hydratePosts: hydrate, authorizeAnonymousRecords: authorize },
 }));
 import { UNRATED_MATERIAL_ITEM } from '../../services/contentAccessBatcher';
 import { postRevision } from '../../services/hydrationRevisions';
-import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
+import {
+  hasUnresolvedAuthor,
+  revalidateAnonymousFeed,
+} from '../../services/revalidateAnonymousFeed';
 // Cache fixtures only need the fields exercised by the cache boundary. The real
 // hydrator owns the full DTO and is covered by its database-backed suites.
 const cached = (id: string, text: string): HydratedPost =>
@@ -103,5 +107,25 @@ describe('anonymous feed cache authorization boundary', () => {
         unratedMaterialAllowed: true,
       }),
     ).rejects.toThrow('Policy service unavailable');
+  });
+});
+
+describe('hasUnresolvedAuthor', () => {
+  const by = (id: string, username: string): HydratedPost =>
+    ({ id, user: { id: `author-${id}`, username } }) as HydratedPost;
+  const pageOf = (...items: HydratedPost[]) => ({
+    items,
+    totalCount: items.length,
+    hasMore: false,
+  });
+
+  it('is false when every rendered author resolved', () => {
+    expect(hasUnresolvedAuthor(pageOf(by('a', 'ana'), by('b', 'bo')))).toBe(false);
+  });
+
+  it('sees the placeholder on a post and on the original it quotes', () => {
+    expect(hasUnresolvedAuthor(pageOf(by('a', 'ana'), by('b', '')))).toBe(true);
+    const quoting = { ...by('c', 'cy'), quotedPost: by('q', '') } as HydratedPost;
+    expect(hasUnresolvedAuthor(pageOf(quoting))).toBe(true);
   });
 });

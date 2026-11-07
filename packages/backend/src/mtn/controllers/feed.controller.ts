@@ -51,6 +51,7 @@ import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { feedSeenPostsService } from '../../services/FeedSeenPostsService';
 import { anonFeedCache, type AnonFeedEntry } from '../../services/anonFeedCache';
+import { hasUnresolvedAuthor } from '../../services/revalidateAnonymousFeed';
 import {
   captureHydrationRevisions,
   type HydrationRevisions,
@@ -690,7 +691,9 @@ class MtnFeedController {
       // A `pending` page is NEVER cached: it is a transient "posts are still
       // importing" answer, and serving it from cache for the TTL would pin the
       // client in a poll loop against a profile whose posts have already landed.
-      if (anonCacheKey && !response.pending) {
+      // Neither is a page with an author Oxy could not resolve: it records an
+      // Oxy failure, and the next reader should get a real build.
+      if (anonCacheKey && !response.pending && !hasUnresolvedAuthor(response)) {
         const entry: AnonFeedEntry = {
           page: response,
           revisions: hydrationRevisions?.revisions ?? {},

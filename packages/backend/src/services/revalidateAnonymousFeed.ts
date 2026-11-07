@@ -9,7 +9,7 @@ import type { PostRecord } from '../db/posts/postRecord';
 import { UNRATED_MATERIAL_ITEM } from './contentAccessBatcher';
 import { hydratePostMedia } from './hydratePostMedia';
 import { postRevision, type HydrationRevisions } from './hydrationRevisions';
-import { postHydrationService } from './PostHydrationService';
+import { isFallbackUserSummary, postHydrationService } from './PostHydrationService';
 import { logger } from '../utils/logger';
 import type { RequestLanguages } from '../utils/viewerLanguage';
 
@@ -67,6 +67,17 @@ export async function revalidateAnonymousFeed<T extends FeedResponse | SlicedFee
     page,
     topLevel.flatMap((post) => byId.get(post.id) ?? []),
     requestLanguages,
+  );
+}
+
+/**
+ * Whether any post the page renders carries the placeholder author Oxy could not
+ * resolve. Such a page describes an Oxy failure, not the feed: caching it would
+ * hand every reader "Unknown user" for the whole TTL, long after Oxy recovered.
+ */
+export function hasUnresolvedAuthor(page: FeedResponse | SlicedFeedResponse): boolean {
+  return renderedSummaries(topLevelPosts(page)).some((summary) =>
+    isFallbackUserSummary(summary.user),
   );
 }
 

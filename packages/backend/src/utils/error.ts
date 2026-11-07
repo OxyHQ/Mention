@@ -28,6 +28,9 @@ export function errorResponse(
   message: string,
   code?: string,
 ): Response {
+  // A failure must never be stored: a route may have set a public directive
+  // before it ran, and a shared cache would then serve the error for its TTL.
+  res.set('Cache-Control', 'no-store');
   return res.status(status).json({
     success: false,
     error: {
