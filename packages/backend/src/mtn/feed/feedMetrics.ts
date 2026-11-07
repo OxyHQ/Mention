@@ -31,6 +31,8 @@ import { metrics } from '../../utils/metrics';
 export const FEED_METRICS = {
   discoveryGated: 'feed_discovery_gated_total',
   authorGateNeutral: 'feed_author_gate_neutral_total',
+  requestFailure: 'feed_request_failure_total',
+  sourceFailed: 'feed_source_failed_total',
   federatedShare: 'feed_federated_share',
   impression: 'feed_impression_total',
   interactionSignal: 'feed_interaction_signal_total',
@@ -115,5 +117,27 @@ export function recordReport(descriptor: string, origin: PostOrigin): void {
   metrics.incrementCounter(FEED_METRICS.report, 1, {
     descriptor: baseDescriptor(descriptor),
     origin,
+  });
+}
+
+/**
+ * Count a feed request that failed. `status` and `code` come from the typed
+ * `ApiError` the controller answered (or 500 / `INTERNAL_ERROR` for anything
+ * else), so both are closed sets. Without this a 503 storm and an outage-free
+ * day look the same on every dashboard: `/feed/mtn` is one route.
+ */
+export function recordFeedFailure(descriptor: string, status: number, code: string): void {
+  metrics.incrementCounter(FEED_METRICS.requestFailure, 1, {
+    descriptor: baseDescriptor(descriptor),
+    status,
+    code,
+  });
+}
+
+/** Count a candidate source that rejected while a page was built (`source` is a registered module id). */
+export function recordFeedSourceFailed(descriptor: string, source: string): void {
+  metrics.incrementCounter(FEED_METRICS.sourceFailed, 1, {
+    descriptor: baseDescriptor(descriptor),
+    source,
   });
 }

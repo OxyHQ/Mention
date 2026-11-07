@@ -72,6 +72,7 @@ import {
 } from '../utils/privacyHelpers';
 import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
+import { metrics } from '../utils/metrics';
 import { readPersistedMediaFields } from './MediaMetadataService';
 // The counter-visibility flags are shared with the realtime broadcaster, which
 // has to hide exactly what the DTO hides — see `engagementCountPrivacy.ts`.
@@ -807,6 +808,9 @@ async function resolveOxyUserSummaryMisses(
 
   if (bulkFailure || perIdFailures > 0) {
     rememberFailedUserLookups(missIds.filter((userId) => !freshlyResolved.has(userId)));
+    metrics.incrementCounter('oxy_user_resolution_partial_total', 1, {
+      reason: deadlineExceeded ? 'deadline' : bulkFailure ? 'bulk_error' : 'per_id_error',
+    });
     logger.warn('[PostHydration] Oxy user resolution was partial', {
       requested: missIds.length,
       resolved: freshlyResolved.size,

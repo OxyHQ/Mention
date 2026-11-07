@@ -44,6 +44,8 @@ import {
   originForFederation,
   recordDiscoveryGated,
   recordFederatedShare,
+  recordFeedFailure,
+  recordFeedSourceFailed,
   recordImpression,
   recordInteractionSignal,
   recordReport,
@@ -143,6 +145,32 @@ describe('feedMetrics helpers', () => {
       0.9,
       5,
     );
+  });
+
+  it('counts a failed feed request and a failed source under the base descriptor', () => {
+    recordFeedFailure('author|123', 503, 'SOCIAL_GRAPH_UNAVAILABLE');
+    recordFeedFailure('not a descriptor', 500, 'INTERNAL_ERROR');
+    recordFeedSourceFailed('for_you', 'friendsEngaged');
+    expect(
+      metrics.getCounter(FEED_METRICS.requestFailure, {
+        descriptor: 'author',
+        status: 503,
+        code: 'SOCIAL_GRAPH_UNAVAILABLE',
+      }),
+    ).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.requestFailure, {
+        descriptor: 'unknown',
+        status: 500,
+        code: 'INTERNAL_ERROR',
+      }),
+    ).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.sourceFailed, {
+        descriptor: 'for_you',
+        source: 'friendsEngaged',
+      }),
+    ).toBe(1);
   });
 
   it('emits impression / interaction-signal / report counters with correct labels', () => {

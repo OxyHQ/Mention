@@ -51,6 +51,7 @@ import {
   recordAuthorGateNeutral,
   recordDiscoveryGated,
   recordFederatedShare,
+  recordFeedSourceFailed,
   originForFederation,
 } from '../feedMetrics';
 import { resolveAuthorQuality } from '../authorQuality';
@@ -535,6 +536,13 @@ export class FeedEngine {
         );
       }),
     );
+
+    // Counted before the page is judged, so the sources behind a 503 are measured
+    // as well as the ones a page quietly went without.
+    results.forEach((result, index) => {
+      if (result.status === 'rejected')
+        recordFeedSourceFailed(definition.id, enabledSources[index].module);
+    });
 
     if (
       (!session && results.some((result) => result.status === 'rejected')) ||
