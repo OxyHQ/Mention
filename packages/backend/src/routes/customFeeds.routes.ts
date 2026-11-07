@@ -47,6 +47,7 @@ import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+import { respondWithApiError } from '../utils/error';
 import { queryInt, queryString } from '../utils/queryParams';
 import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { customFeedSearchPredicate } from '../utils/searchPredicates';
@@ -957,6 +958,10 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
       totalCount: response.totalCount,
     });
   } catch (error) {
+    // The engine's typed answers (503 a source is down, 410 the cursor expired)
+    // tell the client what to do; flattened to a 500 it can neither retry nor
+    // restart the feed.
+    if (respondWithApiError(res, error)) return;
     logger.error('[CustomFeeds] Custom feed timeline error:', {
       userId: req.user?.id,
       feedId: req.params.id,

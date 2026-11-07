@@ -62,6 +62,15 @@ beforeEach(() => {
 });
 
 describe('ranked feed session storage', () => {
+  it('still expires a session that is simply not there', async () => {
+    await expect(
+      store.load(`fs1:${'0'.repeat(8)}-0000-0000-0000-${'0'.repeat(12)}`, 'b'),
+    ).rejects.toMatchObject({
+      statusCode: 410,
+      code: 'FEED_CURSOR_EXPIRED',
+    });
+  });
+
   it.each([
     ['for_you', 'cc4c36a6d363ae506d9e522282935c5f47a7bc3a2442ad414a2ec26ee26b63ac'],
     ['friends_popular', '5c10b2231deca06dd2fc5521dfc8d4921fb67bcfd5cd0d9285eacfcf57da5a80'],
@@ -254,13 +263,14 @@ describe('ranked feed session storage', () => {
     await expect(store.load('fs1:invalid', initial.binding)).rejects.toMatchObject(code);
   });
 
-  it('requires a restart when Redis cannot continue an existing session', async () => {
+  it('answers a retryable 503, not an expired cursor, when Redis is not answering', async () => {
+    const cursor = await store.save(state());
+    redis.eval.mockClear();
     redis.isReady = false;
     expect(store.available()).toBe(false);
-    await expect(store.save(state())).rejects.toMatchObject({
-      statusCode: 410,
-      code: 'FEED_CURSOR_EXPIRED',
-    });
+    const unavailable = { statusCode: 503, code: 'FEED_SESSION_UNAVAILABLE' };
+    await expect(store.save(state())).rejects.toMatchObject(unavailable);
+    await expect(store.load(cursor, state().binding)).rejects.toMatchObject(unavailable);
     expect(redis.eval).not.toHaveBeenCalled();
   });
 });

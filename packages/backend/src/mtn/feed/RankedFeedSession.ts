@@ -40,6 +40,19 @@ export function expiredFeedCursor(): ApiError {
   );
 }
 
+/**
+ * The pagination state could not be read or written because Redis did not
+ * answer. Not {@link expiredFeedCursor}: nothing expired, and "refresh the feed"
+ * would only rebuild page 1 against the same outage. A 503 says "retry".
+ */
+export function feedSessionUnavailable(): ApiError {
+  return new ApiError(
+    503,
+    'Feed pagination state is temporarily unavailable',
+    'FEED_SESSION_UNAVAILABLE',
+  );
+}
+
 export function isRankedSessionCursor(cursor?: string): boolean {
   return cursor?.startsWith('fs1:') === true;
 }
@@ -105,12 +118,14 @@ export class RankedFeedSessionStore {
 
   async load(cursor: string, binding: string): Promise<RankedFeedSession> {
     if (!/^fs1:[0-9a-f-]{36}$/.test(cursor)) throw expiredFeedCursor();
-    const data = await withRedisFallback(
+    // `undefined` is Redis not answering; `null` is a session that is not there.
+    const data = await withRedisFallback<string | null | undefined>(
       getRedisClient(),
       () => getRedisClient().get(`feed:session:${cursor}`),
-      null,
+      undefined,
       'readRankedFeedSession',
     );
+    if (data === undefined) throw feedSessionUnavailable();
     if (!data) throw expiredFeedCursor();
     try {
       const state: RankedFeedSession = JSON.parse(data);
@@ -149,7 +164,7 @@ export class RankedFeedSessionStore {
       false,
       'writeRankedFeedSession',
     );
-    if (!saved) throw expiredFeedCursor();
+    if (!saved) throw feedSessionUnavailable();
     return cursor;
   }
 }
