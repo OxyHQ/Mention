@@ -24,6 +24,9 @@ import type { RequestLanguages } from '../utils/viewerLanguage';
  * authenticated feeds are personalized and must never be shared.
  */
 
+/** How long a joiner waits for the leader building the same anonymous page. */
+export const ANON_JOIN_DEADLINE_MS = 3_000;
+
 /** The two response shapes the main feed produces; both are plain JSON. */
 type CacheableFeedResponse = FeedResponse | SlicedFeedResponse;
 
@@ -172,7 +175,7 @@ class AnonFeedCache {
     | { role: 'lead'; settle: (entry: AnonFeedEntry | null) => void }
     | { role: 'join'; result: Promise<AnonFeedEntry | null> } {
     const existing = this.inFlight.get(key);
-    if (existing) return { role: 'join', result: existing };
+    if (existing) return { role: 'join', result: this.withinJoinDeadline(existing) };
 
     let resolve!: (entry: AnonFeedEntry | null) => void;
     const result = new Promise<AnonFeedEntry | null>((r) => {
@@ -189,6 +192,22 @@ class AnonFeedCache {
         resolve(entry);
       },
     };
+  }
+
+  /**
+   * A joiner waits for the leader, but only {@link ANON_JOIN_DEADLINE_MS}: a
+   * leader stuck on a slow query or an Oxy call would otherwise hold every
+   * reader of that page for as long as it hangs. Past the deadline the joiner
+   * answers `null`, "build your own", which is what it would have done without
+   * single-flight, so the cost of a hung leader is bounded rather than shared.
+   */
+  private withinJoinDeadline(build: Promise<AnonFeedEntry | null>): Promise<AnonFeedEntry | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), ANON_JOIN_DEADLINE_MS);
+      timer.unref?.();
+    });
+    return Promise.race([build, deadline]).finally(() => clearTimeout(timer));
   }
 }
 

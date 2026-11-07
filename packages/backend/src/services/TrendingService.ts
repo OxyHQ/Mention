@@ -14,6 +14,7 @@ import { getDb } from '../db/postgres';
 import { trendBatches, trending, type TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { emitTrendsUpdated } from '../utils/socket';
 import { metrics } from '../utils/metrics';
 import { topicService } from './TopicService';
@@ -54,6 +55,9 @@ export type TrendDetail = {
   displayName?: string;
   category?: TrendCategory;
 };
+
+/** What the trending list answers: the ranked terms, the batch summary and its attribution token. */
+export type TrendingAnswer = { trending: TrendWithSeries[]; summary: string; recId?: string };
 
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
@@ -219,27 +223,58 @@ class TrendingService {
     type?: TrendingType,
     languages: readonly string[] = [],
     region?: string,
-  ): Promise<{ trending: TrendWithSeries[]; summary: string; recId?: string }> {
+  ): Promise<TrendingAnswer> {
     // The reader's languages are part of the cache IDENTITY, not of a per-user
     // personalization: the route takes them as a query parameter precisely so
     // this stays a public, shared, CDN-cacheable read. The set is normalized and
     // sorted by the caller, so `es,en` and `en,es` are one entry rather than two.
     const languageKey = languages.length > 0 ? languages.join(',') : 'any';
     const cacheKey = `trending:latest:${limit}:${type || 'all'}:${languageKey}:${region ?? 'any'}`;
-    const redis = await getRedisClient();
+    const redis = getRedisClient();
 
-    if (redis) {
+    // Both Redis calls go through the shared deadline: a hung socket costs this
+    // read one second, never the request, and an unready client is a plain miss.
+    const cached = await withRedisFallback<string | null>(
+      redis,
+      (_signal) => redis.get(cacheKey),
+      null,
+      'readTrending',
+    ).catch((cacheError): null => {
+      logger.warn('[Trending] Redis cache read failed:', cacheError);
+      return null;
+    });
+    if (cached) {
       try {
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-          logger.debug('[Trending] Cache hit for latest trends');
-          return JSON.parse(cached);
-        }
-      } catch (cacheError) {
-        logger.warn('[Trending] Redis cache read failed:', cacheError);
+        logger.debug('[Trending] Cache hit for latest trends');
+        return JSON.parse(cached);
+      } catch (parseError) {
+        logger.warn('[Trending] Redis cache entry unreadable:', parseError);
       }
     }
 
+    // One build per key per process. The 30-minute entry expires for every shape
+    // at once, and each reader that misses before the first rebuild lands would
+    // otherwise repeat the batch read, the volume series and the actor lookups.
+    const building = this.builds.get(cacheKey);
+    if (building) return building;
+    const build = this.buildLatest(cacheKey, limit, type, languages, region).finally(() => {
+      this.builds.delete(cacheKey);
+    });
+    this.builds.set(cacheKey, build);
+    return build;
+  }
+
+  /** Trending builds in progress in THIS process, by cache key. */
+  private readonly builds = new Map<string, Promise<TrendingAnswer>>();
+
+  private async buildLatest(
+    cacheKey: string,
+    limit: number,
+    type: TrendingType | undefined,
+    languages: readonly string[],
+    region: string | undefined,
+  ): Promise<TrendingAnswer> {
+    const redis = getRedisClient();
     const db = getDb();
     // `trend_batches` carries the latest timestamp and summary in one row.
     const [latestBatch] = await db
@@ -308,12 +343,15 @@ class TrendingService {
       recId: mintTrendRecId(latestBatch.calculatedAt),
     };
 
-    if (redis && trends.length > 0) {
-      try {
-        await redis.setEx(cacheKey, this.REDIS_CACHE_TTL, JSON.stringify(result));
-      } catch (cacheError) {
+    if (trends.length > 0) {
+      await withRedisFallback(
+        redis,
+        (_signal) => redis.setEx(cacheKey, this.REDIS_CACHE_TTL, JSON.stringify(result)),
+        undefined,
+        'writeTrending',
+      ).catch((cacheError) => {
         logger.warn('[Trending] Redis cache write failed:', cacheError);
-      }
+      });
     }
 
     return result;
