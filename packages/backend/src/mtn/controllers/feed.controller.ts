@@ -1,6 +1,6 @@
 import { EXPLORE_RANKING_VERSION } from '../feed/CursorBuilder';
 import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
-import { respondWithApiError } from '../../utils/error';
+import { ApiError, respondWithApiError } from '../../utils/error';
 import { canSeeUnratedMaterial } from '../../services/contentAccessBatcher';
 import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
 /**
@@ -180,10 +180,10 @@ async function getFederatedMutualIds(
 }
 
 /**
- * The viewer's mutual-follow author ids for the Mutuals feed: Oxy graph mutuals
- * ∪ federated mutuals. Both branches soft-fail to `[]`, so a failure in either
- * source degrades the Mutuals feed to the other rather than erroring. Deduped
- * and capped.
+ * The viewer's mutual-follow author ids: Oxy graph mutuals ∪ federated mutuals,
+ * deduped and capped. A failure in EITHER source rejects: half a mutual set is
+ * not the viewer's mutuals, and the Mutuals feed built from it would show a
+ * subset as if it were everything.
  *
  * `oxyClient` must be the REQUEST's viewer-scoped client: Oxy derives the
  * viewer from the credential, and the process-wide service client has none, so
@@ -201,24 +201,10 @@ async function computeMutualIds(
 ): Promise<string[]> {
   // The two sources are independent, so neither waits for the other.
   const [oxyMutualIds, federatedMutualIds] = await Promise.all([
-    (async () => {
-      if (!oxyClient) return [];
-      try {
-        const ids = await oxyClient.follows.mutualIds({ limit: MAX_MUTUAL_IDS });
-        return ids.filter((id) => id.length > 0);
-      } catch (error) {
-        logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
-        return [];
-      }
-    })(),
-    (async () => {
-      try {
-        return await getFederatedMutualIds(currentUserId, acceptedOutboundFollowUris);
-      } catch (error) {
-        logger.warn('[MtnFeedController] Failed to load federated mutual ids', error);
-        return [];
-      }
-    })(),
+    oxyClient
+      ? oxyClient.follows.mutualIds({ limit: MAX_MUTUAL_IDS }).then((ids) => ids.filter(Boolean))
+      : Promise.reject(new Error('No viewer-scoped Oxy client for the mutual-follow read')),
+    getFederatedMutualIds(currentUserId, acceptedOutboundFollowUris),
   ]);
 
   return Array.from(new Set([...oxyMutualIds, ...federatedMutualIds])).slice(0, MAX_MUTUAL_IDS);
@@ -231,18 +217,35 @@ const MAX_FOF_IDS = 5000;
  * The viewer's friends-of-friends author ids for the Friends-of-Friends feed,
  * from Oxy's follows-of-follows read on the REQUEST's viewer-scoped client (see
  * {@link computeMutualIds} for why it must be that one). Bounded and deduped by
- * the endpoint contract (excludes the viewer's own follows and self); a failure
- * soft-fails to `[]`.
+ * the endpoint contract (excludes the viewer's own follows and self). A failure
+ * rejects: the feed is nothing but this set.
  */
 async function computeFriendsOfFriendsIds(oxyClient: OxyClient | undefined): Promise<string[]> {
-  if (!oxyClient) return [];
-  try {
-    const ids = await oxyClient.follows.followsOfFollowsIds({ limit: MAX_FOF_IDS });
-    return ids.filter((id) => typeof id === 'string' && id.length > 0).slice(0, MAX_FOF_IDS);
-  } catch (error) {
-    logger.warn('[MtnFeedController] Failed to load friends-of-friends ids', error);
-    return [];
-  }
+  if (!oxyClient) throw new Error('No viewer-scoped Oxy client for the friends-of-friends read');
+  const ids = await oxyClient.follows.followsOfFollowsIds({ limit: MAX_FOF_IDS });
+  return ids.filter((id) => typeof id === 'string' && id.length > 0).slice(0, MAX_FOF_IDS);
+}
+
+/**
+ * Feeds that ARE the viewer's graph: with the graph unread there is nothing to
+ * show, and "no posts yet" would be a lie the client cannot tell from the truth.
+ * Every other feed uses the graph only to rank, and degrades without it.
+ */
+const GRAPH_FEED_SOURCES: ReadonlySet<string> = new Set([
+  'following',
+  'friends_popular',
+  'mutuals',
+  'friends_of_friends',
+]);
+
+/** The 503 a graph feed answers when Oxy could not provide the graph. */
+function graphUnavailable(cause: unknown): ApiError {
+  logger.warn('[MtnFeedController] Viewer graph unavailable for a graph feed', cause);
+  return new ApiError(
+    503,
+    "The viewer's follow graph is temporarily unavailable",
+    'SOCIAL_GRAPH_UNAVAILABLE',
+  );
 }
 
 /**
@@ -503,15 +506,27 @@ class MtnFeedController {
           requestLanguageTags,
           { activitySubscriptions: feedSource === 'for_you' },
         ),
-        // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
-        // never breaks the feed.
+        // The Mutuals feed cannot be built without its set (503); For You only
+        // widens its social proof with it, so a failed read there just omits it.
         needsMutuals && currentUserId
-          ? computeMutualIds(currentUserId, requestOxyClient, acceptedOutboundFollowUris)
+          ? computeMutualIds(currentUserId, requestOxyClient, acceptedOutboundFollowUris).catch(
+              (error): string[] | null => {
+                if (feedSource === 'mutuals') throw graphUnavailable(error);
+                logger.warn('[MtnFeedController] Failed to load mutual ids', error);
+                return null;
+              },
+            )
           : Promise.resolve<string[] | null>(null),
         needsFof
-          ? computeFriendsOfFriendsIds(requestOxyClient)
+          ? computeFriendsOfFriendsIds(requestOxyClient).catch((error): never => {
+              throw graphUnavailable(error);
+            })
           : Promise.resolve<string[] | null>(null),
       ]);
+
+      if (context.socialGraphUnavailable && GRAPH_FEED_SOURCES.has(feedSource)) {
+        throw graphUnavailable('following list unreadable');
+      }
 
       context.privacyOxyClient = requestOxyClient;
       context.safetyRequester = safetyRequesterFor(req);
