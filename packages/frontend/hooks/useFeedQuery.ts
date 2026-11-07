@@ -20,7 +20,12 @@ import {
   type FeedQueryData,
 } from '@/stores/feedQueryCache';
 import { isFeedReadStale, type FeedReadIdentity } from '@/stores/feedStaleness';
-import { classifyFeedFailure, isFeedCursorExpired, logFeedFailure } from '@/utils/feedRetry';
+import {
+  classifyFeedFailure,
+  type FeedFailureKind,
+  isFeedCursorExpired,
+  logFeedFailure,
+} from '@/utils/feedRetry';
 import { feedThreadParentId, mergeFeedPageContent, type FeedFilters } from '@/utils/feedUtils';
 import { useDeepCompareMemo } from './useDeepCompare';
 import type { UseFeedStateReturn } from './useFeedState';
@@ -235,13 +240,14 @@ export function useFeedQuery({
   // observer joins this read rather than starting another.
   if (active) startFeedRead(queryClient, options);
 
-  const { data, error, isFetching, hasNextPage, fetchNextPage, dataUpdatedAt } = useInfiniteQuery({
-    ...options,
-    enabled: active,
-    // An inactive observer (the SQLite half's feeds, a viewer still
-    // resolving) leaves an entry that never loads; it is not retention.
-    gcTime: active ? options.gcTime : 0,
-  });
+  const { data, error, isFetching, fetchStatus, hasNextPage, fetchNextPage, dataUpdatedAt } =
+    useInfiniteQuery({
+      ...options,
+      enabled: active,
+      // An inactive observer (the SQLite half's feeds, a viewer still
+      // resolving) leaves an entry that never loads; it is not retention.
+      gcTime: active ? options.gcTime : 0,
+    });
 
   const pages = viewerReady ? data?.pages : undefined;
   const content = useMemo(() => foldFeedPages(pages ?? []), [pages]);
@@ -380,7 +386,19 @@ export function useFeedQuery({
   // of the query's own to clear here.
   const clearError = useCallback(() => undefined, []);
 
-  const failure = active && error && !isFetching ? classifyFeedFailure(error) : null;
+  // A query that wants to fetch but has no network is `paused`: not fetching, no
+  // error, no items. Left alone it renders as "No posts yet", which is a claim
+  // about the feed, when the truth is that the device cannot ask. It resumes by
+  // itself when the connection returns, so this is a state, not a failure to retry.
+  const waitingForNetwork = active && fetchStatus === 'paused' && content.items.length === 0;
+  const failureKind: FeedFailureKind | null =
+    active && !isFetching
+      ? waitingForNetwork
+        ? 'offline'
+        : error
+          ? classifyFeedFailure(error).kind
+          : null
+      : null;
 
   return {
     items: content.items,
@@ -390,8 +408,8 @@ export function useFeedQuery({
     isLoading: !viewerReady || isFetching,
     // A marker, not the transport's message: nothing renders it — the empty
     // state owns its own copy, chosen by `errorKind`.
-    error: failure ? 'Failed to load' : null,
-    errorKind: failure?.kind ?? null,
+    error: failureKind ? 'Failed to load' : null,
+    errorKind: failureKind,
     pending,
     fetchInitial,
     refresh,
