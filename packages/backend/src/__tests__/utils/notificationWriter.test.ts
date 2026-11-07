@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 /**
  * `createNotification` against real rows — the notification WRITER.
  *
@@ -43,7 +44,10 @@ vi.mock('../../utils/push', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    users: { getMany: mocks.getUsersByIds },
+    users: {
+      getMany: mocks.getUsersByIds,
+      lookupMany: lookupManyOf((ids: string[]) => mocks.getUsersByIds(ids)),
+    },
     safety: { notificationAccessBatch: mocks.notificationAccessBatch },
   }),
 }));

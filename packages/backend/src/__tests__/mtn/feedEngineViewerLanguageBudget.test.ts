@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Statement budget: an engine run resolves the viewer's identity ONCE.
@@ -34,7 +35,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
     users: {
-      getMany: vi.fn(async (ids: string[]) =>
+      lookupMany: lookupManyOf((ids: string[]) =>
         ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['es-ES'] })),
       ),
     },

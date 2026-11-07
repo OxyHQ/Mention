@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { cacheGet, cacheSet, getUsersByIds, getUserById, federatedActorFind } = vi.hoisted(() => ({
@@ -20,7 +21,10 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    users: { getMany: (...args: unknown[]) => getUsersByIds(...args) },
+    users: {
+      getMany: (...args: unknown[]) => getUsersByIds(...args),
+      lookupMany: lookupManyOf((ids: string[]) => getUsersByIds(ids)),
+    },
     assets: { publicUrl: (id: string) => id },
   }),
 }));
@@ -119,11 +123,25 @@ describe('resolveUserSummaries Oxy bounds', () => {
     expect(recovered.get('shed-c')?.user.username).toBe('user-shed-c');
   });
 
+  it('answers an account Oxy has no record of with the placeholder, without asking again one by one', async () => {
+    getUsersByIds.mockResolvedValue([oxyUser('present')]);
+
+    const first = await resolveUserSummaries(['present', 'gone']);
+
+    expect(first.get('present')?.user.username).not.toBe('');
+    expect(first.get('gone')?.user.username).toBe('');
+    // Absence is the server's answer: no per-id read, and none on the next render.
+    expect(getUserById).not.toHaveBeenCalled();
+    getUsersByIds.mockClear();
+    await resolveUserSummaries(['gone']);
+    expect(getUsersByIds).not.toHaveBeenCalled();
+  });
+
   it('limits the public per-id fallback to eight concurrent requests', async () => {
     const ids = Array.from({ length: 25 }, (_, index) => `bounded-${index}`);
     let active = 0;
     let peak = 0;
-    getUsersByIds.mockResolvedValue([]);
+    getUsersByIds.mockRejectedValue(new Error('chunk could not be asked'));
     getUserById.mockImplementation(async (id: string) => {
       active += 1;
       peak = Math.max(peak, active);
@@ -256,7 +274,7 @@ describe('resolveUserSummaries Oxy bounds', () => {
 
   it('bounds non-abortable fallback I/O globally across distinct cohorts', async () => {
     vi.useFakeTimers();
-    getUsersByIds.mockResolvedValue([]);
+    getUsersByIds.mockRejectedValue(new Error('chunk could not be asked'));
     const releaseCalls: Array<() => void> = [];
     let active = 0;
     let peak = 0;

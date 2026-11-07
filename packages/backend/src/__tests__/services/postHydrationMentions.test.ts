@@ -1,3 +1,4 @@
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PostUser } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
@@ -33,7 +34,12 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 // The bulk service-token client used by resolveUserSummaries for cache misses.
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { getMany: getUsersByIds } }),
+  getServiceOxyClient: () => ({
+    users: {
+      getMany: getUsersByIds,
+      lookupMany: lookupManyOf((ids: string[]) => getUsersByIds(ids)),
+    },
+  }),
 }));
 
 // The Redis-backed user-summary cache: start cold (all misses), capture writes.
