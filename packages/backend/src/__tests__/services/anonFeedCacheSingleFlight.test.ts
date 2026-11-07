@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 vi.mock('../../utils/cache', () => ({
   createCache: () => ({ get: vi.fn(async () => undefined), set: vi.fn(async () => undefined) }),
 }));
 
-import { anonFeedCache } from '../../services/anonFeedCache';
+import { ANON_JOIN_DEADLINE_MS, anonFeedCache } from '../../services/anonFeedCache';
 
 /**
  * An expired anonymous page is missed by every request that arrives before the
@@ -44,5 +44,23 @@ describe('anonFeedCache.claimBuild', () => {
   it('keys are independent', () => {
     expect(anonFeedCache.claimBuild('a').role).toBe('lead');
     expect(anonFeedCache.claimBuild('b').role).toBe('lead');
+  });
+
+  describe('a leader that never settles', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('releases its joiners to build their own after the join deadline', async () => {
+      vi.useFakeTimers();
+      const lead = anonFeedCache.claimBuild('hung');
+      const join = anonFeedCache.claimBuild('hung');
+      if (lead.role !== 'lead' || join.role !== 'join') throw new Error('unreachable');
+
+      const answered = vi.fn();
+      void join.result.then(answered);
+      await vi.advanceTimersByTimeAsync(ANON_JOIN_DEADLINE_MS - 1);
+      expect(answered).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(answered).toHaveBeenCalledWith(null);
+    });
   });
 });
