@@ -92,6 +92,9 @@ function makeRes() {
       this.body = b;
       return this;
     },
+    set() {
+      return this;
+    },
   };
   return res;
 }
