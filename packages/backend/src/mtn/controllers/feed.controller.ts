@@ -43,6 +43,7 @@ import { parseFeedInteractionBatch } from '../feed/interactionTelemetry';
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 import { ownerHasProfileAffectingLane } from '../../services/laneVisibility';
 import { logger } from '../../utils/logger';
+import { recordFeedFailure } from '../feed/feedMetrics';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
@@ -707,6 +708,13 @@ class MtnFeedController {
         data: response,
       });
     } catch (error) {
+      // `baseDescriptor` folds anything that is not a valid descriptor into 'unknown'.
+      const failedDescriptor = queryString(req.query.descriptor) ?? '';
+      if (error instanceof ApiError) {
+        recordFeedFailure(failedDescriptor, error.statusCode, error.code);
+      } else {
+        recordFeedFailure(failedDescriptor, 500, 'INTERNAL_ERROR');
+      }
       if (respondWithApiError(res, error)) return;
       logger.error('[MtnFeedController] getFeed error', error);
       res.status(500).json({ success: false, error: 'Failed to fetch feed' });

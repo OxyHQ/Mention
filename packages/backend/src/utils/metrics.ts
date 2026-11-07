@@ -69,6 +69,21 @@ const DEFINITIONS = {
     help: 'Feed candidates an author-aware gate filter could not judge, and therefore kept',
     labelNames: ['reason', 'source'],
   },
+  feed_request_failure_total: {
+    kind: 'counter',
+    help: 'Feed requests that failed, by feed type, HTTP status and the typed error code',
+    labelNames: ['descriptor', 'status', 'code'],
+  },
+  feed_source_failed_total: {
+    kind: 'counter',
+    help: 'Feed candidate sources that rejected while a page was being built',
+    labelNames: ['descriptor', 'source'],
+  },
+  oxy_user_resolution_partial_total: {
+    kind: 'counter',
+    help: 'Hydrations where Oxy did not resolve every author (they render as the placeholder), by cause',
+    labelNames: ['reason'],
+  },
   feed_federated_share: {
     kind: 'gauge',
     help: 'Federated share of a feed candidate pool',
