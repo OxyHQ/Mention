@@ -92,6 +92,13 @@ export interface FeedEngineContext extends FeedContext {
    * fallback suitable for graph reads but not blocks/restrictions.
    */
   privacyOxyClient?: OxyClient;
+  /**
+   * The viewer's following list could not be read from Oxy, so `followingIds` is
+   * empty because the read failed, not because the viewer follows nobody. A feed
+   * built from that list must not answer "no posts" then; a feed that merely uses
+   * it to rank may go on. The controller refuses the former with a 503.
+   */
+  socialGraphUnavailable?: boolean;
   /** Viewer's mutual-follow author ids. Populated only for definitions that use the `mutuals` source. */
   mutualIds?: string[];
   /**

@@ -144,6 +144,7 @@ export async function loadViewerFeedContext(
   };
   let viewerLanguages: string[] = [];
   let mutedLaneIds: string[] = [];
+  let socialGraphUnavailable = false;
 
   if (currentUserId) {
     // Every branch is INDEPENDENT except the federated-follow merge, which chains
@@ -158,6 +159,7 @@ export async function loadViewerFeedContext(
         try {
           ids = await getFollowingIds(currentUserId, oxyClient);
         } catch (error) {
+          socialGraphUnavailable = true;
           logger.warn('[feedContext] Failed to load following list', error);
         }
       }
@@ -260,6 +262,7 @@ export async function loadViewerFeedContext(
     ),
     followingIds,
     followerIds,
+    ...(socialGraphUnavailable ? { socialGraphUnavailable } : {}),
     subscribedListMemberIds,
     followedCommunityIds,
     userBehavior,

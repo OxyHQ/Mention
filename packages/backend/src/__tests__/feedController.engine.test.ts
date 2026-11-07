@@ -32,6 +32,12 @@ vi.mock('../runtime/oxyClient', () => ({
     getUserFollowing: vi.fn(async () => ({ data: [] })),
     getUserFollowers: vi.fn(async () => ({ data: [] })),
     getMutualUserIds: vi.fn(async () => []),
+    follows: {
+      following: vi.fn(async () => ({ data: [] })),
+      followers: vi.fn(async () => ({ data: [] })),
+      mutualIds: vi.fn(async () => []),
+      followsOfFollowsIds: vi.fn(async () => []),
+    },
   }),
 }));
 
