@@ -50,6 +50,9 @@ vi.mock('../../services/PostHydrationService', () => ({
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (records: unknown[]) => records),
   },
+  // The anonymous-cache guard asks this of every rendered author; the identity stub
+  // renders none, so the page is simply not cached, which this suite does not assert.
+  isFallbackUserSummary: (user?: { username?: string }) => !user?.username,
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
