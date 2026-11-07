@@ -3,13 +3,14 @@ import { adultSafetyFixture } from './helpers/adultSafety';
 // the viewer from the credential, so the process-wide client would answer `[]`.
 const getMutualUserIds = vi.fn(async () => ['oxymutual']);
 const getFollowsOfFollowsIds = vi.fn(async () => ['oxyfof']);
+const getFollowing = vi.fn(async () => ({ data: [] }));
 vi.mock('../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/oxyHelpers')>()),
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: () => ({
     privacy: { blocked: vi.fn(async () => []), restricted: vi.fn(async () => []) },
     follows: {
-      following: vi.fn(async () => ({ data: [] })),
+      following: (...a: unknown[]) => getFollowing(...(a as [])),
       followers: vi.fn(async () => ({ data: [] })),
       viewerGraph: vi.fn(async () => ({ followingIds: [], mutualIds: [] })),
       mutualIds: (...a: unknown[]) => getMutualUserIds(...(a as [])),
@@ -152,10 +153,9 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
     expect(mutualIds).toEqual(expect.arrayContaining(['oxymutual', 'fedmutual']));
   });
 
-  it('For You still builds when the Oxy mutuals lookup fails (fail-soft)', async () => {
-    // Phase 5: mutuals resolution must never break the feed. If the Oxy branch
-    // throws, `computeMutualIds` degrades to the surviving federated branch and the
-    // feed still serves (200) with the partial mutual set.
+  it('For You still serves when the Oxy mutuals lookup fails, without a partial set', async () => {
+    // Mutuals only widen For You's social proof. If the Oxy half fails the set is
+    // omitted, not served half-built, and the feed still answers.
     getMutualUserIds.mockRejectedValueOnce(new Error('oxy down'));
     const req = {
       accessToken: 'test-viewer-session',
@@ -166,9 +166,38 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
     await mtnFeedController.getFeed(req, res as never);
     expect(engineRun).toHaveBeenCalledOnce();
     expect((res.body as { success: boolean }).success).toBe(true);
-    // Oxy branch failed → only the federated mutual survives (never throws).
-    expect(capturedContext?.mutualIds).toEqual(['fedmutual']);
+    expect(capturedContext?.mutualIds).toBeUndefined();
   });
+
+  it.each([
+    ['mutuals', () => getMutualUserIds.mockRejectedValueOnce(new Error('oxy down'))],
+    [
+      'friends_of_friends',
+      () => getFollowsOfFollowsIds.mockRejectedValueOnce(new Error('oxy down')),
+    ],
+    ['following', () => getFollowing.mockRejectedValueOnce(new Error('oxy down'))],
+    ['friends_popular', () => getFollowing.mockRejectedValueOnce(new Error('oxy down'))],
+  ])(
+    'a %s feed answers a retryable 503, not an empty page, when Oxy fails',
+    async (descriptor, failOxy) => {
+      failOxy();
+      const req = {
+        accessToken: 'test-viewer-session',
+        query: { descriptor },
+        // A viewer no other case warmed: a cached relation list would (rightly)
+        // outlive the failure we are injecting.
+        user: { id: `${VIEWER}-${descriptor}` },
+      } as never;
+      const res = makeRes();
+      await mtnFeedController.getFeed(req, res as never);
+      expect(res.statusCode).toBe(503);
+      expect(res.body).toMatchObject({
+        success: false,
+        error: { code: 'SOCIAL_GRAPH_UNAVAILABLE' },
+      });
+      expect(engineRun).not.toHaveBeenCalled();
+    },
+  );
 
   it('does NOT compute mutualIds for a descriptor that uses neither (following)', async () => {
     const req = {

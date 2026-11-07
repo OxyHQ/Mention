@@ -89,6 +89,10 @@ vi.mock('../utils/oxyHelpers', () => ({
     getRestrictedUsers: vi.fn(async () => []),
     getUserFollowing: vi.fn(async () => []),
     getUserFollowers: vi.fn(async () => []),
+    follows: {
+      following: vi.fn(async () => ({ data: [] })),
+      followers: vi.fn(async () => ({ data: [] })),
+    },
   })),
 }));
 vi.mock('../services/ListSubscriptionService', () => ({
