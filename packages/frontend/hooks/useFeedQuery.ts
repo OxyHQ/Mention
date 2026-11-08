@@ -27,6 +27,7 @@ import {
   logFeedFailure,
 } from '@/utils/feedRetry';
 import { feedThreadParentId, mergeFeedPageContent, type FeedFilters } from '@/utils/feedUtils';
+import { useBoundedReread } from './useBoundedReread';
 import { useDeepCompareMemo } from './useDeepCompare';
 import type { UseFeedStateReturn } from './useFeedState';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
@@ -52,6 +53,16 @@ export const FED_PENDING_POLL_DELAYS_MS = [1000, 2500, 5000] as const;
  * a placeholder for good) and spaced out, since what failed was Oxy.
  */
 export const UNRESOLVED_AUTHOR_REREAD_DELAYS_MS = [15_000, 60_000, 300_000] as const;
+
+/** Backoff per reason a feed's first page is read again. */
+export const REREAD_DELAYS_MS = {
+  pending: FED_PENDING_POLL_DELAYS_MS,
+  'unresolved-author': UNRESOLVED_AUTHOR_REREAD_DELAYS_MS,
+} as const;
+
+export function logRereadExhausted(reason: string): void {
+  logger.debug('Feed reread budget exhausted', { reason });
+}
 
 /**
  * Read one page of a feed, exactly as the feed's earlier local-state reader did:
@@ -322,26 +333,14 @@ export function useFeedQuery({
   const pending = active && pages?.[0]?.pending === true;
   const unresolvedAuthor = active && pages?.length === 1 && hasUnresolvedAuthor(content.items);
   const reread = pending ? 'pending' : unresolvedAuthor ? 'unresolved-author' : undefined;
-  const rereads = useRef({ queryKey, reread, count: 0 });
-  useEffect(() => {
-    if (rereads.current.queryKey !== queryKey || rereads.current.reread !== reread) {
-      rereads.current = { queryKey, reread, count: 0 };
-    }
-    if (!reread) return;
-    const polls = rereads.current;
-    const delays =
-      reread === 'pending' ? FED_PENDING_POLL_DELAYS_MS : UNRESOLVED_AUTHOR_REREAD_DELAYS_MS;
-    const delay = delays[polls.count];
-    if (delay === undefined) {
-      logger.debug('Feed reread budget exhausted', { reason: reread });
-      return;
-    }
-    const timer = setTimeout(() => {
-      polls.count += 1;
-      void reload();
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [reread, dataUpdatedAt, queryKey, reload]);
+  useBoundedReread({
+    feedKey: queryKey,
+    reason: reread,
+    delays: REREAD_DELAYS_MS,
+    stamp: dataUpdatedAt,
+    reload: () => void reload(),
+    onExhausted: logRereadExhausted,
+  });
 
   const refresh = useCallback(async () => {
     if (active) await reload();
