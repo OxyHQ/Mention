@@ -283,6 +283,36 @@ describe('the sweep', () => {
     expect(await rowOf(u)).toMatchObject({ state: 'pending', attempts: 0 });
   });
 
+  it('defers a banner Oxy refused for its write budget: no attempt counted, the rest untouched', async () => {
+    const first = user();
+    const second = user();
+    for (const u of [first, second]) {
+      await recordFederatedBanner({
+        oxyUserId: u,
+        actorUri: 'a',
+        bannerUrl: `https://a.example/${u}.png`,
+      });
+    }
+    h.mirror.mockResolvedValue({
+      ok: false,
+      permanent: false,
+      reason: 'budget-spent',
+      retryAfterMs: 30_000,
+    });
+
+    const before = Date.now();
+    expect(await runFederatedBannerMirrors({ concurrency: 1 })).toMatchObject({
+      claimed: 2,
+      failed: 1,
+      byReason: { 'budget-spent': 1 },
+    });
+    expect(h.mirror).toHaveBeenCalledTimes(1);
+    const deferred = await rowOf(first);
+    expect(deferred).toMatchObject({ state: 'pending', attempts: 0, leaseUntil: null });
+    expect(new Date(deferred.retryAt).getTime()).toBeGreaterThanOrEqual(before + 30_000);
+    expect(await rowOf(second)).toMatchObject({ state: 'pending', attempts: 0, leaseUntil: null });
+  });
+
   it('two sweeps never claim the same row', async () => {
     const users = Array.from({ length: 6 }, () => user());
     for (const u of users)

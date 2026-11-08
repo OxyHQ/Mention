@@ -53,6 +53,8 @@ export interface MirrorBannerResult {
   permanent: boolean;
   /** Why it failed, short and non-sensitive (`not-media`, `upstream-error:503`, …). */
   reason?: string;
+  /** Oxy's write budget is spent: retry after this, and do not count an attempt. */
+  retryAfterMs?: number;
 }
 
 /**
@@ -131,6 +133,16 @@ export async function mirrorFederatedBanner(
         throw err;
       }
       return { ok: true, permanent: false };
+    }
+
+    if (result.reason === 'budget-spent') {
+      // Not a failure of this banner: the store already logged the pause once.
+      return {
+        ok: false,
+        permanent: false,
+        reason: 'budget-spent',
+        retryAfterMs: result.retryAfterMs,
+      };
     }
 
     if (!result.permanent) {
