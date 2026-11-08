@@ -7,12 +7,12 @@ import { hasFeedData } from '@/db';
 import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { noteChannelBylineChanged, resetBylineInvalidation } from '@/stores/bylineInvalidation';
 import { useFeedState, type UseFeedStateOptions, type UseFeedStateReturn } from '../useFeedState';
-import { FED_PENDING_POLL_DELAYS_MS } from '../useFeedQuery';
+import { FED_PENDING_POLL_DELAYS_MS, UNRESOLVED_AUTHOR_REREAD_DELAYS_MS } from '../useFeedQuery';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
 interface MockFeed {
-  items: { id: string }[];
+  items: { id: string; user?: { username: string } }[];
   hasMore: boolean;
   isLoading: boolean;
   error: string | null;
@@ -413,6 +413,50 @@ describe('useFeedState on the SQLite path', () => {
       expect(latest?.pending).toBe(false);
       await advance(60_000);
       expect(store().fetchUserFeed).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('an author Oxy could not resolve', () => {
+    const unresolved = (): MockFeed => ({
+      items: [{ id: 'p1', user: { username: '' } }],
+      hasMore: true,
+      isLoading: false,
+      error: null,
+    });
+
+    async function advance(ms: number): Promise<void> {
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(ms);
+      });
+    }
+
+    it('reads page 1 again on the bounded budget', async () => {
+      jest.useFakeTimers();
+      mockFeed = unresolved();
+      await act(async () => {
+        open.add(TestRenderer.create(tree(home)));
+      });
+      await advance(0);
+      const initial = mocked(store().refreshFeed).mock.calls.length;
+
+      await advance(UNRESOLVED_AUTHOR_REREAD_DELAYS_MS[0]);
+      expect(mocked(store().refreshFeed).mock.calls.length).toBe(initial + 1);
+    });
+
+    it('leaves a reader who has paged on where they are', async () => {
+      jest.useFakeTimers();
+      mockFeed = unresolved();
+      await act(async () => {
+        open.add(TestRenderer.create(tree(home)));
+      });
+      await advance(0);
+      const initial = mocked(store().refreshFeed).mock.calls.length;
+
+      await act(async () => {
+        await latest?.loadMore();
+      });
+      await advance(UNRESOLVED_AUTHOR_REREAD_DELAYS_MS[0]);
+      expect(mocked(store().refreshFeed).mock.calls.length).toBe(initial);
     });
   });
 });

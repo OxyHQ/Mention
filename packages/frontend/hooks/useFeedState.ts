@@ -13,7 +13,14 @@ import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 import { isFeedReadStale } from '@/stores/feedStaleness';
-import { FED_PENDING_POLL_DELAYS_MS, useFeedQuery } from './useFeedQuery';
+import { hasUnresolvedAuthor } from '@/stores/feedQueryCache';
+import { useBoundedReread } from './useBoundedReread';
+import {
+  FED_PENDING_POLL_DELAYS_MS,
+  logRereadExhausted,
+  REREAD_DELAYS_MS,
+  useFeedQuery,
+} from './useFeedQuery';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
 import { useFeedRankingStaleness } from './useFeedRankingStaleness';
 
@@ -149,6 +156,12 @@ function useStoredFeed({
   const pendingPollCountRef = useRef<number>(0);
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Whether the reader has paged past the first read. A read of page 1 again
+  // replaces every loaded page, which would pull a reader who has scrolled on
+  // out of place, so an author Oxy could not resolve is read again only while
+  // the feed holds that one page (the same rule as `useFeedQuery`).
+  const [pagedPastFirst, setPagedPastFirst] = useState(false);
+
   const clearPendingPoll = useCallback(() => {
     if (pendingTimerRef.current) {
       clearTimeout(pendingTimerRef.current);
@@ -247,6 +260,7 @@ function useStoredFeed({
       // immediately and advance its epoch before any cache/network branch
       // can complete, so a slow old page cannot append afterward.
       invalidatePagination();
+      setPagedPastFirst(false);
       isFetchingRef.current = true;
 
       if (primaryAbortRef.current) {
@@ -366,6 +380,7 @@ function useStoredFeed({
   const refresh = useCallback(async () => {
     // Gate onEndReached synchronously before the store commits isLoading.
     isFetchingRef.current = true;
+    setPagedPastFirst(false);
     // Refresh replaces the accumulated feed. Invalidate pagination before
     // starting it so even an uncancellable, late loadMore response is stale.
     invalidatePagination();
@@ -418,6 +433,7 @@ function useStoredFeed({
       loadMoreAbortRef.current === controller && paginationEpochRef.current === paginationEpoch;
 
     isLoadingMoreRef.current = true;
+    setPagedPastFirst(true);
 
     try {
       if (userId) {
@@ -515,9 +531,20 @@ function useStoredFeed({
   );
   const isViewerCacheTrusted = previousIdentityRef.current === viewerIdentity;
   const error = globalFeed?.error || null;
+  const items = isViewerCacheTrusted ? globalFeed?.items || [] : [];
+
+  useBoundedReread({
+    feedKey: `${userId ?? ''}:${type}:${viewerIdentity}`,
+    reason:
+      enabled && !pagedPastFirst && hasUnresolvedAuthor(items) ? 'unresolved-author' : undefined,
+    delays: REREAD_DELAYS_MS,
+    stamp: globalFeed?.lastUpdated ?? 0,
+    reload: reloadStored,
+    onExhausted: logRereadExhausted,
+  });
 
   return {
-    items: isViewerCacheTrusted ? globalFeed?.items || [] : [],
+    items,
     slices: isViewerCacheTrusted ? globalFeed?.slices : undefined,
     socialContexts:
       isViewerCacheTrusted && !staleSocialEvidence ? globalFeed?.socialContexts : undefined,
