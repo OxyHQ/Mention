@@ -37,6 +37,8 @@ const TRANSIENT_BACKOFF_FACTOR = 3;
 export const TRANSIENT_BACKOFF_MAX_MS = 6 * HOUR_MS;
 /** Wait before re-trying a banner whose bytes were not a usable image. */
 export const PERMANENT_RETRY_MS = 24 * HOUR_MS;
+/** Default deferral when Oxy's budget refusal names no wait: one budget window. */
+const BUDGET_DEFER_MS = MINUTE_MS;
 /** A sweep's claim on a row; a crashed sweep's rows are due again after it. */
 const LEASE_MS = 15 * MINUTE_MS;
 
@@ -92,6 +94,19 @@ async function settle(row: ClaimedRow, result: MirrorBannerResult): Promise<void
     eq(federatedBannerMirrors.oxyUserId, row.oxyUserId),
     eq(federatedBannerMirrors.sourceUrl, row.sourceUrl),
   );
+  if (result.reason === 'budget-spent') {
+    // Oxy's write budget is spent for the window: the banner was not tried, so
+    // no attempt is counted and the row is due when the window reopens.
+    await getDb()
+      .update(federatedBannerMirrors)
+      .set({
+        leaseUntil: null,
+        retryAt: sql`now() + ${`${result.retryAfterMs ?? BUDGET_DEFER_MS} milliseconds`}::interval`,
+        updatedAt: new Date(),
+      })
+      .where(sameUrl);
+    return;
+  }
   if (result.ok) {
     await getDb()
       .update(federatedBannerMirrors)
@@ -141,9 +156,12 @@ export async function runFederatedBannerMirrors(
   const rows = await claimDueBanners(options.limit ?? BANNER_SWEEP_BATCH);
   result.claimed = rows.length;
 
+  // Once Oxy's budget is spent, no worker starts another mirror (each would
+  // download a remote image only to be refused): the rest are deferred unclaimed.
   let next = 0;
+  let budgetSpent = false;
   const worker = async (): Promise<void> => {
-    while (next < rows.length) {
+    while (next < rows.length && !budgetSpent) {
       const row = rows[next];
       next += 1;
       const outcome = await mirrorFederatedBanner(row.sourceUrl, row.oxyUserId, row.actorUri);
@@ -151,6 +169,7 @@ export async function runFederatedBannerMirrors(
       if (outcome.ok) {
         result.mirrored += 1;
       } else {
+        if (outcome.reason === 'budget-spent') budgetSpent = true;
         result.failed += 1;
         const reason = outcome.reason ?? 'unknown';
         result.byReason[reason] = (result.byReason[reason] ?? 0) + 1;
@@ -163,6 +182,14 @@ export async function runFederatedBannerMirrors(
       worker,
     ),
   );
+  // Rows claimed but never started go back to due now, not after their lease.
+  const unstarted = rows.slice(next).map((row) => row.oxyUserId);
+  if (unstarted.length > 0) {
+    await getDb()
+      .update(federatedBannerMirrors)
+      .set({ leaseUntil: null })
+      .where(inArray(federatedBannerMirrors.oxyUserId, unstarted));
+  }
 
   if (result.claimed > 0) logger.info('[BannerMirror] sweep', { ...result });
   return result;

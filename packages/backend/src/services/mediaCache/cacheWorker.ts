@@ -395,6 +395,12 @@ type FederatedMediaPersistFailureReason =
   | 'reencode-failed'
   | 'disabled'
   | 'store-unavailable'
+  /**
+   * Oxy's media-write budget for this app is spent for the window. Not a
+   * property of the file: the caller defers it by `retryAfterMs` and counts no
+   * attempt against it.
+   */
+  | 'budget-spent'
   | 'upload-failed'
   /** 409 `FEDERATED_MEDIA_OWNED_ELSEWHERE` — permanent: the bytes are someone else's in Oxy. */
   | 'owned-elsewhere';
@@ -406,6 +412,8 @@ export type PersistFederatedMediaResult =
       reason: FederatedMediaPersistFailureReason;
       status?: number;
       permanent: boolean;
+      /** Set with `budget-spent`: how long until Oxy will accept writes again. */
+      retryAfterMs?: number;
     };
 
 function isPermanentCacheFailure(outcome: Extract<DownloadOutcome, { ok: false }>): boolean {
@@ -567,6 +575,14 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
         reason: error.message,
       });
       return { ok: false, reason: 'store-unavailable', permanent: false };
+    } else if (isMediaStoreThrottled(error)) {
+      // Logged once per window by the store, not once per refused file.
+      return {
+        ok: false,
+        reason: 'budget-spent',
+        permanent: false,
+        retryAfterMs: error.retryAfterMs,
+      };
     } else {
       logger.warn('[MediaCache] Durable federation upload failed', {
         reason: error instanceof Error ? error.message : 'unknown',
