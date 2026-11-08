@@ -63,7 +63,7 @@ export async function recordDwell(postId: string, durationMs: number): Promise<v
       multi.hIncrByFloat(key, 'sum', sample);
       multi.hIncrBy(key, 'n', 1);
       multi.expire(key, DWELL_TTL_SECONDS);
-      await multi.exec();
+      await multi.execAsPipeline();
     },
     undefined,
     'dwellAggregateRecord',

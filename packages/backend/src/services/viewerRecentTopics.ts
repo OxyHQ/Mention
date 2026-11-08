@@ -57,7 +57,7 @@ export async function recordSeenTopics(viewerId: string, topics: string[]): Prom
       const multi = redis.multi();
       multi.sAdd(key, normalized);
       multi.expire(key, RECENT_TOPICS_TTL_SECONDS);
-      await multi.exec();
+      await multi.execAsPipeline();
     },
     undefined,
     'viewerRecentTopicsRecord',

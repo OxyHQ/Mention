@@ -44,7 +44,7 @@ function fakeRedis(): RedisClientType {
           operations.push(() => sortedSets.get(key)?.size ?? 0);
           return chain;
         },
-        async exec() {
+        async execAsPipeline() {
           return operations.map((operation) => operation());
         },
       };
