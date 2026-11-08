@@ -70,7 +70,7 @@ import type { PeriodicTaskName } from '../queue/types';
 import { interestScoreService } from './InterestScoreService';
 import { endorsementSignalService } from './EndorsementSignalService';
 import { affinityEventService } from './AffinityEventService';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import type { User } from '@oxy.so/core';
 
 /** Staleness threshold after which an actor profile is re-fetched. */
@@ -886,7 +886,10 @@ class FederationJobScheduler {
       const uniqueSenderIds = [...new Set(pending.map((d) => d.senderOxyUserId))];
       const senders = new Map<string, User>();
       try {
-        const resolved = await getServiceOxyClient().users.getMany(uniqueSenderIds);
+        const { found: resolved } = await lookupOxyUsers(
+          uniqueSenderIds,
+          'federation.delivery_senders',
+        );
         for (const sender of resolved) {
           if (sender?.id) senders.set(sender.id, sender);
         }

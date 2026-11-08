@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { eq, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { connectPostgres, closePostgres, getDb } from '../../db/postgres';
@@ -36,7 +37,9 @@ vi.mock('../../connectors/oxyIdentity', () => ({
   resolveOxyIdentity: mocks.resolve,
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { getMany: mocks.users } }),
+  getServiceOxyClient: () => ({
+    users: { getMany: mocks.users, lookupMany: (ids: string[]) => lookupManyOf(mocks.users)(ids) },
+  }),
 }));
 vi.mock('../../services/PostEquivalenceService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../services/PostEquivalenceService')>()),

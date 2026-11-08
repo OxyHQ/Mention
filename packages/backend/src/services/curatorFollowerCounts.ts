@@ -33,8 +33,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import type { User as OxyUser } from '@oxy.so/core';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import { getRedisClient } from '../utils/redis';
 import { setExInBatches, withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
@@ -158,7 +157,7 @@ export async function resolveCuratorFollowerCounts(
   // so it must go through the service client (the bare client carries no app token).
   const resolved = new Map<string, number>();
   try {
-    const users: OxyUser[] = await getServiceOxyClient().users.getMany(missIds);
+    const { found: users } = await lookupOxyUsers(missIds, 'curator.follower_counts');
     for (const user of users) {
       const curatorId = String(user.id ?? '');
       const followers = user._count?.followers;

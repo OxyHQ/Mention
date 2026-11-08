@@ -1,4 +1,5 @@
 import { adultSafetyFixture } from '../../helpers/adultSafety';
+import { lookupManyOf } from '../../helpers/oxyLookup';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -63,7 +64,11 @@ vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
-    users: { getMany: getUsersByIds, get: getUserById },
+    users: {
+      getMany: getUsersByIds,
+      lookupMany: (ids: string[]) => lookupManyOf(getUsersByIds)(ids),
+      get: getUserById,
+    },
   }),
 }));
 

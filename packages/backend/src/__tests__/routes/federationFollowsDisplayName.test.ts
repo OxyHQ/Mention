@@ -1,4 +1,5 @@
 import express from 'express';
+import { lookupManyOf } from '../helpers/oxyLookup';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -88,7 +89,12 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: () => ({ users: { getMany: getUsersByIds } }),
+  getServiceOxyClient: () => ({
+    users: {
+      getMany: getUsersByIds,
+      lookupMany: (ids: string[]) => lookupManyOf(getUsersByIds)(ids),
+    },
+  }),
 }));
 
 function leanable(rows: unknown[]) {

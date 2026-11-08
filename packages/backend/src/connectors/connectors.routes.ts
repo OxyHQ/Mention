@@ -47,6 +47,7 @@ import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { postHydrationService } from '../services/PostHydrationService';
 import { hydrationOptionsFor } from '../utils/hydrationOptions';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import { extractBearerToken } from '@oxy.so/mcp';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { invalidateViewerRelations } from '../utils/privacyHelpers';
@@ -202,7 +203,7 @@ async function resolveActorProfilesByUri(
 
   let users: OxyUser[] = [];
   try {
-    users = await getServiceOxyClient().users.getMany(oxyUserIds);
+    users = (await lookupOxyUsers(oxyUserIds, 'federation.actor_names')).found;
   } catch (err) {
     logger.warn('Failed to resolve Oxy display names for federated actors:', err);
     return byUri;

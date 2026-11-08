@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { PostVisibility } from '@mention/shared-types';
 
 /**
@@ -43,6 +44,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
       byUsername: async (username: string) => (username === 'alice' ? { id: ALICE } : null),
       getMany: async (ids: string[]) =>
         ids.includes(ALICE) ? [{ id: ALICE, username: 'alice', type: 'local' }] : [],
+      lookupMany: (ids: string[]) =>
+        lookupManyOf(async (unique: string[]) =>
+          unique.includes(ALICE) ? [{ id: ALICE, username: 'alice', type: 'local' }] : [],
+        )(ids),
     },
   }),
 }));

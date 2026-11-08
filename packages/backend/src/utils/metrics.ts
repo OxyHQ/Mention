@@ -79,6 +79,16 @@ const DEFINITIONS = {
     help: 'Feed candidate sources that rejected while a page was being built',
     labelNames: ['descriptor', 'source'],
   },
+  oxy_user_bulk_ids_total: {
+    kind: 'counter',
+    help: 'Oxy user ids requested by a bulk read, by the code that asked',
+    labelNames: ['source'],
+  },
+  oxy_user_bulk_failed_total: {
+    kind: 'counter',
+    help: 'Oxy user ids a bulk read could not ask about (chunk timeout, 429, 5xx), by caller',
+    labelNames: ['source'],
+  },
   oxy_user_resolution_partial_total: {
     kind: 'counter',
     help: 'Hydrations where Oxy did not resolve every author (they render as the placeholder), by cause',
