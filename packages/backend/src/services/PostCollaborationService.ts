@@ -9,6 +9,8 @@ import {
 import type { PostRecord } from '../db/posts/postRecord';
 import { createNotification } from '../utils/notificationUtils';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { lookupOxyUsers } from '../utils/oxyUserLookup';
+import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import {
@@ -88,12 +90,15 @@ class PostCollaborationService {
     if (uniqueIds.length === 0) return [];
     await assertAuthorsCanPublish([ownerId, ...uniqueIds], PostVisibility.PRIVATE, true);
 
-    const oxy = getServiceOxyClient();
-    const users = await oxy.users.getMany(uniqueIds);
-    const foundIds = new Set(users.map((u) => u.id));
-    const missing = uniqueIds.filter((id) => !foundIds.has(id));
-    if (missing.length > 0) {
-      throw new CollabValidationError(`Unknown users: ${missing.join(', ')}`);
+    const lookup = await lookupOxyUsers(uniqueIds, 'post.collaborators');
+    // A chunk Oxy could not be asked about says nothing about these accounts:
+    // refuse with a retryable 503, never a 400 that names a real user as unknown.
+    if (lookup.failed.length > 0) {
+      throw new ApiError(503, 'Could not verify collaborators; try again', 'OXY_USERS_UNAVAILABLE');
+    }
+    const users = lookup.found;
+    if (lookup.missing.length > 0) {
+      throw new CollabValidationError(`Unknown users: ${lookup.missing.join(', ')}`);
     }
 
     const federated = users.filter((u) => u.type === 'federated');

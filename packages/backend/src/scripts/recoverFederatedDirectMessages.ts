@@ -86,7 +86,7 @@ import {
   type AuthorRefreshOptions,
 } from '../connectors/activitypub/apMentions';
 import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY } from '../utils/concurrency';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
@@ -174,16 +174,16 @@ function actorSigners() {
   async function localUsernames(ids: readonly string[]): Promise<string[]> {
     const missing = ids.filter((id) => !usernameById.has(id));
     if (missing.length > 0) {
-      const lookup = getServiceOxyClient()
-        .users.getMany(missing)
-        .then((users) => {
+      const lookup = lookupOxyUsers(missing, 'federation.direct_message_recovery').then(
+        ({ found: users }) => {
           const byId = new Map<string, string>();
           for (const user of users) {
             const local = user.type !== 'federated' && user.isFederated !== true;
             if (local && user.id && user.username) byId.set(String(user.id), user.username);
           }
           return byId;
-        });
+        },
+      );
       for (const id of missing) {
         usernameById.set(
           id,

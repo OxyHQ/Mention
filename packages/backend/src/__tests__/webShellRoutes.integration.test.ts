@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { lookupManyOf } from './helpers/oxyLookup';
 import express from 'express';
 import request from 'supertest';
 import { PostType } from '@mention/shared-types';
@@ -80,7 +81,11 @@ vi.mock('../utils/cache', async (importOriginal) => {
 
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    users: { byUsername: getProfileByUsername, getMany: getUsersByIds },
+    users: {
+      byUsername: getProfileByUsername,
+      getMany: getUsersByIds,
+      lookupMany: (ids: string[]) => lookupManyOf(getUsersByIds)(ids),
+    },
     serviceRequest,
     withCallOptions: (options: unknown) => {
       callOptions(options);

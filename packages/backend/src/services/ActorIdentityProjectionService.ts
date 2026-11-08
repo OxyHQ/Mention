@@ -271,8 +271,8 @@ export async function reconcileActorIdentityProjection(
 
 /** Explicit unmute removes the current Oxy group, including conservative copies. */
 export async function activeMuteIdentityIds(targetId: string): Promise<string[]> {
-  const { getServiceOxyClient } = await import('../utils/oxyHelpers.js');
-  const resolved = await getServiceOxyClient().users.getMany([targetId]);
+  const { lookupOxyUsers } = await import('../utils/oxyUserLookup.js');
+  const { found: resolved } = await lookupOxyUsers([targetId], 'identity.mute_aliases');
   const ids = new Set([targetId]);
   for (const user of resolved) {
     if (typeof user.id === 'string') ids.add(user.id);

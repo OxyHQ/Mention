@@ -1,4 +1,5 @@
 import { adultSafetyFixture } from '../helpers/adultSafety';
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -30,13 +31,29 @@ const { federateNewPost, createNotification } = vi.hoisted(() => ({
   createNotification: vi.fn(async () => undefined),
 }));
 
+const oxyUsers = vi.hoisted(() => ({
+  /** Ids whose chunk the test makes Oxy fail to answer. */
+  failing: new Set<string>(),
+  byId: async (ids: string[]) =>
+    ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
+}));
+
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({
     safety: adultSafetyFixture(),
     users: {
-      getMany: vi.fn(async (ids: string[]) =>
-        ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
-      ),
+      getMany: vi.fn(oxyUsers.byId),
+      lookupMany: async (ids: string[]) => {
+        const lookup = await lookupManyOf(oxyUsers.byId)(ids);
+        const failed = ids.filter((id) => oxyUsers.failing.has(id));
+        return {
+          ...lookup,
+          found: lookup.found.filter((user) => !failed.includes(String(user.id))),
+          missing: lookup.missing.filter((id) => !failed.includes(id)),
+          failed,
+          error: failed.length > 0 ? new Error('chunk timed out') : undefined,
+        };
+      },
       get: vi.fn(async (id: string) => ({
         id,
         type: 'local',
@@ -116,6 +133,18 @@ afterAll(async () => {
 });
 
 describe('PostCollaborationService — invite resolution (no post required)', () => {
+  it('answers 503, not "unknown user", when Oxy could not be asked about a collaborator', async () => {
+    oxyUsers.failing.add(C1);
+    try {
+      await expect(postCollaborationService.validateInvites(OWNER, [C1])).rejects.toMatchObject({
+        statusCode: 503,
+        code: 'OXY_USERS_UNAVAILABLE',
+      });
+    } finally {
+      oxyUsers.failing.clear();
+    }
+  });
+
   it('returns validated unique collaborator ids', async () => {
     await expect(postCollaborationService.validateInvites(OWNER, [C1, C2])).resolves.toEqual([
       C1,

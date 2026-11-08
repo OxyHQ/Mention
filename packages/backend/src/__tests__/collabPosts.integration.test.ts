@@ -1,4 +1,5 @@
 import { adultSafetyFixture } from './helpers/adultSafety';
+import { lookupManyOf } from './helpers/oxyLookup';
 import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
 import { and, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
@@ -13,13 +14,17 @@ import {
   insertPostRecord,
 } from '../db/posts/postRepository';
 
+const usersById = vi.hoisted(
+  () => async (ids: string[]) =>
+    ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
+);
+
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({
     safety: adultSafetyFixture(),
     users: {
-      getMany: vi.fn(async (ids: string[]) =>
-        ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
-      ),
+      getMany: vi.fn(usersById),
+      lookupMany: vi.fn((ids: string[]) => lookupManyOf(usersById)(ids)),
     },
   })),
 }));

@@ -52,9 +52,15 @@ vi.mock('../../utils/redis', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { getMany: getUsersByIds } }),
+  getServiceOxyClient: () => ({
+    users: {
+      getMany: getUsersByIds,
+      lookupMany: (ids: string[]) => lookupManyOf(getUsersByIds)(ids),
+    },
+  }),
 }));
 
+import { lookupManyOf } from '../helpers/oxyLookup';
 import { MtnConfig } from '@mention/shared-types';
 import { resolveCuratorFollowerCounts } from '../../services/curatorFollowerCounts';
 import { computeStarterPackScores, curatorAuthority } from '../../services/starterPackCuration';

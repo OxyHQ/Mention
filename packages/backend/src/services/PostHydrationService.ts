@@ -60,7 +60,7 @@ import { loadShownNotes } from './communityNotes/CommunityNotesService';
 import { getOrLoadPostRecords } from './postDetailCache';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import {
   getBlockedUserIds,
   getRestrictedUserIds,
@@ -772,7 +772,7 @@ async function resolveOxyUserSummaryMisses(
     // returned", so an Oxy blip and an account that is gone were the same
     // answer, and every gone account cost a per-id read on every render.
     const lookup = await runBoundedOxyUserResolutionCall(
-      () => getServiceOxyClient().users.lookupMany(missIds),
+      () => lookupOxyUsers(missIds, 'post_hydration'),
       deadlineAt,
     );
     lookupMissing = lookup.missing;

@@ -28,6 +28,7 @@
 import type { InboundMove } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { lookupOxyUsers } from '../../utils/oxyUserLookup';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { deleteFollow, findFollows } from '../../db/federation/followRepository';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
@@ -78,9 +79,12 @@ async function unfollowMovedActor(
   const follows = await findFollows({ remoteActorUri: oldActorUri, direction: 'outbound' });
   if (follows.length === 0) return { unfollowed: 0, unresolved: 0 };
 
-  const users = await getServiceOxyClient().users.getMany(
-    follows.map((follow) => follow.localUserId),
-  );
+  const users = (
+    await lookupOxyUsers(
+      follows.map((follow) => follow.localUserId),
+      'federation.move',
+    )
+  ).found;
   const usernames = new Map(
     users.flatMap((user) => (user?.id && user.username ? [[user.id, user.username] as const] : [])),
   );

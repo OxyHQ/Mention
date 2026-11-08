@@ -32,6 +32,7 @@ import {
 import { authorVariants, resolveVariant } from '../../services/postVariants';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { lookupOxyUsers } from '../../utils/oxyUserLookup';
 import type { LocalBoostEventPayload } from '@oxy.so/federation';
 import { deliveryService } from './delivery.service';
 import { relayToCommunityFollowers, resolveCommunityAudience } from './communityRelay';
@@ -1048,7 +1049,7 @@ export class FollowService {
 
     let users: OxyUser[] = [];
     try {
-      users = await getServiceOxyClient().users.getMany(localIds);
+      users = (await lookupOxyUsers(localIds, 'federation.follow_delivery')).found;
     } catch (err) {
       logger.warn('[FedDeliver] mention Oxy user lookup failed', {
         count: localIds.length,

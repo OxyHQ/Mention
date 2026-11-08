@@ -64,6 +64,7 @@ import { normalizeHashtag } from '../utils/textProcessing';
 import { loadPublicProfileFacts } from '../services/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import { webShellRateLimiter } from '../middleware/security';
 import { namedRoutePattern } from '../middleware/requestObservability';
 import { isApexHost } from '../middleware/apexFrontendProxy';
@@ -219,7 +220,7 @@ async function askOxyIfAuthorPublic(oxyUserId: string): Promise<boolean> {
     if (profile?.id === oxyUserId) return true;
     asked = { handle: cachedHandle, found: Boolean(profile) };
   }
-  const [user] = await getServiceOxyClient().users.getMany([oxyUserId]);
+  const [user] = (await lookupOxyUsers([oxyUserId], 'web_shell.profile')).found;
   if (!user?.username) return false;
   // That handle was already asked about in this request; its answer stands.
   if (asked?.handle === user.username) return asked.found;

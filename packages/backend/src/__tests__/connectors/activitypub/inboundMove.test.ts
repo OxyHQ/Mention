@@ -47,7 +47,10 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     serviceRequest: mocks.serviceRequest,
-    users: { getMany: mocks.getUsersByIds },
+    users: {
+      getMany: mocks.getUsersByIds,
+      lookupMany: (ids: string[]) => lookupManyOf(mocks.getUsersByIds)(ids),
+    },
   }),
 }));
 
@@ -87,6 +90,7 @@ vi.mock('../../../connectors/oxyIdentity', () => ({
   resolveOxyIdentity: vi.fn(),
 }));
 
+import { lookupManyOf } from '../../helpers/oxyLookup';
 import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { postImports } from '../../../db/schema/imports';
