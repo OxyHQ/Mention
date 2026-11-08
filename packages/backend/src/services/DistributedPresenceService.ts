@@ -24,7 +24,7 @@ export class DistributedPresenceService {
         .zRemRangeByScore(key, 0, Date.now())
         .zAdd(key, { score: expiresAt, value: this.instanceId })
         .expire(key, this.ttlSeconds * 2)
-        .exec();
+        .execAsPipeline();
     } catch (error) {
       logger.debug('[presence] failed to refresh distributed presence', {
         reason: error instanceof Error ? error.message : String(error),
@@ -55,7 +55,7 @@ export class DistributedPresenceService {
         .multi()
         .zRemRangeByScore(key, 0, Date.now())
         .zCard(key)
-        .exec();
+        .execAsPipeline();
       const activeInstances = Number(transaction[1] ?? 0);
       return activeInstances > 0;
     } catch (error) {
