@@ -69,6 +69,7 @@ import { ProfileMoreMenu } from '../ProfileMoreMenu';
 import { useOperatesAccount } from './useOperatesAccount';
 import { useJustFollowed } from './useJustFollowed';
 import { useSubscription } from './useSubscription';
+import { schemaOrgEntityType } from '@/lib/profileSchemaOrg';
 
 /** Feed types cleared from the local store when a profile turns out to be private. */
 const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts', 'mentions'];
@@ -164,6 +165,7 @@ export interface PersonProfileView extends ProfileAccount {
  * so does every remote account — a remote COMMUNITY, with its own label and its
  * followers counted as members, and a remote CHANNEL (a PeerTube channel).
  */
+
 export function usePersonProfileView({
   active = true,
   activeKey,
@@ -728,7 +730,7 @@ export function usePersonProfileView({
               '@context': 'https://schema.org',
               '@type': 'ProfilePage',
               mainEntity: {
-                '@type': 'Person',
+                '@type': schemaOrgEntityType(profileData.kind),
                 name: profileData.design.displayName,
                 alternateName: `@${handle}`,
                 description: profileData.bio || undefined,

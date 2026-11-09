@@ -61,7 +61,11 @@ export default function TrendGraphScreen() {
 
   return (
     <>
-      <SEO title={t('seo.trendGraph.title')} description={t('seo.trendGraph.description')} />
+      <SEO
+        title={t('seo.trendGraph.title')}
+        description={t('seo.trendGraph.description')}
+        robots="index,follow"
+      />
       <Screen
         header={
           <PageHeader

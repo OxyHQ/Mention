@@ -70,9 +70,9 @@ export default function HashtagScreen() {
         }
         url={
           server?.url ||
-          `${WEB_BASE_URL.replace(/\/$/, '')}/hashtag/${encodeURIComponent(hashtag.toLowerCase())}`
+          `${WEB_BASE_URL.replace(/\/$/, '')}/hashtag/${encodeURIComponent(hashtag.replace(/^#/, '').trim().toLowerCase())}`
         }
-        robots={server?.robots}
+        robots={server?.robots ?? (hashtag ? 'index,follow' : 'noindex,follow')}
         jsonLd={server?.jsonLd}
       />
 

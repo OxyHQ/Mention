@@ -119,6 +119,7 @@ export default function TrendScreen() {
       header={<PageHeader title={heading} backLabel={t('common.back', { defaultValue: 'Back' })} />}
     >
       <SEO
+        robots="index,follow"
         title={t('seo.trend.title', { topic: heading, defaultValue: '{{topic}} - Mention' })}
         description={t('seo.trend.description', {
           topic: heading,

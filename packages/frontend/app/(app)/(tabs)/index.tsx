@@ -160,6 +160,7 @@ const HomeScreen: React.FC = () => {
   return (
     <>
       <SEO
+        robots="index,follow"
         title={t('seo.home.title')}
         description={t('seo.home.description')}
         jsonLd={SITE_STRUCTURED_DATA}

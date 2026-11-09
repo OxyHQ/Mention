@@ -87,7 +87,11 @@ export default function StarterPacksScreen() {
 
   return (
     <>
-      <SEO title="Starter Packs" description="Curated collections of accounts to follow" />
+      <SEO
+        title="Starter Packs"
+        description="Curated collections of accounts to follow"
+        robots="index,follow"
+      />
       <Screen
         header={
           <PageHeader

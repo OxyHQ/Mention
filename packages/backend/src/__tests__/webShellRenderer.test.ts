@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { config } from '../config';
 import { describe, it, expect } from 'bun:test';
+import { cutAtWord } from '../services/webShellRenderer';
 import type { HydratedPost } from '@mention/shared-types';
 import {
   escapeHtml,
@@ -327,7 +328,7 @@ describe('mapPostOg', () => {
     expect(og.description).toBe(reader);
     expect(og.jsonLd).toMatchObject({ text: reader });
     expect(og.title).toBe(
-      'Nate on Mention: "Thanks Nate. Publicado en El Intermedio @el-intermedio-laSexta@flipboa…"',
+      'Nate on Mention: "Thanks Nate. Publicado en El Intermedio @el-intermedio-laSexta@flipbo…"',
     );
   });
 
@@ -693,5 +694,15 @@ describe('homepage social preview', () => {
     expect(createHash('sha256').update(image).digest('hex')).toBe(
       'dd40609c5f18f558fd6ff4f50667bbc8eb7315fe6c6119f082de3c1a2720aaed',
     );
+  });
+
+  it('cuts text at a word and never through a surrogate pair', () => {
+    // 'a' + 60 astral emoji: a UTF-16 slice would split an emoji, leaving a lone half.
+    const cut = cutAtWord(`a${'😀'.repeat(60)}`, 40);
+    expect(Array.from(cut)).toHaveLength(40);
+    expect(cut.endsWith('…')).toBe(true);
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(cut)).toBe(false);
+    expect(cutAtWord('short text', 200)).toBe('short text');
+    expect(cutAtWord('one two three four five', 15)).toBe('one two three…');
   });
 });

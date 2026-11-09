@@ -687,7 +687,7 @@ router.get(
           'Profile not found',
           'This profile is unavailable on Mention.',
         ),
-        isProfileRoot ? 404 : 200,
+        404,
       );
       return;
     }
