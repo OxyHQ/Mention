@@ -13,16 +13,16 @@ describe('trend feed ordering', () => {
   it('top ranks the same posts by engagement and recency', async () => {
     const top = await resolveDefinition('trend|nvidia|top');
     const latest = await resolveDefinition('trend|nvidia');
-    expect(top!.mode).toBe('ranked');
-    expect(top!.id).toBe('trend|nvidia|top');
-    expect(top!.sources.map((s) => s.module)).toEqual(latest!.sources.map((s) => s.module));
-    expect(top!.signals.map((s) => s.module)).toEqual(['engagement', 'recency']);
+    expect(top?.mode).toBe('ranked');
+    expect(top?.id).toBe('trend|nvidia|top');
+    expect(top?.sources.map((s) => s.module)).toEqual(latest?.sources.map((s) => s.module));
+    expect(top?.signals.map((s) => s.module)).toEqual(['engagement', 'recency']);
   });
 
   it('latest stays chronological, and an unknown order degrades to latest', async () => {
     const latest = await resolveDefinition('trend|nvidia|latest');
     const unknown = await resolveDefinition('trend|nvidia|sideways');
-    expect(latest!.mode).toBe('chronological');
-    expect(unknown!.id).toBe('trend|nvidia');
+    expect(latest?.mode).toBe('chronological');
+    expect(unknown?.id).toBe('trend|nvidia');
   });
 });

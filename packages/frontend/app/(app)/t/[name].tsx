@@ -131,12 +131,7 @@ export default function TrendScreen() {
         accessibilityLabel={t('widgetMenu.share', { defaultValue: 'Compartir' })}
         onPress={shareTopic}
       />
-      {listed ? (
-        <WidgetItemMenu
-          label={heading}
-          {...getTrendMenuActions(listed)}
-        />
-      ) : null}
+      {listed ? <WidgetItemMenu label={heading} {...getTrendMenuActions(listed)} /> : null}
     </ButtonGroup>
   );
 
