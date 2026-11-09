@@ -122,6 +122,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'score-order and lossless-pagination assertions; each file must own its candidate pool.',
   })),
   {
+    path: 'src/__tests__/services/trendTopic.db.test.ts',
+    jobEntryPoint: 'getTrendTopic',
+    reason:
+      'Reads the LATEST trend batch of the whole table and seeds its own batch to be it. ' +
+      'Under a shared database a parallel suite batch would be the topic answer, and its own ' +
+      'trending assertions would read this file’s fixture batch.',
+  },
+  {
     path: 'src/__tests__/services/trendingBatchWrite.test.ts',
     jobEntryPoint: 'calculateTrending',
     reason:

@@ -3083,6 +3083,17 @@
   },
   "trend": {
     "trendingLabel": "رائج",
+    "topic": {
+      "updated": "تم التحديث {{time}}",
+      "stats": "{{authors}} شخصاً، {{posts}} منشوراً في آخر {{hours}} ساعة",
+      "people": "أشخاص ذوو صلة",
+      "movement": "كيف يتحرك",
+      "statPosts": "منشورات",
+      "statPeople": "أشخاص",
+      "statMomentum": "الزخم",
+      "related": "ذات صلة",
+      "relatedPosts": "{{count}} منشور"
+    },
     "badge": {
       "hot": "ساخن",
       "new": "جديد",

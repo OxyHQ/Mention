@@ -8,6 +8,7 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { LazyVideoReplies } from './videos/LazyVideoReplies';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { asTextStyle } from '@/types/webStyles';
+import { useTopicRailStore } from '@/stores/topicRailStore';
 
 // `cursor` is a web-only CSS property absent from RN's `TextStyle` — author it
 // through the shared extended TextStyle and bridge at the consumption point
@@ -42,6 +43,7 @@ function RightBarContent() {
   // (no pathname string-matching), so the immersive rail mounts/unmounts in
   // lockstep with the videos screen.
   const { active: videosRailActive, activePost, onCommentPosted } = useVideosRail();
+  const topicTerm = useTopicRailStore((state) => state.term);
 
   if (videosRailActive) {
     return activePost ? (
@@ -56,7 +58,7 @@ function RightBarContent() {
     // No column `gap` — each child owns its own bottom margin, see `BaseWidget`.
     <View className="flex-col px-[14px] pt-4">
       <SearchBar />
-      <WidgetManager screenId="home" />
+      <WidgetManager screenId="home" topicTerm={topicTerm} />
       {Platform.OS === 'web' && <RightBarFooter />}
     </View>
   );

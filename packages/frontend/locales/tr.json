@@ -2987,6 +2987,17 @@
   },
   "trend": {
     "trendingLabel": "Gündemde",
+    "topic": {
+      "updated": "{{time}} güncellendi",
+      "stats": "Son {{hours}} saatte {{authors}} kişi, {{posts}} gönderi",
+      "people": "İlgili kişiler",
+      "movement": "Nasıl ilerliyor",
+      "statPosts": "gönderi",
+      "statPeople": "kişi",
+      "statMomentum": "ivme",
+      "related": "İlgili",
+      "relatedPosts": "{{count}} gönderi"
+    },
     "badge": {
       "hot": "Popüler",
       "new": "Yeni",

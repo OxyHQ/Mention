@@ -3,6 +3,7 @@ import type {
   TrendCategory,
   TrendEventInput,
   TrendGraphResponse,
+  TrendTopicResponse,
   TrendStatus,
   TrendScope,
 } from '@mention/shared-types';
@@ -100,6 +101,25 @@ class TrendingService {
     } catch (error) {
       logger.debug('Failed to fetch trend detail', { term, error });
       return {};
+    }
+  }
+
+  /**
+   * Everything the topic screen states about one trend (`GET /trending/topic`):
+   * its numbers, its people, its neighbours.
+   *
+   * Public client, like the summary. Swallows its own failures: a missing topic
+   * answers with its term alone, so the screen renders its title regardless.
+   */
+  async getTrendTopic(term: string): Promise<TrendTopicResponse> {
+    try {
+      const res = await publicClient.get<TrendTopicResponse>('/trending/topic', {
+        params: { term },
+      });
+      return res.data ?? { term, topAuthors: [], related: [] };
+    } catch (error) {
+      logger.debug('Failed to fetch trend topic', { term, error });
+      return { term, topAuthors: [], related: [] };
     }
   }
 

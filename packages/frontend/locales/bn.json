@@ -2987,6 +2987,17 @@
   },
   "trend": {
     "trendingLabel": "ট্রেন্ডিং",
+    "topic": {
+      "updated": "{{time}} আপডেট হয়েছে",
+      "stats": "গত {{hours}} ঘণ্টায় {{authors}} জন মানুষ, {{posts}}টি পোস্ট",
+      "people": "প্রাসঙ্গিক মানুষ",
+      "movement": "এটি কীভাবে এগোচ্ছে",
+      "statPosts": "পোস্ট",
+      "statPeople": "মানুষ",
+      "statMomentum": "গতি",
+      "related": "সম্পর্কিত",
+      "relatedPosts": "{{count}}টি পোস্ট"
+    },
     "badge": {
       "hot": "জনপ্রিয়",
       "new": "নতুন",

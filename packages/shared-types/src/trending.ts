@@ -21,6 +21,8 @@
  * What happened to the trend. `seen` exists from the start because a click count
  * without a denominator says nothing — the click/seen RATIO is the measurement.
  */
+import type { PostUser } from './post';
+
 export type TrendEventName = 'click' | 'seen';
 
 /** The kind of thing trending; mirrors `Trending.type` on the server. */
@@ -208,4 +210,47 @@ export interface TrendGraphResponse {
   availableRegions: string[];
   /** Edges the batch dropped for size, if any. */
   droppedEdges?: number;
+}
+
+/** A trend that co-occurs with the topic being read, from the batch's graph. */
+export interface TrendRelatedDTO {
+  /** The retrieval term — the address of its own topic page. */
+  term: string;
+  displayName?: string;
+  volume: number;
+  authorCount: number;
+  /** Normalized 0..1 association from the clusterer. */
+  strength: number;
+}
+
+/**
+ * Everything the topic screen's header and side widgets read, for one term, from
+ * the latest batch (`GET /trending/topic`). Every field but `term` is absent
+ * when the term is not in the current batch, so a cold or stale link renders
+ * the screen without its numbers instead of failing.
+ */
+export interface TrendTopicResponse {
+  term: string;
+  displayName?: string;
+  category?: TrendCategory;
+  /** When the batch these numbers came from was calculated: the honest "updated". */
+  updatedAt?: string;
+  /** The window the counts cover, in hours. */
+  windowHours?: number;
+  /** ISO onset of the current run. */
+  startedAt?: string;
+  firstSeenAt?: string;
+  volume?: number;
+  authorCount?: number;
+  momentum?: number;
+  status?: TrendStatus;
+  scope?: TrendScope;
+  languages?: string[];
+  regions?: string[];
+  /** Recent volume history, oldest first. Absent below the drawing floor. */
+  series?: number[];
+  /** The people posting about it most in the window, most posts first. */
+  topAuthors: PostUser[];
+  /** Co-occurring trends, strongest association first. */
+  related: TrendRelatedDTO[];
 }

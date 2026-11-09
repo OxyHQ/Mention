@@ -2987,6 +2987,17 @@
   },
   "trend": {
     "trendingLabel": "Trending",
+    "topic": {
+      "updated": "Updated {{time}}",
+      "stats": "{{authors}} people, {{posts}} posts in the last {{hours}} h",
+      "people": "Relevant people",
+      "movement": "How it's moving",
+      "statPosts": "posts",
+      "statPeople": "people",
+      "statMomentum": "momentum",
+      "related": "Related",
+      "relatedPosts": "{{count}} posts"
+    },
     "badge": {
       "hot": "Hot",
       "new": "New",
