@@ -562,6 +562,17 @@ async function applyStarterPackScores(
   }
 }
 
+/** Ids per Oxy request: the SDK's chunk size, so one chunk is one request. */
+const OXY_USER_LOOKUP_CHUNK_SIZE = 100;
+
+function chunkIds(ids: readonly string[], size: number): string[][] {
+  const chunks: string[][] = [];
+  for (let start = 0; start < ids.length; start += size) {
+    chunks.push(ids.slice(start, start + size));
+  }
+  return chunks;
+}
+
 /** Maximum number of public per-user Oxy reads in flight after a bulk miss. */
 export const OXY_USER_FALLBACK_CONCURRENCY = 8;
 /** One wall-clock budget shared by the bulk read and every fallback read. */
@@ -767,17 +778,29 @@ async function resolveOxyUserSummaryMisses(
   /** Ids Oxy could not be asked about (a chunk timed out, 429, 5xx). */
   let lookupFailed: readonly string[] = [];
 
-  try {
-    // `lookupMany`, not `getMany`: `getMany` folds a failed chunk into "not
-    // returned", so an Oxy blip and an account that is gone were the same
-    // answer, and every gone account cost a per-id read on every render.
-    const lookup = await runBoundedOxyUserResolutionCall(
-      () => lookupOxyUsers(missIds, 'post_hydration'),
-      deadlineAt,
-    );
-    lookupMissing = lookup.missing;
-    lookupFailed = lookup.failed;
+  // One request per chunk of the SDK's own size, each held to the shared
+  // deadline on its own. A single bulk read waited for EVERY chunk, so one slow
+  // chunk discarded the answers of the others too: a 270-author render lost all
+  // 270 names to one 100-author timeout. Here a chunk that answers is kept, and a
+  // chunk that does not is the only one reported as failed.
+  const chunks = chunkIds(missIds, OXY_USER_LOOKUP_CHUNK_SIZE);
+  const settled = await Promise.allSettled(
+    chunks.map((ids) =>
+      runBoundedOxyUserResolutionCall(() => lookupOxyUsers(ids, 'post_hydration'), deadlineAt),
+    ),
+  );
+  const lookupMissingIds: string[] = [];
+  const lookupFailedIds: string[] = [];
+  settled.forEach((outcome, index) => {
+    if (outcome.status === 'rejected') {
+      bulkFailure = outcome.reason;
+      lookupFailedIds.push(...chunks[index]);
+      return;
+    }
+    const lookup = outcome.value;
     if (lookup.error !== undefined) bulkFailure = lookup.error;
+    lookupMissingIds.push(...lookup.missing);
+    lookupFailedIds.push(...lookup.failed);
     for (const user of lookup.found) {
       const id = String((user as { id?: unknown }).id ?? '');
       const aliases = (user as unknown as { redirectedUserIds?: unknown }).redirectedUserIds;
@@ -790,11 +813,9 @@ async function resolveOxyUserSummaryMisses(
       for (const key of keys)
         if (key && requestedIds.has(key)) freshlyResolved.set(key, toCachedUser(id, user));
     }
-  } catch (error) {
-    // The whole read was abandoned (the shared deadline): nothing is known.
-    bulkFailure = error;
-    lookupFailed = missIds;
-  }
+  });
+  lookupMissing = lookupMissingIds;
+  lookupFailed = lookupFailedIds;
 
   // An id the server answered without that a found user's `redirectedUserIds`
   // covers is resolved, not absent.
