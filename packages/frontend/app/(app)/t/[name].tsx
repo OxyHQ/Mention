@@ -1,17 +1,24 @@
 import { Screen } from '@oxy.so/bloom/screen';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, TouchableOpacity, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import type { FeedType } from '@mention/shared-types';
 import { SEO } from '@/components/SEO';
-import { WidgetItemMenu } from '@/components/widgets/WidgetItemMenu';
 import { TopicInlineWidgets } from '@/components/topic/TopicWidgets';
 import { WEB_BASE_URL } from '@/config';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
@@ -123,6 +130,8 @@ export default function TrendScreen() {
   // when this term is in the live batch to hide.
   const getTrendMenuActions = useTrendItemMenu();
 
+  const trendActions = listed ? getTrendMenuActions(listed) : null;
+
   const headerActions = (
     <ButtonGroup accessibilityLabel={t('trend.topic.actions', { defaultValue: 'Acciones' })}>
       <ButtonGroupItem
@@ -131,7 +140,25 @@ export default function TrendScreen() {
         accessibilityLabel={t('widgetMenu.share', { defaultValue: 'Compartir' })}
         onPress={shareTopic}
       />
-      {listed ? <WidgetItemMenu label={heading} {...getTrendMenuActions(listed)} /> : null}
+      {trendActions ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild label={t('trend.topic.more', { defaultValue: 'Más' })}>
+            <ButtonGroupItem
+              iconOnly
+              leadingIcon={RiMoreFill}
+              accessibilityLabel={t('trend.topic.more', { defaultValue: 'Más' })}
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent label={heading}>
+            <DropdownMenuItem onPress={trendActions.onNotInterested}>
+              {t('widgetMenu.notInterested', { defaultValue: 'No me interesa' })}
+            </DropdownMenuItem>
+            <DropdownMenuItem onPress={trendActions.onShare}>
+              {t('widgetMenu.share', { defaultValue: 'Compartir' })}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </ButtonGroup>
   );
 
@@ -149,32 +176,19 @@ export default function TrendScreen() {
         {summary ? <Text className="text-sm text-muted-foreground mb-2">{summary}</Text> : null}
         {/* Native has no right rail: the same widgets sit under the header. */}
         {Platform.OS !== 'web' && term ? <TopicInlineWidgets term={term} /> : null}
-        <View className="flex-row gap-6 border-b border-border mt-2">
-          {(['top', 'latest'] as const).map((option) => {
-            const active = sort === option;
-            return (
-              <TouchableOpacity
-                key={option}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-                onPress={() => setSort(option)}
-                className={active ? 'pb-3 border-b-2 border-primary' : 'pb-3'}
-              >
-                <Text
-                  className={
-                    active
-                      ? 'text-[15px] font-bold text-foreground'
-                      : 'text-[15px] font-medium text-muted-foreground'
-                  }
-                >
-                  {option === 'top'
-                    ? t('trend.topic.sortTop', { defaultValue: 'Top' })
-                    : t('trend.topic.sortLatest', { defaultValue: 'Latest' })}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <Tabs
+          value={sort}
+          onValueChange={(value) => setSort(value as TopicSort)}
+          variant="underline"
+          fullWidth
+          label={t('trend.topic.order', { defaultValue: 'Orden' })}
+        >
+          <TabsTrigger value="top" label={t('trend.topic.sortTop', { defaultValue: 'Top' })} />
+          <TabsTrigger
+            value="latest"
+            label={t('trend.topic.sortLatest', { defaultValue: 'Latest' })}
+          />
+        </Tabs>
       </View>
     ),
     [heading, summary, categoryLabel, updatedLabel, statsLabel, term, sort, t],

@@ -3012,6 +3012,8 @@
   "trend": {
     "trendingLabel": "Di tendenza",
     "topic": {
+      "order": "Ordine",
+      "more": "Altro",
       "actions": "Azioni",
       "sortTop": "Top",
       "sortLatest": "Recenti",

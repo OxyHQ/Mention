@@ -2988,6 +2988,8 @@
   "trend": {
     "trendingLabel": "トレンド",
     "topic": {
+      "order": "並び順",
+      "more": "その他",
       "actions": "操作",
       "sortTop": "注目",
       "sortLatest": "最新",
