@@ -260,6 +260,7 @@
     "stores/readerLanguageInvalidation.ts": {"statements":[16,16],"branches":[7,7],"functions":[5,5],"lines":[14,14]},
     "stores/safetyInvalidation.ts": {"statements":[7,7],"branches":[2,2],"functions":[5,5],"lines":[7,7]},
     "stores/threadHoverStore.ts": {"statements":[5,5],"branches":[4,4],"functions":[4,4],"lines":[4,4]},
+    "stores/topicRailStore.ts": {"statements":[3,3],"branches":[0,0],"functions":[2,2],"lines":[2,2]},
     "stores/trendsStore.ts": {"statements":[115,120],"branches":[140,149],"functions":[18,19],"lines":[102,102]},
     "stores/videoMuteStore.ts": {"statements":[0,17],"branches":[0,2],"functions":[0,5],"lines":[0,16]},
     "stores/videoPlayerRegistry.ts": {"statements":[68,68],"branches":[26,26],"functions":[20,20],"lines":[56,56]},
