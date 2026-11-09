@@ -2988,6 +2988,8 @@
   "trend": {
     "trendingLabel": "Gündemde",
     "topic": {
+      "order": "Sıralama",
+      "more": "Daha fazla",
       "actions": "Eylemler",
       "sortTop": "Öne çıkan",
       "sortLatest": "En yeni",

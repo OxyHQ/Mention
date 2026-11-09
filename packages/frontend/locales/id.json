@@ -2988,6 +2988,8 @@
   "trend": {
     "trendingLabel": "Tren",
     "topic": {
+      "order": "Urutan",
+      "more": "Lainnya",
       "actions": "Aksi",
       "sortTop": "Teratas",
       "sortLatest": "Terbaru",
