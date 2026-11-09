@@ -531,7 +531,7 @@ export function mapPostOg(
     const warning = safety.contentWarning?.trim();
     return {
       title: `${author} on ${brand}`,
-      description: (warning || GATED_POST_DESCRIPTION).slice(0, 200),
+      description: cutAtWord(warning || GATED_POST_DESCRIPTION, 200),
       url,
       type: 'article',
       robots: 'noindex,nofollow',
@@ -558,7 +558,7 @@ export function mapPostOg(
   const createdAt = post.metadata?.createdAt;
   const updatedAt = post.metadata?.updatedAt;
   const lang = post.content?.textLang || post.metadata?.language;
-  const snippet = bodyText ? titleSnippet(bodyText) : '';
+  const snippet = bodyText ? cutAtWord(bodyText, 70) : '';
 
   const images = media
     .filter((item) => item.type !== 'video')
@@ -571,11 +571,12 @@ export function mapPostOg(
       name: snippet || `Video by ${author} on ${brand}`,
       // Required by Google's video results. The author's own words about the
       // clip first, then the post around it, then who posted it.
-      description: (
+      description: codePointPrefix(
         item.alt?.trim() ||
-        bodyText ||
-        `A video posted by ${author} (${authorHandle}) on ${brand}.`
-      ).slice(0, 500),
+          bodyText ||
+          `A video posted by ${author} (${authorHandle}) on ${brand}.`,
+        500,
+      ),
       contentUrl: item.url,
       thumbnailUrl: item.posterUrl || item.thumbUrl,
       ...(createdAt ? { uploadDate: createdAt } : {}),
@@ -597,7 +598,7 @@ export function mapPostOg(
     // opening of the post, which is what the page is about.
     title: snippet ? `${author} on ${brand}: "${snippet}"` : `${author} on ${brand}`,
     description: bodyText
-      ? bodyText.slice(0, 200)
+      ? cutAtWord(bodyText, 200)
       : `A post by ${author} (${authorHandle}) on ${brand}.`,
     image,
     ...(imageIsMedia && first?.type !== 'video' && first?.width && first?.height
@@ -695,12 +696,25 @@ function cardText(text: string | undefined): string {
     .trim();
 }
 
-/** The opening of a post, cut at a word, for a page title. */
-function titleSnippet(text: string, max = 70): string {
-  if (text.length <= max) return text;
-  const cut = text.slice(0, max);
+/**
+ * The first `max` characters (code points, not UTF-16 units), so a cut never
+ * splits a surrogate pair: a lone half would reach the page as U+FFFD.
+ */
+function codePointPrefix(text: string, max: number): string {
+  const points = Array.from(text);
+  return points.length <= max ? text : points.slice(0, max).join('');
+}
+
+/**
+ * The opening of a text, at most `max` characters including the ellipsis, cut at
+ * a word and never through a surrogate pair.
+ */
+export function cutAtWord(text: string, max: number): string {
+  if (Array.from(text).length <= max) return text;
+  const room = max - 1;
+  const cut = codePointPrefix(text, room);
   const lastSpace = cut.lastIndexOf(' ');
-  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+  return `${(lastSpace > room * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
 /** A schema.org `InteractionCounter`, or nothing when the count is unknown or hidden. */

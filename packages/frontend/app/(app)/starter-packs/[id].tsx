@@ -210,6 +210,7 @@ export default function StarterPackDetailScreen() {
   return (
     <>
       <SEO
+        robots="index,follow"
         title={pack?.name || 'Starter Pack'}
         description={pack?.description || 'A curated collection of accounts to follow'}
       />

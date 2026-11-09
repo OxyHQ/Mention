@@ -64,7 +64,7 @@ vi.mock('../utils/cache', () => ({
 import webShellRoutes from '../routes/webShell.routes';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { federatedActors, userSettings } from '../db/schema';
+import { federatedActors, posts, userSettings } from '../db/schema';
 import { buildAllSitemaps, buildSitemapsIfDue, sitemapsAreDue } from '../services/seoSitemap';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 
@@ -292,6 +292,29 @@ describe('SEO sitemaps', () => {
     } finally {
       await getDb().delete(federatedActors).where(eq(federatedActors.uri, actorUri));
     }
+  });
+
+  it('leaves out a post behind a content warning, which its own page serves noindex', async () => {
+    const warned = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
+    await getDb()
+      .update(posts)
+      .set({ federationSpoilerText: 'Spoiler: the ending' })
+      .where(eq(posts.id, warned.id));
+    const plain = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
+
+    await buildAllSitemaps();
+
+    const app = makeApp();
+    const warnedShard = await request(app).get(`/sitemaps/posts-${bucketOf(warned.id)}-0.xml`);
+    expect(warnedShard.text).not.toContain(warned.id);
+    const plainShard = await request(app).get(`/sitemaps/posts-${bucketOf(plain.id)}-0.xml`);
+    expect(plainShard.text).toContain(`https://mention.earth/p/${plain.id}`);
   });
 
   it('keeps the previous sitemaps when a build fails', async () => {

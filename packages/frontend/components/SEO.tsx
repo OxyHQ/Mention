@@ -139,7 +139,7 @@ export const SEO: React.FC<SEOProps> = ({
   publishedTime,
   modifiedTime,
   ready = true,
-  robots = 'index,follow',
+  robots = 'noindex,follow',
   jsonLd,
 }) => {
   const panel = useOptionalPanelRouter();

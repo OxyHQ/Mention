@@ -172,6 +172,9 @@ function publicSeoPost(): ReturnType<typeof and> {
     eq(posts.visibility, 'public'),
     eq(posts.status, 'published'),
     discoverySafeSql(),
+    // A post behind a content warning is served `noindex,nofollow` (the page
+    // gates it, see `requiresContentWarning`), so it is not listed here either.
+    or(isNull(posts.federationSpoilerText), sql`trim(${posts.federationSpoilerText}) = ''`),
     isNotNull(posts.oxyUserId),
     or(
       isNull(userSettings.privacyProfileVisibility),
