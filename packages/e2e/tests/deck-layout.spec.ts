@@ -371,7 +371,7 @@ test.describe('configured Deck', () => {
     await first.getByText('Bloom UI', { exact: true }).first().click();
     await expect(first.getByText('Topic fixture', { exact: false })).toBeVisible();
     await expect(first.locator('[data-bloom-screen-viewport="element"]')).toHaveCount(1);
-    expect(descriptors).toContain('trend|Bloom UI');
+    expect(descriptors).toContain('trend|Bloom UI|top');
     await first.getByRole('link', { name: '#Bloom', exact: true }).click();
     await expect(first.getByRole('heading', { name: '#Bloom', exact: true })).toBeVisible();
     await expect(first.getByText('Hashtag fixture', { exact: true })).toBeVisible();
