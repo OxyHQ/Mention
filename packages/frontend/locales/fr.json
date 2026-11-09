@@ -3011,6 +3011,17 @@
   },
   "trend": {
     "trendingLabel": "Tendance",
+    "topic": {
+      "updated": "Mis à jour {{time}}",
+      "stats": "{{authors}} personnes, {{posts}} publications sur les {{hours}} dernières h",
+      "people": "Personnes pertinentes",
+      "movement": "Évolution",
+      "statPosts": "publications",
+      "statPeople": "personnes",
+      "statMomentum": "dynamique",
+      "related": "Liés",
+      "relatedPosts": "{{count}} publications"
+    },
     "badge": {
       "hot": "Chaud",
       "new": "Nouveau",

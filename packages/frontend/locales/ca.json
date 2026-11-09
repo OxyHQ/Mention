@@ -3011,6 +3011,17 @@
   },
   "trend": {
     "trendingLabel": "Tendència",
+    "topic": {
+      "updated": "Actualitzat {{time}}",
+      "stats": "{{authors}} persones, {{posts}} publicacions en les últimes {{hours}} h",
+      "people": "Persones rellevants",
+      "movement": "Com es mou",
+      "statPosts": "publicacions",
+      "statPeople": "persones",
+      "statMomentum": "impuls",
+      "related": "Relacionats",
+      "relatedPosts": "{{count}} publicacions"
+    },
     "badge": {
       "hot": "Candent",
       "new": "Nova",

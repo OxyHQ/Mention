@@ -2987,6 +2987,17 @@
   },
   "trend": {
     "trendingLabel": "トレンド",
+    "topic": {
+      "updated": "{{time}}に更新",
+      "stats": "過去{{hours}}時間で{{authors}}人、{{posts}}件の投稿",
+      "people": "関連するユーザー",
+      "movement": "動向",
+      "statPosts": "投稿",
+      "statPeople": "人",
+      "statMomentum": "勢い",
+      "related": "関連",
+      "relatedPosts": "{{count}}件の投稿"
+    },
     "badge": {
       "hot": "話題",
       "new": "新着",

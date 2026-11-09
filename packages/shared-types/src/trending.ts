@@ -235,6 +235,8 @@ export interface TrendTopicResponse {
   category?: TrendCategory;
   /** When the batch these numbers came from was calculated: the honest "updated". */
   updatedAt?: string;
+  /** The window the counts cover, in hours. */
+  windowHours?: number;
   /** ISO onset of the current run. */
   startedAt?: string;
   firstSeenAt?: string;

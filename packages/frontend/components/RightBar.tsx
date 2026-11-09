@@ -9,7 +9,6 @@ import { LazyVideoReplies } from './videos/LazyVideoReplies';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { asTextStyle } from '@/types/webStyles';
 import { useTopicRailStore } from '@/stores/topicRailStore';
-import { TopicRailWidgets } from './topic/TopicWidgets';
 
 // `cursor` is a web-only CSS property absent from RN's `TextStyle` — author it
 // through the shared extended TextStyle and bridge at the consumption point
@@ -59,8 +58,7 @@ function RightBarContent() {
     // No column `gap` — each child owns its own bottom margin, see `BaseWidget`.
     <View className="flex-col px-[14px] pt-4">
       <SearchBar />
-      {topicTerm ? <TopicRailWidgets term={topicTerm} /> : null}
-      <WidgetManager screenId="home" />
+      <WidgetManager screenId="home" topicTerm={topicTerm} />
       {Platform.OS === 'web' && <RightBarFooter />}
     </View>
   );

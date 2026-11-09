@@ -2987,6 +2987,17 @@
   },
   "trend": {
     "trendingLabel": "ट्रेंडिंग",
+    "topic": {
+      "updated": "{{time}} अपडेट किया गया",
+      "stats": "पिछले {{hours}} घंटों में {{authors}} लोग, {{posts}} पोस्ट",
+      "people": "प्रासंगिक लोग",
+      "movement": "यह कैसे बढ़ रहा है",
+      "statPosts": "पोस्ट",
+      "statPeople": "लोग",
+      "statMomentum": "गति",
+      "related": "संबंधित",
+      "relatedPosts": "{{count}} पोस्ट"
+    },
     "badge": {
       "hot": "हॉट",
       "new": "नया",

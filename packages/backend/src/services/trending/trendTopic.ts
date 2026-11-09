@@ -169,6 +169,7 @@ export async function getTrendTopic(
     ...(row.displayName ? { displayName: row.displayName } : {}),
     ...(row.category ? { category: row.category } : {}),
     updatedAt: latestBatch.calculatedAt.toISOString(),
+    windowHours: Math.round(MtnConfig.trending.detection.windowMs / (60 * 60 * 1000)),
     ...(row.startedAt ? { startedAt: row.startedAt.toISOString() } : {}),
     ...(row.firstSeenAt ? { firstSeenAt: row.firstSeenAt.toISOString() } : {}),
     volume: row.volume ?? 0,

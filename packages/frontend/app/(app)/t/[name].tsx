@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
-import { MtnConfig } from '@mention/shared-types';
 import Feed from '@/components/Feed/Feed';
 import type { FeedType } from '@mention/shared-types';
 import { SEO } from '@/components/SEO';
@@ -16,8 +15,6 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import { useTopicRailStore } from '@/stores/topicRailStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-
-const WINDOW_HOURS = Math.round(MtnConfig.trending.detection.windowMs / (60 * 60 * 1000));
 
 export default function TrendScreen() {
   // The TERM is the whole address. Everything shown about the trend is
@@ -92,7 +89,7 @@ export default function TrendScreen() {
       ? t('trend.topic.stats', {
           authors: topic.authorCount,
           posts: topic.volume,
-          hours: WINDOW_HOURS,
+          hours: topic?.windowHours ?? 0,
           defaultValue: '{{authors}} personas, {{posts}} publicaciones en las últimas {{hours}} h',
         })
       : null;

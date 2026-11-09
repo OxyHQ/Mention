@@ -3020,8 +3020,7 @@
       "statPeople": "personas",
       "statMomentum": "ritmo",
       "related": "Relacionados",
-      "relatedPosts_one": "{{count}} publicación",
-      "relatedPosts_other": "{{count}} publicaciones"
+      "relatedPosts": "{{count}} publicaciones"
     },
     "badge": {
       "hot": "Al rojo",

@@ -3035,6 +3035,17 @@
   },
   "trend": {
     "trendingLabel": "В трендах",
+    "topic": {
+      "updated": "Обновлено {{time}}",
+      "stats": "{{authors}} человек, {{posts}} публикаций за последние {{hours}} ч",
+      "people": "Релевантные люди",
+      "movement": "Динамика",
+      "statPosts": "публикации",
+      "statPeople": "люди",
+      "statMomentum": "темп",
+      "related": "Связанное",
+      "relatedPosts": "{{count}} публикаций"
+    },
     "badge": {
       "hot": "Горячее",
       "new": "Новое",

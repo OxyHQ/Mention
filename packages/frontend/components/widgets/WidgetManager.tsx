@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
 import { LiveRoomsWidget } from './LiveRoomsWidget';
+import { TopicRailWidgets } from '../topic/TopicWidgets';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('WidgetManager');
@@ -45,6 +46,8 @@ export type ScreenId =
 interface WidgetManagerProps {
   screenId: ScreenId;
   customWidgets?: ReactNode[];
+  /** The topic the topic screen is showing; its widgets sit above the trends widget. */
+  topicTerm?: string | null;
 }
 
 /**
@@ -53,7 +56,7 @@ interface WidgetManagerProps {
  * This component controls which widgets should appear on which screens.
  * It provides a centralized way to manage widget visibility based on screen context.
  */
-export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerProps) {
+export function WidgetManager({ screenId, customWidgets = [], topicTerm }: WidgetManagerProps) {
   const { t } = useTranslation();
 
   const getWidgetsForScreen = (screen: ScreenId): ReactNode[] => {
@@ -61,6 +64,7 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
       case 'home':
         return [
           <LiveRoomsWidget key="live-rooms" divider />,
+          ...(topicTerm ? [<TopicRailWidgets key="topic" term={topicTerm} />] : []),
           <TrendsWidget key="trends" divider />,
           <WhoToFollowWidget key="who-to-follow" />,
         ];

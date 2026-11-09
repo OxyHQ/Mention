@@ -2987,6 +2987,17 @@
   },
   "trend": {
     "trendingLabel": "Tren",
+    "topic": {
+      "updated": "Diperbarui {{time}}",
+      "stats": "{{authors}} orang, {{posts}} postingan dalam {{hours}} jam terakhir",
+      "people": "Orang yang relevan",
+      "movement": "Pergerakannya",
+      "statPosts": "postingan",
+      "statPeople": "orang",
+      "statMomentum": "momentum",
+      "related": "Terkait",
+      "relatedPosts": "{{count}} postingan"
+    },
     "badge": {
       "hot": "Panas",
       "new": "Baru",

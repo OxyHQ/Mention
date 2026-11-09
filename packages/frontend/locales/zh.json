@@ -2987,6 +2987,17 @@
   },
   "trend": {
     "trendingLabel": "热门",
+    "topic": {
+      "updated": "{{time}}更新",
+      "stats": "过去{{hours}}小时内 {{authors}} 人，{{posts}} 条帖子",
+      "people": "相关用户",
+      "movement": "走势",
+      "statPosts": "帖子",
+      "statPeople": "用户",
+      "statMomentum": "热度",
+      "related": "相关",
+      "relatedPosts": "{{count}} 条帖子"
+    },
     "badge": {
       "hot": "热",
       "new": "新",

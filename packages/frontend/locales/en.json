@@ -2996,8 +2996,7 @@
       "statPeople": "people",
       "statMomentum": "momentum",
       "related": "Related",
-      "relatedPosts_one": "{{count}} post",
-      "relatedPosts_other": "{{count}} posts"
+      "relatedPosts": "{{count}} posts"
     },
     "badge": {
       "hot": "Hot",
