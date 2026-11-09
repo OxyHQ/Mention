@@ -36,11 +36,23 @@ export type OxyUserLookup = Awaited<
   ReturnType<ReturnType<typeof getServiceOxyClient>['users']['lookupMany']>
 >;
 
+/**
+ * The expensive parts of a profile a caller needs. Asking for only these keeps
+ * the server from computing the rest (a follower count is a correlated count over
+ * the follow graph; links are a document lookup). Omitted = the full profile.
+ */
+export type OxyUserParts = { counts?: boolean; links?: boolean };
+
 export async function lookupOxyUsers(
   ids: readonly string[],
   source: OxyUserReadSource,
+  parts: OxyUserParts = {},
 ): Promise<OxyUserLookup> {
-  const lookup = await getServiceOxyClient().users.lookupMany([...ids]);
+  const include = [
+    ...(parts.counts ? (['counts'] as const) : []),
+    ...(parts.links ? (['links'] as const) : []),
+  ];
+  const lookup = await getServiceOxyClient().users.lookupMany([...ids], { include });
   metrics.incrementCounter('oxy_user_bulk_ids_total', ids.length, { source });
   if (lookup.failed.length > 0) {
     metrics.incrementCounter('oxy_user_bulk_failed_total', lookup.failed.length, { source });

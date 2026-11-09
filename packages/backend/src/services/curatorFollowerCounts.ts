@@ -157,7 +157,9 @@ export async function resolveCuratorFollowerCounts(
   // so it must go through the service client (the bare client carries no app token).
   const resolved = new Map<string, number>();
   try {
-    const { found: users } = await lookupOxyUsers(missIds, 'curator.follower_counts');
+    const { found: users } = await lookupOxyUsers(missIds, 'curator.follower_counts', {
+      counts: true,
+    });
     for (const user of users) {
       const curatorId = String(user.id ?? '');
       const followers = user._count?.followers;

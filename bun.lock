@@ -288,7 +288,7 @@
     "@modelcontextprotocol/sdk": "1.32.2",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
-    "@oxy.so/core": "7.42.0",
+    "@oxy.so/core": "7.48.0",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/services": "14.14.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -346,8 +346,8 @@
   },
   "catalog": {
     "@oxy.so/bloom": "17.19.3",
-    "@oxy.so/contracts": "6.19.0",
-    "@oxy.so/core": "7.42.0",
+    "@oxy.so/contracts": "6.24.0",
+    "@oxy.so/core": "7.48.0",
     "@oxy.so/mcp": "1.4.1",
     "@oxy.so/protocol": "1.11.0",
     "@oxy.so/services": "14.14.0",
@@ -1066,9 +1066,9 @@
 
     "@oxy.so/bloom-avatar-native": ["@oxy.so/bloom-avatar-native@0.1.1", "", { "peerDependencies": { "expo": ">=58 <59", "expo-gl": "58.0.3", "expo-modules-core": ">=58 <59", "react": ">=19", "react-native": ">=0.88" } }, "sha512-iMiJJ3WEllJ2PukcZ7/ezvw5EtDq7BSyRhjE3Lq5GMHD1kpuQRUwdLiWwufXBwzRVCA8+WfVZXG+JoL/H4K5Dw=="],
 
-    "@oxy.so/contracts": ["@oxy.so/contracts@6.19.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-0P/35qu7fvqlk41s5JD54qGULRrgVixzMQ/DNk+KtBn7gyze8fhBfelDd6Qcn3oU7HHDtwTz6AntaP7t34tg0A=="],
+    "@oxy.so/contracts": ["@oxy.so/contracts@6.24.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-7rU+NSWfn95zelB6cNydY518DsVTB+DOCHAxNAF/pVQy+mJhdymVcpi6hrmqBM4E2vmBegIjj5ynFddKgtsIOQ=="],
 
-    "@oxy.so/core": ["@oxy.so/core@7.42.0", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "^6.19.0", "@oxy.so/protocol": "^1.11.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0 || ^5.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-4Q3EAQgIEzBSuQVi7qQoKz9rcIv1xQ9V2r87EVwsZSA8fbyEhBTtEEx5mxU4wLH99Y+R9vmakiMNQSTSTn50CA=="],
+    "@oxy.so/core": ["@oxy.so/core@7.48.0", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/curves": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "^6.24.0", "@oxy.so/protocol": "^1.11.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0 || ^5.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-rOzYPDY6PjN9SrJNKjNo2qFk8G++Xt7HLPaoNphq3tPpoe4To5X6Tc+76BHWIqUmIR/GU32J0FrTTnVbCAfP5A=="],
 
     "@oxy.so/db": ["@oxy.so/db@1.5.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" }, "bin": { "oxy-db-rebase-migrations": "dist/cjs/bin/rebase-migrations.js", "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js" } }, "sha512-oCJ6LMbwleGFhbSGaKXc38IYQm2Zm9luaN2zi5fqojirPPXUDUpFey01Eo/zMUKgmlzEHMGE53IOY0BrE8qp1A=="],
 

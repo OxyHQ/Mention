@@ -786,7 +786,10 @@ async function resolveOxyUserSummaryMisses(
   const chunks = chunkIds(missIds, OXY_USER_LOOKUP_CHUNK_SIZE);
   const settled = await Promise.allSettled(
     chunks.map((ids) =>
-      runBoundedOxyUserResolutionCall(() => lookupOxyUsers(ids, 'post_hydration'), deadlineAt),
+      runBoundedOxyUserResolutionCall(
+        () => lookupOxyUsers(ids, 'post_hydration', { counts: true }),
+        deadlineAt,
+      ),
     ),
   );
   const lookupMissingIds: string[] = [];
