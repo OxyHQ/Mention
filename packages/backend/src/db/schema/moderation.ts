@@ -39,7 +39,15 @@ import {
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** `ReportedType` — the API contract, deliberately WIDER than what is delivered. */
-export const REPORTED_TYPES = ['post', 'user', 'comment', 'message', 'room', 'job'] as const;
+export const REPORTED_TYPES = [
+  'post',
+  'user',
+  'comment',
+  'message',
+  'room',
+  'job',
+  'trend',
+] as const;
 
 /**
  * `ReportCategory`. `scam`, `discriminatory`, `impersonation`, `already_filled`

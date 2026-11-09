@@ -116,6 +116,24 @@ describe('POST /reports — accepted types vs delivered types', () => {
     expect(response.body.report.localStatus).toBe('received');
   });
 
+  it("accepts a trend report and stores it for Mention's moderators", async () => {
+    localOnlyIntake('trend');
+
+    const response = await request(buildApp())
+      .post('/reports')
+      .send({
+        reportedType: 'trend',
+        reportedId: 'bloom ui',
+        categories: ['misinformation'],
+      });
+
+    expect(response.status).toBe(201);
+    expect(createReport).toHaveBeenCalledWith(
+      expect.objectContaining({ reportedType: 'trend', reportedId: 'bloom ui' }),
+    );
+    expect(response.body.report.localStatus).toBe('received');
+  });
+
   it('accepts a direct-message report, which nothing in the UI produces', async () => {
     localOnlyIntake('message');
 

@@ -2988,6 +2988,7 @@
   "trend": {
     "trendingLabel": "热门",
     "topic": {
+      "report": "举报",
       "order": "排序",
       "more": "更多",
       "actions": "操作",

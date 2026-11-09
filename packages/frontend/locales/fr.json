@@ -3012,6 +3012,7 @@
   "trend": {
     "trendingLabel": "Tendance",
     "topic": {
+      "report": "Signaler",
       "order": "Ordre",
       "more": "Plus",
       "actions": "Actions",

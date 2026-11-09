@@ -2988,6 +2988,7 @@
   "trend": {
     "trendingLabel": "Gündemde",
     "topic": {
+      "report": "Bildir",
       "order": "Sıralama",
       "more": "Daha fazla",
       "actions": "Eylemler",
