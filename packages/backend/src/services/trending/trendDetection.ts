@@ -62,11 +62,62 @@ export interface TermCandidate {
   conceptId?: string;
 }
 
-/** What one aggregation pass produces: the rows to rank, and the graph behind them. */
+/**
+ * The window a measurement was taken over: the predicate, the recent-window
+ * start and the per-language corpus size. Carried so a later re-measurement
+ * counts the same posts the same way rather than inventing a second definition.
+ */
+export interface TrendWindow {
+  windowMatch: SQL;
+  recentStart: Date;
+  corpusByLanguage: Map<string | null, number>;
+}
+
+/** What one aggregation pass produces: the rows to rank, the graph behind them, and the window they were counted over. */
 export interface TermCandidateResult {
   candidates: TermCandidate[];
   /** `null` when clustering is disabled — no co-occurrence query ran, so there are no edges. */
   graph: TrendGraphSnapshot | null;
+  window: TrendWindow;
+}
+
+/**
+ * Re-measure groups of terms as single stories, through the SAME counting pass
+ * the batch uses.
+ *
+ * Each group is `[representative, ...members]`. Volume and authors are distinct
+ * counts over the union of posts, so the result is never a sum of the members'
+ * numbers — a post carrying two of them counts once.
+ *
+ * Returns the measurement for each representative that the floors admit, keyed
+ * by representative. A representative the floors reject is absent.
+ */
+export async function remeasureTermGroups(
+  window: TrendWindow,
+  groups: readonly (readonly string[])[],
+): Promise<Map<string, TermCandidate>> {
+  const measured = new Map<string, TermCandidate>();
+  if (groups.length === 0) return measured;
+
+  const aliases = new Map<string, string>();
+  const membersOf = new Map<string, string[]>();
+  for (const group of groups) {
+    const [representative] = group;
+    membersOf.set(representative, [...group]);
+    for (const member of group) aliases.set(member, representative);
+  }
+
+  const rows = await aggregateTermRows(
+    window.windowMatch,
+    window.recentStart,
+    window.corpusByLanguage,
+    clusteredTermsSql(aliases),
+    membersOf,
+  );
+  for (const row of rows) {
+    if (membersOf.has(row.measurement.term)) measured.set(row.measurement.term, row);
+  }
+  return measured;
 }
 
 /** Required breadth for a candidate, based on how explicitly authors named it. */
@@ -203,7 +254,8 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
   // No graph when clustering is off: the co-occurrence query is the only
   // thing that produces edges, and running it to serve a picture nothing else
   // uses would be paying for a feature that is switched off.
-  if (!clustering.enabled || solo.length === 0) return { candidates: solo, graph: null };
+  const window: TrendWindow = { windowMatch, recentStart, corpusByLanguage };
+  if (!clustering.enabled || solo.length === 0) return { candidates: solo, graph: null, window };
 
   // Pass two, only when co-occurrence actually found a story spread across
   // several names. Re-counting rather than adding the members' volumes up is
@@ -245,6 +297,7 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     return {
       candidates: solo,
       graph: buildTrendGraph(now, graphNodes(solo), [...pairs, ...conceptPairs], [], new Map()),
+      window,
     };
   }
 
@@ -284,6 +337,7 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
       linkedPairs,
       aliases,
     ),
+    window,
   };
 }
 

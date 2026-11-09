@@ -25,8 +25,14 @@ import {
   TREND_LABEL_VERSION,
   type TrendLabel,
 } from './trendLabeling';
-import { resolveTrendFirstSeenAt, resolveTrendStartedAt, type ScoredTrend } from './trendScoring';
-import type { TermCandidate } from './trendDetection';
+import {
+  resolveTrendFirstSeenAt,
+  resolveTrendStartedAt,
+  scoreTrendCandidate,
+  type ScoredTrend,
+} from './trendScoring';
+import { remeasureTermGroups, type TermCandidate, type TrendWindow } from './trendDetection';
+import { groupRowsByPresentedName } from './trendIdentity';
 import type { TrendCategory, TrendScope, TrendStatus } from '@mention/shared-types';
 import { conceptLabels, resolveTrendConcept } from './conceptRegistry';
 
@@ -95,6 +101,7 @@ export async function buildTrendItems(
   ranked: readonly ScoredTrend[],
   candidates: readonly TermCandidate[],
   calculatedAt: Date,
+  window: TrendWindow,
 ): Promise<TrendItem[]> {
   if (ranked.length === 0) return [];
 
@@ -119,7 +126,7 @@ export async function buildTrendItems(
     topicService.resolveNames(topicTerms.map((name) => ({ name, type: TopicType.TOPIC }))),
   ]);
 
-  return ranked.map((trend) => {
+  const items = ranked.map((trend): TrendItem => {
     const candidate = byTerm.get(trend.term);
     const topicDoc = topicMap.get(trend.term.toLowerCase());
     const label = labels.get(trend.term) ?? fallbackTrendLabel(trend.term);
@@ -156,6 +163,102 @@ export async function buildTrendItems(
       ...(topicDoc ? { topicId: topicDoc._id.toString() } : {}),
     };
   });
+
+  return mergeRowsPresentingOneName(items, window);
+}
+
+/**
+ * Rows that present the same NAME become one row.
+ *
+ * Two rows labelled alike cannot be told apart by the reader, so showing both
+ * is showing one subject twice. The surviving row is the group's
+ * highest-volume term, re-measured over the union of its members: volume and
+ * authors are distinct counts over the posts, so a post carrying two members is
+ * counted once. The row's label is unchanged — every member already presents it.
+ *
+ * Fail-soft. If re-measuring fails, or the merged numbers no longer clear the
+ * scoring floors, the representative keeps its own measurement and the
+ * duplicates are still dropped: the list never shows one name twice.
+ */
+async function mergeRowsPresentingOneName(
+  items: readonly TrendItem[],
+  window: TrendWindow,
+): Promise<TrendItem[]> {
+  const groups = groupRowsByPresentedName(
+    items.map((item) => ({ term: item.name, displayName: item.displayName, volume: item.volume })),
+  );
+  if (groups.length === 0) return [...items];
+
+  const byName = new Map(items.map((item) => [item.name, item]));
+  let measured = new Map<string, TermCandidate>();
+  try {
+    measured = await remeasureTermGroups(window, groups);
+  } catch (error) {
+    logger.warn(
+      '[Trending] Re-measuring rows that present one name failed; keeping representatives',
+      {
+        error,
+      },
+    );
+  }
+
+  const replaced = new Map<string, TrendItem>();
+  const absorbed = new Set<string>();
+  for (const group of groups) {
+    const [representative, ...duplicates] = group;
+    if (!representative) continue;
+    for (const term of duplicates) absorbed.add(term);
+
+    const item = byName.get(representative);
+    const candidate = measured.get(representative);
+    const scored = candidate ? scoreTrendCandidate(candidate.measurement) : null;
+    if (!item || !candidate || !scored) {
+      logger.info('[Trending] Rows presenting one name kept their representative', {
+        name: item?.displayName ?? representative,
+        duplicates: duplicates.length,
+      });
+      continue;
+    }
+
+    const members = group
+      .map((term) => byName.get(term))
+      .filter((member): member is TrendItem => Boolean(member));
+    const languages = candidate.languages;
+    const regions = candidate.regions;
+    replaced.set(representative, {
+      ...item,
+      terms: candidate.members,
+      score: scored.score,
+      burstScore: scored.burstScore,
+      volume: scored.volume,
+      authorCount: scored.authorCount,
+      momentum: scored.momentum,
+      status: scored.status,
+      startedAt: new Date(Math.min(...members.map((member) => member.startedAt.getTime()))),
+      firstSeenAt: new Date(Math.min(...members.map((member) => member.firstSeenAt.getTime()))),
+      actorIds: candidate.actorIds,
+      languages,
+      regions,
+      scope: resolveTrendScope(languages, regions),
+    });
+  }
+
+  if (replaced.size === 0 && absorbed.size === 0) return [...items];
+  logger.info('[Trending] Merged rows that presented one name', {
+    groups: groups.length,
+    merged: replaced.size,
+    dropped: absorbed.size,
+  });
+
+  return items
+    .filter((item) => !absorbed.has(item.name))
+    .map((item) => replaced.get(item.name) ?? item)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        right.volume - left.volume ||
+        left.name.localeCompare(right.name),
+    );
 }
 
 export function resolveTrendScope(
