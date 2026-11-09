@@ -2988,6 +2988,8 @@
   "trend": {
     "trendingLabel": "ট্রেন্ডিং",
     "topic": {
+      "order": "ক্রম",
+      "more": "আরও",
       "actions": "কার্যকলাপ",
       "sortTop": "শীর্ষ",
       "sortLatest": "সাম্প্রতিক",

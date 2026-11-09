@@ -3084,6 +3084,8 @@
   "trend": {
     "trendingLabel": "رائج",
     "topic": {
+      "order": "الترتيب",
+      "more": "المزيد",
       "actions": "إجراءات",
       "sortTop": "الأبرز",
       "sortLatest": "الأحدث",

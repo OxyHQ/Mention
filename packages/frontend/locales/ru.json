@@ -3036,6 +3036,8 @@
   "trend": {
     "trendingLabel": "В трендах",
     "topic": {
+      "order": "Порядок",
+      "more": "Ещё",
       "actions": "Действия",
       "sortTop": "Лучшие",
       "sortLatest": "Новые",

@@ -2988,6 +2988,8 @@
   "trend": {
     "trendingLabel": "热门",
     "topic": {
+      "order": "排序",
+      "more": "更多",
       "actions": "操作",
       "sortTop": "热门",
       "sortLatest": "最新",
