@@ -130,7 +130,7 @@ class TrendingService {
       // ONE term space. Hashtags, extracted words and classified topic slugs are
       // all just terms, counted the same way, competing in the same list — see
       // `aggregateTermCandidates`.
-      const { candidates, graph } = await aggregateTermCandidates(calculatedAt);
+      const { candidates, graph, window } = await aggregateTermCandidates(calculatedAt);
       const measurements = candidates.map((candidate) => candidate.measurement);
       // Bursts first; then, only if too few things are genuinely spiking, fill
       // out the list by volume. The top-up relaxes the burst bar and nothing
@@ -139,7 +139,12 @@ class TrendingService {
       // reads as broken.
       const ranked = topUpWithPopular(measurements, rankTrendCandidates(measurements));
 
-      const allTrends: TrendItem[] = await buildTrendItems(ranked, candidates, calculatedAt);
+      const allTrends: TrendItem[] = await buildTrendItems(
+        ranked,
+        candidates,
+        calculatedAt,
+        window,
+      );
 
       const popularityUpdates = allTrends
         .filter((trend) => trend.topicId)

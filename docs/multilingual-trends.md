@@ -82,6 +82,19 @@ Consequently, a baseline-classifier version bump and language backfill also
 repair trend attribution; the next trend calculation consumes the corrected
 post rows.
 
+### One name, one row
+
+A row's label is derived from the posts behind its term, so two terms can end
+up presenting the same name (`chinese` and `jensen huang` both reading "Jensen
+Huang" when most of their posts say the full name). A reader cannot tell such
+rows apart, so the batch treats them as one story: rows whose presented names
+match (case, diacritics and punctuation ignored) merge under the highest-volume
+term, and that merged row is re-measured through the same counting pass. Volume
+and authors are distinct counts over the union, never a sum. If the re-measure
+fails or no longer clears the floors, the representative keeps its own numbers
+and the duplicates are still dropped. Pure grouping lives in
+`services/trending/trendIdentity.ts`; the merge in `trendItems.ts`.
+
 ## Backfill
 
 After migrations, run:
