@@ -2988,6 +2988,9 @@
   "trend": {
     "trendingLabel": "ट्रेंडिंग",
     "topic": {
+      "actions": "कार्रवाई",
+      "sortTop": "शीर्ष",
+      "sortLatest": "नवीनतम",
       "updated": "{{time}} अपडेट किया गया",
       "stats": "पिछले {{hours}} घंटों में {{authors}} लोग, {{posts}} पोस्ट",
       "people": "प्रासंगिक लोग",

@@ -3012,6 +3012,9 @@
   "trend": {
     "trendingLabel": "Tendència",
     "topic": {
+      "actions": "Accions",
+      "sortTop": "Top",
+      "sortLatest": "Recents",
       "updated": "Actualitzat {{time}}",
       "stats": "{{authors}} persones, {{posts}} publicacions en les últimes {{hours}} h",
       "people": "Persones rellevants",

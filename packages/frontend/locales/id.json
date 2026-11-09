@@ -2988,6 +2988,9 @@
   "trend": {
     "trendingLabel": "Tren",
     "topic": {
+      "actions": "Aksi",
+      "sortTop": "Teratas",
+      "sortLatest": "Terbaru",
       "updated": "Diperbarui {{time}}",
       "stats": "{{authors}} orang, {{posts}} postingan dalam {{hours}} jam terakhir",
       "people": "Orang yang relevan",

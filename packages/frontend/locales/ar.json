@@ -3084,6 +3084,9 @@
   "trend": {
     "trendingLabel": "رائج",
     "topic": {
+      "actions": "إجراءات",
+      "sortTop": "الأبرز",
+      "sortLatest": "الأحدث",
       "updated": "تم التحديث {{time}}",
       "stats": "{{authors}} شخصاً، {{posts}} منشوراً في آخر {{hours}} ساعة",
       "people": "أشخاص ذوو صلة",
