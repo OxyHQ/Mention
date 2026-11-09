@@ -72,6 +72,7 @@ export const publicQueryKeys = {
    * rather than by its label, which can change between runs.
    */
   trendSummary: (term: string) => [...PUBLIC_ROOT, 'trend-summary', term] as const,
+  trendTopic: (term: string) => [...PUBLIC_ROOT, 'trend-topic', term] as const,
   /**
    * Keyed on BOTH filters: the server returns a different graph per scope, and
    * a shared key would show a reader the Spanish graph after they picked a

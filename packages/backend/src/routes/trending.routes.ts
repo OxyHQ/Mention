@@ -8,6 +8,7 @@ import { cachePublicMedium } from '../middleware/cacheControl';
 import { feedIPRateLimiter } from '../middleware/security';
 import { parseTrendEvent, recordTrendEvent } from '../services/trending/trendTelemetry';
 import { loadTrendGraph } from '../services/trending/trendGraphQuery';
+import { getTrendTopic } from '../services/trending/trendTopic';
 import { getTrendingHistory } from '../services/trending/trendHistory';
 import { getBaseLanguage } from '@oxy.so/core';
 import { queryInt, queryString } from '../utils/queryParams';
@@ -164,6 +165,29 @@ router.get('/summary', feedIPRateLimiter, async (req: Request, res: Response) =>
     // failure here answers empty rather than failing the request.
     logger.warn('Error resolving trend summary', { error, query: req.query });
     res.json({});
+  }
+});
+
+/**
+ * Everything the topic screen states about one trend, from the latest batch.
+ * GET /api/trending/topic?term=<term>
+ * PUBLIC ROUTE - No authentication required
+ *
+ * Counts and stored facts only; see `trendTopic.ts`. A failure answers with the
+ * term alone, so the page still renders its title.
+ */
+router.get('/topic', cachePublicMedium, async (req: Request, res: Response) => {
+  const term = queryString(req.query.term)?.trim().toLowerCase() ?? '';
+  if (!term || term.length > MAX_TREND_TERM_LENGTH) {
+    res.status(400).json({ error: 'term is required' });
+    return;
+  }
+
+  try {
+    res.json(await getTrendTopic(term));
+  } catch (error) {
+    logger.warn('Error resolving trend topic', { error, query: req.query });
+    res.json({ term, topAuthors: [], related: [] });
   }
 });
 

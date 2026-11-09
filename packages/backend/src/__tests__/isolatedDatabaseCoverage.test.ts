@@ -122,6 +122,8 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'cleanupOldTrends', call: /\bcleanupOldTrends\s*\(/ },
   // Global reads also need isolation when their result cohort is the fixture.
   { name: 'gatherGlobalLane', call: /\bgatherGlobalLane\s*\(/ },
+  // Reads the latest trend batch of the whole table: a fixture batch is the answer.
+  { name: 'getTrendTopic', call: /\bgetTrendTopic\s*\(/ },
   { name: 'networkEngagementExistsSql', call: /\bnetworkEngagementExistsSql\s*\(/ },
   { name: 'exploreSource.gather', call: /\bexploreSource\.gather\s*\(/ },
   { name: 'reconcileEngagementProjections', call: /\breconcileEngagementProjections\s*\(/ },

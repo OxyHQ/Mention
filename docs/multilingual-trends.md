@@ -95,6 +95,16 @@ fails or no longer clears the floors, the representative keeps its own numbers
 and the duplicates are still dropped. Pure grouping lives in
 `services/trending/trendIdentity.ts`; the merge in `trendItems.ts`.
 
+## Topic screen
+
+`GET /trending/topic?term=` answers what `/t/:topic` states about one trend,
+from the latest batch: its label, when it was last updated, its volume, authors,
+momentum and scope, its recent curve, the people posting about it most in the
+window (public, open-audience, not sensitive), and the trends that co-occur with
+it in the stored graph. Nothing is generated. A term that is not in the current
+batch answers with the term alone, and authors are resolved only for a live
+trend, so the endpoint cannot be used to list who posts about an arbitrary string.
+
 ## Backfill
 
 After migrations, run:

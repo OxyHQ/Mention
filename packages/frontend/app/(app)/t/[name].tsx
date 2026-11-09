@@ -1,17 +1,23 @@
 import { Screen } from '@oxy.so/bloom/screen';
-import { useMemo } from 'react';
-import { View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { Platform, View } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
+import { MtnConfig } from '@mention/shared-types';
 import Feed from '@/components/Feed/Feed';
 import type { FeedType } from '@mention/shared-types';
 import { SEO } from '@/components/SEO';
+import { TopicInlineWidgets } from '@/components/topic/TopicWidgets';
 import { trendingService } from '@/services/trendingService';
 import { useTrendsStore } from '@/stores/trendsStore';
+import { useTopicRailStore } from '@/stores/topicRailStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
+import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+
+const WINDOW_HOURS = Math.round(MtnConfig.trending.detection.windowMs / (60 * 60 * 1000));
 
 export default function TrendScreen() {
   // The TERM is the whole address. Everything shown about the trend is
@@ -25,23 +31,25 @@ export default function TrendScreen() {
    * The label comes from the live trends the app already holds when the term
    * is one of them — instant, and correct by construction because it is the
    * same state every other surface renders. A cold deep link has no such
-   * entry and falls back to the fetched detail, then to the term itself.
+   * entry and falls back to the fetched topic, then to the term itself.
    */
   const listed = useTrendsStore((state) => state.trends.find((trend) => trend.text === term));
 
   /*
-   * The generated explanation of what is happening — the ONE place this
-   * feature spends anything on a model, and only for trends people actually
-   * open. The request itself is the demand signal the server counts, so:
-   *
-   *  - `refetchOnMount: 'always'` — one request per open, which is what a
-   *    "view" is meant to mean. A cached read would undercount demand and a
-   *    trend could sit one open below the threshold forever.
-   *  - no window-focus refetch, no polling — those are opens nobody made, and
-   *    counting them would buy prose on the strength of a tab regaining focus.
-   *
-   * Absent is the ordinary answer (below the threshold, or no key configured),
-   * and the screen is complete without it.
+   * The numbers this page states: updated time, people, volume, curve and
+   * neighbours. Stored facts and counts only, see `GET /trending/topic`.
+   */
+  const { data: topic } = useQuery({
+    queryKey: publicQueryKeys.trendTopic(term),
+    queryFn: () => trendingService.getTrendTopic(term),
+    enabled: term.length > 0,
+    staleTime: 60_000,
+  });
+
+  /*
+   * A stored description, when the trend has one. New trends carry none, and
+   * the page is complete without it: its numbers already say what is happening.
+   * Requested per open, as before — the request is the demand signal.
    */
   const { data: detail } = useQuery({
     queryKey: publicQueryKeys.trendSummary(term),
@@ -56,18 +64,38 @@ export default function TrendScreen() {
    * `trend|<term>`, NOT `topic|<term>`: the trend feed matches the same union
    * of extracted terms, hashtags and topic slugs that detection counted, so a
    * trend detected purely from prose still opens onto its posts.
-   *
-   * Passed as a DESCRIPTOR, the same way every other parametrized feed is
-   * addressed. A second addressing shape (a `type` plus a matching filter)
-   * would be a second thing to keep in step for no gain — this screen and the
-   * feeds directory now request the identical feed the identical way.
    */
   const feedType = useMemo(() => `trend|${term}` as FeedType, [term]);
 
-  const heading = listed?.displayName || detail?.displayName || term;
+  // Tell the right rail which topic is open, so its widgets sit above the
+  // shared ones. Cleared on leave, so they cannot outlive this page.
+  const setTopicRailTerm = useTopicRailStore((state) => state.setTerm);
+  useEffect(() => {
+    setTopicRailTerm(term || null);
+    return () => setTopicRailTerm(null);
+  }, [term, setTopicRailTerm]);
+
+  const heading = topic?.displayName || listed?.displayName || detail?.displayName || term;
   const summary = detail?.description;
-  const category = listed?.category ?? detail?.category;
+  const category = topic?.category ?? listed?.category ?? detail?.category;
   const categoryLabel = category ? t(`trend.category.${category}`, { defaultValue: '' }) : '';
+
+  const updatedLabel = topic?.updatedAt
+    ? t('trend.topic.updated', {
+        time: formatRelativeTimeLocalized(topic.updatedAt, t),
+        defaultValue: 'Actualizado {{time}}',
+      })
+    : null;
+
+  const statsLabel =
+    topic?.authorCount !== undefined && topic.volume !== undefined
+      ? t('trend.topic.stats', {
+          authors: topic.authorCount,
+          posts: topic.volume,
+          hours: WINDOW_HOURS,
+          defaultValue: '{{authors}} personas, {{posts}} publicaciones en las últimas {{hours}} h',
+        })
+      : null;
 
   const listHeader = useMemo(
     () => (
@@ -75,11 +103,17 @@ export default function TrendScreen() {
         <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
           {categoryLabel || t('trend.trendingLabel', { defaultValue: 'Trending' })}
         </Text>
-        <Text className="text-[28px] leading-8 font-bold mb-1 text-foreground">{heading}</Text>
-        {summary ? <Text className="text-sm text-muted-foreground">{summary}</Text> : null}
+        <Text className="text-[28px] leading-8 font-bold mb-2 text-foreground">{heading}</Text>
+        {updatedLabel ? (
+          <Text className="text-xs text-muted-foreground mb-3">{updatedLabel}</Text>
+        ) : null}
+        {statsLabel ? <Text className="text-sm text-foreground mb-2">{statsLabel}</Text> : null}
+        {summary ? <Text className="text-sm text-muted-foreground mb-2">{summary}</Text> : null}
+        {/* Native has no right rail: the same widgets sit under the header. */}
+        {Platform.OS !== 'web' && term ? <TopicInlineWidgets term={term} /> : null}
       </View>
     ),
-    [heading, summary, categoryLabel, t],
+    [heading, summary, categoryLabel, updatedLabel, statsLabel, term, t],
   );
 
   return (
