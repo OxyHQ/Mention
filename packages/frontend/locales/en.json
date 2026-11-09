@@ -2988,6 +2988,7 @@
   "trend": {
     "trendingLabel": "Trending",
     "topic": {
+      "report": "Report",
       "order": "Order",
       "more": "More",
       "actions": "Actions",

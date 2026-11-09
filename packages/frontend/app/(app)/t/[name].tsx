@@ -13,7 +13,9 @@ import {
 } from '@oxy.so/bloom/dropdown-menu';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { RiFlagLine } from '@oxy.so/bloom/icons/RiFlagLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
+import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
@@ -22,6 +24,9 @@ import { SEO } from '@/components/SEO';
 import { TopicInlineWidgets } from '@/components/topic/TopicWidgets';
 import { WEB_BASE_URL } from '@/config';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
+import { ReportModal } from '@/components/report/ReportModal';
+import { reportService } from '@/services/reportService';
+import { presentSheet } from '@/utils/sheet';
 import { trendingService } from '@/services/trendingService';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { useTopicRailStore } from '@/stores/topicRailStore';
@@ -132,8 +137,40 @@ export default function TrendScreen() {
 
   const trendActions = listed ? getTrendMenuActions(listed) : null;
 
+  // Reporting a trend stores it for Mention's moderators (`reportedType: 'trend'`).
+  const reportTopic = () => {
+    void presentSheet((surface) => (
+      <ReportModal
+        visible={true}
+        onClose={() => surface.dismiss()}
+        onSubmit={async (categories, details) => {
+          surface.dismiss();
+          const success = await reportService.reportTrend(term, categories, details);
+          if (success) {
+            toast(
+              t('report.thankYou', {
+                defaultValue: 'Thank you for helping keep our community safe.',
+              }),
+              { type: 'success' },
+            );
+          } else {
+            toast(t('report.failed', { defaultValue: 'Failed to submit report.' }), {
+              type: 'error',
+            });
+          }
+        }}
+      />
+    ));
+  };
+
   const headerActions = (
     <ButtonGroup accessibilityLabel={t('trend.topic.actions', { defaultValue: 'Acciones' })}>
+      <ButtonGroupItem
+        iconOnly
+        leadingIcon={RiFlagLine}
+        accessibilityLabel={t('trend.topic.report', { defaultValue: 'Reportar' })}
+        onPress={reportTopic}
+      />
       <ButtonGroupItem
         iconOnly
         leadingIcon={RiShare2Line}

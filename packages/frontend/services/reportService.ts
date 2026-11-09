@@ -80,6 +80,29 @@ class ReportService {
    * correct Clarity/canonical-source mechanism rather than pretending Mention
    * owns the listing").
    */
+  /**
+   * A trend is reported by its term. It is stored for Mention's moderators and is
+   * not sent for community review (no moderation provider for trends yet).
+   */
+  async reportTrend(term: string, categories: string[], details?: string): Promise<boolean> {
+    try {
+      await authenticatedClient.post('/reports', {
+        reportedType: 'trend',
+        reportedId: term,
+        categories,
+        details,
+      });
+      return true;
+    } catch (error: unknown) {
+      if (normalizeApiError(error).status === 409) {
+        logger.warn('Already reported this trend');
+        return true;
+      }
+      logger.warn('Failed to report trend', { error });
+      return false;
+    }
+  }
+
   async reportJob(jobId: string, categories: string[], details?: string): Promise<boolean> {
     try {
       await authenticatedClient.post('/reports', {

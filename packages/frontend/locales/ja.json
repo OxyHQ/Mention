@@ -2988,6 +2988,7 @@
   "trend": {
     "trendingLabel": "トレンド",
     "topic": {
+      "report": "報告",
       "order": "並び順",
       "more": "その他",
       "actions": "操作",

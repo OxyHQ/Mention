@@ -3036,6 +3036,7 @@
   "trend": {
     "trendingLabel": "В трендах",
     "topic": {
+      "report": "Пожаловаться",
       "order": "Порядок",
       "more": "Ещё",
       "actions": "Действия",
