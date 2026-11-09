@@ -1,20 +1,29 @@
 import { Screen } from '@oxy.so/bloom/screen';
-import { useEffect, useMemo } from 'react';
-import { Platform, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import type { FeedType } from '@mention/shared-types';
 import { SEO } from '@/components/SEO';
+import { WidgetItemMenu } from '@/components/widgets/WidgetItemMenu';
 import { TopicInlineWidgets } from '@/components/topic/TopicWidgets';
+import { WEB_BASE_URL } from '@/config';
+import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { trendingService } from '@/services/trendingService';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { useTopicRailStore } from '@/stores/topicRailStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { shareLink } from '@/utils/shareLink';
+
+/** How the topic's posts are ordered. `top` is the default, as on the mock. */
+type TopicSort = 'top' | 'latest';
 
 export default function TrendScreen() {
   // The TERM is the whole address. Everything shown about the trend is
@@ -23,6 +32,7 @@ export default function TrendScreen() {
   const { t } = useTranslation();
 
   const term = name || '';
+  const [sort, setSort] = useState<TopicSort>('top');
 
   /*
    * The label comes from the live trends the app already holds when the term
@@ -60,9 +70,13 @@ export default function TrendScreen() {
   /*
    * `trend|<term>`, NOT `topic|<term>`: the trend feed matches the same union
    * of extracted terms, hashtags and topic slugs that detection counted, so a
-   * trend detected purely from prose still opens onto its posts.
+   * trend detected purely from prose still opens onto its posts. The `|top`
+   * suffix ranks the same posts; latest is the bare descriptor.
    */
-  const feedType = useMemo(() => `trend|${term}` as FeedType, [term]);
+  const feedType = useMemo(
+    () => (sort === 'top' ? `trend|${term}|top` : `trend|${term}`) as FeedType,
+    [term, sort],
+  );
 
   // Tell the right rail which topic is open, so its widgets sit above the
   // shared ones. Cleared on leave, so they cannot outlive this page.
@@ -94,6 +108,33 @@ export default function TrendScreen() {
         })
       : null;
 
+  // Share goes to this topic's own page, whether or not the term is in the
+  // current batch — the link is the same either way.
+  const shareTopic = () => {
+    void shareLink({
+      title: heading,
+      url: `${WEB_BASE_URL}/t/${encodeURIComponent(term)}`,
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
+  };
+
+  // The ⋯ menu acts on a trend row (hide it from the rail), so it only exists
+  // when this term is in the live batch to hide.
+  const getTrendMenuActions = useTrendItemMenu();
+
+  const headerActions = (
+    <ButtonGroup accessibilityLabel={t('trend.topic.actions', { defaultValue: 'Acciones' })}>
+      <ButtonGroupItem
+        iconOnly
+        leadingIcon={RiShare2Line}
+        accessibilityLabel={t('widgetMenu.share', { defaultValue: 'Compartir' })}
+        onPress={shareTopic}
+      />
+      {listed ? <WidgetItemMenu label={heading} {...getTrendMenuActions(listed)} /> : null}
+    </ButtonGroup>
+  );
+
   const listHeader = useMemo(
     () => (
       <View className="px-4 pb-2">
@@ -108,15 +149,47 @@ export default function TrendScreen() {
         {summary ? <Text className="text-sm text-muted-foreground mb-2">{summary}</Text> : null}
         {/* Native has no right rail: the same widgets sit under the header. */}
         {Platform.OS !== 'web' && term ? <TopicInlineWidgets term={term} /> : null}
+        <View className="flex-row gap-6 border-b border-border mt-2">
+          {(['top', 'latest'] as const).map((option) => {
+            const active = sort === option;
+            return (
+              <TouchableOpacity
+                key={option}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                onPress={() => setSort(option)}
+                className={active ? 'pb-3 border-b-2 border-primary' : 'pb-3'}
+              >
+                <Text
+                  className={
+                    active
+                      ? 'text-[15px] font-bold text-foreground'
+                      : 'text-[15px] font-medium text-muted-foreground'
+                  }
+                >
+                  {option === 'top'
+                    ? t('trend.topic.sortTop', { defaultValue: 'Top' })
+                    : t('trend.topic.sortLatest', { defaultValue: 'Latest' })}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     ),
-    [heading, summary, categoryLabel, updatedLabel, statsLabel, term, t],
+    [heading, summary, categoryLabel, updatedLabel, statsLabel, term, sort, t],
   );
 
   return (
     <Screen
       scroll="auto"
-      header={<PageHeader title={heading} backLabel={t('common.back', { defaultValue: 'Back' })} />}
+      header={
+        <PageHeader
+          title={heading}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={headerActions}
+        />
+      }
     >
       <SEO
         robots="index,follow"

@@ -2988,6 +2988,9 @@
   "trend": {
     "trendingLabel": "热门",
     "topic": {
+      "actions": "操作",
+      "sortTop": "热门",
+      "sortLatest": "最新",
       "updated": "{{time}}更新",
       "stats": "过去{{hours}}小时内 {{authors}} 人，{{posts}} 条帖子",
       "people": "相关用户",

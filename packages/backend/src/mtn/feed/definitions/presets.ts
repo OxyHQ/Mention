@@ -9,6 +9,9 @@
 
 import { MtnConfig } from '@mention/shared-types';
 import type { AuthorFeedFilter } from '@mention/shared-types';
+
+/** How a trend's posts are ordered: newest first, or ranked by engagement. */
+export type TrendSort = 'latest' | 'top';
 import { getDiscoveryGateSelection, getPhase2bSignalSelection } from '../../../config';
 import type { FeedDefinition, ModuleRef } from '../engine/types';
 
@@ -587,9 +590,28 @@ export function hashtagDefinition(tag: string): FeedDefinition {
  * `title` is the raw term on purpose: the human label lives on the trend row and
  * the screen already has it, whereas this definition is reachable from a
  * descriptor alone and must not invent a name it cannot know.
+ *
+ * `top` ranks the same posts by engagement and recency, the signals the trending
+ * feed already uses; `latest` (the default) is chronological.
  */
-export function trendDefinition(term: string): FeedDefinition {
+export function trendDefinition(term: string, sort: TrendSort = 'latest'): FeedDefinition {
   const normalized = term.toLowerCase();
+  if (sort === 'top') {
+    return {
+      id: `trend|${normalized}|top`,
+      title: normalized,
+      mode: 'ranked',
+      sources: [enabled('trendTerms', { term: normalized })],
+      signals: [enabled('engagement'), enabled('recency')],
+      filters: [enabled('safety'), contentWarningFilterRef()],
+      execution: {
+        sessionPagination: true,
+        threadGrouping: true,
+        replyContext: false,
+        hydrateMaxDepth: 0,
+      },
+    };
+  }
   return {
     id: `trend|${normalized}`,
     title: normalized,

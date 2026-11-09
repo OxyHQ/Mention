@@ -142,11 +142,23 @@ export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
     );
   }
   // `trend` takes a term that may legitimately contain spaces (`trend|todd
-  // blanche`), which the `|`-delimited split leaves in one param untouched.
-  if (['custom', 'hashtag', 'topic', 'trend', 'list', 'lane', 'feedgen'].includes(source)) {
+  // blanche`), which the `|`-delimited split leaves in one param untouched. An
+  // optional second param orders it: `trend|<term>|top` ranks the same posts.
+  if (source === 'trend') {
+    return (
+      isNonEmptyParam(params[0]) &&
+      (params.length === 1 || (params.length === 2 && isTrendSort(params[1])))
+    );
+  }
+  if (['custom', 'hashtag', 'topic', 'list', 'lane', 'feedgen'].includes(source)) {
     return params.length === 1 && isNonEmptyParam(params[0]);
   }
   return false;
+}
+
+/** Orders a trend's posts: newest first (`latest`) or ranked by engagement (`top`). */
+export function isTrendSort(value: string | undefined): value is 'latest' | 'top' {
+  return value === 'latest' || value === 'top';
 }
 
 function isNonEmptyParam(value: string | undefined): value is string {

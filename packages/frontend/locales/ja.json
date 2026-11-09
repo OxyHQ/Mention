@@ -2988,6 +2988,9 @@
   "trend": {
     "trendingLabel": "トレンド",
     "topic": {
+      "actions": "操作",
+      "sortTop": "注目",
+      "sortLatest": "最新",
       "updated": "{{time}}に更新",
       "stats": "過去{{hours}}時間で{{authors}}人、{{posts}}件の投稿",
       "people": "関連するユーザー",

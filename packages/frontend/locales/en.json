@@ -2988,6 +2988,9 @@
   "trend": {
     "trendingLabel": "Trending",
     "topic": {
+      "actions": "Actions",
+      "sortTop": "Top",
+      "sortLatest": "Latest",
       "updated": "Updated {{time}}",
       "stats": "{{authors}} people, {{posts}} posts in the last {{hours}} h",
       "people": "Relevant people",

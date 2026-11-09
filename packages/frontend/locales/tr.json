@@ -2988,6 +2988,9 @@
   "trend": {
     "trendingLabel": "Gündemde",
     "topic": {
+      "actions": "Eylemler",
+      "sortTop": "Öne çıkan",
+      "sortLatest": "En yeni",
       "updated": "{{time}} güncellendi",
       "stats": "Son {{hours}} saatte {{authors}} kişi, {{posts}} gönderi",
       "people": "İlgili kişiler",

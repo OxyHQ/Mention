@@ -2988,6 +2988,9 @@
   "trend": {
     "trendingLabel": "ট্রেন্ডিং",
     "topic": {
+      "actions": "কার্যকলাপ",
+      "sortTop": "শীর্ষ",
+      "sortLatest": "সাম্প্রতিক",
       "updated": "{{time}} আপডেট হয়েছে",
       "stats": "গত {{hours}} ঘণ্টায় {{authors}} জন মানুষ, {{posts}}টি পোস্ট",
       "people": "প্রাসঙ্গিক মানুষ",

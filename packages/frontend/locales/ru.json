@@ -3036,6 +3036,9 @@
   "trend": {
     "trendingLabel": "В трендах",
     "topic": {
+      "actions": "Действия",
+      "sortTop": "Лучшие",
+      "sortLatest": "Новые",
       "updated": "Обновлено {{time}}",
       "stats": "{{authors}} человек, {{posts}} публикаций за последние {{hours}} ч",
       "people": "Релевантные люди",

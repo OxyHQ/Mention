@@ -90,8 +90,10 @@ export async function resolveDefinition(
     case 'trend': {
       // The term may contain spaces (`trend|todd blanche`); the `|` split leaves
       // it intact, so nothing here needs to re-join anything.
+      // `trend|<term>|top` ranks the same posts; anything else is latest, so a
+      // stale client never breaks the page.
       const term = params[0];
-      return term ? trendDefinition(term) : null;
+      return term ? trendDefinition(term, params[1] === 'top' ? 'top' : 'latest') : null;
     }
     case 'list': {
       const listId = params[0];
