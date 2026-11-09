@@ -1,13 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
 import { expect, contractTest as test } from '../fixtures';
 
-const require = createRequire(import.meta.url);
-const runtimeDirectory = join(
-  dirname(require.resolve('@oxy.so/bloom/package.json')),
-  'assets/character-runtime',
-);
 const teal = {
   shape: 'rounded_head_two_ears',
   eyes: 'oval',
@@ -54,34 +46,7 @@ const remote = {
   instance: 'example.test',
 };
 
-// Observe the real runtime boundary without replacing rendering, scheduling or callbacks.
-const audit = `
-const registry = globalThis[Symbol.for('bloom.character.runtimes')];
-const api = registry.get(import.meta.url), create = api.createAvatar;
-const records = globalThis.__accountAvatarAudit = [];
-api.createAvatar = async (canvas, props, callbacks) => {
- const entry={canvas,props,ready:0,errors:0,disposed:false};records.push(entry);
- const controller=await create(canvas,props,{...callbacks,onReady(){entry.ready++;callbacks.onReady?.()},onError(){entry.errors++;callbacks.onError?.()}});
- return {update(next){entry.props=next;controller.update(next)},dispose(){entry.disposed=true;controller.dispose()}};
-};`;
-
 test.beforeEach(async ({ page }) => {
-  // The installed candidate package owns runtime bytes; the fixture never tests a mutable CDN revision.
-  await page.route('**/bloom-character/**', async (route) => {
-    const pathname = new URL(route.request().url()).pathname;
-    const relative = pathname.split('/bloom-character/')[1];
-    if (!relative || relative.includes('..')) return route.abort();
-    const bytes = await readFile(join(runtimeDirectory, relative));
-    await route.fulfill({
-      body: relative === 'runtime.mjs' ? Buffer.concat([bytes, Buffer.from(audit)]) : bytes,
-      contentType: relative.endsWith('.mjs')
-        ? 'text/javascript'
-        : relative.endsWith('.json')
-          ? 'application/json'
-          : 'application/octet-stream',
-      headers: { 'access-control-allow-origin': '*' },
-    });
-  });
   await page.route(human.avatar, (route) =>
     route.fulfill({
       contentType: 'image/svg+xml',
@@ -165,78 +130,49 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-async function visibleCharacters(page: import('@playwright/test').Page) {
-  return page.evaluate(() => {
-    const records =
-      (
-        window as unknown as {
-          __accountAvatarAudit?: {
-            canvas: HTMLCanvasElement;
-            props: { character: unknown };
-            ready: number;
-            errors: number;
-            disposed: boolean;
-          }[];
-        }
-      ).__accountAvatarAudit ?? [];
-    return records
-      .filter(
-        (entry) =>
-          !entry.disposed &&
-          entry.canvas.isConnected &&
-          entry.canvas.getBoundingClientRect().width > 0,
-      )
-      .map((entry) => ({
-        character: entry.props.character,
-        ready: entry.ready,
-        errors: entry.errors,
-        width: entry.canvas.width,
-        png: entry.canvas.toDataURL(),
-      }));
-  });
-}
+type Page = import('@playwright/test').Page;
 
-async function decodedAvatarPixels(page: import('@playwright/test').Page, minimumWidth = 0) {
-  const entries = (await visibleCharacters(page)).filter((entry) => entry.width >= minimumWidth);
-  return page.evaluate(
-    async (values) =>
-      Promise.all(
-        values.map(async (entry) => {
-          const image = new Image();
-          image.src = entry.png;
-          await image.decode();
-          const canvas = document.createElement('canvas');
-          canvas.width = image.width;
-          canvas.height = image.height;
-          const context = canvas.getContext('2d');
-          if (!context) throw new Error('PNG decode canvas unavailable');
-          context.drawImage(image, 0, 0);
-          const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-          let alpha = 0,
-            red = 0,
-            green = 0,
-            blue = 0;
-          for (let i = 0; i < pixels.length; i += 4) {
-            const weight = pixels[i + 3] / 255;
-            alpha += weight;
-            red += pixels[i] * weight;
-            green += pixels[i + 1] * weight;
-            blue += pixels[i + 2] * weight;
-          }
-          return {
-            character: entry.character,
-            alpha,
-            red: red / alpha,
-            green: green / alpha,
-            blue: blue / alpha,
-          };
-        }),
-      ),
-    entries,
+/**
+ * The agent avatars on screen. Bloom draws a character as an SVG inside a
+ * `data-bloom-vector-avatar` image whose drawing is filled with the character's
+ * own colours (Bloom's `character-colors`: teal and lime below). Nothing is fetched
+ * or compiled, so "ready" is the avatar no longer being busy with a drawing in it.
+ */
+const TEAL = '#04bb9f';
+const LIME = '#b6d80b';
+
+async function visibleCharacters(page: Page) {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-bloom-vector-avatar]')]
+      .filter((avatar) => avatar.getBoundingClientRect().width > 0)
+      .map((avatar) => {
+        const drawing = avatar.querySelector('svg');
+        const paths = drawing?.querySelectorAll('path').length ?? 0;
+        const fills = [
+          ...new Set(
+            [...(drawing?.querySelectorAll('[fill]') ?? [])]
+              .map((node) => (node.getAttribute('fill') ?? '').toLowerCase())
+              .filter((fill) => /^#[0-9a-f]{6}$/.test(fill)),
+          ),
+        ];
+        return {
+          character: avatar.getAttribute('data-geometry'),
+          ready: avatar.getAttribute('aria-busy') === 'false' && paths > 0 ? 1 : 0,
+          errors: avatar.textContent?.includes('Avatar unavailable') ? 1 : 0,
+          width: avatar.getBoundingClientRect().width,
+          drawing: drawing?.outerHTML ?? '',
+          paths,
+          fills,
+        };
+      }),
   );
 }
 
-async function expectPhotosLoaded(page: import('@playwright/test').Page) {
+async function decodedAvatarPixels(page: Page, minimumWidth = 0) {
+  return (await visibleCharacters(page)).filter((entry) => entry.width >= minimumWidth);
+}
+
+async function expectPhotosLoaded(page: Page) {
   await expect
     .poll(() =>
       page
@@ -264,11 +200,11 @@ test('feed, profile and search retain stored agents while photos keep their imag
     .toBe(2);
   const initial = await visibleCharacters(page);
   expect(
-    initial.every((entry) => entry.errors === 0 && entry.width > 0 && entry.png.length > 500),
+    initial.every((entry) => entry.errors === 0 && entry.width > 0 && entry.drawing.length > 500),
   ).toBe(true);
-  expect(JSON.stringify(initial)).toContain('teal');
-  expect(JSON.stringify(initial)).toContain('lime');
-  expect((await decodedAvatarPixels(page)).every((entry) => entry.alpha > 50)).toBe(true);
+  expect(initial.some((entry) => entry.fills.includes(TEAL))).toBe(true);
+  expect(initial.some((entry) => entry.fills.includes(LIME))).toBe(true);
+  expect((await decodedAvatarPixels(page)).every((entry) => entry.paths > 0)).toBe(true);
   await expectPhotosLoaded(page);
   await page.screenshot({ path: test.info().outputPath('feed-avatars.png') });
   // Changing route through browser history keeps the app/runtime instance alive.
@@ -280,15 +216,14 @@ test('feed, profile and search retain stored agents while photos keep their imag
   await expect
     .poll(async () =>
       (await visibleCharacters(page)).some(
-        (entry) =>
-          entry.ready > 0 && entry.width >= 80 && JSON.stringify(entry.character).includes('teal'),
+        (entry) => entry.ready > 0 && entry.width >= 80 && entry.fills.includes(TEAL),
       ),
     )
     .toBe(true);
   await expect
     .poll(async () =>
       (await decodedAvatarPixels(page, 80)).some(
-        (entry) => entry.alpha > 50 && entry.blue > entry.green * 0.5,
+        (entry) => entry.paths > 0 && entry.fills.includes(TEAL),
       ),
     )
     .toBe(true);
@@ -299,15 +234,14 @@ test('feed, profile and search retain stored agents while photos keep their imag
   await expect
     .poll(async () =>
       (await visibleCharacters(page)).some(
-        (entry) =>
-          entry.ready > 0 && entry.width >= 80 && JSON.stringify(entry.character).includes('lime'),
+        (entry) => entry.ready > 0 && entry.width >= 80 && entry.fills.includes(LIME),
       ),
     )
     .toBe(true);
   await expect
     .poll(async () =>
       (await decodedAvatarPixels(page, 80)).some(
-        (entry) => entry.alpha > 50 && entry.blue < entry.green * 0.5,
+        (entry) => entry.paths > 0 && entry.fills.includes(LIME),
       ),
     )
     .toBe(true);
@@ -324,7 +258,7 @@ test('feed, profile and search retain stored agents while photos keep their imag
     .poll(
       async () =>
         (await visibleCharacters(page)).filter(
-          (entry) => entry.ready > 0 && JSON.stringify(entry.character).includes('teal'),
+          (entry) => entry.ready > 0 && entry.fills.includes(TEAL),
         ).length,
     )
     .toBe(1);
@@ -332,7 +266,7 @@ test('feed, profile and search retain stored agents while photos keep their imag
   await expect
     .poll(async () =>
       (await decodedAvatarPixels(page)).some(
-        (entry) => entry.alpha > 50 && entry.blue > entry.green * 0.5,
+        (entry) => entry.paths > 0 && entry.fills.includes(TEAL),
       ),
     )
     .toBe(true);
@@ -342,14 +276,14 @@ test('feed, profile and search retain stored agents while photos keep their imag
     .poll(
       async () =>
         (await visibleCharacters(page)).filter(
-          (entry) => entry.ready > 0 && JSON.stringify(entry.character).includes('lime'),
+          (entry) => entry.ready > 0 && entry.fills.includes(LIME),
         ).length,
     )
     .toBe(1);
   await expect
     .poll(async () =>
       (await decodedAvatarPixels(page)).some(
-        (entry) => entry.alpha > 50 && entry.blue < entry.green * 0.5,
+        (entry) => entry.paths > 0 && entry.fills.includes(LIME),
       ),
     )
     .toBe(true);
@@ -363,7 +297,7 @@ test('feed, profile and search retain stored agents while photos keep their imag
   await expect
     .poll(async () => (await visibleCharacters(page)).filter((entry) => entry.ready > 0).length)
     .toBe(2);
-  expect((await decodedAvatarPixels(page)).every((entry) => entry.alpha > 50)).toBe(true);
+  expect((await decodedAvatarPixels(page)).every((entry) => entry.paths > 0)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('member-agent-facepiles.png') });
   expect(candidate.scriptErrors).toEqual([]);
 });

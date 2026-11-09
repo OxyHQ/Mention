@@ -119,7 +119,6 @@
     "@oxy.so/allo-sdk": "^1.0.0",
     "@oxy.so/app-preset": "6.5.0",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/bloom-avatar-native": "0.1.1",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/expo-splash": "^1.1.0",
