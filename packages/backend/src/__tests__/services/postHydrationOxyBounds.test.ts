@@ -182,6 +182,39 @@ describe('resolveUserSummaries Oxy bounds', () => {
     await Promise.resolve();
   });
 
+  it('keeps the authors of a chunk Oxy answered when another chunk runs past the deadline', async () => {
+    vi.useFakeTimers();
+    const answered = Array.from({ length: 100 }, (_, i) => `answered-${i}`);
+    const slow = Array.from({ length: 50 }, (_, i) => `slow-${i}`);
+    // The slow chunk's permit stays held until the test releases it, as a real
+    // non-abortable request would: a permit is never left behind for later tests.
+    let releaseSlow!: () => void;
+    getUsersByIds.mockImplementation(async (ids: string[]) =>
+      ids[0]?.startsWith('answered-')
+        ? ids.map(oxyUser)
+        : new Promise((resolve) => {
+            releaseSlow = () => resolve([]);
+          }),
+    );
+
+    try {
+      const pending = resolveUserSummaries([...answered, ...slow]);
+      await vi.advanceTimersByTimeAsync(OXY_USER_RESOLUTION_DEADLINE_MS);
+      const result = await pending;
+
+      expect(result.get('answered-0')?.user).toMatchObject({ username: 'user-answered-0' });
+      expect(result.get('answered-99')?.user).toMatchObject({ username: 'user-answered-99' });
+      expect(result.get('slow-0')?.user).toMatchObject({
+        username: '',
+        name: { displayName: 'Unknown user' },
+      });
+    } finally {
+      releaseSlow();
+      await vi.advanceTimersByTimeAsync(0);
+      getUsersByIds.mockReset();
+    }
+  });
+
   it('does not restart the deadline when a slow bulk failure enters per-id fallback', async () => {
     vi.useFakeTimers();
     getUsersByIds.mockImplementation(
@@ -293,9 +326,8 @@ describe('resolveUserSummaries Oxy bounds', () => {
     const cohorts = Array.from({ length: 4 }, (_, cohort) =>
       resolveUserSummaries(Array.from({ length: 10 }, (_, index) => `global-${cohort}-${index}`)),
     );
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    // Let every cohort's bulk read fail and its fallbacks queue before time moves.
+    await vi.advanceTimersByTimeAsync(0);
 
     await vi.advanceTimersByTimeAsync(OXY_USER_RESOLUTION_DEADLINE_MS);
     const results = await Promise.all(cohorts);
