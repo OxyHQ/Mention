@@ -13,7 +13,7 @@
       "@oxy.so/bloom": "17.19.3",
       "@oxy.so/contracts": "6.24.0",
       "@oxy.so/core": "7.48.0",
-      "@oxy.so/mcp": "1.4.1",
+      "@oxy.so/mcp": "1.4.2",
       "@oxy.so/services": "14.14.0",
       "@oxy.so/utils": "^1.5.2",
       "@peable.to/sdk": "6.2.1",
@@ -85,8 +85,8 @@
     "build:publishing": "bun run --cwd packages/sdk build"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
-    "@oxy.so/doctor": "1.7.0",
+    "@biomejs/biome": "2.6.6",
+    "@oxy.so/doctor": "1.8.0",
     "@types/node": "catalog:",
     "semver": "^7.8.6",
     "typescript": "catalog:",
