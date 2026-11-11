@@ -17,6 +17,17 @@
  * module still takes precedence.
  */
 const icons = new Map();
+const socialIconNames = new Set([
+  'BookmarkFillIcon',
+  'BookmarkIcon',
+  'GifAttachmentIcon',
+  'LikeFillIcon',
+  'LikeIcon',
+  'MediaAttachmentIcon',
+  'ReplyIcon',
+  'RepostIcon',
+  'ShareIcon',
+]);
 
 function iconNamed(name) {
   if (!icons.has(name)) {
@@ -32,7 +43,9 @@ module.exports = new Proxy(
   {
     get(target, name) {
       if (name in target) return target[name];
-      return typeof name === 'string' && name.startsWith('Ri') ? iconNamed(name) : undefined;
+      return typeof name === 'string' && (name.startsWith('Ri') || socialIconNames.has(name))
+        ? iconNamed(name)
+        : undefined;
     },
   },
 );
