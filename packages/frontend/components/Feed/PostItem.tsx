@@ -45,6 +45,8 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
+import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
+import { usePostPaneStore } from '@/components/Post/postPane';
 import { postLinkCards } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
@@ -583,9 +585,17 @@ const PostItem: React.FC<PostItemProps> = ({
   // focused post-detail variant (the feed action row doesn't expose it). Same
   // surface as the post's ⋯ menu — a centered card on desktop, a sheet on
   // mobile — so everything a post opens looks like the same app.
+  const panelId = useAppShellPanel().id;
+  const openPostPane = usePostPaneStore((state) => state.open);
   const openEngagementList = useCallback(
     (type: 'likes' | 'boosts') => {
       if (!viewPostId) return;
+      // In a shell panel the list opens in the panel stacked under it (a bottom sheet on a
+      // narrow window); anywhere else, the app's sheet.
+      if (panelId) {
+        openPostPane(panelId, { kind: type, postId: viewPostId });
+        return;
+      }
       void presentSheet(
         (surface) => (
           <Suspense fallback={null}>
@@ -602,7 +612,7 @@ const PostItem: React.FC<PostItemProps> = ({
         },
       );
     },
-    [viewPostId, t],
+    [viewPostId, t, panelId, openPostPane],
   );
 
   // Bound once each so the memoized <PostDetailStats> is not handed a fresh

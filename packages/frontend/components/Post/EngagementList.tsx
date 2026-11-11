@@ -1,9 +1,9 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import { View, FlatList } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { feedService } from '@/services/feedService';
@@ -95,8 +95,9 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
   );
 
   const renderUser = useCallback(
-    ({ item }: { item: PostUser }) => (
+    (item: PostUser) => (
       <ProfileCard
+        key={item.id}
         profile={{
           id: item.id,
           username: item.username,
@@ -115,12 +116,12 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
     [handleUserPress],
   );
 
-  if (loading) {
-    return (
-      <View className="flex-1 bg-background">
+  // A screen like any other: its own header, and Bloom's scroll in the panel it sits in.
+  return (
+    <Screen
+      header={
         <PageHeader
-          title={title}
-          safeArea={false}
+          title={type === 'likes' ? 'Likes' : 'Boosts'}
           actions={
             <Button
               appearance="subtle"
@@ -132,61 +133,30 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
             />
           }
         />
-        {/* The rows this list is about to paint, as placeholders. */}
-        <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
-      </View>
-    );
-  }
-
-  return (
-    <View className="flex-1 bg-background">
-      <PageHeader
-        title={title}
-        safeArea={false}
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-            onPress={onClose}
+      }
+    >
+      <ScreenScrollView
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        {loading ? (
+          // The rows this list is about to paint, as placeholders.
+          <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
+        ) : users.length === 0 ? (
+          <EmptyState
+            title={`No ${type === 'likes' ? 'likes' : 'boosts'} yet`}
+            sticker="postNoEngagement"
+            containerStyle={{ flex: 1 }}
           />
-        }
-      />
-
-      {failed ? (
-        <EmptyState
-          error={{
-            title: t('post.engagement.loadError', { defaultValue: "Couldn't load this list" }),
-            message: t('post.engagement.loadErrorMessage', {
-              defaultValue: 'Check your connection and try again.',
-            }),
-            onRetry: () => loadUsers(),
-          }}
-          containerStyle={{ flex: 1 }}
-        />
-      ) : users.length === 0 ? (
-        <EmptyState
-          title={
-            type === 'likes'
-              ? t('post.engagement.noLikes', { defaultValue: 'No likes yet' })
-              : t('post.engagement.noBoosts', { defaultValue: 'No reposts yet' })
-          }
-          sticker="postNoEngagement"
-          containerStyle={{ flex: 1 }}
-        />
-      ) : (
-        <FlatList
-          data={users}
-          renderItem={renderUser}
-          keyExtractor={(item) => item.id}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={loadingMore ? <ListSkeleton count={2} /> : undefined}
-        />
-      )}
-    </View>
+        ) : (
+          <>
+            {users.map(renderUser)}
+            {loadingMore ? <ListSkeleton count={2} /> : null}
+          </>
+        )}
+      </ScreenScrollView>
+    </Screen>
   );
 };
 

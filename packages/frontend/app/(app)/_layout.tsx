@@ -3,6 +3,7 @@ import { useDeckSync } from '@/components/deck/useDeckSync';
 import { DeckAddPanel } from '@/components/deck/DeckAddPanel';
 import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSettings';
 import { isDefaultLeadingDeckPanel } from '@/components/deck/deckEntry';
+import { useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { ExperimentalStack, Slot, usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +31,8 @@ import { SignInBanner } from '@/components/SignInBanner';
 import { WelcomeRedirectGate } from '@/components/WelcomeRedirectGate';
 import { BootMilestone } from '@/components/BootMilestone';
 import { reportBoundaryError } from '@/components/AppErrorBoundary';
+import { type PostPaneDestination, usePostPaneStore } from '@/components/Post/postPane';
+import { postPanePanel } from '@/components/Post/postPanePanel';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
@@ -57,6 +60,26 @@ export default function AppLayout() {
   const { isAuthenticated, isAuthResolved } = useAuth();
   const pathname = usePathname();
   const deckAvailable = useDeckAvailable();
+  const postPaneDestinations = usePostPaneStore((state) => state.destinations);
+  const closePostPane = usePostPaneStore((state) => state.close);
+  // The panel stacked under `hostId`'s: the people of the post the host shows.
+  const retainedPostPanes = useRef<Record<string, PostPaneDestination | undefined>>({});
+  const stackedPostPane = (hostId: string) => {
+    const destination = postPaneDestinations[hostId];
+    if (destination) retainedPostPanes.current[hostId] = destination;
+    return postPanePanel(
+      hostId,
+      `${hostId}:stack`,
+      destination,
+      retainedPostPanes.current[hostId],
+      () => closePostPane(hostId),
+      (destination) =>
+        destination.kind === 'likes'
+          ? t('post.likesTitle', { defaultValue: 'Likes' })
+          : t('post.boostsTitle', { defaultValue: 'Reposts' }),
+      reportBoundaryError,
+    );
+  };
   const deckOpen = (pathname === '/deck' || deckEnabled) && deckAvailable;
   const firstDeckId = deckOrder[0];
   const onInsightsRoute =
@@ -174,6 +197,7 @@ export default function AppLayout() {
             panels: [
               {
                 id: 'main',
+                stack: 'main:stack',
                 visible: true,
                 // A screen that throws fails inside its panel, never the whole app;
                 // navigating to another route recovers it.
@@ -197,6 +221,7 @@ export default function AppLayout() {
                   </>
                 ),
               },
+              stackedPostPane('main'),
               {
                 id: 'context',
                 visible: !deckOpen,
@@ -211,10 +236,11 @@ export default function AppLayout() {
               },
               ...deckOrder
                 .filter((id) => deckPanels[id])
-                .map((id) => {
+                .flatMap((id) => {
                   const panel = deckPanels[id];
-                  return {
+                  const column = {
                     id,
+                    stack: `${id}:stack`,
                     visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
                     errorBoundary: { onError: reportBoundaryError },
                     width: panel.width,
@@ -264,6 +290,7 @@ export default function AppLayout() {
                       render: () => <DeckColumn panelId={id} />,
                     },
                   };
+                  return [column, stackedPostPane(id)];
                 }),
             ],
           }}
