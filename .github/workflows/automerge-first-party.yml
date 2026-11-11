@@ -4,24 +4,18 @@ name: Auto-merge first-party bumps
 # `oxy-platform` group PR daily; this turns on auto-merge for it, and GitHub
 # merges once the required checks (CI complete) are green. A red check
 # leaves the PR open for a person. Third-party updates are never touched here.
+# OxyHQ/oxy .github/workflows/automerge-first-party.yml.
 
 on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   automerge:
     if: github.actor == 'dependabot[bot]' && startsWith(github.head_ref, 'dependabot/bun/oxy-platform-')
-    runs-on: ubuntu-latest
-    # One API call. Without a bound, a hung job holds one of the org's 20
-    # concurrent job slots for GitHub's 360-minute default.
-    timeout-minutes: 5
-    steps:
-      - run: gh pr merge --auto --merge "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: OxyHQ/oxy/.github/workflows/automerge-first-party.yml@main

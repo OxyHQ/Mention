@@ -115,8 +115,10 @@ jobs:
       # (`reviewed-image.py check`, ci.yml job "Build, lint and typecheck").
       - name: Refuse unreviewed image build inputs
         id: reviewed
-        run: python3 -B .github/scripts/reviewed-image.py guard --recipe mention
-
+        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
+        with:
+          phase: guard
+          recipe: mention
       - name: Build and push the backfill image (its own tag; never `latest`)
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0

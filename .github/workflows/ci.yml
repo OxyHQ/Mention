@@ -251,14 +251,13 @@ jobs:
       # recipe image (deploy-aws, deploy-mcp-aws, the run-* one-shots) refuses
       # to build on a mismatch, so catching it here is what stops a merge from
       # stranding main undeployable. This job runs on every pull request and
-      # merge group and `CI complete` fails unless it succeeds. The fixture
-      # tests run first so a green check means the gate can fail, not that it
-      # stopped looking.
-      - name: Prove the reviewed-image gate can fail
-        run: python3 -B -m unittest discover -s .github/scripts -p test_reviewed_image.py
+      # merge group and `CI complete` fails unless it succeeds. The gate is
+      # OxyHQ/oxy's `.github/actions/reviewed-image`, whose fixture tests run in
+      # oxy's CI, so a green check means the gate can fail.
       - name: Verify the production image's build inputs are reviewed
-        run: python3 -B .github/scripts/reviewed-image.py check
-
+        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
+        with:
+          phase: check
       # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action
       # verifying lockfile against base", MIT (c) 2023-2026 Bluesky Social PBC).
       #
