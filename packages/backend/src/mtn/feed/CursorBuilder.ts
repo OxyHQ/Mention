@@ -17,8 +17,9 @@
  * "not found" and a text id that matches no row already gives the right answer.
  * Here the value is not a lookup key at all: it is an opaque token the server
  * minted, and the question is whether it is well-formed enough to become a
- * KEYSET BOUND. A malformed one must reset to page one, which is exactly what
- * rejecting it does.
+ * KEYSET BOUND. Decoding refuses a malformed one (the caller resets to page one);
+ * encoding throws, as `encodeChronoCursor` does, rather than minting a cursor
+ * that would be refused on the way back.
  */
 
 import { isLiveEntityId } from '@oxy.so/db';
@@ -135,13 +136,18 @@ function isValidScoreCursorAsOf(value: unknown): value is number {
   return value <= Date.now() + MAX_SCORE_CURSOR_FUTURE_SKEW_MS;
 }
 
-function normalizeExcludedIds(id: string, ids?: Iterable<string>): string[] {
-  const unique = new Set<string>();
-  if (isLiveEntityId(id)) unique.add(id);
+/**
+ * The cursor id plus the rolling exclusion ids, de-duplicated and capped, or
+ * `undefined` when any of them cannot be a keyset bound. Nothing is dropped
+ * silently: the encoder throws on `undefined` and the decoder rejects the cursor.
+ */
+function normalizeExcludedIds(id: string, ids?: Iterable<string>): string[] | undefined {
+  if (!isLiveEntityId(id)) return undefined;
+  const unique = new Set<string>([id]);
   if (ids) {
     for (const candidate of ids) {
-      if (unique.size >= MAX_SCORE_CURSOR_EXCLUDE_IDS) break;
-      if (isLiveEntityId(candidate)) unique.add(candidate);
+      if (!isLiveEntityId(candidate)) return undefined;
+      if (unique.size < MAX_SCORE_CURSOR_EXCLUDE_IDS) unique.add(candidate);
     }
   }
   return Array.from(unique);
@@ -149,14 +155,19 @@ function normalizeExcludedIds(id: string, ids?: Iterable<string>): string[] {
 
 export const ScoreCursor = {
   build(score: number, id: string, options?: ScoreCursorBuildOptions): string {
+    // THROWS on an id no row can have, like `encodeChronoCursor`: the caller
+    // passes a row it just read, so a bad id is a programming error, and emitting
+    // a legacy cursor for it would reset the feed to page one forever.
+    const excludeIds = normalizeExcludedIds(id, options?.excludeIds);
+    if (!excludeIds) throw new Error('Cannot encode a score cursor with an invalid id');
     const rawAsOf = options?.asOf instanceof Date ? options.asOf.getTime() : options?.asOf;
-    if (Number.isFinite(score) && isLiveEntityId(id) && isValidScoreCursorAsOf(rawAsOf)) {
+    if (Number.isFinite(score) && isValidScoreCursorAsOf(rawAsOf)) {
       const rawTiebreakAt =
         options?.tiebreakAt instanceof Date ? options.tiebreakAt.getTime() : options?.tiebreakAt;
       const metadata: ScoreCursorCompatV1Payload = {
         a: rawAsOf,
         ...(options?.rankingVersion === undefined ? {} : { r: options.rankingVersion }),
-        x: normalizeExcludedIds(id, options?.excludeIds),
+        x: excludeIds,
         ...(isValidCursorTimestamp(rawTiebreakAt) ? { t: rawTiebreakAt } : {}),
         ...(options?.fromPopularFallback === true ? { f: 1 } : {}),
       };
@@ -193,6 +204,11 @@ export const ScoreCursor = {
               Buffer.from(encoded, 'base64url').toString('utf8'),
             ) as Partial<ScoreCursorCompatV1Payload>;
             if (!isValidScoreCursorAsOf(metadata.a)) return undefined;
+            const excludeIds = normalizeExcludedIds(
+              id,
+              Array.isArray(metadata.x) ? metadata.x : undefined,
+            );
+            if (!excludeIds) return undefined;
             return {
               score,
               id,
@@ -200,12 +216,7 @@ export const ScoreCursor = {
               asOf: metadata.a,
               ...(isValidCursorTimestamp(metadata.t) ? { tiebreakAt: metadata.t } : {}),
               ...(metadata.f === 1 ? { fromPopularFallback: true as const } : {}),
-              excludeIds: normalizeExcludedIds(
-                id,
-                Array.isArray(metadata.x)
-                  ? metadata.x.filter((value): value is string => typeof value === 'string')
-                  : undefined,
-              ),
+              excludeIds,
             };
           } catch {
             return undefined;
