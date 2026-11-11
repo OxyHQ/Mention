@@ -485,14 +485,11 @@ function buildViewerVisiblePostSql(ctx: FeedEngineContext): SQL {
 }
 
 /**
- * The descending order a RELATIONSHIP keyset (likes, bookmarks) pages against.
- * These sources page over the relationship row, not the post, so their cursor
- * anchors a `likes`/`bookmarks` row on `(created_at, post_id)`. The row's own
- * `id` is deliberately NOT the tiebreak: it is an opaque relationship key (a
- * bridged Bluesky like keeps its AT-URI) that no cursor can carry, whereas
- * `(user_id, post_id)` is unique on both tables, so within one viewer `post_id`
- * is a total, stable tiebreak that is always a live id. Written so an index can
- * actually serve it.
+ * The keyset and order a RELATIONSHIP page (likes, bookmarks) runs on:
+ * `(created_at, post_id)`, newest first. The row's own `id` is deliberately NOT
+ * the tiebreak — it is an opaque relationship key (a bridged Bluesky like keeps
+ * its AT-URI) no cursor can carry — whereas `(user_id, post_id)` is unique, so
+ * within one viewer `post_id` is a total, stable, always-live tiebreak.
  *
  * `nulls last` for the same reason `chronoOrderBy` spells it out: both columns
  * are NOT NULL so it changes no row, but drizzle emits `.desc()` in index DDL as
@@ -500,19 +497,27 @@ function buildViewerVisiblePostSql(ctx: FeedEngineContext): SQL {
  * Postgres compares the NULLS placement when deciding whether an index can
  * satisfy an ORDER BY. `likes_user_id_created_at_idx` and
  * `bookmarks_user_id_created_at_idx` are both `(user_id, created_at DESC NULLS
- * LAST)`, and both queries below are a per-viewer keyset over them.
+ * LAST)`, and both queries are a per-viewer keyset over them.
  *
  * Measured, 20,000 rows for one viewer, page of 31:
  *
  *   likes      Seq Scan + Sort, cost 1092.42  →  Index Scan, cost 4.31
  *   bookmarks  Seq Scan + Sort, cost 1073.42  →  Index Scan, cost 4.24
  *
- * Neither index carries `id`, so the good plan is an Incremental Sort with
+ * Neither index carries `post_id`, so the good plan is an Incremental Sort with
  * `created_at` presorted — it streams and only ever sorts one tie group, and the
  * LIMIT stops it after 32 rows instead of reading the viewer's whole history.
  */
-function relationshipOrder(createdAtColumn: PgColumn, postIdColumn: PgColumn): SQL[] {
-  return [sql`${createdAtColumn} desc nulls last`, sql`${postIdColumn} desc nulls last`];
+function relationshipPage(
+  table: { createdAt: PgColumn; postId: PgColumn },
+  anchor: ReturnType<typeof decodeChronoCursor>,
+): { keyset: SQL | undefined; order: SQL[] } {
+  return {
+    keyset: anchor
+      ? chronoKeyset({ createdAt: table.createdAt, id: table.postId }, anchor)
+      : undefined,
+    order: [sql`${table.createdAt} desc nulls last`, sql`${table.postId} desc nulls last`],
+  };
 }
 
 /** The viewer's liked posts, in like order, for the ORDERED Author-likes feed. */
@@ -524,14 +529,12 @@ async function gatherAuthorLikes(
   const db = getDb();
 
   const anchor = decodeChronoCursor(ctx.cursor);
-  const keyset = anchor
-    ? chronoKeyset({ createdAt: likes.createdAt, id: likes.postId }, anchor)
-    : undefined;
+  const { keyset, order } = relationshipPage(likes, anchor);
   const likeRows = await db
     .select({ postId: likes.postId, createdAt: likes.createdAt })
     .from(likes)
     .where(and(...[eq(likes.userId, authorId), eq(likes.value, 1), ...(keyset ? [keyset] : [])]))
-    .orderBy(...relationshipOrder(likes.createdAt, likes.postId))
+    .orderBy(...order)
     .limit(pageLimit + 1);
 
   if (likeRows.length === 0) return [];
@@ -724,14 +727,12 @@ export const savedSource: SourceModule = {
     const db = getDb();
 
     const anchor = decodeChronoCursor(ctx.cursor);
-    const keyset = anchor
-      ? chronoKeyset({ createdAt: bookmarks.createdAt, id: bookmarks.postId }, anchor)
-      : undefined;
+    const { keyset, order } = relationshipPage(bookmarks, anchor);
     const bookmarkRows = await db
       .select({ postId: bookmarks.postId, createdAt: bookmarks.createdAt })
       .from(bookmarks)
       .where(and(...[eq(bookmarks.userId, ctx.currentUserId), ...(keyset ? [keyset] : [])]))
-      .orderBy(...relationshipOrder(bookmarks.createdAt, bookmarks.postId))
+      .orderBy(...order)
       .limit(pageLimit + 1);
 
     if (bookmarkRows.length === 0) return [];
