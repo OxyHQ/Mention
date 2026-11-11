@@ -28,20 +28,3 @@ export function sendPaginated<T>(
     pagination,
   });
 }
-
-/**
- * Send an error response with consistent format.
- */
-export function sendError(res: Response, code: string, message: string, status = 500): void {
-  res.status(status).json({
-    success: false,
-    error: { code, message },
-  });
-}
-
-/**
- * Error codes for use with sendError.
- */
-export const ErrorCodes = {
-  VALIDATION_ERROR: 'VALIDATION_ERROR',
-} as const;

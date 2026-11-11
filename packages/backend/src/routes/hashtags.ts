@@ -1,3 +1,4 @@
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, gte, max, sql } from 'drizzle-orm';
 import { HASHTAG_TOKEN_SOURCE } from '@mention/shared-types/hashtags';
@@ -14,7 +15,7 @@ import {
 } from '../services/search/hashtagSearch';
 import { resolveVariant } from '../services/postVariants';
 import { logger } from '../utils/logger';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 
 const router = express.Router();
 
@@ -55,7 +56,10 @@ router.get('/', async (req: Request, res: Response) => {
     // unparseable `?limit` used to reach the aggregation as `$limit: NaN` (a 500).
     const limit = Math.max(
       1,
-      Math.min(queryInt(req.query.limit) || TRENDING_HASHTAG_LIMIT, TRENDING_HASHTAG_LIMIT),
+      resolvePageLimit(req.query.limit, {
+        fallback: TRENDING_HASHTAG_LIMIT,
+        max: TRENDING_HASHTAG_LIMIT,
+      }),
     );
 
     // An unparseable `?days` keeps its long-standing meaning of "no time window"
@@ -217,11 +221,11 @@ router.get('/search', async (req: Request, res: Response) => {
   // Clamp to a bounded window: an unparseable/absent `?limit` falls back to the
   // default; a negative/tampered `?offset` floors at 0. `$limit: offset + limit`
   // stays sane no matter what the client sends.
-  const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
-  const limit = Math.min(
-    Math.max(1, queryInt(req.query.limit) || HASHTAG_SEARCH_DEFAULT_LIMIT),
-    HASHTAG_SEARCH_MAX_LIMIT,
-  );
+  const offset = resolvePageOffset(req.query.offset);
+  const limit = resolvePageLimit(req.query.limit, {
+    fallback: HASHTAG_SEARCH_DEFAULT_LIMIT,
+    max: HASHTAG_SEARCH_MAX_LIMIT,
+  });
 
   try {
     const { results, hasMore } = await searchHashtagsWithCounts(query, offset, limit);

@@ -2,11 +2,11 @@ import express, { type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   recommendationService,
-  decodeRecommendationCursor,
   MAX_RECOMMENDATION_OFFSET,
   RecommendationsUnavailableError,
 } from '../services/RecommendationService';
 import type { RecommendationExcludeType } from '../services/OxyRankingClient';
+import { decodeOffsetCursor } from '../utils/offsetCursor';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 import { createScopedOxyClient, createForegroundOxyProfileClient } from '../utils/oxyHelpers';
@@ -37,8 +37,7 @@ function parseExcludeTypes(value: unknown): RecommendationExcludeType[] {
 function parseOffset(query: AuthRequest['query']): number {
   const cursor = queryString(query.cursor);
   if (cursor) {
-    const decoded = decodeRecommendationCursor(cursor);
-    return decoded ?? 0;
+    return decodeOffsetCursor(cursor)?.offset ?? 0;
   }
   const offset = queryInt(query.offset);
   return offset !== undefined && offset >= 0 ? offset : 0;

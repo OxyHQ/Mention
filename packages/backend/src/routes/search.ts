@@ -1,3 +1,4 @@
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { stripHandlePrefix } from '@mention/shared-types/handle';
 import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
@@ -15,7 +16,6 @@ import { createScopedOxyClient } from '../utils/oxyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
-import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
 import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
@@ -430,10 +430,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         requestCursor = decodedCursor;
       }
       // Validate and normalize limit (max 100)
-      const limitNum = Math.min(
-        Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1),
-        MAX_SEARCH_LIMIT,
-      );
+      const limitNum = resolvePageLimit(req.query.limit, {
+        fallback: DEFAULT_SEARCH_LIMIT,
+        max: MAX_SEARCH_LIMIT,
+      });
 
       // Newest first through `chronoOrderBy()`, never a bare `desc()` — see
       // `CursorBuilder.ts`: drizzle emits `.desc()` in INDEX DDL as

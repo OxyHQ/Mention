@@ -6,6 +6,7 @@
  * post DTO by hand.
  */
 
+import { resolvePageLimit, resolvePageNumber } from '@oxy.so/utils/paging';
 import type { Response } from 'express';
 import { and, eq, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../../db/schema/posts';
@@ -22,11 +23,11 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
-import { queryInt, queryString } from '../../utils/queryParams';
+import { queryString } from '../../utils/queryParams';
 import { topicSlugSql } from '../../utils/postTopicMatch';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { listPostCorrections } from '../../db/posts/postCorrectionsRepository';
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
+import { POST_PAGE_LIMIT } from './postPageBounds';
 import { resolveViewerPrivacyAndGraph } from '../../utils/privacyHelpers';
 import { getOrLoadPostRecord } from '../../services/postDetailCache';
 import { importRemoteEngagementOnView } from '../../connectors/remoteEngagementImport';
@@ -34,8 +35,8 @@ import { importRemoteEngagementOnView } from '../../connectors/remoteEngagementI
 // Get all posts
 export const getPosts = async (req: AuthRequest, res: Response) => {
   try {
-    const page = queryInt(req.query.page) || 1;
-    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const page = resolvePageNumber(req.query.page);
+    const limit = resolvePageLimit(req.query.limit, POST_PAGE_LIMIT);
 
     const posts = await findPostRecords(
       and(
@@ -203,7 +204,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   try {
     const hashtag = String(req.params.hashtag);
     const cursor = queryString(req.query.cursor);
-    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const limit = resolvePageLimit(req.query.limit, POST_PAGE_LIMIT);
 
     const posts = await findHashtagPage(hashtag, cursor, limit + 1);
 
@@ -253,7 +254,7 @@ export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
   try {
     const topicName = String(req.params.topic);
     const cursor = queryString(req.query.cursor);
-    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const limit = resolvePageLimit(req.query.limit, POST_PAGE_LIMIT);
 
     const keyset = await chronoCursorSql(cursor);
     const posts = await findPostRecords(

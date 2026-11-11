@@ -3,6 +3,7 @@
  * list, and moving a bookmark between folders.
  */
 
+import { resolvePageLimit, resolvePageNumber } from '@oxy.so/utils/paging';
 import { respondWithApiError } from '../../utils/error';
 import type { Response } from 'express';
 import { and, eq, exists, ilike, sql, type SQL } from 'drizzle-orm';
@@ -21,7 +22,7 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { callerOxyUser } from '../../utils/oxyHelpers';
-import { queryInt, queryString } from '../../utils/queryParams';
+import { queryString } from '../../utils/queryParams';
 import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../../services/postEngagementBroadcast';
 import {
   EngagementPostNotFoundError,
@@ -43,7 +44,7 @@ import {
   listBookmarkFoldersForViewer,
   updateBookmarkFolderForViewer,
 } from '../../services/BookmarkFolderService';
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
+import { POST_PAGE_LIMIT } from './postPageBounds';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
 
 /** The save counter a response may carry: `null` when the author hides it. */
@@ -147,8 +148,8 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const page = queryInt(req.query.page) || 1;
-    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const page = resolvePageNumber(req.query.page);
+    const limit = resolvePageLimit(req.query.limit, POST_PAGE_LIMIT);
     const cursorParam = queryString(req.query.cursor);
     const cursor = cursorParam === undefined ? undefined : decodeChronoCursor(cursorParam);
     if (cursorParam !== undefined && !cursor) {

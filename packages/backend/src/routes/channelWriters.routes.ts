@@ -60,6 +60,7 @@
  * empty list — the list exists and is empty, which is a different fact.
  */
 
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { Router, type Response } from 'express';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import {
@@ -80,7 +81,7 @@ import { callerOxyUser } from '../utils/oxyHelpers';
 import { channelWritersRateLimiter } from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 import {
   type ChronoAnchor,
   chronoKeyset,
@@ -227,10 +228,10 @@ router.get(
         return sendErrorResponse(res, 400, 'Bad Request', 'oxyUserId is required');
       }
 
-      const limit = Math.min(
-        Math.max(queryInt(req.query.limit) || DEFAULT_WRITERS_PAGE_SIZE, 1),
-        MAX_WRITERS_PAGE_SIZE,
-      );
+      const limit = resolvePageLimit(req.query.limit, {
+        fallback: DEFAULT_WRITERS_PAGE_SIZE,
+        max: MAX_WRITERS_PAGE_SIZE,
+      });
       // A malformed token yields the first page, never a 500.
       const cursor = decodeChronoCursor(queryString(req.query.cursor));
 

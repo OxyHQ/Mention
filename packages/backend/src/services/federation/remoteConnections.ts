@@ -36,26 +36,13 @@ import {
 } from '../../db/federation/remoteGraphRepository';
 import { crawlRemoteGraphInBackground, graphNode } from '../../connectors/remoteGraphMirror';
 import { UserPrivacyManager } from '../../mtn/UserPrivacyManager';
+import { decodeOffsetCursor, encodeOffsetCursor } from '../../utils/offsetCursor';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { resolveUserSummaries } from '../PostHydrationService';
 
 export type ConnectionKind = 'followers' | 'following';
 
-type Cursor = { phase: 'oxy'; offset: number } | { phase: 'mirror'; after?: string };
-
-const OXY_PREFIX = 'o:';
-const MIRROR_PREFIX = 'm:';
-
-function parseCursor(cursor: string | undefined): Cursor {
-  if (cursor?.startsWith(MIRROR_PREFIX)) {
-    const after = cursor.slice(MIRROR_PREFIX.length);
-    return { phase: 'mirror', after: after || undefined };
-  }
-  const offset = cursor?.startsWith(OXY_PREFIX)
-    ? Number.parseInt(cursor.slice(OXY_PREFIX.length), 10)
-    : 0;
-  return { phase: 'oxy', offset: Number.isFinite(offset) && offset > 0 ? offset : 0 };
-}
+const MIRROR_PHASE = 'mirror';
 
 /**
  * The profile's mirror nodes on this side, or none when the mirror may list
@@ -108,13 +95,13 @@ export async function loadProfileConnections(input: {
   const excluded = privacy?.excludedUserIds ?? new Set<string>();
   if (excluded.has(profileUserId)) return { users: [], hasMore: false };
 
-  const cursor = parseCursor(input.cursor);
+  const cursor = decodeOffsetCursor(input.cursor) ?? { offset: 0 };
   const ids: string[] = [];
   let nextCursor: string | undefined;
   let mirrorAfter: string | undefined;
   let mirrorRoom = limit;
 
-  if (cursor.phase === 'oxy') {
+  if (cursor.phase !== MIRROR_PHASE) {
     const follows = getServiceOxyClient().follows;
     const params = { limit, offset: cursor.offset };
     const page =
@@ -126,7 +113,7 @@ export async function loadProfileConnections(input: {
     const { users } = page;
     for (const user of users) if (user.id && !excluded.has(user.id)) ids.push(user.id);
     if (page.hasMore) {
-      return finish(ids, `${OXY_PREFIX}${cursor.offset + users.length}`);
+      return finish(ids, encodeOffsetCursor({ offset: cursor.offset + users.length }));
     }
     mirrorRoom = limit - users.length;
   } else {
@@ -147,7 +134,11 @@ export async function loadProfileConnections(input: {
     const shown = mirrored.slice(0, mirrorRoom);
     ids.push(...shown);
     if (mirrored.length > mirrorRoom) {
-      nextCursor = `${MIRROR_PREFIX}${shown.at(-1) ?? mirrorAfter ?? ''}`;
+      nextCursor = encodeOffsetCursor({
+        offset: 0,
+        phase: MIRROR_PHASE,
+        after: shown.at(-1) ?? mirrorAfter,
+      });
     }
   }
   return finish(ids, nextCursor);

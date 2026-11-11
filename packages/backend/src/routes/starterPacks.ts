@@ -1,3 +1,4 @@
+import { resolvePageLimit, resolvePageNumber } from '@oxy.so/utils/paging';
 import express, { type Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -16,7 +17,7 @@ import { invalidate as invalidateUserSummaries } from '../services/userSummaryCa
 import type { AvatarIdentitySummary, PostUser } from '@mention/shared-types';
 import { avatarIdentitySummary } from '../utils/avatarIdentitySummary';
 import { logger } from '../utils/logger';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 
 /**
@@ -466,11 +467,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const search = queryString(req.query.search);
     const ownerId = queryString(req.query.userId)?.trim() ?? '';
 
-    const page = Math.max(1, queryInt(req.query.page) || 1);
-    const limit = Math.min(
-      Math.max(1, queryInt(req.query.limit) || DEFAULT_PACK_PAGE_SIZE),
-      MAX_PACK_PAGE_SIZE,
-    );
+    const page = resolvePageNumber(req.query.page);
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_PACK_PAGE_SIZE,
+      max: MAX_PACK_PAGE_SIZE,
+    });
     const offset = (page - 1) * limit;
 
     const conditions: Array<SQL | undefined> = [];
