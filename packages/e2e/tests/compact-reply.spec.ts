@@ -253,3 +253,86 @@ test('GIF picker attaches its durable id, maximizes it and preserves edits on im
     .toBe(true);
   expect(imports).toBe(1);
 });
+
+for (const motion of ['no-preference', 'reduce'] as const) {
+  test(`empty composer focus and blur keep the input within its settled trajectory (${motion})`, async ({
+    page,
+    context,
+  }) => {
+    await installReplySession(context);
+    await arrangeVideoPost(page, 'mp4');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: motion });
+    await page.goto(`/p/${POST_ID}`);
+    const input = page.getByTestId('post-screen').getByRole('textbox');
+    await expect(input).toBeVisible();
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+    await expect
+      .poll(
+        async () =>
+          (await page.getByTestId('post-reply-navigation-action-content').boundingBox())?.height,
+      )
+      .toBe(56);
+    const all: Record<string, unknown> = {};
+    for (const focused of [true, false]) {
+      const frames = await input.evaluate(
+        (node: HTMLTextAreaElement, focus) =>
+          new Promise<
+            Array<{
+              y: number;
+              height: number;
+              connected: boolean;
+              viewport: number;
+              windowY: number;
+            }>
+          >((resolve) => {
+            const read = () => ({
+              y: node.getBoundingClientRect().y,
+              height: node.getBoundingClientRect().height,
+              connected: node.isConnected,
+              viewport: window.innerHeight,
+              windowY: window.scrollY,
+            });
+            const rows = [read()];
+            const started = performance.now();
+            if (focus) node.focus();
+            else node.blur();
+            const sample = () => {
+              rows.push(read());
+              if (performance.now() - started < 800) requestAnimationFrame(sample);
+              else resolve(rows);
+            };
+            requestAnimationFrame(sample);
+          }),
+        focused,
+      );
+      all[focused ? 'focus' : 'blur'] = frames;
+    }
+    await test
+      .info()
+      .attach('composer-focus-trajectory', {
+        body: JSON.stringify(all),
+        contentType: 'application/json',
+      });
+    for (const rows of Object.values(all) as Array<
+      Array<{ y: number; height: number; connected: boolean; viewport: number; windowY: number }>
+    >) {
+      expect(
+        rows.every(
+          (row) =>
+            row.connected &&
+            row.height > 0 &&
+            row.viewport === 844 &&
+            row.windowY === rows[0].windowY,
+        ),
+      ).toBe(true);
+      const endpoints = [rows[0].y, rows.at(-1)!.y];
+      expect(Math.min(...rows.map((row) => row.y))).toBeGreaterThanOrEqual(
+        Math.min(...endpoints) - 2,
+      );
+      expect(Math.max(...rows.map((row) => row.y))).toBeLessThanOrEqual(Math.max(...endpoints) + 2);
+    }
+  });
+}
