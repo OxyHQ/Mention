@@ -1,3 +1,4 @@
+import { clamp } from '@oxy.so/utils/text';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
@@ -44,7 +45,7 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
 function toAccent(r: number, g: number, b: number): string {
   const [h, s, l] = rgbToHsl(r, g, b);
   const sat = s < 0.08 ? s : Math.max(s, 0.38);
-  const light = Math.min(Math.max(l, 0.22), 0.34);
+  const light = clamp(l, 0.22, 0.34);
   return `hsl(${Math.round(h)}, ${Math.round(Math.min(sat, 0.7) * 100)}%, ${Math.round(light * 100)}%)`;
 }
 

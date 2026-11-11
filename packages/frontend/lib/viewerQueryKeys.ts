@@ -1,5 +1,4 @@
 import type { MercariaProductListOptions } from '@mercaria.co/sdk';
-import type { QueryClient } from '@tanstack/react-query';
 import type { FeedType } from '@mention/shared-types';
 import { normalizeFeedFilters, type FeedFilters } from '@/utils/feedUtils';
 
@@ -668,27 +667,8 @@ export const viewerQueryKeys = {
     viewerQueryKeys.isFamily(queryKey, 'channel-writers') && queryKey[3] === channelId,
 };
 
-/** The single factory for every Mention-owned React Query key. */
-export const mentionQueryKeys = {
-  public: publicQueryKeys,
-  private: viewerQueryKeys,
-} as const;
-
 export function viewerStorageKey(baseKey: string, viewerId: ViewerId): string {
   return `${baseKey}:${encodeURIComponent(viewerCacheId(viewerId))}`;
-}
-
-/**
- * Remove only the previous viewer's private namespace. The next viewer has a
- * different prefix, so an in-flight response from A can never populate B's key.
- */
-export async function clearViewerQueryCache(
-  queryClient: QueryClient,
-  viewerId: string,
-): Promise<void> {
-  const queryKey = viewerQueryKeys.all(viewerId);
-  await queryClient.cancelQueries({ queryKey });
-  queryClient.removeQueries({ queryKey });
 }
 
 export const membershipKeys = {

@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
@@ -104,24 +104,32 @@ export function InsightsDashboard({
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState<string | string[] | undefined>();
-  const numberFormat = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 });
-  const decimalFormat = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 });
-  const formatNumber = (value: number) => numberFormat.format(value);
-  const formatPercent = (value: number) => `${decimalFormat.format(value)}%`;
-  const formatDate = (date: string) =>
-    new Intl.DateTimeFormat(i18n.language, {
+  const { formatNumber, formatDecimal, formatPercent, formatDate } = useMemo(() => {
+    const numberFormat = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 });
+    const decimalFormat = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 });
+    const dateFormat = new Intl.DateTimeFormat(i18n.language, {
       month: 'short',
       day: 'numeric',
       timeZone: 'UTC',
-    }).format(new Date(date));
+    });
+    return {
+      formatNumber: (value: number) => numberFormat.format(value),
+      formatDecimal: (value: number) => decimalFormat.format(value),
+      formatPercent: (value: number) => `${decimalFormat.format(value)}%`,
+      formatDate: (date: string) => dateFormat.format(new Date(date)),
+    };
+  }, [i18n.language]);
 
-  const series = buildInsightsSeries(stats, i18n.language);
+  const series = useMemo(() => buildInsightsSeries(stats, i18n.language), [stats, i18n.language]);
   const publishing = buildPublishingSummary(stats);
   const formats = Object.entries(stats.postsByType)
     .filter(([, count]) => count > 0)
     .sort(([, a], [, b]) => b - a);
   const leadingFormat = formats[0]?.[0];
-  const weekdayInteractions = buildWeekdayInteractions(stats, i18n.language);
+  const weekdayInteractions = useMemo(
+    () => buildWeekdayInteractions(stats, i18n.language),
+    [stats, i18n.language],
+  );
   const range = `${formatDate(stats.period.startDate)} – ${formatDate(stats.period.endDate)}`;
   const interactions = [
     {
@@ -168,13 +176,13 @@ export function InsightsDashboard({
     },
     {
       label: t('insights.interactionsPerPostShort'),
-      value: decimalFormat.format(stats.overview.averageEngagementPerPost),
+      value: formatDecimal(stats.overview.averageEngagementPerPost),
     },
   ];
   const viewStats = [
     {
       label: t('insights.viewsPerPost'),
-      value: decimalFormat.format(engagementRatios.averages.viewsPerPost),
+      value: formatDecimal(engagementRatios.averages.viewsPerPost),
     },
     { label: t('insights.topViewDate'), value: peakViews?.value > 0 ? peakViews.label : '—' },
     { label: t('insights.topDateViews'), value: formatNumber(peakViews?.value ?? 0) },
@@ -186,7 +194,7 @@ export function InsightsDashboard({
     },
     {
       label: t('insights.postsPerActiveDay'),
-      value: decimalFormat.format(
+      value: formatDecimal(
         publishing.activeDays ? stats.overview.totalPosts / publishing.activeDays : 0,
       ),
     },
@@ -222,7 +230,7 @@ export function InsightsDashboard({
         },
         {
           label: t('insights.postsPerActiveDay'),
-          value: decimalFormat.format(
+          value: formatDecimal(
             publishing.activeDays ? stats.overview.totalPosts / publishing.activeDays : 0,
           ),
         },
@@ -315,11 +323,11 @@ export function InsightsDashboard({
                   },
                   {
                     label: t('insights.viewsPerPost'),
-                    value: decimalFormat.format(engagementRatios.averages.viewsPerPost),
+                    value: formatDecimal(engagementRatios.averages.viewsPerPost),
                   },
                   {
                     label: t('insights.interactionsPerPostShort'),
-                    value: decimalFormat.format(stats.overview.averageEngagementPerPost),
+                    value: formatDecimal(stats.overview.averageEngagementPerPost),
                   },
                   {
                     label: t('insights.activeDaysShort'),
@@ -414,7 +422,7 @@ export function InsightsDashboard({
               <ChartHeadline
                 label={t('insights.engagementPerPost')}
                 value={engagementRatios.averages.engagementPerPost}
-                format={(value) => decimalFormat.format(value)}
+                format={(value) => formatDecimal(value)}
                 caption={range}
               />
               <ChartStatTiles
@@ -429,7 +437,7 @@ export function InsightsDashboard({
                   },
                   {
                     label: t('insights.viewsPerPost'),
-                    value: decimalFormat.format(engagementRatios.averages.viewsPerPost),
+                    value: formatDecimal(engagementRatios.averages.viewsPerPost),
                   },
                 ]}
               />
@@ -505,12 +513,12 @@ export function InsightsDashboard({
                 { label: t('insights.posts'), value: formatNumber(stats.overview.totalPosts) },
                 {
                   label: t('insights.viewsPerPost'),
-                  value: decimalFormat.format(engagementRatios.averages.viewsPerPost),
+                  value: formatDecimal(engagementRatios.averages.viewsPerPost),
                 },
               ]}
               metricLabel={t('insights.perPost')}
               metric="value"
-              format={(value) => decimalFormat.format(value)}
+              format={(value) => formatDecimal(value)}
               items={interactions.map((item) => ({
                 ...item,
                 value: stats.overview.totalPosts ? item.value / stats.overview.totalPosts : 0,
@@ -538,7 +546,7 @@ export function InsightsDashboard({
                   },
                   {
                     label: t('insights.postsPerDay'),
-                    value: decimalFormat.format(
+                    value: formatDecimal(
                       stats.period.days > 0 ? stats.overview.totalPosts / stats.period.days : 0,
                     ),
                   },

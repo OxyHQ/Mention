@@ -108,6 +108,11 @@ export function buildOperatorValueSuggestions(
   return suggestions;
 }
 
+const USER_OPERAND_PATTERN = new RegExp(
+  `\\b(?:${USER_OPERATOR_PREFIXES.join('|')}):("[^"]*"|[^\\s]+)`,
+  'gi',
+);
+
 /**
  * People the viewer has previously named in a search, most recent first.
  *
@@ -118,10 +123,9 @@ export function buildOperatorValueSuggestions(
  * is always offered first anyway.
  */
 function recentOperands(searchHistory: readonly string[]): string[] {
-  const pattern = new RegExp(`\\b(?:${USER_OPERATOR_PREFIXES.join('|')}):("[^"]*"|[^\\s]+)`, 'gi');
   const operands: string[] = [];
   for (const entry of searchHistory) {
-    for (const match of entry.matchAll(pattern)) {
+    for (const match of entry.matchAll(USER_OPERAND_PATTERN)) {
       const operand = stripHandlePrefix(match[1].replace(/^"|"$/g, ''));
       if (operand.length > 0 && operand.toLowerCase() !== 'me') operands.push(operand);
     }

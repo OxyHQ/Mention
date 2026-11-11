@@ -27,7 +27,7 @@ const AVAILABILITY_STALE_TIME_MS = 10 * 60_000;
 const HUB_STALE_TIME_MS = 30_000;
 
 /** Whether this deployment takes community notes, for this viewer. */
-export function useCommunityNotesAvailable(): boolean {
+function useCommunityNotesAvailable(): boolean {
   const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const viewerId = user?.id;
 

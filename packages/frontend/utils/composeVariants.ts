@@ -5,6 +5,7 @@ import {
   type ComposerMediaItem,
   type ComposerMediaType,
 } from './composeUtils';
+import { isRecord } from '@/utils/isRecord';
 
 /**
  * The multilingual compose buffer.
@@ -750,10 +751,6 @@ export function serializeVariants(state: ComposeVariantsState): DraftVariants {
         })),
     })),
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

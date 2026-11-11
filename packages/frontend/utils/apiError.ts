@@ -1,4 +1,5 @@
 import { isAxiosError } from 'axios';
+import { isRecord } from '@/utils/isRecord';
 
 /**
  * Normalized, transport-agnostic view of a caught error.
@@ -25,10 +26,6 @@ interface ServerErrorBody {
   message?: unknown;
   error?: unknown;
   code?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function readString(value: unknown): string | undefined {

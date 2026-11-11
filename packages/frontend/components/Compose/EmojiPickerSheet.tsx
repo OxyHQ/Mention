@@ -1,3 +1,4 @@
+import { chunk } from '@oxy.so/utils/text';
 import type React from 'react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
@@ -23,15 +24,6 @@ const NUM_COLUMNS = 8;
 interface EmojiPickerSheetProps {
   onClose: () => void;
   onSelectEmoji: (emoji: string) => void;
-}
-
-/** Split an array into chunks of a given size */
-function chunk<T>(arr: T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    result.push(arr.slice(i, i + size));
-  }
-  return result;
 }
 
 const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEmoji }) => {

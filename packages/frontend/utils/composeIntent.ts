@@ -36,10 +36,10 @@ export const MAX_SOURCES = 5;
 /** Hard cap on poll options accepted from intent. */
 export const MAX_POLL_OPTIONS = 4;
 /** Minimum poll options accepted from intent. */
-export const MIN_POLL_OPTIONS = 2;
+const MIN_POLL_OPTIONS = 2;
 /** Min/max poll duration in days. */
-export const POLL_DURATION_MIN_DAYS = 1;
-export const POLL_DURATION_MAX_DAYS = 7;
+const POLL_DURATION_MIN_DAYS = 1;
+const POLL_DURATION_MAX_DAYS = 7;
 export const POLL_DURATION_DEFAULT_DAYS = 7;
 /**
  * Hard cap on thread items accepted from intent (`thread[0].text` …

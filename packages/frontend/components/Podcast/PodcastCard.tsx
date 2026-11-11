@@ -1,3 +1,4 @@
+import { clamp } from '@oxy.so/utils/text';
 import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
@@ -257,7 +258,7 @@ export const PodcastCard = memo(function PodcastCard({
     const ratio = episode?.width && episode?.height ? episode.width / episode.height : 16 / 9;
     // Portrait video would make the card taller than the feed row can hold;
     // landscape wider than 16:9 leaves a sliver. Threads crops to the same band.
-    const clampedRatio = Math.min(Math.max(ratio, 4 / 5), 16 / 9);
+    const clampedRatio = clamp(ratio, 4 / 5, 16 / 9);
     return (
       <View
         className={cn('self-start rounded-2xl overflow-hidden', className)}

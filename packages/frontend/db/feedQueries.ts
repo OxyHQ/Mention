@@ -26,6 +26,7 @@ import {
 } from './memoryStore';
 import type { FeedFilters } from '@/utils/feedUtils';
 import { createLogger } from '@oxy.so/core/logger';
+import { safeJsonParse } from '@/utils/safeJson';
 
 const logger = createLogger('FeedQueries');
 
@@ -34,15 +35,6 @@ const INSERT_FEED_ITEM_SQL =
   'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)';
 
 // ── Helpers ──────────────────────────────────────────────────────
-
-function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
-  if (!json) return fallback;
-  try {
-    return JSON.parse(json) as T;
-  } catch {
-    return fallback;
-  }
-}
 
 // ── Types ────────────────────────────────────────────────────────
 
