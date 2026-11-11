@@ -189,7 +189,9 @@ server behavior. Neither proves that production has been deployed.
 Opening a post's likes or reposts splits only that post's panel vertically. The
 post and engagement list share the available height equally until the reader
 moves Bloom's separator; each uses its own real Bloom scroll owner. Both panes
-have a 160px minimum. If the window cannot fit those minimums and the gap, Bloom
+have the same useful minimum: 224px normally, or 368px when the host includes
+the anonymous sign-in footer. These authored bounds leave room for screen chrome
+and readable content. If the window cannot fit those minimums and the gap, Bloom
 presents the engagement list as a sheet instead of crushing either pane. Closing the
 list restores the post's available space. A narrow viewport presents the same
 engagement screen as a bottom sheet instead of an inline split.
@@ -199,7 +201,9 @@ web routes retain document scrolling while the supporting panel is closed or
 floating because of the narrow-width policy. An inline split becomes bounded without
 replacing the route tree. A height-constrained sheet retains the bounded main
 while open so its capacity query cannot oscillate with document height; closing
-it restores normal document flow.
+it restores normal document flow. When closing an inline split, Bloom retains the
+bounded scroll owner until its geometry transition finishes, then transfers the
+current reading offset to the document in the same handoff.
 Deck groups stay bounded throughout. Group and routed leaf IDs retain the
 existing workspace IDs in their separate sibling scopes, preserving saved
 navigation and scroll snapshot keys. Bloom owns responsive eligibility,

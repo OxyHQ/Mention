@@ -16,6 +16,8 @@ export function postEngagementGroup(
 ): AppShellPanelDefinition {
   const { content, navigation, bottomBar, headerActions, scroll, errorBoundary, ...group } = host;
   const destination = engagement?.destination;
+  // Authored chrome budget: the anonymous sign-in footer needs more room than a reply composer.
+  const minimumHeight = bottomBar ? 368 : 224;
   return {
     ...group,
     testID: host.testID ?? `mention-shell-panels-${host.id}`,
@@ -39,7 +41,7 @@ export function postEngagementGroup(
           appearance: host.appearance,
           colorPreset: host.colorPreset,
           span: 1,
-          minHeight: 160,
+          minHeight: minimumHeight,
           resizable: true,
         },
         {
@@ -47,7 +49,7 @@ export function postEngagementGroup(
           testID: `mention-shell-panels-${host.id}-engagement`,
           visible: engagement?.isOpen ?? false,
           span: 1,
-          minHeight: 160,
+          minHeight: minimumHeight,
           errorBoundary: { onError },
           floating: {
             below: 'md',

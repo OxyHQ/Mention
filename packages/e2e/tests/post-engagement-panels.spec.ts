@@ -101,14 +101,14 @@ test('likes split the post bounds, scroll independently and close without remoun
   await page.mouse.down();
   await page.mouse.move(topStop.x + topStop.width / 2, 10, { steps: 10 });
   await page.mouse.up();
-  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(160, 0);
+  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
   const bottomStop = await divider.boundingBox();
   if (!bottomStop) throw new Error('Split divider disappeared after resizing');
   await page.mouse.move(bottomStop.x + bottomStop.width / 2, bottomStop.y + bottomStop.height / 2);
   await page.mouse.down();
   await page.mouse.move(bottomStop.x + bottomStop.width / 2, 890, { steps: 10 });
   await page.mouse.up();
-  await expect.poll(async () => (await likes.boundingBox())?.height ?? 0).toBeCloseTo(160, 0);
+  await expect.poll(async () => (await likes.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
   const closeFromMinimum = await divider.boundingBox();
   if (!closeFromMinimum) throw new Error('Split divider disappeared before closing');
   await page.mouse.move(
@@ -118,7 +118,7 @@ test('likes split the post bounds, scroll independently and close without remoun
   await page.mouse.down();
   await page.mouse.move(closeFromMinimum.x + closeFromMinimum.width / 2, 10, { steps: 10 });
   await page.mouse.up();
-  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(160, 0);
+  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
   const closingFrames = likes.evaluate(
     (panel) =>
       new Promise<number[]>((resolve) => {
@@ -140,10 +140,13 @@ test('likes split the post bounds, scroll independently and close without remoun
     1,
   );
   await expect(likes).toBeHidden();
-  await expect(likes.locator('[role="heading"]')).toHaveCount(0);
+  await expect(likes).toHaveAttribute('aria-hidden', 'true');
   await expect(screen).toHaveAttribute('data-original-post', 'true');
   await expect(postOwner).toHaveCount(0);
   await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeGreaterThan(850);
+  await expect
+    .poll(async () => (await content.boundingBox())?.height ?? 0)
+    .toBeCloseTo((await group.boundingBox())?.height ?? 0, 0);
   expect(candidate.scriptErrors).toEqual([]);
 });
 
@@ -231,10 +234,10 @@ test('two Deck columns keep independent engagement panels and retain their reord
         (await page.getByTestId('mention-shell-panels-custom-a-content').boundingBox())?.height ??
         0,
     )
-    .toBeCloseTo(160, 0);
+    .toBeCloseTo(224, 0);
   await firstList.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(firstList).toBeHidden();
-  await expect(firstList.locator('[role="heading"]')).toHaveCount(0);
+  await expect(firstList).toHaveAttribute('aria-hidden', 'true');
   await expect
     .poll(
       async () =>
@@ -288,7 +291,7 @@ test('the normal post keeps its viewport mask and document reading position thro
   await expect.poll(() => bounded.evaluate((node) => node.scrollTop)).toBeCloseTo(readingOffset, 0);
   await likes.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(likes).toBeHidden();
-  await expect(likes.locator('[role="heading"]')).toHaveCount(0);
+  await expect(likes).toHaveAttribute('aria-hidden', 'true');
   await expect(screen).toHaveAttribute('data-original-post', 'true');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(readingOffset, 0);
   await expect(mask).toHaveCount(1);
@@ -378,5 +381,110 @@ test('normal and Deck preserve the post through continuous visible width transit
     }
   }
   await expect(screen).toHaveAttribute('data-retained-post', 'true');
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('closing a resized split keeps virtualized replies and their reading offset through document handoff', async ({
+  page,
+  candidate,
+}) => {
+  const replies = Array.from({ length: 50 }, (_, index) => ({
+    ...post,
+    id: `019e23ee-2d68-7000-8000-${String(index + 100).padStart(12, '0')}`,
+    content: {
+      text: `Reply ${index + 1}. Reading the virtualized replies while closing a supporting panel.`,
+    },
+    parentPostId: post.id,
+  }));
+  await page.route('**/feed/replies/**', (route) =>
+    route.fulfill({ json: { items: replies, hasMore: false } }),
+  );
+  await page.goto(`/p/${post.id}`);
+  const screen = page.getByTestId('post-screen');
+  await expect(screen).toBeVisible();
+  await screen.hover();
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(450);
+  const readingOffset = await page.evaluate(() => window.scrollY);
+  await screen.getByText('likes', { exact: true }).evaluate((node: HTMLElement) => node.click());
+  const likes = page.getByTestId('mention-shell-panels-main-engagement');
+  await expect(likes.getByRole('heading', { name: 'Likes', exact: true })).toBeVisible();
+  const divider = page
+    .getByTestId('mention-shell-panels-main')
+    .locator('[role="separator"][aria-orientation="horizontal"]');
+  const handle = await divider.boundingBox();
+  if (!handle) throw new Error('No split divider');
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2, 10, { steps: 10 });
+  await page.mouse.up();
+  const content = page.getByTestId('mention-shell-panels-main-content');
+  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
+  const framesPromise = page.evaluate(
+    () =>
+      new Promise<
+        Array<{
+          owner: string | undefined;
+          offset: number;
+          height: number;
+          opacity: number;
+          retained: boolean;
+        }>
+      >((resolve) => {
+        const retained = document.querySelector('[data-testid="post-screen"]');
+        const frames: Array<{
+          owner: string | undefined;
+          offset: number;
+          height: number;
+          opacity: number;
+          retained: boolean;
+        }> = [];
+        const started = performance.now();
+        function sample(now: number) {
+          const current = document.querySelector('[data-testid="post-screen"]');
+          const owner = current?.querySelector<HTMLElement>('[data-bloom-screen-viewport]');
+          let opacity = 1;
+          for (let node = current; node; node = node.parentElement)
+            opacity *= Number(getComputedStyle(node).opacity);
+          frames.push({
+            owner: owner?.dataset.bloomScreenViewport,
+            offset:
+              owner?.dataset.bloomScreenViewport === 'document'
+                ? window.scrollY
+                : (owner?.scrollTop ?? -1),
+            height: current?.getBoundingClientRect().height ?? 0,
+            opacity,
+            retained: current === retained,
+          });
+          if (now - started < 1200) requestAnimationFrame(sample);
+          else resolve(frames);
+        }
+        requestAnimationFrame(sample);
+      }),
+  );
+  await likes.getByRole('button', { name: 'Close', exact: true }).click();
+  const frames = await framesPromise;
+  expect(frames.some((frame) => frame.owner === 'element')).toBe(true);
+  expect(frames.some((frame) => frame.owner === 'document')).toBe(true);
+  expect(
+    frames.every((frame) => frame.retained && frame.opacity >= 0.99 && frame.height >= 367),
+  ).toBe(true);
+  expect(frames.every((frame) => Math.abs(frame.offset - readingOffset) <= 1)).toBe(true);
+  await expect(likes).toHaveAttribute('aria-hidden', 'true');
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(readingOffset, 0);
+  await expect(screen.getByText(replies[3].content.text, { exact: true })).toBeVisible();
+
+  // Reopening during close must cancel the document handoff, retaining one list and one route.
+  await screen.getByText('likes', { exact: true }).evaluate((node: HTMLElement) => node.click());
+  await expect(likes).not.toHaveAttribute('aria-hidden', 'true');
+  await likes
+    .getByRole('button', { name: 'Close', exact: true })
+    .evaluate((node: HTMLElement) => node.click());
+  await screen.getByText('likes', { exact: true }).evaluate((node: HTMLElement) => node.click());
+  await expect(likes).not.toHaveAttribute('aria-hidden', 'true');
+  await expect(screen.locator('[data-bloom-screen-viewport="element"]')).toHaveCount(1);
+  await expect(likes.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(1);
+  await likes.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(readingOffset, 0);
   expect(candidate.scriptErrors).toEqual([]);
 });
