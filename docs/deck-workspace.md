@@ -191,7 +191,9 @@ content, scroll offsets, opacity, speed and geometry bounds) from CSS interpolat
 only nine or ten RAF samples over roughly 1.2 seconds in two Deck attempts, while
 both still showed valid intermediate geometry. Progression is therefore checked
 at 25%, 50% and 75% of the real CSS transition timelines without changing styles
-or duration; animations resume in `finally`. Geometry and monotonicity assertions
+or duration; `finally` restores their original positions before resuming. The
+finished boundary is never sought: settled endpoints and exit completion are
+checked after natural playback. Geometry and monotonicity assertions
 remain strict without treating sample count as a frame-rate guarantee. The same
 sampling covers normal/Deck width changes, split closing and route-exit content
 retention. Width samples seek all sibling tracks owned by the same flex layout,

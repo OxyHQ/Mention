@@ -402,7 +402,6 @@ test('normal and Deck preserve the post through continuous visible width transit
       progression.filter((frame) => frame.width > 391 && frame.width < 619).length,
     ).toBeGreaterThan(2);
     expect(progression[0].width).toBeCloseTo(entering ? 620 : 390, 0);
-    expect(progression.at(-1)!.width).toBeCloseTo(entering ? 390 : 620, 0);
     for (let index = 1; index < progression.length; index++) {
       if (entering) expect(progression[index].width).toBeLessThan(progression[index - 1].width);
       else expect(progression[index].width).toBeGreaterThan(progression[index - 1].width);
@@ -726,6 +725,7 @@ async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height')
             return;
           host.removeEventListener('transitionrun', onTransition, true);
           let animations: Animation[] = [];
+          const originalTimes = new Map<Animation, Animation['currentTime']>();
           try {
             animations = tracks.flatMap((track) =>
               track
@@ -749,8 +749,12 @@ async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height')
               )
             )
               throw new Error('Every sampled track must expose its own geometry transitions');
-            for (const animation of animations) animation.pause();
-            const frames = [0, 0.25, 0.5, 0.75, 1].map((progress) => {
+            for (const animation of animations) {
+              originalTimes.set(animation, animation.currentTime);
+              animation.pause();
+            }
+            // Never seek the finished boundary: that would manufacture lifecycle completion.
+            const frames = [0, 0.25, 0.5, 0.75].map((progress) => {
               for (const animation of animations) {
                 const timing = animation.effect!.getComputedTiming();
                 animation.currentTime = Number(timing.delay) + Number(timing.duration) * progress;
@@ -771,7 +775,11 @@ async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height')
             reject(error);
           } finally {
             host.removeEventListener('transitionrun', onTransition, true);
-            for (const animation of animations) animation.play();
+            for (const animation of animations) {
+              const originalTime = originalTimes.get(animation);
+              if (originalTime !== undefined) animation.currentTime = originalTime;
+              animation.play();
+            }
           }
         };
         host.addEventListener('transitionrun', onTransition, true);
