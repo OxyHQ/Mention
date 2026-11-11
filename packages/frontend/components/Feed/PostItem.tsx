@@ -45,6 +45,7 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { postLinkCards } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
@@ -579,13 +580,12 @@ const PostItem: React.FC<PostItemProps> = ({
     if (viewPostId) interactions.openInsights(viewPostId);
   }, [interactions, viewPostId]);
 
-  // Detail-only: open the likes/boosts engagement list. No-op outside the
-  // focused post-detail variant (the feed action row doesn't expose it). Same
-  // surface as the post's ⋯ menu — a centered card on desktop, a sheet on
-  // mobile — so everything a post opens looks like the same app.
+  // The post route opens its supporting panel; standalone posts use the shared sheet.
+  const openPostEngagement = useOpenPostEngagement();
   const openEngagementList = useCallback(
     (type: 'likes' | 'boosts') => {
       if (!viewPostId) return;
+      if (openPostEngagement?.(viewPostId, type)) return;
       void presentSheet(
         (surface) => (
           <Suspense fallback={null}>
@@ -602,7 +602,7 @@ const PostItem: React.FC<PostItemProps> = ({
         },
       );
     },
-    [viewPostId, t],
+    [viewPostId, t, openPostEngagement],
   );
 
   // Bound once each so the memoized <PostDetailStats> is not handed a fresh

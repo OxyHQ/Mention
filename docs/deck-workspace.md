@@ -183,3 +183,38 @@ for these checks rather than fixed sleeps or relaxed geometry tolerances.
 
 Browser fixtures may mock the HTTP contract; PostgreSQL tests separately establish
 server behavior. Neither proves that production has been deployed.
+
+## Supporting post panels
+
+Opening a post's likes or reposts splits only that post's panel vertically. The
+post and engagement list share the available height equally until the reader
+moves Bloom's separator; each uses its own real Bloom scroll owner. Both panes
+have a 160px minimum. If the window cannot fit those minimums and the gap, Bloom
+presents the engagement list as a sheet instead of crushing either pane. Closing the
+list restores the post's available space. A narrow viewport presents the same
+engagement screen as a bottom sheet instead of an inline split.
+
+The main application group uses Bloom's `singlePanelFlow: 'document'`: ordinary
+web routes retain document scrolling while the supporting panel is closed or
+floating because of the narrow-width policy. An inline split becomes bounded without
+replacing the route tree. A height-constrained sheet retains the bounded main
+while open so its capacity query cannot oscillate with document height; closing
+it restores normal document flow.
+Deck groups stay bounded throughout. Group and routed leaf IDs retain the
+existing workspace IDs in their separate sibling scopes, preserving saved
+navigation and scroll snapshot keys. Bloom owns responsive eligibility,
+geometry, animation, resizing and scroll-owner transfer; Mention measures none
+of these.
+
+Engagement destinations are transient and separate for each column. Leaving the
+post closes its supporting panel. Changing account clears all destinations and
+rejects callbacks from earlier account activations. Clicking an engager closes
+the list and navigates in the originating column's history. The list keeps its
+virtualization, localized loading/error/empty states and cursor pagination in
+both presentations. Retained exit content belongs to Bloom's lifecycle, never a
+second active list or a render-time ref in the application shell.
+
+This integration depends on the Bloom release containing nested `group` and
+`singlePanelFlow`; publish that shared release through CI before updating the
+consumer's catalog version. A local built-package snapshot can validate the
+integration but does not establish published-package adoption.

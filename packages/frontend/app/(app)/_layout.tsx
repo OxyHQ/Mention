@@ -3,13 +3,18 @@ import { useDeckSync } from '@/components/deck/useDeckSync';
 import { DeckAddPanel } from '@/components/deck/DeckAddPanel';
 import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSettings';
 import { isDefaultLeadingDeckPanel } from '@/components/deck/deckEntry';
+import { useLayoutEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { ExperimentalStack, Slot, usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
-import { AppShell, type PanelNavigationState } from '@oxy.so/bloom/app-shell';
+import {
+  AppShell,
+  type AppShellPanelDefinition,
+  type PanelNavigationState,
+} from '@oxy.so/bloom/app-shell';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { DeckColumn, DeckColumnHeaderActions } from '@/components/deck/DeckColumn';
@@ -30,6 +35,8 @@ import { SignInBanner } from '@/components/SignInBanner';
 import { WelcomeRedirectGate } from '@/components/WelcomeRedirectGate';
 import { BootMilestone } from '@/components/BootMilestone';
 import { reportBoundaryError } from '@/components/AppRootErrorBoundary';
+import { usePostEngagementPanels } from '@/components/Post/postEngagementPanels';
+import { postEngagementGroup } from '@/components/Post/postEngagementGroup';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
@@ -54,7 +61,31 @@ export default function AppLayout() {
   const updateDeckPanel = useDeckSettings((state) => state.updatePanel);
   const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const hasDefaultLeadingPanel = useDeckSettings(isDefaultLeadingDeckPanel);
-  const { isAuthenticated, isAuthResolved } = useAuth();
+  const { user, isAuthenticated, isAuthResolved } = useAuth();
+  const engagementViewer = user?.id ? `user:${user.id}` : 'anonymous';
+  const engagementState = usePostEngagementPanels();
+  useLayoutEffect(() => {
+    if (isAuthResolved) usePostEngagementPanels.getState().activate(engagementViewer);
+  }, [engagementViewer, isAuthResolved]);
+  const withEngagement = (host: AppShellPanelDefinition, documentWhenAlone = false) => {
+    const entry =
+      isAuthResolved && engagementState.viewer === engagementViewer
+        ? engagementState.panels[host.id]
+        : undefined;
+    return postEngagementGroup(
+      host,
+      entry,
+      () =>
+        usePostEngagementPanels
+          .getState()
+          .close(engagementViewer, engagementState.generation, host.id),
+      entry?.destination.kind === 'boosts'
+        ? t('post.boostsTitle', { defaultValue: 'Reposts' })
+        : t('post.likesTitle', { defaultValue: 'Likes' }),
+      reportBoundaryError,
+      documentWhenAlone,
+    );
+  };
   const pathname = usePathname();
   const deckAvailable = useDeckAvailable();
   const deckOpen = (pathname === '/deck' || deckEnabled) && deckAvailable;
@@ -172,31 +203,34 @@ export default function AppLayout() {
                 : 'main',
             expandedPanel: !deckOpen && onInsightsRoute ? 'main' : undefined,
             panels: [
-              {
-                id: 'main',
-                visible: true,
-                // A screen that throws fails inside its panel, never the whole app;
-                // navigating to another route recovers it.
-                errorBoundary: { resetKey: pathname, onError: reportBoundaryError },
-                // The Expo child navigator keeps the same host across every layout mode,
-                // including the Deck entry link that opens the home route.
-                keepMounted: true,
-                bottomBar: bottomContent === 'sign-in' ? <SignInBanner /> : undefined,
-                width: deckOpen ? 390 : 620,
-                minWidth: deckOpen ? 390 : 0,
-                maxWidth: deckOpen ? 390 : undefined,
-                resizable: false,
-                content: (
-                  <>
-                    <View
-                      style={StyleSheet.absoluteFill}
-                      pointerEvents="box-none"
-                      ref={registerPanelSurface}
-                    />
-                    {centerContent}
-                  </>
-                ),
-              },
+              withEngagement(
+                {
+                  id: 'main',
+                  visible: true,
+                  // A screen that throws fails inside its panel, never the whole app;
+                  // navigating to another route recovers it.
+                  errorBoundary: { resetKey: pathname, onError: reportBoundaryError },
+                  // The Expo child navigator keeps the same host across every layout mode,
+                  // including the Deck entry link that opens the home route.
+                  keepMounted: true,
+                  bottomBar: bottomContent === 'sign-in' ? <SignInBanner /> : undefined,
+                  width: deckOpen ? 390 : 620,
+                  minWidth: deckOpen ? 390 : 0,
+                  maxWidth: deckOpen ? 390 : undefined,
+                  resizable: false,
+                  content: (
+                    <>
+                      <View
+                        style={StyleSheet.absoluteFill}
+                        pointerEvents="box-none"
+                        ref={registerPanelSurface}
+                      />
+                      {centerContent}
+                    </>
+                  ),
+                },
+                IS_WEB && !deckOpen,
+              ),
               {
                 id: 'context',
                 visible: !deckOpen,
@@ -213,7 +247,7 @@ export default function AppLayout() {
                 .filter((id) => deckPanels[id])
                 .map((id) => {
                   const panel = deckPanels[id];
-                  return {
+                  return withEngagement({
                     id,
                     visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
                     errorBoundary: { onError: reportBoundaryError },
@@ -263,7 +297,7 @@ export default function AppLayout() {
                       },
                       render: () => <DeckColumn panelId={id} />,
                     },
-                  };
+                  });
                 }),
             ],
           }}
