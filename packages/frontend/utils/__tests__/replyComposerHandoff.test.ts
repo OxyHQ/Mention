@@ -21,21 +21,20 @@ it('preserves all text exactly and acknowledges the original revision only after
   expect(onClaim).toHaveBeenCalledTimes(1);
 });
 
-it.each([
-  { viewerId: 'viewer-b' },
-  { epoch: 6 },
-  { replyToPostId: 'other-parent' },
-])('rejects a different scope without consuming or clearing the source: %o', (change) => {
-  const onClaim = jest.fn();
-  const token = createReplyComposerHandoff({ ...input, onClaim })!;
-  const wrong = { ...scope, ...change };
-  expect(consumeReplyComposerHandoff(token, wrong)).toBeUndefined();
-  expect(discardReplyComposerHandoff(token, wrong)).toBe(false);
-  const received = consumeReplyComposerHandoff(token, scope)!;
-  expect(received.acknowledge(wrong)).toBe(false);
-  expect(onClaim).not.toHaveBeenCalled();
-  expect(received.acknowledge(scope)).toBe(true);
-});
+it.each([{ viewerId: 'viewer-b' }, { epoch: 6 }, { replyToPostId: 'other-parent' }])(
+  'rejects a different scope without consuming or clearing the source: %o',
+  (change) => {
+    const onClaim = jest.fn();
+    const token = createReplyComposerHandoff({ ...input, onClaim })!;
+    const wrong = { ...scope, ...change };
+    expect(consumeReplyComposerHandoff(token, wrong)).toBeUndefined();
+    expect(discardReplyComposerHandoff(token, wrong)).toBe(false);
+    const received = consumeReplyComposerHandoff(token, scope)!;
+    expect(received.acknowledge(wrong)).toBe(false);
+    expect(onClaim).not.toHaveBeenCalled();
+    expect(received.acknowledge(scope)).toBe(true);
+  },
+);
 
 it('cannot transfer an in-flight publication and keeps failed navigation unclaimed', () => {
   const onClaim = jest.fn();
@@ -52,13 +51,18 @@ it('replaces a source snapshot while keeping independent Deck sources isolated',
   const latest = createReplyComposerHandoff({ ...input, text: 'new edit', revision: 8 })!;
   expect(consumeReplyComposerHandoff(first, scope)).toBeUndefined();
   expect(consumeReplyComposerHandoff(other, scope)?.text).toBe('hello');
-  expect(consumeReplyComposerHandoff(latest, scope)).toMatchObject({ text: 'new edit', revision: 8 });
+  expect(consumeReplyComposerHandoff(latest, scope)).toMatchObject({
+    text: 'new edit',
+    revision: 8,
+  });
 });
 
 it('bounds abandoned navigation entries without clearing any unaccepted source', () => {
   const onClaim = jest.fn();
-  const tokens = Array.from({ length: 33 }, (_, index) =>
-    createReplyComposerHandoff({ ...input, sourceId: `bounded-source-${index}`, onClaim })!,
+  const tokens = Array.from(
+    { length: 33 },
+    (_, index) =>
+      createReplyComposerHandoff({ ...input, sourceId: `bounded-source-${index}`, onClaim })!,
   );
   expect(consumeReplyComposerHandoff(tokens[0], scope)).toBeUndefined();
   for (const token of tokens.slice(1)) expect(discardReplyComposerHandoff(token, scope)).toBe(true);

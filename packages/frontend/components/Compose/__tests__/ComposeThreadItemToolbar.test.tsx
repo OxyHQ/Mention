@@ -102,7 +102,11 @@ jest.mock('@oxy.so/bloom/icons', () => {
     {
       get(target, name) {
         if (name in target) return target[name as keyof typeof target];
-        if (typeof name !== 'string' || !name.startsWith('Ri')) return undefined;
+        if (
+          typeof name !== 'string' ||
+          (!name.startsWith('Ri') && !['MediaAttachmentIcon', 'GifAttachmentIcon'].includes(name))
+        )
+          return undefined;
         if (!glyphs.has(name)) glyphs.set(name, glyph(name));
         return glyphs.get(name);
       },
