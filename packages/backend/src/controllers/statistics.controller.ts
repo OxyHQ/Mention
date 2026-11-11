@@ -21,6 +21,7 @@ import { callerAccountAccess } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
 import { canRequestReadPost } from '../services/postReadAccess';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
+import { LocalTtlCache } from '../utils/localTtlCache';
 
 /**
  * Language the AI weekly summary is written in when the viewer's Oxy account
@@ -171,17 +172,10 @@ interface UserStatisticsPayload {
   postsByType: Record<string, number>;
 }
 
-const statisticsCache = new Map<string, { expiresAt: number; value: UserStatisticsPayload }>();
-
-function cacheStatistics(key: string, value: UserStatisticsPayload): void {
-  statisticsCache.delete(key);
-  statisticsCache.set(key, { expiresAt: Date.now() + STATISTICS_CACHE_TTL_MS, value });
-  while (statisticsCache.size > STATISTICS_CACHE_MAX_ENTRIES) {
-    const oldest = statisticsCache.keys().next().value as string | undefined;
-    if (!oldest) break;
-    statisticsCache.delete(oldest);
-  }
-}
+const statisticsCache = new LocalTtlCache<UserStatisticsPayload>({
+  ttlMs: STATISTICS_CACHE_TTL_MS,
+  maxEntries: STATISTICS_CACHE_MAX_ENTRIES,
+});
 
 function rounded(value: number): number {
   return Number(value.toFixed(2));
@@ -208,12 +202,7 @@ function rounded(value: number): number {
 async function queryUserStatistics(userId: string, days: number): Promise<UserStatisticsPayload> {
   const cacheKey = `${userId}:${days}`;
   const cached = statisticsCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    statisticsCache.delete(cacheKey);
-    statisticsCache.set(cacheKey, cached);
-    return cached.value;
-  }
-  if (cached) statisticsCache.delete(cacheKey);
+  if (cached) return cached;
 
   const { startDate, endDate } = getDateRange(days);
 
@@ -334,7 +323,7 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
       facets.typeRows.map(({ type, postCount }) => [type, postCount]),
     ),
   };
-  cacheStatistics(cacheKey, value);
+  statisticsCache.set(cacheKey, value);
   return value;
 }
 

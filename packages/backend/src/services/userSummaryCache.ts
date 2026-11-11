@@ -1,6 +1,7 @@
 import type { PostUser } from '@mention/shared-types';
 import { config } from '../config';
 import { createCache } from '../utils/cache';
+import { LocalTtlCache } from '../utils/localTtlCache';
 
 /**
  * Redis-backed cache for resolved post-author identities (the canonical Oxy
@@ -132,36 +133,12 @@ const cache = createCache({ name: 'UserSummaryCache', ttlSeconds: SUMMARY_TTL_SE
  * invalidation that Oxy does not broadcast (a starter-pack score) reaches the
  * other tasks within this TTL.
  */
-const LOCAL_TTL_MS = 15_000;
-const LOCAL_MAX_ENTRIES = 5_000;
-
 /**
- * The in-process copy. Insertion-ordered, so the oldest entry is the first key
- * and overflow evicts it; a hit is re-inserted so a busy author stays.
- *
- * It holds ONLY what Redis returned — never a value merely written — so it is a
- * strict front for the shared cache and never knows something Redis does not.
- * Entries are shared between callers and must be treated as read-only.
+ * The in-process copy. It holds ONLY what Redis returned — never a value merely
+ * written — so it is a strict front for the shared cache and never knows
+ * something Redis does not.
  */
-const local = new Map<string, { value: CachedUserSummary; expiresAt: number }>();
-
-function readLocal(userId: string): CachedUserSummary | undefined {
-  const entry = local.get(userId);
-  if (!entry) return undefined;
-  local.delete(userId);
-  if (entry.expiresAt <= Date.now()) return undefined;
-  local.set(userId, entry);
-  return entry.value;
-}
-
-function writeLocal(userId: string, value: CachedUserSummary): void {
-  local.delete(userId);
-  local.set(userId, { value, expiresAt: Date.now() + LOCAL_TTL_MS });
-  if (local.size > LOCAL_MAX_ENTRIES) {
-    const oldest = local.keys().next();
-    if (!oldest.done) local.delete(oldest.value);
-  }
-}
+const local = new LocalTtlCache<CachedUserSummary>({ ttlMs: 15_000, maxEntries: 5_000 });
 
 /**
  * Batch-read cached summaries for many user ids: this task's short-lived copy
@@ -175,7 +152,7 @@ export async function mget(userIds: string[]): Promise<Map<string, CachedUserSum
   const result = new Map<string, CachedUserSummary>();
   const remoteIds: string[] = [];
   for (const userId of userIds) {
-    const hit = readLocal(userId);
+    const hit = local.get(userId);
     if (hit) result.set(userId, hit);
     else remoteIds.push(userId);
   }
@@ -187,7 +164,7 @@ export async function mget(userIds: string[]): Promise<Map<string, CachedUserSum
   values.forEach((value, index) => {
     if (!value) return;
     result.set(remoteIds[index], value);
-    writeLocal(remoteIds[index], value);
+    local.set(remoteIds[index], value);
   });
   return result;
 }
