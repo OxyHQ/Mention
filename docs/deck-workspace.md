@@ -196,8 +196,10 @@ vertically. The direct Insights button is offered only on an owned focused post
 detail (including a Deck route), not feed cards or nested replies; the existing
 permission-gated overflow menu shares the same host dispatch. The
 post and engagement list share the available height equally; each uses its own
-real Bloom scroll owner. Mention exposes no resize handles, including on saved
-Deck columns. Their authored sizing and responsive bounds remain active. The main pane
+real Bloom scroll owner. Bloom's separator resizes this vertical split while enforcing
+the authored minimums and the auxiliary content limit. Saved Deck columns retain
+their resize preference; the fixed application column and the horizontal Videos/replies
+composition expose no resize handles. The main pane
 has a useful minimum of 224px normally, or 368px when the host includes
 the anonymous sign-in footer; the auxiliary pane has its own 128px minimum for
 its header and a readable row. These authored bounds leave room for screen chrome

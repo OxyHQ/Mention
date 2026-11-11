@@ -30,6 +30,7 @@ export function postEngagementGroup(
   const mainMinimumHeight = bottomBar ? 368 : 224;
   return {
     ...group,
+    resizable: videoReplies ? false : group.resizable,
     testID: host.testID ?? `mention-shell-panels-${host.id}`,
     group: {
       mode: 'split',
@@ -66,7 +67,7 @@ export function postEngagementGroup(
           span: videoReplies ? 620 : 1,
           minWidth: videoReplies ? 300 : undefined,
           minHeight: mainMinimumHeight,
-          resizable: false,
+          resizable: !videoReplies,
         },
         {
           id: `${host.id}:engagement`,
@@ -76,7 +77,8 @@ export function postEngagementGroup(
           span: videoReplies ? 350 : 1,
           minWidth: videoReplies ? 280 : undefined,
           minHeight: videoReplies ? 224 : 128,
-          resizable: false,
+          resizeMaxHeight: videoReplies ? undefined : 'content',
+          resizable: !videoReplies,
           errorBoundary: { onError },
           floating: {
             below: videoReplies ? 990 : 'md',

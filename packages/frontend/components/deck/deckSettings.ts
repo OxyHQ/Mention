@@ -24,7 +24,7 @@ export type DeckPanelSettings = Omit<DeckPanelState, 'colorPreset'> & {
 export const DEFAULT_DECK_SETTINGS: Record<string, DeckPanelSettings> = Object.fromEntries(
   DECK_SOURCES.map((source, index) => [
     `deck-${index}`,
-    { source, width: 390, resizable: false, appearance: 'solid' },
+    { source, width: 390, resizable: true, appearance: 'solid' },
   ]),
 );
 export interface DeckSnapshot extends DeckWorkspaceState {
@@ -200,7 +200,7 @@ export const useDeckSettings = create<DeckSettingsState>()(
                   order: [...state.order, id],
                   panels: {
                     ...state.panels,
-                    [id]: { source, width: 390, resizable: false, appearance: 'solid' },
+                    [id]: { source, width: 390, resizable: true, appearance: 'solid' },
                   },
                 },
           );

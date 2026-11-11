@@ -43,7 +43,7 @@ it('keeps each account’s local layout mode separate from synchronized columns'
 });
 
 it.each([true, false])(
-  'ignores the retired resize preference for the default column (%s)',
+  'keeps the fixed application column independent of the saved resize preference (%s)',
   (resizable) => {
     const snapshot = emptySnapshot();
     snapshot.panels['deck-0'].resizable = resizable;

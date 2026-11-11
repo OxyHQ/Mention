@@ -93,7 +93,7 @@ Back button only when history exists and a panel-settings modal for configurable
 columns, never a second toolbar. A screen rendered in a panel delegates Back to
 Bloom; an unconditional `onBack` would incorrectly show it at the history root.
 The modal persists feed, authored width, appearance and base recipe per panel.
-Mention panels do not expose resize handles; responsive sizing remains owned by Bloom.
+Bloom owns resize handles and responsive bounds: supporting vertical splits and enabled Deck columns can resize; the Videos/replies composition remains fixed.
 Deck roots render the actual Explore, preset-feed viewer and Saved routes through
 `PanelRouteSlot`; do not introduce alternate feed or authentication screens in Deck.
 `panelLayout.trailingAction` supplies the end-of-document create-panel action;

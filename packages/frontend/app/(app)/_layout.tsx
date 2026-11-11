@@ -309,7 +309,15 @@ export default function AppLayout() {
                       colorPreset: panel.colorPreset,
                       minWidth: 300,
                       maxWidth: 620,
-                      resizable: false,
+                      resizable: panel.resizable,
+                      onWidthChange: (width) => {
+                        const current = useDeckSettings.getState();
+                        if (
+                          current.viewer === deckViewer &&
+                          current.restorationEpoch === deckRestorationEpoch
+                        )
+                          updateDeckPanel(id, { width });
+                      },
                       reorderable: true,
                       reorderLabel: t(`deck.sources.${panel.source}`),
                       scroll: 'content' as const,
