@@ -18,6 +18,10 @@ export async function arrangeVideoPost(
   } = {},
 ) {
   const requests: string[] = [];
+  // Pointer movement over the reply author can open the real profile hover card.
+  await page.route('**/statistics/user/playback-fixture-user/activity?**', (route) =>
+    route.fulfill({ json: { activity: [] } }),
+  );
   await page.route(`${MEDIA_ORIGIN}/**`, async (route) => {
     const filename = new URL(route.request().url()).pathname.split('/').pop();
     if (!filename) throw new Error('Fixture filename is missing');

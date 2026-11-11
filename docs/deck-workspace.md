@@ -186,6 +186,14 @@ configured column widths to settle. Visibility alone does not mean that an
 entrance transition has finished. The release gate uses `expectDeckColumnWidths`
 for these checks rather than fixed sleeps or relaxed geometry tolerances.
 
+Split motion checks separate RAF continuity (retained nodes, visible reading
+content, scroll offsets and geometry bounds) from CSS interpolation. CI captured
+only nine or ten RAF samples over roughly 1.2 seconds in two Deck attempts, while
+both still showed valid intermediate geometry. Progression is therefore checked
+at 25%, 50% and 75% of the real CSS transition timelines without changing styles
+or duration; animations resume in `finally`. Geometry and monotonicity assertions
+remain strict without treating sample count as a frame-rate guarantee.
+
 Browser fixtures may mock the HTTP contract; PostgreSQL tests separately establish
 server behavior. Neither proves that production has been deployed.
 
@@ -199,7 +207,9 @@ post and engagement list share the available height equally; each uses its own
 real Bloom scroll owner. Bloom's separator resizes this vertical split while enforcing
 the authored minimums and the auxiliary content limit. Saved Deck columns retain
 their resize preference; the fixed application column and the horizontal Videos/replies
-composition expose no resize handles. The main pane
+composition expose no resize handles. The Allow resizing setting is hidden only
+while that specific column displays `/videos`; its saved preference remains
+available on other routes. The main pane
 has a useful minimum of 224px normally, or 368px when the host includes
 the anonymous sign-in footer; the auxiliary pane has its own 128px minimum for
 its header and a readable row. These authored bounds leave room for screen chrome

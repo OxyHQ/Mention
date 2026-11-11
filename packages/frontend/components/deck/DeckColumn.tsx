@@ -78,6 +78,18 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
                 />
               }
             />
+            {navigation.entry.name.split(/[?#]/)[0] !== '/videos' && (
+              <GroupedSectionItem
+                title={t('deck.resizable')}
+                rightElement={
+                  <Switch
+                    checked={settings.resizable}
+                    onCheckedChange={(resizable) => updatePanel(panelId, { resizable })}
+                    accessibilityLabel={t('deck.resizable')}
+                  />
+                }
+              />
+            )}
             <GroupedSectionItem
               title={t('deck.appearance')}
               rightElement={

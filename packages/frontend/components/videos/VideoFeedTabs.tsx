@@ -19,7 +19,7 @@ export function VideoFeedTabs({ value, onValueChange }: VideoFeedTabsProps) {
         <PressableScale
           key={tab}
           accessibilityRole="tab"
-          accessibilityState={{ selected: value === tab }}
+          aria-selected={value === tab}
           onPress={() => onValueChange(tab)}
           className="min-h-11 flex-row items-center justify-center gap-1.5"
           testID={`video-feed-tab-${tab}`}

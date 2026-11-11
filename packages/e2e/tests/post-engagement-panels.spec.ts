@@ -632,6 +632,100 @@ test('repeated normal and Deck changes keep readable content and the full viewpo
   expect(candidate.scriptErrors).toEqual([]);
 });
 
+/** Inspect the real CSS transition timeline without imposing a CI frame-rate floor. */
+async function sampleSplitTransition(page: Page) {
+  return page
+    .getByTestId('post-screen')
+    .getByText('likes', { exact: true })
+    .evaluate(
+      (button: HTMLElement) =>
+        new Promise<Array<{ progress: number; height: number; auxiliaryHeight: number }>>(
+          (resolve, reject) => {
+            const host = document.querySelector('[data-testid="mention-shell-panels-main"]')!;
+            const mainTrack = document
+              .querySelector('[data-testid="post-screen"]')!
+              .closest<HTMLElement>('[data-bloom-panel-owner][data-bloom-panel-index]')!;
+            const auxiliaryTrack = document.querySelector<HTMLElement>(
+              '[data-testid="mention-shell-panels-main-engagement"]',
+            )!;
+            if (mainTrack.dataset.bloomPanelOwner !== auxiliaryTrack.dataset.bloomPanelOwner)
+              throw new Error('Split tracks do not share their layout owner');
+            const tracks = [mainTrack, auxiliaryTrack];
+            const geometry = [
+              'flex-basis',
+              'flex-grow',
+              'min-height',
+              'max-height',
+              'height',
+              'margin-top',
+            ];
+            const onTransition = (event: Event) => {
+              const transition = event as TransitionEvent;
+              if (
+                !tracks.includes(transition.target as HTMLElement) ||
+                !geometry.includes(transition.propertyName)
+              )
+                return;
+              host.removeEventListener('transitionrun', onTransition, true);
+              let animations: Animation[] = [];
+              try {
+                animations = tracks.flatMap((track) =>
+                  track
+                    .getAnimations()
+                    .filter(
+                      (animation) =>
+                        animation instanceof CSSTransition &&
+                        geometry.includes(animation.transitionProperty) &&
+                        animation.effect instanceof KeyframeEffect &&
+                        animation.effect.target === track,
+                    ),
+                );
+                if (
+                  tracks.some(
+                    (track) =>
+                      !animations.some(
+                        (animation) =>
+                          animation.effect instanceof KeyframeEffect &&
+                          animation.effect.target === track,
+                      ),
+                  )
+                )
+                  throw new Error('Both split tracks must expose their own geometry transitions');
+                for (const animation of animations) animation.pause();
+                const frames = [0, 0.25, 0.5, 0.75, 1].map((progress) => {
+                  for (const animation of animations) {
+                    const timing = animation.effect!.getComputedTiming();
+                    animation.currentTime =
+                      Number(timing.delay) + Number(timing.duration) * progress;
+                  }
+                  return {
+                    progress,
+                    // A document Screen may be taller than its visible viewport before splitting.
+                    height: Math.min(
+                      innerHeight - 16,
+                      document.querySelector('[data-testid="post-screen"]')!.getBoundingClientRect()
+                        .height,
+                    ),
+                    auxiliaryHeight: document
+                      .querySelector('[data-testid="mention-shell-panels-main-engagement"]')!
+                      .getBoundingClientRect().height,
+                  };
+                });
+                resolve(frames);
+              } catch (error) {
+                reject(error);
+              } finally {
+                host.removeEventListener('transitionrun', onTransition, true);
+                for (const animation of animations) animation.play();
+              }
+            };
+            host.addEventListener('transitionrun', onTransition, true);
+            button.click();
+          },
+        ),
+    );
+}
+
 test('opening a split progressively shares the viewport without collapsing the reading panel', async ({
   page,
   candidate,
@@ -649,17 +743,31 @@ test('opening a split progressively shares the viewport without collapsing the r
       frames.every((frame) => frame.routeRetained && frame.chromeVisible && frame.readingVisible),
     ).toBe(true);
     expect(Math.min(...frames.map((frame) => frame.height))).toBeGreaterThanOrEqual(436);
-    expect(
-      frames.filter((frame) => frame.height > 440 && frame.height < 882).length,
-    ).toBeGreaterThan(2);
-    expect(
-      frames.filter((frame) => frame.auxiliaryHeight > 2 && frame.auxiliaryHeight < 436).length,
-    ).toBeGreaterThan(2);
     expect(Math.max(...frames.map((frame) => frame.auxiliaryHeight))).toBeLessThanOrEqual(440);
     for (let index = 1; index < frames.length; index += 1) {
       expect(frames[index].height - frames[index - 1].height).toBeLessThanOrEqual(2);
     }
     const likes = page.getByTestId('mention-shell-panels-main-engagement');
+    await likes.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(likes).toBeHidden();
+    const progression = await sampleSplitTransition(page);
+    await test.info().attach(`split-timeline-${mode}`, {
+      body: JSON.stringify(progression),
+      contentType: 'application/json',
+    });
+    expect(
+      progression.filter((frame) => frame.height > 440 && frame.height < 882).length,
+    ).toBeGreaterThan(2);
+    expect(
+      progression.filter((frame) => frame.auxiliaryHeight > 2 && frame.auxiliaryHeight < 436)
+        .length,
+    ).toBeGreaterThan(2);
+    for (let index = 1; index < progression.length; index++) {
+      expect(progression[index].height).toBeLessThan(progression[index - 1].height);
+      expect(progression[index].auxiliaryHeight).toBeGreaterThan(
+        progression[index - 1].auxiliaryHeight,
+      );
+    }
     await likes.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(likes).toBeHidden();
     if (mode === 'normal') {
