@@ -1,7 +1,16 @@
-import type { ReactNode } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppErrorFallback, ErrorBoundary } from '@oxy.so/bloom/error-boundary';
-import { reportBoundaryError } from '@/lib/reportBoundaryError';
+import { createLogger } from '@oxy.so/core/logger';
+import { recoverChunkError } from '@/lib/chunkReload';
+
+const logger = createLogger('ErrorBoundary');
+
+/** The one report for every boundary: this last-resort one and the shell's panels. */
+export function reportBoundaryError(error: Error, errorInfo: ErrorInfo): void {
+  recoverChunkError(error);
+  logger.error('Error caught by boundary', error, { errorInfo });
+}
 
 /**
  * The last-resort boundary above the app shell. Bloom's `AppErrorFallback`

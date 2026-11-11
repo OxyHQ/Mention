@@ -1,5 +1,4 @@
-import { useMemo } from 'react';
-import { useDebouncedValue } from '@oxy.so/bloom/hooks';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { normalizeFederatedAcct } from '@mention/shared-types/federation';
 import { stripAtprotoHandlePrefix } from '@mention/shared-types/handle';
@@ -35,8 +34,15 @@ const RESOLVE_GC_TIME = 30 * 60 * 1000;
  * The search screen never waits on it and never reports it.
  */
 export function useExternalActorResolve(rawQuery: string): ExternalActorResolution | null {
-  // The search box updates on every keystroke; resolve once typing settles.
-  const debounced = useDebouncedValue(rawQuery.trim(), RESOLVE_DEBOUNCE_MS);
+  // Value-debounce the raw query: the search box updates on every keystroke, but
+  // we only want to resolve once typing settles. This is the idiomatic place for
+  // an effect — subscribing to a changing input and a timer.
+  const [debounced, setDebounced] = useState('');
+  useEffect(() => {
+    const trimmed = rawQuery.trim();
+    const timeoutId = setTimeout(() => setDebounced(trimmed), RESOLVE_DEBOUNCE_MS);
+    return () => clearTimeout(timeoutId);
+  }, [rawQuery]);
 
   const isRemoteQuery = useMemo(() => looksLikeRemoteHandle(debounced), [debounced]);
   // One spelling per account, so `@Alice@Host` and `alice@host` share one cache

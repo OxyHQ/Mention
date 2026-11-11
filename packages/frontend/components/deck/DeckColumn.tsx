@@ -1,4 +1,4 @@
-import { reportBoundaryError } from '@/lib/reportBoundaryError';
+import { reportBoundaryError } from '@/components/AppRootErrorBoundary';
 import { FeedUpdatePolicyProvider } from '@/components/Feed/FeedUpdatePolicy';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Suspense, useState } from 'react';
