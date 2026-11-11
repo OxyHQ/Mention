@@ -1,5 +1,5 @@
 /**
- * Jest stand-in for `@oxy.so/bloom/icons` AND every `@oxy.so/bloom/icons/Ri*`
+ * Jest stand-in for `@oxy.so/bloom/icons` AND every `@oxy.so/bloom/icons/<name>`
  * subpath (both mapped in package.json).
  *
  * The subpath mapping matters as much as the barrel one now: app code imports
@@ -17,6 +17,18 @@
  * module still takes precedence.
  */
 const icons = new Map();
+// Public historical glyphs restored in Bloom 19.7, alongside the Remix family.
+const historicalGlyphs = new Set([
+  'MediaAttachmentIcon',
+  'GifAttachmentIcon',
+  'ReplyIcon',
+  'RepostIcon',
+  'LikeIcon',
+  'LikeFillIcon',
+  'BookmarkIcon',
+  'BookmarkFillIcon',
+  'ShareIcon',
+]);
 
 function iconNamed(name) {
   if (!icons.has(name)) {
@@ -32,7 +44,9 @@ module.exports = new Proxy(
   {
     get(target, name) {
       if (name in target) return target[name];
-      return typeof name === 'string' && name.startsWith('Ri') ? iconNamed(name) : undefined;
+      return typeof name === 'string' && (name.startsWith('Ri') || historicalGlyphs.has(name))
+        ? iconNamed(name)
+        : undefined;
     },
   },
 );
