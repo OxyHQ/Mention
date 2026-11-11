@@ -816,10 +816,6 @@
     "mark_all_read_confirm": "Möchtest du wirklich alle Benachrichtigungen als gelesen markieren?",
     "all_already_read": "Alle Benachrichtigungen sind bereits gelesen",
     "mark_read_error": "Benachrichtigung konnte nicht als gelesen markiert werden",
-    "now": "jetzt",
-    "minutes_ago": "vor {{count}} Min.",
-    "hours_ago": "vor {{count}} Std.",
-    "days_ago": "vor {{count}} T.",
     "section": {
       "today": "Heute",
       "this_week": "Diese Woche",
@@ -1589,14 +1585,6 @@
       },
       "signInRequired": "Melde dich an, um verbundene Apps zu verwalten",
       "signInRequiredDesc": "Melde dich an, um KI-Apps zu prüfen und zu widerrufen, die mit deinem Mention-Konto verbunden sind."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "Bleib auf dem Laufenden",
-      "subtitle": "Aktiviere Benachrichtigungen, um zu erfahren, wenn Menschen, denen du folgst, etwas posten.",
-      "enable": "Benachrichtigungen aktivieren",
-      "later": "Nicht jetzt"
     }
   },
   "subscription": {

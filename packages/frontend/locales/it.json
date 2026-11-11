@@ -828,10 +828,6 @@
     "mark_all_read_confirm": "Sei sicuro di voler segnare tutte le notifiche come lette?",
     "all_already_read": "Tutte le notifiche sono già state lette",
     "mark_read_error": "Errore nel segnare la notifica come letta",
-    "now": "ora",
-    "minutes_ago": "{{count}} min fa",
-    "hours_ago": "{{count}} h fa",
-    "days_ago": "{{count}} g fa",
     "section": {
       "today": "Oggi",
       "this_week": "Questa settimana",
@@ -1607,14 +1603,6 @@
       },
       "signInRequired": "Accedi per gestire le app connesse",
       "signInRequiredDesc": "Accedi per rivedere e revocare le app di IA connesse al tuo account Mention."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "Rimani aggiornato",
-      "subtitle": "Abilita le notifiche per ricevere aggiornamenti quando le persone che segui pubblicano.",
-      "enable": "Abilita notifiche",
-      "later": "Non ora"
     }
   },
   "subscription": {

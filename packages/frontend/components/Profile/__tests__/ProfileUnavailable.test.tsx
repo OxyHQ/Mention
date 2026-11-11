@@ -13,7 +13,6 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   ...jest.requireActual('@oxy.so/bloom/screen'),
   useScreenBack: () => mockBack,
 }));
-jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({
   EmptyState: (props: unknown) => {
     mockEmptyState(props);

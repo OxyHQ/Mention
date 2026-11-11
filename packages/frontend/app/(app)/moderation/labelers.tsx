@@ -1,5 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useDebouncedValue } from '@oxy.so/bloom/hooks';
+import React, { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -134,15 +135,11 @@ const LabelersScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const { user, canUsePrivateApi } = useAuth();
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // The typed query is debounced into the KEY, so each distinct search is its
   // own cache entry and returning to a previous one is instant. React Query
   // owns the request lifecycle, so there is no timer cancelling stale loads.
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [search]);
+  const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 
   const queryKey = viewerQueryKeys.labelers(user?.id, debouncedSearch);
 

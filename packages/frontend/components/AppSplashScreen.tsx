@@ -74,7 +74,7 @@ function readPresetFromRaw(raw: string | null): AppColorName | null {
  */
 function readWebPresetSync(): AppColorName | null {
   if (Platform.OS !== 'web') return null;
-  const getItem = BLOOM_THEME_STORAGE.getItem(BLOOM_THEME_PERSIST_KEY);
+  const getItem = BLOOM_THEME_STORAGE?.getItem(BLOOM_THEME_PERSIST_KEY);
   // On web the adapter (`webLocalStorage`) is synchronous, so `getItem` is a string.
   return typeof getItem === 'string' || getItem === null ? readPresetFromRaw(getItem) : null;
 }
@@ -95,10 +95,10 @@ const AppSplashScreen: React.FC = () => {
   useEffect(() => {
     if (Platform.OS === 'web') return;
     let cancelled = false;
-    Promise.resolve(BLOOM_THEME_STORAGE.getItem(BLOOM_THEME_PERSIST_KEY))
+    Promise.resolve(BLOOM_THEME_STORAGE?.getItem(BLOOM_THEME_PERSIST_KEY))
       .then((raw) => {
         if (cancelled) return;
-        const stored = readPresetFromRaw(raw);
+        const stored = readPresetFromRaw(raw ?? null);
         if (stored) setPreset(stored);
       })
       .catch((error: unknown) => {

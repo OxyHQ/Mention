@@ -816,10 +816,6 @@
     "mark_all_read_confirm": "确定要将所有通知标为已读吗？",
     "all_already_read": "所有通知均已读",
     "mark_read_error": "标记通知为已读失败",
-    "now": "刚刚",
-    "minutes_ago": "{{count}}分钟前",
-    "hours_ago": "{{count}}小时前",
-    "days_ago": "{{count}}天前",
     "section": {
       "today": "今天",
       "this_week": "本周",
@@ -1589,14 +1585,6 @@
       },
       "signInRequired": "登录后即可管理已连接的应用",
       "signInRequiredDesc": "登录后即可查看并撤销连接到你 Mention 账号的 AI 应用。"
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "不错过任何动态",
-      "subtitle": "开启通知，在你关注的人发帖时及时获知。",
-      "enable": "开启通知",
-      "later": "暂不开启"
     }
   },
   "subscription": {

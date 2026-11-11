@@ -1,6 +1,7 @@
+import { shareLink } from '@/utils/shareLink';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useMemo } from 'react';
-import { Platform, StyleSheet, TouchableOpacity, View, Share } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
@@ -17,7 +18,6 @@ import {
 } from '@/components/ProfileCard';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
-import { logger } from '@oxy.so/core/logger';
 import {
   useInfiniteNewestUsers,
   useInfiniteRecommendations,
@@ -136,35 +136,14 @@ function ProfileDiscoveryList({
   const handleInviteFriends = useCallback(async () => {
     const inviteMessage = getInviteMessage();
 
-    if (Platform.OS === 'web') {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try {
-          await navigator.share({
-            title: t('settings.inviteContacts.inviteTitle'),
-            text: inviteMessage,
-            url: APP_URL,
-          });
-        } catch (e: unknown) {
-          // AbortError = user dismissed the native share sheet; not an error.
-          if (e instanceof Error && e.name !== 'AbortError') {
-            logger.error('Error inviting friends');
-          }
-        }
-      } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(inviteMessage);
-      }
-      return;
-    }
-
-    try {
-      // The message already contains the URL, so it carries everything needed.
-      await Share.share({ message: inviteMessage });
-    } catch (e: unknown) {
-      const err = e as { message?: string; code?: string };
-      if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
-        logger.error('Error inviting friends');
-      }
-    }
+    // The message already contains the URL, so it carries everything needed.
+    await shareLink({
+      title: t('settings.inviteContacts.inviteTitle'),
+      message: inviteMessage,
+      url: APP_URL,
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
   }, [getInviteMessage, t]);
 
   const renderUser = useCallback(

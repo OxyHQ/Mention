@@ -3,6 +3,7 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   Screen: ({ children }: { children: React.ReactNode }) => children,
   useScreenBack: () => mockBack,
 }));
+jest.mock('@/utils/shareLink', () => ({ shareLink: jest.fn() }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
@@ -142,7 +143,6 @@ jest.mock('@/components/common/EmptyState', () => {
       ),
   };
 });
-jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
 jest.mock('@/components/Error', () => {
   const { Pressable, Text: RNText } =
     jest.requireActual<typeof import('react-native')>('react-native');

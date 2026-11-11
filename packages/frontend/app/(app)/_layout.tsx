@@ -29,7 +29,7 @@ import { useMentionSidebar } from '@/components/navigation/useMentionSidebar';
 import { SignInBanner } from '@/components/SignInBanner';
 import { WelcomeRedirectGate } from '@/components/WelcomeRedirectGate';
 import { BootMilestone } from '@/components/BootMilestone';
-import { reportBoundaryError } from '@/components/AppErrorBoundary';
+import { reportBoundaryError } from '@/lib/reportBoundaryError';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 

@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { logger } from '@oxy.so/core/logger';
+import type { NotificationPermissionAdapter } from '@oxy.so/bloom/notifications';
 
 // Do not statically import 'expo-notifications' to avoid bundling it on web.
 // Use a cached dynamic import so the package is only loaded on native platforms.
@@ -12,20 +13,24 @@ async function getNotifications(): Promise<typeof import('expo-notifications') |
   return notificationsModule;
 }
 
-export async function requestNotificationPermissions() {
-  const Notifications = await getNotifications();
-  if (!Notifications) return false;
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === 'granted';
-}
-
-/** Education is only appropriate before the first OS permission decision. */
-export async function canOfferNotificationPermission(): Promise<boolean> {
-  const Notifications = await getNotifications();
-  if (!Notifications) return false;
-  const permission = await Notifications.getPermissionsAsync();
-  return permission.status === 'undetermined' && permission.canAskAgain;
-}
+/**
+ * The OS permission, for Bloom's `NotificationPermissionGate`. A refusal the
+ * system will not show again (`canAskAgain: false`) reads as `denied`, so the
+ * gate never educates a person who can only change it in system settings.
+ */
+export const notificationPermission: NotificationPermissionAdapter = {
+  async getStatus() {
+    const Notifications = await getNotifications();
+    if (!Notifications) return 'denied';
+    const { status, canAskAgain } = await Notifications.getPermissionsAsync();
+    return status === 'undetermined' && !canAskAgain ? 'denied' : status;
+  },
+  async request() {
+    const Notifications = await getNotifications();
+    if (!Notifications) return 'denied';
+    return (await Notifications.requestPermissionsAsync()).status;
+  },
+};
 
 export async function setupNotifications() {
   const Notifications = await getNotifications();

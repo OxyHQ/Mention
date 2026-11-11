@@ -3,7 +3,7 @@ import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
-import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { useChannelWriters } from './hooks/useChannelWriters';
 import { EmptyState } from '@/components/common/EmptyState';
 
@@ -46,6 +46,7 @@ export const ProfileWriters = memo(function ProfileWriters({
   channelOxyUserId?: string;
 }) {
   const { t } = useTranslation();
+  const locale = useBloomLocale();
   const { writers, loading, hasMore, loadingMore, loadMore } = useChannelWriters(channelOxyUserId);
 
   if (loading) {
@@ -79,7 +80,7 @@ export const ProfileWriters = memo(function ProfileWriters({
           profile={entry.writer}
           showFollowButton
           meta={t('channels.writers.lastWrote', {
-            time: formatRelativeTimeLocalized(entry.lastPostAt, t),
+            time: formatRelativeTime(new Date(entry.lastPostAt), locale, { style: 'short' }),
             defaultValue: 'Last wrote {{time}}',
           })}
           // The last row's hairline would otherwise sit under nothing — unless

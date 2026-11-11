@@ -4,7 +4,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { confirmDialog } from '@/utils/alerts';
 import { MCP_RESOURCE_URL } from '@/config';
 import { getErrorMessage } from '@/utils/apiError';
-import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { Button } from '@oxy.so/bloom/button';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
@@ -36,6 +36,7 @@ function connectionLabel(connection: ConnectedMcpClient): string {
 
 export default function ConnectedAiScreen() {
   const { t } = useTranslation();
+  const locale = useBloomLocale();
 
   const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const queryClient = useQueryClient();
@@ -174,12 +175,16 @@ export default function ConnectedAiScreen() {
                 const timeLine = connection.lastUsedAt
                   ? t('mcp.connections.lastUsed', {
                       defaultValue: 'Last used {{time}}',
-                      time: formatRelativeTimeLocalized(connection.lastUsedAt, t),
+                      time: formatRelativeTime(new Date(connection.lastUsedAt), locale, {
+                        style: 'short',
+                      }),
                     })
                   : connection.createdAt
                     ? t('mcp.connections.connected', {
                         defaultValue: 'Connected {{time}}',
-                        time: formatRelativeTimeLocalized(connection.createdAt, t),
+                        time: formatRelativeTime(new Date(connection.createdAt), locale, {
+                          style: 'short',
+                        }),
                       })
                     : undefined;
                 return (

@@ -816,10 +816,6 @@
     "mark_all_read_confirm": "Yakin ingin menandai semua notifikasi sudah dibaca?",
     "all_already_read": "Semua notifikasi sudah dibaca",
     "mark_read_error": "Gagal menandai notifikasi sudah dibaca",
-    "now": "sekarang",
-    "minutes_ago": "{{count}}m lalu",
-    "hours_ago": "{{count}}j lalu",
-    "days_ago": "{{count}}h lalu",
     "section": {
       "today": "Hari ini",
       "this_week": "Minggu ini",
@@ -1589,14 +1585,6 @@
       },
       "signInRequired": "Masuk untuk mengelola aplikasi terhubung",
       "signInRequiredDesc": "Masuk untuk meninjau dan mencabut aplikasi AI yang terhubung ke akun Mention-mu."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "Jangan sampai ketinggalan",
-      "subtitle": "Aktifkan notifikasi untuk mendapat kabar saat orang yang kamu ikuti memposting.",
-      "enable": "Aktifkan notifikasi",
-      "later": "Nanti saja"
     }
   },
   "subscription": {

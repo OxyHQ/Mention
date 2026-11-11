@@ -31,7 +31,7 @@ import { trendingService } from '@/services/trendingService';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { useTopicRailStore } from '@/stores/topicRailStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
-import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { shareLink } from '@/utils/shareLink';
 
 /** How the topic's posts are ordered. `top` is the default, as on the mock. */
@@ -42,6 +42,7 @@ export default function TrendScreen() {
   // resolved from it, never carried alongside it.
   const { name } = useLocalSearchParams<{ name: string }>();
   const { t } = useTranslation();
+  const locale = useBloomLocale();
 
   const term = name || '';
   const [sort, setSort] = useState<TopicSort>('top');
@@ -105,7 +106,7 @@ export default function TrendScreen() {
 
   const updatedLabel = topic?.updatedAt
     ? t('trend.topic.updated', {
-        time: formatRelativeTimeLocalized(topic.updatedAt, t),
+        time: formatRelativeTime(new Date(topic.updatedAt), locale, { style: 'short' }),
         defaultValue: 'Actualizado {{time}}',
       })
     : null;

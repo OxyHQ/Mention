@@ -230,26 +230,3 @@ export function formatFullTimestamp(input: string | number): string {
 
   return `${displayHours}:${displayMinutes} ${ampm} · ${month} ${day}, ${year}`;
 }
-
-/**
- * Localized relative time for notifications.
- * Uses i18n translation keys: notification.now, notification.minutes_ago,
- * notification.hours_ago, notification.days_ago. Falls back to toLocaleDateString for older dates.
- */
-export function formatRelativeTimeLocalized(
-  dateString: string,
-  t: (key: string, options?: Record<string, unknown>) => string,
-): string {
-  const now = new Date();
-  const date = new Date(dateString);
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) return t('notification.now');
-  if (diffInSeconds < 3600)
-    return t('notification.minutes_ago', { count: Math.floor(diffInSeconds / 60) });
-  if (diffInSeconds < 86400)
-    return t('notification.hours_ago', { count: Math.floor(diffInSeconds / 3600) });
-  if (diffInSeconds < 604800)
-    return t('notification.days_ago', { count: Math.floor(diffInSeconds / 86400) });
-  return date.toLocaleDateString();
-}

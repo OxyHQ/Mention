@@ -828,10 +828,6 @@
     "mark_all_read_confirm": "Veux-tu vraiment marquer toutes les notifications comme lues ?",
     "all_already_read": "Toutes les notifications sont déjà lues",
     "mark_read_error": "Impossible de marquer la notification comme lue",
-    "now": "maintenant",
-    "minutes_ago": "il y a {{count}} min",
-    "hours_ago": "il y a {{count}} h",
-    "days_ago": "il y a {{count}} j",
     "section": {
       "today": "Aujourd'hui",
       "this_week": "Cette semaine",
@@ -1607,14 +1603,6 @@
       },
       "signInRequired": "Connecte-toi pour gérer les apps connectées",
       "signInRequiredDesc": "Connecte-toi pour vérifier et révoquer les apps d'IA liées à ton compte Mention."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "Reste au courant",
-      "subtitle": "Active les notifications pour être prévenu quand les comptes que tu suis publient.",
-      "enable": "Activer les notifications",
-      "later": "Pas maintenant"
     }
   },
   "subscription": {

@@ -10,7 +10,7 @@ import type { User } from '@oxy.so/core';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 import { useRouter } from '@/lib/navigation/router';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 
 /** A conversation row draws at most this many faces (Bloom's group avatar cap). */
 const MAX_FACES = 4;
@@ -47,6 +47,7 @@ export const PrivateMentionRow = memo(function PrivateMentionRow({
   viewerId: string | undefined;
 }) {
   const { t } = useTranslation();
+  const locale = useBloomLocale();
   const theme = useTheme();
   const router = useRouter();
   const { latestPost, participantIds, rootId, lastActivityAt } = conversation;
@@ -121,7 +122,7 @@ export const PrivateMentionRow = memo(function PrivateMentionRow({
         }
       : { text: '', sender };
 
-  const time = formatRelativeTimeLocalized(lastActivityAt, t);
+  const time = formatRelativeTime(new Date(lastActivityAt), locale, { style: 'short' });
   const badge = t('privateMentions.badge', { defaultValue: 'Private mention' });
 
   return (

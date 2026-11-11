@@ -16,7 +16,10 @@ import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { NativeSplashRelease } from '@/components/NativeSplashRelease';
-import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
+import { NotificationPermissionGate } from '@oxy.so/bloom/notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { notificationPermission } from '@/utils/notifications';
+import { STORAGE_KEYS } from '@/lib/constants';
 import { SEOHandoff } from '@/components/SEOHandoff';
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
@@ -178,7 +181,14 @@ export default function RootLayout() {
         <AppProviders oxyServices={oxyServices} queryClient={queryClient} onAskAlia={openAlia}>
           {appIsReady ? (
             <>
-              {Platform.OS !== 'web' && <NotificationPermissionGate appIsReady={appIsReady} />}
+              {Platform.OS !== 'web' && (
+                <NotificationPermissionGate
+                  permission={notificationPermission}
+                  storage={AsyncStorage}
+                  // The key the pre-Bloom gate wrote, so people who already saw it are not asked again.
+                  storageKey={STORAGE_KEYS.NOTIFICATION_EDUCATION_SHOWN}
+                />
+              )}
               <PortalProvider>
                 {/* Wraps the OUTLET too: the Settings modal is portalled into
                     the outlet, so its pages render there, not where the

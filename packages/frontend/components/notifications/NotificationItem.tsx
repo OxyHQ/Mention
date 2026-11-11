@@ -35,7 +35,7 @@ import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { NotificationIntent } from '@/types/notificationIntent';
 import { normalizeApiError } from '@/utils/apiError';
 import { POST_ITEM_SPACING } from '@/styles/shared';
-import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { presentCancelableSheet } from '@/utils/sheet';
 import { showCancelableActionMenu } from '@/components/common/ActionMenu';
 import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
@@ -333,6 +333,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 }) => {
   const router = useRouter();
   const { t } = useTranslation();
+  const locale = useBloomLocale();
   const theme = useTheme();
   const surfaceFill = useSurfaceFill();
   const queryClient = useQueryClient();
@@ -424,7 +425,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     collabViewerState?.viewerRole === 'collaborator' && !collabInvitePending && !collabAccepted;
 
   const badgeColor = theme.colors[descriptor.colorToken];
-  const timeLabel = formatRelativeTimeLocalized(item.createdAt, t);
+  const timeLabel = formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' });
   const actionText = descriptor.actionPhrase(t);
 
   // The CHANNEL whose inbox this arrived in, when it is not the viewer's own.

@@ -2,15 +2,7 @@ import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  RefreshControl,
-  Share,
-  Platform,
-  TouchableOpacity,
-  Pressable,
-} from 'react-native';
+import { View, Text, RefreshControl, Platform, TouchableOpacity, Pressable } from 'react-native';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -19,7 +11,6 @@ import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
@@ -41,6 +32,7 @@ import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { shareLink } from '@/utils/shareLink';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
@@ -139,12 +131,13 @@ function ListDetailScreen() {
 
   const handleShare = useCallback(async () => {
     const url = `${Platform.OS === 'web' ? window.location.origin : 'https://mention.earth'}/lists/${listId}`;
-    if (Platform.OS === 'web') {
-      await Clipboard.setStringAsync(url);
-    } else {
-      await Share.share({ url, message: list?.title || 'Check out this list' });
-    }
-  }, [listId, list?.title]);
+    await shareLink({
+      title: list?.title || 'Check out this list',
+      url,
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
+  }, [listId, list?.title, t]);
 
   const bylineText = useMemo(() => {
     if (isOwnList) return t('lists.byYou', { defaultValue: 'List by you' });

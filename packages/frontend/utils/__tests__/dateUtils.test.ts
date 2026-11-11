@@ -8,13 +8,7 @@
  * fixtures aged into different units.
  */
 
-import {
-  dateDiff,
-  formatDateDiff,
-  formatFullTimestamp,
-  formatRelativeTimeLocalized,
-  formatTimeAgo,
-} from '../dateUtils';
+import { dateDiff, formatDateDiff, formatFullTimestamp, formatTimeAgo } from '../dateUtils';
 
 const LATER = new Date('2026-06-11T21:20:00Z');
 const SECOND = 1000;
@@ -117,34 +111,5 @@ describe('formatFullTimestamp', () => {
 
   it('returns an empty string for an unparseable date', () => {
     expect(formatFullTimestamp('not a date')).toBe('');
-  });
-});
-
-describe('formatRelativeTimeLocalized', () => {
-  const t = (key: string, options?: Record<string, unknown>) =>
-    options ? `${key}:${String(options.count)}` : key;
-
-  beforeEach(() => {
-    jest.useFakeTimers();
-    jest.setSystemTime(LATER);
-  });
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  it.each([
-    [10 * SECOND, 'notification.now'],
-    [5 * MINUTE, 'notification.minutes_ago:5'],
-    [3 * HOUR, 'notification.hours_ago:3'],
-    [2 * DAY, 'notification.days_ago:2'],
-  ])('%dms back reads %s', (ms, expected) => {
-    expect(formatRelativeTimeLocalized(before(ms).toISOString(), t)).toBe(expected);
-  });
-
-  it('falls back to an absolute date after a week', () => {
-    const earlier = before(10 * DAY);
-    expect(formatRelativeTimeLocalized(earlier.toISOString(), t)).toBe(
-      earlier.toLocaleDateString(),
-    );
   });
 });

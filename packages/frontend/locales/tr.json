@@ -816,10 +816,6 @@
     "mark_all_read_confirm": "Tüm bildirimleri okundu olarak işaretlemek istediğine emin misin?",
     "all_already_read": "Tüm bildirimler zaten okundu",
     "mark_read_error": "Bildirim okundu olarak işaretlenemedi",
-    "now": "şimdi",
-    "minutes_ago": "{{count}} dk önce",
-    "hours_ago": "{{count}} sa önce",
-    "days_ago": "{{count}} g önce",
     "section": {
       "today": "Bugün",
       "this_week": "Bu hafta",
@@ -1589,14 +1585,6 @@
       },
       "signInRequired": "Bağlı uygulamaları yönetmek için giriş yap",
       "signInRequiredDesc": "Mention hesabına bağlı yapay zeka uygulamalarını incelemek ve erişimlerini geri almak için giriş yap."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "Gelişmelerden haberdar ol",
-      "subtitle": "Takip ettiğin kişiler paylaşım yaptığında haberdar olmak için bildirimleri aç.",
-      "enable": "Bildirimleri aç",
-      "later": "Şimdi değil"
     }
   },
   "subscription": {

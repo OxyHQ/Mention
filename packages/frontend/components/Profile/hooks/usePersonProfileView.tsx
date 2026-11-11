@@ -5,13 +5,12 @@ import { useOpenInAllo } from '@/hooks/useOpenInAllo';
 import { alloDirectMessageLinks } from '@oxy.so/allo-sdk/links';
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
-import { Share, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import type { Href } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { FollowButton as OxyFollowButton } from '@/components/FollowButton';
-import { logger } from '@oxy.so/core/logger';
 import type { FeedType } from '@mention/shared-types';
 import { Badge } from '@oxy.so/bloom/badge';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
@@ -33,6 +32,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { shareLink } from '@/utils/shareLink';
 import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
@@ -370,23 +370,21 @@ export function usePersonProfileView({
 
   const handleShare = useCallback(async () => {
     if (!profileData) return;
-    try {
-      const shareUrl = `https://mention.earth/@${handle}`;
-      const shareMessage = t('profile.share.message', {
+    const shareUrl = `https://mention.earth/@${handle}`;
+    const shareMessage = t('profile.share.message', {
+      name: profileData.design.displayName,
+      defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
+    });
+    await shareLink({
+      title: t('profile.share.title', {
         name: profileData.design.displayName,
-        defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
-      });
-      await Share.share({
-        message: `${shareMessage}\n\n${shareUrl}`,
-        url: shareUrl,
-        title: t('profile.share.title', {
-          name: profileData.design.displayName,
-          defaultValue: `${profileData.design.displayName} on Mention`,
-        }),
-      });
-    } catch {
-      logger.error('Error sharing profile');
-    }
+        defaultValue: `${profileData.design.displayName} on Mention`,
+      }),
+      message: shareMessage,
+      url: shareUrl,
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
   }, [profileData, handle, t]);
 
   /**

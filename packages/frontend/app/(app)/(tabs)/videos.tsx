@@ -11,7 +11,6 @@ import {
   Pressable,
   FlatList,
   Platform,
-  Share,
   type TextStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -63,6 +62,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/mediaUrls';
+import { shareLink } from '@/utils/shareLink';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -1724,27 +1724,15 @@ export default function VideosScreen() {
 
         const shareTitle = `${name} ${t('videos.on_mention')}`;
 
-        if (Platform.OS === 'web') {
-          if (navigator.share) {
-            await navigator.share({ title: shareTitle, text: shareMessage, url: postUrl });
-          } else if (navigator.clipboard) {
-            await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-            toast(t('videos.link_copied'), { type: 'success' });
-          } else {
-            toast(t('videos.sharing_not_available'), { type: 'error' });
-          }
-        } else {
-          await Share.share({
-            message: `${shareMessage}\n\n${postUrl}`,
-            url: postUrl,
-            title: shareTitle,
-          });
-        }
-      } catch (error) {
-        const err = error as { message?: string; code?: string };
-        if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
-          toast(t('videos.share_failed'), { type: 'error' });
-        }
+        await shareLink({
+          title: shareTitle,
+          message: shareMessage,
+          url: postUrl,
+          copiedToast: t('videos.link_copied'),
+          errorToast: t('videos.share_failed'),
+        });
+      } catch {
+        toast(t('videos.share_failed'), { type: 'error' });
       }
     },
     [t],

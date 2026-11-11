@@ -1,4 +1,5 @@
 import { handleKey } from '@mention/shared-types/handle';
+import { useDebouncedCallback } from '@oxy.so/bloom/hooks';
 import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
@@ -482,9 +483,12 @@ function SearchIndex() {
   // it into the current query, which degrades to "the last token".
   const [caret, setCaret] = useState(urlQuery.length);
 
-  // Pending debounce timer, set and cleared INSIDE event handlers — never an
-  // Effect — so a burst of keystrokes collapses to exactly one search.
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A burst of keystrokes collapses to exactly one search; scheduled and
+  // cancelled inside event handlers, never an Effect.
+  const { run: scheduleQuery, cancel: clearDebounce } = useDebouncedCallback(
+    setDebouncedQuery,
+    SEARCH_DEBOUNCE_MS,
+  );
   const searchInputRef = useRef<TextInputInstance>(null);
 
   // A `/search?q=…` deep link can change while this screen stays mounted.
@@ -684,13 +688,6 @@ function SearchIndex() {
     : !isPending && isFetching && !isFetchingNextPage;
   const searchFailed = isAllTab ? allSearch.failed : tabSearchFailed;
 
-  const clearDebounce = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-  }, []);
-
   // Commit a query to the search NOW: cancel any pending debounce and feed the
   // value straight into the query key. Used by submit / tab press / recent tap.
   const commitQuery = useCallback(
@@ -716,12 +713,9 @@ function SearchIndex() {
         router.setParams({ q: '' });
         return;
       }
-      debounceTimerRef.current = setTimeout(() => {
-        debounceTimerRef.current = null;
-        setDebouncedQuery(trimmed);
-      }, SEARCH_DEBOUNCE_MS);
+      scheduleQuery(trimmed);
     },
-    [clearDebounce, setQuery, router],
+    [clearDebounce, scheduleQuery, setQuery, router],
   );
 
   const clearSearch = useCallback(() => {
