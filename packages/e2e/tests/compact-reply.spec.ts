@@ -312,12 +312,10 @@ for (const motion of ['no-preference', 'reduce'] as const) {
       );
       all[focused ? 'focus' : 'blur'] = frames;
     }
-    await test
-      .info()
-      .attach('composer-focus-trajectory', {
-        body: JSON.stringify(all),
-        contentType: 'application/json',
-      });
+    await test.info().attach('composer-focus-trajectory', {
+      body: JSON.stringify(all),
+      contentType: 'application/json',
+    });
     for (const rows of Object.values(all) as Array<
       Array<{ y: number; height: number; connected: boolean; viewport: number; windowY: number }>
     >) {
