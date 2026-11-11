@@ -41,6 +41,7 @@ import { expandTcoLinks } from '../connectors/activitypub/tcoLinks';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
+import { sleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'expandFederatedTcoLinks';
 const PAGE_SIZE = 200;
@@ -114,7 +115,7 @@ export async function expandFederatedTcoLinks(
       result.scanned += 1;
       result.lastId = row.id;
       const next = await expandTcoLinks(row.body);
-      if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+      if (pauseMs > 0) await sleep(pauseMs);
 
       if (next === row.body) {
         // `t.co/` also matches text that is not a wrapper (`at.co/x`); only a

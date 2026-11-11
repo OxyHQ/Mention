@@ -8,6 +8,7 @@ import {
 } from '../services/RecommendationService';
 import type { RecommendationExcludeType } from '../services/OxyRankingClient';
 import { logger } from '../utils/logger';
+import { queryInt, queryString } from '../utils/queryParams';
 import { createScopedOxyClient, createForegroundOxyProfileClient } from '../utils/oxyHelpers';
 
 const router = express.Router();
@@ -26,13 +27,6 @@ function parseExcludeTypes(value: unknown): RecommendationExcludeType[] {
   return VALID_EXCLUDE_TYPES.filter((t) => parts.includes(t));
 }
 
-/** Parse the `limit` query param into a number, or undefined when absent/invalid. */
-function parseLimit(value: unknown): number | undefined {
-  if (typeof value !== 'string' || value.length === 0) return undefined;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 /**
  * Resolve the pagination offset from the request. Prefers an opaque `cursor`
  * (the token this endpoint emits as `nextCursor`); falls back to a raw `offset`
@@ -41,17 +35,13 @@ function parseLimit(value: unknown): number | undefined {
  * to `0` so the discovery surface restarts at page one rather than erroring.
  */
 function parseOffset(query: AuthRequest['query']): number {
-  const cursor = query.cursor;
-  if (typeof cursor === 'string' && cursor.length > 0) {
+  const cursor = queryString(query.cursor);
+  if (cursor) {
     const decoded = decodeRecommendationCursor(cursor);
     return decoded ?? 0;
   }
-  const offset = query.offset;
-  if (typeof offset === 'string' && offset.length > 0) {
-    const parsed = Number.parseInt(offset, 10);
-    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
-  }
-  return 0;
+  const offset = queryInt(query.offset);
+  return offset !== undefined && offset >= 0 ? offset : 0;
 }
 
 /**
@@ -79,7 +69,7 @@ function parseOffset(query: AuthRequest['query']): number {
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const viewerId = req.user?.id;
-    const limit = parseLimit(req.query.limit);
+    const limit = queryInt(req.query.limit);
     const offset = parseOffset(req.query);
     const excludeTypes = parseExcludeTypes(req.query.excludeTypes);
 
@@ -118,7 +108,7 @@ router.get('/newest', async (req: AuthRequest, res: Response) => {
     const result = await recommendationService.getNewest({
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
-      limit: parseLimit(req.query.limit),
+      limit: queryInt(req.query.limit),
       offset: parseOffset(req.query),
     });
     return res.json(result);

@@ -12,7 +12,7 @@
  * `interstitials/interstitialTelemetry.ts`.
  */
 
-import { FEED_INTERACTION_BATCH_LIMIT } from '@mention/shared-types';
+import { FEED_INTERACTION_BATCH_LIMIT, isRecord } from '@mention/shared-types';
 import type { FeedInteractionEventName, FeedInteractionInput } from '@mention/shared-types';
 
 /**
@@ -29,10 +29,6 @@ const INTERACTION_EVENTS: Record<FeedInteractionEventName, true> = {
   save: true,
   report: true,
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function isInteractionEventName(value: unknown): value is FeedInteractionEventName {
   return typeof value === 'string' && Object.hasOwn(INTERACTION_EVENTS, value);

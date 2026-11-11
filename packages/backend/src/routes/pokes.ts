@@ -9,7 +9,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { blockedEitherWay } from '../utils/privacyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { User } from '@oxy.so/core';
-import type { PostUser } from '@mention/shared-types';
+import { isRecord, type PostUser } from '@mention/shared-types';
 import { resolveKnownUsers } from '../utils/knownUsers';
 
 const router = Router();
@@ -22,10 +22,6 @@ function toUserSummary(user: PostUser) {
     name: user.name,
     avatar: user.avatar,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function extractUsersFromResult(result: unknown, key: 'followers' | 'following'): User[] {

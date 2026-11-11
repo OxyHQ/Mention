@@ -42,6 +42,7 @@ import { connectPostgres, getDb } from '../db/postgres';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { sleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'backfillVariantPostCreatedAt';
 
@@ -154,7 +155,7 @@ export async function backfillVariantPostCreatedAt(
     if (batches % PROGRESS_EVERY_BATCHES === 0) {
       logger.info(`[${SCRIPT_NAME}] progress`, { written: result.written, candidates, after });
     }
-    if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    if (pauseMs > 0) await sleep(pauseMs);
   }
 
   result.indexValid = await ensureIndex();

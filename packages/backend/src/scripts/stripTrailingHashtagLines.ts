@@ -86,6 +86,7 @@ import {
   recordAdminScriptCursor,
 } from './lib/adminScriptCursor';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { sleep as defaultSleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'stripTrailingHashtagLines';
 const CURSOR_SCOPE = 'all';
@@ -259,8 +260,7 @@ export async function stripTrailingHashtagLines(
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const pauseMs = opts.pauseMs ?? DEFAULT_PAUSE_MS;
   const rowsPerSecond = opts.rowsPerSecond ?? DEFAULT_ROWS_PER_SECOND;
-  const sleep =
-    opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep = opts.sleep ?? defaultSleep;
   const db = getDb();
 
   const useCursor = !dryRun && opts.useCursor === true;

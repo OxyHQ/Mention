@@ -36,6 +36,7 @@ import { chronoKeyset } from '../utils/chronoCursor';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { sleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'backfillClarityLinks';
 
@@ -92,7 +93,7 @@ export async function backfillClarityLinks(
         resumeBefore: resumeBefore.toISOString(),
       });
     }
-    if (!dryRun && pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    if (!dryRun && pauseMs > 0) await sleep(pauseMs);
   }
 
   const result = { scanned, resumeBefore: resumeBefore?.toISOString() ?? null };

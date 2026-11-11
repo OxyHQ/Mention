@@ -79,6 +79,7 @@ import { readPersistedMediaFields } from './MediaMetadataService';
 import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPrivacy';
 import type { User as OxyUser } from '@oxy.so/core';
 import { getNormalizedUserHandle, isRetryableError } from '@oxy.so/core';
+import { chunk } from '@oxy.so/utils/text';
 import { assignThreadState } from './ThreadSlicingService';
 import {
   mget as mgetUserSummaries,
@@ -565,14 +566,6 @@ async function applyStarterPackScores(
 /** Ids per Oxy request: the SDK's chunk size, so one chunk is one request. */
 const OXY_USER_LOOKUP_CHUNK_SIZE = 100;
 
-function chunkIds(ids: readonly string[], size: number): string[][] {
-  const chunks: string[][] = [];
-  for (let start = 0; start < ids.length; start += size) {
-    chunks.push(ids.slice(start, start + size));
-  }
-  return chunks;
-}
-
 /** Maximum number of public per-user Oxy reads in flight after a bulk miss. */
 export const OXY_USER_FALLBACK_CONCURRENCY = 8;
 /** One wall-clock budget shared by the bulk read and every fallback read. */
@@ -783,7 +776,7 @@ async function resolveOxyUserSummaryMisses(
   // chunk discarded the answers of the others too: a 270-author render lost all
   // 270 names to one 100-author timeout. Here a chunk that answers is kept, and a
   // chunk that does not is the only one reported as failed.
-  const chunks = chunkIds(missIds, OXY_USER_LOOKUP_CHUNK_SIZE);
+  const chunks = chunk(missIds, OXY_USER_LOOKUP_CHUNK_SIZE);
   const settled = await Promise.allSettled(
     chunks.map((ids) =>
       runBoundedOxyUserResolutionCall(

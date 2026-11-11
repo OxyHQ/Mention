@@ -15,6 +15,8 @@
  * re-resolve users. It only enforces the exclusion set and caching.
  */
 
+import { isRecord } from '@mention/shared-types';
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import {
@@ -39,6 +41,11 @@ export const DEFAULT_RECOMMENDATION_LIMIT = 20;
 
 /** Hard cap on page size regardless of the caller's `limit`. */
 export const MAX_RECOMMENDATION_LIMIT = 50;
+
+const RECOMMENDATION_LIMIT_BOUNDS = {
+  fallback: DEFAULT_RECOMMENDATION_LIMIT,
+  max: MAX_RECOMMENDATION_LIMIT,
+};
 
 /**
  * Hard cap on the pagination offset. Bounds how deep a caller may scan into the
@@ -148,14 +155,6 @@ function toOffsetPage(
   return { recommendations: profiles, nextCursor, nextOffset, hasMore };
 }
 
-/** Clamp a requested limit into the supported range. */
-function clampLimit(limit?: number): number {
-  if (typeof limit !== 'number' || !Number.isFinite(limit) || limit <= 0) {
-    return DEFAULT_RECOMMENDATION_LIMIT;
-  }
-  return Math.min(Math.floor(limit), MAX_RECOMMENDATION_LIMIT);
-}
-
 /** Clamp a requested offset into the supported range (`[0, MAX]`). */
 function clampOffset(offset?: number): number {
   if (typeof offset !== 'number' || !Number.isFinite(offset) || offset <= 0) {
@@ -176,10 +175,6 @@ function isOxyUnavailable(error: unknown): boolean {
   if (!isRecord(failure)) return false;
   const { status, timeout } = failure;
   return timeout === true || (typeof status === 'number' && (status === 0 || status >= 500));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 /**
@@ -361,7 +356,7 @@ export class RecommendationService {
    * throws its own error.
    */
   async getRecommendations(input: GetRecommendationsInput): Promise<RecommendationsResult> {
-    const limit = clampLimit(input.limit);
+    const limit = resolvePageLimit(input.limit, RECOMMENDATION_LIMIT_BOUNDS);
     const offset = clampOffset(input.offset);
     const excludeTypes = input.excludeTypes ?? [];
     const viewerId = input.viewerId;
@@ -420,7 +415,7 @@ export class RecommendationService {
    * are applied on top of it, cached or not.
    */
   async getNewest(input: GetRecommendationsInput): Promise<RecommendationsResult> {
-    const limit = clampLimit(input.limit);
+    const limit = resolvePageLimit(input.limit, RECOMMENDATION_LIMIT_BOUNDS);
     const offset = clampOffset(input.offset);
     const cacheKey = `${NEWEST_CACHE_PREFIX}l:${limit}:o:${offset}`;
 

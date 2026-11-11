@@ -29,7 +29,7 @@
  * so neither is redundant. See `services/trending/trendTelemetry.ts`.
  */
 
-import { isValidFeedDescriptor } from '@mention/shared-types';
+import { isRecord, isValidFeedDescriptor } from '@mention/shared-types';
 import type {
   FeedInterstitialEventInput,
   FeedInterstitialEventName,
@@ -63,10 +63,6 @@ const INTERSTITIAL_EVENTS: Record<FeedInterstitialEventName, true> = {
   dismiss: true,
   seeMore: true,
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function isInterstitialKind(value: unknown): value is FeedInterstitialKind {
   return typeof value === 'string' && Object.hasOwn(INTERSTITIAL_KINDS, value);

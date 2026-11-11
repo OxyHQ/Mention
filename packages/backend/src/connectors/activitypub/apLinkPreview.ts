@@ -1,5 +1,5 @@
 import { apList } from '@oxy.so/federation';
-import { MAX_POST_DOCUMENTS } from '@mention/shared-types';
+import { MAX_POST_DOCUMENTS, isRecord } from '@mention/shared-types';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { linkPreviewKey, remoteLinkPreview, type RemoteLinkPreview } from '../shared/linkPreviews';
 
@@ -17,12 +17,6 @@ import { linkPreviewKey, remoteLinkPreview, type RemoteLinkPreview } from '../sh
  * storage are the network-neutral ones in `connectors/shared/linkPreviews.ts`.
  */
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 function plainText(value: unknown): string | undefined {
   return typeof value === 'string' ? htmlToPlainText(value) : undefined;
 }
@@ -38,9 +32,10 @@ export function extractApLinkPreviews(object: { attachment?: unknown }): RemoteL
   const seen = new Set<string>();
   for (const entry of apList(object.attachment)) {
     if (previews.length >= MAX_POST_DOCUMENTS) break;
-    const attachment = asRecord(entry);
-    const preview = asRecord(attachment?.preview);
-    if (!attachment || !preview) continue;
+    if (!isRecord(entry)) continue;
+    const attachment = entry;
+    const preview = attachment.preview;
+    if (!isRecord(preview)) continue;
     const card = remoteLinkPreview({
       url: attachment.href,
       title: plainText(preview.name),

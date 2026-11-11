@@ -18,6 +18,7 @@
  * caller's raw object (no mass-assignment).
  */
 
+import { isRecord } from '@mention/shared-types';
 import type { StoredFeedDefinition } from '../engine/types';
 import type { FeedDefinitionMode, ModuleRef } from '../engine/types';
 import { feedModuleRegistry, type FeedModuleRegistry } from '../engine/FeedModuleRegistry';
@@ -53,10 +54,6 @@ const ARRAY_PARAM_CAPS: Record<string, number> = {
 };
 const DEFAULT_ARRAY_CAP = 200;
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /** Whether a scalar param value is an allowed primitive. */
 function isPrimitive(value: unknown): boolean {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
@@ -68,7 +65,7 @@ function isPrimitive(value: unknown): boolean {
  */
 function validateParams(params: unknown, moduleId: string): string | null {
   if (params === undefined) return null;
-  if (!isPlainObject(params)) return `Module "${moduleId}" params must be an object`;
+  if (!isRecord(params)) return `Module "${moduleId}" params must be an object`;
 
   for (const [key, value] of Object.entries(params)) {
     if (Array.isArray(value)) {
@@ -128,7 +125,7 @@ function validateList(
   if (raw.length > max) return `Too many ${kind}s (max ${max})`;
 
   for (const entry of raw) {
-    if (!isPlainObject(entry)) return `Each ${kind} must be an object`;
+    if (!isRecord(entry)) return `Each ${kind} must be an object`;
     const moduleId = entry.module;
     if (typeof moduleId !== 'string' || moduleId.length === 0)
       return `Each ${kind} needs a module id`;
@@ -145,7 +142,7 @@ function validateList(
     const paramsError = validateParams(entry.params, moduleId);
     if (paramsError) return paramsError;
 
-    if (isPlainObject(entry.params)) ref.params = entry.params;
+    if (isRecord(entry.params)) ref.params = entry.params;
     if (typeof entry.weight === 'number') ref.weight = entry.weight;
     out.push(ref);
   }
@@ -161,7 +158,7 @@ export function validateDefinition(
 ): ValidateDefinitionResult {
   const registry = opts.registry ?? feedModuleRegistry;
 
-  if (!isPlainObject(input)) return { valid: false, error: 'Definition must be an object' };
+  if (!isRecord(input)) return { valid: false, error: 'Definition must be an object' };
 
   const mode = input.mode;
   if (typeof mode !== 'string' || !VALID_MODES.includes(mode as FeedDefinitionMode)) {

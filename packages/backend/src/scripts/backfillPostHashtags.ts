@@ -44,6 +44,7 @@ import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { sleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'backfillPostHashtags';
 
@@ -129,7 +130,7 @@ export async function backfillPostHashtags(
     if (batches % PROGRESS_EVERY_BATCHES === 0) {
       logger.info(`[${SCRIPT_NAME}] progress`, { dryRun, ...result });
     }
-    if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    if (pauseMs > 0) await sleep(pauseMs);
   }
 
   logger.info(`[${SCRIPT_NAME}] complete`, {

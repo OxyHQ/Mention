@@ -11,6 +11,7 @@
  * without a server or database; the route handlers do only auth + persistence.
  */
 
+import { isRecord } from '@mention/shared-types';
 import type { StoredFeedDefinition } from '../mtn/feed/engine/types';
 import { validateDefinition } from '../mtn/feed/definitions/validateDefinition';
 import type { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
@@ -43,10 +44,6 @@ export interface CustomFeedUpdatePatch {
 }
 
 export type BuildResult<T> = { ok: true; payload: T } | { ok: false; error: string };
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** Resolve the public flag from a `visibility` string or an `isPublic` boolean. */
 function resolveIsPublic(body: Record<string, unknown>): boolean | undefined {
@@ -89,7 +86,7 @@ export function buildCustomFeedCreatePayload(
   body: unknown,
   opts: CustomFeedWriteOptions = {},
 ): BuildResult<CustomFeedCreatePayload> {
-  if (!isPlainObject(body)) return { ok: false, error: 'Request body must be an object' };
+  if (!isRecord(body)) return { ok: false, error: 'Request body must be an object' };
 
   const title = normalizeTitle(body.title);
   if (typeof title !== 'string') return { ok: false, error: title.error };
@@ -123,7 +120,7 @@ export function buildCustomFeedUpdatePatch(
   body: unknown,
   opts: CustomFeedWriteOptions = {},
 ): BuildResult<CustomFeedUpdatePatch> {
-  if (!isPlainObject(body)) return { ok: false, error: 'Request body must be an object' };
+  if (!isRecord(body)) return { ok: false, error: 'Request body must be an object' };
 
   const patch: CustomFeedUpdatePatch = {};
 

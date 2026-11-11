@@ -33,6 +33,7 @@
  * its controller.
  */
 
+import { isRecord } from '@mention/shared-types';
 import type {
   TrendEventInput,
   TrendEventName,
@@ -114,10 +115,6 @@ export function resolveTrendFreshness(
 ): TrendFreshness {
   if (!submitted || !current) return 'unknown';
   return submitted === current ? 'fresh' : 'stale';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function isTrendEventName(value: unknown): value is TrendEventName {

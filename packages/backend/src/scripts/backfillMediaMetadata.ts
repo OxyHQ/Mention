@@ -39,6 +39,7 @@ import {
   reconcileVideoMetadata,
   readVideoReconciliationOptions,
 } from './lib/reconcileVideoMetadata';
+import { sleep } from '../utils/sleep';
 
 const DEFAULT_PAGE_SIZE = 200;
 
@@ -113,7 +114,7 @@ async function enrichWithRetry(media: MediaItem[]): Promise<MediaMetadataEnrichm
       waitMs: wait,
       ids: media.length,
     });
-    await new Promise((resolve) => setTimeout(resolve, wait));
+    await sleep(wait);
   }
   return enriched;
 }

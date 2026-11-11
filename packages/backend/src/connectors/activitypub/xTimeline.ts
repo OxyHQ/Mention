@@ -2,6 +2,7 @@ import { readResponseBody, safeFetch } from '@oxy.so/core/server';
 import { z } from 'zod';
 import { logger } from '../../utils/logger';
 import { USER_AGENT } from './constants';
+import { sleep } from '../../utils/sleep';
 
 /**
  * AN X ACCOUNT'S TIMELINE: WHICH TWEETS EXIST, FROM FXTWITTER; THE TWEETS, FROM BIRD.MAKEUP.
@@ -159,8 +160,7 @@ export async function fetchXTimelinePage(
           : {}),
       };
     }
-    if (attempt < PAGE_ATTEMPTS)
-      await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? RETRY_DELAY_MS));
+    if (attempt < PAGE_ATTEMPTS) await sleep(options.retryDelayMs ?? RETRY_DELAY_MS);
   }
   logger.info('[FedSync] X timeline not listed', { attempts: PAGE_ATTEMPTS });
   return null;

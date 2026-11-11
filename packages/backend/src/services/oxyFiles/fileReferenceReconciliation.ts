@@ -23,6 +23,7 @@ import { oxyFileReferenceReconciliations, oxyFileReferenceSync } from '../../db/
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { describeOxyError, oxyErrorStatus } from './oxyErrors';
+import { sleep } from '../../utils/sleep';
 
 /**
  * The nightly reference reconciliation (ADR 0043 D6) — the safety net under the
@@ -75,8 +76,6 @@ export interface ReconcileOptions {
   /** Waits between pages and after a 429; injectable so tests do not sleep. */
   pause?: (ms: number) => Promise<void>;
 }
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * The inventory as the SDK reads it, with a pause before every page after the
