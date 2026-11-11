@@ -7,7 +7,7 @@ federation, built as a Bun monorepo: `packages/frontend` (Expo), `packages/backe
 
 Org-wide engineering standards live at
 <https://github.com/OxyHQ/engineering/blob/main/AGENTS.md>. Parent files
-(`~/AGENTS.md`, `~/Oxy/AGENTS.md`) hold the agent team, shared-SDK rules, and
+(`~/Oxy/AGENTS.md`) holds the agent team, shared-SDK rules, and
 the Bloom/Expo/expo-router gotchas.
 
 ## Commands
