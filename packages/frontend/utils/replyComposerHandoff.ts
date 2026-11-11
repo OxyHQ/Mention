@@ -1,4 +1,5 @@
 import { createDraftId } from './draftSession';
+import type { ComposerMediaItem } from './composeUtils';
 
 export interface ReplyComposerHandoffScope {
   viewerId: string;
@@ -10,6 +11,8 @@ interface ReplyComposerHandoffInput extends ReplyComposerHandoffScope {
   /** Stable originating route/host identity; independent Deck columns must differ. */
   sourceId: string;
   text: string;
+  /** Already staged file IDs, including GIF picker MP4 IDs; never temporary preview URLs. */
+  mediaIds?: readonly ComposerMediaItem[];
   revision: number;
   pending?: boolean;
   /** The source clears only its unchanged revision after the receiver accepts the text. */
@@ -43,7 +46,7 @@ export function createReplyComposerHandoff(input: ReplyComposerHandoffInput): st
     if (oldest !== undefined) handoffs.delete(oldest);
   }
   const token = createDraftId();
-  handoffs.set(token, { ...input });
+  handoffs.set(token, { ...input, mediaIds: input.mediaIds?.map((media) => ({ ...media })) });
   return token;
 }
 
@@ -66,6 +69,7 @@ export function consumeReplyComposerHandoff(token: string, scope: ReplyComposerH
   let acknowledged = false;
   return {
     text: entry.text,
+    mediaIds: entry.mediaIds?.map((media) => ({ ...media })) ?? [],
     revision: entry.revision,
     sourceId: entry.sourceId,
     replyToPostId: entry.replyToPostId,

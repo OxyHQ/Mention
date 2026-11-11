@@ -3,6 +3,7 @@ import {
   createReplyComposerHandoff,
   discardReplyComposerHandoff,
 } from '../replyComposerHandoff';
+import type { ComposerMediaItem } from '../composeUtils';
 
 const scope = { viewerId: 'viewer-a', epoch: 4, replyToPostId: 'parent-a' };
 const input = { ...scope, sourceId: 'main:/post/parent-a', text: 'hello', revision: 7 };
@@ -62,4 +63,26 @@ it('bounds abandoned navigation entries without clearing any unaccepted source',
   expect(consumeReplyComposerHandoff(tokens[0], scope)).toBeUndefined();
   for (const token of tokens.slice(1)) expect(discardReplyComposerHandoff(token, scope)).toBe(true);
   expect(onClaim).not.toHaveBeenCalled();
+});
+
+it('transfers staged image and GIF identities in order, with alt text and no second upload', () => {
+  const mediaIds: ComposerMediaItem[] = [
+    { id: 'private-uploaded-image', type: 'image', alt: '  An exact description 🦋  ' },
+    { id: 'gif-picker-file-id', type: 'gif' },
+  ];
+  const token = createReplyComposerHandoff({ ...input, text: '', mediaIds })!;
+  mediaIds[0]!.alt = 'Edited after navigation';
+  mediaIds.reverse();
+  const received = consumeReplyComposerHandoff(token, scope)!;
+  expect(received.mediaIds).toEqual([
+    { id: 'private-uploaded-image', type: 'image', alt: '  An exact description 🦋  ' },
+    { id: 'gif-picker-file-id', type: 'gif' },
+  ]);
+  expect(received.text).toBe('');
+  expect(received.mediaIds).not.toBe(mediaIds);
+});
+
+it('keeps text-only handoffs compatible with the existing media setter', () => {
+  const token = createReplyComposerHandoff(input)!;
+  expect(consumeReplyComposerHandoff(token, scope)?.mediaIds).toEqual([]);
 });
