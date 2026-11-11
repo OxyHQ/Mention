@@ -916,6 +916,36 @@ describe('the authored source (the profile feed)', () => {
       expect(idsOf(tab)).toEqual([liked.id]);
     });
 
+    it('pages the likes tab across a bridged like whose id is an AT-URI', async () => {
+      // A bridged Bluesky like keeps its AT-URI as `likes.id`, which no cursor can
+      // carry; the tab pages on `(created_at, post_id)` instead.
+      settingsOwners.push(AUTHOR);
+      await db.insert(userSettings).values({ oxyUserId: AUTHOR, privacyShowLikes: true });
+      const older = await create({ oxyUserId: STRANGER, createdAt: at(0) });
+      const newer = await create({ oxyUserId: STRANGER, createdAt: at(1_000) });
+      await db.insert(likes).values([
+        { userId: AUTHOR, postId: older.id, value: 1, createdAt: at(-2_000) },
+        {
+          id: 'at://did:plc:abc/app.bsky.feed.like/3mzlkh6j5em27',
+          userId: AUTHOR,
+          postId: newer.id,
+          value: 1,
+          createdAt: at(-1_000),
+        },
+      ]);
+      likedPostIds.push(older.id, newer.id);
+      const gather = (cursor?: string) =>
+        authoredSource.gather(
+          { currentUserId: VIEWER, pageLimit: 1, cursor },
+          { authorId: AUTHOR, filter: 'likes' },
+          2,
+        );
+
+      const pageOne = await gather();
+      expect(idsOf(pageOne)).toEqual([newer.id]);
+      expect(await gather(pageOne[0]._feedCursor).then(idsOf)).toEqual([older.id]);
+    });
+
     it('shows what an account liked to others only once it opts in', async () => {
       const liked = await create({ oxyUserId: STRANGER, createdAt: at(0) });
       await db.insert(likes).values({ userId: AUTHOR, postId: liked.id, value: 1 });
@@ -1024,7 +1054,7 @@ describe('the saved source', () => {
 
   /**
    * The saved feed pages over the RELATIONSHIP, not the post: its order is the
-   * bookmark's `(created_at, id)`. The legacy-store original filtered `_id < cursor`
+   * bookmark's `(created_at, post_id)`. The legacy-store original filtered `_id < cursor`
    * while sorting by `createdAt` — two different axes, which only appeared to
    * work because an ObjectId encodes creation time. Neither half survives, so
    * this asserts the whole two-page walk.

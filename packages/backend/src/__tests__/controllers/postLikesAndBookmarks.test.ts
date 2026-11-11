@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { userSettings } from '../../db/schema/userProfile';
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -80,7 +81,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { bookmarkFolders, bookmarks, likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
@@ -96,6 +97,14 @@ import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-likes-bookmarks');
 const VIEWER = scope.user('viewer');
+
+/**
+ * A liker's id in the shape a real Oxy account id has (24-hex). The likers list
+ * pages on `(created_at, user_id)`, and a cursor only carries a live entity id,
+ * so a namespaced label like `scope.user()` cannot stand in for one here.
+ */
+const liker = (label: string): string =>
+  createHash('sha1').update(scope.user(label)).digest('hex').slice(0, 24);
 
 function buildRequest(overrides: Record<string, unknown> = {}) {
   if (overrides.user) overrides = { accessToken: 'test-viewer-session', ...overrides };
@@ -150,9 +159,7 @@ afterEach(async () => {
     .where(
       inArray(
         userSettings.oxyUserId,
-        ['liker-a', 'liker-b', 'liker-c', 'tied-a', 'tied-b', 'tied-c'].map((label) =>
-          scope.user(label),
-        ),
+        ['liker-a', 'liker-b', 'liker-c', 'tied-a', 'tied-b', 'tied-c'].map(liker),
       ),
     );
   // Both tables are `ON DELETE CASCADE` to `posts.id`, so clearing the scope
@@ -168,7 +175,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
+describe('getPostLikes — the (created_at DESC, user_id DESC) keyset', () => {
   /**
    * Three likes on one post, each a second apart, newest last.
    *
@@ -177,7 +184,7 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
   async function seedThreeLikes(): Promise<{ post: PostRecord; newestFirst: string[] }> {
     const post = await seedPost(scope, { oxyUserId: scope.user('author') });
     const base = Date.parse('2026-07-01T12:00:00.000Z');
-    const users = ['liker-a', 'liker-b', 'liker-c'].map((label) => scope.user(label));
+    const users = ['liker-a', 'liker-b', 'liker-c'].map(liker);
     await getDb()
       .insert(userSettings)
       .values(users.map((oxyUserId) => ({ oxyUserId, privacyShowLikes: true })))
@@ -236,7 +243,22 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
     expect(new Set(seen).size).toBe(seen.length);
   });
 
-  it('pages likers that share a created_at, where only the id tiebreak separates them', async () => {
+  it('pages past a bridged like whose id is an AT-URI, not an entity id', async () => {
+    // A bridged Bluesky like keeps its AT-URI as `likes.id`; the page's last row
+    // is one, and the cursor must still be minted and honoured.
+    const { post, newestFirst } = await seedThreeLikes();
+    await getDb()
+      .update(likes)
+      .set({ id: 'at://did:plc:abc/app.bsky.feed.like/3mzlkh6j5em27' })
+      .where(and(eq(likes.postId, post.id), eq(likes.userId, newestFirst[1])));
+
+    const first = await page(post.id);
+    expect(first.nextCursor).toBeDefined();
+    const second = await page(post.id, first.nextCursor);
+    expect([...first.users, ...second.users].map((user) => user.id)).toEqual(newestFirst);
+  });
+
+  it('pages likers that share a created_at, where only the user-id tiebreak separates them', async () => {
     /**
      * The case a wall-clock seed cannot produce and the previous probe missed.
      *
@@ -248,7 +270,7 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
      * back empty while `hasMore` was true — an infinite scroll that never ends.
      */
     const post = await seedPost(scope, { oxyUserId: scope.user('author') });
-    const users = ['tied-a', 'tied-b', 'tied-c'].map((label) => scope.user(label));
+    const users = ['tied-a', 'tied-b', 'tied-c'].map(liker);
     await getDb().transaction(async (tx) => {
       for (const userId of users) {
         await tx.insert(likes).values({ userId, postId: post.id, value: 1 });

@@ -487,8 +487,11 @@ function buildViewerVisiblePostSql(ctx: FeedEngineContext): SQL {
 /**
  * The descending order a RELATIONSHIP keyset (likes, bookmarks) pages against.
  * These sources page over the relationship row, not the post, so their cursor
- * anchors a `likes`/`bookmarks` row and pages on that table's own
- * `(created_at, id)` — the axis it actually sorts by. Written so an index can
+ * anchors a `likes`/`bookmarks` row on `(created_at, post_id)`. The row's own
+ * `id` is deliberately NOT the tiebreak: it is an opaque relationship key (a
+ * bridged Bluesky like keeps its AT-URI) that no cursor can carry, whereas
+ * `(user_id, post_id)` is unique on both tables, so within one viewer `post_id`
+ * is a total, stable tiebreak that is always a live id. Written so an index can
  * actually serve it.
  *
  * `nulls last` for the same reason `chronoOrderBy` spells it out: both columns
@@ -508,8 +511,8 @@ function buildViewerVisiblePostSql(ctx: FeedEngineContext): SQL {
  * `created_at` presorted — it streams and only ever sorts one tie group, and the
  * LIMIT stops it after 32 rows instead of reading the viewer's whole history.
  */
-function relationshipOrder(createdAtColumn: PgColumn, idColumn: PgColumn): SQL[] {
-  return [sql`${createdAtColumn} desc nulls last`, sql`${idColumn} desc nulls last`];
+function relationshipOrder(createdAtColumn: PgColumn, postIdColumn: PgColumn): SQL[] {
+  return [sql`${createdAtColumn} desc nulls last`, sql`${postIdColumn} desc nulls last`];
 }
 
 /** The viewer's liked posts, in like order, for the ORDERED Author-likes feed. */
@@ -521,12 +524,14 @@ async function gatherAuthorLikes(
   const db = getDb();
 
   const anchor = decodeChronoCursor(ctx.cursor);
-  const keyset = anchor ? chronoKeyset(likes, anchor) : undefined;
+  const keyset = anchor
+    ? chronoKeyset({ createdAt: likes.createdAt, id: likes.postId }, anchor)
+    : undefined;
   const likeRows = await db
-    .select({ id: likes.id, postId: likes.postId, createdAt: likes.createdAt })
+    .select({ postId: likes.postId, createdAt: likes.createdAt })
     .from(likes)
     .where(and(...[eq(likes.userId, authorId), eq(likes.value, 1), ...(keyset ? [keyset] : [])]))
-    .orderBy(...relationshipOrder(likes.createdAt, likes.id))
+    .orderBy(...relationshipOrder(likes.createdAt, likes.postId))
     .limit(pageLimit + 1);
 
   if (likeRows.length === 0) return [];
@@ -554,7 +559,7 @@ async function gatherAuthorLikes(
 
   if (hasMore && ordered.length > 0) {
     const anchor = page[page.length - 1];
-    ordered[ordered.length - 1]._feedCursor = encodeChronoCursor(anchor.createdAt, anchor.id);
+    ordered[ordered.length - 1]._feedCursor = encodeChronoCursor(anchor.createdAt, anchor.postId);
   }
   return ordered;
 }
@@ -719,12 +724,14 @@ export const savedSource: SourceModule = {
     const db = getDb();
 
     const anchor = decodeChronoCursor(ctx.cursor);
-    const keyset = anchor ? chronoKeyset(bookmarks, anchor) : undefined;
+    const keyset = anchor
+      ? chronoKeyset({ createdAt: bookmarks.createdAt, id: bookmarks.postId }, anchor)
+      : undefined;
     const bookmarkRows = await db
-      .select({ id: bookmarks.id, postId: bookmarks.postId, createdAt: bookmarks.createdAt })
+      .select({ postId: bookmarks.postId, createdAt: bookmarks.createdAt })
       .from(bookmarks)
       .where(and(...[eq(bookmarks.userId, ctx.currentUserId), ...(keyset ? [keyset] : [])]))
-      .orderBy(...relationshipOrder(bookmarks.createdAt, bookmarks.id))
+      .orderBy(...relationshipOrder(bookmarks.createdAt, bookmarks.postId))
       .limit(pageLimit + 1);
 
     if (bookmarkRows.length === 0) return [];
@@ -746,7 +753,7 @@ export const savedSource: SourceModule = {
 
     if (hasMore && ordered.length > 0) {
       const anchor = page[page.length - 1];
-      ordered[ordered.length - 1]._feedCursor = encodeChronoCursor(anchor.createdAt, anchor.id);
+      ordered[ordered.length - 1]._feedCursor = encodeChronoCursor(anchor.createdAt, anchor.postId);
     }
     return ordered;
   },

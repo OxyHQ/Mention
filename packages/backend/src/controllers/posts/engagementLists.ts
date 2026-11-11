@@ -76,29 +76,34 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    // `(created_at DESC, id DESC)`, not `_id DESC`. `likes.id` is `text` holding
-    // a 24-hex id for a legacy row and a uuid v7 for anything newer, and the two spaces interleave under text collation — so an
-    // id-only bound behind an id-only sort is neither chronological nor stable
-    // across the boundary, and would skip and repeat rows at every page edge.
-    // Same keyset `getPostBoosts` below already uses.
+    // `(created_at DESC, user_id DESC)`, not the like's own `id`. A like's `id` is
+    // an opaque relationship key — a bridged Bluesky like keeps its AT-URI — so it
+    // is neither a live entity id (a cursor cannot carry it) nor chronological.
+    // `(user_id, post_id)` is unique, so within one post `user_id` is a total,
+    // stable tiebreak that is always a live Oxy id.
     const excluded = await engagementAudience(req, String(id));
     if (!excluded) return res.status(404).json({ message: 'Post not found' });
     const conditions: SQL[] = [eq(likesTable.postId, String(id)), eq(likesTable.value, 1)];
     if (excluded.size) conditions.push(notInArray(likesTable.userId, [...excluded]));
     const anchor = decodeChronoCursor(cursor);
-    if (anchor) conditions.push(chronoKeyset(likesTable, anchor));
+    if (anchor) {
+      conditions.push(
+        chronoKeyset({ createdAt: likesTable.createdAt, id: likesTable.userId }, anchor),
+      );
+    }
 
     const likes = await getDb()
-      .select({ id: likesTable.id, userId: likesTable.userId, createdAt: likesTable.createdAt })
+      .select({ userId: likesTable.userId, createdAt: likesTable.createdAt })
       .from(likesTable)
       .where(and(...conditions))
-      .orderBy(desc(likesTable.createdAt), desc(likesTable.id))
+      .orderBy(desc(likesTable.createdAt), desc(likesTable.userId))
       .limit(limit + 1);
 
     const hasMore = likes.length > limit;
     const likesToReturn = hasMore ? likes.slice(0, limit) : likes;
     const last = likesToReturn[likesToReturn.length - 1];
-    const nextCursor = hasMore && last ? encodeChronoCursor(last.createdAt, last.id) : undefined;
+    const nextCursor =
+      hasMore && last ? encodeChronoCursor(last.createdAt, last.userId) : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
