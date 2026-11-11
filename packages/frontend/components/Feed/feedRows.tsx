@@ -23,6 +23,7 @@ import { getItemKey, deduplicateItems, buildReplyTree, type ReplyNode } from '@/
 import { THREAD_LINE_WIDTH, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { useTranslation } from 'react-i18next';
+import type { OpenPostPanel } from '@/components/Post/postEngagementContext';
 
 /**
  * Shared feed-row model + render helpers used by BOTH the native (FlashList)
@@ -446,6 +447,7 @@ export function feedRowType(row: FeedRow): string {
 export interface RenderFeedRowDeps {
   router: ReturnType<typeof useRouter>;
   threadLineColor: string;
+  openPostEngagement?: OpenPostPanel | null;
   /**
    * Descriptor of the feed this row belongs to. Threaded into `PostItem` so a
    * tap that opens the post detail reports a `click` interaction attributed to
@@ -490,7 +492,7 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({
  */
 export function renderFeedRow(
   row: FeedRow,
-  { router, threadLineColor, feedDescriptor }: RenderFeedRowDeps,
+  { router, threadLineColor, feedDescriptor, openPostEngagement }: RenderFeedRowDeps,
 ): React.ReactElement | null {
   if (row.kind === 'interstitial') {
     // Keyed by slot: FlashList recycles a cell across rows of the same type,
@@ -557,6 +559,7 @@ export function renderFeedRow(
         sliceKey={row.sliceKey}
         threadOpenId={row.threadOpenId}
         isThread={Boolean(row.threadOpenId)}
+        openPostEngagement={openPostEngagement}
       />
       {showThreadLink && (
         <ShowThreadLink

@@ -45,7 +45,7 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
-import { openPostInsights, useOpenPostEngagement } from '@/components/Post/postEngagementContext';
+import { openPostInsights, type OpenPostPanel } from '@/components/Post/postEngagementContext';
 import { postLinkCards } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
@@ -159,9 +159,11 @@ interface PostItemProps {
    * the search screen committing its query to the search history).
    */
   onOpen?: () => void;
+  /** Feed-level dispatch, read once per feed instead of once per mounted row. */
+  openPostEngagement?: OpenPostPanel | null;
 }
 
-const PostItem: React.FC<PostItemProps> = ({
+const PostItemContent: React.FC<PostItemProps> = ({
   post,
   isNested = false,
   showPinned = false,
@@ -183,6 +185,7 @@ const PostItem: React.FC<PostItemProps> = ({
   threadOpenId,
   isThread = false,
   onOpen,
+  openPostEngagement = null,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -577,7 +580,6 @@ const PostItem: React.FC<PostItemProps> = ({
   }, []);
 
   // Each shell host opens its supporting panel; standalone posts use the shared sheet.
-  const openPostEngagement = useOpenPostEngagement();
   const handleInsightsPress = useCallback(() => {
     if (viewPostId) openPostInsights(openPostEngagement, viewPostId, interactions.openInsights);
   }, [openPostEngagement, interactions, viewPostId]);
@@ -1377,6 +1379,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.threadPosition?.index === nextProps.threadPosition?.index &&
   prevProps.threadPosition?.total === nextProps.threadPosition?.total &&
   prevProps.feedDescriptor === nextProps.feedDescriptor &&
+  prevProps.openPostEngagement === nextProps.openPostEngagement &&
   prevProps.sliceKey === nextProps.sliceKey &&
   prevProps.threadOpenId === nextProps.threadOpenId &&
   prevProps.isThread === nextProps.isThread &&
@@ -1386,7 +1389,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.repostPlacement === nextProps.repostPlacement &&
   prevProps.socialContext === nextProps.socialContext;
 
-const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
+const MemoPostItem = React.memo(PostItemContent, (prevProps, nextProps) => {
   if (!rowPlacementEqual(prevProps, nextProps)) return false;
   // Fast path: same post reference.
   if (prevProps.post === nextProps.post) return true;
@@ -1441,8 +1444,13 @@ const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
 
 // Quotes already have their data and use the same loaded post component. Keep
 // this renderer stable: no deferred empty card, import cycle or per-row hook.
-const renderNestedPost: NestedPostRenderer = (post, nestingDepth) => (
-  <MemoPostItem post={post} isNested nestingDepth={nestingDepth} />
+const renderNestedPost: NestedPostRenderer = (post, nestingDepth, openPostEngagement) => (
+  <MemoPostItem
+    post={post}
+    isNested
+    nestingDepth={nestingDepth}
+    openPostEngagement={openPostEngagement}
+  />
 );
 
 export default MemoPostItem;

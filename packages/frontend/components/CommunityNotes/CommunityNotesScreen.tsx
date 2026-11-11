@@ -13,6 +13,7 @@ import type {
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { CommunityNoteCard } from './CommunityNoteCard';
 import { useCommunityNoteSheets, type CommunityNoteWriteHandlers } from './useCommunityNoteSheets';
 
@@ -68,6 +69,7 @@ export function CommunityNotesScreen({
   handlers,
 }: CommunityNotesScreenProps) {
   const { t } = useTranslation();
+  const openPostEngagement = useOpenPostEngagement();
   const [tab, setTab] = useState<TabId>('rate');
   // Ratings made on this screen, so a rated note moves out of the queue at once.
   const [localRatings, setLocalRatings] = useState<Record<string, CommunityNoteRating>>({});
@@ -144,7 +146,7 @@ export function CommunityNotesScreen({
           entries.map(({ post, note }) => (
             <View key={note.id} className="border-border gap-3 border-b pb-6">
               <View className="px-4">
-                <PostItem post={post} isNested />
+                <PostItem post={post} isNested openPostEngagement={openPostEngagement} />
               </View>
               <View className="px-4">
                 <CommunityNoteCard

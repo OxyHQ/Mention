@@ -4,7 +4,6 @@ import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost, PostUser } from '@mention/shared-types';
 
 import PostItem from '../PostItem';
-import { PostEngagementContext } from '@/components/Post/postEngagementContext';
 import type { NestedPostRenderer } from '../../Post/Attachments/PostAttachmentNested';
 
 /**
@@ -509,11 +508,12 @@ it.each([
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       renderer = TestRenderer.create(
-        <PostEngagementContext.Provider
-          value={{ open: openPanel, publishReplies: jest.fn(), closeReplies: jest.fn() }}
-        >
-          <PostItem post={post} isPostDetail={detail} isNested={nested} />
-        </PostEngagementContext.Provider>,
+        <PostItem
+          post={post}
+          isPostDetail={detail}
+          isNested={nested}
+          openPostEngagement={openPanel}
+        />,
       );
     });
     if (!renderer) throw new Error('Post did not render');

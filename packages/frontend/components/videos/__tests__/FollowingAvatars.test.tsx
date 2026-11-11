@@ -30,7 +30,10 @@ beforeEach(() => {
   mockViewer = 'viewer-a';
   mockPrivate = true;
   mockGraph = { followingIds: ['b', 'a', 'missing', 'fourth'] };
-  mockProfiles = [{ id: 'a', avatar: 'a.jpg' }, { id: 'b', avatar: 'b.jpg' }];
+  mockProfiles = [
+    { id: 'a', avatar: 'a.jpg' },
+    { id: 'b', avatar: 'b.jpg' },
+  ];
   mockQueries.length = 0;
   mockViewerGraph.mockReset();
   mockGetMany.mockReset();
@@ -38,7 +41,9 @@ beforeEach(() => {
 
 it('hydrates only three real followed identities and preserves their graph order', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<FollowingAvatars />); });
+  act(() => {
+    renderer = TestRenderer.create(<FollowingAvatars />);
+  });
   const group = renderer.root.findByType(AccountAvatarGroup);
   expect(group.props.items.map((item: { id: string }) => item.id)).toEqual(['b', 'a']);
   expect(group.props).toMatchObject({ size: 18, overlap: 6, max: 3 });
@@ -53,7 +58,9 @@ it.each(['anonymous', 'private-unavailable'])(
     if (state === 'anonymous') mockViewer = null;
     else mockPrivate = false;
     let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => { renderer = TestRenderer.create(<FollowingAvatars />); });
+    act(() => {
+      renderer = TestRenderer.create(<FollowingAvatars />);
+    });
     expect(renderer.toJSON()).toBeNull();
     expect(mockQueries.every((query) => !query.enabled)).toBe(true);
     act(() => renderer.unmount());
@@ -62,7 +69,9 @@ it.each(['anonymous', 'private-unavailable'])(
 
 it('drops the previous viewer facepile while the next viewer graph loads', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<FollowingAvatars />); });
+  act(() => {
+    renderer = TestRenderer.create(<FollowingAvatars />);
+  });
   const firstKey = mockQueries[0].queryKey;
   mockViewer = 'viewer-b';
   mockGraph = undefined;
@@ -76,7 +85,9 @@ it('drops the previous viewer facepile while the next viewer graph loads', () =>
 it('does not invent placeholders when followed profiles cannot be resolved', () => {
   mockProfiles = [];
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<FollowingAvatars />); });
+  act(() => {
+    renderer = TestRenderer.create(<FollowingAvatars />);
+  });
   expect(renderer.toJSON()).toBeNull();
   act(() => renderer.unmount());
 });

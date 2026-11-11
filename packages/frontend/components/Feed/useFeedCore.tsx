@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
@@ -116,6 +117,7 @@ export function useFeedCore(props: FeedProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
+  const openPostEngagement = useOpenPostEngagement();
   const { user: currentUser, isAuthenticated, canUsePrivateApi } = useAuth();
   const { blockedSet } = usePrivacyControls();
   const currentUserId = currentUser?.id;
@@ -309,6 +311,7 @@ export function useFeedCore(props: FeedProps) {
     t,
     theme,
     router,
+    openPostEngagement,
     feedState,
     /** The rows to present: empty while the pinned post holds the first paint. */
     feedRows: presentedRows,

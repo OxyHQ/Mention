@@ -113,7 +113,12 @@ function FeedHarness({
           id={post.boost?.originalPost?.id ?? post.id}
           onRender={onRender}
         >
-          {renderFeedRow(toRow(post), { router, threadLineColor: '#ccc', feedDescriptor: 'perf' })}
+          {renderFeedRow(toRow(post), {
+            router,
+            threadLineColor: '#ccc',
+            feedDescriptor: 'perf',
+            openPostEngagement: null,
+          })}
         </Profiler>
       ))}
     </>

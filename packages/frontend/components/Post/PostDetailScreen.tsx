@@ -16,6 +16,7 @@ import { useRouter } from '@/lib/navigation/router';
 import { usePostReadAccess } from '@/hooks/usePostReadAccess';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import Feed from '@/components/Feed/Feed';
 import { FeedHeader } from '@/components/Feed/FeedHeader';
 import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
@@ -98,6 +99,7 @@ function usePrefetchReplies(postId: string) {
 }
 
 export default function PostDetailScreen({ postId: id, onBack }: PostDetailScreenProps) {
+  const openPostEngagement = useOpenPostEngagement();
   // Supervision, the post and its replies load at the same time; only what is
   // SHOWN waits for the access gate (see the returns below).
   const access = usePostReadAccess(id ? String(id) : '');
@@ -480,6 +482,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
                     with no separators between them or into the focused post. */}
         {ancestors.map((ancestor, index) => (
           <PostItem
+            openPostEngagement={openPostEngagement}
             key={String(ancestor.id ?? index)}
             post={ancestor}
             threadPosition={threadPositions.get(String(ancestor.id))}
@@ -492,6 +495,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
 
         {/* Ancestors end at the focused avatar; no rail crosses its full-width body. */}
         <PostItem
+          openPostEngagement={openPostEngagement}
           post={post}
           threadPosition={threadPositions.get(String(post.id))}
           isPostDetail
@@ -517,6 +521,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
                   const isLast = index === continuations.length - 1;
                   return (
                     <PostItem
+                      openPostEngagement={openPostEngagement}
                       key={String(continuation.id)}
                       post={continuation}
                       threadPosition={threadPositions.get(String(continuation.id))}
@@ -543,6 +548,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     id,
     t,
     handleOpenReply,
+    openPostEngagement,
   ]);
 
   const header = (

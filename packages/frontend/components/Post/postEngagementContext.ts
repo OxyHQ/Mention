@@ -7,7 +7,11 @@ export interface PostPanelOptions {
   inlineOnly?: boolean;
   onCommentPosted?: () => void;
 }
-type OpenPostPanel = (postId: string, kind: PostPanelKind, options?: PostPanelOptions) => boolean;
+export type OpenPostPanel = (
+  postId: string,
+  kind: PostPanelKind,
+  options?: PostPanelOptions,
+) => boolean;
 interface PostPanelActions {
   open: OpenPostPanel;
   publishReplies: (postId: string, onCommentPosted: () => void) => VideoReplyDraft | undefined;

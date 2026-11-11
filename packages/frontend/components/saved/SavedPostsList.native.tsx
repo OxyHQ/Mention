@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Pressable } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import PostItem from '@/components/Feed/PostItem';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import type { SavedPost, SavedPostsListProps } from './SavedPostsList.types';
 
 const keyExtractor = (post: SavedPost) => post.id;
@@ -14,13 +15,14 @@ export default function SavedPostsList({
   onEndReached,
   onLongPress,
 }: SavedPostsListProps) {
+  const openPostEngagement = useOpenPostEngagement();
   const renderItem = useCallback(
     ({ item }: { item: SavedPost }) => (
       <Pressable onLongPress={() => onLongPress(item.id)} delayLongPress={500}>
-        <PostItem post={item} />
+        <PostItem post={item} openPostEngagement={openPostEngagement} />
       </Pressable>
     ),
-    [onLongPress],
+    [onLongPress, openPostEngagement],
   );
 
   return (

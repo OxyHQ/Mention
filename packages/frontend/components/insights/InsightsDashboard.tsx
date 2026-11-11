@@ -28,6 +28,7 @@ import {
 import { ResponsiveGrid } from '@oxy.so/bloom/grid';
 import { Divider } from '@oxy.so/bloom/divider';
 import PostItem from '@/components/Feed/PostItem';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import {
   SegmentedControl,
   SegmentedControlItem,
@@ -102,6 +103,7 @@ export function InsightsDashboard({
 }: InsightsDashboardProps) {
   const { colors } = useTheme();
   const router = useRouter();
+  const openPostEngagement = useOpenPostEngagement();
   const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState<string | string[] | undefined>();
   const { formatNumber, formatDecimal, formatPercent, formatDate } = useMemo(() => {
@@ -378,7 +380,7 @@ export function InsightsDashboard({
                 {topPostsData.length > 0 ? (
                   topPostsData.map((post, index) => (
                     <Fragment key={post.id}>
-                      <PostItem post={post} />
+                      <PostItem post={post} openPostEngagement={openPostEngagement} />
                       {index < topPostsData.length - 1 ? <Divider /> : null}
                     </Fragment>
                   ))
