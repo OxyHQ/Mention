@@ -634,15 +634,18 @@ it('rejects overflow without clearing or truncating the accepted draft', () => {
   });
   const change = (value: string) =>
     act(() => renderer.root.findByType(TextInput).props.onChangeText(value));
-  const maximize = () =>
-    renderer.root.findAll((node) => node.props.testID === 'compact-reply-maximize')[0].props;
-  expect(maximize().tone).toBe('neutral');
   change('a'.repeat(250));
   change('a'.repeat(251));
-  expect(maximize().tone).toBe('danger');
+  expect(
+    renderer.root.findAll((node) => node.props.testID === 'compact-reply-maximize')[0].props
+      .attention,
+  ).toBe(1);
   expect(renderer.root.findByType(TextInput).props.value).toBe('a'.repeat(250));
   change('b'.repeat(252));
-  expect(maximize().tone).toBe('danger');
+  expect(
+    renderer.root.findAll((node) => node.props.testID === 'compact-reply-maximize')[0].props
+      .attention,
+  ).toBe(2);
   expect(renderer.root.findByType(TextInput).props.value).toBe('a'.repeat(250));
   change('a'.repeat(248) + '😀');
   expect(renderer.root.findByType(TextInput).props.value).toBe('a'.repeat(248) + '😀');

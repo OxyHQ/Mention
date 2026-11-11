@@ -15,9 +15,9 @@ import {
 } from 'react';
 import { View, Platform, type TextInputInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
-import { RiFileGifLine } from '@oxy.so/bloom/icons/RiFileGifLine';
-import { RiImageAddLine } from '@oxy.so/bloom/icons/RiImageAddLine';
+import { Button, GlyphButton } from '@oxy.so/bloom/button';
+import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
+import { GifAttachmentIcon } from '@oxy.so/bloom/icons/GifAttachmentIcon';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import { presentSheet } from '@/utils/sheet';
@@ -92,7 +92,7 @@ export function CompactReplyComposer({
   const focused = footerFocus?.focused ?? localFocused;
   const setFocused = footerFocus?.setFocused ?? setLocalFocused;
   useEffect(() => () => footerFocus?.setFocused(false), [footerFocus?.setFocused]);
-  const [hasRejectedAttempt, setHasRejectedAttempt] = useState(false);
+  const [rejectedAttemptCount, setRejectedAttemptCount] = useState(0);
   const transferringRef = useRef(false);
   const [transferring, setTransferring] = useState(false);
   useFocusEffect(
@@ -201,7 +201,7 @@ export function CompactReplyComposer({
         tone="neutral"
         size="sm"
         iconOnly
-        icon={RiImageAddLine}
+        icon={MediaAttachmentIcon}
         iconSize={24}
         accessibilityLabel={t('compose.toolbar.media')}
         onPress={openImages}
@@ -214,7 +214,7 @@ export function CompactReplyComposer({
         tone="neutral"
         size="sm"
         iconOnly
-        icon={RiFileGifLine}
+        icon={GifAttachmentIcon}
         iconSize={24}
         accessibilityLabel={t('compose.toolbar.gif')}
         onPress={openGifs}
@@ -227,19 +227,17 @@ export function CompactReplyComposer({
   const expanded = focused || text.length > 0 || submitting || mediaIds.length > 0;
 
   const maximizeButton = (
-    <Button
-      appearance="plain"
-      tone={hasRejectedAttempt ? 'danger' : 'neutral'}
-      size="md"
-      iconOnly
-      icon={RiExpandDiagonalSLine}
-      iconSize={24}
+    <GlyphButton
       onBlur={handleBlur}
+      size={32}
+      glyphSize={32}
       hitSlop={6}
+      attention={rejectedAttemptCount}
       accessibilityHint={t('compose.compactLimitHint', {
         max: COMPACT_REPLY_TEXT_LIMIT,
         defaultValue: 'Compact replies allow {{max}} characters. Expand to write more.',
       })}
+      icon={RiExpandDiagonalSLine}
       accessibilityLabel={t('compose.expand', { defaultValue: 'Open full composer' })}
       disabled={submitting || transferring}
       testID="compact-reply-maximize"
@@ -331,7 +329,7 @@ export function CompactReplyComposer({
             onChangeText={(next) => {
               const current = replyDraft.store.getState();
               if (acceptsCompactReplyText(current.text, next)) current.setText(next);
-              else setHasRejectedAttempt(true);
+              else setRejectedAttemptCount((count) => count + 1);
             }}
             placeholder={
               placeholder ?? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
