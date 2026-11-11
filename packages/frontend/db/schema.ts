@@ -8,6 +8,8 @@
 import type { HydratedBoostContext, HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 import type { LinkMetadata } from '@/stores/linksStore';
+import { isRecord } from '@/utils/isRecord';
+import { safeJsonParse } from '@/utils/safeJson';
 
 // ── Table names ──────────────────────────────────────────────────
 
@@ -107,15 +109,6 @@ export type FeedItem = Omit<HydratedPost, 'originalPost' | 'quotedPost' | 'boost
 
 // ── JSON helpers ─────────────────────────────────────────────────
 
-function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
-  if (!json) return fallback;
-  try {
-    return JSON.parse(json) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function safeJsonStringify(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   try {
@@ -123,10 +116,6 @@ function safeJsonStringify(value: unknown): string | null {
   } catch {
     return null;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function hasLegacyIdentityFields(value: Record<string, unknown>): boolean {

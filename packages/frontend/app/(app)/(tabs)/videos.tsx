@@ -1,3 +1,4 @@
+import { clamp } from '@oxy.so/utils/text';
 import { VideoSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useRoute } from 'expo-router';
@@ -1431,7 +1432,7 @@ export default function VideosScreen() {
   // PiP session, which can span dozens of slides the viewer never scrolled.
   const goToIndex = useCallback(
     (targetIndex: number, animated = true) => {
-      const clamped = Math.min(Math.max(targetIndex, 0), posts.length - 1);
+      const clamped = clamp(targetIndex, 0, posts.length - 1);
       if (clamped < 0) return;
       if (Platform.OS === 'web') {
         pagerRef.current?.scrollToIndex(clamped, { animated });

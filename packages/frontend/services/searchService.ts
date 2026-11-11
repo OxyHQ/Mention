@@ -10,6 +10,7 @@ import type { User } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { StarterPackSummary } from './starterPacksService';
 import type { SearchOverviewResponse } from '@mention/shared-types';
+import { isRecord } from '@/utils/isRecord';
 
 const logger = createLogger('SearchService');
 
@@ -196,10 +197,6 @@ export function isCurrentSearchHistoryEpoch(viewerId: ViewerId, epoch: number): 
 export function subscribeSearchHistoryEpoch(listener: () => void): () => void {
   searchHistoryListeners.add(listener);
   return () => searchHistoryListeners.delete(listener);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function isHydratedPost(value: unknown): value is SearchPostResult {

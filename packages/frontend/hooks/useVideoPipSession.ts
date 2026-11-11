@@ -1,3 +1,4 @@
+import { clamp } from '@oxy.so/utils/text';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -113,7 +114,7 @@ export function useVideoPipSession<T extends VideoPipSessionItem>({
     (delta: number) => {
       setSession((previous) => {
         if (previous === null) return previous;
-        const cursor = Math.min(Math.max(previous.cursor + delta, 0), items.length - 1);
+        const cursor = clamp(previous.cursor + delta, 0, items.length - 1);
         return cursor === previous.cursor ? previous : { ...previous, cursor };
       });
     },

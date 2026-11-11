@@ -11,15 +11,32 @@ export const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
 export const formatTimeInput = (date: Date) =>
   `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 
+const scheduledLabelFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
 export const formatScheduledLabel = (date: Date): string => {
   try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
-      date,
-    );
+    return scheduledLabelFormat.format(date);
   } catch {
     return date.toLocaleString();
   }
 };
+
+const scheduledShortFormat = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+const scheduledShortWithYearFormat = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
 
 /**
  * The publish time as it reads INSIDE a line of other text — the composer's
@@ -33,13 +50,7 @@ export const formatScheduledLabel = (date: Date): string => {
 export const formatScheduledShort = (date: Date): string => {
   const isThisYear = date.getFullYear() === new Date().getFullYear();
   try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-      ...(isThisYear ? {} : { year: 'numeric' }),
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(date);
+    return (isThisYear ? scheduledShortFormat : scheduledShortWithYearFormat).format(date);
   } catch {
     return date.toLocaleString();
   }

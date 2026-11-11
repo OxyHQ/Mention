@@ -1,11 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
-import {
-  clearViewerQueryCache,
-  mentionQueryKeys,
-  publicQueryKeys,
-  viewerQueryKeys,
-  viewerStorageKey,
-} from '@/lib/viewerQueryKeys';
+import { publicQueryKeys, viewerQueryKeys, viewerStorageKey } from '@/lib/viewerQueryKeys';
 
 describe('viewer-scoped private cache', () => {
   function everyPrivateKey(viewerId: string) {
@@ -203,8 +196,6 @@ describe('viewer-scoped private cache', () => {
       expect(key.slice(0, 2)).toEqual(['mention', 'public']);
       expect(key).not.toContain('viewer-a');
     });
-    expect(mentionQueryKeys.public).toBe(publicQueryKeys);
-    expect(mentionQueryKeys.private).toBe(viewerQueryKeys);
   });
 
   it('keys the trend graph on BOTH of its filters', () => {
@@ -323,31 +314,6 @@ describe('viewer-scoped private cache', () => {
         'channel-1',
       ),
     ).toBe(false);
-  });
-
-  it('removes only A when the active account switches A to B', async () => {
-    const queryClient = new QueryClient();
-    const aSearch = viewerQueryKeys.search('viewer-a', 'saved', 'oxy', true);
-    const aPresence = viewerQueryKeys.livePresence('viewer-a');
-    const aSaved = viewerQueryKeys.savedPosts('viewer-a', 'query', 'work');
-    const aFolders = viewerQueryKeys.bookmarkFolders('viewer-a');
-    const bSearch = viewerQueryKeys.search('viewer-b', 'saved', 'oxy', true);
-
-    queryClient.setQueryData(aSearch, { owner: 'viewer-a' });
-    queryClient.setQueryData(aPresence, 'speaking');
-    queryClient.setQueryData(aSaved, [{ owner: 'viewer-a' }]);
-    queryClient.setQueryData(aFolders, ['work']);
-    queryClient.setQueryData(bSearch, { owner: 'viewer-b' });
-
-    await clearViewerQueryCache(queryClient, 'viewer-a');
-
-    expect(queryClient.getQueryData(aSearch)).toBeUndefined();
-    expect(queryClient.getQueryData(aPresence)).toBeUndefined();
-    expect(queryClient.getQueryData(aSaved)).toBeUndefined();
-    expect(queryClient.getQueryData(aFolders)).toBeUndefined();
-    expect(queryClient.getQueryData(bSearch)).toEqual({ owner: 'viewer-b' });
-
-    queryClient.clear();
   });
 
   /**

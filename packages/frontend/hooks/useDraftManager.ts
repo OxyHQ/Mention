@@ -37,6 +37,7 @@ import {
   variantTextsForItem,
   type ComposeVariantsState,
 } from '@/utils/composeVariants';
+import { isRecord } from '@/utils/isRecord';
 
 /**
  * A draft AS IT COMES OUT OF STORAGE.
@@ -48,9 +49,6 @@ import {
  * rather than trusted.
  */
 type StoredDraft = { [K in keyof Draft]?: unknown };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 
