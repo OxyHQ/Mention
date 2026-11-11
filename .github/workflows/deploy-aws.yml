@@ -173,8 +173,10 @@ jobs:
       - name: Refuse unreviewed image build inputs
         if: steps.current_build.outputs.current == 'true'
         id: reviewed
-        run: python3 -B .github/scripts/reviewed-image.py guard --recipe mention
-
+        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
+        with:
+          phase: guard
+          recipe: mention
       - name: Build and push immutable backend image
         if: steps.current_build.outputs.current == 'true'
         id: build
