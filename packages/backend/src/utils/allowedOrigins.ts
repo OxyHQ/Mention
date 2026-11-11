@@ -24,7 +24,7 @@ const PRODUCTION_ORIGINS: readonly string[] = [FRONTEND_URL];
  * Note: arbitrary localhost ports / LAN IPs are matched dynamically by
  * `isAllowedOrigin` (dev only) rather than enumerated here.
  */
-export function getAllowedOrigins(): string[] {
+function getAllowedOrigins(): string[] {
   if (isProduction) {
     return [...PRODUCTION_ORIGINS];
   }

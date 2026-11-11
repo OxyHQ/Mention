@@ -144,7 +144,7 @@ function getOwnHosts(): Set<string> {
  * no-variant original — {@link resolveAvatarUrl} and Oxy-hosted link-preview
  * images.
  */
-export function attachCdnVariant(url: string, variant: string): string {
+function attachCdnVariant(url: string, variant: string): string {
   try {
     const parsed = new URL(url);
     if (parsed.host.toLowerCase() !== getCloudHost()) {

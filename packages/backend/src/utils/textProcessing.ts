@@ -160,6 +160,9 @@ const CONSECUTIVE_HASHTAG_BLOCK = new RegExp(
   'gu',
 );
 
+/** The first hashtag token of a {@link CONSECUTIVE_HASHTAG_BLOCK} match. */
+const FIRST_HASHTAG = new RegExp(HASHTAG_TOKEN, 'u');
+
 /**
  * One line made of hashtags and nothing else: tokens separated only by
  * horizontal whitespace. Tested against a TRIMMED line, so indentation and a
@@ -248,14 +251,14 @@ export function normalizePostHashtags(
     .replace(
       CONSECUTIVE_HASHTAG_BLOCK,
       (_match, leadingWhitespace: string, block: string, offset: number) => {
-        const hasPrecedingText = visible.slice(0, offset).trim().length > 0;
-        if (!hasPrecedingText) {
+        const firstNonSpace = visible.search(/\S/);
+        if (firstNonSpace === -1 || firstNonSpace >= offset) {
           // Block sits at the very start (only whitespace before it): drop it whole.
           return '';
         }
         // Preserve the first hashtag so it can complete the preceding sentence,
         // keeping the original leading whitespace; drop the rest of the block.
-        const firstTag = block.match(new RegExp(HASHTAG_TOKEN, 'u'))?.[0] ?? '';
+        const firstTag = block.match(FIRST_HASHTAG)?.[0] ?? '';
         return `${leadingWhitespace}${firstTag}`;
       },
     )

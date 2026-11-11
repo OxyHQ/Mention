@@ -73,7 +73,6 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 vi.mock('../../../utils/notificationUtils', () => ({
   createNotification: mocks.createNotification,
   createMentionNotifications: vi.fn(),
-  createWelcomeNotification: vi.fn(),
   createBatchNotifications: vi.fn(),
 }));
 

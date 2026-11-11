@@ -11,7 +11,6 @@ import {
   getViewerEntry,
   hasCollaborators,
   hasPendingCollabInvites,
-  isProfileVisible,
   normalizeAuthorship,
   validateCollaboratorIds,
 } from '../../utils/postAuthorship';
@@ -40,15 +39,6 @@ describe('postAuthorship', () => {
   it('getOwnerId returns owner oxyUserId', () => {
     const authorship = buildAuthorship(ownerId, [collabA]);
     expect(getOwnerId(authorship)).toBe(ownerId);
-  });
-
-  it('isProfileVisible is true for owner and accepted collaborator only', () => {
-    const authorship = buildAuthorship(ownerId, [collabA]);
-    expect(isProfileVisible(authorship, ownerId)).toBe(true);
-    expect(isProfileVisible(authorship, collabA)).toBe(false);
-
-    authorship[1].status = 'accepted';
-    expect(isProfileVisible(authorship, collabA)).toBe(true);
   });
 
   it('getNotificationRecipients includes owner and accepted collaborators', () => {
