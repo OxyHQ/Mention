@@ -1,4 +1,6 @@
 import { RiShoppingBag3Line } from '@oxy.so/bloom/icons/RiShoppingBag3Line';
+import { RiFileGifLine } from '@oxy.so/bloom/icons/RiFileGifLine';
+import { RiImageAddLine } from '@oxy.so/bloom/icons/RiImageAddLine';
 import type React from 'react';
 import { memo, useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
@@ -14,9 +16,7 @@ import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCalendarEventLine } from '@oxy.so/bloom/icons/RiCalendarEventLine';
 import { RiEmotionHappyLine } from '@oxy.so/bloom/icons/RiEmotionHappyLine';
-import { GifAttachmentIcon } from '@oxy.so/bloom/icons/GifAttachmentIcon';
 import { RiFileList2Line } from '@oxy.so/bloom/icons/RiFileList2Line';
-import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
@@ -175,7 +175,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             onPress={withHaptic(onMediaPress)}
             disabled={disabled || hasPoll}
           >
-            {(color) => <MediaAttachmentIcon width={20} height={20} fill={color} />}
+            {(color) => <RiImageAddLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -185,7 +185,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             onPress={withHaptic(onGifPress)}
             disabled={disabled}
           >
-            {(color) => <GifAttachmentIcon width={20} height={20} fill={color} />}
+            {(color) => <RiFileGifLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 

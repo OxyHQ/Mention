@@ -13,15 +13,15 @@ import { EngagementAction, EngagementBar, EngagementGroup } from '@oxy.so/bloom/
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
 import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
-import { BookmarkFillIcon } from '@oxy.so/bloom/icons/BookmarkFillIcon';
-import { BookmarkIcon } from '@oxy.so/bloom/icons/BookmarkIcon';
-import { ReplyIcon } from '@oxy.so/bloom/icons/ReplyIcon';
-import { LikeFillIcon } from '@oxy.so/bloom/icons/LikeFillIcon';
-import { LikeIcon } from '@oxy.so/bloom/icons/LikeIcon';
-import { RepostIcon } from '@oxy.so/bloom/icons/RepostIcon';
+import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
+import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
-import { ShareIcon } from '@oxy.so/bloom/icons/ShareIcon';
+import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
@@ -138,7 +138,7 @@ const PostActions: React.FC<Props> = ({
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent label={t('videos.more')}>
-              <DropdownMenuItem leading={<ShareIcon size="sm" />} onPress={onShare}>
+              <DropdownMenuItem leading={<RiShareForwardLine size="sm" />} onPress={onShare}>
                 {t('videos.share')}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -146,8 +146,8 @@ const PostActions: React.FC<Props> = ({
         ) : (
           <>
             <EngagementAction
-              icon={BookmarkIcon}
-              activeIcon={BookmarkFillIcon}
+              icon={RiBookmarkLine}
+              activeIcon={RiBookmarkFill}
               accessibilityLabel={t('postActions.save')}
               count={engagement?.saves}
               active={!!isSaved}
@@ -211,8 +211,8 @@ const PostActions: React.FC<Props> = ({
         </EngagementGroup>
       ) : (
         <EngagementAction
-          icon={LikeIcon}
-          activeIcon={LikeFillIcon}
+          icon={RiHeartLine}
+          activeIcon={RiHeartFill}
           accessibilityLabel={t('videos.like')}
           count={likes}
           active={!!isLiked}
@@ -224,14 +224,14 @@ const PostActions: React.FC<Props> = ({
       )}
       {onReply ? (
         <EngagementAction
-          icon={ReplyIcon}
+          icon={RiChat3Line}
           accessibilityLabel={t('common.reply')}
           count={engagement?.replies}
           onPress={onReply}
         />
       ) : null}
       <EngagementAction
-        icon={RepostIcon}
+        icon={RiRepeat2Line}
         accessibilityLabel={t('post.repostOptions')}
         count={engagement?.boosts}
         active={!!isBoosted}
@@ -247,8 +247,8 @@ const PostActions: React.FC<Props> = ({
       ) : null}
       {video && (
         <EngagementAction
-          icon={BookmarkIcon}
-          activeIcon={BookmarkFillIcon}
+          icon={RiBookmarkLine}
+          activeIcon={RiBookmarkFill}
           accessibilityLabel={t('postActions.save')}
           active={!!isSaved}
           onPress={onSave}
@@ -256,7 +256,7 @@ const PostActions: React.FC<Props> = ({
       )}
       {!video && (
         <EngagementAction
-          icon={ShareIcon}
+          icon={RiShareForwardLine}
           accessibilityLabel={t('videos.share')}
           onPress={onShare}
         />
