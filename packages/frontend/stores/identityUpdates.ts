@@ -328,7 +328,7 @@ export function getKnownIdentity(userId: string | undefined): IdentityUpdate | u
  * Correct one actor with an already-read entry. PURE — a function of its two
  * arguments and nothing else, so a render may call it inside a `useMemo` without
  * reading module state from a memoized position (the React Compiler rule in
- * `~/AGENTS.md`); {@link useKnownIdentitySet} does the reading, through the store's
+ * the Oxy engineering standards); {@link useKnownIdentitySet} does the reading, through the store's
  * own subscription.
  *
  * Returns the SAME reference when there is nothing recorded — the common case by

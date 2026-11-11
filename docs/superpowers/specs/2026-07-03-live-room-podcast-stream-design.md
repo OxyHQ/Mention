@@ -23,7 +23,7 @@ Verified against the live Syra API (`https://api.syra.fm`):
   - `hls` — an array, **empty** for the sampled episodes → do NOT rely on it; use `enclosureUrl`.
 - `GET /api/episodes/:id` → **public**, `{ data: { episode, persons } }` — a single episode by id with the same `enclosureUrl`. Enables **O(1)** resolution at stream-start (no page scan).
 
-The `@syra.fm/sdk` (v0.3.0) **strips episodes** from `getPodcast` and has no episodes method (`node_modules/@syra.fm/sdk/src/client.ts:106` comment). The SDK source is ours: `~/Oxy/Syra/packages/sdk`. Per the fix-upstream rule, we extend the SDK rather than hand-roll raw Syra HTTP inside Mention.
+The `@syra.fm/sdk` (v0.3.0) **strips episodes** from `getPodcast` and has no episodes method (`node_modules/@syra.fm/sdk/src/client.ts:106` comment). The SDK source is ours: `packages/sdk` in the Syra repo. Per the fix-upstream rule, we extend the SDK rather than hand-roll raw Syra HTTP inside Mention.
 
 The `enclosureUrl` (`http`/`https`) passes the existing `POST /:id/stream` URL validation and feeds the ingress unchanged.
 
@@ -35,7 +35,7 @@ The `enclosureUrl` (`http`/`https`) passes the existing `POST /:id/stream` URL v
 
 ## Architecture — layers & changes
 
-### Layer 1 — Syra SDK (`~/Oxy/Syra/packages/sdk`) — fix upstream
+### Layer 1 — Syra SDK (`packages/sdk` in the Syra repo) — fix upstream
 
 Add episode support to the public-catalog SDK.
 

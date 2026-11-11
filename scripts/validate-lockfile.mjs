@@ -11,7 +11,7 @@
  *   2. Workspace records — what the lockfile records for each workspace (path
  *      set, package name, version) matches the manifests on disk. `bun install`
  *      does NOT repair a stale recorded workspace version, so no install-and-diff
- *      check can see this one (~/Oxy/AGENTS.md, "layer 1").
+ *      check can see this one (Oxy build-and-runtime-traps, "layer 1").
  *   3. Dockerfile manifest coverage — every `bun install --frozen-lockfile` in
  *      an image build has a manifest for every workspace the lockfile records.
  *      Copying 4 of 5 workspace manifests fails with the same
@@ -38,7 +38,7 @@
  *
  * Note on upstream's allowedPackageNameAliases: it lists exactly
  * `string-width-cjs`, `strip-ansi-cjs` and `wrap-ansi-cjs`, the same three npm
- * aliases ~/Oxy/AGENTS.md records as false-positive "orphans" in our own trees.
+ * aliases Oxy build-and-runtime-traps records as false-positive "orphans" in our own trees.
  * None of them appear in Mention's lockfile, so ALLOWED_PACKAGE_NAME_ALIASES
  * starts empty rather than carrying entries nothing can trip.
  */

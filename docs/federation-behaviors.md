@@ -491,7 +491,7 @@ is inert — ExoPlayer/AVPlayer decode HLS natively.
 `application/vnd.apple.mpegurl` and then fails to actually play it; probe
 `MediaSource.isTypeSupported` instead. `import('hls.js')` must stay a
 SINGLE call site — a second dynamic import promotes the demuxer into the
-eager `__common.js` chunk (see `~/Oxy/AGENTS.md` § Metro web chunking).
+eager `__common.js` chunk (see Metro web chunking in [build-and-runtime-traps](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/build-and-runtime-traps.md)).
 
 The SSRF guard for every media route above (`/media/proxy`, `/media/poster`,
 `/media/gif`) is upstream — `assertSafePublicUrl`/`isBlockedIp` from

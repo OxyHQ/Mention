@@ -32,7 +32,7 @@ To check a specific site rather than reason about it, compile it with the
 app's own plugin and look for `_c(n)` versus a `CompileError` in the
 logger — a dozen lines settles the question in seconds.
 
-Distinct from the ecosystem rule in `~/AGENTS.md` about reading external
+Distinct from the Oxy-wide rule (see [build-and-runtime-traps](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/build-and-runtime-traps.md)) about reading external
 mutable state inside a memoized position, which IS a stale-read hazard.
 Reading a ref in render and writing one in render fail differently.
 

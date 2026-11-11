@@ -84,7 +84,7 @@ export default function EditJobScreen() {
   const save = () => {
     if (!form.isComplete) return;
 
-    // The wire contract (see `~/Oxy/Mention/.../job.ts` `UpdateMentionJobRequest`
+    // The wire contract (see `job.ts` in shared-types `UpdateMentionJobRequest`
     // background) lets an explicit `null` CLEAR a field — distinct from omitting
     // it, which leaves the stored value untouched. `Partial<...>` only types the
     // "send what changed" (`undefined`) half of that contract, so a field the

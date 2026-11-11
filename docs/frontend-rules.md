@@ -1,7 +1,7 @@
 # Frontend rules
 
 Conventions for the Expo/React Native app beyond the general Oxy/Bloom
-frontend gotchas in `~/Oxy/AGENTS.md`. React Compiler and web
+frontend gotchas in the [Bloom app conventions](https://github.com/OxyHQ/Bloom/blob/main/docs/app-conventions.mdx) and [build-and-runtime-traps](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/build-and-runtime-traps.md). React Compiler and web
 virtualization findings specifically: `docs/frontend-compiler-notes.md`.
 
 ## Account avatars
@@ -311,7 +311,7 @@ copy through `test-support/catalog.ts` (`catalogText`,
 ## typedRoutes gate
 
 `typedRoutes` is ON and INERT — the general finding (why, and the fix) lives
-in `~/Oxy/docs/frontend-conventions.md`, not here. Mention's own gate is
+in the shared [build-and-runtime-traps](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/build-and-runtime-traps.md), not here. Mention's own gate is
 `app/(app)/settings/__tests__/settingsRouteTargets.test.ts`: it walks the
 real `app/` tree and asserts every route a settings screen navigates to
 exists. Scoped to settings on purpose (all-static routes there) — widen it
