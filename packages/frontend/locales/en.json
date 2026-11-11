@@ -654,7 +654,8 @@
     },
     "compactLimitHint": "Compact replies allow {{max}} characters. Expand to write more.",
     "characterCountLabel": "Characters",
-    "characterCountValue": "{{count}} of {{max}} characters"
+    "characterCountValue": "{{count}} of {{max}} characters",
+    "expand": "Open full composer"
   },
   "post": {
     "threadPosition": "Post {{index}} of {{total}} in thread",

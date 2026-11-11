@@ -651,7 +651,11 @@
       "public": "Semua orang",
       "direct": "Sebutan pribadi: hanya orang yang Anda sebut",
       "needsRecipient": "Sebut setidaknya satu orang. Hanya orang yang Anda sebut yang akan melihat postingan ini."
-    }
+    },
+    "compactLimitHint": "Balasan ringkas dibatasi hingga {{max}} karakter. Perluas editor untuk menulis lebih banyak.",
+    "characterCountLabel": "Karakter",
+    "characterCountValue": "{{count}} dari {{max}} karakter",
+    "expand": "Buka editor lengkap"
   },
   "post": {
     "threadPosition": "Postingan {{index}} dari {{total}} dalam utas",

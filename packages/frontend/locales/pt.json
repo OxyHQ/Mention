@@ -656,7 +656,11 @@
       "public": "Todos",
       "direct": "Menção privada: apenas as pessoas que mencionar",
       "needsRecipient": "Mencione pelo menos uma pessoa. Só as pessoas mencionadas verão esta publicação."
-    }
+    },
+    "compactLimitHint": "As respostas compactas permitem até {{max}} caracteres. Expanda o editor para escrever mais.",
+    "characterCountLabel": "Caracteres",
+    "characterCountValue": "{{count}} de {{max}} caracteres",
+    "expand": "Abrir o editor completo"
   },
   "post": {
     "threadPosition": "Publicação {{index}} de {{total}} na sequência",

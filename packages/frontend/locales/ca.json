@@ -656,7 +656,11 @@
       "public": "Tothom",
       "direct": "Menció privada: només les persones que mencionis",
       "needsRecipient": "Menciona com a mínim una persona. Només les persones que mencionis veuran aquesta publicació."
-    }
+    },
+    "compactLimitHint": "Les respostes compactes permeten fins a {{max}} caràcters. Amplia l’editor per escriure’n més.",
+    "characterCountLabel": "Caràcters",
+    "characterCountValue": "{{count}} de {{max}} caràcters",
+    "expand": "Obre l’editor complet"
   },
   "post": {
     "threadPosition": "Publicació {{index}} de {{total}} del fil",

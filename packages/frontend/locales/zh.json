@@ -651,7 +651,11 @@
       "public": "所有人",
       "direct": "私密提及：仅你提及的人",
       "needsRecipient": "请至少提及一个人。只有你提及的人才能看到这条帖子。"
-    }
+    },
+    "compactLimitHint": "简短回复最多可输入 {{max}} 个字符。展开编辑器以输入更多内容。",
+    "characterCountLabel": "字符数",
+    "characterCountValue": "{{max}} 个字符中的 {{count}} 个",
+    "expand": "打开完整编辑器"
   },
   "post": {
     "threadPosition": "帖子串中的第 {{index}} / {{total}} 条帖子",

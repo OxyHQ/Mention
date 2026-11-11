@@ -659,7 +659,8 @@
     },
     "compactLimitHint": "Las respuestas compactas permiten {{max}} caracteres. Amplía el editor para escribir más.",
     "characterCountLabel": "Caracteres",
-    "characterCountValue": "{{count}} de {{max}} caracteres"
+    "characterCountValue": "{{count}} de {{max}} caracteres",
+    "expand": "Abrir el editor completo"
   },
   "post": {
     "threadPosition": "Publicación {{index}} de {{total}} del hilo",

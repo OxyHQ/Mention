@@ -656,7 +656,11 @@
       "public": "Tutti",
       "direct": "Menzione privata: solo le persone che menzioni",
       "needsRecipient": "Menziona almeno una persona. Solo le persone menzionate vedranno questo post."
-    }
+    },
+    "compactLimitHint": "Le risposte brevi consentono fino a {{max}} caratteri. Espandi l’editor per scrivere di più.",
+    "characterCountLabel": "Caratteri",
+    "characterCountValue": "{{count}} di {{max}} caratteri",
+    "expand": "Apri l’editor completo"
   },
   "post": {
     "threadPosition": "Post {{index}} di {{total}} del thread",
