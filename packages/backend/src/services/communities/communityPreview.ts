@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { canUseCommunities } from '@mention/shared-types/community';
 import { getRequiredOxyUserId } from '@oxy.so/core/server';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { LocalTtlCache } from '../../utils/localTtlCache';
 import { logger } from '../../utils/logger';
 
 /**
@@ -11,26 +12,23 @@ import { logger } from '../../utils/logger';
  * few minutes, so a request costs a lookup only the first time. A lookup that
  * fails is "not in the preview": closed, never open.
  */
-const TTL_MS = 5 * 60 * 1000;
-const MAX_ENTRIES = 5_000;
-const verdicts = new Map<string, { allowed: boolean; expiresAt: number }>();
+const verdicts = new LocalTtlCache<boolean>({
+  ttlMs: 5 * 60 * 1000,
+  // A failed lookup is retried soon, but not on every request during an Oxy 429.
+  negativeTtlMs: 30 * 1000,
+  maxEntries: 5_000,
+});
 
-export async function isInCommunitiesPreview(
-  oxyUserId: string | null | undefined,
-): Promise<boolean> {
-  if (!oxyUserId) return false;
-  const cached = verdicts.get(oxyUserId);
-  if (cached && cached.expiresAt > Date.now()) return cached.allowed;
-  try {
-    const user = await getServiceOxyClient().users.get(oxyUserId);
-    const allowed = canUseCommunities(user?.username);
-    if (verdicts.size >= MAX_ENTRIES) verdicts.clear();
-    verdicts.set(oxyUserId, { allowed, expiresAt: Date.now() + TTL_MS });
-    return allowed;
-  } catch (error) {
-    logger.warn('[Communities] preview lookup failed; treating the account as outside it', error);
-    return false;
-  }
+export function isInCommunitiesPreview(oxyUserId: string | null | undefined): Promise<boolean> {
+  if (!oxyUserId) return Promise.resolve(false);
+  return verdicts.getOrLoad(
+    oxyUserId,
+    async () => canUseCommunities((await getServiceOxyClient().users.get(oxyUserId))?.username),
+    (error) => {
+      logger.warn('[Communities] preview lookup failed; treating the account as outside it', error);
+      return false;
+    },
+  );
 }
 
 /** An authenticated route that only the preview may reach; everyone else gets a plain 404. */
