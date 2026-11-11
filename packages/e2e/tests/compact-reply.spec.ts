@@ -258,7 +258,9 @@ for (const motion of ['no-preference', 'reduce'] as const) {
   test(`empty composer focus and blur keep the input within its settled trajectory (${motion})`, async ({
     page,
     context,
+    candidate,
   }) => {
+    expect(candidate.scriptErrors).toEqual([]);
     await installReplySession(context);
     await arrangeVideoPost(page, 'mp4');
     await page.setViewportSize({ width: 390, height: 844 });
