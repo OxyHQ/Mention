@@ -268,7 +268,9 @@ animations. Save remains visible in that rail; external Share is in its overflow
 
 Post details and video replies share `CompactReplyComposer`: a Bloom Surface
 capsule with one persistent Textarea. At rest Media, GIF and Maximize form one
-trailing group. Focus, text, attachments or an in-flight publication keep the
+trailing group of adjacent 32px controls, with no additional gap on top of their
+existing hit-area padding. Match that grouping in the expanded toolbar instead
+of widening controls or spacing to imitate a screenshot. Focus, text, attachments or an in-flight publication keep the
 expanded toolbar visible. Text and attachments use one bounded Bloom ScrollArea;
 the Textarea grows without its own scrolling, and a sibling Bloom Toolbar keeps
 Media/GIF, the character ring and Reply fixed below that viewport.

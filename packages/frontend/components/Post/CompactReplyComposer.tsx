@@ -194,12 +194,12 @@ export function CompactReplyComposer({
       </Suspense>
     ));
   };
-  const attachmentActions = (inToolbar = false) => (
-    <View className={`flex-row items-center ${inToolbar ? 'gap-2' : 'gap-1.5'}`}>
+  const attachmentActions = () => (
+    <View className="flex-row items-center">
       <Button
         appearance="plain"
         tone="neutral"
-        size="lg"
+        size="sm"
         iconOnly
         icon={MediaAttachmentIcon}
         iconSize={24}
@@ -212,7 +212,7 @@ export function CompactReplyComposer({
       <Button
         appearance="plain"
         tone="neutral"
-        size="lg"
+        size="sm"
         iconOnly
         icon={GifAttachmentIcon}
         iconSize={24}
@@ -229,8 +229,9 @@ export function CompactReplyComposer({
   const maximizeButton = (
     <GlyphButton
       onBlur={handleBlur}
-      size={44}
+      size={32}
       glyphSize={32}
+      hitSlop={6}
       attention={rejectedAttemptCount}
       accessibilityHint={t('compose.compactLimitHint', {
         max: COMPACT_REPLY_TEXT_LIMIT,
@@ -318,7 +319,7 @@ export function CompactReplyComposer({
             ))}
           </ScrollArea>
         ) : null}
-        <View className="min-h-10 flex-row items-center gap-3">
+        <View className="min-h-11 flex-row items-center gap-3">
           <AccountAvatar account={user ?? undefined} source={user?.avatar || undefined} size={32} />
           <Textarea
             inputRef={inputRef}
@@ -347,7 +348,7 @@ export function CompactReplyComposer({
           {expanded ? (
             maximizeButton
           ) : (
-            <View className="flex-row items-center gap-1.5">
+            <View className="flex-row items-center">
               {attachmentActions()}
               {maximizeButton}
             </View>
@@ -357,7 +358,7 @@ export function CompactReplyComposer({
       <Collapsible open={expanded}>
         <Toolbar
           size="sm"
-          style={{ paddingLeft: 2, paddingRight: 12, paddingTop: 4, paddingBottom: 4 }}
+          style={{ paddingLeft: 8, paddingRight: 12, paddingTop: 8, paddingBottom: 8 }}
           testID="compact-reply-toolbar"
           actions={
             <View className="flex-row items-center gap-3">
@@ -382,7 +383,7 @@ export function CompactReplyComposer({
             </View>
           }
         >
-          {attachmentActions(true)}
+          {attachmentActions()}
         </Toolbar>
       </Collapsible>
     </Surface>
