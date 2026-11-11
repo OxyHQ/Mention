@@ -323,10 +323,13 @@ inactivation or focus loss before another video takes playback authority.
 
 Bloom 19.6 published the nested panel groups, exit lifecycle, vertical engagement
 presentation and linear scrim support. Mention's catalog and lockfile now adopt
-published [Bloom 19.7.1 (PR #800)](https://github.com/OxyHQ/Bloom/pull/800), including
+published [Bloom 19.7.2 (PR #802)](https://github.com/OxyHQ/Bloom/pull/802), including
 CompactComposer, contextual dock navigation, dynamic action sizing, historical
 glyphs and GlyphButton attention feedback. The 19.7.1 patch coordinates navigation
 presence and composer expansion so focus and blur keep the input within its
 settled positions without a transient jump. Normal and reduced-motion browser
-regressions preserve the same input node. Validation and release gates use the
-registry package without a local mirror or package override.
+regressions preserve the same input node. The 19.7.2 patch keeps keyboard reorder
+owned by the outer workspace track when its grip is rendered inside a nested
+split; pointer and keyboard changes retain the same column and saved order.
+Validation and release gates use the registry package without a local mirror or
+package override.
