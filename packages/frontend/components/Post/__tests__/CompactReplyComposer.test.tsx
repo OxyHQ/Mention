@@ -24,42 +24,36 @@ jest.mock('@/stores/postsStore', () => ({
     selector({ createReply: mockCreateReply }),
 }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({ colors: { textSecondary: '#000' } }),
-}));
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => '#fff' }));
-jest.mock('@oxy.so/bloom/divider', () => ({ Divider: () => null }));
-jest.mock('@oxy.so/bloom/textarea', () => ({
-  Textarea: (props: object) => {
-    const MockInput = jest.requireActual('react-native').TextInput;
-    return <MockInput {...props} />;
+jest.mock('@oxy.so/bloom/chat-composer', () => ({
+  CompactComposer: (props: import('@oxy.so/bloom/chat-composer').CompactComposerProps) => {
+    const { TextInput: Input, Pressable } = jest.requireActual('react-native');
+    return (
+      <>
+        <Input value={props.value} onChangeText={props.onChangeText} />
+        <Pressable
+          testID={`${props.testID}-submit`}
+          onPress={props.onSubmit}
+          disabled={props.disabled || props.busy}
+        />
+        <Pressable
+          testID={`${props.testID}-maximize`}
+          onPress={props.onExpand}
+          disabled={props.disabled || props.busy}
+        />
+        {props.attachmentActions?.map((action) => (
+          <Pressable key={action.id} testID={action.testID} onPress={action.onPress} />
+        ))}
+        {props.attachments}
+      </>
+    );
   },
 }));
-jest.mock('@oxy.so/bloom/icons/RiSendPlaneLine', () => ({ RiSendPlaneLine: () => null }));
-
 jest.mock('@/lib/navigation/router', () => ({
   useRouter: () => ({ push: jest.fn() }),
   useFocusEffect: (callback: () => void) =>
     jest.requireActual('react').useEffect(callback, [callback]),
 }));
-jest.mock('@oxy.so/bloom/collapsible', () => ({
-  Collapsible: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
 jest.mock('@/components/ui/AccountAvatar', () => ({ AccountAvatar: () => null }));
-jest.mock('@oxy.so/bloom/page-footer', () => ({
-  PageFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-jest.mock('@oxy.so/bloom/button', () => ({
-  GlyphButton: (props: object) => {
-    const { Pressable } = jest.requireActual('react-native');
-    return <Pressable {...props} />;
-  },
-  Button: (props: object) => {
-    const { Pressable } = jest.requireActual('react-native');
-    return <Pressable {...props} />;
-  },
-}));
-
 jest.mock('@/hooks/useMediaPicker', () => ({
   useMediaPicker: () => ({ openMediaPicker: mockOpenMediaPicker }),
 }));
@@ -69,29 +63,8 @@ jest.mock('@/components/Compose/AttachmentCarouselItem', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-jest.mock('@oxy.so/bloom/surface', () => ({
-  Surface: jest
-    .requireActual('react')
-    .forwardRef(({ children }: { children: React.ReactNode }, ref: unknown) => {
-      const { View } = jest.requireActual('react-native');
-      return <View ref={ref}>{children}</View>;
-    }),
-}));
 jest.mock('@oxy.so/bloom/layout', () => ({
-  Toolbar: ({ children, actions }: { children: React.ReactNode; actions: React.ReactNode }) => (
-    <>
-      {children}
-      {actions}
-    </>
-  ),
   ScrollArea: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-jest.mock('@oxy.so/bloom/stat-bar', () => ({
-  MeterRing: (props: object) => {
-    const { View } = jest.requireActual('react-native');
-    return <View {...props} />;
-  },
 }));
 
 beforeEach(() => {
@@ -627,33 +600,6 @@ it('hands off staged image and GIF ids in order without reuploading them', () =>
   act(() => renderer.unmount());
 });
 
-it('rejects overflow without clearing or truncating the accepted draft', () => {
-  let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => {
-    renderer = TestRenderer.create(<CompactReplyComposer postId="p" />);
-  });
-  const change = (value: string) =>
-    act(() => renderer.root.findByType(TextInput).props.onChangeText(value));
-  change('a'.repeat(250));
-  change('a'.repeat(251));
-  expect(
-    renderer.root.findAll((node) => node.props.testID === 'compact-reply-maximize')[0].props
-      .attention,
-  ).toBe(1);
-  expect(renderer.root.findByType(TextInput).props.value).toBe('a'.repeat(250));
-  change('b'.repeat(252));
-  expect(
-    renderer.root.findAll((node) => node.props.testID === 'compact-reply-maximize')[0].props
-      .attention,
-  ).toBe(2);
-  expect(renderer.root.findByType(TextInput).props.value).toBe('a'.repeat(250));
-  change('a'.repeat(248) + '😀');
-  expect(renderer.root.findByType(TextInput).props.value).toBe('a'.repeat(248) + '😀');
-  change('shorter');
-  expect(renderer.root.findByType(TextInput).props.value).toBe('shorter');
-  act(() => renderer.unmount());
-});
-
 it('keeps a legacy long draft intact and allows deletion without inline publication', async () => {
   const { createReplyDraft } = jest.requireActual('../replyDraft');
   const draft = createReplyDraft();
@@ -662,10 +608,8 @@ it('keeps a legacy long draft intact and allows deletion without inline publicat
   act(() => {
     renderer = TestRenderer.create(<CompactReplyComposer postId="p" draft={draft} />);
   });
-  act(() => renderer.root.findByType(TextInput).props.onChangeText('x'.repeat(301)));
   expect(renderer.root.findByType(TextInput).props.value).toBe('x'.repeat(300));
   const submit = renderer.root.findAll((node) => node.props.testID === 'compact-reply-submit')[0];
-  expect(submit.props.disabled).toBe(true);
   await act(async () => {
     await submit.props.onPress();
   });

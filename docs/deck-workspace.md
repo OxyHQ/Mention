@@ -268,12 +268,16 @@ FollowButton stays the shared component without custom styles. Video engagement
 uses PostActions' vertical presentation with the same Bloom activation and count
 animations. Save remains visible in that rail; external Share is in its overflow menu.
 
-Post details and video replies share `CompactReplyComposer`: a Bloom Surface
-capsule with one persistent Textarea. At rest Media, GIF and Maximize form one
-trailing group of adjacent 32px controls, with no additional gap on top of their
+Post details and video replies share Mention's domain wrapper `CompactReplyComposer`,
+which renders `CompactComposer` from `@oxy.so/bloom/chat-composer`. Bloom owns the
+Surface capsule, persistent Textarea, focus, expansion, character limit feedback,
+scrolling and fixed toolbar. Mention supplies the account avatar, media previews,
+picker actions, draft, publication and full-compose handoff.
+
+At rest Media, GIF and Maximize form one trailing group of adjacent 32px controls, with no additional gap on top of their
 existing hit-area padding. Match that grouping in the expanded toolbar instead
-of widening controls or spacing to imitate a screenshot. Focus, text, attachments or an in-flight publication keep the
-expanded toolbar visible. Text and attachments use one bounded Bloom ScrollArea;
+of widening controls or spacing to imitate a screenshot. Focus, text, attachments
+or an in-flight publication keep the expanded toolbar visible. Text and attachments use one bounded Bloom ScrollArea;
 the Textarea grows without its own scrolling, and a sibling Bloom Toolbar keeps
 Media/GIF, the character ring and Reply fixed below that viewport.
 

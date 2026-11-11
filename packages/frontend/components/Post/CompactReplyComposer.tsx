@@ -1,6 +1,5 @@
-import { acceptsCompactReplyText, COMPACT_REPLY_TEXT_LIMIT } from './compactReplyText';
+import { COMPACT_REPLY_TEXT_LIMIT } from './compactReplyText';
 import { ReplyComposerFocusContext } from './ReplyComposerFocusContext';
-import { ComposeCharacterCount } from '@/components/Compose/ComposeCharacterCount';
 import {
   useContext,
   useCallback,
@@ -11,11 +10,10 @@ import {
   useMemo,
   lazy,
   Suspense,
-  type ComponentRef,
 } from 'react';
-import { View, Platform, type TextInputInstance } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button, GlyphButton } from '@oxy.so/bloom/button';
+import { CompactComposer } from '@oxy.so/bloom/chat-composer';
 import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { GifAttachmentIcon } from '@oxy.so/bloom/icons/GifAttachmentIcon';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
@@ -23,10 +21,7 @@ import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import { presentSheet } from '@/utils/sheet';
 import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import AttachmentCarouselItem from '@/components/Compose/AttachmentCarouselItem';
-import { RiExpandDiagonalSLine } from '@oxy.so/bloom/icons/RiExpandDiagonalSLine';
-import { ScrollArea, Toolbar } from '@oxy.so/bloom/layout';
-import { Surface } from '@oxy.so/bloom/surface';
-import { Collapsible } from '@oxy.so/bloom/collapsible';
+import { ScrollArea } from '@oxy.so/bloom/layout';
 import { useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import { useRouter, useFocusEffect, type Href } from '@/lib/navigation/router';
 import {
@@ -34,7 +29,6 @@ import {
   discardReplyComposerHandoff,
 } from '@/utils/replyComposerHandoff';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { logger } from '@oxy.so/core/logger';
 import { usePostsStore } from '@/stores/postsStore';
@@ -86,13 +80,7 @@ export function CompactReplyComposer({
   const submitting = useStore(replyDraft.store, (state) => state.pending !== null);
   const { capture } = usePublicationContinuation(replyDraft.isCurrent);
   const inputRef = useRef<TextInputInstance | null>(null);
-  const capsuleRef = useRef<ComponentRef<typeof View> | null>(null);
   const footerFocus = useContext(ReplyComposerFocusContext);
-  const [localFocused, setLocalFocused] = useState(false);
-  const focused = footerFocus?.focused ?? localFocused;
-  const setFocused = footerFocus?.setFocused ?? setLocalFocused;
-  useEffect(() => () => footerFocus?.setFocused(false), [footerFocus?.setFocused]);
-  const [rejectedAttemptCount, setRejectedAttemptCount] = useState(0);
   const transferringRef = useRef(false);
   const [transferring, setTransferring] = useState(false);
   useFocusEffect(
@@ -111,16 +99,6 @@ export function CompactReplyComposer({
     handledFocusNonceRef.current = focusNonce;
     inputRef.current?.focus();
   }, [focusNonce]);
-
-  const handleBlur = useCallback(
-    (event: unknown) => {
-      const next = (event as { relatedTarget?: Node }).relatedTarget;
-      const host = capsuleRef.current as unknown as { contains?: (node: Node) => boolean } | null;
-      if (Platform.OS === 'web' && next && host?.contains?.(next)) return;
-      setFocused(false);
-    },
-    [setFocused],
-  );
 
   const handleSubmit = useCallback(async () => {
     const current = replyDraft.store.getState();
@@ -194,105 +172,57 @@ export function CompactReplyComposer({
       </Suspense>
     ));
   };
-  const attachmentActions = () => (
-    <View className="flex-row items-center">
-      <Button
-        appearance="plain"
-        tone="neutral"
-        size="sm"
-        iconOnly
-        icon={MediaAttachmentIcon}
-        iconSize={24}
-        accessibilityLabel={t('compose.toolbar.media')}
-        onPress={openImages}
-        onBlur={handleBlur}
-        disabled={submitting || transferring}
-        testID="compact-reply-image"
-      />
-      <Button
-        appearance="plain"
-        tone="neutral"
-        size="sm"
-        iconOnly
-        icon={GifAttachmentIcon}
-        iconSize={24}
-        accessibilityLabel={t('compose.toolbar.gif')}
-        onPress={openGifs}
-        onBlur={handleBlur}
-        disabled={submitting || transferring}
-        testID="compact-reply-gif"
-      />
-    </View>
-  );
-  const expanded = focused || text.length > 0 || submitting || mediaIds.length > 0;
-
-  const maximizeButton = (
-    <GlyphButton
-      onBlur={handleBlur}
-      size={32}
-      glyphSize={32}
-      hitSlop={6}
-      attention={rejectedAttemptCount}
-      accessibilityHint={t('compose.compactLimitHint', {
-        max: COMPACT_REPLY_TEXT_LIMIT,
-        defaultValue: 'Compact replies allow {{max}} characters. Expand to write more.',
-      })}
-      icon={RiExpandDiagonalSLine}
-      accessibilityLabel={t('compose.expand', { defaultValue: 'Open full composer' })}
-      disabled={submitting || transferring}
-      testID="compact-reply-maximize"
-      onPress={() => {
-        const current = replyDraft.store.getState();
-        if (current.pending || transferringRef.current || !capture() || !user) return;
-        const scope = {
-          viewerId: user.id,
-          epoch: oxyServices.http.getSessionEpoch(),
-          replyToPostId: postId,
-        };
-        const token = createReplyComposerHandoff({
-          ...scope,
-          sourceId,
-          text: current.text,
-          mediaIds: current.mediaIds,
-          revision: current.revision,
-          onClaim: () => {
-            if (
-              transferringRef.current &&
-              useAuthStore.getState().user?.id === scope.viewerId &&
-              oxyServices.http.getSessionEpoch() === scope.epoch
-            ) {
-              replyDraft.store.getState().clearIfUnchanged(current.revision);
-            }
-          },
-        });
-        if (!token) return;
-        transferringRef.current = true;
-        setTransferring(true);
-        try {
-          (onNavigate ?? router.push)(
-            `/compose?replyToPostId=${encodeURIComponent(postId)}&replyDraftToken=${encodeURIComponent(token)}`,
-          );
-        } catch (error) {
-          discardReplyComposerHandoff(token, scope);
-          transferringRef.current = false;
-          setTransferring(false);
-          throw error;
+  const handleExpand = () => {
+    const current = replyDraft.store.getState();
+    if (current.pending || transferringRef.current || !capture() || !user) return;
+    const scope = {
+      viewerId: user.id,
+      epoch: oxyServices.http.getSessionEpoch(),
+      replyToPostId: postId,
+    };
+    const token = createReplyComposerHandoff({
+      ...scope,
+      sourceId,
+      text: current.text,
+      mediaIds: current.mediaIds,
+      revision: current.revision,
+      onClaim: () => {
+        if (
+          transferringRef.current &&
+          useAuthStore.getState().user?.id === scope.viewerId &&
+          oxyServices.http.getSessionEpoch() === scope.epoch
+        ) {
+          replyDraft.store.getState().clearIfUnchanged(current.revision);
         }
-      }}
-    />
-  );
+      },
+    });
+    if (!token) return;
+    transferringRef.current = true;
+    setTransferring(true);
+    try {
+      (onNavigate ?? router.push)(
+        `/compose?replyToPostId=${encodeURIComponent(postId)}&replyDraftToken=${encodeURIComponent(token)}`,
+      );
+    } catch (error) {
+      discardReplyComposerHandoff(token, scope);
+      transferringRef.current = false;
+      setTransferring(false);
+      throw error;
+    }
+  };
 
   return (
-    <Surface ref={capsuleRef} radius={28} className="overflow-hidden">
-      <ScrollArea
-        className="max-h-64 md:max-h-80"
-        containerClassName="max-h-64 md:max-h-80"
-        contentContainerClassName="px-3 py-1.5"
-        scrollbar="always"
-        keyboardShouldPersistTaps="handled"
-        testID="compact-reply-scroll"
-      >
-        {mediaIds.length ? (
+    <CompactComposer
+      testID="compact-reply"
+      value={text}
+      onChangeText={replyDraft.store.getState().setText}
+      maxLength={COMPACT_REPLY_TEXT_LIMIT}
+      inputRef={inputRef}
+      avatar={
+        <AccountAvatar account={user ?? undefined} source={user?.avatar || undefined} size={32} />
+      }
+      attachments={
+        mediaIds.length ? (
           <ScrollArea
             horizontal
             style={{ height: 72 }}
@@ -318,74 +248,48 @@ export function CompactReplyComposer({
               </AttachmentCarouselItem>
             ))}
           </ScrollArea>
-        ) : null}
-        <View className="min-h-11 flex-row items-center gap-3">
-          <AccountAvatar account={user ?? undefined} source={user?.avatar || undefined} size={32} />
-          <Textarea
-            inputRef={inputRef}
-            onFocus={() => setFocused(true)}
-            onBlur={handleBlur}
-            value={text}
-            onChangeText={(next) => {
-              const current = replyDraft.store.getState();
-              if (acceptsCompactReplyText(current.text, next)) current.setText(next);
-              else setRejectedAttemptCount((count) => count + 1);
-            }}
-            placeholder={
-              placeholder ?? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
-            }
-            accessibilityLabel={
-              placeholder ?? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
-            }
-            size="sm"
-            rows={1}
-            autoResize
-            scrollEnabled={false}
-            className="min-w-0 flex-1"
-            fieldClassName="bg-transparent"
-            inputClassName="overflow-hidden p-0 text-base leading-5 text-foreground"
-          />
-          {expanded ? (
-            maximizeButton
-          ) : (
-            <View className="flex-row items-center">
-              {attachmentActions()}
-              {maximizeButton}
-            </View>
-          )}
-        </View>
-      </ScrollArea>
-      <Collapsible open={expanded}>
-        <Toolbar
-          size="sm"
-          style={{ paddingLeft: 8, paddingRight: 12, paddingTop: 8, paddingBottom: 8 }}
-          testID="compact-reply-toolbar"
-          actions={
-            <View className="flex-row items-center gap-3">
-              <ComposeCharacterCount count={text.length} max={COMPACT_REPLY_TEXT_LIMIT} />
-              <Button
-                onBlur={handleBlur}
-                tone="action"
-                size="md"
-                className="min-w-20"
-                onPress={handleSubmit}
-                disabled={
-                  (!text.trim() && !mediaIds.length) ||
-                  text.length > COMPACT_REPLY_TEXT_LIMIT ||
-                  submitting ||
-                  transferring
-                }
-                loading={submitting}
-                testID="compact-reply-submit"
-              >
-                {t('common.reply')}
-              </Button>
-            </View>
-          }
-        >
-          {attachmentActions()}
-        </Toolbar>
-      </Collapsible>
-    </Surface>
+        ) : null
+      }
+      attachmentActions={[
+        {
+          id: 'media',
+          icon: MediaAttachmentIcon,
+          label: t('compose.toolbar.media'),
+          onPress: openImages,
+          testID: 'compact-reply-image',
+        },
+        {
+          id: 'gif',
+          icon: GifAttachmentIcon,
+          label: t('compose.toolbar.gif'),
+          onPress: openGifs,
+          testID: 'compact-reply-gif',
+        },
+      ]}
+      onExpand={handleExpand}
+      onSubmit={handleSubmit}
+      onFocusChange={footerFocus?.setFocused}
+      disabled={transferring}
+      busy={submitting}
+      placeholder={
+        placeholder ?? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
+      }
+      labels={{
+        input: placeholder ?? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' }),
+        expand: t('compose.expand', { defaultValue: 'Open full composer' }),
+        submit: t('common.reply'),
+        limitHint: t('compose.compactLimitHint', {
+          max: COMPACT_REPLY_TEXT_LIMIT,
+          defaultValue: 'Compact replies allow {{max}} characters. Expand to write more.',
+        }),
+        characterCount: t('compose.characterCountLabel', { defaultValue: 'Characters' }),
+        characterCountValue: (count, max) =>
+          t('compose.characterCountValue', {
+            count,
+            max,
+            defaultValue: '{{count}} of {{max}} characters',
+          }),
+      }}
+    />
   );
 }
