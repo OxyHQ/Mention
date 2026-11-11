@@ -7,7 +7,8 @@ import { ENTITY_FOLLOW_TYPES, entityFollows } from '../db/schema/engagement';
 import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
 import { canViewList, loadListVisibility } from '../services/listAccess';
-import { queryInt, queryString } from '../utils/queryParams';
+import { resolvePageLimit } from '@oxy.so/utils/paging';
+import { queryString } from '../utils/queryParams';
 import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { normalizeHashtag } from '../utils/textProcessing';
 
@@ -33,9 +34,6 @@ const MAX_ENTITY_ID_LENGTH = 100;
 function isValidEntityType(type: string): type is EntityFollowType {
   return (ENTITY_FOLLOW_TYPES as readonly string[]).includes(type);
 }
-
-const clampFollowPageSize = (limit: number | undefined): number =>
-  Math.min(Math.max(limit || DEFAULT_FOLLOW_PAGE_SIZE, 1), MAX_FOLLOW_PAGE_SIZE);
 
 /** One `entity_follows` row exactly as it goes on the wire. */
 interface SerializedEntityFollow {
@@ -316,7 +314,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     const rawType = queryString(req.query.type);
-    const limit = clampFollowPageSize(queryInt(req.query.limit));
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_FOLLOW_PAGE_SIZE,
+      max: MAX_FOLLOW_PAGE_SIZE,
+    });
     const cursor = queryString(req.query.cursor);
 
     if (rawType !== undefined && !isValidEntityType(rawType)) {

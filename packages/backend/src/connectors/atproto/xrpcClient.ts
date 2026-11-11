@@ -1,5 +1,7 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { readResponseBody, safeFetch } from '@oxy.so/core/server';
+import { sleep } from '../../utils/sleep';
+import { backoffDelayMs } from '../../utils/backoff';
 
 /**
  * Thin, SSRF-safe XRPC client for the AT Protocol.
@@ -167,15 +169,6 @@ function headerValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function backoffDelay(attempt: number): number {
-  const base = BASE_BACKOFF_MS * 2 ** (attempt - 1);
-  return base + Math.floor(Math.random() * base * 0.25);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /** Common bounded GET used for both JSON and text reads. */
 async function safeGet(url: string, accept: string, maxBytes: number): Promise<Buffer> {
   const host = new URL(url).host;
@@ -199,7 +192,7 @@ async function safeGet(url: string, accept: string, maxBytes: number): Promise<B
     if (!RETRYABLE_STATUSES.has(status) || attempt >= MAX_ATTEMPTS) {
       throw new XrpcError(`atproto GET ${url} returned ${status}`, status);
     }
-    const delay = outcome.retryAfterMs ?? backoffDelay(attempt);
+    const delay = outcome.retryAfterMs ?? backoffDelayMs(attempt - 1, { baseMs: BASE_BACKOFF_MS });
     const pausedGate = gateFor(host);
     pausedGate.pausedUntil = Math.max(pausedGate.pausedUntil, Date.now() + delay);
     if (delay > MAX_RETRY_WAIT_MS) {

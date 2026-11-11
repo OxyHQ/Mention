@@ -29,6 +29,7 @@ import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
 import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../../../../services/followerSnapshotJob';
+import { clamp } from '@oxy.so/utils/text';
 import { logger } from '../../../../utils/logger';
 import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
@@ -259,10 +260,6 @@ function toFiniteNumber(value: unknown): number | null {
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 /**

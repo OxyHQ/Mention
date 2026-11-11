@@ -16,6 +16,7 @@ import {
   applyFileMediaMetadata,
   type FileMediaMetadataWrite,
 } from '../../services/mediaMetadataPersistence';
+import { sleep } from '../../utils/sleep';
 
 const FILE_BATCH_SIZE = 100;
 const WRITE_BATCH_SIZE = 500;
@@ -299,8 +300,7 @@ async function runVideoMetadataReconciliation(
       upstreamRepairCompletion: 'not inferred from a metadata scan',
     });
     if (!report.reachedEnd) break;
-    if (pass < passes && delaySeconds > 0)
-      await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+    if (pass < passes && delaySeconds > 0) await sleep(delaySeconds * 1000);
   }
   return { passes: reports };
 }

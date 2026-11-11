@@ -30,7 +30,8 @@ import { resolveUserSummaries, degradedActorSummary } from '../../services/PostH
 import { config } from '../../config';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { extractFollowingIds } from '../../utils/privacyHelpers';
-import { queryInt, queryString } from '../../utils/queryParams';
+import { resolvePageLimit } from '@oxy.so/utils/paging';
+import { queryString } from '../../utils/queryParams';
 import { MAX_PAGE_SIZE } from './postPageBounds';
 
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
@@ -38,11 +39,11 @@ const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 /**
  * Page size for the engagement lists (`GET /posts/:id/likes` and `.../boosts`).
  * Both handlers read the page's last row by index (`rows[limit - 1]`), so the
- * limit has to be a bounded positive integer: an absent, zero, or negative limit
- * would index outside the page and throw on the missing document.
+ * limit has to be a bounded positive integer: `resolvePageLimit` never yields an
+ * absent, zero, or negative one.
  */
-const clampLikesLimit = (limit: number | undefined): number =>
-  Math.min(Math.max(limit || DEFAULT_LIKES_LIMIT, 1), MAX_PAGE_SIZE);
+const likesLimit = (raw: unknown): number =>
+  resolvePageLimit(raw, { fallback: DEFAULT_LIKES_LIMIT, max: MAX_PAGE_SIZE });
 
 /**
  * Resolve the canonical Oxy {@link PostUser} for an engagement-list entry
@@ -70,7 +71,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const cursor = queryString(req.query.cursor);
-    const limit = clampLikesLimit(queryInt(req.query.limit));
+    const limit = likesLimit(req.query.limit);
 
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });
@@ -236,7 +237,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const cursor = queryString(req.query.cursor);
-    const limit = clampLikesLimit(queryInt(req.query.limit));
+    const limit = likesLimit(req.query.limit);
 
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });

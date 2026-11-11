@@ -57,6 +57,7 @@ import enricdurang from './fixtures/xHistoryEnricdurang.json';
 import mistralai from './fixtures/xHistoryMistralai.json';
 import nycmayor from './fixtures/xHistoryNycmayor.json';
 import pabloiglesias from './fixtures/xHistoryPabloiglesias.json';
+import { sleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'importBridgedXHistory';
 
@@ -122,8 +123,6 @@ export interface XHistoryImportResult {
   failed: number;
   failedItems: string[];
 }
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function heldActivityIds(ids: string[]): Promise<Set<string>> {
   const held = new Set<string>();

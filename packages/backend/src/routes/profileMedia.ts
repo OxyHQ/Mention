@@ -7,6 +7,7 @@ import { syraClient, listPodcastEpisodes } from '../utils/syraPodcast';
 import { sendErrorResponse } from '../utils/apiHelpers';
 import { sendPaginated } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
+import { queryInt } from '../utils/queryParams';
 
 const router = Router();
 
@@ -49,9 +50,7 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
 
     // Zero-based page offset for infinite scroll. Absent or malformed values
     // start from the first page rather than erroring a scroll.
-    const rawOffset =
-      typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
-    const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+    const offset = Math.max(queryInt(req.query.offset) ?? 0, 0);
 
     if (type === 'song') {
       const page = await syraClient.searchTracks(query, { limit: SEARCH_RESULT_LIMIT, offset });
@@ -124,9 +123,7 @@ router.get('/podcasts/:id/episodes', async (req: AuthRequest, res: Response) => 
 
     // Zero-based page offset for infinite scroll. Absent or malformed values
     // start from the first page rather than erroring a scroll.
-    const rawOffset =
-      typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
-    const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+    const offset = Math.max(queryInt(req.query.offset) ?? 0, 0);
 
     const page = await listPodcastEpisodes(id, { offset });
 

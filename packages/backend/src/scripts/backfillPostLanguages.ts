@@ -153,6 +153,7 @@ import {
   recordAdminScriptCursor,
 } from './lib/adminScriptCursor';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { sleep as defaultSleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'backfillPostLanguages';
 
@@ -743,8 +744,7 @@ export async function backfillPostLanguages(
     ...opts.pacing,
   };
   const activeQueries = pacing.activeQueries ?? countActiveQueries;
-  const sleep =
-    pacing.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep = pacing.sleep ?? defaultSleep;
   const now = pacing.now ?? Date.now;
 
   // Posts whose canonical multi-language array is absent/empty, or that were

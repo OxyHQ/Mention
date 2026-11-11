@@ -17,6 +17,8 @@
  * every handler is idempotent on the record's AT-URI.
  */
 
+import { isRecord } from '@mention/shared-types';
+
 /** The subscription endpoint's NSID. */
 export const SUBSCRIBE_NSID = 'network.bsky.jetstream.subscribeEvents';
 
@@ -47,10 +49,6 @@ export type JetstreamFrame =
   | { kind: 'error'; error: string; message?: string }
   | { kind: 'ignored' };
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
-}
-
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
@@ -71,13 +69,13 @@ const OPERATIONS: ReadonlySet<string> = new Set(['create', 'update', 'delete']);
 
 /** Parse one text frame. Anything malformed or not a commit we can place is `ignored`. */
 export function parseFrame(text: string): JetstreamFrame {
-  let frame: Record<string, unknown> | undefined;
+  let frame: unknown;
   try {
-    frame = asRecord(JSON.parse(text));
+    frame = JSON.parse(text);
   } catch {
     return { kind: 'ignored' };
   }
-  if (!frame) return { kind: 'ignored' };
+  if (!isRecord(frame)) return { kind: 'ignored' };
 
   if (frame.$type === 'error') {
     return {
@@ -87,8 +85,8 @@ export function parseFrame(text: string): JetstreamFrame {
     };
   }
 
-  const payload = asRecord(frame.payload);
-  if (frame.$type !== 'message' || !payload) return { kind: 'ignored' };
+  const payload = frame.payload;
+  if (frame.$type !== 'message' || !isRecord(payload)) return { kind: 'ignored' };
   if (payload.$type === INFO_TYPE) {
     return {
       kind: 'info',

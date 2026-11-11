@@ -39,6 +39,7 @@ import { keyedMirrorHosts } from '../utils/federation/mirrorTransports';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { sleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'backfillUpstreamPostKeys';
 
@@ -155,7 +156,7 @@ export async function backfillUpstreamPostKeys(
         else result.claimed += 1;
       }
     }
-    if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    if (pauseMs > 0) await sleep(pauseMs);
   }
 
   logger.info(`[${SCRIPT_NAME}] complete`, { dryRun, ...result });

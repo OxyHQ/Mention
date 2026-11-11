@@ -70,6 +70,7 @@ import { posts } from '../db/schema/posts';
 import { topicAffinityPosts } from '../db/schema/discovery';
 import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
 import { loadUserBehavior } from '../db/userProfile/userBehaviorRepository';
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import {
@@ -172,13 +173,6 @@ interface AuthorAccumulator {
   reasons: Set<string>;
 }
 
-function clampLimit(limit: number | undefined): number {
-  if (typeof limit !== 'number' || !Number.isFinite(limit) || limit <= 0) {
-    return DEFAULT_CONTENT_CANDIDATE_LIMIT;
-  }
-  return Math.min(Math.floor(limit), MAX_CONTENT_CANDIDATE_LIMIT);
-}
-
 export class ContentAffinityService {
   /**
    * Compute content-affinity candidate authors for a viewer. Always resolves;
@@ -191,7 +185,10 @@ export class ContentAffinityService {
     opts: GetContentCandidatesOptions = {},
   ): Promise<ContentCandidate[]> {
     if (!viewerId) return [];
-    const limit = clampLimit(opts.limit);
+    const limit = resolvePageLimit(opts.limit, {
+      fallback: DEFAULT_CONTENT_CANDIDATE_LIMIT,
+      max: MAX_CONTENT_CANDIDATE_LIMIT,
+    });
 
     const cacheKey = `${CACHE_PREFIX}${viewerId}:l:${limit}`;
     const cached = await this.readCache(cacheKey);

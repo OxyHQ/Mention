@@ -7,7 +7,7 @@ import { apIri, apIriList, apList, isActivityPubMediaType } from '@oxy.so/federa
 import { createSignedFetch, type SignedFetch, type SignedFetchInit } from '@oxy.so/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
 import { AP_CONTENT_TYPE, USER_AGENT, extractLocalPostIdFromApUri } from './constants';
-import { PostVisibility, type MediaItem } from '@mention/shared-types';
+import { PostVisibility, isRecord, type MediaItem } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
@@ -51,9 +51,7 @@ function activityPubJsonContentType(raw: string | null): boolean {
 }
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return isRecord(value) ? value : null;
 }
 
 export function activityPubItems(value: Record<string, unknown>): unknown[] {

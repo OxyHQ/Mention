@@ -5,6 +5,7 @@ import {
 } from 'redis';
 import { getRedisConnectionConfig, type RedisConnectionConfig } from '../config';
 import { logger } from './logger';
+import { backoffDelayMs } from './backoff';
 
 type RedisSupervisorStatus = 'not_initialized' | 'connecting' | 'ready' | 'cooldown' | 'stopped';
 
@@ -127,12 +128,14 @@ function clearRetryTimer(): void {
 }
 
 function retryDelayMs(attemptNumber: number): number {
-  const exponentialDelay = Math.min(
+  return Math.min(
     RETRY_MAX_DELAY_MS,
-    RETRY_BASE_DELAY_MS * 2 ** Math.min(Math.max(attemptNumber - 1, 0), 10),
+    backoffDelayMs(Math.max(attemptNumber - 1, 0), {
+      baseMs: RETRY_BASE_DELAY_MS,
+      maxMs: RETRY_MAX_DELAY_MS,
+      jitter: RETRY_JITTER_RATIO,
+    }),
   );
-  const jitter = Math.floor(exponentialDelay * RETRY_JITTER_RATIO * Math.random());
-  return Math.min(RETRY_MAX_DELAY_MS, exponentialDelay + jitter);
 }
 
 function logConnectionFailure(error: unknown): void {

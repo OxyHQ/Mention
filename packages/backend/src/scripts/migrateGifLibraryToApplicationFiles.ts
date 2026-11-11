@@ -75,6 +75,7 @@ import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { sleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'migrateGifLibraryToApplicationFiles';
 
@@ -131,7 +132,7 @@ const defaultDeps: GifLibraryMigrationDeps = {
   publicUrl: (fileId) => getServiceOxyClient().assets.publicUrl(fileId),
   deleteCacheFile: deleteRetiredGifCacheFile,
   invalidatePost: invalidatePostDetailCache,
-  pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  pause: (ms) => sleep(ms),
 };
 
 export interface GifLibraryMigrationResult {

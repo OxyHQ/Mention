@@ -16,6 +16,7 @@ import {
   SENTINEL_PROMPT_RULE,
   TranslationOutputError,
 } from './translationOutputGuard';
+import { sleep } from '../utils/sleep';
 
 /**
  * Machine translation of a post — the SAME array as the author's own language
@@ -308,7 +309,7 @@ export class PostTranslationService {
         );
         return this.translateAndStore(postId, content, tag, languageName, options, true);
       }
-      await new Promise((resolve) => setTimeout(resolve, this.lockPollMs));
+      await sleep(this.lockPollMs);
     }
   }
 

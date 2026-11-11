@@ -47,6 +47,7 @@
 
 import { logger } from '../../../utils/logger';
 import { type JetstreamCommit, parseFrame, subscribeUrl } from './protocol';
+import { backoffDelayMs } from '../../../utils/backoff';
 
 /**
  * A handler for one record collection. It receives every commit of that
@@ -347,11 +348,10 @@ export class JetstreamConsumer {
     if (this.openedAt !== undefined && Date.now() - this.openedAt >= STABLE_CONNECTION_MS) {
       this.reconnectAttempt = 0;
     }
-    const base = Math.min(
-      this.options.reconnectBaseMs * 2 ** this.reconnectAttempt,
-      this.options.reconnectMaxMs,
-    );
-    const delay = base + Math.floor(Math.random() * base * 0.25);
+    const delay = backoffDelayMs(this.reconnectAttempt, {
+      baseMs: this.options.reconnectBaseMs,
+      maxMs: this.options.reconnectMaxMs,
+    });
     this.reconnectAttempt += 1;
     this.endpointIndex += 1;
     logger.info('[jetstream] disconnected', { code, reason, retryInMs: delay });

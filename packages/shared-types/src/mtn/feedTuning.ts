@@ -14,6 +14,8 @@
  * (c) these per-user overrides — nothing is re-implemented per surface.
  */
 
+import { isRecord } from '../common';
+
 /**
  * A single tunable For You gate module. `enabled` toggles the module for THIS
  * viewer (absent ⇒ the config default, which is "on" for the default gate
@@ -159,10 +161,6 @@ export type ForYouTuningValidation =
   | { valid: true; value: ForYouFeedTuning }
   | { valid: false; error: string };
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /**
  * Validate + normalize an inbound `feedTuning.forYou` payload against
  * {@link FOR_YOU_TUNING_MODULES}. Rejects unknown module keys, unknown param
@@ -174,7 +172,7 @@ export function validateForYouTuning(input: unknown): ForYouTuningValidation {
   if (input === undefined || input === null) {
     return { valid: true, value: {} };
   }
-  if (!isPlainObject(input)) {
+  if (!isRecord(input)) {
     return { valid: false, error: 'forYou tuning must be an object' };
   }
 
@@ -186,7 +184,7 @@ export function validateForYouTuning(input: unknown): ForYouTuningValidation {
     if (!spec) {
       return { valid: false, error: `Unknown For You tuning module: "${moduleId}"` };
     }
-    if (!isPlainObject(rawEntry)) {
+    if (!isRecord(rawEntry)) {
       return { valid: false, error: `Tuning for "${moduleId}" must be an object` };
     }
 
