@@ -186,13 +186,16 @@ configured column widths to settle. Visibility alone does not mean that an
 entrance transition has finished. The release gate uses `expectDeckColumnWidths`
 for these checks rather than fixed sleeps or relaxed geometry tolerances.
 
-Split motion checks separate RAF continuity (retained nodes, visible reading
-content, scroll offsets and geometry bounds) from CSS interpolation. CI captured
+Panel motion checks separate RAF continuity (retained nodes, visible reading
+content, scroll offsets, opacity, speed and geometry bounds) from CSS interpolation. CI captured
 only nine or ten RAF samples over roughly 1.2 seconds in two Deck attempts, while
 both still showed valid intermediate geometry. Progression is therefore checked
 at 25%, 50% and 75% of the real CSS transition timelines without changing styles
 or duration; animations resume in `finally`. Geometry and monotonicity assertions
-remain strict without treating sample count as a frame-rate guarantee.
+remain strict without treating sample count as a frame-rate guarantee. The same
+sampling covers normal/Deck width changes, split closing and route-exit content
+retention. Width samples seek all sibling tracks owned by the same flex layout,
+so outgoing columns release their space on the same timeline as the main track.
 
 Browser fixtures may mock the HTTP contract; PostgreSQL tests separately establish
 server behavior. Neither proves that production has been deployed.

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../fixtures';
 
 const post = {
@@ -136,10 +136,7 @@ test('likes split the post bounds, scroll independently and close without remoun
   );
   await likes.getByRole('button', { name: 'Close', exact: true }).click();
   const horizontalPositions = await closingFrames;
-  expect(horizontalPositions.length).toBeGreaterThan(1);
-  expect(Math.max(...horizontalPositions) - Math.min(...horizontalPositions)).toBeLessThanOrEqual(
-    1,
-  );
+  expect(horizontalPositions.every((x) => Math.abs(x - (before?.x ?? 0)) <= 1)).toBe(true);
   await expect(likes).toBeHidden();
   await expect(likes).toHaveAttribute('aria-hidden', 'true');
   await expect(likes.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
@@ -149,6 +146,22 @@ test('likes split the post bounds, scroll independently and close without remoun
   await expect
     .poll(async () => (await content.boundingBox())?.height ?? 0)
     .toBeCloseTo((await group.boundingBox())?.height ?? 0, 0);
+  await screen.getByText('likes', { exact: true }).click();
+  await expect(likes.getByRole('heading', { name: 'Likes', exact: true })).toBeVisible();
+  const closeTimeline = await samplePanelTransition(
+    likes.getByRole('button', { name: 'Close', exact: true }),
+    'height',
+  );
+  await test.info().attach('split-close-timeline', {
+    body: JSON.stringify(closeTimeline),
+    contentType: 'application/json',
+  });
+  const visibleClose = closeTimeline.filter((frame) => frame.auxiliaryHeight > 1);
+  expect(visibleClose.length).toBeGreaterThan(1);
+  expect(visibleClose.every((frame) => Math.abs(frame.auxiliaryX - (before?.x ?? 0)) <= 1)).toBe(
+    true,
+  );
+  await expect(likes).toBeHidden();
   expect(candidate.scriptErrors).toEqual([]);
 });
 
@@ -364,9 +377,7 @@ test('normal and Deck preserve the post through continuous visible width transit
   });
   for (const frames of transitions) {
     expect(frames.every((frame) => frame.retained && frame.opacity >= 0.99)).toBe(true);
-    expect(frames.filter((frame) => frame.width > 391 && frame.width < 619).length).toBeGreaterThan(
-      2,
-    );
+    expect(frames.every((frame) => frame.width >= 389 && frame.width <= 621)).toBe(true);
     for (let index = 1; index < frames.length; index += 1) {
       const previous = frames[index - 1];
       const current = frames[index];
@@ -375,6 +386,30 @@ test('normal and Deck preserve the post through continuous visible width transit
         Math.abs(current.width - previous.width) / Math.max(1, current.time - previous.time);
       expect(pixelsPerMillisecond).toBeLessThan(3.5);
     }
+  }
+  await test.info().attach('mode-width-raf', {
+    body: JSON.stringify(transitions),
+    contentType: 'application/json',
+  });
+  const trigger = page.getByRole('button', { name: 'Deck mode', exact: true });
+  for (const entering of [true, false]) {
+    const progression = await samplePanelTransition(trigger, 'width');
+    await test.info().attach(`mode-width-timeline-${entering ? 'enter' : 'exit'}`, {
+      body: JSON.stringify(progression),
+      contentType: 'application/json',
+    });
+    expect(
+      progression.filter((frame) => frame.width > 391 && frame.width < 619).length,
+    ).toBeGreaterThan(2);
+    expect(progression[0].width).toBeCloseTo(entering ? 620 : 390, 0);
+    expect(progression.at(-1)!.width).toBeCloseTo(entering ? 390 : 620, 0);
+    for (let index = 1; index < progression.length; index++) {
+      if (entering) expect(progression[index].width).toBeLessThan(progression[index - 1].width);
+      else expect(progression[index].width).toBeGreaterThan(progression[index - 1].width);
+    }
+    await expect
+      .poll(async () => (await page.getByTestId('mention-shell-panels-main').boundingBox())?.width)
+      .toBeCloseTo(entering ? 390 : 620, 0);
   }
   await expect(screen).toHaveAttribute('data-retained-post', 'true');
   expect(candidate.scriptErrors).toEqual([]);
@@ -632,98 +667,118 @@ test('repeated normal and Deck changes keep readable content and the full viewpo
   expect(candidate.scriptErrors).toEqual([]);
 });
 
-/** Inspect the real CSS transition timeline without imposing a CI frame-rate floor. */
-async function sampleSplitTransition(page: Page) {
-  return page
-    .getByTestId('post-screen')
-    .getByText('likes', { exact: true })
-    .evaluate(
-      (button: HTMLElement) =>
-        new Promise<Array<{ progress: number; height: number; auxiliaryHeight: number }>>(
-          (resolve, reject) => {
-            const host = document.querySelector('[data-testid="mention-shell-panels-main"]')!;
-            const mainTrack = document
-              .querySelector('[data-testid="post-screen"]')!
-              .closest<HTMLElement>('[data-bloom-panel-owner][data-bloom-panel-index]')!;
-            const auxiliaryTrack = document.querySelector<HTMLElement>(
-              '[data-testid="mention-shell-panels-main-engagement"]',
-            )!;
-            if (mainTrack.dataset.bloomPanelOwner !== auxiliaryTrack.dataset.bloomPanelOwner)
-              throw new Error('Split tracks do not share their layout owner');
-            const tracks = [mainTrack, auxiliaryTrack];
-            const geometry = [
-              'flex-basis',
-              'flex-grow',
-              'min-height',
-              'max-height',
-              'height',
-              'margin-top',
-            ];
-            const onTransition = (event: Event) => {
-              const transition = event as TransitionEvent;
-              if (
-                !tracks.includes(transition.target as HTMLElement) ||
-                !geometry.includes(transition.propertyName)
+/** Sample owned CSS geometry timelines; RAF continuity checks remain separate. */
+async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height') {
+  return trigger.evaluate(
+    (button: HTMLElement, axis) =>
+      new Promise<
+        Array<{
+          progress: number;
+          width: number;
+          height: number;
+          auxiliaryHeight: number;
+          auxiliaryX: number;
+          path: string;
+          retainedContent: boolean;
+        }>
+      >((resolve, reject) => {
+        const host = document.querySelector<HTMLElement>(
+          '[data-testid="mention-shell-panels-main"]',
+        )!;
+        const mainTrack =
+          axis === 'width'
+            ? host
+            : document
+                .querySelector('[data-testid="post-screen"]')!
+                .closest<HTMLElement>('[data-bloom-panel-owner][data-bloom-panel-index]')!;
+        const auxiliaryTrack = document.querySelector<HTMLElement>(
+          '[data-testid="mention-shell-panels-main-engagement"]',
+        );
+        const requiredTracks = axis === 'width' ? [mainTrack] : [mainTrack, auxiliaryTrack!];
+        // Shared flex space depends on every sibling track's width, including outgoing columns.
+        const tracks =
+          axis === 'width'
+            ? [
+                ...document.querySelectorAll<HTMLElement>(
+                  `[data-bloom-panel-owner="${mainTrack.dataset.bloomPanelOwner}"][data-bloom-panel-index]`,
+                ),
+              ]
+            : requiredTracks;
+        if (
+          axis === 'height' &&
+          mainTrack.dataset.bloomPanelOwner !== auxiliaryTrack?.dataset.bloomPanelOwner
+        )
+          throw new Error('Split tracks do not share their layout owner');
+        const geometry = [
+          'flex-basis',
+          'flex-grow',
+          `min-${axis}`,
+          `max-${axis}`,
+          axis,
+          'margin-top',
+        ];
+        const onTransition = (event: Event) => {
+          const transition = event as TransitionEvent;
+          if (
+            !requiredTracks.includes(transition.target as HTMLElement) ||
+            !geometry.includes(transition.propertyName)
+          )
+            return;
+          host.removeEventListener('transitionrun', onTransition, true);
+          let animations: Animation[] = [];
+          try {
+            animations = tracks.flatMap((track) =>
+              track
+                .getAnimations()
+                .filter(
+                  (animation) =>
+                    animation instanceof CSSTransition &&
+                    geometry.includes(animation.transitionProperty) &&
+                    animation.effect instanceof KeyframeEffect &&
+                    animation.effect.target === track,
+                ),
+            );
+            if (
+              requiredTracks.some(
+                (track) =>
+                  !animations.some(
+                    (animation) =>
+                      animation.effect instanceof KeyframeEffect &&
+                      animation.effect.target === track,
+                  ),
               )
-                return;
-              host.removeEventListener('transitionrun', onTransition, true);
-              let animations: Animation[] = [];
-              try {
-                animations = tracks.flatMap((track) =>
-                  track
-                    .getAnimations()
-                    .filter(
-                      (animation) =>
-                        animation instanceof CSSTransition &&
-                        geometry.includes(animation.transitionProperty) &&
-                        animation.effect instanceof KeyframeEffect &&
-                        animation.effect.target === track,
-                    ),
-                );
-                if (
-                  tracks.some(
-                    (track) =>
-                      !animations.some(
-                        (animation) =>
-                          animation.effect instanceof KeyframeEffect &&
-                          animation.effect.target === track,
-                      ),
-                  )
-                )
-                  throw new Error('Both split tracks must expose their own geometry transitions');
-                for (const animation of animations) animation.pause();
-                const frames = [0, 0.25, 0.5, 0.75, 1].map((progress) => {
-                  for (const animation of animations) {
-                    const timing = animation.effect!.getComputedTiming();
-                    animation.currentTime =
-                      Number(timing.delay) + Number(timing.duration) * progress;
-                  }
-                  return {
-                    progress,
-                    // A document Screen may be taller than its visible viewport before splitting.
-                    height: Math.min(
-                      innerHeight - 16,
-                      document.querySelector('[data-testid="post-screen"]')!.getBoundingClientRect()
-                        .height,
-                    ),
-                    auxiliaryHeight: document
-                      .querySelector('[data-testid="mention-shell-panels-main-engagement"]')!
-                      .getBoundingClientRect().height,
-                  };
-                });
-                resolve(frames);
-              } catch (error) {
-                reject(error);
-              } finally {
-                host.removeEventListener('transitionrun', onTransition, true);
-                for (const animation of animations) animation.play();
+            )
+              throw new Error('Every sampled track must expose its own geometry transitions');
+            for (const animation of animations) animation.pause();
+            const frames = [0, 0.25, 0.5, 0.75, 1].map((progress) => {
+              for (const animation of animations) {
+                const timing = animation.effect!.getComputedTiming();
+                animation.currentTime = Number(timing.delay) + Number(timing.duration) * progress;
               }
-            };
-            host.addEventListener('transitionrun', onTransition, true);
-            button.click();
-          },
-        ),
-    );
+              return {
+                progress,
+                width: mainTrack.getBoundingClientRect().width,
+                // Document content may exceed its visible viewport before splitting.
+                height: Math.min(innerHeight - 16, mainTrack.getBoundingClientRect().height),
+                auxiliaryHeight: auxiliaryTrack?.getBoundingClientRect().height ?? 0,
+                auxiliaryX: auxiliaryTrack?.getBoundingClientRect().x ?? 0,
+                path: location.pathname,
+                retainedContent: auxiliaryTrack?.textContent?.includes('Reader 0') ?? false,
+              };
+            });
+            resolve(frames);
+          } catch (error) {
+            reject(error);
+          } finally {
+            host.removeEventListener('transitionrun', onTransition, true);
+            for (const animation of animations) animation.play();
+          }
+        };
+        host.addEventListener('transitionrun', onTransition, true);
+        button.click();
+      }),
+    axis,
+  );
 }
 
 test('opening a split progressively shares the viewport without collapsing the reading panel', async ({
@@ -750,7 +805,10 @@ test('opening a split progressively shares the viewport without collapsing the r
     const likes = page.getByTestId('mention-shell-panels-main-engagement');
     await likes.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(likes).toBeHidden();
-    const progression = await sampleSplitTransition(page);
+    const progression = await samplePanelTransition(
+      screen.getByText('likes', { exact: true }),
+      'height',
+    );
     await test.info().attach(`split-timeline-${mode}`, {
       body: JSON.stringify(progression),
       contentType: 'application/json',
@@ -953,7 +1011,6 @@ test('navigation keeps outgoing panel content until its exit and releases it wit
     contentType: 'application/json',
   });
   const leaving = frames.filter((frame) => frame.path === '/' && frame.height > 2);
-  expect(leaving.length).toBeGreaterThan(2);
   expect(leaving.every((frame) => frame.retainedContent)).toBe(true);
   await expect(supporting.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
   await expect(
@@ -964,6 +1021,22 @@ test('navigation keeps outgoing panel content until its exit and releases it wit
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   await page.goBack();
   await expect(page.getByTestId('post-screen')).toBeVisible();
+  await expect(supporting.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
+  await page.getByTestId('post-screen').getByText('likes', { exact: true }).click();
+  await expect(supporting.getByText('Reader 0', { exact: true })).toBeVisible();
+  const departure = await samplePanelTransition(
+    page.getByTestId('sidebar-scroll').getByTestId('sidebar-item-index'),
+    'height',
+  );
+  await test.info().attach('route-exit-timeline', {
+    body: JSON.stringify(departure),
+    contentType: 'application/json',
+  });
+  const visibleDeparture = departure.filter(
+    (frame) => frame.path === '/' && frame.auxiliaryHeight > 2,
+  );
+  expect(visibleDeparture.length).toBeGreaterThan(2);
+  expect(visibleDeparture.every((frame) => frame.retainedContent)).toBe(true);
   await expect(supporting.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
   expect(candidate.scriptErrors).toEqual([]);
 });
