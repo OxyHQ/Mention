@@ -200,7 +200,6 @@ jest.mock('../notificationDescriptors', () => ({
 }));
 
 jest.mock('@/hooks/useCachedUser', () => ({ useUserById: () => undefined }));
-jest.mock('@/utils/dateUtils', () => ({ formatRelativeTimeLocalized: () => '1h' }));
 jest.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));

@@ -816,10 +816,6 @@
     "mark_all_read_confirm": "すべての通知を既読にしてもよろしいですか？",
     "all_already_read": "すべての通知はすでに既読です",
     "mark_read_error": "通知を既読にできませんでした",
-    "now": "たった今",
-    "minutes_ago": "{{count}}分前",
-    "hours_ago": "{{count}}時間前",
-    "days_ago": "{{count}}日前",
     "section": {
       "today": "今日",
       "this_week": "今週",
@@ -1589,14 +1585,6 @@
       },
       "signInRequired": "連携中のアプリを管理するにはログインしてください",
       "signInRequiredDesc": "Mentionアカウントに連携中のAIアプリを確認・取り消すには、ログインしてください。"
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "最新情報を受け取りましょう",
-      "subtitle": "通知をオンにすると、フォローしている人が投稿したときにお知らせします。",
-      "enable": "通知をオンにする",
-      "later": "今はしない"
     }
   },
   "subscription": {

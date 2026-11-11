@@ -1,13 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
 import { expect, contractTest as test } from '../fixtures';
 
-const require = createRequire(import.meta.url);
-const runtimeDirectory = join(
-  dirname(require.resolve('@oxy.so/bloom/package.json')),
-  'assets/character-runtime',
-);
 const teal = {
   shape: 'rounded_head_two_ears',
   eyes: 'oval',
@@ -54,34 +46,7 @@ const remote = {
   instance: 'example.test',
 };
 
-// Observe the real runtime boundary without replacing rendering, scheduling or callbacks.
-const audit = `
-const registry = globalThis[Symbol.for('bloom.character.runtimes')];
-const api = registry.get(import.meta.url), create = api.createAvatar;
-const records = globalThis.__accountAvatarAudit = [];
-api.createAvatar = async (canvas, props, callbacks) => {
- const entry={canvas,props,ready:0,errors:0,disposed:false};records.push(entry);
- const controller=await create(canvas,props,{...callbacks,onReady(){entry.ready++;callbacks.onReady?.()},onError(){entry.errors++;callbacks.onError?.()}});
- return {update(next){entry.props=next;controller.update(next)},dispose(){entry.disposed=true;controller.dispose()}};
-};`;
-
 test.beforeEach(async ({ page }) => {
-  // The installed candidate package owns runtime bytes; the fixture never tests a mutable CDN revision.
-  await page.route('**/bloom-character/**', async (route) => {
-    const pathname = new URL(route.request().url()).pathname;
-    const relative = pathname.split('/bloom-character/')[1];
-    if (!relative || relative.includes('..')) return route.abort();
-    const bytes = await readFile(join(runtimeDirectory, relative));
-    await route.fulfill({
-      body: relative === 'runtime.mjs' ? Buffer.concat([bytes, Buffer.from(audit)]) : bytes,
-      contentType: relative.endsWith('.mjs')
-        ? 'text/javascript'
-        : relative.endsWith('.json')
-          ? 'application/json'
-          : 'application/octet-stream',
-      headers: { 'access-control-allow-origin': '*' },
-    });
-  });
   await page.route(human.avatar, (route) =>
     route.fulfill({
       contentType: 'image/svg+xml',
@@ -165,75 +130,36 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-async function visibleCharacters(page: import('@playwright/test').Page) {
-  return page.evaluate(() => {
-    const records =
-      (
-        window as unknown as {
-          __accountAvatarAudit?: {
-            canvas: HTMLCanvasElement;
-            props: { character: unknown };
-            ready: number;
-            errors: number;
-            disposed: boolean;
-          }[];
-        }
-      ).__accountAvatarAudit ?? [];
-    return records
-      .filter(
-        (entry) =>
-          !entry.disposed &&
-          entry.canvas.isConnected &&
-          entry.canvas.getBoundingClientRect().width > 0,
-      )
-      .map((entry) => ({
-        character: entry.props.character,
-        ready: entry.ready,
-        errors: entry.errors,
-        width: entry.canvas.width,
-        png: entry.canvas.toDataURL(),
-      }));
-  });
+// Bloom draws a stored agent as inline SVG (`data-bloom-vector-avatar`): the shape, eyes,
+// eyewear and accessory ride in `data-geometry`, the paint in the drawing's fills.
+const TEAL = '#04bb9f';
+const LIME = '#b6d80b';
+
+async function visibleCharacters(page: import('@playwright/test').Page, minimumWidth = 0) {
+  return page.evaluate(
+    (minimum) =>
+      [...document.querySelectorAll('[data-bloom-vector-avatar]')]
+        .map((element) => ({
+          width: element.getBoundingClientRect().width,
+          // Painted: the first frame is on screen and the body has its own fill.
+          ready:
+            element.getAttribute('aria-busy') === 'false' &&
+            element.querySelectorAll('path').length > 0,
+          fills: [...element.querySelectorAll('[fill]')].map((node) => node.getAttribute('fill')),
+        }))
+        .filter((entry) => entry.width >= minimum),
+    minimumWidth,
+  );
 }
 
-async function decodedAvatarPixels(page: import('@playwright/test').Page, minimumWidth = 0) {
-  const entries = (await visibleCharacters(page)).filter((entry) => entry.width >= minimumWidth);
-  return page.evaluate(
-    async (values) =>
-      Promise.all(
-        values.map(async (entry) => {
-          const image = new Image();
-          image.src = entry.png;
-          await image.decode();
-          const canvas = document.createElement('canvas');
-          canvas.width = image.width;
-          canvas.height = image.height;
-          const context = canvas.getContext('2d');
-          if (!context) throw new Error('PNG decode canvas unavailable');
-          context.drawImage(image, 0, 0);
-          const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-          let alpha = 0,
-            red = 0,
-            green = 0,
-            blue = 0;
-          for (let i = 0; i < pixels.length; i += 4) {
-            const weight = pixels[i + 3] / 255;
-            alpha += weight;
-            red += pixels[i] * weight;
-            green += pixels[i + 1] * weight;
-            blue += pixels[i + 2] * weight;
-          }
-          return {
-            character: entry.character,
-            alpha,
-            red: red / alpha,
-            green: green / alpha,
-            blue: blue / alpha,
-          };
-        }),
-      ),
-    entries,
-  );
+async function charactersPainted(
+  page: import('@playwright/test').Page,
+  color: string,
+  minimumWidth = 0,
+) {
+  return (await visibleCharacters(page, minimumWidth)).filter(
+    (entry) => entry.ready && entry.fills.includes(color),
+  ).length;
 }
 
 async function expectPhotosLoaded(page: import('@playwright/test').Page) {
@@ -259,16 +185,8 @@ test('feed, profile and search retain stored agents while photos keep their imag
 }) => {
   await page.goto('/');
   await expect(page.getByText('Stored avatar row 0', { exact: true })).toBeVisible();
-  await expect
-    .poll(async () => (await visibleCharacters(page)).filter((entry) => entry.ready > 0).length)
-    .toBe(2);
-  const initial = await visibleCharacters(page);
-  expect(
-    initial.every((entry) => entry.errors === 0 && entry.width > 0 && entry.png.length > 500),
-  ).toBe(true);
-  expect(JSON.stringify(initial)).toContain('teal');
-  expect(JSON.stringify(initial)).toContain('lime');
-  expect((await decodedAvatarPixels(page)).every((entry) => entry.alpha > 50)).toBe(true);
+  await expect.poll(() => charactersPainted(page, TEAL, 30)).toBe(1);
+  await expect.poll(() => charactersPainted(page, LIME, 30)).toBe(1);
   await expectPhotosLoaded(page);
   await page.screenshot({ path: test.info().outputPath('feed-avatars.png') });
   // Changing route through browser history keeps the app/runtime instance alive.
@@ -277,40 +195,12 @@ test('feed, profile and search retain stored agents while photos keep their imag
     dispatchEvent(new PopStateEvent('popstate'));
   });
   await expect(page.getByTestId('profile-hero-content')).toBeVisible();
-  await expect
-    .poll(async () =>
-      (await visibleCharacters(page)).some(
-        (entry) =>
-          entry.ready > 0 && entry.width >= 80 && JSON.stringify(entry.character).includes('teal'),
-      ),
-    )
-    .toBe(true);
-  await expect
-    .poll(async () =>
-      (await decodedAvatarPixels(page, 80)).some(
-        (entry) => entry.alpha > 50 && entry.blue > entry.green * 0.5,
-      ),
-    )
-    .toBe(true);
+  await expect.poll(() => charactersPainted(page, TEAL, 80)).toBeGreaterThanOrEqual(1);
   await page.evaluate(() => {
     history.pushState({}, '', '/@brotivational-speakerbot');
     dispatchEvent(new PopStateEvent('popstate'));
   });
-  await expect
-    .poll(async () =>
-      (await visibleCharacters(page)).some(
-        (entry) =>
-          entry.ready > 0 && entry.width >= 80 && JSON.stringify(entry.character).includes('lime'),
-      ),
-    )
-    .toBe(true);
-  await expect
-    .poll(async () =>
-      (await decodedAvatarPixels(page, 80)).some(
-        (entry) => entry.alpha > 50 && entry.blue < entry.green * 0.5,
-      ),
-    )
-    .toBe(true);
+  await expect.poll(() => charactersPainted(page, LIME, 80)).toBeGreaterThanOrEqual(1);
   await page.screenshot({ path: test.info().outputPath('profile-agent.png') });
   await page.evaluate(() => {
     history.pushState({}, '', '/search?q=agents');
@@ -320,50 +210,20 @@ test('feed, profile and search retain stored agents while photos keep their imag
   await expect(input).toBeVisible();
   await expect(page.getByText('Human Photo', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Remote Photo', { exact: true }).first()).toBeVisible();
-  await expect
-    .poll(
-      async () =>
-        (await visibleCharacters(page)).filter(
-          (entry) => entry.ready > 0 && JSON.stringify(entry.character).includes('teal'),
-        ).length,
-    )
-    .toBe(1);
+  await expect.poll(() => charactersPainted(page, TEAL, 30)).toBe(1);
   await expectPhotosLoaded(page);
-  await expect
-    .poll(async () =>
-      (await decodedAvatarPixels(page)).some(
-        (entry) => entry.alpha > 50 && entry.blue > entry.green * 0.5,
-      ),
-    )
-    .toBe(true);
   await input.fill('changed');
   await input.press('Enter');
-  await expect
-    .poll(
-      async () =>
-        (await visibleCharacters(page)).filter(
-          (entry) => entry.ready > 0 && JSON.stringify(entry.character).includes('lime'),
-        ).length,
-    )
-    .toBe(1);
-  await expect
-    .poll(async () =>
-      (await decodedAvatarPixels(page)).some(
-        (entry) => entry.alpha > 50 && entry.blue < entry.green * 0.5,
-      ),
-    )
-    .toBe(true);
+  await expect.poll(() => charactersPainted(page, LIME, 30)).toBe(1);
   await expectPhotosLoaded(page);
-  expect((await visibleCharacters(page)).every((entry) => entry.errors === 0)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('search-updated-agent.png') });
   await input.fill('groups');
   await input.press('Enter');
   await expect(page.getByTestId('feed-agent-feed')).toBeVisible();
   await expect(page.getByTestId('starterpack-agent-pack')).toBeVisible();
-  await expect
-    .poll(async () => (await visibleCharacters(page)).filter((entry) => entry.ready > 0).length)
-    .toBe(2);
-  expect((await decodedAvatarPixels(page)).every((entry) => entry.alpha > 50)).toBe(true);
+  // The facepiles draw one member each, smaller than a feed avatar.
+  await expect.poll(() => charactersPainted(page, TEAL)).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => charactersPainted(page, LIME)).toBeGreaterThanOrEqual(1);
   await page.screenshot({ path: test.info().outputPath('member-agent-facepiles.png') });
   expect(candidate.scriptErrors).toEqual([]);
 });
@@ -469,14 +329,7 @@ test('human profile photos keep tabs, zoom and the bundled fallback usable', asy
   await expect(closeGallery).not.toBeVisible();
   await expect(page.getByText('Something went wrong', { exact: true })).not.toBeVisible();
   await test.info().attach('photo-profile-agent-readiness', {
-    body: JSON.stringify(
-      (await visibleCharacters(page)).map(({ character, ready, errors, width }) => ({
-        character,
-        ready,
-        errors,
-        width,
-      })),
-    ),
+    body: JSON.stringify(await visibleCharacters(page)),
     contentType: 'application/json',
   });
   await page.screenshot({ path: test.info().outputPath('profile-photo-fallback.png') });

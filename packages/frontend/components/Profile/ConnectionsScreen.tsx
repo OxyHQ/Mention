@@ -17,7 +17,7 @@ import {
 import { usePathname } from '@/lib/navigation/router';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, TouchableOpacity, Share, Platform } from 'react-native';
+import { View, TouchableOpacity, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -33,6 +33,7 @@ import { logger } from '@oxy.so/core/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
+import { shareLink } from '@/utils/shareLink';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
@@ -353,33 +354,13 @@ function ConnectionsContent({
   const handleInviteFriends = useCallback(async () => {
     const inviteMessage = getInviteMessage();
 
-    if (Platform.OS === 'web') {
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: t('settings.inviteContacts.inviteTitle', { defaultValue: 'Join me on Mention' }),
-            text: inviteMessage,
-            url: 'https://mention.earth',
-          });
-        } catch {
-          // User cancelled or error
-        }
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(inviteMessage);
-      }
-      return;
-    }
-
-    try {
-      await Share.share({
-        message: inviteMessage,
-      });
-    } catch (err: unknown) {
-      const shareErr = err as { message?: string; code?: string };
-      if (shareErr?.message !== 'User did not share' && shareErr?.code !== 'ERR_SHARE_CANCELLED') {
-        logger.error('Error inviting friends', err);
-      }
-    }
+    await shareLink({
+      title: t('settings.inviteContacts.inviteTitle', { defaultValue: 'Join me on Mention' }),
+      message: inviteMessage,
+      url: 'https://mention.earth',
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
   }, [getInviteMessage, t]);
 
   const renderUser = useCallback(({ item }: { item: ConnectionUser }) => {

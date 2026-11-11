@@ -1,7 +1,7 @@
 import { DetailSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Share, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
@@ -24,6 +24,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { shareLink } from '@/utils/shareLink';
 import { Rating, RatingInput } from '@oxy.so/bloom/rating';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -656,16 +657,14 @@ function CustomFeedTimelineScreen() {
   const onShare = useCallback(async () => {
     if (!feed) return;
     const url = `${WEB_BASE_URL}/feeds/${feedId}`;
-    try {
-      await Share.share({
-        message: `Check out "${feed.title}" on Mention!\n\n${url}`,
-        url,
-        title: `${feed.title} on Mention`,
-      });
-    } catch (error) {
-      logger.warn('Failed to share feed', { error, feedId });
-    }
-  }, [feed, feedId]);
+    await shareLink({
+      title: `${feed.title} on Mention`,
+      message: `Check out "${feed.title}" on Mention!`,
+      url,
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
+  }, [feed, feedId, t]);
 
   const handleTabPress = useCallback((tabId: string) => {
     setActiveTab(tabId as FeedTab);

@@ -109,8 +109,8 @@ jest.mock('@/lib/i18n', () => ({ __esModule: true, default: {} }));
 // Passthrough on purpose: the boundary sits between the two probe positions, and
 // a real one would swallow the very throw these tests assert on, turning a
 // precise "no VideoPlaybackProvider" failure into a silent fallback render.
-jest.mock('@/components/AppErrorBoundary', () => ({
-  AppErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
+jest.mock('@/components/AppRootErrorBoundary', () => ({
+  AppRootErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 jest.mock('@/components/providers/AccountSwitchReset', () => ({

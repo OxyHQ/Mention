@@ -816,10 +816,6 @@
     "mark_all_read_confirm": "Are you sure you want to mark all notifications as read?",
     "all_already_read": "All notifications are already read",
     "mark_read_error": "Failed to mark notification as read",
-    "now": "now",
-    "minutes_ago": "{{count}}m ago",
-    "hours_ago": "{{count}}h ago",
-    "days_ago": "{{count}}d ago",
     "section": {
       "today": "Today",
       "this_week": "This week",
@@ -1589,14 +1585,6 @@
       },
       "signInRequired": "Sign in to manage connected apps",
       "signInRequiredDesc": "Sign in to review and revoke AI apps connected to your Mention account."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "Stay in the loop",
-      "subtitle": "Enable notifications to get updates when people you follow post.",
-      "enable": "Enable notifications",
-      "later": "Not now"
     }
   },
   "subscription": {

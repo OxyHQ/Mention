@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
-import { Share, Platform } from 'react-native';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { toast } from '@oxy.so/bloom/toast';
+import i18n from '@/lib/i18n';
+import { shareLink } from '@/utils/shareLink';
 import { queryClient } from '@/lib/queryClient';
 import { postPermalink } from '@/utils/postPermalink';
 import { toReaderText } from '@mention/shared-types/textEntities';
@@ -56,31 +57,16 @@ export async function sharePost(post: SharePost | null | undefined): Promise<voi
       ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
       : `${name}${handle ? ` (@${handle})` : ''} shared a post`;
 
-    if (Platform.OS === 'web') {
-      if (navigator.share) {
-        await navigator.share({
-          title: `${name} on Mention`,
-          text: shareMessage,
-          url: postUrl,
-        });
-      } else {
-        await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-        const { alertDialog } = await import('@/utils/alerts');
-        await alertDialog({
-          title: 'Link copied',
-          message: 'Post link has been copied to clipboard',
-        });
-      }
-    } else {
-      await Share.share({
-        message: `${shareMessage}\n\n${postUrl}`,
-        url: postUrl,
-        title: `${name} on Mention`,
-      });
-    }
+    await shareLink({
+      title: `${name} on Mention`,
+      message: shareMessage,
+      url: postUrl,
+      copiedToast: i18n.t('widgetMenu.linkCopied'),
+      errorToast: i18n.t('widgetMenu.shareFailed'),
+    });
   } catch (error) {
     logger.error('Error sharing post', error);
-    toast('Failed to share post', { type: 'error' });
+    toast(i18n.t('widgetMenu.shareFailed'), { type: 'error' });
   }
 }
 

@@ -1,6 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
+import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import { organizationDirectoryQueryKeys } from '@/lib/viewerQueryKeys';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -51,16 +52,12 @@ export function ExperienceEmployerField({
     initialEmployer,
   );
   const [query, setQuery] = useState(initialEmployer?.name ?? '');
-  const [debounced, setDebounced] = useState(query);
   const [creating, setCreating] = useState(false);
   const [website, setWebsite] = useState('');
   const [country, setCountry] = useState('');
   const [organizationType, setOrganizationType] = useState<OrganizationType>('business');
   const [createInvalid, setCreateInvalid] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [query]);
+  const debounced = useDebouncedValue(query.trim(), 300);
   const results = useInfiniteQuery({
     queryKey: supervision.supervised
       ? organizationDirectoryQueryKeys.minimalSearch(debounced, user?.id, canUsePrivateApi)

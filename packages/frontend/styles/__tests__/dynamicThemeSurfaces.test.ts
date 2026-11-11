@@ -14,21 +14,6 @@ function styleBody(file: string, name: string): string {
 }
 
 describe('dynamic theme surfaces', () => {
-  it('keeps the notification permission surface on Bloom roles in every mode', () => {
-    const file = source('components', 'NotificationPermissionSheet.tsx');
-
-    expect(file).toContain("from '@oxy.so/bloom/button'");
-    expect(file).toContain('text-foreground');
-    expect(file).toContain('text-muted-foreground');
-    expect(file).toContain('appearance="solid" tone="accent"');
-    expect(file).toContain('appearance="subtle" tone="neutral"');
-    expect(file).not.toContain('@/styles/colors');
-    expect(file).not.toMatch(/#[0-9a-f]{3,8}\b/i);
-
-    // Positive control: the literal detector must fire on the regression shape.
-    expect("color: '#005c67'").toMatch(/#[0-9a-f]{3,8}\b/i);
-  });
-
   it('does not let inline compose-mode colors override light/dark theme roles', () => {
     // TWO sources, because this case has two subjects and they no longer share a
     // file: the class tokens are applied in the component's JSX, while the style

@@ -828,10 +828,6 @@
     "mark_all_read_confirm": "Tens a certeza de que queres marcar todas as notificações como lidas?",
     "all_already_read": "Todas as notificações já estão lidas",
     "mark_read_error": "Falha ao marcar a notificação como lida",
-    "now": "agora",
-    "minutes_ago": "há {{count}} min",
-    "hours_ago": "há {{count}} h",
-    "days_ago": "há {{count}} d",
     "section": {
       "today": "Hoje",
       "this_week": "Esta semana",
@@ -1607,14 +1603,6 @@
       },
       "signInRequired": "Inicia sessão para gerir as apps ligadas",
       "signInRequiredDesc": "Inicia sessão para veres e revogares as apps de IA ligadas à tua conta Mention."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "Fica a par de tudo",
-      "subtitle": "Ativa as notificações para saberes quando as pessoas que segues publicam.",
-      "enable": "Ativar notificações",
-      "later": "Agora não"
     }
   },
   "subscription": {

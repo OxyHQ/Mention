@@ -1,7 +1,7 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, Share } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
@@ -45,6 +45,7 @@ import { FollowButton } from '@/components/FollowButton';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { presentSheet } from '@/utils/sheet';
+import { shareLink } from '@/utils/shareLink';
 import { confirmDialog } from '@/utils/alerts';
 import { reportService } from '@/services/reportService';
 import { ReportModal } from '@/components/report/ReportModal';
@@ -193,16 +194,13 @@ const RoomDetailScreen = () => {
   const handleShareRoom = useCallback(async () => {
     if (!room) return;
     const url = `https://mention.earth/live-rooms/${id}`;
-    try {
-      await Share.share({
-        message: `${room.title}\n\n${url}`,
-        url,
-        title: room.title,
-      });
-    } catch {
-      // User cancelled or share failed silently
-    }
-  }, [room, id]);
+    await shareLink({
+      title: room.title,
+      url,
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
+  }, [room, id, t]);
 
   const handleLeave = async () => {
     if (!id) return;

@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo } from 'react';
+import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -84,14 +85,9 @@ export function useInfiniteCatalogSearch<T>(
   opts?: { enabled?: boolean },
 ): InfiniteCatalogSearch<T> {
   const { user } = useAuth();
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-
-  // Debounce the raw input into the query key (the only effect here — React
-  // Query owns the actual fetch, dedupe, and caching).
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [query]);
+  // Debounce the raw input into the query key (React Query owns the actual
+  // fetch, dedupe, and caching).
+  const debouncedQuery = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS);
 
   const search = useInfiniteQuery({
     queryKey: viewerQueryKeys.profileMediaSearch(user?.id, type, debouncedQuery),

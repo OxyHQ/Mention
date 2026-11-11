@@ -63,7 +63,6 @@ jest.mock('react-i18next', () => ({
 }));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
-jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
 jest.mock('../ProfileSkeleton', () => ({ ProfileSkeleton: () => null }));
 jest.mock('../ProfileTabs', () => ({
   ProfileTabs: (props: {

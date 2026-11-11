@@ -1,6 +1,5 @@
-import { Platform, Share } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
+import { shareUrl } from '@oxy.so/bloom/hooks';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('shareLink');
@@ -12,18 +11,16 @@ interface ShareLinkOptions {
   url: string;
   /** Optional longer message body (defaults to `title`). */
   message?: string;
-  /** Toast text shown on web when the link is copied to the clipboard. */
+  /** Toast text shown when the link is copied to the clipboard instead of shared. */
   copiedToast: string;
-  /** Toast text shown if sharing fails. */
+  /** Toast text shown if neither sharing nor copying was possible. */
   errorToast: string;
 }
 
 /**
- * Share a deep link in a platform-correct way:
- * - native: RN `Share.share`
- * - web: `navigator.share` when available, otherwise copy to clipboard + toast
- *
- * Mirrors the app's existing share behavior (`usePostShare`, live room share).
+ * Share a deep link through Bloom's `shareUrl` (system sheet, Web Share or
+ * clipboard) and say what happened: a toast when it was copied or failed,
+ * silence when shared or dismissed. The one share path every screen uses.
  */
 export async function shareLink({
   title,
@@ -33,28 +30,11 @@ export async function shareLink({
   errorToast,
 }: ShareLinkOptions): Promise<void> {
   const body = message ?? title;
-  try {
-    if (Platform.OS === 'web') {
-      const nav = typeof navigator !== 'undefined' ? navigator : undefined;
-      if (nav?.share) {
-        await nav.share({ title, text: body, url });
-      } else if (nav?.clipboard) {
-        await nav.clipboard.writeText(`${body}\n\n${url}`);
-        toast(copiedToast, { type: 'success' });
-      } else {
-        await Clipboard.setStringAsync(`${body}\n\n${url}`);
-        toast(copiedToast, { type: 'success' });
-      }
-    } else {
-      await Share.share({ message: `${body}\n\n${url}`, url, title });
-    }
-  } catch (error) {
-    // A user cancelling the native share sheet rejects the promise; treat
-    // cancellations as benign and only surface genuine failures.
-    if (error instanceof Error && /cancel|dismiss/i.test(error.message)) {
-      return;
-    }
-    logger.warn('Failed to share link', { error });
+  const outcome = await shareUrl({ title, url, message: body, copyText: `${body}\n\n${url}` });
+  if (outcome === 'copied') {
+    toast(copiedToast, { type: 'success' });
+  } else if (outcome === 'failed') {
+    logger.warn('Failed to share link', { url });
     toast(errorToast, { type: 'error' });
   }
 }

@@ -18,7 +18,7 @@ import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import { SEO } from '@/components/SEO';
 import { ProfileCard } from '@/components/ProfileCard';
 import { pokeService, type PokeUser } from '@/services/pokeService';
-import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const SENT_PREVIEW_COUNT = 3;
@@ -28,6 +28,7 @@ export default function PokesScreen() {
   const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+  const locale = useBloomLocale();
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [showAllSent, setShowAllSent] = useState(false);
@@ -249,7 +250,7 @@ export default function PokesScreen() {
                 item.id,
                 item.user,
                 <>
-                  {formatRelativeTimeLocalized(item.createdAt, t)}
+                  {formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' })}
                   {item.pokeCount > 1
                     ? ` \u00B7 ${item.pokeCount} ${t('pokes.count', { defaultValue: 'pokes' })}`
                     : ''}
@@ -272,7 +273,7 @@ export default function PokesScreen() {
               renderUserRow(
                 item.id,
                 item.user,
-                formatRelativeTimeLocalized(item.createdAt, t),
+                formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' }),
                 'undo',
               ),
             )}

@@ -1,7 +1,7 @@
 import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View, Share } from 'react-native';
+import { View } from 'react-native';
 import { useRouter, Redirect } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
@@ -17,7 +17,6 @@ import { useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { FollowButton as OxyFollowButton } from '@/components/FollowButton';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { logger } from '@oxy.so/core/logger';
 import type { ProfileData } from '@/hooks/useProfileData';
 
 // Icons
@@ -31,6 +30,7 @@ import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
 import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
+import { shareLink } from '@/utils/shareLink';
 import { profileRouteFamily } from '@/components/Profile/profileRoute';
 
 // Profile primitives
@@ -255,23 +255,21 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 
   const handleShare = useCallback(async () => {
     if (!profileData) return;
-    try {
-      const shareUrl = `https://mention.earth/c/${handle}`;
-      const shareMessage = t('profile.share.message', {
+    const shareUrl = `https://mention.earth/c/${handle}`;
+    const shareMessage = t('profile.share.message', {
+      name: profileData.design.displayName,
+      defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
+    });
+    await shareLink({
+      title: t('profile.share.title', {
         name: profileData.design.displayName,
-        defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
-      });
-      await Share.share({
-        message: `${shareMessage}\n\n${shareUrl}`,
-        url: shareUrl,
-        title: t('profile.share.title', {
-          name: profileData.design.displayName,
-          defaultValue: `${profileData.design.displayName} on Mention`,
-        }),
-      });
-    } catch {
-      logger.error('Error sharing channel');
-    }
+        defaultValue: `${profileData.design.displayName} on Mention`,
+      }),
+      message: shareMessage,
+      url: shareUrl,
+      copiedToast: t('widgetMenu.linkCopied'),
+      errorToast: t('widgetMenu.shareFailed'),
+    });
   }, [profileData, handle, t]);
 
   // Operators only, and first: these are the actions about RUNNING this account

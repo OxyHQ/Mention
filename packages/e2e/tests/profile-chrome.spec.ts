@@ -98,7 +98,7 @@ for (const width of [390, 1024, 1440]) {
       await page.evaluate(() => window.scrollTo(0, 0));
       if (width >= 500) {
         const sidebar = page.getByRole('complementary', { name: 'Sidebar', exact: true });
-        const footer = sidebar.getByTestId(/sidebar.*-footer$/);
+        const footer = sidebar.getByTestId('sidebar-footer');
         await expect(footer).toBeVisible();
         const [s, f] = await Promise.all([sidebar.boundingBox(), footer.boundingBox()]);
         expect(s && f ? s.y + s.height - f.y - f.height : Infinity).toBeLessThanOrEqual(24);

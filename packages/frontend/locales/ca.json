@@ -828,10 +828,6 @@
     "mark_all_read_confirm": "Segur que vols marcar totes les notificacions com a llegides?",
     "all_already_read": "Totes les notificacions ja estan llegides",
     "mark_read_error": "No s'ha pogut marcar la notificació com a llegida",
-    "now": "ara",
-    "minutes_ago": "fa {{count}} min",
-    "hours_ago": "fa {{count}} h",
-    "days_ago": "fa {{count}} d",
     "section": {
       "today": "Avui",
       "this_week": "Aquesta setmana",
@@ -1607,14 +1603,6 @@
       },
       "signInRequired": "Inicia la sessió per gestionar les aplicacions connectades",
       "signInRequiredDesc": "Inicia la sessió per revisar i revocar les aplicacions d'IA connectades al teu compte de Mention."
-    }
-  },
-  "permission": {
-    "notifications": {
-      "title": "No et perdis res",
-      "subtitle": "Activa les notificacions per rebre avisos quan publiqui la gent que segueixes.",
-      "enable": "Activa les notificacions",
-      "later": "Ara no"
     }
   },
   "subscription": {

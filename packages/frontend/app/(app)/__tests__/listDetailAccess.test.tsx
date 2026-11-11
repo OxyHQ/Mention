@@ -24,6 +24,7 @@ jest.mock('@/components/loading/ContentSkeleton', () => ({
   DetailSkeleton: () => null,
   FormSkeleton: () => null,
 }));
+jest.mock('@/utils/shareLink', () => ({ shareLink: jest.fn() }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));

@@ -1,6 +1,7 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
+import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import type React from 'react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -47,17 +48,13 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
   const theme = useTheme();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
   const { user, canUsePrivateApi } = useAuth();
   const [selectedGif, setSelectedGif] = useState<string | number | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const numColumns = 3;
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  const debouncedQuery = useDebouncedValue(searchQuery.trim(), 500);
 
   const search = useQuery({
     queryKey: viewerQueryKeys.gifSearch(user?.id, canUsePrivateApi, debouncedQuery),

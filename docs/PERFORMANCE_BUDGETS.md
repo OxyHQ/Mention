@@ -175,6 +175,17 @@ reads, +7.125 host nodes, +4 hooks) from Bloom 5's `Card`, which now paints the
 shared `Surface` material in layers. No request, query-observer or render count
 moved.
 
+Bloom 19.2 (2026-11-11) moves every ceiling that counts the export, because Bloom 18 replaced the
+hosted character runtime with packaged vector data: each avatar template, eye style and shape is a
+separate lazily imported module (`template-*.js`, `eyes-*.js`), about 55 MiB raw and none of it in the
+initial chunks. Measured on one `expo export --platform web` of the branch against main `ae6c84861`
+(Bloom 17.19.3): total bytes 21.0 -> 76.0 MiB (ceiling 20.4375 -> 77 MiB), JavaScript bytes 15.7 -> 71.1
+MiB (15.71875 -> 72 MiB), initial JavaScript 5.84 -> 6.03 MiB (5.84375 -> 6.1 MiB) and initial gzip 1.65 ->
+1.70 MiB (1.65625 -> 1.72 MiB; the 1.6 MiB target stands). The font and largest-file ceilings are
+unchanged. The initial growth is Bloom's own (its sidebar, shell and error screens), not the app's.
+The size of the async catalog is the thing to give back, in Bloom: a consumer cannot select which
+characters it ships.
+
 ### Initial JavaScript after #1216
 
 Expo's web export moves every module that ANY two async chunks share into

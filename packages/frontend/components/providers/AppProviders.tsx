@@ -16,7 +16,7 @@ import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
 import type { OxyServices } from '@oxy.so/core';
 import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
-import { AppErrorBoundary } from '@/components/AppErrorBoundary';
+import { AppRootErrorBoundary } from '@/components/AppRootErrorBoundary';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { BootMilestone } from '@/components/BootMilestone';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
@@ -148,7 +148,7 @@ export const AppProviders = memo(function AppProviders({
                       reaches it; its services are bound by
                       <PostInteractionsBinder />. */}
                   <PostInteractionsProvider>
-                    <AppErrorBoundary>
+                    <AppRootErrorBoundary>
                       <LiveRoomControllerProvider>
                         {children}
                         {/*
@@ -178,7 +178,7 @@ export const AppProviders = memo(function AppProviders({
                          */}
                         <LivePresencePoller />
                       </LiveRoomControllerProvider>
-                    </AppErrorBoundary>
+                    </AppRootErrorBoundary>
                   </PostInteractionsProvider>
                 </AppShellProviders>
               </I18nextProvider>

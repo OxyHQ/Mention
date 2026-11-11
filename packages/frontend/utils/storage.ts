@@ -1,52 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createStorage } from '@oxy.so/bloom/storage';
 import { logger } from '@oxy.so/core/logger';
 
+const jsonStorage = createStorage('', {
+  adapter: AsyncStorage,
+  onError: (error, operation, key) =>
+    logger.warn(`[Storage] Failed to ${operation} item: ${key}`, { error }),
+});
+
 /**
- * Generic storage utility for caching data
+ * Best-effort JSON storage over AsyncStorage (raw keys), from Bloom's
+ * `createStorage`. `getStrict` is the one addition: it tells an absent key from
+ * every stored JSON value, including `null`, and throws on an unreadable one.
  */
-export class Storage {
-  /** Distinguish an absent key from every stored JSON value, including null. */
-  static async getStrict<T>(key: string): Promise<{ found: false } | { found: true; value: T }> {
+export const Storage = {
+  ...jsonStorage,
+  async getStrict<T>(key: string): Promise<{ found: false } | { found: true; value: T }> {
     const item = await AsyncStorage.getItem(key);
     return item === null ? { found: false } : { found: true, value: JSON.parse(item) as T };
-  }
-
-  /**
-   * Get item from storage
-   */
-  static async get<T>(key: string): Promise<T | null> {
-    try {
-      const item = await AsyncStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
-    } catch (error) {
-      logger.warn(`[Storage] Failed to get item: ${key}`, { error });
-      return null;
-    }
-  }
-
-  /**
-   * Set item in storage
-   */
-  static async set<T>(key: string, value: T): Promise<boolean> {
-    try {
-      await AsyncStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch (error) {
-      logger.warn(`[Storage] Failed to set item: ${key}`, { error });
-      return false;
-    }
-  }
-
-  /**
-   * Remove item from storage
-   */
-  static async remove(key: string): Promise<boolean> {
-    try {
-      await AsyncStorage.removeItem(key);
-      return true;
-    } catch (error) {
-      logger.warn(`[Storage] Failed to remove item: ${key}`, { error });
-      return false;
-    }
-  }
-}
+  },
+};
