@@ -215,7 +215,7 @@ export function CompactReplyComposer({
     <CompactComposer
       testID="compact-reply"
       value={text}
-      onChangeText={replyDraft.store.getState().setText}
+      onChangeText={(next) => replyDraft.store.getState().setText(next)}
       maxLength={COMPACT_REPLY_TEXT_LIMIT}
       inputRef={inputRef}
       avatar={
@@ -234,7 +234,9 @@ export function CompactReplyComposer({
                 attachmentKey={item.id}
                 index={index}
                 total={mediaIds.length}
-                onMove={replyDraft.store.getState().moveMedia}
+                onMove={(index, direction) =>
+                  replyDraft.store.getState().moveMedia(index, direction)
+                }
                 onRemove={() => replyDraft.store.getState().removeMedia(item.id)}
                 wrapperStyle={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden' }}
               >
