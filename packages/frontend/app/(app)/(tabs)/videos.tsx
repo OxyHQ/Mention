@@ -1,9 +1,9 @@
 import { clamp } from '@oxy.so/utils/text';
 import { VideoSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
+import type { TFunction } from 'i18next';
 import { useRoute } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import {
   StyleSheet,
   View,
@@ -15,46 +15,28 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  type SharedValue,
-} from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
-import { IconButton } from '@oxy.so/bloom/button';
 import {
   Screen,
   ScreenPager,
   type ScreenPagerHandle,
   useScreenReselect,
+  useScreen,
 } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-  SegmentedControlItemText,
-} from '@oxy.so/bloom/segmented-control';
-import { useHaptics } from '@oxy.so/bloom/hooks';
+import { VideoRepostBubble } from '@/components/videos/VideoRepostBubble';
+import { VideoFeedTabs } from '@/components/videos/VideoFeedTabs';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
-import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
-import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
-import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
-import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
-import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
-import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
-import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
-import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
 import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
@@ -68,19 +50,20 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { formatCompactNumber } from '@/utils/formatNumber';
+import PostActions from '@/components/Post/PostActions';
+import { postAcceptsReplies } from '@/utils/postReplies';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { videoSourceFor } from '@/utils/videoSource';
 import type { HydratedPost } from '@mention/shared-types';
 import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
-import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
-import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
+import {
+  useOpenPostEngagement,
+  useVideoRepliesPanel,
+} from '@/components/Post/postEngagementContext';
+import type { VideoReplyDraft } from '@/components/videos/videoReplyDraft';
 import { VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
-import { presentSheet } from '@/utils/sheet';
-import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
-import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
@@ -247,13 +230,10 @@ const GRADIENT_COLORS = [
 ] as const;
 const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
 const LIKE_ACTIVE_COLOR = '#FF3040';
-const BOOST_ACTIVE_COLOR = '#10B981';
 
-// Caption is collapsed to two lines until this length, where a "more" toggle is
+// Caption is collapsed to one line until this length, where a "more" toggle is
 // offered (TikTok-style expandable caption).
 const CAPTION_EXPAND_MIN_CHARS = 80;
-/** The replies sheet's height as a fraction of the viewport; the video shrinks into the rest. */
-const REPLIES_SHEET_RATIO = 0.62;
 
 // ── Types ────────────────────────────────────────────────────────
 // Runtime media reference. The shared `MediaItem` declares `id` + `type` plus the
@@ -317,19 +297,17 @@ interface VideoItemProps {
   // keep playing audio/video; gating playback on this prevents that bleed.
   screenFocused: boolean;
   theme: ReturnType<typeof useTheme>;
-  onLike: (postId: string, isLiked: boolean) => void;
+  onLike: (postId: string, isLiked: boolean) => boolean | undefined;
   onComment: (postId: string) => void;
+  onQuote: (postId: string) => void;
   onBoost: (postId: string, isBoosted: boolean) => void;
   onSave: (postId: string, isSaved: boolean) => void;
   onShare: (post: VideoPost) => void;
   onSendInAllo: (postId: string) => void;
-  formatCompactNumber: (count: number) => string;
   muted: boolean;
   onMutedChange: (muted: boolean) => void;
-  bottomBarHeight: number;
-  t: (key: string) => string;
+  t: TFunction;
   windowHeight: number;
-  bottomSheetProgress?: SharedValue<number>;
   // The signed-in viewer's id — hides the on-video follow button on the
   // author's own video.
   viewerId?: string;
@@ -378,7 +356,7 @@ const ReelPoster = memo<{
       <Image
         source={{ uri: posterUrl }}
         style={styles.poster}
-        contentFit="contain"
+        contentFit="cover"
         cachePolicy="memory-disk"
         priority="high"
         onError={onPosterError}
@@ -606,7 +584,7 @@ const ReelSurface: React.FC<
         id={flightId ?? reelHostId(postId)}
         content={flightContent}
         style={StyleSheet.absoluteFill}
-        contentFit="contain"
+        contentFit="cover"
         renderVideo={renderReelVideo}
         pointerEvents="none"
       />
@@ -770,17 +748,15 @@ const VideoItem = memo<VideoItemProps>(
     theme,
     onLike,
     onComment,
+    onQuote,
     onBoost,
     onSave,
     onShare,
     onSendInAllo,
-    formatCompactNumber,
     muted,
     onMutedChange,
-    bottomBarHeight,
     t,
     windowHeight,
-    bottomSheetProgress,
     viewerId,
     ownsSession,
     sessionActive,
@@ -790,6 +766,7 @@ const VideoItem = memo<VideoItemProps>(
     onRegisterTransportSeek,
   }) => {
     const router = useRouter();
+    const bottomBarHeight = useVideoContentBottomInset();
     const [videoError, setVideoError] = useState(false);
     // The poster can 404 (no extractable frame) or fail to load → fall back to
     // the neutral icon rather than a blank. Held HERE, by the row, because the
@@ -822,7 +799,7 @@ const VideoItem = memo<VideoItemProps>(
         setVideoError(false);
       }
     }
-    // TikTok-style expandable caption: collapsed to two lines until toggled.
+    // TikTok-style expandable caption: collapsed to one line until toggled.
     const [captionExpanded, setCaptionExpanded] = useState(false);
 
     const handleError = useCallback(() => setVideoError(true), []);
@@ -858,24 +835,11 @@ const VideoItem = memo<VideoItemProps>(
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
     const showOnVideoFollow = Boolean(item.user?.id) && item.user?.id !== viewerId;
     const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
-    const repliesTransformStyle = useAnimatedStyle(() => {
-      const progress = bottomSheetProgress?.value ?? 0;
-      return {
-        transform: [
-          { translateY: -(windowHeight * (REPLIES_SHEET_RATIO / 2) * progress) },
-          { scale: interpolate(progress, [0, 1], [1, 0.38]) },
-        ],
-      };
-    }, [bottomSheetProgress, windowHeight]);
 
     return (
       <Animated.View
         className="web:h-full"
-        style={[
-          styles.videoContainer,
-          Platform.OS === 'web' ? null : { height: windowHeight },
-          repliesTransformStyle,
-        ]}
+        style={[styles.videoContainer, Platform.OS === 'web' ? null : { height: windowHeight }]}
       >
         {canRenderPlayer ? (
           <ActiveVideoSurface
@@ -946,12 +910,18 @@ const VideoItem = memo<VideoItemProps>(
           />
 
           <View style={styles.bottomInfo} pointerEvents="box-none">
+            {isActive && item.viewerState.isBoosted && (
+              <VideoRepostBubble
+                visible
+                onAddThought={item.metadata.quotesDisabled ? undefined : () => onQuote(item.id)}
+              />
+            )}
             <View style={styles.userInfo} pointerEvents="box-none">
               <View style={styles.userHeaderRow} pointerEvents="box-none">
                 <Pressable onPress={handleProfilePress} style={styles.userHeader}>
                   <Avatar
                     source={item.user?.avatar ?? undefined}
-                    size={40}
+                    size={32}
                     variant={MEDIA_VARIANT_AVATAR}
                     verified={item.user?.verified || false}
                     style={styles.userAvatar}
@@ -970,14 +940,17 @@ const VideoItem = memo<VideoItemProps>(
                         />
                       )}
                     </View>
-                    <Text style={styles.userHandle} numberOfLines={1}>
-                      @{userHandle}
-                    </Text>
+                    <View style={styles.soundRow} pointerEvents="none">
+                      <RiMusic2Line width={13} height={13} fill="#FFFFFF" />
+                      <Text style={styles.soundText} numberOfLines={1}>
+                        {t('videos.original_audio')} · @{userHandle}
+                      </Text>
+                    </View>
                   </View>
                 </Pressable>
                 {showOnVideoFollow && item.user?.id && (
                   <View style={styles.onVideoFollow}>
-                    <FollowButton userId={item.user.id} size="sm" />
+                    <FollowButton userId={item.user.id} username={userHandle} size="sm" />
                   </View>
                 )}
               </View>
@@ -987,7 +960,7 @@ const VideoItem = memo<VideoItemProps>(
                     text={postText}
                     style={styles.postText}
                     linkStyle={styles.postLink}
-                    numberOfLines={captionExpanded ? undefined : 2}
+                    numberOfLines={captionExpanded ? undefined : 1}
                   />
                   {showCaptionToggle && (
                     <Text
@@ -1000,84 +973,23 @@ const VideoItem = memo<VideoItemProps>(
                   )}
                 </View>
               ) : null}
-              <View style={styles.soundRow} pointerEvents="none">
-                <RiMusic2Line width={13} height={13} fill="#FFFFFF" />
-                <Text style={styles.soundText} numberOfLines={1}>
-                  {t('videos.original_audio')} · @{userHandle}
-                </Text>
-              </View>
             </View>
           </View>
 
           <View style={styles.rightActions} pointerEvents="box-none">
-            <ActionButton
-              icon={
-                item.viewerState.isLiked ? (
-                  <RiHeart3Fill width={30} height={30} fill={LIKE_ACTIVE_COLOR} />
-                ) : (
-                  <RiHeart3Line width={30} height={30} fill="white" />
-                )
-              }
-              count={item.engagement.likes ?? 0}
-              isActive={item.viewerState.isLiked}
-              activeColor={LIKE_ACTIVE_COLOR}
-              onPress={() => onLike(item.id, item.viewerState.isLiked)}
-              formatCompactNumber={formatCompactNumber}
-              accessibilityLabel={t(item.viewerState.isLiked ? 'videos.unlike' : 'videos.like')}
-            />
-            <ActionButton
-              icon={<RiChat3Line width={30} height={30} fill="white" />}
-              count={item.engagement.replies ?? 0}
-              onPress={() => onComment(item.id)}
-              formatCompactNumber={formatCompactNumber}
-              accessibilityLabel={t('videos.comment')}
-            />
-            <ActionButton
-              icon={
-                item.viewerState.isBoosted ? (
-                  <RiRepeat2Line width={30} height={30} fill={BOOST_ACTIVE_COLOR} />
-                ) : (
-                  <RiRepeat2Line width={30} height={30} fill="white" />
-                )
-              }
-              count={item.engagement.boosts ?? 0}
-              isActive={item.viewerState.isBoosted}
-              activeColor={BOOST_ACTIVE_COLOR}
-              onPress={() => onBoost(item.id, item.viewerState.isBoosted)}
-              formatCompactNumber={formatCompactNumber}
-              accessibilityLabel={t(item.viewerState.isBoosted ? 'videos.unboost' : 'videos.boost')}
-            />
-            {/* Saved state is carried by the filled icon alone — a reel's
-                        rail has no brand colour for it, and inventing one would
-                        put a fourth accent over the video. */}
-            <ActionButton
-              icon={
-                item.viewerState.isSaved ? (
-                  <RiBookmarkFill width={30} height={30} fill="white" />
-                ) : (
-                  <RiBookmarkLine width={30} height={30} fill="white" />
-                )
-              }
-              count={item.engagement.saves ?? 0}
-              onPress={() => onSave(item.id, item.viewerState.isSaved)}
-              formatCompactNumber={formatCompactNumber}
-              accessibilityLabel={t(item.viewerState.isSaved ? 'videos.unsave' : 'videos.save')}
-            />
-            <ActionButton
-              icon={<RiSendPlaneLine width={30} height={30} fill="white" />}
-              count={0}
-              onPress={() => onSendInAllo(item.id)}
-              formatCompactNumber={formatCompactNumber}
-              hideCount={true}
-              accessibilityLabel={t('videos.sendInAllo')}
-            />
-            <ActionButton
-              icon={<RiUpload2Line width={30} height={30} fill="white" />}
-              count={0}
-              onPress={() => onShare(item)}
-              formatCompactNumber={formatCompactNumber}
-              hideCount={true}
-              accessibilityLabel={t('videos.share')}
+            <PostActions
+              presentation="video"
+              t={t}
+              engagement={item.engagement}
+              isLiked={item.viewerState.isLiked}
+              isBoosted={item.viewerState.isBoosted}
+              isSaved={item.viewerState.isSaved}
+              onLike={() => onLike(item.id, item.viewerState.isLiked)}
+              onReply={postAcceptsReplies(item) ? () => onComment(item.id) : undefined}
+              onBoost={() => onBoost(item.id, item.viewerState.isBoosted)}
+              onSave={() => onSave(item.id, item.viewerState.isSaved)}
+              onShare={() => onShare(item)}
+              onSendInAllo={() => onSendInAllo(item.id)}
             />
           </View>
         </View>
@@ -1088,57 +1000,61 @@ const VideoItem = memo<VideoItemProps>(
 
 VideoItem.displayName = 'VideoItem';
 
-// ── Action button ────────────────────────────────────────────────
-interface ActionButtonProps {
-  icon: React.ReactNode;
-  count: number;
-  isActive?: boolean;
-  activeColor?: string;
-  onPress: () => void;
-  formatCompactNumber: (count: number) => string;
-  hideCount?: boolean;
-  // Required: the icon carries the whole meaning of these buttons, and the
-  // count beside it reads as the label to a screen reader otherwise ("4.2K").
-  accessibilityLabel: string;
+// ── Screen ───────────────────────────────────────────────────────
+function useVideoContentBottomInset() {
+  const screen = useScreen();
+  return (screen.bottomInsetHandled ?? screen.contentInsetsHandled) ? 0 : screen.bottomInset;
 }
 
-const ActionButton = memo<ActionButtonProps>(
-  ({
-    icon,
-    count,
-    isActive,
-    activeColor,
-    onPress,
-    formatCompactNumber,
-    hideCount = false,
-    accessibilityLabel,
-  }) => (
-    <View className="items-center gap-0.5">
-      <IconButton
-        appearance="plain"
-        size="lg"
-        onPress={onPress}
-        accessibilityLabel={accessibilityLabel}
-        pressed={isActive}
-        renderLeadingIcon={() => icon}
-      />
-      {!hideCount && (
-        <Text style={[styles.actionCount, isActive && activeColor ? { color: activeColor } : null]}>
-          {formatCompactNumber(count)}
-        </Text>
+function VideoStatus({
+  isLoading,
+  hasLoadError,
+  onRetry,
+}: {
+  isLoading: boolean;
+  hasLoadError: boolean;
+  onRetry: () => void;
+}) {
+  const { t } = useTranslation();
+  const bottomInset = useVideoContentBottomInset();
+  return (
+    <View
+      className="native:flex-1 web:min-h-[var(--bloom-screen-viewport-height)] items-center justify-center"
+      style={isLoading ? undefined : { padding: 24, paddingBottom: bottomInset + 24 }}
+      testID="videos-status"
+    >
+      {isLoading ? (
+        <VideoSkeleton />
+      ) : (
+        <EmptyState
+          title={t(hasLoadError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
+          subtitle={t(hasLoadError ? 'videos.load_failed_description' : 'videos.empty_description')}
+          sticker={hasLoadError ? 'loadError' : 'videosTab'}
+          action={{ label: t('common.retry'), onPress: onRetry }}
+        />
       )}
     </View>
-  ),
-);
+  );
+}
 
-ActionButton.displayName = 'ActionButton';
+function VideoLoadingMore() {
+  const bottomInset = useVideoContentBottomInset();
+  return (
+    <View
+      className="absolute left-0 right-0 items-center"
+      style={{ bottom: bottomInset + 24 }}
+      pointerEvents="none"
+    >
+      <SpinnerIcon size={24} className="text-white" />
+    </View>
+  );
+}
 
-// ── Screen ───────────────────────────────────────────────────────
 export default function VideosScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
-  const haptic = useHaptics();
-  const insets = useSafeAreaInsets();
+  const interactions = usePostInteractions();
+  const router = useRouter();
   const [WINDOW_HEIGHT, setViewportHeight] = useState(0);
   const pagerRef = useRef<ScreenPagerHandle>(null);
   const panelRouter = useOptionalPanelRouter();
@@ -1146,7 +1062,8 @@ export default function VideosScreen() {
   const route = useRoute();
   const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
-  const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
+  const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated, signIn } =
+    useAuth();
   const viewerId = user?.id;
   // Per-action selectors: a bare usePostsStore() re-renders the whole reel
   // screen on every unrelated posts-store write.
@@ -1158,18 +1075,13 @@ export default function VideosScreen() {
   const unsavePost = usePostsStore((s) => s.unsavePost);
   const getPostById = usePostsStore((s) => s.getPostById);
   const cachePosts = usePostsStore((s) => s.cachePosts);
-  // Desktop (>=990) gate. Actions + follow now overlay the video on every
-  // breakpoint (matching mobile); `isDesktop` only decides how the comment
-  // button behaves — a no-op on desktop (replies are already open in the
-  // RightBar) vs. opening the bottom sheet on mobile.
-  const rightBarVisible = useIsRightBarVisible();
-  const isDesktop = rightBarVisible && !inDeck;
-  const { setRailState, requestComposerFocus } = useVideosRail();
-  // The replies sheet's presented fraction, which the active video's shrink
-  // follows frame by frame (`repliesTransformStyle`).
-  const bottomSheetProgress = useSharedValue(0);
-  // Closes the replies sheet that is open now, if any.
-  const closeReplies = useRef<(() => void) | null>(null);
+  const openPostPanel = useOpenPostEngagement();
+  const repliesPanel = useVideoRepliesPanel();
+  const publishedReplies = useRef<VideoReplyDraft | undefined>(undefined);
+  const closePublishedReplies = useCallback(() => {
+    if (publishedReplies.current) repliesPanel?.closeReplies(publishedReplies.current);
+    publishedReplies.current = undefined;
+  }, [repliesPanel?.closeReplies]);
 
   const flatListRef = useRef<FlatList<VideoPost>>(null);
   const globalMuted = useVideoMuteStore((state) => state.isMuted);
@@ -1330,20 +1242,6 @@ export default function VideosScreen() {
   const targetPostId = target?.postId;
   const targetMediaIndex = target?.mediaIndex;
 
-  // Close the mobile bottom sheet when the active video changes — otherwise
-  // swiping to a new video while it's open would leave the PREVIOUS video's
-  // replies showing over the new one. Desktop has no such toggle anymore —
-  // the always-open replies column (RightBar) reflects whatever video is
-  // currently active via VideosRailContext's `activePost`, no reset needed.
-  const isFirstVisibleIndexRender = useRef(true);
-  useEffect(() => {
-    if (isFirstVisibleIndexRender.current) {
-      isFirstVisibleIndexRender.current = false;
-      return;
-    }
-    closeReplies.current?.();
-  }, [currentVisibleIndex]);
-
   // Prefetch posters in a wider radius than the live-player window — see
   // `POSTER_PREFETCH_RADIUS` above.
   useEffect(() => {
@@ -1396,7 +1294,6 @@ export default function VideosScreen() {
   const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
 
   // The reel plays edge to edge, under the app's bottom bar; its controls clear it.
-  const bottomBarHeight = useBottomEdgeInset();
 
   // Native reports the actual item, so an old index cannot select a new post.
   const handleViewableItemsChanged = useCallback(
@@ -1516,8 +1413,14 @@ export default function VideosScreen() {
 
   // The feed already selected reselects the screen instead.
   const reselect = useScreenReselect();
-  const handleSelectFeed = (feed: VideoFeedTab) =>
-    feed === activeFeed ? reselect() : setActiveFeed(feed);
+  const handleSelectFeed = (feed: VideoFeedTab) => {
+    if (feed === 'following' && !canUsePrivateApi) {
+      void signIn().catch(() => {});
+      return;
+    }
+    if (feed === activeFeed) reselect();
+    else setActiveFeed(feed);
+  };
 
   // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
   // textarea / contenteditable so the composer and search are unaffected.
@@ -1545,34 +1448,37 @@ export default function VideosScreen() {
   }, [prev, next, isFocused, inDeck]);
 
   const handleLike = useCallback(
-    async (postId: string, isLiked: boolean) => {
-      haptic('light');
-      try {
-        if (isLiked) {
-          await unlikePost({ postId, type: 'post' });
-        } else {
-          // Surface attribution (the active Reels tab) returns when the affinity hooks land.
-          await likePost({ postId, type: 'post' });
+    (postId: string, isLiked: boolean) => {
+      if (!interactions.requireSession()) return false;
+      void (async () => {
+        try {
+          if (isLiked) {
+            await unlikePost({ postId, type: 'post' });
+          } else {
+            // Surface attribution (the active Reels tab) returns when the affinity hooks land.
+            await likePost({ postId, type: 'post' });
+          }
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? {
+                    ...p,
+                    viewerState: { ...p.viewerState, isLiked: !isLiked },
+                    engagement: {
+                      ...p.engagement,
+                      likes: Math.max(0, (p.engagement.likes ?? 0) + (isLiked ? -1 : 1)),
+                    },
+                  }
+                : p,
+            ),
+          );
+        } catch {
+          toast(t('common.error'), { type: 'error' });
         }
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? {
-                  ...p,
-                  viewerState: { ...p.viewerState, isLiked: !isLiked },
-                  engagement: {
-                    ...p.engagement,
-                    likes: Math.max(0, (p.engagement.likes ?? 0) + (isLiked ? -1 : 1)),
-                  },
-                }
-              : p,
-          ),
-        );
-      } catch {
-        toast(t('common.error'), { type: 'error' });
-      }
+      })();
+      return true;
     },
-    [haptic, likePost, unlikePost, t, setPosts],
+    [interactions, likePost, unlikePost, t, setPosts],
   );
 
   const handleCommentPosted = useCallback(
@@ -1596,119 +1502,94 @@ export default function VideosScreen() {
 
   const handleComment = useCallback(
     (postId: string) => {
-      if (isDesktop) {
-        // The replies column (RightBar) is already showing this post, so
-        // there is nothing to open — but a button that paints and then does
-        // nothing observable is a dead button. Put the caret in that
-        // column's composer instead, which is what the press was asking for.
-        requestComposerFocus();
-        return;
-      }
-      let surface: SurfaceControls | undefined;
-      const close = () => surface?.dismiss();
-      closeReplies.current = close;
-      void presentSheet(
-        (controls) => {
-          surface = controls;
-          return (
-            <LazyVideoReplies
-              postId={postId}
-              onClose={close}
-              onCommentPosted={() => handleCommentPosted(postId)}
-            />
-          );
-        },
-        {
-          placement: 'bottom',
-          scrollable: false,
-          // The video stays in view above the sheet, behind no dim; a tap on it
-          // still closes the sheet.
-          backdrop: { blurIntensity: 0, dimOpacity: 0 },
-          progress: bottomSheetProgress,
-          // A fixed height, so the replies loading in never resize the sheet
-          // the video is laid out against.
-          frame: {
-            key: 'video-replies',
-            size: { height: Math.round(WINDOW_HEIGHT * REPLIES_SHEET_RATIO) },
-          },
-        },
-      ).then(() => {
-        if (closeReplies.current === close) closeReplies.current = null;
+      openPostPanel?.(postId, 'replies', {
+        onCommentPosted: () => handleCommentPosted(postId),
       });
     },
-    [isDesktop, requestComposerFocus, handleCommentPosted, bottomSheetProgress, WINDOW_HEIGHT],
+    [openPostPanel, handleCommentPosted],
   );
 
   const handleBoost = useCallback(
-    async (postId: string, isBoosted: boolean) => {
-      haptic('light');
-      try {
-        if (isBoosted) {
-          await unboostPost({ postId });
-        } else {
-          // Surface attribution (the active Reels tab) returns when the affinity hooks land.
-          await boostPost({ postId });
+    (postId: string, isBoosted: boolean) => {
+      if (!interactions.requireSession()) return false;
+      void (async () => {
+        try {
+          if (isBoosted) {
+            await unboostPost({ postId });
+          } else {
+            // Surface attribution (the active Reels tab) returns when the affinity hooks land.
+            await boostPost({ postId });
+          }
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? {
+                    ...p,
+                    viewerState: { ...p.viewerState, isBoosted: !isBoosted },
+                    engagement: {
+                      ...p.engagement,
+                      boosts: Math.max(0, (p.engagement.boosts ?? 0) + (isBoosted ? -1 : 1)),
+                    },
+                  }
+                : p,
+            ),
+          );
+        } catch {
+          toast(t('common.error'), { type: 'error' });
         }
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? {
-                  ...p,
-                  viewerState: { ...p.viewerState, isBoosted: !isBoosted },
-                  engagement: {
-                    ...p.engagement,
-                    boosts: Math.max(0, (p.engagement.boosts ?? 0) + (isBoosted ? -1 : 1)),
-                  },
-                }
-              : p,
-          ),
-        );
-      } catch {
-        toast(t('common.error'), { type: 'error' });
-      }
+      })();
+      return true;
     },
-    [haptic, boostPost, unboostPost, t, setPosts],
+    [interactions, boostPost, unboostPost, t, setPosts],
   );
 
   // Same optimistic shape as like/boost: the store's own update lands on its
   // copy of the post, which this screen's local `posts` state never reads, so
   // the rail's icon only flips if the screen updates itself.
   const handleSave = useCallback(
-    async (postId: string, isSaved: boolean) => {
-      haptic('light');
-      try {
-        if (isSaved) {
-          await unsavePost({ postId });
-        } else {
-          // Attributed to the reel surface, not to the active tab's feed
-          // descriptor: a save made here means "more videos like this"
-          // whichever feed served it, and `following` is not classified as
-          // a video-first surface (see `isVideoSurface`).
-          await savePost({ postId }, 'videos');
+    (postId: string, isSaved: boolean) => {
+      if (!interactions.requireSession()) return false;
+      void (async () => {
+        try {
+          if (isSaved) {
+            await unsavePost({ postId });
+          } else {
+            // Attributed to the reel surface, not to the active tab's feed
+            // descriptor: a save made here means "more videos like this"
+            // whichever feed served it, and `following` is not classified as
+            // a video-first surface (see `isVideoSurface`).
+            await savePost({ postId }, 'videos');
+          }
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? {
+                    ...p,
+                    viewerState: { ...p.viewerState, isSaved: !isSaved },
+                    engagement: {
+                      ...p.engagement,
+                      saves: Math.max(0, (p.engagement.saves ?? 0) + (isSaved ? -1 : 1)),
+                    },
+                  }
+                : p,
+            ),
+          );
+        } catch {
+          toast(t('common.error'), { type: 'error' });
         }
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? {
-                  ...p,
-                  viewerState: { ...p.viewerState, isSaved: !isSaved },
-                  engagement: {
-                    ...p.engagement,
-                    saves: Math.max(0, (p.engagement.saves ?? 0) + (isSaved ? -1 : 1)),
-                  },
-                }
-              : p,
-          ),
-        );
-      } catch {
-        toast(t('common.error'), { type: 'error' });
-      }
+      })();
+      return true;
     },
-    [haptic, savePost, unsavePost, t, setPosts],
+    [interactions, savePost, unsavePost, t, setPosts],
   );
 
-  // Mention has no chat; sending a reel to someone happens in Allo.
-  const interactions = usePostInteractions();
+  const handleQuote = useCallback(
+    (postId: string) => {
+      if (!interactions.requireSession()) return;
+      router.push({ pathname: '/compose', params: { quotePostId: postId } });
+    },
+    [interactions, router],
+  );
 
   const handleShare = useCallback(
     async (post: VideoPost) => {
@@ -1746,25 +1627,11 @@ export default function VideosScreen() {
     loadMutedState();
   }, [loadMutedState]);
 
-  // ── Desktop replies-panel coordination ──────────────────────────
-  // The RightBar replies panel is a read-only projection of this screen's
-  // active post. Writing this derived state to an external store is a
-  // legitimate effect. `active` flips true on mount and false on unmount so the
-  // panel mounts/unmounts in lockstep with /videos.
-  useEffect(() => {
-    if (inDeck || !isFocused) return;
-    setRailState({ active: true });
-    return () => {
-      setRailState({ active: false, activePost: null });
-    };
-  }, [setRailState, inDeck, isFocused]);
-
   const activeVideoPost = posts[currentVisibleIndex];
-
-  const railActivePost = useMemo<VideosRailActivePost | null>(() => {
-    if (!activeVideoPost) return null;
-    return { id: activeVideoPost.id };
-  }, [activeVideoPost]);
+  const activeVideoPostId = activeVideoPost?.id;
+  const handleActiveVideoCommentPosted = useCallback(() => {
+    if (activeVideoPostId) handleCommentPosted(activeVideoPostId);
+  }, [activeVideoPostId, handleCommentPosted]);
 
   // ── OS transport controls ───────────────────────────────────────
   // Media keys, the lock screen, and — the reason this is wired at all — the
@@ -1858,14 +1725,28 @@ export default function VideosScreen() {
     canReportImpressions: canUsePrivateApi,
   });
 
-  // Publish the active post + the comment-posted callback so the RightBar
-  // replies panel tracks whichever video is currently active and can bump the
-  // comment count after a reply posts. Engagement itself lives on the on-video
-  // action buttons (both platforms), so nothing else needs to cross over.
+  // Publish only the active video, scoped to this route's shell host. Bloom decides
+  // whether its automatic inline replies fit; a floating sheet waits for a press.
   useEffect(() => {
-    if (inDeck || !isFocused) return;
-    setRailState({ activePost: railActivePost, onCommentPosted: handleCommentPosted });
-  }, [setRailState, railActivePost, handleCommentPosted, inDeck, isFocused]);
+    if (!isFocused) {
+      publishedReplies.current = undefined;
+      return;
+    }
+    if (!activeVideoPostId) {
+      closePublishedReplies();
+      return;
+    }
+    publishedReplies.current = repliesPanel?.publishReplies(
+      activeVideoPostId,
+      handleActiveVideoCommentPosted,
+    );
+  }, [
+    repliesPanel?.publishReplies,
+    activeVideoPostId,
+    handleActiveVideoCommentPosted,
+    isFocused,
+    closePublishedReplies,
+  ]);
 
   const renderVideoItem = useCallback(
     ({ item, index }: { item: VideoPost; index: number }) => (
@@ -1888,17 +1769,15 @@ export default function VideosScreen() {
         theme={theme}
         onLike={handleLike}
         onComment={handleComment}
+        onQuote={handleQuote}
         onBoost={handleBoost}
         onSave={handleSave}
         onShare={handleShare}
         onSendInAllo={interactions.sendInAllo}
-        formatCompactNumber={formatCompactNumber}
         muted={globalMuted}
         onMutedChange={handleMuteChange}
-        bottomBarHeight={bottomBarHeight}
         t={t}
         windowHeight={WINDOW_HEIGHT}
-        bottomSheetProgress={bottomSheetProgress}
         viewerId={viewerId}
         ownsSession={item.id === pipOwnerId}
         sessionActive={pipOwnerId !== null}
@@ -1916,16 +1795,15 @@ export default function VideosScreen() {
       theme,
       handleLike,
       handleComment,
+      handleQuote,
       handleBoost,
       handleSave,
       handleShare,
       interactions.sendInAllo,
       globalMuted,
       handleMuteChange,
-      bottomBarHeight,
       t,
       WINDOW_HEIGHT,
-      bottomSheetProgress,
       viewerId,
       pipOwnerId,
       sessionSource,
@@ -1967,26 +1845,12 @@ export default function VideosScreen() {
               testID="videos-header"
               titleAlign="center"
               presentation="floating"
-              title={
-                <SegmentedControl<VideoFeedTab>
-                  label={t('seo.videos.title')}
-                  type="radio"
-                  size="lg"
-                  value={activeFeed}
-                  onValueChange={handleSelectFeed}
-                >
-                  <SegmentedControlItem value="videos">
-                    <SegmentedControlItemText>{t('videos.tabs.forYou')}</SegmentedControlItemText>
-                  </SegmentedControlItem>
-                  {canUsePrivateApi && (
-                    <SegmentedControlItem value="following">
-                      <SegmentedControlItemText>
-                        {t('videos.tabs.following')}
-                      </SegmentedControlItemText>
-                    </SegmentedControlItem>
-                  )}
-                </SegmentedControl>
-              }
+              scrim="always"
+              scrimColor="#000000"
+              scrimFalloff="linear"
+              tone="onImage"
+              onBack={inDeck ? undefined : null}
+              title={<VideoFeedTabs value={activeFeed} onValueChange={handleSelectFeed} />}
             />
           }
         >
@@ -2030,17 +1894,15 @@ export default function VideosScreen() {
                         theme={theme}
                         onLike={handleLike}
                         onComment={handleComment}
+                        onQuote={handleQuote}
                         onBoost={handleBoost}
                         onSave={handleSave}
                         onShare={handleShare}
                         onSendInAllo={interactions.sendInAllo}
-                        formatCompactNumber={formatCompactNumber}
                         muted={globalMuted}
                         onMutedChange={handleMuteChange}
-                        bottomBarHeight={bottomBarHeight}
                         t={t}
                         windowHeight={viewportHeight}
-                        bottomSheetProgress={bottomSheetProgress}
                         viewerId={viewerId}
                         ownsSession={item.id === pipOwnerId}
                         sessionActive={pipOwnerId !== null}
@@ -2081,43 +1943,13 @@ export default function VideosScreen() {
             )}
 
             {posts.length === 0 && (
-              <View
-                className="native:flex-1 web:min-h-[var(--bloom-screen-viewport-height)] items-center justify-center"
-                style={
-                  isLoading
-                    ? undefined
-                    : {
-                        paddingTop: insets.top + 72,
-                        paddingBottom: bottomBarHeight + 24,
-                        paddingHorizontal: 24,
-                      }
-                }
-                testID="videos-status"
-              >
-                {isLoading ? (
-                  <VideoSkeleton />
-                ) : (
-                  <EmptyState
-                    title={t(hasLoadError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
-                    subtitle={t(
-                      hasLoadError ? 'videos.load_failed_description' : 'videos.empty_description',
-                    )}
-                    sticker={hasLoadError ? 'loadError' : 'videosTab'}
-                    action={{ label: t('common.retry'), onPress: handleRetry }}
-                  />
-                )}
-              </View>
+              <VideoStatus
+                isLoading={isLoading}
+                hasLoadError={hasLoadError}
+                onRetry={handleRetry}
+              />
             )}
-
-            {loadingMore && (
-              <View
-                className="absolute left-0 right-0 items-center"
-                style={{ bottom: bottomBarHeight + 24 }}
-                pointerEvents="none"
-              >
-                <SpinnerIcon size={24} className="text-white" />
-              </View>
-            )}
+            {loadingMore && <VideoLoadingMore />}
           </View>
         </Screen>
       </BloomColorScope>
@@ -2141,15 +1973,6 @@ const TEXT_SHADOW_MEDIUM: Pick<
   textShadowColor: 'rgba(0, 0, 0, 0.8)',
   textShadowOffset: { width: 0, height: 1 },
   textShadowRadius: 2,
-};
-
-const TEXT_SHADOW_HANDLE: Pick<
-  TextStyle,
-  'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'
-> = {
-  textShadowColor: 'rgba(0, 0, 0, 0.9)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 4,
 };
 
 const styles = StyleSheet.create({
@@ -2271,16 +2094,8 @@ const styles = StyleSheet.create({
   rightActions: {
     justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 16,
+    gap: 0,
     zIndex: 6,
-  },
-  actionCount: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-    ...TEXT_SHADOW_MEDIUM,
-    marginTop: 0,
-    textAlign: 'center',
   },
   bottomInfo: {
     flex: 1,
@@ -2291,7 +2106,7 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   userInfo: {
-    gap: 8,
+    gap: 4,
   },
   userHeaderRow: {
     flexDirection: 'row',
@@ -2302,7 +2117,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
   },
   onVideoFollow: {
@@ -2322,15 +2137,9 @@ const styles = StyleSheet.create({
   userFullName: {
     flexShrink: 1,
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
     ...TEXT_SHADOW_STRONG,
-  },
-  userHandle: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 14,
-    fontWeight: '600',
-    ...TEXT_SHADOW_HANDLE,
   },
   verifiedIcon: {
     marginLeft: 2,

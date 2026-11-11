@@ -5,8 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { LazyVideoReplies } from './videos/LazyVideoReplies';
-import { useVideosRail } from '@/context/VideosRailContext';
 import { asTextStyle } from '@/types/webStyles';
 import { useTopicRailStore } from '@/stores/topicRailStore';
 
@@ -38,21 +36,7 @@ export function RightBar() {
 }
 
 function RightBarContent() {
-  // The /videos screen is the sole writer of `active` — true ONLY while that
-  // route is mounted. Reading it here keeps the rail swap reactive and exact
-  // (no pathname string-matching), so the immersive rail mounts/unmounts in
-  // lockstep with the videos screen.
-  const { active: videosRailActive, activePost, onCommentPosted } = useVideosRail();
   const topicTerm = useTopicRailStore((state) => state.term);
-
-  if (videosRailActive) {
-    return activePost ? (
-      <LazyVideoReplies
-        postId={activePost.id}
-        onCommentPosted={() => onCommentPosted(activePost.id)}
-      />
-    ) : null;
-  }
 
   return (
     // No column `gap` — each child owns its own bottom margin, see `BaseWidget`.

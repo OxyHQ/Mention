@@ -21,7 +21,7 @@ export function VideoRepostBubble({ visible, onAddThought }: VideoRepostBubblePr
     <View className="relative h-8 w-8" aria-hidden importantForAccessibility="no-hide-descendants">
       <AccountAvatar account={user} source={user.avatar} size={32} />
       <View className="absolute -bottom-0.5 -right-1 h-4 w-4 items-center justify-center rounded-full bg-violet-500">
-        <RiRepeat2Line size={10} fill="#FFFFFF" />
+        <RiRepeat2Line width={10} height={10} fill="#FFFFFF" />
       </View>
     </View>
   );

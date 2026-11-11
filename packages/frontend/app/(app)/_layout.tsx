@@ -85,7 +85,11 @@ export default function AppLayout() {
     },
     [engagementViewer, engagementState.generation],
   );
-  const withEngagement = (host: AppShellPanelDefinition, documentWhenAlone = false) => {
+  const withEngagement = (
+    host: AppShellPanelDefinition,
+    documentWhenAlone = false,
+    videoRoute = false,
+  ) => {
     const entry =
       isAuthResolved && engagementState.viewer === engagementViewer
         ? engagementState.panels[host.id]
@@ -97,6 +101,16 @@ export default function AppLayout() {
         usePostEngagementPanels
           .getState()
           .close(engagementViewer, engagementState.generation, host.id),
+      () =>
+        entry &&
+        usePostEngagementPanels
+          .getState()
+          .dismissFloating(
+            engagementViewer,
+            engagementState.generation,
+            host.id,
+            entry.destination,
+          ),
       () => {
         if (entry) {
           usePostEngagementPanels
@@ -109,16 +123,20 @@ export default function AppLayout() {
             );
         }
       },
-      entry?.destination.kind === 'insights'
-        ? t('insights.post.title')
-        : entry?.destination.kind === 'boosts'
-          ? t('post.boostsTitle', { defaultValue: 'Reposts' })
-          : t('post.likesTitle', { defaultValue: 'Likes' }),
+      videoRoute || entry?.destination.kind === 'replies'
+        ? t('videos.replies')
+        : entry?.destination.kind === 'insights'
+          ? t('insights.post.title')
+          : entry?.destination.kind === 'boosts'
+            ? t('post.boostsTitle', { defaultValue: 'Reposts' })
+            : t('post.likesTitle', { defaultValue: 'Likes' }),
       reportBoundaryError,
       documentWhenAlone,
+      videoRoute,
     );
   };
   const pathname = usePathname();
+  const onVideosRoute = pathname === '/videos';
   const deckAvailable = useDeckAvailable();
   const deckOpen = (pathname === '/deck' || deckEnabled) && deckAvailable;
   const firstDeckId = deckOrder[0];
@@ -168,7 +186,7 @@ export default function AppLayout() {
   // both under the keyboard.
   const bottomContent = bottomBarContent({ pathname, isAuthenticated, isAuthResolved });
 
-  // The app-shell contexts this subtree reads (videos rail, video playback,
+  // The app-shell contexts this subtree reads (video playback,
   // navigation) are mounted by <AppShellProviders>
   // up in `components/providers/AppProviders.tsx`. They CANNOT live here: bottom
   // sheets and bloom's native portal outlet render their content above this
@@ -244,7 +262,7 @@ export default function AppLayout() {
                 // including the Deck entry link that opens the home route.
                 keepMounted: true,
                 bottomBar: bottomContent === 'sign-in' ? <SignInBanner /> : undefined,
-                width: deckOpen ? 390 : 620,
+                width: deckOpen ? 390 : onVideosRoute ? 978 : 620,
                 minWidth: deckOpen ? 390 : 0,
                 maxWidth: deckOpen ? 390 : undefined,
                 resizable: false,
@@ -260,15 +278,16 @@ export default function AppLayout() {
                 ),
               },
               IS_WEB && !deckOpen,
+              onVideosRoute,
             ),
             {
               id: 'context',
-              visible: !deckOpen,
+              visible: !deckOpen && !onVideosRoute,
               errorBoundary: { onError: reportBoundaryError },
               sticky: true,
               width: 350,
               hideBelow: 990,
-              appearance: pathname === '/videos' ? 'solid' : 'plain',
+              appearance: 'plain',
               chrome: 'none',
               scroll: 'content',
               content: <RightBar />,
@@ -277,57 +296,56 @@ export default function AppLayout() {
               .filter((id) => deckPanels[id])
               .map((id) => {
                 const panel = deckPanels[id];
-                return withEngagement({
-                  id,
-                  visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
-                  errorBoundary: { onError: reportBoundaryError },
-                  width: panel.width,
-                  appearance: panel.appearance,
-                  colorPreset: panel.colorPreset,
-                  onWidthChange: (width: number) => {
-                    const current = useDeckSettings.getState();
-                    if (
-                      current.viewer === deckViewer &&
-                      current.restorationEpoch === deckRestorationEpoch
-                    )
-                      updateDeckPanel(id, { width });
-                  },
-                  minWidth: 300,
-                  maxWidth: 620,
-                  resizable: panel.resizable,
-                  reorderable: true,
-                  reorderLabel: t(`deck.sources.${panel.source}`),
-                  scroll: 'content' as const,
-                  headerActions: <DeckColumnHeaderActions panelId={id} />,
-                  navigation: {
-                    initialEntries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
-                    state: panel.navigation ?? {
-                      entries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
-                      index: 0,
-                    },
-                    scrollRestoration: {
-                      scopeKey: `${deckViewer}:${deckRestorationEpoch}`,
-                      initialSnapshot: panel.scrollOffsets,
-                      onSnapshotChange: (scrollOffsets: Readonly<Record<string, number>>) => {
+                return withEngagement(
+                  {
+                    id,
+                    visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
+                    errorBoundary: { onError: reportBoundaryError },
+                    width: panel.width,
+                    appearance: panel.appearance,
+                    colorPreset: panel.colorPreset,
+                    minWidth: 300,
+                    maxWidth: 620,
+                    resizable: false,
+                    reorderable: true,
+                    reorderLabel: t(`deck.sources.${panel.source}`),
+                    scroll: 'content' as const,
+                    headerActions: <DeckColumnHeaderActions panelId={id} />,
+                    navigation: {
+                      initialEntries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
+                      state: panel.navigation ?? {
+                        entries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
+                        index: 0,
+                      },
+                      scrollRestoration: {
+                        scopeKey: `${deckViewer}:${deckRestorationEpoch}`,
+                        initialSnapshot: panel.scrollOffsets,
+                        onSnapshotChange: (scrollOffsets: Readonly<Record<string, number>>) => {
+                          const current = useDeckSettings.getState();
+                          if (
+                            current.viewer === deckViewer &&
+                            current.restorationEpoch === deckRestorationEpoch
+                          )
+                            updateDeckPanel(id, { scrollOffsets: { ...scrollOffsets } });
+                        },
+                      },
+                      onNavigationChange: (navigation: PanelNavigationState) => {
                         const current = useDeckSettings.getState();
                         if (
                           current.viewer === deckViewer &&
                           current.restorationEpoch === deckRestorationEpoch
                         )
-                          updateDeckPanel(id, { scrollOffsets: { ...scrollOffsets } });
+                          updateDeckPanel(id, { navigation });
                       },
+                      render: () => <DeckColumn panelId={id} />,
                     },
-                    onNavigationChange: (navigation: PanelNavigationState) => {
-                      const current = useDeckSettings.getState();
-                      if (
-                        current.viewer === deckViewer &&
-                        current.restorationEpoch === deckRestorationEpoch
-                      )
-                        updateDeckPanel(id, { navigation });
-                    },
-                    render: () => <DeckColumn panelId={id} />,
                   },
-                });
+                  false,
+                  (
+                    panel.navigation?.entries[panel.navigation.index]?.name ??
+                    deckRouteForSource(panel.source).name
+                  ).split(/[?#]/)[0] === '/videos',
+                );
               }),
           ],
         }}

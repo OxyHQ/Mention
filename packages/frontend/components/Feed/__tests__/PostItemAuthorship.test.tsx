@@ -509,7 +509,9 @@ it.each([
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       renderer = TestRenderer.create(
-        <PostEngagementContext.Provider value={openPanel}>
+        <PostEngagementContext.Provider
+          value={{ open: openPanel, publishReplies: jest.fn(), closeReplies: jest.fn() }}
+        >
           <PostItem post={post} isPostDetail={detail} isNested={nested} />
         </PostEngagementContext.Provider>,
       );

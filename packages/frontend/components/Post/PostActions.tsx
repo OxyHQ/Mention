@@ -1,4 +1,12 @@
 import React from 'react';
+import { IconButton } from '@oxy.so/bloom/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import type { TFunction } from 'i18next';
 import type { AccessibilityActionEvent } from 'react-native';
 import { EngagementAction, EngagementBar, EngagementGroup } from '@oxy.so/bloom/engagement-bar';
@@ -38,6 +46,7 @@ interface Engagement {
 }
 
 interface Props {
+  presentation?: 'post' | 'video';
   t: TFunction;
   engagement: Engagement;
   isLiked?: boolean;
@@ -83,6 +92,7 @@ interface Props {
 
 const PostActions: React.FC<Props> = ({
   t,
+  presentation = 'post',
   engagement,
   isLiked,
   isDownvoted,
@@ -104,59 +114,88 @@ const PostActions: React.FC<Props> = ({
   const voteStyle = useVoteStyle();
 
   const likes = engagement?.likes ?? 0;
+  const video = presentation === 'video';
 
-  // ONE action bar, rendered identically wherever a post appears — a feed row
-  // and the focused post on `/p/:id` included. A focused post adds
-  // <PostDetailStats> BELOW this bar; it does not get a bar of its own.
+  // One action definition: posts use the horizontal bar, immersive videos its vertical presentation.
   return (
     <EngagementBar
       formatCount={formatCompactNumber}
+      orientation={video ? 'vertical' : 'horizontal'}
+      size={video ? 'lg' : 'md'}
+      tone={video ? 'onImage' : undefined}
+      showZeroCounts={video}
       trailing={
-        <>
-          <EngagementAction
-            icon={RiBookmarkLine}
-            activeIcon={RiBookmarkFill}
-            accessibilityLabel={t('postActions.save')}
-            count={engagement?.saves}
-            active={!!isSaved}
-            onPress={onSave}
-          />
-          {onTranslate ? (
+        video ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild label={t('videos.more')}>
+              <IconButton
+                appearance="plain"
+                tone="neutral"
+                size="lg"
+                iconSize={28}
+                leadingIcon={RiMoreFill}
+                accessibilityLabel={t('videos.more')}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent label={t('videos.more')}>
+              <DropdownMenuItem
+                leading={isSaved ? <RiBookmarkFill size="sm" /> : <RiBookmarkLine size="sm" />}
+                onPress={onSave}
+              >
+                {t(isSaved ? 'videos.unsave' : 'videos.save')}
+              </DropdownMenuItem>
+              <DropdownMenuItem leading={<RiUpload2Line size="sm" />} onPress={onShare}>
+                {t('videos.share')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <>
             <EngagementAction
-              icon={RiTranslate2}
-              accessibilityLabel={t('compose.languages.overwriteConfirm')}
-              active={!!isTranslated}
-              busy={isTranslating}
-              onPress={onTranslate}
-              // The icon's SECOND job — reading the post in some other language —
-              // hangs off a long press, which no screen reader performs, so the
-              // accessibility action carries the same call. Both arrive together
-              // or not at all: an advertised action that does nothing is worse
-              // than an absent one.
-              {...(onTranslateLongPress
-                ? {
-                    onLongPress: onTranslateLongPress,
-                    accessibilityActions: [
-                      { name: 'translateTo', label: t('postActions.readInAnotherLanguage') },
-                    ],
-                    onAccessibilityAction: (event: AccessibilityActionEvent) => {
-                      if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
-                    },
-                  }
-                : null)}
+              icon={RiBookmarkLine}
+              activeIcon={RiBookmarkFill}
+              accessibilityLabel={t('postActions.save')}
+              count={engagement?.saves}
+              active={!!isSaved}
+              onPress={onSave}
             />
-          ) : null}
-          {onInsightsPress ? (
-            <EngagementAction
-              icon={RiBarChartBoxLine}
-              accessibilityLabel={t('postActions.insights')}
-              onPress={onInsightsPress}
-            />
-          ) : null}
-        </>
+            {onTranslate ? (
+              <EngagementAction
+                icon={RiTranslate2}
+                accessibilityLabel={t('compose.languages.overwriteConfirm')}
+                active={!!isTranslated}
+                busy={isTranslating}
+                onPress={onTranslate}
+                // The icon's SECOND job — reading the post in some other language —
+                // hangs off a long press, which no screen reader performs, so the
+                // accessibility action carries the same call. Both arrive together
+                // or not at all: an advertised action that does nothing is worse
+                // than an absent one.
+                {...(onTranslateLongPress
+                  ? {
+                      onLongPress: onTranslateLongPress,
+                      accessibilityActions: [
+                        { name: 'translateTo', label: t('postActions.readInAnotherLanguage') },
+                      ],
+                      onAccessibilityAction: (event: AccessibilityActionEvent) => {
+                        if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
+                      },
+                    }
+                  : null)}
+              />
+            ) : null}
+            {onInsightsPress ? (
+              <EngagementAction
+                icon={RiBarChartBoxLine}
+                accessibilityLabel={t('postActions.insights')}
+                onPress={onInsightsPress}
+              />
+            ) : null}
+          </>
+        )
       }
     >
-      {voteStyle === 'pill' && onDownvote ? (
+      {!video && voteStyle === 'pill' && onDownvote ? (
         <EngagementGroup>
           <EngagementAction
             icon={RiArrowUpSLine}
@@ -212,11 +251,13 @@ const PostActions: React.FC<Props> = ({
           onPress={onSendInAllo}
         />
       ) : null}
-      <EngagementAction
-        icon={RiUpload2Line}
-        accessibilityLabel={t('videos.share')}
-        onPress={onShare}
-      />
+      {!video && (
+        <EngagementAction
+          icon={RiUpload2Line}
+          accessibilityLabel={t('videos.share')}
+          onPress={onShare}
+        />
+      )}
     </EngagementBar>
   );
 };

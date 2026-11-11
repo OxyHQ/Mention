@@ -12,7 +12,7 @@ guide alongside [Frontend rules](./frontend-rules.md).
 The application keeps one AppShell and changes its declarative `panelLayout`.
 Normal screens use document flow; Deck uses bounded columns with horizontal
 scroll on the document and independent vertical scroll in each column. Vertical
-and trailing gutters, sidebar overlap material, resize constraints and transitions
+and trailing gutters, sidebar overlap material, size constraints and transitions
 belong to Bloom. Restored `activePanel` is passive: loading Deck does not scroll
 horizontally to the last selected column. Adding a column issues Bloom's transient
 `revealPanel` request so the new column comes into view. This request is excluded
@@ -195,12 +195,9 @@ Opening a post's likes, reposts or Insights splits only the originating panel
 vertically. The direct Insights button is offered only on an owned focused post
 detail (including a Deck route), not feed cards or nested replies; the existing
 permission-gated overflow menu shares the same host dispatch. The
-post and engagement list share the available height equally until the reader
-moves Bloom's separator; each uses its own real Bloom scroll owner. The auxiliary
-panel declares `resizeMaxHeight: 'content'`: dragging cannot create more empty
-height beyond its actual content and authored minimum. If its initial equal share
-is already larger, it can shrink progressively without jumping, and cannot grow
-back into the released empty space. Long lists retain the available resize range. The main pane
+post and engagement list share the available height equally; each uses its own
+real Bloom scroll owner. Mention exposes no resize handles, including on saved
+Deck columns. Their authored sizing and responsive bounds remain active. The main pane
 has a useful minimum of 224px normally, or 368px when the host includes
 the anonymous sign-in footer; the auxiliary pane has its own 128px minimum for
 its header and a readable row. These authored bounds leave room for screen chrome
@@ -220,7 +217,7 @@ finish, then transfers the current reading offset to the document in the same ha
 Deck groups stay bounded throughout. Group and routed leaf IDs retain the
 existing workspace IDs in their separate sibling scopes, preserving saved
 navigation and scroll snapshot keys. Bloom owns responsive eligibility,
-geometry, animation, resizing and scroll-owner transfer; Mention measures none
+geometry, animation and scroll-owner transfer; Mention measures none
 of these.
 
 One lightweight provider captures each main or Deck host's route and navigation;
@@ -238,7 +235,39 @@ single Bloom Screen/ScreenScrollView, including its standalone sheet fallback.
 Retained exit content follows Bloom's actual lifecycle, never an application timer,
 a second active list or a render-time ref in the shell.
 
+## Video replies and immersive presentation
+
+Videos uses the same host-owned compositor with a horizontal group: the main
+route has an authored 978px budget for its 620px video and 350px replies plus the
+shared gap. This horizontal shape and an empty replies Screen are declared from
+the host's active route before feed data arrives, including parameterized Deck
+video routes, so the video never first occupies the replies column. The current
+video's replies are available inline automatically.
+Narrow windows and narrow Deck columns use Bloom's capacity policy to present
+one floating replies screen, opened by the reply action. Dismissing that sheet
+clears floating intent while keeping automatic inline availability; changing the
+active video, losing the active item, leaving the route or switching viewer
+releases the previous owner. RightBar no longer owns a second replies renderer.
+
+The transient destination owns draft text, edit revision and any pending send.
+Changing inline/sheet presentation can remount the composer without losing those
+data or permitting duplicate submission. A route close followed by an immediate
+return creates a new owner, so an earlier completion cannot clear its draft.
+Viewer and session epoch fences remain in force. Typing subscribes only the
+composer, not the shell layout. Video keys, decoder ownership and pager state
+remain separate from the supporting panel; opening replies applies no video
+translation, scale or viewport-height calculation in Mention.
+
+The floating header uses plain For You/Following tabs and real followed-account
+avatars. Following and write actions retain their session gates. The immersive
+route keeps Mention navigation for anonymous readers instead of reserving a
+large sign-in footer. Content consumes Bloom's remaining bottom inset once.
+FollowButton stays the shared component without custom styles. Video engagement
+uses PostActions' vertical presentation with the same Bloom activation and count
+animations; Save and external Share remain in its overflow menu.
+
 This integration depends on the Bloom release containing nested `group` and
-`singlePanelFlow` and `onExitComplete`; publish that shared release through CI before updating the
+`singlePanelFlow`, `onExitComplete`, the vertical EngagementBar presentation and
+PageHeader linear scrim falloff; publish that shared release through CI before updating the
 consumer's catalog version. A local built-package snapshot can validate the
 integration but does not establish published-package adoption.

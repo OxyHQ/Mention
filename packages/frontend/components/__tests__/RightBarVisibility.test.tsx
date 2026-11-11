@@ -6,7 +6,6 @@ const mockStart = jest.fn();
 const mockStop = jest.fn();
 
 jest.mock('@oxy.so/bloom/app-shell', () => ({ useAppShellPanel: () => mockPanel }));
-jest.mock('@/context/VideosRailContext', () => ({ useVideosRail: () => ({ active: false }) }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: jest.fn() }));
 jest.mock('../videos/LazyVideoReplies', () => ({ LazyVideoReplies: () => null }));

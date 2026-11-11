@@ -1,7 +1,10 @@
 import { lazy, Suspense, type ErrorInfo } from 'react';
+import { Screen } from '@oxy.so/bloom/screen';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { AppShellPanelDefinition } from '@oxy.so/bloom/app-shell';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { PostEngagementProvider } from './PostEngagementProvider';
+import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
 import type { PostEngagementPanel } from './postEngagementPanels';
 
 const EngagementList = lazy(() => import('./EngagementList'));
@@ -12,13 +15,17 @@ export function postEngagementGroup(
   host: AppShellPanelDefinition,
   engagement: PostEngagementPanel | undefined,
   close: () => void,
+  dismissFloating: () => void,
   onExitComplete: () => void,
   label: string,
   onError: (error: Error, info: ErrorInfo) => void,
   documentWhenAlone = false,
+  videoRoute = false,
 ): AppShellPanelDefinition {
   const { content, navigation, bottomBar, headerActions, scroll, errorBoundary, ...group } = host;
-  const destination = engagement?.destination;
+  const destination =
+    videoRoute && engagement?.destination.route !== '/videos' ? undefined : engagement?.destination;
+  const videoReplies = videoRoute || destination?.kind === 'replies';
   // Authored chrome budget: the anonymous sign-in footer needs more room than a reply composer.
   const mainMinimumHeight = bottomBar ? 368 : 224;
   return {
@@ -26,7 +33,7 @@ export function postEngagementGroup(
     testID: host.testID ?? `mention-shell-panels-${host.id}`,
     group: {
       mode: 'split',
-      axis: 'vertical',
+      axis: videoReplies ? 'horizontal' : 'vertical',
       flow: 'bounded',
       singlePanelFlow: documentWhenAlone ? 'document' : undefined,
       appearance: 'separated',
@@ -56,32 +63,42 @@ export function postEngagementGroup(
           keepMounted: host.keepMounted,
           appearance: host.appearance,
           colorPreset: host.colorPreset,
-          span: 1,
+          span: videoReplies ? 620 : 1,
+          minWidth: videoReplies ? 300 : undefined,
           minHeight: mainMinimumHeight,
-          resizable: true,
+          resizable: false,
         },
         {
           id: `${host.id}:engagement`,
           testID: `mention-shell-panels-${host.id}-engagement`,
-          visible: engagement?.isOpen ?? false,
+          visible: videoRoute || (engagement?.isOpen ?? false),
           onExitComplete,
-          span: 1,
-          minHeight: 128,
-          resizeMaxHeight: 'content',
+          span: videoReplies ? 350 : 1,
+          minWidth: videoReplies ? 280 : undefined,
+          minHeight: videoReplies ? 224 : 128,
+          resizable: false,
           errorBoundary: { onError },
           floating: {
-            below: 'md',
+            below: videoReplies ? 990 : 'md',
             whenConstrained: true,
-            open: engagement?.isOpen ?? false,
+            open: (engagement?.isOpen ?? false) && (engagement?.floatingOpen ?? true),
             onOpenChange: (isOpen) => {
-              if (!isOpen) close();
+              if (!isOpen) dismissFloating();
             },
             placement: 'bottom',
             label,
           },
           content: destination ? (
             <Suspense fallback={<ListSkeleton count={4} />}>
-              {destination.kind === 'insights' ? (
+              {destination.kind === 'replies' ? (
+                <LazyVideoReplies
+                  key={`replies:${destination.postId}`}
+                  postId={destination.postId}
+                  onCommentPosted={destination.onCommentPosted}
+                  focusComposerNonce={engagement?.focusComposerNonce}
+                  draft={engagement?.replyDraft}
+                />
+              ) : destination.kind === 'insights' ? (
                 <PostInsightsSheet
                   key={`insights:${destination.postId}`}
                   postId={destination.postId}
@@ -97,6 +114,12 @@ export function postEngagementGroup(
                 />
               )}
             </Suspense>
+          ) : videoRoute ? (
+            <Screen
+              scroll="none"
+              testID="video-replies-pending"
+              header={<PageHeader title={label} onBack={null} safeArea={false} />}
+            />
           ) : null,
         },
       ],

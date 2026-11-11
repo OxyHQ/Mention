@@ -10,6 +10,8 @@ import { toast } from '@oxy.so/bloom/toast';
 import { logger } from '@oxy.so/core/logger';
 import { usePostsStore } from '@/stores/postsStore';
 import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
+import { useStore } from 'zustand';
+import { createVideoReplyDraft, type VideoReplyDraft } from './videoReplyDraft';
 
 interface InlineReplyComposerProps {
   postId: string;
@@ -23,6 +25,7 @@ interface InlineReplyComposerProps {
    * both presses have to land.
    */
   focusNonce?: number;
+  draft?: VideoReplyDraft;
 }
 
 /**
@@ -34,20 +37,18 @@ export function InlineReplyComposer({
   postId,
   onPosted,
   focusNonce = 0,
+  draft,
 }: InlineReplyComposerProps) {
   const { t } = useTranslation();
   const theme = useTheme();
-  // This composer is pinned under a scrolling reply list on TWO different
-  // surfaces — the right rail's panel and the video-replies bottom sheet — so
-  // the colour it has to be opaque in is not the same one in both. `bg-card`
-  // was the rail's answer given in the sheet too.
+  // The shared panel or floating surface owns the opaque composer fill.
   const surfaceFill = useSurfaceFill();
   const createReply = usePostsStore((s) => s.createReply);
-  const { capture, isMounted } = usePublicationContinuation();
-  const [text, setText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const editRevision = useRef(0);
-  const activeSubmission = useRef<symbol | null>(null);
+  const [localDraft] = useState(() => draft ?? createVideoReplyDraft());
+  const replyDraft = draft ?? localDraft;
+  const text = useStore(replyDraft.store, (state) => state.text);
+  const submitting = useStore(replyDraft.store, (state) => state.pending !== null);
+  const { capture } = usePublicationContinuation(replyDraft.isCurrent);
   const inputRef = useRef<TextInputInstance | null>(null);
 
   // Only a change taken while this composer was mounted counts. Seeding the ref
@@ -61,17 +62,15 @@ export function InlineReplyComposer({
   }, [focusNonce]);
 
   const handleSubmit = useCallback(async () => {
-    const trimmed = text.trim();
+    const current = replyDraft.store.getState();
     const isCurrentOwner = capture();
-    if (!trimmed || submitting || activeSubmission.current) return;
+    if (!current.text.trim() || current.pending) return;
     if (!isCurrentOwner) {
       toast(t('common.error', { defaultValue: 'Something went wrong' }), { type: 'error' });
       return;
     }
-    const revision = editRevision.current;
-    const operation = Symbol('reply');
-    activeSubmission.current = operation;
-    setSubmitting(true);
+    const operation = current.begin();
+    if (!operation) return;
     let confirmed = false;
     const warnUnconfirmed = () =>
       toast(
@@ -81,13 +80,13 @@ export function InlineReplyComposer({
         { type: 'error' },
       );
     try {
-      await createReply({ postId, content: { text: trimmed } });
+      await createReply({ postId, content: { text: operation.text } });
       confirmed = true;
       if (!isCurrentOwner()) {
         if (capture()) warnUnconfirmed();
         return;
       }
-      if (editRevision.current === revision) setText('');
+      replyDraft.store.getState().clearIfUnchanged(operation.revision);
       onPosted();
     } catch (error) {
       if (confirmed) {
@@ -96,12 +95,9 @@ export function InlineReplyComposer({
         warnUnconfirmed();
       }
     } finally {
-      if (activeSubmission.current === operation) {
-        activeSubmission.current = null;
-        if (isMounted()) setSubmitting(false);
-      }
+      replyDraft.store.getState().finish(operation.id);
     }
-  }, [text, submitting, createReply, postId, onPosted, t, capture, isMounted]);
+  }, [replyDraft, createReply, postId, onPosted, t, capture]);
 
   return (
     <>
@@ -110,10 +106,7 @@ export function InlineReplyComposer({
         <Textarea
           inputRef={inputRef}
           value={text}
-          onChangeText={(value) => {
-            editRevision.current += 1;
-            setText(value);
-          }}
+          onChangeText={replyDraft.store.getState().setText}
           placeholder={t('videos.addComment')}
           size="sm"
           rows={1}

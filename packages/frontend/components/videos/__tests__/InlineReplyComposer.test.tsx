@@ -317,3 +317,89 @@ it('does not report uncertainty if a local callback fails after a confirmed repl
   act(() => renderer.unmount());
   report.mockRestore();
 });
+
+it.each([false, true])(
+  'keeps one pending send across presentation remount and preserves subsequent edits=%s',
+  async (edit) => {
+    const { createVideoReplyDraft } = jest.requireActual('../videoReplyDraft');
+    const draft = createVideoReplyDraft(() => true);
+    let complete!: () => void;
+    mockCreateReply.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = () => resolve({ id: 'reply' });
+        }),
+    );
+    const onPosted = jest.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    const mount = () =>
+      TestRenderer.create(<InlineReplyComposer postId="p" draft={draft} onPosted={onPosted} />);
+    act(() => {
+      renderer = mount();
+    });
+    act(() => renderer.root.findByType(TextInput).props.onChangeText('hello'));
+    act(() => {
+      renderer.root.find((node) => typeof node.props.onPress === 'function').props.onPress();
+    });
+    act(() => renderer.unmount());
+    act(() => {
+      renderer = mount();
+    });
+    expect(renderer.root.findByType(TextInput).props.value).toBe('hello');
+    act(() => {
+      renderer.root.find((node) => typeof node.props.onPress === 'function').props.onPress();
+    });
+    expect(mockCreateReply).toHaveBeenCalledTimes(1);
+    if (edit) act(() => renderer.root.findByType(TextInput).props.onChangeText('next reply'));
+    await act(async () => {
+      complete();
+      await Promise.resolve();
+    });
+    expect(renderer.root.findByType(TextInput).props.value).toBe(edit ? 'next reply' : '');
+    expect(onPosted).toHaveBeenCalledTimes(1);
+    expect(draft.store.getState().pending).toBeNull();
+    act(() => renderer.unmount());
+  },
+);
+
+it('does not apply a pending reply to a different route owner after presentation remount', async () => {
+  const { createVideoReplyDraft } = jest.requireActual('../videoReplyDraft');
+  let active = true;
+  const oldDraft = createVideoReplyDraft(() => active);
+  const nextDraft = createVideoReplyDraft(() => true);
+  let complete!: () => void;
+  mockCreateReply.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = () => resolve({ id: 'reply' });
+      }),
+  );
+  const onPosted = jest.fn();
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    renderer = TestRenderer.create(
+      <InlineReplyComposer postId="p" draft={oldDraft} onPosted={onPosted} />,
+    );
+  });
+  act(() => renderer.root.findByType(TextInput).props.onChangeText('old reply'));
+  act(() => {
+    renderer.root.find((node) => typeof node.props.onPress === 'function').props.onPress();
+  });
+  active = false;
+  act(() => renderer.unmount());
+  act(() => {
+    renderer = TestRenderer.create(
+      <InlineReplyComposer postId="p" draft={nextDraft} onPosted={onPosted} />,
+    );
+  });
+  act(() => renderer.root.findByType(TextInput).props.onChangeText('new route reply'));
+  await act(async () => {
+    complete();
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(TextInput).props.value).toBe('new route reply');
+  expect(onPosted).not.toHaveBeenCalled();
+  expect(mockToast).not.toHaveBeenCalled();
+  expect(oldDraft.store.getState().pending).toBeNull();
+  act(() => renderer.unmount());
+});

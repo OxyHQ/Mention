@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { Text } from '@oxy.so/bloom/typography';
+import { FollowingAvatars } from './FollowingAvatars';
 import type { VideoFeedTab } from '@/hooks/useVideoFeed';
 
 interface VideoFeedTabsProps {
@@ -20,7 +21,7 @@ export function VideoFeedTabs({ value, onValueChange }: VideoFeedTabsProps) {
           accessibilityRole="tab"
           accessibilityState={{ selected: value === tab }}
           onPress={() => onValueChange(tab)}
-          className="min-h-11 items-center justify-center"
+          className="min-h-11 flex-row items-center justify-center gap-1.5"
           testID={`video-feed-tab-${tab}`}
         >
           <Text
@@ -28,6 +29,7 @@ export function VideoFeedTabs({ value, onValueChange }: VideoFeedTabsProps) {
           >
             {t(tab === 'videos' ? 'videos.tabs.forYou' : 'videos.tabs.following')}
           </Text>
+          {tab === 'following' && <FollowingAvatars />}
         </PressableScale>
       ))}
     </View>

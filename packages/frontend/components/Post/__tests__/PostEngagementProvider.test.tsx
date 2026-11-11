@@ -2,7 +2,11 @@ import type React from 'react';
 import { useEffect } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { PostEngagementProvider } from '../PostEngagementProvider';
-import { openPostInsights, useOpenPostEngagement } from '../postEngagementContext';
+import {
+  openPostInsights,
+  useOpenPostEngagement,
+  useVideoRepliesPanel,
+} from '../postEngagementContext';
 import { usePostEngagementPanels } from '../postEngagementPanels';
 
 let mockViewer = 'a';
@@ -128,4 +132,64 @@ it('uses the same standalone Insights fallback when no shell host accepts the ac
   const fallback = jest.fn();
   openPostInsights(null, 'post-1', fallback);
   expect(fallback).toHaveBeenCalledWith('post-1');
+});
+
+it('releases only the published video owner when a feed becomes empty', () => {
+  let actions!: ReturnType<typeof useVideoRepliesPanel>;
+  function VideoPublisher() {
+    actions = useVideoRepliesPanel();
+    return null;
+  }
+  mockRoute = '/videos';
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    renderer = TestRenderer.create(
+      <PostEngagementProvider>
+        <VideoPublisher />
+      </PostEngagementProvider>,
+    );
+  });
+  const first = actions?.publishReplies('video-1', jest.fn());
+  expect(first?.isCurrent?.()).toBe(true);
+  if (!first) throw new Error('No video owner');
+  actions?.closeReplies(first);
+  expect(first.isCurrent?.()).toBe(false);
+  const second = actions?.publishReplies('video-2', jest.fn());
+  actions?.closeReplies(first);
+  expect(second?.isCurrent?.()).toBe(true);
+  actions?.open('post-1', 'likes');
+  if (second) actions?.closeReplies(second);
+  expect(usePostEngagementPanels.getState().panels['deck-2']).toMatchObject({
+    isOpen: true,
+    destination: { kind: 'likes' },
+  });
+  act(() => renderer.unmount());
+});
+
+it('entering the reserved Videos route drops only the departed route payload', () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  const tree = () => (
+    <PostEngagementProvider>
+      <Trigger />
+    </PostEngagementProvider>
+  );
+  act(() => {
+    renderer = TestRenderer.create(tree());
+  });
+  act(() => {
+    open?.('post-1', 'likes');
+  });
+  mockRoute = '/videos';
+  act(() => renderer.update(tree()));
+  expect(usePostEngagementPanels.getState().panels['deck-2']).toBeUndefined();
+  act(() => {
+    open?.('video-1', 'replies');
+  });
+  mockRoute = '/';
+  act(() => renderer.update(tree()));
+  expect(usePostEngagementPanels.getState().panels['deck-2']).toMatchObject({
+    isOpen: false,
+    destination: { kind: 'replies', postId: 'video-1' },
+  });
+  act(() => renderer.unmount());
 });

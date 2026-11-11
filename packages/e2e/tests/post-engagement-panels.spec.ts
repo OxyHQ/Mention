@@ -89,37 +89,7 @@ test('likes split the post bounds, scroll independently and close without remoun
   await page.mouse.wheel(0, 350);
   await expect.poll(() => listOwner.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
   expect(await postOwner.evaluate((node) => node.scrollTop)).toBe(postOffset);
-  const divider = group.getByRole('separator').first();
-  await divider.focus();
-  const before = await content.boundingBox();
-  await divider.press('ArrowUp');
-  await expect
-    .poll(async () => (await content.boundingBox())?.height ?? 0)
-    .toBeLessThan(before?.height ?? 0);
-  const topStop = await divider.boundingBox();
-  if (!topStop) throw new Error('Split divider has no pointer target');
-  await page.mouse.move(topStop.x + topStop.width / 2, topStop.y + topStop.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(topStop.x + topStop.width / 2, 10, { steps: 10 });
-  await page.mouse.up();
-  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
-  const bottomStop = await divider.boundingBox();
-  if (!bottomStop) throw new Error('Split divider disappeared after resizing');
-  await page.mouse.move(bottomStop.x + bottomStop.width / 2, bottomStop.y + bottomStop.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(bottomStop.x + bottomStop.width / 2, 890, { steps: 10 });
-  await page.mouse.up();
-  await expect.poll(async () => (await likes.boundingBox())?.height ?? 0).toBeCloseTo(128, 0);
-  const closeFromMinimum = await divider.boundingBox();
-  if (!closeFromMinimum) throw new Error('Split divider disappeared before closing');
-  await page.mouse.move(
-    closeFromMinimum.x + closeFromMinimum.width / 2,
-    closeFromMinimum.y + closeFromMinimum.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(closeFromMinimum.x + closeFromMinimum.width / 2, 10, { steps: 10 });
-  await page.mouse.up();
-  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
+  await expect(group.locator('[data-bloom-resize-handle]')).toHaveCount(0);
   const closingFrames = likes.evaluate(
     (panel) =>
       new Promise<number[]>((resolve) => {
@@ -223,20 +193,7 @@ test('two Deck columns keep independent engagement panels and retain their reord
       return upper && lower ? lower.y - upper.y - upper.height : -1;
     })
     .toBeCloseTo(8, 0);
-  const divider = first.locator('[role="separator"][aria-orientation="horizontal"]');
-  const handle = await divider.boundingBox();
-  if (!handle) throw new Error('Deck split divider has no pointer target');
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(handle.x + handle.width / 2, 10, { steps: 10 });
-  await page.mouse.up();
-  await expect
-    .poll(
-      async () =>
-        (await page.getByTestId('mention-shell-panels-custom-a-content').boundingBox())?.height ??
-        0,
-    )
-    .toBeCloseTo(224, 0);
+  await expect(page.locator('[data-bloom-resize-handle]')).toHaveCount(0);
   await firstList.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(firstList).toBeHidden();
   await expect(firstList).toHaveAttribute('aria-hidden', 'true');
@@ -386,7 +343,7 @@ test('normal and Deck preserve the post through continuous visible width transit
   expect(candidate.scriptErrors).toEqual([]);
 });
 
-test('closing a resized split keeps virtualized replies and their reading offset through document handoff', async ({
+test('closing a split keeps virtualized replies and their reading offset through document handoff', async ({
   page,
   candidate,
 }) => {
@@ -404,17 +361,9 @@ test('closing a resized split keeps virtualized replies and their reading offset
   await screen.getByText('likes', { exact: true }).evaluate((node: HTMLElement) => node.click());
   const likes = page.getByTestId('mention-shell-panels-main-engagement');
   await expect(likes.getByRole('heading', { name: 'Likes', exact: true })).toBeVisible();
-  const divider = page
-    .getByTestId('mention-shell-panels-main')
-    .locator('[role="separator"][aria-orientation="horizontal"]');
-  const handle = await divider.boundingBox();
-  if (!handle) throw new Error('No split divider');
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(handle.x + handle.width / 2, 10, { steps: 10 });
-  await page.mouse.up();
-  const content = page.getByTestId('mention-shell-panels-main-content');
-  await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
+  await expect(
+    page.getByTestId('mention-shell-panels-main').locator('[data-bloom-resize-handle]'),
+  ).toHaveCount(0);
   const framesPromise = page.evaluate(
     () =>
       new Promise<
@@ -875,7 +824,7 @@ test('navigation keeps outgoing panel content until its exit and releases it wit
 });
 
 for (const count of [1, 3, 40]) {
-  test(`supporting-panel resize respects ${count} users without changing its initial split`, async ({
+  test(`supporting panel with ${count} users scrolls only its content and exposes no resizer`, async ({
     page,
     candidate,
   }) => {
@@ -898,46 +847,18 @@ for (const count of [1, 3, 40]) {
     await main.getByText('likes', { exact: true }).click();
     await expect(lower.getByText('Reader 0', { exact: true })).toBeVisible();
     await expect.poll(async () => (await lower.boundingBox())?.height ?? 0).toBeCloseTo(438, 0);
-    const measuredContentHeight =
-      count < 40
-        ? await lower.evaluate((node, lastIndex) => {
-            const lastRow = node.querySelector(`[data-index="${lastIndex}"]`);
-            if (!lastRow) throw new Error('Short list has not rendered its final row');
-            return lastRow.getBoundingClientRect().bottom - node.getBoundingClientRect().top;
-          }, count - 1)
-        : 508;
-    const contentStop = Math.max(128, measuredContentHeight);
-    const divider = page.getByTestId('mention-shell-panels-main').getByRole('separator').first();
-    const dragTo = async (y: number) => {
-      const handle = await divider.boundingBox();
-      if (!handle) throw new Error('Missing split divider');
-      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(handle.x + handle.width / 2, y, { steps: 12 });
-      await page.mouse.up();
-    };
-    await dragTo(10);
-    await expect
-      .poll(async () => (await lower.boundingBox())?.height ?? 0)
-      .toBeCloseTo(count === 40 ? 508 : 438, 0);
-    const reverseHandle = await divider.boundingBox();
-    if (!reverseHandle) throw new Error('Missing split divider before reversing the drag');
-    const dragX = reverseHandle.x + reverseHandle.width / 2;
-    await page.mouse.move(dragX, reverseHandle.y + reverseHandle.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(dragX, 890, { steps: 12 });
-    await expect.poll(async () => (await lower.boundingBox())?.height ?? 0).toBeCloseTo(128, 0);
-    // Reverse inside the same gesture: shrinking must not reopen the initial empty allowance.
-    await page.mouse.move(dragX, 10, { steps: 12 });
-    await page.mouse.up();
-    await expect
-      .poll(async () => (await lower.boundingBox())?.height ?? 0)
-      .toBeCloseTo(contentStop, 0);
-    await divider.focus();
-    await divider.press('ArrowUp');
-    await expect
-      .poll(async () => (await lower.boundingBox())?.height ?? 0)
-      .toBeCloseTo(contentStop, 0);
+    await expect(
+      page.getByTestId('mention-shell-panels-main').locator('[data-bloom-resize-handle]'),
+    ).toHaveCount(0);
+    const viewport = lower.locator('[data-bloom-screen-viewport="element"]');
+    await viewport.hover();
+    await page.mouse.wheel(0, 1000);
+    if (count === 40) {
+      await expect.poll(() => viewport.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    } else {
+      await expect.poll(() => viewport.evaluate((node) => node.scrollTop)).toBe(0);
+    }
+    await expect.poll(async () => (await lower.boundingBox())?.height ?? 0).toBeCloseTo(438, 0);
     expect(candidate.scriptErrors).toEqual([]);
   });
 }

@@ -104,3 +104,72 @@ it('immediately drops removed hosts and releases everything when their layout un
   store.retainHosts('anonymous', 1, []);
   expect(usePostEngagementPanels.getState().panels).toEqual({});
 });
+
+const repliesDestination = (postId = 'video-1') => ({
+  ...destination(postId, '/videos'),
+  kind: 'replies' as const,
+});
+
+it('keeps inline replies available after sheet dismissal and rejects an old destination dismissal', () => {
+  const store = usePostEngagementPanels.getState();
+  store.activate('user:a');
+  const first = repliesDestination();
+  store.open('user:a', 1, 'main', first, true);
+  const draft = usePostEngagementPanels.getState().panels.main?.replyDraft;
+  expect(usePostEngagementPanels.getState().panels.main).toMatchObject({
+    isOpen: true,
+    floatingOpen: false,
+  });
+  draft?.store.getState().setText('unfinished reply');
+  const focused = repliesDestination();
+  store.open('user:a', 1, 'main', focused);
+  expect(usePostEngagementPanels.getState().panels.main?.replyDraft).toBe(draft);
+  store.dismissFloating('user:a', 1, 'main', first);
+  expect(usePostEngagementPanels.getState().panels.main?.floatingOpen).toBe(true);
+  store.dismissFloating('user:a', 1, 'main', focused);
+  expect(usePostEngagementPanels.getState().panels.main).toMatchObject({
+    isOpen: true,
+    floatingOpen: false,
+  });
+  expect(draft?.store.getState().text).toBe('unfinished reply');
+  expect(draft?.isCurrent?.()).toBe(true);
+});
+
+it('reopens automatic replies with a new owner after route departure, fencing pending work permanently', () => {
+  const store = usePostEngagementPanels.getState();
+  store.activate('user:a');
+  const first = repliesDestination();
+  store.open('user:a', 1, 'main', first, true);
+  const oldDraft = usePostEngagementPanels.getState().panels.main?.replyDraft;
+  oldDraft?.store.getState().setText('old route reply');
+  oldDraft?.store.getState().begin();
+  store.close('user:a', 1, 'main', '/videos');
+  expect(oldDraft?.isCurrent?.()).toBe(false);
+  store.open('user:a', 1, 'main', repliesDestination(), true);
+  const next = usePostEngagementPanels.getState().panels.main;
+  expect(next?.isOpen).toBe(true);
+  expect(next?.replyDraft).not.toBe(oldDraft);
+  expect(next?.replyDraft?.store.getState().text).toBe('');
+  expect(oldDraft?.isCurrent?.()).toBe(false);
+  store.completeClose('user:a', 1, 'main', first);
+  expect(usePostEngagementPanels.getState().panels.main).toBe(next);
+});
+
+it('isolates draft updates from layout subscriptions and invalidates removed or switched owners', () => {
+  const store = usePostEngagementPanels.getState();
+  store.activate('user:a');
+  store.open('user:a', 1, 'main', repliesDestination(), true);
+  const first = usePostEngagementPanels.getState().panels.main?.replyDraft;
+  const layoutChanged = jest.fn();
+  const unsubscribe = usePostEngagementPanels.subscribe(layoutChanged);
+  first?.store.getState().setText('typing does not redraw layout');
+  expect(layoutChanged).not.toHaveBeenCalled();
+  store.retainHosts('user:a', 1, []);
+  expect(first?.isCurrent?.()).toBe(false);
+  store.open('user:a', 1, 'main', repliesDestination(), true);
+  const second = usePostEngagementPanels.getState().panels.main?.replyDraft;
+  store.activate('user:b');
+  store.activate('user:a');
+  expect(second?.isCurrent?.()).toBe(false);
+  unsubscribe();
+});

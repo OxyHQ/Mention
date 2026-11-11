@@ -2,11 +2,7 @@ import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { lazy, Suspense } from 'react';
 import type { VideoRepliesProps } from './VideoReplies';
 
-// The one async boundary for the replies panel. `RightBar` renders on every
-// desktop route, so a static import would put the panel's FlashList feed and
-// reply composer in the initial web bundle for readers who never open a video.
-// Both callers go through this module so Metro keeps the panel in one chunk:
-// two separate `import()` sites would share it and promote it to `__common`.
+// The supporting-panel host is the sole lazy boundary for replies and their composer.
 const VideoReplies = lazy(() =>
   import('./VideoReplies').then((module) => ({ default: module.VideoReplies })),
 );

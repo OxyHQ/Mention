@@ -63,3 +63,8 @@ describe('bottomBarContent', () => {
     expect(bottomBarContent({ ...base, pathname: '/compose', isAuthenticated: true })).toBeNull();
   });
 });
+
+
+it.each([true, false])('keeps immersive Videos navigation while anonymous auth is resolved=%s', (isAuthResolved) => {
+  expect(bottomBarContent({ pathname: '/videos', isAuthenticated: false, isAuthResolved })).toBe('tabs');
+});

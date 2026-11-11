@@ -39,6 +39,9 @@ export function bottomBarContent({
   isAuthResolved: boolean;
 }): BottomBarContent {
   if (hidesBottomBar(pathname)) return null;
+  // Public immersive video keeps navigation available instead of covering the reel
+  // with a large invitation. Account-only actions retain their existing auth gates.
+  if (pathname === '/videos') return 'tabs';
   if (isAuthenticated) return 'tabs';
   return isAuthResolved ? 'sign-in' : null;
 }
