@@ -89,12 +89,16 @@ interface MockRes {
   body: unknown;
   status: (code: number) => MockRes;
   json: (body: unknown) => MockRes;
+  set: () => MockRes;
 }
 
 function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
+    set() {
+      return this;
+    },
     status(code) {
       this.statusCode = code;
       return this;

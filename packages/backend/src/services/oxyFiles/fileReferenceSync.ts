@@ -14,6 +14,7 @@ import {
   type SettledFileReference,
 } from '../../db/oxyFiles/fileReferenceSyncRepository';
 import { federatedMediaPosters } from '../../db/schema/federation';
+import { warnOnFailure } from '../../utils/error';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
@@ -134,7 +135,7 @@ async function sendOp(
         remaining,
         fileReferenceBackoffMs(attempts),
         `${op}: ${describeOxyError(error)}`,
-      ).catch(() => undefined);
+      ).catch(warnOnFailure('[FileReferences] could not schedule the retry', { op }));
       result.retried += remaining.length;
       logger.warn('[FileReferences] Oxy did not answer; will retry', {
         op,

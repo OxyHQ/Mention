@@ -1,4 +1,4 @@
-import { respondWithApiError } from '../../utils/error';
+import { respondWithApiError, warnOnFailure } from '../../utils/error';
 import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
 import {
@@ -612,7 +612,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
               type,
               eventId: `${type}:${post.id}`,
             });
-          })().catch(() => undefined),
+          })().catch(
+            warnOnFailure('[createPost] affinity event not recorded', { postId: post.id }),
+          ),
         );
       }
     }

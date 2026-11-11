@@ -43,6 +43,7 @@ import {
   type RemoteGraphCollectionState,
   type RemoteGraphCrawlSubject,
 } from '../db/federation/remoteGraphRepository';
+import { warnOnFailure } from '../utils/error';
 import { logger } from '../utils/logger';
 import { readFollowCollection, type FollowCollectionRead } from './activitypub/followCollections';
 import { FEDERATION_ENABLED } from './activitypub/constants';
@@ -206,7 +207,9 @@ export async function crawlRemoteGraph(subject: RemoteGraphCrawlSubject): Promis
     });
   } catch (err) {
     logger.warn('[RemoteGraph] crawl failed', { error: String(err) });
-    await finishRemoteGraphCrawl(subject.uri, now, { completed: false }).catch(() => undefined);
+    await finishRemoteGraphCrawl(subject.uri, now, { completed: false }).catch(
+      warnOnFailure('[RemoteGraph] could not close the failed crawl', { uri: subject.uri }),
+    );
   }
 }
 

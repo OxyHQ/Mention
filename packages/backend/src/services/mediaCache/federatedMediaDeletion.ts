@@ -8,6 +8,7 @@ import {
   settleMediaDeletions,
   tombstoneUnreferenced,
 } from '../../db/federation/mediaDeletionRepository';
+import { warnOnFailure } from '../../utils/error';
 import { logger } from '../../utils/logger';
 import { clearFileReferencesBeforeDelete } from '../oxyFiles/fileReferenceSync';
 import {
@@ -110,7 +111,7 @@ async function drainOneBatch(
       pending,
       mediaDeletionBackoffMs(attempts),
       `reference check: ${describe(err)}`,
-    ).catch(() => undefined);
+    ).catch(warnOnFailure('[MediaDelete] could not schedule the retry'));
     result.retried += pending.length;
     logger.warn('[MediaDelete] reference check failed; backed off', {
       reason: describe(err),
@@ -147,7 +148,7 @@ async function drainOneBatch(
       unsettled,
       mediaDeletionBackoffMs(attempts),
       'Mention references not yet removed in Oxy',
-    ).catch(() => undefined);
+    ).catch(warnOnFailure('[MediaDelete] could not schedule the retry'));
     result.retried += unsettled.length;
   }
   if (toDelete.length === 0) return result;
@@ -195,7 +196,9 @@ async function drainOneBatch(
       err instanceof OxyMediaStoreThrottledError
         ? Math.max(mediaDeletionBackoffMs(attempts), err.retryAfterMs)
         : mediaDeletionBackoffMs(attempts);
-    await retryMediaDeletions(toDelete, delay, reason).catch(() => undefined);
+    await retryMediaDeletions(toDelete, delay, reason).catch(
+      warnOnFailure('[MediaDelete] could not schedule the retry'),
+    );
     result.retried += toDelete.length;
     logger.warn('[MediaDelete] Oxy delete failed; will retry', { reason, files: toDelete.length });
   }
