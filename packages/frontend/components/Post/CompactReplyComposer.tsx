@@ -234,9 +234,7 @@ export function CompactReplyComposer({
                 attachmentKey={item.id}
                 index={index}
                 total={mediaIds.length}
-                onMove={(index, direction) =>
-                  replyDraft.store.getState().moveMedia(index, direction)
-                }
+                onMove={(id, direction) => replyDraft.store.getState().moveMedia(id, direction)}
                 onRemove={() => replyDraft.store.getState().removeMedia(item.id)}
                 wrapperStyle={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden' }}
               >
