@@ -1,0 +1,223 @@
+# Compact visual tokens
+Mention/Bloom use --bloom-font-sans, normal component size md. Video surface is #000000, overlay type/icons white, muted white at reduced opacity; video supplies color. Spacing is NativeWind/Bloom token spacing (4px steps). Shell breakpoint500px; panel breakpoint md and constrained-host decisions belong to Bloom. Avoid decorative background gradients except legibility scrim over video. No generated avatar identities.
+
+# Raw theme sources
+## packages/frontend/global.css
+```css
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+@import "nativewind/theme";
+
+/* Bloom canonical design tokens (RADIUS scale, spacing, typography, color
+   aliases). Single source of truth = @oxy.so/bloom/design-tokens theme.css,
+   generated from bloomThemeCss(). Bloom components (e.g. ContentPanel from
+   @oxy.so/bloom/content-panel) emit `rounded-radius-28` literal utilities that
+   resolve from these `--radius-*` namespace tokens. Imported instead of
+   hand-copied so it stays in sync with the published package. Mention's own
+   `@theme` block below runs AFTER this import, so app-local aliases win on any
+   overlap. */
+@import "@oxy.so/bloom/design-tokens/theme.css";
+
+@source "./app/**/*.{js,jsx,ts,tsx}";
+@source "./components/**/*.{js,jsx,ts,tsx}";
+@source "./lib/**/*.{js,jsx,ts,tsx}";
+@source "./hooks/**/*.{js,jsx,ts,tsx}";
+@source "../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
+/* The live-rooms UI (RoomCard, the room sheets) ships NativeWind classNames from
+   the Syra SDK, so Tailwind has to scan that package too or those utilities are
+   never generated. Measured on 2026-09-22 by building this file with
+   `@tailwindcss/postcss`: without this line `rounded-[4px]` and `border-surface`
+   — the two classes only Syra ships — are ABSENT from the output. */
+@source "../../node_modules/@syra.fm/sdk/lib/**/*.{js,jsx}";
+
+/* Colour utilities (`bg-card`, `bg-primary`, `text-muted-foreground`, …) come
+   from Bloom's imported theme.css — the single source of truth — so they are
+   NOT re-declared here. Per-app duplication is exactly what let `--color-card`
+   drift to `var(--surface)` (card === surface no longer holds: card is the
+   lightest surface). */
+@theme {
+  /* Shell breakpoints, as CSS.
+
+     `hooks/useOptimizedMediaQuery.ts` already draws the line: a JS width read is
+     for MOUNT gates and data-level decisions, and "pure show/hide and pure
+     styling differences use NativeWind responsive classes — NOT these hooks".
+     Naming the widths here is what lets the shell keep that rule instead of
+     re-rendering on every resize frame to pick a class name.
+
+     The numbers are the hook's, unchanged. */
+  --breakpoint-shell: 500px;
+
+  /* The LAYERED value, outranked by the unlayered `:root` rule below. It
+     registers the token, which is what makes the `font-sans` utility exist. */
+  --font-sans: var(--bloom-font-sans);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  :root {
+    --radius: 1rem;
+  }
+}
+
+@layer utilities {
+  .squircle {
+    border-radius: 20%;
+  }
+}
+
+/* Bloom's typeface, not one of Mention's own. NativeWind's theme.css ships an
+   UNLAYERED `:root { @media ios { --font-sans: System } }` that outranks anything
+   `@theme` emits, so restate Bloom's family here, unlayered and after that import.
+   Native gets the bare family name: RN's `fontFamily` takes ONE family, not a CSS
+   stack, and `--bloom-font-*` is web-only (injected at runtime by
+   `applyFontFaces`). The `var()` fallback covers the static export's first paint,
+   before that runs. The literal names mirror `fontFamilies.sans` in @oxy.so/bloom/fonts;
+   keep them in step when Bloom changes its default. */
+:root {
+  --font-sans: var(
+    --bloom-font-sans,
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif
+  );
+
+  @media ios {
+    --font-sans: Inter;
+  }
+
+  @media android {
+    --font-sans: Inter;
+  }
+}
+
+html,
+body,
+#root {
+  font-family: var(--font-sans);
+  /* Pre-hydration dark canvas. Bloom applies the real theme (the `.dark` class +
+     `--background` var) at RUNTIME from BloomThemeProvider, so before the JS
+     bundle runs there is no themed background and the first paint would be white.
+     This render-blocking rule (global.css ships as a <link rel=stylesheet> in the
+     head, before the deferred bundle) paints the boot canvas the same dark as the
+     always-dark AppSplashScreen (#0B0B0F, matching the native splash), killing the
+     white flash with no worker/JS. The app's own `bg-background` covers it once
+     mounted. This is the Expo analog of the Vite apps' static `<html class="dark">`. */
+  background-color: #0b0b0f;
+}
+
+/* Keep the document as the scroll owner. Percentage heights resolve against
+   the available viewport, excluding a classic horizontal scrollbar. Viewport
+   units (100vh/100dvh) include that scrollbar and create vertical overflow in
+   bounded layouts such as Deck. Content in document-flow layouts can still
+   grow beyond this initial height through visible overflow. */
+/* Both axes stay visible: setting only one to auto/hidden promotes the other
+   to auto and creates an unintended body scroller. */
+html,
+body,
+#root {
+  height: 100% !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+
+```
+
+## packages/frontend/tailwind.config.js
+```tsx
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  important: true,
+  darkMode: 'class',
+  content: [
+    './app/**/*.{js,jsx,ts,tsx}',
+    './components/**/*.{js,jsx,ts,tsx}',
+    './lib/**/*.{js,jsx,ts,tsx}',
+    './hooks/**/*.{js,jsx,ts,tsx}',
+    '../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}',
+    '../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}',
+    // The live-rooms UI (RoomCard, sheets) ships NativeWind classNames from the
+    // Syra SDK; Tailwind must scan the package so those classes are generated.
+    '../../node_modules/@syra.fm/sdk/lib/**/*.{js,jsx}',
+  ],
+  theme: {
+    extend: {
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      colors: {
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive)',
+          foreground: 'hsl(0 0% 100%)',
+        },
+        muted: {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
+        card: {
+          DEFAULT: 'var(--surface)',
+          foreground: 'var(--surface-foreground)',
+        },
+        surface: {
+          DEFAULT: 'var(--surface)',
+          foreground: 'var(--surface-foreground)',
+        },
+        'content-area': {
+          DEFAULT: 'var(--content-area)',
+        },
+        chart: {
+          1: 'var(--chart-1)',
+          2: 'var(--chart-2)',
+          3: 'var(--chart-3)',
+          4: 'var(--chart-4)',
+          5: 'var(--chart-5)',
+        },
+        sidebar: {
+          DEFAULT: 'var(--sidebar)',
+          foreground: 'var(--sidebar-foreground)',
+          primary: 'var(--sidebar-primary)',
+          'primary-foreground': 'var(--sidebar-primary-foreground)',
+          accent: 'var(--sidebar-accent)',
+          'accent-foreground': 'var(--sidebar-accent-foreground)',
+          border: 'var(--sidebar-border)',
+          ring: 'var(--sidebar-ring)',
+        },
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
+};
+
+```

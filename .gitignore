@@ -178,3 +178,5 @@ packages/frontend/.wrangler/
 # `deploy-frontends.yml`; it is never committed.
 packages/frontend/.dev.vars
 
+
+.superdesign/tmp/

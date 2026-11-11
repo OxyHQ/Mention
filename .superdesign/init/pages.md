@@ -1,0 +1,639 @@
+# /videos
+Entry packages/frontend/app/(app)/(tabs)/videos.tsx
+Complete local dependency tree (duplicates marked, external packages skipped):
+- packages/frontend/app/(app)/(tabs)/videos.tsx
+  - packages/frontend/components/loading/ContentSkeleton.tsx
+    - packages/frontend/styles/shared.ts
+  - packages/frontend/components/FollowButton.tsx
+    - packages/frontend/stores/feedRankingInvalidation.ts
+      - packages/frontend/stores/feedStaleness.ts
+        - packages/frontend/stores/feedRankingInvalidation.ts [already listed]
+        - packages/frontend/lib/viewerQueryKeys.ts
+          - packages/frontend/utils/feedUtils.ts
+        - packages/frontend/stores/engagementInvalidation.ts
+          - packages/frontend/lib/queryClient.ts
+            - packages/frontend/components/providers/constants.ts
+          - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+        - packages/frontend/stores/laneInvalidation.ts
+          - packages/frontend/lib/queryClient.ts [already listed]
+          - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+        - packages/frontend/stores/safetyInvalidation.ts
+          - packages/frontend/lib/queryClient.ts [already listed]
+          - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+          - packages/frontend/stores/feedRuleSignal.ts
+        - packages/frontend/stores/bylineInvalidation.ts
+          - packages/frontend/lib/queryClient.ts [already listed]
+          - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+          - packages/frontend/stores/feedRuleSignal.ts [already listed]
+        - packages/frontend/stores/readerLanguageInvalidation.ts
+          - packages/frontend/lib/queryClient.ts [already listed]
+          - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+          - packages/frontend/stores/feedRuleSignal.ts [already listed]
+      - packages/frontend/stores/feedRuleSignal.ts [already listed]
+  - packages/frontend/styles/colors.ts
+  - packages/frontend/lib/navigation/router.ts
+  - packages/frontend/stores/postsStore.ts
+    - packages/frontend/services/feedService.ts
+      - packages/frontend/modules/mention-widgets/feedWidgetSync.ts
+        - packages/frontend/modules/mention-widgets/index.ts
+      - packages/frontend/utils/feedUtils.ts [already listed]
+      - packages/frontend/utils/api.ts
+        - packages/frontend/lib/oxyServices.ts
+          - packages/frontend/config.ts
+        - packages/frontend/config.ts [already listed]
+        - packages/frontend/lib/i18n.ts
+          - packages/frontend/locales/en.json
+          - packages/frontend/lib/constants.ts
+        - packages/frontend/utils/apiError.ts
+          - packages/frontend/utils/isRecord.ts
+      - packages/frontend/lib/oxyServices.ts [already listed]
+      - packages/frontend/utils/apiError.ts [already listed]
+      - packages/frontend/utils/feedRetry.ts
+        - packages/frontend/utils/apiError.ts [already listed]
+      - packages/frontend/services/savedPostsRequest.ts
+      - packages/frontend/lib/webTelemetry.ts
+        - packages/frontend/lib/webTelemetry.web.ts
+          - packages/frontend/config.ts [already listed]
+      - packages/frontend/services/savedPostsRequest.ts [already listed]
+    - packages/frontend/services/echoGuard.ts
+    - packages/frontend/stores/feedQueryCache.ts
+      - packages/frontend/lib/queryClient.ts [already listed]
+      - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+      - packages/frontend/stores/feedScrollStore.ts
+      - packages/frontend/utils/feedUtils.ts [already listed]
+    - packages/frontend/stores/engagementInvalidation.ts [already listed]
+    - packages/frontend/stores/profileCountsInvalidation.ts
+      - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+    - packages/frontend/lib/queryClient.ts [already listed]
+    - packages/frontend/utils/apiError.ts [already listed]
+    - packages/frontend/db/index.ts
+      - packages/frontend/db/index.ts [already listed]
+      - packages/frontend/db/database.ts
+        - packages/frontend/db/database.web.ts
+      - packages/frontend/db/database.ts [already listed]
+      - packages/frontend/db/cacheLifecycle.ts
+        - packages/frontend/db/database.ts [already listed]
+        - packages/frontend/db/memoryStore.ts
+          - packages/frontend/db/schema.ts
+            - packages/frontend/stores/linksStore.ts
+              - packages/frontend/db/index.ts [already listed]
+            - packages/frontend/utils/isRecord.ts [already listed]
+            - packages/frontend/utils/safeJson.ts
+          - packages/frontend/db/feedQueries.ts
+            - packages/frontend/db/database.ts [already listed]
+            - packages/frontend/db/schema.ts [already listed]
+            - packages/frontend/db/schema.ts [already listed]
+            - packages/frontend/db/postQueries.ts
+              - packages/frontend/db/database.ts [already listed]
+              - packages/frontend/db/schema.ts [already listed]
+              - packages/frontend/db/postObservers.ts
+                - packages/frontend/db/schema.ts [already listed]
+              - packages/frontend/db/memoryStore.ts [already listed]
+            - packages/frontend/db/postObservers.ts [already listed]
+            - packages/frontend/db/memoryStore.ts [already listed]
+            - packages/frontend/utils/feedUtils.ts [already listed]
+            - packages/frontend/utils/safeJson.ts [already listed]
+      - packages/frontend/db/schema.ts [already listed]
+      - packages/frontend/db/schema.ts [already listed]
+      - packages/frontend/db/postQueries.ts [already listed]
+      - packages/frontend/db/feedQueries.ts [already listed]
+      - packages/frontend/db/feedQueries.ts [already listed]
+      - packages/frontend/db/linkQueries.ts
+        - packages/frontend/db/database.ts [already listed]
+        - packages/frontend/db/schema.ts [already listed]
+        - packages/frontend/db/schema.ts [already listed]
+        - packages/frontend/stores/linksStore.ts [already listed]
+    - packages/frontend/db/index.ts [already listed]
+    - packages/frontend/db/feedItem.ts
+      - packages/frontend/db/schema.ts [already listed]
+    - packages/frontend/lib/precacheActorsFromPosts.ts
+      - packages/frontend/lib/actorCache.ts
+        - packages/frontend/lib/queryClient.ts [already listed]
+        - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+        - packages/frontend/stores/identityUpdates.ts
+    - packages/frontend/utils/feedUtils.ts [already listed]
+    - packages/frontend/utils/feedRetry.ts [already listed]
+  - packages/frontend/stores/videoMuteStore.ts
+    - packages/frontend/utils/storage.ts
+  - packages/frontend/services/feedService.ts [already listed]
+  - packages/frontend/utils/mediaUrls.ts
+    - packages/frontend/config.ts [already listed]
+  - packages/frontend/utils/shareLink.ts
+  - packages/frontend/components/SEO.tsx
+    - packages/frontend/lib/navigation/router.ts [already listed]
+    - packages/frontend/lib/seoHandoff.ts
+    - packages/frontend/config.ts [already listed]
+  - packages/frontend/components/common/EmptyState.tsx
+    - packages/frontend/lib/stickers.ts
+    - packages/frontend/components/common/EmptyStateSticker.tsx
+      - packages/frontend/lib/stickers.ts [already listed]
+  - packages/frontend/utils/formatNumber.ts
+  - packages/frontend/components/Profile/profileRoute.ts
+    - packages/frontend/lib/navigation/router.ts [already listed]
+  - packages/frontend/utils/videoSource.ts
+    - packages/frontend/utils/hlsSource.ts
+  - packages/frontend/utils/mediaTypes.ts
+  - packages/frontend/components/common/LinkifiedText.tsx
+    - packages/frontend/lib/navigation/router.ts [already listed]
+    - packages/frontend/components/ProfileHoverCard/index.tsx
+      - packages/frontend/components/ProfileHoverCard/types.ts
+    - packages/frontend/utils/linkifyPattern.ts
+      - packages/frontend/utils/ownProfileLinks.ts
+        - packages/frontend/config.ts [already listed]
+    - packages/frontend/utils/openExternalLink.ts
+  - packages/frontend/hooks/useOptimizedMediaQuery.ts
+  - packages/frontend/context/VideosRailContext.tsx
+  - packages/frontend/utils/sheet.ts
+  - packages/frontend/components/videos/LazyVideoReplies.tsx
+    - packages/frontend/components/loading/ContentSkeleton.tsx [already listed]
+    - packages/frontend/components/videos/VideoReplies.tsx
+      - packages/frontend/components/Feed/Feed.tsx
+        - packages/frontend/components/Feed/Feed.web.tsx
+          - packages/frontend/hooks/useRevealOwnNewPost.ts
+            - packages/frontend/stores/feedScrollStore.ts [already listed]
+          - packages/frontend/utils/feedUtils.ts [already listed]
+          - packages/frontend/components/Feed/feedRows.tsx
+            - packages/frontend/lib/navigation/router.ts [already listed]
+            - packages/frontend/components/Feed/PostItem.tsx
+              - packages/frontend/utils/extractUrls.ts
+              - packages/frontend/utils/ownProfileLinks.ts [already listed]
+              - packages/frontend/lib/navigation/router.ts [already listed]
+              - packages/frontend/stores/postsStore.ts [already listed]
+              - packages/frontend/components/Post/PostHeader.tsx
+                - packages/frontend/components/ui/AccountAvatarGroup.tsx
+                  - packages/frontend/components/ui/use-account-avatar-motion.ts
+                - packages/frontend/styles/shared.ts [already listed]
+                - packages/frontend/components/ui/LiveAvatar.tsx
+                  - packages/frontend/components/ui/AccountAvatar.tsx
+                    - packages/frontend/components/ui/use-account-avatar-motion.ts [already listed]
+                  - packages/frontend/stores/livePresenceStore.ts
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/components/Post/postContextRowLayout.ts
+                - packages/frontend/components/UserName.tsx
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/styles/colors.ts [already listed]
+                  - packages/frontend/components/AccountBadge.tsx
+                  - packages/frontend/components/Profile/types.ts
+                    - packages/frontend/lib/navigation/router.ts [already listed]
+                    - packages/frontend/hooks/useProfileData.ts
+                      - packages/frontend/stores/appearanceStore.ts
+                        - packages/frontend/utils/api.ts [already listed]
+                        - packages/frontend/lib/queryClient.ts [already listed]
+                        - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                        - packages/frontend/lib/viewerSettings.ts
+                          - packages/frontend/hooks/useFeedSettings.ts
+                            - packages/frontend/stores/feedRankingInvalidation.ts [already listed]
+                            - packages/frontend/lib/viewerSettings.ts [already listed]
+                          - packages/frontend/stores/appearanceStore.ts [already listed]
+                          - packages/frontend/lib/queryClient.ts [already listed]
+                          - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                          - packages/frontend/utils/api.ts [already listed]
+                      - packages/frontend/components/Profile/types.ts [already listed]
+                      - packages/frontend/utils/displayName.ts
+                      - packages/frontend/utils/publicProfileHandle.ts
+                      - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                      - packages/frontend/utils/profileAccountFacts.ts
+                      - packages/frontend/utils/apiError.ts [already listed]
+                      - packages/frontend/lib/documentBootstrap.ts
+                      - packages/frontend/hooks/useSupervisionState.ts
+                - packages/frontend/components/ProfileHoverCard/index.tsx [already listed]
+                - packages/frontend/components/AccountBadge.tsx [already listed]
+                - packages/frontend/hooks/useTimeAgo.ts
+                  - packages/frontend/utils/dateUtils.ts
+                - packages/frontend/utils/displayName.ts [already listed]
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/components/Profile/profileRoute.ts [already listed]
+              - packages/frontend/components/Post/postContextRowLayout.ts [already listed]
+              - packages/frontend/components/ProfileHoverCard/index.tsx [already listed]
+              - packages/frontend/components/Post/PostContentText.tsx
+                - packages/frontend/utils/postInlineMarkdown.ts
+                  - packages/frontend/utils/linkifyPattern.ts [already listed]
+                - packages/frontend/utils/openExternalLink.ts [already listed]
+                - packages/frontend/components/common/LinkifiedText.tsx [already listed]
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/stores/appearanceStore.ts [already listed]
+                - packages/frontend/hooks/useExpandableText.ts
+                  - packages/frontend/utils/expandableText.ts
+                - packages/frontend/utils/postLinkCards.ts
+                  - packages/frontend/utils/extractUrls.ts [already listed]
+                  - packages/frontend/utils/ownProfileLinks.ts [already listed]
+              - packages/frontend/components/Post/PostLaneChip.tsx
+                - packages/frontend/lib/navigation/router.ts [already listed]
+              - packages/frontend/components/Post/PostCrosspostRow.tsx
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/components/Post/postContextRowLayout.ts [already listed]
+              - packages/frontend/components/Post/PostCommunityRow.tsx
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/components/ProfileHoverCard/index.tsx [already listed]
+                - packages/frontend/components/Post/postContextRowLayout.ts [already listed]
+              - packages/frontend/components/Post/ContentWarning.tsx
+              - packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx
+                - packages/frontend/utils/openExternalLink.ts [already listed]
+              - packages/frontend/components/Post/PostCorrectionNotice.tsx
+                - packages/frontend/lib/navigation/router.ts [already listed]
+              - packages/frontend/components/Post/PostActions.tsx
+                - packages/frontend/utils/formatNumber.ts [already listed]
+                - packages/frontend/hooks/useVoteStyle.ts
+                  - packages/frontend/hooks/useThreadPreferences.ts
+                    - packages/frontend/utils/storage.ts [already listed]
+                    - packages/frontend/lib/constants.ts [already listed]
+                  - packages/frontend/hooks/useThreadPreferences.ts [already listed]
+              - packages/frontend/components/Post/PostDetailStats.tsx
+                - packages/frontend/components/Post/KnownLikersRow.tsx
+                  - packages/frontend/components/ui/AccountAvatarGroup.tsx [already listed]
+                  - packages/frontend/hooks/useKnownLikers.ts
+                    - packages/frontend/services/feedService.ts [already listed]
+                    - packages/frontend/utils/authErrors.ts
+                    - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                  - packages/frontend/utils/displayName.ts [already listed]
+                - packages/frontend/utils/formatNumber.ts [already listed]
+                - packages/frontend/styles/shared.ts [already listed]
+              - packages/frontend/components/Post/PostLocation.tsx
+              - packages/frontend/components/Post/PostAttachmentsRow.tsx
+                - packages/frontend/components/Post/Attachments/CommerceCard.tsx
+                  - packages/frontend/hooks/useVisibleReference.ts
+                    - packages/frontend/lib/references/VisibleReferenceStore.ts
+                  - packages/frontend/lib/references/commerceCards.ts
+                    - packages/frontend/lib/references/VisibleReferenceStore.ts [already listed]
+                  - packages/frontend/lib/utils.ts
+                - packages/frontend/components/Post/Attachments/HomiioCaseCard.tsx
+                  - packages/frontend/hooks/useVisibleReference.ts [already listed]
+                  - packages/frontend/lib/references/homiioCases.ts
+                    - packages/frontend/lib/references/VisibleReferenceStore.ts [already listed]
+                - packages/frontend/lib/oxyServices.ts [already listed]
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/components/Post/JobCard.tsx
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/lib/utils.ts [already listed]
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/utils/jobVocabulary.ts
+                - packages/frontend/components/Podcast/PostPodcastAttachment.tsx
+                  - packages/frontend/hooks/useVisibleReference.ts [already listed]
+                  - packages/frontend/lib/references/syraPodcastCards.ts
+                    - packages/frontend/lib/syraPodcasts.ts
+                      - packages/frontend/lib/oxyServices.ts [already listed]
+                      - packages/frontend/config.ts [already listed]
+                    - packages/frontend/lib/references/VisibleReferenceStore.ts [already listed]
+                  - packages/frontend/components/Podcast/PodcastCard.tsx
+                    - packages/frontend/utils/isHostOf.ts
+                    - packages/frontend/lib/utils.ts [already listed]
+                    - packages/frontend/utils/openExternalLink.ts [already listed]
+                    - packages/frontend/utils/composeUtils.ts
+                    - packages/frontend/components/Podcast/useArtworkAccent.ts
+                  - packages/frontend/components/Podcast/PodcastSaveButton.tsx
+                    - packages/frontend/hooks/usePodcastSave.ts
+                      - packages/frontend/lib/syraPodcasts.ts [already listed]
+                      - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                - packages/frontend/utils/composeUtils.ts [already listed]
+                - packages/frontend/components/common/LazyZoomableGallery.tsx
+                - packages/frontend/utils/gallerySharePermalink.ts
+                  - packages/frontend/components/Profile/profileRoute.ts [already listed]
+                  - packages/frontend/config.ts [already listed]
+                  - packages/frontend/utils/postPermalink.ts
+                - packages/frontend/utils/mediaUrls.ts [already listed]
+                - packages/frontend/utils/mediaTypes.ts [already listed]
+                - packages/frontend/stores/videoPlayerRegistry.ts
+                  - packages/frontend/utils/videoSource.ts [already listed]
+                  - packages/frontend/lib/hlsPlayback.ts
+                    - packages/frontend/lib/hlsPlayback.web.ts
+                      - packages/frontend/utils/hlsSource.ts [already listed]
+                - packages/frontend/components/shell/panelSurface.ts
+                - packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx
+                  - packages/frontend/components/common/VideoPlayer.tsx
+                    - packages/frontend/stores/videoPlayerRegistry.ts [already listed]
+                    - packages/frontend/components/common/PlaybackVideoView.tsx
+                      - packages/frontend/lib/hlsPlayback.ts [already listed]
+                      - packages/frontend/stores/videoPlayerRegistry.ts [already listed]
+                      - packages/frontend/utils/videoSource.ts [already listed]
+                    - packages/frontend/stores/videoMuteStore.ts [already listed]
+                    - packages/frontend/lib/hlsPlayback.ts [already listed]
+                    - packages/frontend/utils/formatDuration.ts
+                    - packages/frontend/utils/videoSource.ts [already listed]
+                    - packages/frontend/components/common/videoElementSize.ts
+                  - packages/frontend/utils/composeUtils.ts [already listed]
+                  - packages/frontend/utils/mediaTypes.ts [already listed]
+                  - packages/frontend/stores/videoPlayerRegistry.ts [already listed]
+                - packages/frontend/components/Post/Attachments/index.ts
+                  - packages/frontend/components/Post/Attachments/PostAttachmentArticle.tsx
+                    - packages/frontend/lib/utils.ts [already listed]
+                  - packages/frontend/components/Post/Attachments/PostAttachmentLink.tsx
+                    - packages/frontend/utils/linkPreviewImage.ts
+                    - packages/frontend/utils/openExternalLink.ts [already listed]
+                  - packages/frontend/components/Post/Attachments/PostAttachmentExternalEmbed.tsx
+                    - packages/frontend/utils/embedPlayer.ts
+                    - packages/frontend/utils/mediaUrls.ts [already listed]
+                    - packages/frontend/stores/externalEmbedsStore.ts
+                      - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                      - packages/frontend/lib/keyedAsyncQueue.ts
+                      - packages/frontend/lib/viewerSettings.ts [already listed]
+                    - packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.tsx
+                      - packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.web.tsx
+                        - packages/frontend/utils/embedPlayer.ts [already listed]
+                        - packages/frontend/components/Post/Attachments/ExternalEmbedPoster.tsx
+                          - packages/frontend/utils/mediaUrls.ts [already listed]
+                          - packages/frontend/utils/linkPreviewImage.ts [already listed]
+                    - packages/frontend/components/Post/Attachments/EmbedConsentDialog.tsx
+                      - packages/frontend/stores/externalEmbedsStore.ts [already listed]
+                    - packages/frontend/components/Post/Attachments/PostAttachmentLink.tsx [already listed]
+                  - packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx [already listed]
+                  - packages/frontend/components/Post/Attachments/PostAttachmentPoll.tsx
+                    - packages/frontend/lib/utils.ts [already listed]
+                    - packages/frontend/components/Post/PollCard.tsx
+                      - packages/frontend/components/loading/ContentSkeleton.tsx [already listed]
+                      - packages/frontend/services/pollService.ts
+                        - packages/frontend/utils/api.ts [already listed]
+                      - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                    - packages/frontend/config.ts [already listed]
+                  - packages/frontend/components/Post/Attachments/PostAttachmentNested.tsx
+                  - packages/frontend/components/Post/Attachments/PostAttachmentEvent.tsx
+                    - packages/frontend/lib/utils.ts [already listed]
+                  - packages/frontend/components/Post/Attachments/PostAttachmentRoom.tsx
+                    - packages/frontend/components/RoomCard.tsx
+                      - packages/frontend/styles/colors.ts [already listed]
+                - packages/frontend/utils/embedPlayer.ts [already listed]
+                - packages/frontend/utils/postLinkCards.ts [already listed]
+                - packages/frontend/stores/externalEmbedsStore.ts [already listed]
+                - packages/frontend/components/Post/Attachments/PostAttachmentNested.tsx [already listed]
+              - packages/frontend/components/Post/Attachments/PostAttachmentNested.tsx [already listed]
+              - packages/frontend/components/Feed/postInteractions.tsx
+                - packages/frontend/hooks/usePostShare.ts
+                  - packages/frontend/lib/i18n.ts [already listed]
+                  - packages/frontend/utils/shareLink.ts [already listed]
+                  - packages/frontend/lib/queryClient.ts [already listed]
+                  - packages/frontend/utils/postPermalink.ts [already listed]
+                - packages/frontend/stores/postsStore.ts [already listed]
+              - packages/frontend/components/Feed/showRepostMenu.tsx
+                - packages/frontend/components/common/ActionMenu.tsx
+                  - packages/frontend/components/common/actionMenuGroups.ts
+                  - packages/frontend/utils/sheet.ts [already listed]
+                  - packages/frontend/components/common/OwnedSurfaceContent.tsx
+              - packages/frontend/hooks/usePostLanguage.ts
+                - packages/frontend/utils/api.ts [already listed]
+                - packages/frontend/stores/trendsStore.ts
+                  - packages/frontend/utils/api.ts [already listed]
+                  - packages/frontend/interfaces/Trend.ts
+                - packages/frontend/utils/postLanguages.ts
+                  - packages/frontend/constants/contentLanguages.ts
+              - packages/frontend/hooks/usePostLanguagePicker.tsx
+                - packages/frontend/components/Post/PostLanguageSheet.tsx
+                  - packages/frontend/utils/postLanguages.ts [already listed]
+                - packages/frontend/utils/postLanguages.ts [already listed]
+                - packages/frontend/utils/sheet.ts [already listed]
+              - packages/frontend/utils/sheet.ts [already listed]
+              - packages/frontend/components/Post/postEngagementContext.ts
+              - packages/frontend/utils/postLinkCards.ts [already listed]
+              - packages/frontend/components/Compose/composeLayout.ts
+              - packages/frontend/styles/shared.ts [already listed]
+              - packages/frontend/stores/threadHoverStore.ts
+              - packages/frontend/components/Feed/ThreadHoverOverlay.tsx
+                - packages/frontend/stores/threadHoverStore.ts [already listed]
+              - packages/frontend/stores/identityUpdates.ts [already listed]
+              - packages/frontend/components/Profile/profileRoute.ts [already listed]
+              - packages/frontend/utils/feedTelemetry.ts
+                - packages/frontend/services/feedService.ts [already listed]
+                - packages/frontend/services/trendingService.ts
+                  - packages/frontend/utils/api.ts [already listed]
+                - packages/frontend/stores/postsStore.ts [already listed]
+                - packages/frontend/utils/feedUtils.ts [already listed]
+              - packages/frontend/utils/dateUtils.ts [already listed]
+              - packages/frontend/utils/displayName.ts [already listed]
+              - packages/frontend/utils/postReplies.ts
+              - packages/frontend/utils/replyContextRow.ts
+              - packages/frontend/utils/openExternalLink.ts [already listed]
+            - packages/frontend/components/Feed/PostErrorBoundary.tsx
+              - packages/frontend/lib/chunkReload.ts
+                - packages/frontend/lib/chunkReload.web.ts
+            - packages/frontend/components/Feed/interstitials/FeedInterstitial.tsx
+              - packages/frontend/components/Feed/interstitials/SimilarAccountsInterstitial.tsx
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/lib/actorCache.ts [already listed]
+                - packages/frontend/components/Profile/profileRoute.ts [already listed]
+                - packages/frontend/components/ProfileCard.tsx
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/components/FollowButton.tsx [already listed]
+                  - packages/frontend/components/ui/AccountAvatar.tsx [already listed]
+                  - packages/frontend/stores/identityUpdates.ts [already listed]
+                  - packages/frontend/components/Profile/profileRoute.ts [already listed]
+                  - packages/frontend/components/UserName.tsx [already listed]
+                  - packages/frontend/utils/userPlaceholderColor.ts
+                  - packages/frontend/lib/utils.ts [already listed]
+                - packages/frontend/components/SuggestedProfileCard.tsx
+                  - packages/frontend/components/FollowButton.tsx [already listed]
+                  - packages/frontend/components/ui/AccountAvatar.tsx [already listed]
+                  - packages/frontend/utils/userPlaceholderColor.ts [already listed]
+                  - packages/frontend/components/ProfileCard.tsx [already listed]
+                  - packages/frontend/components/UserName.tsx [already listed]
+                - packages/frontend/hooks/useCachedUser.ts
+                - packages/frontend/utils/userEnrichment.ts
+                  - packages/frontend/lib/actorCache.ts [already listed]
+                  - packages/frontend/lib/queryClient.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/PersonSuggestionItem.tsx
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/components/ProfileCard.tsx [already listed]
+                  - packages/frontend/components/Profile/profileRoute.ts [already listed]
+                  - packages/frontend/components/SuggestedProfileCard.tsx [already listed]
+                  - packages/frontend/components/Feed/interstitials/DismissButton.tsx
+                    - packages/frontend/lib/utils.ts [already listed]
+                  - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts
+                    - packages/frontend/utils/feedTelemetry.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/hooks/useOptimizedMediaQuery.ts [already listed]
+                  - packages/frontend/components/Feed/interstitials/interstitialLayout.ts
+                  - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialLayout.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts [already listed]
+                - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+              - packages/frontend/components/Feed/interstitials/SuggestedFeedsInterstitial.tsx
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/components/FeedCard.tsx
+                  - packages/frontend/components/ui/AccountAvatarGroup.tsx [already listed]
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/components/ui/AccountAvatar.tsx [already listed]
+                  - packages/frontend/utils/formatNumber.ts [already listed]
+                  - packages/frontend/components/ProfileHoverCard/index.tsx [already listed]
+                - packages/frontend/components/FeedSubscribeButton.tsx
+                - packages/frontend/services/customFeedsService.ts
+                  - packages/frontend/utils/api.ts [already listed]
+                  - packages/frontend/utils/apiError.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/DismissButton.tsx [already listed]
+                - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialLayout.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts [already listed]
+                - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+              - packages/frontend/components/Feed/interstitials/SuggestedStarterPacksInterstitial.tsx
+                - packages/frontend/lib/navigation/router.ts [already listed]
+                - packages/frontend/components/FollowButton.tsx [already listed]
+                - packages/frontend/components/StarterPackCard.tsx
+                  - packages/frontend/components/ui/AccountAvatarGroup.tsx [already listed]
+                  - packages/frontend/lib/navigation/router.ts [already listed]
+                  - packages/frontend/utils/formatNumber.ts [already listed]
+                  - packages/frontend/components/Profile/profileRoute.ts [already listed]
+                  - packages/frontend/components/ProfileHoverCard/index.tsx [already listed]
+                  - packages/frontend/services/starterPacksService.ts
+                    - packages/frontend/utils/api.ts [already listed]
+                - packages/frontend/services/starterPacksService.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/DismissButton.tsx [already listed]
+                - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialLayout.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts [already listed]
+                - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+              - packages/frontend/components/Feed/interstitials/SuggestedUsersInterstitial.tsx
+                - packages/frontend/components/ProfileCard.tsx [already listed]
+                - packages/frontend/components/SuggestedProfileCard.tsx [already listed]
+                - packages/frontend/hooks/useRecommendations.ts
+                  - packages/frontend/lib/actorCache.ts [already listed]
+                  - packages/frontend/utils/userEnrichment.ts [already listed]
+                  - packages/frontend/utils/authErrors.ts [already listed]
+                  - packages/frontend/lib/recommendations.ts
+                    - packages/frontend/utils/api.ts [already listed]
+                    - packages/frontend/lib/recommendationFilters.ts
+                      - packages/frontend/utils/storage.ts [already listed]
+                      - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                      - packages/frontend/lib/keyedAsyncQueue.ts [already listed]
+                  - packages/frontend/lib/recommendationFilters.ts [already listed]
+                  - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                - packages/frontend/lib/recommendations.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/PersonSuggestionItem.tsx [already listed]
+                - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialLayout.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts [already listed]
+              - packages/frontend/components/Feed/interstitials/TrendingTopicsInterstitial.tsx
+                - packages/frontend/interfaces/Trend.ts [already listed]
+                - packages/frontend/stores/trendsStore.ts [already listed]
+                - packages/frontend/hooks/useTrendItemMenu.ts
+                  - packages/frontend/interfaces/Trend.ts [already listed]
+                  - packages/frontend/stores/trendsStore.ts [already listed]
+                  - packages/frontend/hooks/useTrendNavigation.ts
+                    - packages/frontend/lib/navigation/router.ts [already listed]
+                    - packages/frontend/config.ts [already listed]
+                    - packages/frontend/interfaces/Trend.ts [already listed]
+                    - packages/frontend/utils/feedTelemetry.ts [already listed]
+                  - packages/frontend/components/widgets/WidgetItemMenu.tsx
+                  - packages/frontend/utils/shareLink.ts [already listed]
+                - packages/frontend/hooks/useTrendNavigation.ts [already listed]
+                - packages/frontend/components/trending/TrendItemRow.tsx
+                  - packages/frontend/components/ui/AccountAvatarGroup.tsx [already listed]
+                  - packages/frontend/utils/formatNumber.ts [already listed]
+                  - packages/frontend/components/widgets/WidgetItemMenu.tsx [already listed]
+                  - packages/frontend/interfaces/Trend.ts [already listed]
+                  - packages/frontend/components/settings/RowIcon.tsx
+                  - packages/frontend/components/trending/trendBadge.ts
+                    - packages/frontend/interfaces/Trend.ts [already listed]
+                - packages/frontend/utils/feedTelemetry.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialLayout.ts [already listed]
+                - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts [already listed]
+            - packages/frontend/stores/threadHoverStore.ts [already listed]
+            - packages/frontend/components/Feed/ThreadHoverOverlay.tsx [already listed]
+            - packages/frontend/utils/feedUtils.ts [already listed]
+            - packages/frontend/components/Compose/composeLayout.ts [already listed]
+            - packages/frontend/styles/shared.ts [already listed]
+            - packages/frontend/components/Feed/feedPaging.ts
+          - packages/frontend/lib/webTelemetry.ts [already listed]
+          - packages/frontend/components/Feed/useFeedCore.tsx
+            - packages/frontend/lib/chunkReload.ts [already listed]
+            - packages/frontend/hooks/useFeedVisibility.ts
+              - packages/frontend/utils/feedTelemetry.ts [already listed]
+            - packages/frontend/components/Feed/FeedUpdatePolicy.tsx
+              - packages/frontend/services/socketService.ts
+                - packages/frontend/services/feedService.ts [already listed]
+                - packages/frontend/db/feedItem.ts [already listed]
+                - packages/frontend/config.ts [already listed]
+                - packages/frontend/lib/mentionSocketSession.ts
+                - packages/frontend/stores/postsStore.ts [already listed]
+                - packages/frontend/db/index.ts [already listed]
+                - packages/frontend/stores/liveRoomsStore.ts
+                  - packages/frontend/lib/syraApi.ts
+                    - packages/frontend/lib/oxyServices.ts [already listed]
+                    - packages/frontend/config.ts [already listed]
+                - packages/frontend/constants/realtimeEvents.ts
+                - packages/frontend/services/echoGuard.ts [already listed]
+                - packages/frontend/lib/keyedAsyncQueue.ts [already listed]
+                - packages/frontend/services/engagementQueuePersistence.ts
+            - packages/frontend/lib/navigation/router.ts [already listed]
+            - packages/frontend/hooks/useFeedState.ts
+              - packages/frontend/stores/postsStore.ts [already listed]
+              - packages/frontend/utils/feedUtils.ts [already listed]
+              - packages/frontend/utils/feedRetry.ts [already listed]
+              - packages/frontend/hooks/useDeepCompare.ts
+                - packages/frontend/utils/feedUtils.ts [already listed]
+              - packages/frontend/db/index.ts [already listed]
+              - packages/frontend/utils/feedMemoryMode.ts
+              - packages/frontend/stores/feedStaleness.ts [already listed]
+              - packages/frontend/stores/feedQueryCache.ts [already listed]
+              - packages/frontend/hooks/useBoundedReread.ts
+              - packages/frontend/hooks/useFeedQuery.ts
+                - packages/frontend/services/feedPageRead.ts
+                  - packages/frontend/services/feedService.ts [already listed]
+                  - packages/frontend/stores/feedQueryCache.ts [already listed]
+                  - packages/frontend/stores/feedStaleness.ts [already listed]
+                - packages/frontend/stores/postsStore.ts [already listed]
+                - packages/frontend/lib/precacheActorsFromPosts.ts [already listed]
+                - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+                - packages/frontend/stores/feedQueryCache.ts [already listed]
+                - packages/frontend/stores/feedStaleness.ts [already listed]
+                - packages/frontend/utils/feedRetry.ts [already listed]
+                - packages/frontend/utils/feedUtils.ts [already listed]
+                - packages/frontend/hooks/useBoundedReread.ts [already listed]
+                - packages/frontend/hooks/useDeepCompare.ts [already listed]
+                - packages/frontend/hooks/useFeedState.ts [already listed]
+                - packages/frontend/hooks/useReloadOnFeedRuleChange.ts
+                  - packages/frontend/stores/feedStaleness.ts [already listed]
+                  - packages/frontend/stores/feedRankingInvalidation.ts [already listed]
+                  - packages/frontend/stores/safetyInvalidation.ts [already listed]
+                  - packages/frontend/stores/bylineInvalidation.ts [already listed]
+                  - packages/frontend/stores/readerLanguageInvalidation.ts [already listed]
+                - packages/frontend/hooks/useFeedRankingStaleness.ts
+                  - packages/frontend/stores/feedStaleness.ts [already listed]
+                  - packages/frontend/stores/feedRankingInvalidation.ts [already listed]
+                - packages/frontend/db/index.ts [already listed]
+                - packages/frontend/utils/feedMemoryMode.ts [already listed]
+              - packages/frontend/hooks/useReloadOnFeedRuleChange.ts [already listed]
+              - packages/frontend/hooks/useFeedRankingStaleness.ts [already listed]
+              - packages/frontend/utils/feedMemoryMode.ts [already listed]
+            - packages/frontend/hooks/useDeepCompare.ts [already listed]
+            - packages/frontend/hooks/usePrivacyControls.ts
+              - packages/frontend/lib/queryClient.ts [already listed]
+              - packages/frontend/lib/viewerQueryKeys.ts [already listed]
+            - packages/frontend/utils/feedUtils.ts [already listed]
+            - packages/frontend/utils/feedTelemetry.ts [already listed]
+            - packages/frontend/utils/feedRetry.ts [already listed]
+            - packages/frontend/components/Feed/FeedHeader.tsx
+              - packages/frontend/lib/navigation/router.ts [already listed]
+              - packages/frontend/components/ui/AccountAvatar.tsx [already listed]
+            - packages/frontend/components/Feed/FeedFooter.tsx
+              - packages/frontend/components/loading/ContentSkeleton.tsx [already listed]
+            - packages/frontend/components/Feed/FeedEmptyState.tsx
+              - packages/frontend/components/loading/ContentSkeleton.tsx [already listed]
+              - packages/frontend/utils/feedRetry.ts [already listed]
+              - packages/frontend/components/common/EmptyState.tsx [already listed]
+              - packages/frontend/lib/stickers.ts [already listed]
+            - packages/frontend/components/Feed/holdForLeading.ts
+            - packages/frontend/components/Feed/feedRows.tsx [already listed]
+            - packages/frontend/components/Feed/feedPaging.ts [already listed]
+      - packages/frontend/context/VideosRailContext.tsx [already listed]
+      - packages/frontend/components/videos/InlineReplyComposer.tsx
+        - packages/frontend/stores/postsStore.ts [already listed]
+        - packages/frontend/hooks/usePublicationContinuation.ts
+  - packages/frontend/hooks/useVideoPipSession.ts
+  - packages/frontend/hooks/useReelImpressions.ts
+    - packages/frontend/hooks/useFeedVisibility.ts [already listed]
+    - packages/frontend/utils/feedTelemetry.ts [already listed]
+  - packages/frontend/hooks/useMediaSessionTransport.ts
+  - packages/frontend/hooks/usePipTransportActions.ts
+    - packages/frontend/hooks/useRefSync.ts
+    - packages/frontend/modules/pip-transport/index.ts
+  - packages/frontend/hooks/useReelChrome.ts
+    - packages/frontend/utils/mediaTypes.ts [already listed]
+    - packages/frontend/hooks/usePipAspectRatio.ts
+      - packages/frontend/modules/pip-transport/index.ts [already listed]
+      - packages/frontend/utils/mediaTypes.ts [already listed]
+  - packages/frontend/lib/hlsPlayback.ts [already listed]
+  - packages/frontend/components/common/PlaybackVideoView.tsx [already listed]
+  - packages/frontend/stores/videoPlayerRegistry.ts [already listed]
+  - packages/frontend/hooks/useVideoFeed.ts
+    - packages/frontend/utils/video-feed-pagination.ts
+  - packages/frontend/utils/feedTelemetry.ts [already listed]
+  - packages/frontend/utils/postPermalink.ts [already listed]
+  - packages/frontend/components/Feed/postInteractions.tsx [already listed]

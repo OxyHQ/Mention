@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/videos": {
+      "targetKind": "existing-ui",
+      "projectId": "5ebf1508-381a-49b8-82cc-895b262bcd21",
+      "activeDraftId": "94961938-3706-4ecc-9251-681023a900ea",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "e5d55821-6bc5-4044-bf18-b4bc55fed94a"
+      ],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "packages/frontend/global.css",
+        "packages/frontend/app/(app)/(tabs)/videos.tsx:970:1133",
+        "packages/frontend/app/(app)/(tabs)/videos.tsx:1950:1990",
+        ".superdesign/context/icons/RiHeart3Line.tsx",
+        ".superdesign/context/icons/RiChat3Line.tsx",
+        ".superdesign/context/icons/RiRepeat2Line.tsx",
+        ".superdesign/context/icons/RiUpload2Line.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/context/icons/RiRepeat2Line.tsx": "a38b142f9ba93566e97235733f7433064085f8d947f9f73479bf2d0c754dc4e4",
+        ".superdesign/context/icons/RiUpload2Line.tsx": "708ff431f26b481f2969b52c2a877812d2138dc85b3a62bab7288b13a608394b",
+        ".superdesign/context/icons/RiHeart3Line.tsx": "2b3a0ee800b8ef5de4f552d15a8062392448ad9d1fd088d34661f4ddae6f92a9",
+        ".superdesign/context/icons/RiChat3Line.tsx": "40beaf3dfd2d8d4884bcc91eb7598d12570b79e7fda1606ea17273a295421627",
+        "packages/frontend/app/(app)/(tabs)/videos.tsx": "cc43089a3ac253968011ef268b1a5fdc76afdd731c82b1c34d822a1eca97f36c",
+        ".superdesign/design-system.md": "b95b9cbd67e1f122d32fa8c3a373decdfb115a4838617dafdebdf12fccd9f2e2",
+        "packages/frontend/global.css": "e530483cba1b8f9f023d39bcafc3c51c4d2b0c5a11e1b6c4113e14ebd7515299"
+      },
+      "components": [
+        {
+          "name": "VideoFeedHeader",
+          "id": "cd89f4aa-7037-4cd3-a74f-6ac6edf301e4",
+          "sourcePath": "packages/frontend/app/(app)/(tabs)/videos.tsx"
+        }
+      ],
+      "drafts": {
+        "94961938-3706-4ecc-9251-681023a900ea": {
+          "title": "Mention Videos Feed",
+          "visualDirection": "User reference: fullbleed video, plain For You/Following overlay, existing Mention actions/navigation; illustrative poster",
+          "currentVersion": 2
+        }
+      },
+      "contextNote": "Icon copies preserve exact bytes from adjacent Bloom source supplied in first generation; repo-local paths provide safe warm reuse. User reference is the visual target; this is not a pixel claim about the old implementation.",
+      "updatedAt": "2026-11-11T12:36:42.100282+00:00"
+    }
+  }
+}

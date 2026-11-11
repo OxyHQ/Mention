@@ -1,0 +1,6 @@
+# Mention Videos reference target
+Existing Expo/React Native app with NativeWind and Bloom UI. Product implements media playback and existing actions. Shared AppShellPanels/Screen own responsive panels, scroll and chrome; no app JS layout/geometry engine.
+
+Use Bloom sans font (--bloom-font-sans / system sans fallback). Fullbleed portrait video in a black viewport, white compact overlay text and white outline icons; no pill or tab container in reference target. Main overlay top tabs: For You and Following, selected white bold, inactive translucent white. Bottom caption and audio identity sit above existing Mention navigation. Existing bottom-nav destinations are Home, Videos, Notifications, Profile, with separate Compose action as defined by route configuration; use real existing icons, no newfeatures.
+
+Reference user requested Reels→For You and Friends→Following. Preserve video framing and overlay positions; omit external phone bezel/background and fabricated friends' identities. No repostfeature implementation required. Existing supported actionbuttons only. Replies: Bloom panel group inline when room, bottom sheet on mobile, keep player mounted. White readable controls and black legibility scrim. No invented logo position.
