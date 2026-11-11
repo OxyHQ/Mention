@@ -120,7 +120,7 @@ describe('PostActions', () => {
   });
 });
 
-it('uses the same animated actions vertically on video and keeps Save/Share in overflow', () => {
+it('uses the same animated actions vertically on video and keeps Save visible and Share in overflow', () => {
   const onLike = jest.fn(() => false);
   const onSave = jest.fn();
   const onShare = jest.fn();
@@ -133,7 +133,7 @@ it('uses the same animated actions vertically on video and keeps Save/Share in o
   });
   const bar = renderer.root.find((node) => String(node.type) === 'EngagementBar');
   expect(bar.props).toMatchObject({ orientation: 'vertical', size: 'lg', tone: 'onImage' });
-  expect(bar.findAll((node) => String(node.type) === 'EngagementAction')).toHaveLength(4);
+  expect(bar.findAll((node) => String(node.type) === 'EngagementAction')).toHaveLength(5);
   expect(action(renderer, 'Like')).toMatchObject({
     popOnActivate: true,
     rollCount: true,
@@ -141,9 +141,9 @@ it('uses the same animated actions vertically on video and keeps Save/Share in o
   });
   expect(action(renderer, 'Like').onPress()).toBe(false);
   const entries = renderer.root.findAll((node) => String(node.type) === 'DropdownMenuItem');
-  expect(entries).toHaveLength(2);
+  expect(entries).toHaveLength(1);
+  act(() => action(renderer, 'Save').onPress());
   act(() => entries[0].props.onPress());
-  act(() => entries[1].props.onPress());
   expect(onSave).toHaveBeenCalledTimes(1);
   expect(onShare).toHaveBeenCalledTimes(1);
   act(() => renderer.unmount());

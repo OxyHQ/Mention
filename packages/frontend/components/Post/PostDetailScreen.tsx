@@ -18,9 +18,9 @@ import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import Feed from '@/components/Feed/Feed';
-import { FeedHeader } from '@/components/Feed/FeedHeader';
+import { PostReplyFooter } from './PostReplyFooter';
+import { CompactReplyComposer } from './CompactReplyComposer';
 import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
-import { PageFooter } from '@oxy.so/bloom/page-footer';
 import {
   useThreadPreferences,
   useThreadPreferencesStore,
@@ -575,21 +575,61 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
       }
     />
   );
+  const replyFooter = user ? (
+    <PostReplyFooter>
+      {post && access.allowed && postAcceptsReplies(post) ? (
+        <CompactReplyComposer
+          key={`${user.id}:${composeReplyTargetId}`}
+          postId={composeReplyTargetId}
+          placeholder={
+            isPrivateMention(post)
+              ? t('privateMentions.replyPlaceholder', { defaultValue: 'Reply privately' })
+              : t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
+          }
+        />
+      ) : undefined}
+    </PostReplyFooter>
+  ) : undefined;
   if (access.failed) {
     return (
-      <EmptyState
-        error={{
-          title: t('safety.contentUnavailable'),
-          message: t('safety.retryDescription'),
-          onRetry: access.retry,
-        }}
-      />
+      <Screen
+        scroll="auto"
+        header={header}
+        bottomBar={replyFooter}
+        bottomBarPlacement="overlay"
+        bottomBarKeyboardBehavior="follow"
+      >
+        <EmptyState
+          error={{
+            title: t('safety.contentUnavailable'),
+            message: t('safety.retryDescription'),
+            onRetry: access.retry,
+          }}
+        />
+      </Screen>
     );
   }
-  if (!access.allowed) return <FeedSkeleton />;
+  if (!access.allowed)
+    return (
+      <Screen
+        scroll="auto"
+        header={header}
+        bottomBar={replyFooter}
+        bottomBarPlacement="overlay"
+        bottomBarKeyboardBehavior="follow"
+      >
+        <FeedSkeleton />
+      </Screen>
+    );
   if (!loading && (error || !post)) {
     return (
-      <Screen scroll="auto" header={header}>
+      <Screen
+        scroll="auto"
+        header={header}
+        bottomBar={replyFooter}
+        bottomBarPlacement="overlay"
+        bottomBarKeyboardBehavior="follow"
+      >
         <SEO
           title={t('seo.post.notFound')}
           description={t('seo.post.notFoundDescription')}
@@ -615,21 +655,8 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
       testID="post-screen"
       // The reply prompt floats over the thread, which scrolls under it.
       bottomBarPlacement="overlay"
-      bottomBar={
-        user && postAcceptsReplies(post) ? (
-          <PageFooter scrim="auto">
-            <FeedHeader
-              showComposeButton
-              onComposePress={handleOpenReply}
-              promptText={
-                isPrivateMention(post)
-                  ? t('privateMentions.replyPlaceholder', { defaultValue: 'Reply privately' })
-                  : t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
-              }
-            />
-          </PageFooter>
-        ) : undefined
-      }
+      bottomBarKeyboardBehavior="follow"
+      bottomBar={replyFooter}
     >
       <SEO
         title={postTitle}

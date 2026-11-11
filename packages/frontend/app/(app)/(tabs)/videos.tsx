@@ -40,7 +40,7 @@ import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
 import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
-import { usePostsStore } from '@/stores/postsStore';
+import { usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/mediaUrls';
@@ -62,7 +62,7 @@ import {
   useOpenPostEngagement,
   useVideoRepliesPanel,
 } from '@/components/Post/postEngagementContext';
-import type { VideoReplyDraft } from '@/components/videos/videoReplyDraft';
+import type { ReplyDraft } from '@/components/Post/replyDraft';
 import { VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
@@ -767,6 +767,7 @@ const VideoItem = memo<VideoItemProps>(
   }) => {
     const router = useRouter();
     const bottomBarHeight = useVideoContentBottomInset();
+    const cachedActivePost = usePostSelector(isActive ? item.id : undefined);
     const [videoError, setVideoError] = useState(false);
     // The poster can 404 (no extractable frame) or fail to load → fall back to
     // the neutral icon rather than a blank. Held HERE, by the row, because the
@@ -980,7 +981,10 @@ const VideoItem = memo<VideoItemProps>(
             <PostActions
               presentation="video"
               t={t}
-              engagement={item.engagement}
+              engagement={{
+                ...item.engagement,
+                replies: cachedActivePost?.engagement.replies ?? item.engagement.replies,
+              }}
               isLiked={item.viewerState.isLiked}
               isBoosted={item.viewerState.isBoosted}
               isSaved={item.viewerState.isSaved}
@@ -1077,7 +1081,7 @@ export default function VideosScreen() {
   const cachePosts = usePostsStore((s) => s.cachePosts);
   const openPostPanel = useOpenPostEngagement();
   const repliesPanel = useVideoRepliesPanel();
-  const publishedReplies = useRef<VideoReplyDraft | undefined>(undefined);
+  const publishedReplies = useRef<ReplyDraft | undefined>(undefined);
   const closePublishedReplies = useCallback(() => {
     if (publishedReplies.current) repliesPanel?.closeReplies(publishedReplies.current);
     publishedReplies.current = undefined;
@@ -1481,32 +1485,11 @@ export default function VideosScreen() {
     [interactions, likePost, unlikePost, t, setPosts],
   );
 
-  const handleCommentPosted = useCallback(
-    (postId: string) => {
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                engagement: {
-                  ...p.engagement,
-                  replies: (p.engagement.replies ?? 0) + 1,
-                },
-              }
-            : p,
-        ),
-      );
-    },
-    [setPosts],
-  );
-
   const handleComment = useCallback(
     (postId: string) => {
-      openPostPanel?.(postId, 'replies', {
-        onCommentPosted: () => handleCommentPosted(postId),
-      });
+      openPostPanel?.(postId, 'replies');
     },
-    [openPostPanel, handleCommentPosted],
+    [openPostPanel],
   );
 
   const handleBoost = useCallback(
@@ -1629,9 +1612,6 @@ export default function VideosScreen() {
 
   const activeVideoPost = posts[currentVisibleIndex];
   const activeVideoPostId = activeVideoPost?.id;
-  const handleActiveVideoCommentPosted = useCallback(() => {
-    if (activeVideoPostId) handleCommentPosted(activeVideoPostId);
-  }, [activeVideoPostId, handleCommentPosted]);
 
   // ── OS transport controls ───────────────────────────────────────
   // Media keys, the lock screen, and — the reason this is wired at all — the
@@ -1736,17 +1716,8 @@ export default function VideosScreen() {
       closePublishedReplies();
       return;
     }
-    publishedReplies.current = repliesPanel?.publishReplies(
-      activeVideoPostId,
-      handleActiveVideoCommentPosted,
-    );
-  }, [
-    repliesPanel?.publishReplies,
-    activeVideoPostId,
-    handleActiveVideoCommentPosted,
-    isFocused,
-    closePublishedReplies,
-  ]);
+    publishedReplies.current = repliesPanel?.publishReplies(activeVideoPostId);
+  }, [repliesPanel?.publishReplies, activeVideoPostId, isFocused, closePublishedReplies]);
 
   const renderVideoItem = useCallback(
     ({ item, index }: { item: VideoPost; index: number }) => (

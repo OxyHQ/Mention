@@ -1,3 +1,6 @@
+import { ComposeCharacterCount } from './ComposeCharacterCount';
+import { createMediaAttachmentKey } from '@/utils/composeUtils';
+import { consumeReplyComposerHandoff } from '@/utils/replyComposerHandoff';
 import type { CommerceReference } from '@mention/shared-types/commerce';
 import { commerceReferenceKey, readCommerceReferences } from '@/utils/commerceReferences';
 import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
@@ -28,7 +31,7 @@ import { composeStyles as styles } from './ComposeScreen.styles';
 import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth, useAuthStore, useOxy } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
 import * as ExpoLocation from 'expo-location';
 import { useQueryClient } from '@tanstack/react-query';
@@ -272,6 +275,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     // this same screen (e.g. quick share→share) will re-mount the screen.
     [],
   );
+  const [initialReplyDraftToken] = useState(() =>
+    presentation === 'tab'
+      ? undefined
+      : typeof rawParams.replyDraftToken === 'string'
+        ? rawParams.replyDraftToken
+        : undefined,
+  );
+  const replyDraftApplied = useRef(false);
+  const [replyHandoffSaving, setReplyHandoffSaving] = useState(Boolean(initialReplyDraftToken));
   const editPostId = initialIntent.editPostId;
   const replyToPostId = initialIntent.replyToPostId;
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1344,6 +1356,72 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   useLayoutEffect(() => {
     latestDraftSnapshot.current = draftSnapshot;
   }, [draftSnapshot]);
+  useEffect(() => {
+    if (replyDraftApplied.current || !initialReplyDraftToken || !replyToPostId || !user) return;
+    replyDraftApplied.current = true;
+    const scope = { viewerId: user.id, epoch: oxyServices.http.getSessionEpoch(), replyToPostId };
+    const incoming = consumeReplyComposerHandoff(initialReplyDraftToken, scope);
+    if (!incoming) {
+      setReplyHandoffSaving(false);
+      return;
+    }
+    const order = incoming.mediaIds.map((item) => createMediaAttachmentKey(item.id));
+    const snapshot = {
+      ...latestDraftSnapshot.current,
+      postContent: incoming.text,
+      mediaIds: incoming.mediaIds,
+      attachmentOrder: order,
+    };
+    setPostContent(incoming.text);
+    setMediaIds(incoming.mediaIds);
+    setAttachmentOrder(order);
+    // The initial transfer is durable before its source is cleared. This write
+    // survives a committed system Back; no delayed autosave or gesture guard is involved.
+    void saveDraftNow(snapshot)
+      .then(() => {
+        incoming.acknowledge({
+          viewerId: useAuthStore.getState().user?.id ?? '',
+          epoch: oxyServices.http.getSessionEpoch(),
+          replyToPostId,
+        });
+      })
+      .catch((error) => {
+        logger.error('Could not preserve expanded reply draft', error);
+      })
+      .finally(() => {
+        setReplyHandoffSaving(false);
+      });
+  }, [
+    initialReplyDraftToken,
+    replyToPostId,
+    user,
+    oxyServices,
+    saveDraftNow,
+    setPostContent,
+    setMediaIds,
+    setAttachmentOrder,
+  ]);
+
+  useEffect(() => {
+    if (!initialReplyDraftToken || !user?.id) return;
+    const viewer = user.id;
+    const epoch = oxyServices.http.getSessionEpoch();
+    return () => {
+      if (
+        useAuthStore.getState().user?.id !== viewer ||
+        oxyServices.http.getSessionEpoch() !== epoch
+      )
+        return;
+      const snapshot = latestDraftSnapshot.current;
+      if (hasDraftContent(snapshot) || snapshot.currentDraftId) {
+        // A committed native/system Back may unmount before the debounce fires.
+        // Existing autosave refuses discarded/publishing sessions and serializes
+        // this final snapshot after any already-started initial transfer write.
+        void autoSaveDraft(snapshot);
+      }
+    };
+  }, [initialReplyDraftToken, user?.id, oxyServices, autoSaveDraft]);
+
   const switchingDraftRef = useRef(false);
   const [switchingDraft, setSwitchingDraft] = useState(false);
   const composerMountedRef = useRef(false);
@@ -1427,6 +1505,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   };
 
   const handlePost = async (options?: { publishNow?: boolean }) => {
+    if (replyHandoffSaving) return;
     const isCurrentOwner = capturePublication();
     if (
       isPosting ||
@@ -4278,17 +4357,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 </Text>
               )}
               <View style={styles.bottomBarSubmit}>
-                {focusedCharCount > 0 ? (
-                  <Text className="text-muted-foreground" style={styles.charCount}>
-                    {focusedCharCount}
-                  </Text>
-                ) : null}
+                <ComposeCharacterCount count={focusedCharCount} />
                 {isEditMode && editingScheduledPost && scheduledAt ? (
                   <Button
                     appearance="outline"
                     tone="neutral"
                     onPress={() => handlePost({ publishNow: true })}
-                    disabled={!isPostButtonEnabled || isPosting || !supervision.ready}
+                    disabled={
+                      !isPostButtonEnabled || isPosting || !supervision.ready || replyHandoffSaving
+                    }
                     testID="compose-publish-now"
                   >
                     {t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
@@ -4297,7 +4374,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 <Button
                   tone="action"
                   onPress={() => handlePost()}
-                  disabled={!isPostButtonEnabled || !supervision.ready}
+                  disabled={!isPostButtonEnabled || !supervision.ready || replyHandoffSaving}
                   loading={isPosting}
                   testID="compose-submit"
                 >

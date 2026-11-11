@@ -1,11 +1,10 @@
 import { createContext, useContext } from 'react';
-import type { VideoReplyDraft } from '@/components/videos/videoReplyDraft';
+import type { ReplyDraft } from '@/components/Post/replyDraft';
 
 export type PostPanelKind = 'likes' | 'boosts' | 'insights' | 'replies';
 export interface PostPanelOptions {
   /** Publish the active video's inline replies without opening a floating sheet. */
   inlineOnly?: boolean;
-  onCommentPosted?: () => void;
 }
 export type OpenPostPanel = (
   postId: string,
@@ -14,8 +13,8 @@ export type OpenPostPanel = (
 ) => boolean;
 interface PostPanelActions {
   open: OpenPostPanel;
-  publishReplies: (postId: string, onCommentPosted: () => void) => VideoReplyDraft | undefined;
-  closeReplies: (owner: VideoReplyDraft) => void;
+  publishReplies: (postId: string) => ReplyDraft | undefined;
+  closeReplies: (owner: ReplyDraft) => void;
 }
 
 /** One action per host; dispatch adds no per-row panel-state or authentication subscription. */

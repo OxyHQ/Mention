@@ -94,7 +94,7 @@ export function postEngagementGroup(
                 <LazyVideoReplies
                   key={`replies:${destination.postId}`}
                   postId={destination.postId}
-                  onCommentPosted={destination.onCommentPosted}
+                  onNavigate={destination.navigate}
                   focusComposerNonce={engagement?.focusComposerNonce}
                   draft={engagement?.replyDraft}
                 />

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
-import type { VideoReplyDraft } from '@/components/videos/videoReplyDraft';
+import type { ReplyDraft } from '@/components/Post/replyDraft';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
 import { useFocusEffect, usePathname, useRouter } from '@/lib/navigation/router';
@@ -31,7 +31,6 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
           kind,
           route,
           navigate: (href) => router.push(href),
-          onCommentPosted: options?.onCommentPosted,
         },
         options?.inlineOnly,
       );
@@ -40,8 +39,8 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
     [viewer, generation, hostId, route, router],
   );
   const publishReplies = useCallback(
-    (postId: string, onCommentPosted: () => void) => {
-      handleOpen(postId, 'replies', { inlineOnly: true, onCommentPosted });
+    (postId: string) => {
+      handleOpen(postId, 'replies', { inlineOnly: true });
       const state = usePostEngagementPanels.getState();
       const panel = hostId ? state.panels[hostId] : undefined;
       return state.viewer === viewer &&
@@ -55,7 +54,7 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
     [handleOpen, viewer, generation, hostId, route],
   );
   const closeReplies = useCallback(
-    (owner: VideoReplyDraft) => {
+    (owner: ReplyDraft) => {
       const state = usePostEngagementPanels.getState();
       const panel = hostId ? state.panels[hostId] : undefined;
       if (hostId && panel?.destination.kind === 'replies' && panel.replyDraft === owner) {

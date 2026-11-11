@@ -264,10 +264,48 @@ route keeps Mention navigation for anonymous readers instead of reserving a
 large sign-in footer. Content consumes Bloom's remaining bottom inset once.
 FollowButton stays the shared component without custom styles. Video engagement
 uses PostActions' vertical presentation with the same Bloom activation and count
-animations; Save and external Share remain in its overflow menu.
+animations. Save remains visible in that rail; external Share is in its overflow menu.
 
-This integration depends on the Bloom release containing nested `group` and
-`singlePanelFlow`, `onExitComplete`, the vertical EngagementBar presentation and
-PageHeader linear scrim falloff; publish that shared release through CI before updating the
-consumer's catalog version. A local built-package snapshot can validate the
-integration but does not establish published-package adoption.
+Post details and video replies share `CompactReplyComposer`: a Bloom Surface
+capsule with one persistent Textarea. At rest Media, GIF and Maximize form one
+trailing group. Focus, text, attachments or an in-flight publication keep the
+expanded toolbar visible. Text and attachments use one bounded Bloom ScrollArea;
+the Textarea grows without its own scrolling, and a sibling Bloom Toolbar keeps
+Media/GIF, the character ring and Reply fixed below that viewport.
+
+Compact replies accept at most 250 UTF-16 code units, matching the existing
+Compose/backend counting convention. Rejected edits cue Maximize through Bloom's
+GlyphButton attention feedback. Existing longer drafts remain intact and can be
+shortened or expanded, but cannot publish inline. The shared MeterRing uses 250
+here and the full composer's existing 25,000-character limit there, including the
+empty state. Media-only replies are valid. Image and GIF pickers reuse the existing
+private asset pipeline and preserve uploaded IDs, media types, order and alt text.
+
+Maximizing transfers the exact text, attachments and reply target through a
+viewer/session-scoped, one-shot token, without changing public compose intent
+parsing or uploading media again. Compose persists that incoming snapshot before
+acknowledging ownership. The source keeps its draft until acknowledgement, and a
+synchronous transfer lease prevents duplicate maximize/send actions while
+navigation commits. Committed route removal flushes subsequent edits through the
+existing draft manager, so Back before the autosave debounce cannot discard them;
+no extra gesture recognizer or navigation blocker is installed.
+
+`PostReplyFooter` uses Bloom's contextual TabPagerBottomBar dock with an 8px
+horizontal inset. The normal main post route owns compact navigation declaratively,
+including its loading and unavailable states; the global bar is suppressed for
+that same host. The editor stays mounted through dock, focus and Deck changes.
+Video reply sheets and secondary Deck hosts keep the compact editor without a
+second navigation bar. Historical Media/GIF and post-action glyphs come from
+Bloom; existing Button and EngagementAction behavior remains shared.
+
+The video reply counter reads the shared post cache for the active item, so inline
+and full-composer publication cannot diverge or double-increment it. Manual video
+pause belongs to its viewing interval; pending tap timers are cancelled on
+inactivation or focus loss before another video takes playback authority.
+
+Bloom 19.6 published the nested panel groups, exit lifecycle, vertical engagement
+presentation and linear scrim support. The subsequent composer work requires the
+[Bloom 19.7 (PR #798)](https://github.com/OxyHQ/Bloom/pull/798) release containing contextual dock navigation, dynamic action sizing,
+historical glyphs and GlyphButton attention feedback. Publish that shared release
+through CI before updating Mention's catalog and lockfile. A local built-package
+snapshot validates the integration but does not establish published adoption.

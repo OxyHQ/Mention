@@ -1,14 +1,13 @@
 import { create } from 'zustand';
 import type { Href } from '@/lib/navigation/router';
 import type { PostPanelKind } from './postEngagementContext';
-import { createVideoReplyDraft, type VideoReplyDraft } from '@/components/videos/videoReplyDraft';
+import { createReplyDraft, type ReplyDraft } from '@/components/Post/replyDraft';
 
 export interface PostEngagementDestination {
   postId: string;
   kind: PostPanelKind;
   route: string;
   navigate: (href: Href) => void;
-  onCommentPosted?: () => void;
 }
 
 export interface PostEngagementPanel {
@@ -16,7 +15,7 @@ export interface PostEngagementPanel {
   isOpen: boolean;
   floatingOpen?: boolean;
   focusComposerNonce?: number;
-  replyDraft?: VideoReplyDraft;
+  replyDraft?: ReplyDraft;
 }
 
 interface PostEngagementPanelsState {
@@ -70,13 +69,10 @@ export const usePostEngagementPanels = create<PostEngagementPanelsState>((set) =
         current?.destination.kind === destination.kind &&
         current.destination.postId === destination.postId &&
         current.destination.route === destination.route;
-      if (inlineOnly && sameDestination && current.isOpen) {
-        if (current.destination.onCommentPosted === destination.onCommentPosted) return state;
-        return { panels: { ...state.panels, [hostId]: { ...current, destination } } };
-      }
+      if (inlineOnly && sameDestination && current.isOpen) return state;
       let replyDraft = sameDestination && current?.isOpen ? current.replyDraft : undefined;
       if (destination.kind === 'replies' && !replyDraft) {
-        const created: VideoReplyDraft = createVideoReplyDraft(() => {
+        const created: ReplyDraft = createReplyDraft(() => {
           const active = usePostEngagementPanels.getState();
           return (
             active.viewer === viewer &&

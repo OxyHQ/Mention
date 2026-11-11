@@ -14,9 +14,9 @@ import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCalendarEventLine } from '@oxy.so/bloom/icons/RiCalendarEventLine';
 import { RiEmotionHappyLine } from '@oxy.so/bloom/icons/RiEmotionHappyLine';
-import { RiFileGifLine } from '@oxy.so/bloom/icons/RiFileGifLine';
+import { GifAttachmentIcon } from '@oxy.so/bloom/icons/GifAttachmentIcon';
 import { RiFileList2Line } from '@oxy.so/bloom/icons/RiFileList2Line';
-import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
+import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
@@ -175,7 +175,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             onPress={withHaptic(onMediaPress)}
             disabled={disabled || hasPoll}
           >
-            {(color) => <RiGalleryLine width={20} height={20} fill={color} />}
+            {(color) => <MediaAttachmentIcon width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -185,7 +185,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             onPress={withHaptic(onGifPress)}
             disabled={disabled}
           >
-            {(color) => <RiFileGifLine width={20} height={20} fill={color} />}
+            {(color) => <GifAttachmentIcon width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 

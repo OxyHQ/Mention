@@ -149,12 +149,12 @@ it('releases only the published video owner when a feed becomes empty', () => {
       </PostEngagementProvider>,
     );
   });
-  const first = actions?.publishReplies('video-1', jest.fn());
+  const first = actions?.publishReplies('video-1');
   expect(first?.isCurrent?.()).toBe(true);
   if (!first) throw new Error('No video owner');
   actions?.closeReplies(first);
   expect(first.isCurrent?.()).toBe(false);
-  const second = actions?.publishReplies('video-2', jest.fn());
+  const second = actions?.publishReplies('video-2');
   actions?.closeReplies(first);
   expect(second?.isCurrent?.()).toBe(true);
   actions?.open('post-1', 'likes');

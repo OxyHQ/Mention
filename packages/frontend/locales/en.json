@@ -651,7 +651,10 @@
       "public": "Everyone",
       "direct": "Private mention: only the people you mention",
       "needsRecipient": "Mention at least one person. Only the people you mention will see this post."
-    }
+    },
+    "compactLimitHint": "Compact replies allow {{max}} characters. Expand to write more.",
+    "characterCountLabel": "Characters",
+    "characterCountValue": "{{count}} of {{max}} characters"
   },
   "post": {
     "threadPosition": "Post {{index}} of {{total}} in thread",

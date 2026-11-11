@@ -13,15 +13,15 @@ import { EngagementAction, EngagementBar, EngagementGroup } from '@oxy.so/bloom/
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
 import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
-import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
-import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
-import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
-import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
-import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
-import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { BookmarkFillIcon } from '@oxy.so/bloom/icons/BookmarkFillIcon';
+import { BookmarkIcon } from '@oxy.so/bloom/icons/BookmarkIcon';
+import { ReplyIcon } from '@oxy.so/bloom/icons/ReplyIcon';
+import { LikeFillIcon } from '@oxy.so/bloom/icons/LikeFillIcon';
+import { LikeIcon } from '@oxy.so/bloom/icons/LikeIcon';
+import { RepostIcon } from '@oxy.so/bloom/icons/RepostIcon';
 import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
-import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
+import { ShareIcon } from '@oxy.so/bloom/icons/ShareIcon';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
@@ -138,13 +138,7 @@ const PostActions: React.FC<Props> = ({
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent label={t('videos.more')}>
-              <DropdownMenuItem
-                leading={isSaved ? <RiBookmarkFill size="sm" /> : <RiBookmarkLine size="sm" />}
-                onPress={onSave}
-              >
-                {t(isSaved ? 'videos.unsave' : 'videos.save')}
-              </DropdownMenuItem>
-              <DropdownMenuItem leading={<RiUpload2Line size="sm" />} onPress={onShare}>
+              <DropdownMenuItem leading={<ShareIcon size="sm" />} onPress={onShare}>
                 {t('videos.share')}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -152,8 +146,8 @@ const PostActions: React.FC<Props> = ({
         ) : (
           <>
             <EngagementAction
-              icon={RiBookmarkLine}
-              activeIcon={RiBookmarkFill}
+              icon={BookmarkIcon}
+              activeIcon={BookmarkFillIcon}
               accessibilityLabel={t('postActions.save')}
               count={engagement?.saves}
               active={!!isSaved}
@@ -217,8 +211,8 @@ const PostActions: React.FC<Props> = ({
         </EngagementGroup>
       ) : (
         <EngagementAction
-          icon={RiHeart3Line}
-          activeIcon={RiHeart3Fill}
+          icon={LikeIcon}
+          activeIcon={LikeFillIcon}
           accessibilityLabel={t('videos.like')}
           count={likes}
           active={!!isLiked}
@@ -230,14 +224,14 @@ const PostActions: React.FC<Props> = ({
       )}
       {onReply ? (
         <EngagementAction
-          icon={RiChat3Line}
+          icon={ReplyIcon}
           accessibilityLabel={t('common.reply')}
           count={engagement?.replies}
           onPress={onReply}
         />
       ) : null}
       <EngagementAction
-        icon={RiRepeat2Line}
+        icon={RepostIcon}
         accessibilityLabel={t('post.repostOptions')}
         count={engagement?.boosts}
         active={!!isBoosted}
@@ -251,9 +245,18 @@ const PostActions: React.FC<Props> = ({
           onPress={onSendInAllo}
         />
       ) : null}
+      {video && (
+        <EngagementAction
+          icon={BookmarkIcon}
+          activeIcon={BookmarkFillIcon}
+          accessibilityLabel={t('postActions.save')}
+          active={!!isSaved}
+          onPress={onSave}
+        />
+      )}
       {!video && (
         <EngagementAction
-          icon={RiUpload2Line}
+          icon={ShareIcon}
           accessibilityLabel={t('videos.share')}
           onPress={onShare}
         />

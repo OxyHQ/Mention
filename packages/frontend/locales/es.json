@@ -656,7 +656,10 @@
       "public": "Todo el mundo",
       "direct": "Mención privada: solo las personas que menciones",
       "needsRecipient": "Menciona al menos a una persona. Solo las personas que menciones verán esta publicación."
-    }
+    },
+    "compactLimitHint": "Las respuestas compactas permiten {{max}} caracteres. Amplía el editor para escribir más.",
+    "characterCountLabel": "Caracteres",
+    "characterCountValue": "{{count}} de {{max}} caracteres"
   },
   "post": {
     "threadPosition": "Publicación {{index}} de {{total}} del hilo",
