@@ -45,7 +45,7 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
-import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
+import { openPostInsights, useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { postLinkCards } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
@@ -576,12 +576,11 @@ const PostItem: React.FC<PostItemProps> = ({
     setArticleModalFor(undefined);
   }, []);
 
-  const handleInsightsPress = useCallback(() => {
-    if (viewPostId) interactions.openInsights(viewPostId);
-  }, [interactions, viewPostId]);
-
-  // The post route opens its supporting panel; standalone posts use the shared sheet.
+  // Each shell host opens its supporting panel; standalone posts use the shared sheet.
   const openPostEngagement = useOpenPostEngagement();
+  const handleInsightsPress = useCallback(() => {
+    if (viewPostId) openPostInsights(openPostEngagement, viewPostId, interactions.openInsights);
+  }, [openPostEngagement, interactions, viewPostId]);
   const openEngagementList = useCallback(
     (type: 'likes' | 'boosts') => {
       if (!viewPostId) return;
@@ -1200,6 +1199,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     isPostDetail={isDetailMain}
                     source={feedDescriptor}
                     onOpenArticle={openArticleSheet}
+                    onInsights={handleInsightsPress}
                   />
                 </Suspense>
               ) : undefined
@@ -1297,7 +1297,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     onTranslateLongPress={openLanguagePicker}
                     isTranslated={isTranslated}
                     isTranslating={isTranslating}
-                    onInsightsPress={isOwner ? handleInsightsPress : undefined}
+                    onInsightsPress={isOwner && isDetailMain ? handleInsightsPress : undefined}
                   />
                 </View>
               )}

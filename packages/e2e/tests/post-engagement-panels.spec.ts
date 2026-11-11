@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from '../fixtures';
 
 const post = {
@@ -141,6 +142,7 @@ test('likes split the post bounds, scroll independently and close without remoun
   );
   await expect(likes).toBeHidden();
   await expect(likes).toHaveAttribute('aria-hidden', 'true');
+  await expect(likes.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
   await expect(screen).toHaveAttribute('data-original-post', 'true');
   await expect(postOwner).toHaveCount(0);
   await expect.poll(async () => (await content.boundingBox())?.height ?? 0).toBeGreaterThan(850);
@@ -388,14 +390,7 @@ test('closing a resized split keeps virtualized replies and their reading offset
   page,
   candidate,
 }) => {
-  const replies = Array.from({ length: 50 }, (_, index) => ({
-    ...post,
-    id: `019e23ee-2d68-7000-8000-${String(index + 100).padStart(12, '0')}`,
-    content: {
-      text: `Reply ${index + 1}. Reading the virtualized replies while closing a supporting panel.`,
-    },
-    parentPostId: post.id,
-  }));
+  const replies = replyRows();
   await page.route('**/feed/replies/**', (route) =>
     route.fulfill({ json: { items: replies, hasMore: false } }),
   );
@@ -486,5 +481,392 @@ test('closing a resized split keeps virtualized replies and their reading offset
   await expect(likes.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(1);
   await likes.getByRole('button', { name: 'Close', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(readingOffset, 0);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+function replyRows() {
+  return Array.from({ length: 50 }, (_, index) => ({
+    ...post,
+    id: `019e23ee-2d68-7000-8000-${String(index + 100).padStart(12, '0')}`,
+    content: { text: `Reply ${index + 1}. Keep reading.` },
+    parentPostId: post.id,
+  }));
+}
+
+type PanelMotionFrame = {
+  time: number;
+  height: number;
+  auxiliaryHeight: number;
+  readingVisible: boolean;
+  chromeVisible: boolean;
+  routeRetained: boolean;
+  owner: string | undefined;
+  offset: number;
+  documentOffset: number;
+};
+
+/** Sample clipped DOM visibility and geometry; the companion film checks actual compositor paint. */
+function capturePanelMotion(page: Page, readingText: string) {
+  return page.evaluate(
+    (text) =>
+      new Promise<PanelMotionFrame[]>((resolve) => {
+        const original = document.querySelector('[data-testid="post-screen"]');
+        const started = performance.now();
+        const frames: PanelMotionFrame[] = [];
+        const isVisibleInClip = (node: Element | null | undefined) => {
+          if (!node?.isConnected) return false;
+          const rect = node.getBoundingClientRect();
+          const visible = {
+            left: Math.max(0, rect.left),
+            right: Math.min(innerWidth, rect.right),
+            top: Math.max(0, rect.top),
+            bottom: Math.min(innerHeight, rect.bottom),
+          };
+          for (let ancestor: Element | null = node; ancestor; ancestor = ancestor.parentElement) {
+            const style = getComputedStyle(ancestor);
+            if (
+              Number(style.opacity) < 0.99 ||
+              style.visibility !== 'visible' ||
+              style.display === 'none'
+            )
+              return false;
+            const bounds = ancestor.getBoundingClientRect();
+            if (/(hidden|clip|auto|scroll)/.test(style.overflowX)) {
+              visible.left = Math.max(visible.left, bounds.left);
+              visible.right = Math.min(visible.right, bounds.right);
+            }
+            if (/(hidden|clip|auto|scroll)/.test(style.overflowY)) {
+              visible.top = Math.max(visible.top, bounds.top);
+              visible.bottom = Math.min(visible.bottom, bounds.bottom);
+            }
+          }
+          if (visible.right - visible.left < 1 || visible.bottom - visible.top < 1) return false;
+          const hit = document.elementFromPoint(
+            (visible.left + visible.right) / 2,
+            (visible.top + visible.bottom) / 2,
+          );
+          return !!hit && (node.contains(hit) || hit.contains(node));
+        };
+        const sample = (now: number) => {
+          const screen = document.querySelector('[data-testid="post-screen"]');
+          const owner = screen?.querySelector<HTMLElement>('[data-bloom-screen-viewport]');
+          const reading = [...(screen?.querySelectorAll('div,span') ?? [])]
+            .filter((node) => node.textContent === text)
+            .at(-1);
+          frames.push({
+            time: now - started,
+            height: Math.min(innerHeight - 16, screen?.getBoundingClientRect().height ?? 0),
+            auxiliaryHeight:
+              document
+                .querySelector('[data-testid="mention-shell-panels-main-engagement"]')
+                ?.getBoundingClientRect().height ?? 0,
+            readingVisible: isVisibleInClip(reading),
+            chromeVisible: isVisibleInClip(
+              document.querySelector('[data-testid="sidebar-item-index"]'),
+            ),
+            routeRetained: screen === original && !!original?.isConnected,
+            owner: owner?.dataset.bloomScreenViewport,
+            documentOffset: scrollY,
+            offset:
+              owner?.dataset.bloomScreenViewport === 'document'
+                ? scrollY
+                : (owner?.scrollTop ?? -1),
+          });
+          if (now - started < 1100) requestAnimationFrame(sample);
+          else resolve(frames);
+        };
+        requestAnimationFrame(sample);
+      }),
+    readingText,
+  );
+}
+
+async function openReadingPosition(page: Page) {
+  const replies = replyRows();
+  await page.route('**/feed/replies/**', (route) =>
+    route.fulfill({ json: { items: replies, hasMore: false } }),
+  );
+  await page.goto(`/p/${post.id}`);
+  const screen = page.getByTestId('post-screen');
+  await expect(screen).toBeVisible();
+  await screen.hover();
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(450);
+  await expect(screen.getByText(replies[3].content.text, { exact: true })).toBeVisible();
+  return {
+    screen,
+    readingText: replies[3].content.text,
+    offset: await page.evaluate(() => window.scrollY),
+  };
+}
+
+test('repeated normal and Deck changes keep readable content and the full viewport painted', async ({
+  page,
+  candidate,
+}) => {
+  const { readingText, offset } = await openReadingPosition(page);
+  const trigger = page.getByRole('button', { name: 'Deck mode', exact: true });
+  for (let round = 0; round < 4; round += 1) {
+    const recording = capturePanelMotion(page, readingText);
+    await trigger.click();
+    const frames = await recording;
+    await test.info().attach(`mode-transition-${round}`, {
+      body: JSON.stringify(frames),
+      contentType: 'application/json',
+    });
+    expect(
+      frames.every((frame) => frame.routeRetained && frame.chromeVisible && frame.readingVisible),
+    ).toBe(true);
+    expect(frames.every((frame) => frame.owner !== 'element' || frame.documentOffset === 0)).toBe(
+      true,
+    );
+    expect(Math.min(...frames.map((frame) => frame.height))).toBeGreaterThanOrEqual(882);
+    expect(frames.every((frame) => Math.abs(frame.offset - offset) <= 1)).toBe(true);
+  }
+  const interrupted = capturePanelMotion(page, readingText);
+  await trigger.evaluate((node: HTMLElement) => {
+    node.click();
+    requestAnimationFrame(() => requestAnimationFrame(() => node.click()));
+  });
+  const interruptedFrames = await interrupted;
+  await test.info().attach('interrupted-mode-transition', {
+    body: JSON.stringify(interruptedFrames),
+    contentType: 'application/json',
+  });
+  expect(
+    interruptedFrames.every(
+      (frame) => frame.routeRetained && frame.chromeVisible && frame.readingVisible,
+    ),
+  ).toBe(true);
+  expect(
+    interruptedFrames.every((frame) => frame.owner !== 'element' || frame.documentOffset === 0),
+  ).toBe(true);
+  expect(Math.min(...interruptedFrames.map((frame) => frame.height))).toBeGreaterThanOrEqual(882);
+  expect(interruptedFrames.every((frame) => Math.abs(frame.offset - offset) <= 1)).toBe(true);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('opening a split progressively shares the viewport without collapsing the reading panel', async ({
+  page,
+  candidate,
+}) => {
+  const { screen, readingText } = await openReadingPosition(page);
+  for (const mode of ['normal', 'deck']) {
+    const recording = capturePanelMotion(page, readingText);
+    await screen.getByText('likes', { exact: true }).evaluate((node: HTMLElement) => node.click());
+    const frames = await recording;
+    await test.info().attach(`split-opening-${mode}`, {
+      body: JSON.stringify(frames),
+      contentType: 'application/json',
+    });
+    expect(
+      frames.every((frame) => frame.routeRetained && frame.chromeVisible && frame.readingVisible),
+    ).toBe(true);
+    expect(Math.min(...frames.map((frame) => frame.height))).toBeGreaterThanOrEqual(436);
+    expect(
+      frames.filter((frame) => frame.height > 440 && frame.height < 882).length,
+    ).toBeGreaterThan(2);
+    expect(
+      frames.filter((frame) => frame.auxiliaryHeight > 2 && frame.auxiliaryHeight < 436).length,
+    ).toBeGreaterThan(2);
+    expect(Math.max(...frames.map((frame) => frame.auxiliaryHeight))).toBeLessThanOrEqual(440);
+    for (let index = 1; index < frames.length; index += 1) {
+      expect(frames[index].height - frames[index - 1].height).toBeLessThanOrEqual(2);
+    }
+    const likes = page.getByTestId('mention-shell-panels-main-engagement');
+    await likes.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(likes).toBeHidden();
+    if (mode === 'normal') {
+      await expect(screen.locator('[data-bloom-screen-viewport="document"]')).toHaveCount(1);
+      await page.getByRole('button', { name: 'Deck mode', exact: true }).click();
+      await expect
+        .poll(
+          async () => (await page.getByTestId('mention-shell-panels-main').boundingBox())?.width,
+        )
+        .toBeCloseTo(390, 0);
+    }
+  }
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+const ownedPost = {
+  ...post,
+  viewerState: { ...post.viewerState, isOwner: true },
+  permissions: { ...post.permissions, canViewInsights: true },
+};
+
+for (const width of [1440, 390]) {
+  test(`post Insights opens from the focused detail in its host at ${width}px`, async ({
+    page,
+    candidate,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/feed/mtn?**', (route) =>
+      route.fulfill({ json: { items: [ownedPost], hasMore: false } }),
+    );
+    await page.route(`**/feed/item/${post.id}`, (route) => route.fulfill({ json: ownedPost }));
+    await page.goto(`/p/${post.id}`);
+    const main = page.getByTestId('mention-shell-panels-main-content');
+    await expect(main.getByText(post.content.text, { exact: true })).toBeVisible();
+    await main.getByRole('button', { name: 'Insights', exact: true }).click();
+    if (width < 768) {
+      const sheet = page.getByRole('dialog');
+      await expect(sheet.getByTestId('post-insights-screen')).toBeVisible();
+      await expect(sheet.getByRole('heading', { name: 'Post Insights', exact: true })).toHaveCount(
+        1,
+      );
+      await expect(page.getByTestId('post-insights-screen')).toHaveCount(1);
+    } else {
+      const supporting = page.getByTestId('mention-shell-panels-main-engagement');
+      await expect(supporting.getByTestId('post-insights-screen')).toBeVisible();
+      await expect(
+        supporting.getByRole('heading', { name: 'Post Insights', exact: true }),
+      ).toBeVisible();
+      await expect(supporting.locator('[data-bloom-screen-viewport="element"]')).toHaveCount(1);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+    await expect(main.getByText(post.content.text, { exact: true })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe(`/p/${post.id}`);
+    expect(candidate.scriptErrors).toEqual([]);
+  });
+}
+
+test('the Insights button and overflow menu target their independent Deck hosts', async ({
+  page,
+  candidate,
+}) => {
+  await page.route(`**/feed/item/${post.id}`, (route) => route.fulfill({ json: ownedPost }));
+  await page.addInitScript((postId) => {
+    const order = ['custom-a', 'custom-b'];
+    const state = {
+      syncEnabled: false,
+      order,
+      panels: Object.fromEntries(
+        order.map((id) => [
+          id,
+          {
+            source: 'explore',
+            width: 390,
+            resizable: true,
+            appearance: 'solid',
+            navigation: { entries: [{ key: 'root', name: `/p/${postId}` }], index: 0 },
+          },
+        ]),
+      ),
+    };
+    localStorage.setItem(
+      'mention:deck:workspace',
+      JSON.stringify({
+        version: 1,
+        state: { records: { anonymous: { state, base: null, revision: 0, dirty: false } } },
+      }),
+    );
+  }, post.id);
+  await page.goto('/deck');
+  const first = page.getByTestId('mention-shell-panels-custom-a-content');
+  const second = page.getByTestId('mention-shell-panels-custom-b-content');
+  await expect(first.getByTestId('post-screen')).toBeVisible();
+  await first.getByRole('button', { name: 'Insights', exact: true }).click();
+  await expect(
+    page
+      .getByTestId('mention-shell-panels-custom-a-engagement')
+      .getByTestId('post-insights-screen'),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByTestId('mention-shell-panels-custom-b-engagement')
+      .getByTestId('post-insights-screen'),
+  ).toHaveCount(0);
+  await second.getByRole('button', { name: 'Post options', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Insights', exact: true }).click();
+  await expect(
+    page
+      .getByTestId('mention-shell-panels-custom-b-engagement')
+      .getByTestId('post-insights-screen'),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByTestId('mention-shell-panels-custom-a-engagement')
+      .getByTestId('post-insights-screen'),
+  ).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('feed cards keep Insights in the permitted overflow menu without a direct action button', async ({
+  page,
+  candidate,
+}) => {
+  await page.route('**/feed/mtn?**', (route) =>
+    route.fulfill({ json: { items: [ownedPost], hasMore: false } }),
+  );
+  await page.goto('/');
+  const main = page.getByTestId('mention-shell-panels-main-content');
+  await expect(main.getByText(post.content.text, { exact: true })).toBeVisible();
+  await expect(main.getByRole('button', { name: 'Insights', exact: true })).toHaveCount(0);
+  await main.getByRole('button', { name: 'Post options', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Insights', exact: true }).click();
+  await expect(
+    page.getByTestId('mention-shell-panels-main-engagement').getByTestId('post-insights-screen'),
+  ).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('navigation keeps outgoing panel content until its exit and releases it without carrying the old route scroll', async ({
+  page,
+  candidate,
+}) => {
+  const { screen } = await openReadingPosition(page);
+  const homePosts = Array.from({ length: 50 }, (_, index) => ({
+    ...post,
+    id: `019e23ee-2d68-7000-8000-${String(index + 1000).padStart(12, '0')}`,
+    content: { text: `Home item ${index + 1}. A different reading position.` },
+  }));
+  await page.route('**/feed/mtn?**', (route) =>
+    route.fulfill({ json: { items: homePosts, hasMore: false } }),
+  );
+  await screen.getByText('likes', { exact: true }).evaluate((node: HTMLElement) => node.click());
+  const supporting = page.getByTestId('mention-shell-panels-main-engagement');
+  await expect(supporting.getByText('Reader 0', { exact: true })).toBeVisible();
+  const recording = page.evaluate(
+    () =>
+      new Promise<Array<{ path: string; height: number; retainedContent: boolean }>>((resolve) => {
+        const frames: Array<{ path: string; height: number; retainedContent: boolean }> = [];
+        const start = performance.now();
+        function sample(now: number) {
+          const supporting = document.querySelector(
+            '[data-testid="mention-shell-panels-main-engagement"]',
+          );
+          frames.push({
+            path: location.pathname,
+            height: supporting?.getBoundingClientRect().height ?? 0,
+            retainedContent: supporting?.textContent?.includes('Reader 0') ?? false,
+          });
+          if (now - start < 1100) requestAnimationFrame(sample);
+          else resolve(frames);
+        }
+        requestAnimationFrame(sample);
+      }),
+  );
+  await page.getByTestId('sidebar-scroll').getByTestId('sidebar-item-index').click();
+  const frames = await recording;
+  await test.info().attach('route-exit-content', {
+    body: JSON.stringify(frames),
+    contentType: 'application/json',
+  });
+  const leaving = frames.filter((frame) => frame.path === '/' && frame.height > 2);
+  expect(leaving.length).toBeGreaterThan(2);
+  expect(leaving.every((frame) => frame.retainedContent)).toBe(true);
+  await expect(supporting.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId('mention-shell-panels-main-content')
+      .getByText(homePosts[0].content.text, { exact: true }),
+  ).toBeVisible();
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+  await page.goBack();
+  await expect(page.getByTestId('post-screen')).toBeVisible();
+  await expect(supporting.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
   expect(candidate.scriptErrors).toEqual([]);
 });

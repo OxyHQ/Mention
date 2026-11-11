@@ -4,6 +4,7 @@ import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost, PostUser } from '@mention/shared-types';
 
 import PostItem from '../PostItem';
+import { PostEngagementContext } from '@/components/Post/postEngagementContext';
 import type { NestedPostRenderer } from '../../Post/Attachments/PostAttachmentNested';
 
 /**
@@ -493,3 +494,35 @@ it('opens repost evidence as reposts and does not repeat the same structural boo
   expect(JSON.stringify(tree.toJSON())).toContain('Reposted by');
   act(() => tree.unmount());
 });
+
+it.each([
+  { detail: true, nested: false, owned: true, enabled: true },
+  { detail: false, nested: false, owned: true, enabled: false },
+  { detail: true, nested: true, owned: true, enabled: false },
+  { detail: true, nested: false, owned: false, enabled: false },
+])(
+  'offers the direct Insights action only for the owned focused detail: %j',
+  ({ detail, nested, owned, enabled }) => {
+    const post = postWith([owner]);
+    post.viewerState = { ...post.viewerState, isOwner: owned };
+    const openPanel = jest.fn(() => true);
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        <PostEngagementContext.Provider value={openPanel}>
+          <PostItem post={post} isPostDetail={detail} isNested={nested} />
+        </PostEngagementContext.Provider>,
+      );
+    });
+    if (!renderer) throw new Error('Post did not render');
+    const action = renderer.root.findAll(
+      (node) => typeof node.type === 'string' && String(node.type) === 'PostActions',
+    )[0]?.props.onInsightsPress;
+    if (enabled) {
+      expect(action).toEqual(expect.any(Function));
+      act(() => action());
+      expect(openPanel).toHaveBeenCalledWith(post.id, 'insights');
+    } else expect(action).toBeUndefined();
+    act(() => renderer?.unmount());
+  },
+);

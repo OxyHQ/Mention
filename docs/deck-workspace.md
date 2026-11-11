@@ -38,10 +38,11 @@ the saved-column order through the existing account cache/sync. The main column
 stays fixed. Reordering preserves panel IDs, navigation, scroll snapshots and
 hidden legacy slots.
 
-Bloom owns panel movement and document/column scroll handoff through
-`panelLayout.transition="exit-before-enter"`: outgoing context chrome fades away,
-the retained layout changes geometry, and incoming panels appear. The same
-sequence runs in reverse on exit, with reduced-motion behavior owned by Bloom.
+Bloom owns panel movement and document/column scroll handoff through its default
+simultaneous transition. The main route and navigation remain visible while
+outgoing and incoming columns change alongside the retained layout. Both
+directions preserve the reading viewport and content throughout the movement;
+reduced-motion behavior also belongs to Bloom.
 Panel invitations use the descriptor's
 `bottomBar` slot; the route Screen composes and measures that footer without an
 application wrapper. The selected mode is stored locally per account, separately
@@ -169,8 +170,12 @@ production already runs it.
   disabled-layout preservation and account erasure against PostgreSQL.
 - Check normal document pages, Deck horizontal scrolling, compact settings and
   native list ownership; headers and indicators must follow the correct owner.
-- Enter and leave Deck from a post; its mounted content, reading position and
-  sign-in footer must stay in the first panel.
+- Enter and leave Deck repeatedly from a scrolled post; the main panel must keep
+  its full reading viewport, visible reply content, navigation and reading
+  position throughout each transition, not just after it finishes.
+- Open a supporting split in normal and Deck modes; the main viewport must
+  shrink progressively without collapsing below its final share or briefly
+  displaying the beginning of the post.
 - Reorder additional columns by pointer and keyboard, preserving their DOM,
   history and horizontal offset. The first application column stays fixed.
 - Add a column from the trailing action, verify that its final box is revealed,
@@ -186,7 +191,10 @@ server behavior. Neither proves that production has been deployed.
 
 ## Supporting post panels
 
-Opening a post's likes or reposts splits only that post's panel vertically. The
+Opening a post's likes, reposts or Insights splits only the originating panel
+vertically. The direct Insights button is offered only on an owned focused post
+detail (including a Deck route), not feed cards or nested replies; the existing
+permission-gated overflow menu shares the same host dispatch. The
 post and engagement list share the available height equally until the reader
 moves Bloom's separator; each uses its own real Bloom scroll owner. Both panes
 have the same useful minimum: 224px normally, or 368px when the host includes
@@ -202,23 +210,30 @@ floating because of the narrow-width policy. An inline split becomes bounded wit
 replacing the route tree. A height-constrained sheet retains the bounded main
 while open so its capacity query cannot oscillate with document height; closing
 it restores normal document flow. When closing an inline split, Bloom retains the
-bounded scroll owner until its geometry transition finishes, then transfers the
-current reading offset to the document in the same handoff.
+bounded scroll owner until its own and enclosing layout geometry transitions
+finish, then transfers the current reading offset to the document in the same handoff.
 Deck groups stay bounded throughout. Group and routed leaf IDs retain the
 existing workspace IDs in their separate sibling scopes, preserving saved
 navigation and scroll snapshot keys. Bloom owns responsive eligibility,
 geometry, animation, resizing and scroll-owner transfer; Mention measures none
 of these.
 
-Engagement destinations are transient and separate for each column. Leaving the
-post closes its supporting panel. Changing account clears all destinations and
-rejects callbacks from earlier account activations. Clicking an engager closes
+One lightweight provider captures each main or Deck host's route and navigation;
+supporting-panel dispatch adds no per-row authentication or store subscriptions.
+Destinations are transient and separate for each column. Closing or leaving a
+route keeps its inactive content only until Bloom's `onExitComplete` callback,
+then releases the destination and navigation closure. Completion must still match
+the viewer generation, destination identity and closed state; reopening or a new
+destination cancels an earlier completion. Changing account, removing a host or
+unmounting the shell clears its destinations immediately. Clicking an engager closes
 the list and navigates in the originating column's history. The list keeps its
 virtualization, localized loading/error/empty states and cursor pagination in
-both presentations. Retained exit content belongs to Bloom's lifecycle, never a
-second active list or a render-time ref in the application shell.
+both presentations. Insights reuses the existing viewer-scoped queries and a
+single Bloom Screen/ScreenScrollView, including its standalone sheet fallback.
+Retained exit content follows Bloom's actual lifecycle, never an application timer,
+a second active list or a render-time ref in the shell.
 
 This integration depends on the Bloom release containing nested `group` and
-`singlePanelFlow`; publish that shared release through CI before updating the
+`singlePanelFlow` and `onExitComplete`; publish that shared release through CI before updating the
 consumer's catalog version. A local built-package snapshot can validate the
 integration but does not establish published-package adoption.

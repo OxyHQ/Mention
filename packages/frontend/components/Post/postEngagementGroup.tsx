@@ -1,15 +1,18 @@
 import { lazy, Suspense, type ErrorInfo } from 'react';
 import type { AppShellPanelDefinition } from '@oxy.so/bloom/app-shell';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
+import { PostEngagementProvider } from './PostEngagementProvider';
 import type { PostEngagementPanel } from './postEngagementPanels';
 
 const EngagementList = lazy(() => import('./EngagementList'));
+const PostInsightsSheet = lazy(() => import('./PostInsightsSheet'));
 
 /** The outer descriptor keeps the workspace's sizing/order; its children own their screens. */
 export function postEngagementGroup(
   host: AppShellPanelDefinition,
   engagement: PostEngagementPanel | undefined,
   close: () => void,
+  onExitComplete: () => void,
   label: string,
   onError: (error: Error, info: ErrorInfo) => void,
   documentWhenAlone = false,
@@ -31,8 +34,21 @@ export function postEngagementGroup(
         {
           id: host.id,
           testID: `mention-shell-panels-${host.id}-content`,
-          content,
-          navigation,
+          content: navigation ? (
+            content
+          ) : (
+            <PostEngagementProvider>{content}</PostEngagementProvider>
+          ),
+          navigation: navigation
+            ? {
+                ...navigation,
+                render: (entry, controller) => (
+                  <PostEngagementProvider>
+                    {navigation.render(entry, controller)}
+                  </PostEngagementProvider>
+                ),
+              }
+            : undefined,
           bottomBar,
           headerActions,
           scroll,
@@ -48,6 +64,7 @@ export function postEngagementGroup(
           id: `${host.id}:engagement`,
           testID: `mention-shell-panels-${host.id}-engagement`,
           visible: engagement?.isOpen ?? false,
+          onExitComplete,
           span: 1,
           minHeight: minimumHeight,
           errorBoundary: { onError },
@@ -63,13 +80,21 @@ export function postEngagementGroup(
           },
           content: destination ? (
             <Suspense fallback={<ListSkeleton count={4} />}>
-              <EngagementList
-                key={`${destination.postId}:${destination.kind}`}
-                postId={destination.postId}
-                type={destination.kind}
-                onClose={close}
-                onNavigate={destination.navigate}
-              />
+              {destination.kind === 'insights' ? (
+                <PostInsightsSheet
+                  key={`insights:${destination.postId}`}
+                  postId={destination.postId}
+                  onClose={close}
+                />
+              ) : (
+                <EngagementList
+                  key={`${destination.postId}:${destination.kind}`}
+                  postId={destination.postId}
+                  type={destination.kind}
+                  onClose={close}
+                  onNavigate={destination.navigate}
+                />
+              )}
             </Suspense>
           ) : null,
         },

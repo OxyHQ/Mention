@@ -4,7 +4,7 @@ import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
 import { useFocusEffect, usePathname, useRouter } from '@/lib/navigation/router';
 import { usePostEngagementPanels } from './postEngagementPanels';
 
-import { PostEngagementContext } from './postEngagementContext';
+import { PostEngagementContext, type PostPanelKind } from './postEngagementContext';
 
 /** Captures the post's navigation owner before its supporting panel becomes a sibling. */
 export function PostEngagementProvider({ children }: { children: ReactNode }) {
@@ -15,7 +15,7 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
   const route = usePathname();
   const router = useRouter();
   const handleOpen = useCallback(
-    (postId: string, kind: 'likes' | 'boosts') => {
+    (postId: string, kind: PostPanelKind) => {
       if (!hostId) return false;
       usePostEngagementPanels.getState().open(viewer, generation, hostId, {
         postId,
@@ -30,7 +30,7 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
   useFocusEffect(
     useCallback(
       () => () => {
-        if (hostId) usePostEngagementPanels.getState().release(viewer, generation, hostId, route);
+        if (hostId) usePostEngagementPanels.getState().close(viewer, generation, hostId, route);
       },
       [viewer, generation, hostId, route],
     ),

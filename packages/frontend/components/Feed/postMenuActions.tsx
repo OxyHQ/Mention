@@ -60,7 +60,6 @@ import { savePostSettings } from './postSettings';
  * is mounted from an `onPress` through `presentSheet`, wrapped in `<Suspense>`,
  * and only the actions a reader picks should cost their service graphs.
  */
-const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 const ReportModal = lazy(() =>
   import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })),
 );
@@ -110,6 +109,7 @@ export interface PostMenuParams {
   moderatesCommunity: boolean;
   onSave: () => Promise<void>;
   onOpenArticle: () => void;
+  onInsights: () => void;
 }
 
 /** A row that opens a submenu of its own rows instead of acting. */
@@ -147,6 +147,7 @@ export function buildPostMenuActions(
     moderatesCommunity,
     onSave,
     onOpenArticle,
+    onInsights,
   }: PostMenuParams,
   { theme, t, viewerId, canUsePrivateApi, router, back, queryClient }: PostMenuDeps,
 ): PostMenuActions {
@@ -203,13 +204,7 @@ export function buildPostMenuActions(
           {
             icon: <RiBarChartBoxLine width={20} height={20} fill={theme.colors.textSecondary} />,
             label: t('postActions.insights'),
-            onPress: () => {
-              void presentSheet((surface) => (
-                <Suspense fallback={null}>
-                  <PostInsightsSheet postId={postId || null} onClose={() => surface.dismiss()} />
-                </Suspense>
-              ));
-            },
+            onPress: onInsights,
           },
         ]
       : [];

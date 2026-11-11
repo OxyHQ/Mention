@@ -40,21 +40,67 @@ it('clears destinations on account switch and rejects callbacks from an earlier 
   });
 });
 
-it('does not close a new route when the previous route releases its panel', () => {
+it('ignores a departing route after another post opened in the same host', () => {
   const store = usePostEngagementPanels.getState();
   store.activate('anonymous');
-  store.open('anonymous', 1, 'main', destination('new-post'));
-  store.release('anonymous', 1, 'main', '/p/old-post');
+  const current = destination('new-post');
+  store.open('anonymous', 1, 'main', current);
+  store.close('anonymous', 1, 'main', '/p/old-post');
   expect(usePostEngagementPanels.getState().panels.main?.isOpen).toBe(true);
-  store.release('anonymous', 1, 'main', '/p/new-post');
+  store.close('anonymous', 1, 'main', '/p/new-post');
+  expect(usePostEngagementPanels.getState().panels.main).toMatchObject({
+    isOpen: false,
+    destination: current,
+  });
+  store.completeClose('anonymous', 1, 'main', current);
   expect(usePostEngagementPanels.getState().panels.main).toBeUndefined();
 });
 
-it('releases a closed destination when its route or Deck column unmounts', () => {
+it('never releases open content or lets an old completion clear a reopened destination', () => {
+  const store = usePostEngagementPanels.getState();
+  store.activate('anonymous');
+  const first = destination('post-1');
+  store.open('anonymous', 1, 'main', first);
+  store.completeClose('anonymous', 1, 'main', first);
+  expect(usePostEngagementPanels.getState().panels.main?.isOpen).toBe(true);
+  store.close('anonymous', 1, 'main');
+  const reopened = destination('post-1');
+  store.open('anonymous', 1, 'main', reopened);
+  store.completeClose('anonymous', 1, 'main', first);
+  expect(usePostEngagementPanels.getState().panels.main?.destination).toBe(reopened);
+  store.close('anonymous', 1, 'main');
+  store.completeClose('anonymous', 1, 'main', first);
+  expect(usePostEngagementPanels.getState().panels.main?.destination).toBe(reopened);
+  store.completeClose('anonymous', 1, 'main', reopened);
+  expect(usePostEngagementPanels.getState().panels.main).toBeUndefined();
+});
+
+it('does not release a new account visit when an earlier exit completes', () => {
+  const store = usePostEngagementPanels.getState();
+  store.activate('user:a');
+  const first = destination('post-1');
+  store.open('user:a', 1, 'main', first);
+  store.close('user:a', 1, 'main');
+  store.activate('user:b');
+  store.activate('user:a');
+  store.open('user:a', 3, 'main', first);
+  store.close('user:a', 3, 'main');
+  store.completeClose('user:a', 1, 'main', first);
+  expect(usePostEngagementPanels.getState().panels.main?.destination).toBe(first);
+  store.completeClose('user:a', 3, 'main', first);
+  expect(usePostEngagementPanels.getState().panels.main).toBeUndefined();
+});
+
+it('immediately drops removed hosts and releases everything when their layout unmounts', () => {
   const store = usePostEngagementPanels.getState();
   store.activate('anonymous');
   store.open('anonymous', 1, 'deleted-column', destination('post-1'));
+  store.open('anonymous', 1, 'main', destination('post-2'));
   store.close('anonymous', 1, 'deleted-column');
-  store.release('anonymous', 1, 'deleted-column', '/p/post-1');
+  store.retainHosts('anonymous', 1, ['main']);
+  expect(Object.keys(usePostEngagementPanels.getState().panels)).toEqual(['main']);
+  store.retainHosts('anonymous', 0, []);
+  expect(usePostEngagementPanels.getState().panels.main?.isOpen).toBe(true);
+  store.retainHosts('anonymous', 1, []);
   expect(usePostEngagementPanels.getState().panels).toEqual({});
 });

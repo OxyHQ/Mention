@@ -89,7 +89,12 @@ function rows(viewPost: HydratedPost) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      <PostMenuContent post={viewPost} isPostDetail={false} onOpenArticle={jest.fn()} />,
+      <PostMenuContent
+        post={viewPost}
+        isPostDetail={false}
+        onOpenArticle={jest.fn()}
+        onInsights={jest.fn()}
+      />,
     );
   });
   return renderer.root
