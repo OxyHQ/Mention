@@ -2751,6 +2751,7 @@
     "empty": "No communities yet."
   },
   "videos": {
+    "addThought": "Add a thought…",
     "unavailable": "Video unavailable",
     "shared_a_post": "shared a post",
     "link_copied": "Link copied",
