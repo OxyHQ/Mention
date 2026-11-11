@@ -35,7 +35,6 @@ import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import { usePostInteractions } from './postInteractions';
@@ -187,7 +186,6 @@ const PostItemContent: React.FC<PostItemProps> = ({
   onOpen,
   openPostEngagement = null,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
   // Every command this row can issue — engagement, share, the ⋯ menu, sources,
@@ -838,7 +836,12 @@ const PostItemContent: React.FC<PostItemProps> = ({
       <ProfileHoverCard key="reposted" username={reposterHandle}>
         <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
           <View className="-ml-4 mr-[3px]">
-            <RiRepeat2Line width={13} height={13} fill={theme.colors.textSecondary} />
+            <RiRepeat2Line
+              width={13}
+              height={13}
+              fill="currentColor"
+              className="text-muted-foreground"
+            />
           </View>
           {reposterHref ? (
             // A link to the BOOSTER's profile. The click stops here:
@@ -908,9 +911,19 @@ const PostItemContent: React.FC<PostItemProps> = ({
         >
           <View className="-ml-4 mr-[3px]">
             {isBoostSocialContext ? (
-              <RiRepeat2Line width={13} height={13} fill={theme.colors.textSecondary} />
+              <RiRepeat2Line
+                width={13}
+                height={13}
+                fill="currentColor"
+                className="text-muted-foreground"
+              />
             ) : (
-              <RiHeartFill width={13} height={13} fill={theme.colors.textSecondary} />
+              <RiHeartFill
+                width={13}
+                height={13}
+                fill="currentColor"
+                className="text-muted-foreground"
+              />
             )}
           </View>
           <Text
@@ -930,7 +943,12 @@ const PostItemContent: React.FC<PostItemProps> = ({
         style={{ height: POST_CONTEXT_ROW_HEIGHT }}
       >
         <View className="-ml-4 mr-[3px]">
-          <RiPushpinLine width={13} height={13} fill={theme.colors.textSecondary} />
+          <RiPushpinLine
+            width={13}
+            height={13}
+            fill="currentColor"
+            className="text-muted-foreground"
+          />
         </View>
         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
           {t('post.pinned', { defaultValue: 'Pinned' })}
@@ -952,22 +970,11 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // belongs to its thread's community, so only a post that starts one says it.
   if (communityHandle && !viewPost.replyContext) {
     contextRows.push(
-      <PostCommunityRow
-        key="community"
-        handle={communityHandle}
-        href={communityHref}
-        iconColor={theme.colors.textSecondary}
-      />,
+      <PostCommunityRow key="community" handle={communityHandle} href={communityHref} />,
     );
   }
   if (viewPost.crosspost) {
-    contextRows.push(
-      <PostCrosspostRow
-        key="crosspost"
-        crosspost={viewPost.crosspost}
-        iconColor={theme.colors.textSecondary}
-      />,
-    );
+    contextRows.push(<PostCrosspostRow key="crosspost" crosspost={viewPost.crosspost} />);
   }
   if (replyContextRow) {
     // Named when the parent author resolved; otherwise the row still states
@@ -976,7 +983,12 @@ const PostItemContent: React.FC<PostItemProps> = ({
     const replyRow = (
       <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
         <View className="-ml-4 mr-[3px]">
-          <RiCornerDownRightLine width={13} height={13} fill={theme.colors.textSecondary} />
+          <RiCornerDownRightLine
+            width={13}
+            height={13}
+            fill="currentColor"
+            className="text-muted-foreground"
+          />
         </View>
         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
           {replyContextRow.label
@@ -1115,10 +1127,10 @@ const PostItemContent: React.FC<PostItemProps> = ({
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
               height: headerTopOffset + 4,
-              backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
             }}
+            className="bg-border"
           />
         )}
         {/* Thread line below avatar — connects to next post's top. Shifted
@@ -1131,10 +1143,10 @@ const PostItemContent: React.FC<PostItemProps> = ({
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
               bottom: 0,
-              backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
             }}
+            className="bg-border"
           />
         )}
         {replyBranch && !isNested && (
@@ -1149,8 +1161,8 @@ const PostItemContent: React.FC<PostItemProps> = ({
               borderLeftWidth: THREAD_LINE_W,
               borderBottomWidth: THREAD_LINE_W,
               borderBottomLeftRadius: 8,
-              borderColor: theme.colors.border,
             }}
+            className="border-border"
           />
         )}
         <View style={{ gap: headerToBlocksGap }}>

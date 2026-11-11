@@ -41,10 +41,10 @@ interface Props {
   /** Straight off `post.crosspost` — the DTO, never a render prop. */
   crosspost: CrosspostProvenance;
   /** Colour for the leading glyph, from the active theme. */
-  iconColor: string;
+  iconColor?: string;
 }
 
-const PostCrosspostRow: React.FC<Props> = ({ crosspost, iconColor }) => {
+const PostCrosspostRow: React.FC<Props> = ({ crosspost }) => {
   const router = useRouter();
 
   const openVariant = useCallback(
@@ -63,7 +63,12 @@ const PostCrosspostRow: React.FC<Props> = ({ crosspost, iconColor }) => {
   return (
     <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
       <View className="-ml-4 mr-[3px]">
-        <RiExchangeLine width={13} height={13} fill={iconColor} />
+        <RiExchangeLine
+          width={13}
+          height={13}
+          fill="currentColor"
+          className="text-muted-foreground"
+        />
       </View>
       <Text
         className="text-muted-foreground text-[13px] font-semibold"
