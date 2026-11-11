@@ -58,13 +58,6 @@ export function getViewerEntry(
   return authorship.find((entry) => entry.oxyUserId === viewerId);
 }
 
-export function isProfileVisible(authorship: PostAuthorshipEntry[], userId: string): boolean {
-  const entry = getViewerEntry(authorship, userId);
-  if (!entry) return false;
-  if (entry.role === 'owner') return entry.status === 'accepted';
-  return entry.role === 'collaborator' && entry.status === 'accepted';
-}
-
 export function getNotificationRecipients(authorship: PostAuthorshipEntry[]): string[] {
   const owner = getOwner(authorship);
   const ids = new Set<string>();

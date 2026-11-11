@@ -81,7 +81,7 @@ function firstStringProp(value: unknown, keys: string[]): string | undefined {
  * Extract user ID from blocked/restricted user entry
  * Handles different response formats from Oxy API
  */
-export function extractUserIdFromBlockedRestricted(entry: unknown): string | undefined {
+function extractUserIdFromBlockedRestricted(entry: unknown): string | undefined {
   if (!entry) return undefined;
 
   const blockedId = readProp(entry, 'blockedId');
@@ -402,6 +402,10 @@ export async function getFollowingIds(
   );
 }
 
+async function fetchFollowerIds(client: OxyClient, userId: string): Promise<string[]> {
+  return extractFollowersIds(await client.follows.followers(userId));
+}
+
 /** The viewer's FOLLOWER ids, through the same cache. See {@link getFollowingIds}. */
 export async function getFollowerIds(
   viewerId: string | undefined,
@@ -409,7 +413,7 @@ export async function getFollowerIds(
   options?: { fresh?: boolean },
 ): Promise<string[]> {
   return cachedRelation('followers', options?.fresh ? undefined : viewerId, async () =>
-    extractFollowersIds(await client.follows.followers(viewerId ?? '')),
+    fetchFollowerIds(client, viewerId ?? ''),
   );
 }
 
@@ -540,7 +544,7 @@ export async function resolveViewerPrivacyAndGraph(
       },
       {
         key: viewerRelationKey('followers', viewerId),
-        compute: async () => extractFollowersIds(await client.follows.followers(viewerId)),
+        compute: async () => fetchFollowerIds(client, viewerId),
       },
     ])
     // A fresh array per caller, as `cachedRelation` hands out.

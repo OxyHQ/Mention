@@ -54,11 +54,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { notifications } from '../../db/schema/discovery';
-import {
-  createBatchNotifications,
-  createNotification,
-  createWelcomeNotification,
-} from '../../utils/notificationUtils';
+import { createBatchNotifications, createNotification } from '../../utils/notificationUtils';
 
 let db: Database;
 const createdRecipientIds: string[] = [];
@@ -344,23 +340,6 @@ describe('the socket payload is the wire DTO', () => {
 
     expect(emitted).toEqual([]);
     expect(await rowsFor(recipient)).toHaveLength(1);
-  });
-});
-
-describe('welcome notifications', () => {
-  it('stores the system actor and the user id as the profile entity', async () => {
-    // `entity_id` is polymorphic and carries NO foreign key: for a `profile`
-    // notification it holds an Oxy account id, not a `posts.id`.
-    const recipient = recipientId();
-    await createWelcomeNotification(recipient);
-
-    const [row] = await rowsFor(recipient);
-    expect(row).toMatchObject({
-      actorId: 'system',
-      type: 'welcome',
-      entityId: recipient,
-      entityType: 'profile',
-    });
   });
 });
 

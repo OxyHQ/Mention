@@ -133,7 +133,6 @@ vi.mock('../../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: mocks.createPostAuthorNotifications,
   createNotification: mocks.createNotification,
   createMentionNotifications: vi.fn(),
-  createWelcomeNotification: vi.fn(),
   createBatchNotifications: vi.fn(),
 }));
 

@@ -43,7 +43,7 @@ export type PushPayload = {
 };
 
 /** True when FCM is configured and initialized — nothing below does any work otherwise. */
-export function isPushAvailable(): boolean {
+function isPushAvailable(): boolean {
   initFirebase();
   return firebaseInitialized;
 }

@@ -3,7 +3,7 @@ import { lookupManyOf } from './helpers/oxyLookup';
 import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
 import { and, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { buildAuthorship, authorFeedSql, isProfileVisible } from '../utils/postAuthorship';
+import { buildAuthorship, authorFeedSql } from '../utils/postAuthorship';
 import { postCollaborationService } from '../services/PostCollaborationService';
 import { closePostgres, connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -50,14 +50,6 @@ describe('collaborative posts integration', () => {
     const authorship = buildAuthorship('owner-1', ['c-1', 'c-2']);
     expect(authorship[0]).toMatchObject({ role: 'owner', status: 'accepted' });
     expect(authorship[1]).toMatchObject({ role: 'collaborator', status: 'pending' });
-  });
-
-  it('profile visibility requires accepted collaborator', () => {
-    const authorship = buildAuthorship('owner-1', ['collab-1']);
-    expect(isProfileVisible(authorship, 'owner-1')).toBe(true);
-    expect(isProfileVisible(authorship, 'collab-1')).toBe(false);
-    authorship[1].status = 'accepted';
-    expect(isProfileVisible(authorship, 'collab-1')).toBe(true);
   });
 
   /**

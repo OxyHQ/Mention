@@ -68,7 +68,6 @@ vi.mock('@oxy.so/federation/node', async (importOriginal) => {
 vi.mock('../../../utils/notificationUtils', () => ({
   createNotification: vi.fn(),
   createMentionNotifications: vi.fn(),
-  createWelcomeNotification: vi.fn(),
   createBatchNotifications: vi.fn(),
 }));
 

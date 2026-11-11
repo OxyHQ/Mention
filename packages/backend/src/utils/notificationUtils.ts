@@ -458,29 +458,6 @@ export const createPrivateMentionNotifications = async (
 };
 
 /**
- * Creates a welcome notification for new users
- */
-export const createWelcomeNotification = async (
-  userId: string,
-  emitEvent: boolean = true,
-): Promise<void> => {
-  try {
-    await createNotification(
-      {
-        recipientId: userId,
-        actorId: SYSTEM_NOTIFICATION_ACTOR_ID,
-        type: 'welcome',
-        entityId: userId,
-        entityType: 'profile',
-      },
-      emitEvent,
-    );
-  } catch (error) {
-    logger.error('[Notifications] Error creating welcome notification:', error);
-  }
-};
-
-/**
  * Create notifications for many recipients — `PostCreationService`'s subscriber
  * fan-out is the big caller, and it selects every `post_subscriptions` row for
  * the author with no LIMIT, so a popular author's post arrives here with as many
