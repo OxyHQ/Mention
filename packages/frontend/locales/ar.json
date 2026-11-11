@@ -2843,6 +2843,7 @@
     "empty": "لا توجد مجتمعات بعد."
   },
   "videos": {
+    "addThought": "أضف فكرة…",
     "unavailable": "الفيديو غير متاح",
     "shared_a_post": "شارك منشورًا",
     "link_copied": "تم نسخ الرابط",

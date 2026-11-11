@@ -2751,6 +2751,7 @@
     "empty": "Noch keine Communitys."
   },
   "videos": {
+    "addThought": "Gedanken hinzufügen…",
     "unavailable": "Video nicht verfügbar",
     "shared_a_post": "hat einen Beitrag geteilt",
     "link_copied": "Link kopiert",

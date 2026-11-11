@@ -2774,6 +2774,7 @@
     "empty": "Encara no hi ha comunitats."
   },
   "videos": {
+    "addThought": "Afegeix una idea…",
     "unavailable": "Vídeo no disponible",
     "shared_a_post": "ha compartit una publicació",
     "link_copied": "Enllaç copiat",

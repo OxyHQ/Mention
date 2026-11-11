@@ -2751,6 +2751,7 @@
     "empty": "Henüz topluluk yok."
   },
   "videos": {
+    "addThought": "Bir düşünce ekle…",
     "unavailable": "Video kullanılamıyor",
     "shared_a_post": "bir gönderi paylaştı",
     "link_copied": "Bağlantı kopyalandı",

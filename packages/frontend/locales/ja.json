@@ -2751,6 +2751,7 @@
     "empty": "まだコミュニティはありません。"
   },
   "videos": {
+    "addThought": "ひとことを追加…",
     "unavailable": "動画を再生できません",
     "shared_a_post": "が投稿を共有しました",
     "link_copied": "リンクをコピーしました",
