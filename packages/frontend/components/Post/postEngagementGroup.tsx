@@ -20,7 +20,7 @@ export function postEngagementGroup(
   const { content, navigation, bottomBar, headerActions, scroll, errorBoundary, ...group } = host;
   const destination = engagement?.destination;
   // Authored chrome budget: the anonymous sign-in footer needs more room than a reply composer.
-  const minimumHeight = bottomBar ? 368 : 224;
+  const mainMinimumHeight = bottomBar ? 368 : 224;
   return {
     ...group,
     testID: host.testID ?? `mention-shell-panels-${host.id}`,
@@ -57,7 +57,7 @@ export function postEngagementGroup(
           appearance: host.appearance,
           colorPreset: host.colorPreset,
           span: 1,
-          minHeight: minimumHeight,
+          minHeight: mainMinimumHeight,
           resizable: true,
         },
         {
@@ -66,7 +66,8 @@ export function postEngagementGroup(
           visible: engagement?.isOpen ?? false,
           onExitComplete,
           span: 1,
-          minHeight: minimumHeight,
+          minHeight: 128,
+          resizeMaxHeight: 'content',
           errorBoundary: { onError },
           floating: {
             below: 'md',

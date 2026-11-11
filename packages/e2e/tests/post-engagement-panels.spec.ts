@@ -109,7 +109,7 @@ test('likes split the post bounds, scroll independently and close without remoun
   await page.mouse.down();
   await page.mouse.move(bottomStop.x + bottomStop.width / 2, 890, { steps: 10 });
   await page.mouse.up();
-  await expect.poll(async () => (await likes.boundingBox())?.height ?? 0).toBeCloseTo(368, 0);
+  await expect.poll(async () => (await likes.boundingBox())?.height ?? 0).toBeCloseTo(128, 0);
   const closeFromMinimum = await divider.boundingBox();
   if (!closeFromMinimum) throw new Error('Split divider disappeared before closing');
   await page.mouse.move(
@@ -307,7 +307,7 @@ test('a short desktop window presents likes as a sheet instead of violating spli
   page,
   candidate,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 300 });
+  await page.setViewportSize({ width: 1440, height: 500 });
   await page.goto(`/p/${post.id}`);
   const screen = page.getByTestId('post-screen');
   await expect(screen).toBeVisible();
@@ -735,6 +735,9 @@ test('the Insights button and overflow menu target their independent Deck hosts'
   page,
   candidate,
 }) => {
+  await page.route('**/feed/mtn?**', (route) =>
+    route.fulfill({ json: { items: [ownedPost], hasMore: false } }),
+  );
   await page.route(`**/feed/item/${post.id}`, (route) => route.fulfill({ json: ownedPost }));
   await page.addInitScript((postId) => {
     const order = ['custom-a', 'custom-b'];
@@ -870,3 +873,71 @@ test('navigation keeps outgoing panel content until its exit and releases it wit
   await expect(supporting.getByRole('heading', { name: 'Likes', exact: true })).toHaveCount(0);
   expect(candidate.scriptErrors).toEqual([]);
 });
+
+for (const count of [1, 3, 40]) {
+  test(`supporting-panel resize respects ${count} users without changing its initial split`, async ({
+    page,
+    candidate,
+  }) => {
+    await page.route(`**/posts/${post.id}/likes?**`, (route) =>
+      route.fulfill({
+        json: {
+          users: Array.from({ length: count }, (_, index) => ({
+            id: `reader-${index}`,
+            username: `reader-${index}`,
+            name: { displayName: `Reader ${index}` },
+          })),
+          hasMore: false,
+          totalCount: count,
+        },
+      }),
+    );
+    await page.goto(`/p/${post.id}`);
+    const main = page.getByTestId('mention-shell-panels-main-content');
+    const lower = page.getByTestId('mention-shell-panels-main-engagement');
+    await main.getByText('likes', { exact: true }).click();
+    await expect(lower.getByText('Reader 0', { exact: true })).toBeVisible();
+    await expect.poll(async () => (await lower.boundingBox())?.height ?? 0).toBeCloseTo(438, 0);
+    const measuredContentHeight =
+      count < 40
+        ? await lower.evaluate((node, lastIndex) => {
+            const lastRow = node.querySelector(`[data-index="${lastIndex}"]`);
+            if (!lastRow) throw new Error('Short list has not rendered its final row');
+            return lastRow.getBoundingClientRect().bottom - node.getBoundingClientRect().top;
+          }, count - 1)
+        : 508;
+    const contentStop = Math.max(128, measuredContentHeight);
+    const divider = page.getByTestId('mention-shell-panels-main').getByRole('separator').first();
+    const dragTo = async (y: number) => {
+      const handle = await divider.boundingBox();
+      if (!handle) throw new Error('Missing split divider');
+      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(handle.x + handle.width / 2, y, { steps: 12 });
+      await page.mouse.up();
+    };
+    await dragTo(10);
+    await expect
+      .poll(async () => (await lower.boundingBox())?.height ?? 0)
+      .toBeCloseTo(count === 40 ? 508 : 438, 0);
+    const reverseHandle = await divider.boundingBox();
+    if (!reverseHandle) throw new Error('Missing split divider before reversing the drag');
+    const dragX = reverseHandle.x + reverseHandle.width / 2;
+    await page.mouse.move(dragX, reverseHandle.y + reverseHandle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(dragX, 890, { steps: 12 });
+    await expect.poll(async () => (await lower.boundingBox())?.height ?? 0).toBeCloseTo(128, 0);
+    // Reverse inside the same gesture: shrinking must not reopen the initial empty allowance.
+    await page.mouse.move(dragX, 10, { steps: 12 });
+    await page.mouse.up();
+    await expect
+      .poll(async () => (await lower.boundingBox())?.height ?? 0)
+      .toBeCloseTo(contentStop, 0);
+    await divider.focus();
+    await divider.press('ArrowUp');
+    await expect
+      .poll(async () => (await lower.boundingBox())?.height ?? 0)
+      .toBeCloseTo(contentStop, 0);
+    expect(candidate.scriptErrors).toEqual([]);
+  });
+}

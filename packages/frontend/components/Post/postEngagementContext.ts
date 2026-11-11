@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react';
 export type PostPanelKind = 'likes' | 'boosts' | 'insights';
 type OpenPostPanel = (postId: string, kind: PostPanelKind) => boolean;
 
-/** One action per shell host; rows do not subscribe to panel state or authentication. */
+/** One action per host; dispatch adds no per-row panel-state or authentication subscription. */
 export const PostEngagementContext = createContext<OpenPostPanel | null>(null);
 
 export function useOpenPostEngagement() {

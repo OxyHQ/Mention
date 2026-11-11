@@ -196,9 +196,14 @@ vertically. The direct Insights button is offered only on an owned focused post
 detail (including a Deck route), not feed cards or nested replies; the existing
 permission-gated overflow menu shares the same host dispatch. The
 post and engagement list share the available height equally until the reader
-moves Bloom's separator; each uses its own real Bloom scroll owner. Both panes
-have the same useful minimum: 224px normally, or 368px when the host includes
-the anonymous sign-in footer. These authored bounds leave room for screen chrome
+moves Bloom's separator; each uses its own real Bloom scroll owner. The auxiliary
+panel declares `resizeMaxHeight: 'content'`: dragging cannot create more empty
+height beyond its actual content and authored minimum. If its initial equal share
+is already larger, it can shrink progressively without jumping, and cannot grow
+back into the released empty space. Long lists retain the available resize range. The main pane
+has a useful minimum of 224px normally, or 368px when the host includes
+the anonymous sign-in footer; the auxiliary pane has its own 128px minimum for
+its header and a readable row. These authored bounds leave room for screen chrome
 and readable content. If the window cannot fit those minimums and the gap, Bloom
 presents the engagement list as a sheet instead of crushing either pane. Closing the
 list restores the post's available space. A narrow viewport presents the same
