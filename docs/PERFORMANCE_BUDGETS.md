@@ -186,6 +186,20 @@ unchanged. The initial growth is Bloom's own (its sidebar, shell and error scree
 The size of the async catalog is the thing to give back, in Bloom: a consumer cannot select which
 characters it ships.
 
+Bloom 19.5.0 (2026-11-11) gives most of that back: its packaged vector catalog is deduplicated
+(shared payloads stored once), so the default `Avatar` no longer carries the 55 MiB. Measured on one
+`expo export --platform web` each of main `4d3725c71` (Bloom 19.2.0) and the branch (19.5.0): total
+bytes 79,688,936 -> 51,774,414 (76.0 -> 49.4 MiB), JavaScript 74,503,557 -> 46,589,035 (71.05 -> 44.4
+MiB), initial JavaScript 6,326,109 -> 6,316,351 and initial gzip 1,781,188 -> 1,778,183. Ceilings
+lowered to just above the new values: total 77 -> 49.5 MiB, JavaScript 72 -> 44.5 MiB, initial
+JavaScript 6.1 -> 6.0625 MiB, initial gzip 1.72 -> 1.703125 MiB. The initial growth that came with
+Bloom 19 stays (it is Bloom's shell, not the catalog), and the feed `linkPreview` context read stays
+at 66 (measured unchanged on 19.5.0). Mention does not opt out of Bloom's default avatar catalog
+(`avatarCatalog` plus a Metro `./vector-assets` stub): a stored `character` is whatever any account's
+owner picked in Oxy's agent editor, and Oxy's contract deliberately does not validate ids against a
+catalogue, so the drawable set cannot be listed in the app; an unlisted id would render the
+placeholder. Revisit if Oxy narrows the stored vocabulary.
+
 ### Initial JavaScript after #1216
 
 Expo's web export moves every module that ANY two async chunks share into
