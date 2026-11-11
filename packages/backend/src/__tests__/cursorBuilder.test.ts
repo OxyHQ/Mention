@@ -48,6 +48,18 @@ describe('ScoreCursor', () => {
     });
   });
 
+  it('refuses an id that cannot be a keyset bound instead of dropping it', () => {
+    const asOf = Date.now();
+    const at = 'at://did:plc:abc/app.bsky.feed.like/3k';
+
+    expect(() => ScoreCursor.build(1, at)).toThrow();
+    expect(() => ScoreCursor.build(1, oid(1), { asOf, excludeIds: [at] })).toThrow();
+
+    const meta = Buffer.from(JSON.stringify({ a: asOf, x: [oid(1), at] })).toString('base64url');
+    expect(ScoreCursor.parse(`1~v1~${meta}:${oid(1)}`)).toBeUndefined();
+    expect(ScoreCursor.parse(`1:${at}`)).toBeUndefined();
+  });
+
   it('bounds the previous-page exclusion set carried by the cursor', () => {
     const ids = Array.from({ length: 130 }, (_, index) =>
       (index + 1).toString(16).padStart(24, '0'),
