@@ -136,3 +136,19 @@ export function globalErrorHandler(
   // Generic 500 — never expose internal error details
   errorResponse(res, 500, 'Internal server error', 'INTERNAL_ERROR');
 }
+
+/**
+ * A `.catch` handler for a follow-up write that must not fail its caller but
+ * must not vanish either: `promise.catch(warnOnFailure("[Tag] what failed"))`.
+ */
+export function warnOnFailure(
+  message: string,
+  context?: Record<string, unknown>,
+): (error: unknown) => void {
+  return (error) => {
+    logger.warn(message, {
+      ...context,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  };
+}

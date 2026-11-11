@@ -2,7 +2,7 @@ import {
   CommunityPostError,
   resolveNativePostCommunity,
 } from '../services/communities/communityPosting';
-import { respondWithApiError } from '../utils/error';
+import { errorResponse, respondWithApiError } from '../utils/error';
 import { threadReplyVisibilitySql } from '../db/posts/postAudience';
 import type { SafetyRequester } from '@oxy.so/contracts';
 import type { Response } from 'express';
@@ -641,10 +641,7 @@ class FeedController {
         return res.status(error.status).json({ message: error.message });
       }
       logger.error('Error creating reply', error);
-      res.status(500).json({
-        error: 'Failed to create reply',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
+      errorResponse(res, 500, 'Failed to create reply');
     }
   }
 
@@ -834,10 +831,7 @@ class FeedController {
       });
     } catch (error) {
       logger.error('Error creating boost', error);
-      res.status(500).json({
-        error: 'Failed to create boost',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
+      errorResponse(res, 500, 'Failed to create boost');
     }
   }
 
@@ -910,10 +904,7 @@ class FeedController {
       });
     } catch (error) {
       logger.error('Error unboosting', error);
-      res.status(500).json({
-        error: 'Failed to unboost',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
+      errorResponse(res, 500, 'Failed to unboost');
     }
   }
 

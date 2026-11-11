@@ -24,6 +24,7 @@
  * counts for "how do I verify".
  */
 
+import { warnOnFailure } from '../../utils/error';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
@@ -169,7 +170,9 @@ export async function processAccountErasure(eventId: string): Promise<ProcessOut
   }
 
   const renew = setInterval(() => {
-    void renewAccountErasureLease(eventId, ERASURE_LEASE_MS).catch(() => undefined);
+    void renewAccountErasureLease(eventId, ERASURE_LEASE_MS).catch(
+      warnOnFailure('[AccountErasure] lease renewal failed', { eventId }),
+    );
   }, LEASE_RENEW_MS);
   renew.unref?.();
 

@@ -62,6 +62,9 @@ const scope = serviceScope('reply-boost-id-validation');
 function buildResponse() {
   const captured: { status?: number; body?: unknown } = {};
   const res = {
+    set() {
+      return this;
+    },
     status(code: number) {
       captured.status = code;
       return this;

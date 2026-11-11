@@ -19,6 +19,7 @@ import { mediaMetadataService } from '../../services/MediaMetadataService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { warnOnFailure } from '../../utils/error';
 import { logger } from '../../utils/logger';
 import {
   INSTAGRAM_SOURCE_KEY_PREFIX,
@@ -46,6 +47,10 @@ import {
   type InstagramMediaPlan,
 } from './media.mapper';
 import type { GraphCallKind } from './usageBudget';
+
+/** A claim that cannot be released stays held until it expires, so say so. */
+const releaseFailed = (activityId: string) =>
+  warnOnFailure('[instagram] could not release the source-key claim', { activityId });
 
 /**
  * Import one Instagram account's posts from the Graph API as native posts.
@@ -355,20 +360,20 @@ async function createInstagramPost(
       actorUri: target.actorUri,
     });
   } catch (err) {
-    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(releaseFailed(post.activityId));
     logger.warn('[instagram] media re-hosting failed', {
       error: err instanceof Error ? err.message : String(err),
     });
     return 'deferred';
   }
   if ('waitFor' in materialized) {
-    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(releaseFailed(post.activityId));
     await queueUnused(materialized.uploaded);
     return 'deferred';
   }
   if (materialized.media.length === 0 && post.text.trim().length === 0) {
     // Nothing left to show: every slot is permanently gone and there is no caption.
-    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(releaseFailed(post.activityId));
     return 'failed';
   }
 
@@ -403,7 +408,7 @@ async function createInstagramPost(
     });
     return 'created';
   } catch (err) {
-    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(releaseFailed(post.activityId));
     // Whatever stopped the insert, the files uploaded for it are referenced by
     // nothing now: queue them. The drain re-checks references first, so a file
     // another post shares (or one the other road's copy uses) is kept.

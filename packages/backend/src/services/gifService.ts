@@ -2,6 +2,9 @@ import { getKlipyAppKey } from '../config';
 
 const KLIPY_BASE_URL = 'https://api.klipy.com';
 
+/** Klipy sits on the GIF picker's request path: a hung upstream must not hold the request open. */
+const KLIPY_TIMEOUT_MS = 8_000;
+
 interface SearchGifsParams {
   query: string;
   page: number;
@@ -59,21 +62,20 @@ export interface GifResponse {
   };
 }
 
-export async function searchGifs(params: SearchGifsParams): Promise<GifResponse> {
+/** One Klipy `gifs/<endpoint>` call; `query` holds the endpoint's own parameters. */
+async function klipyGifs(
+  endpoint: 'search' | 'trending',
+  query: Record<string, string>,
+): Promise<GifResponse> {
   const klipyAppKey = getKlipyAppKey();
   if (!klipyAppKey) {
     throw new Error('KLIPY_APP_KEY is not configured. Please add KLIPY_APP_KEY to your .env file.');
   }
 
-  const { query, page, perPage, customerId } = params;
+  const url = new URL(`${KLIPY_BASE_URL}/api/v1/${klipyAppKey}/gifs/${endpoint}`);
+  for (const [key, value] of Object.entries(query)) url.searchParams.append(key, value);
 
-  const url = new URL(`${KLIPY_BASE_URL}/api/v1/${klipyAppKey}/gifs/search`);
-  url.searchParams.append('q', query);
-  url.searchParams.append('page', page.toString());
-  url.searchParams.append('per_page', perPage.toString());
-  url.searchParams.append('customer_id', customerId);
-
-  const response = await fetch(url.toString());
+  const response = await fetch(url, { signal: AbortSignal.timeout(KLIPY_TIMEOUT_MS) });
 
   if (!response.ok) {
     throw new Error(`KLIPY API error: ${response.status} ${response.statusText}`);
@@ -88,30 +90,19 @@ export async function searchGifs(params: SearchGifsParams): Promise<GifResponse>
   return data;
 }
 
-export async function getTrendingGifs(params: TrendingGifsParams): Promise<GifResponse> {
-  const klipyAppKey = getKlipyAppKey();
-  if (!klipyAppKey) {
-    throw new Error('KLIPY_APP_KEY is not configured. Please add KLIPY_APP_KEY to your .env file.');
-  }
+export function searchGifs({ query, page, perPage, customerId }: SearchGifsParams) {
+  return klipyGifs('search', {
+    q: query,
+    page: String(page),
+    per_page: String(perPage),
+    customer_id: customerId,
+  });
+}
 
-  const { page, perPage, customerId } = params;
-
-  const url = new URL(`${KLIPY_BASE_URL}/api/v1/${klipyAppKey}/gifs/trending`);
-  url.searchParams.append('page', page.toString());
-  url.searchParams.append('per_page', perPage.toString());
-  url.searchParams.append('customer_id', customerId);
-
-  const response = await fetch(url.toString());
-
-  if (!response.ok) {
-    throw new Error(`KLIPY API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as GifResponse;
-
-  if (!data.result) {
-    throw new Error('KLIPY API returned unsuccessful result');
-  }
-
-  return data;
+export function getTrendingGifs({ page, perPage, customerId }: TrendingGifsParams) {
+  return klipyGifs('trending', {
+    page: String(page),
+    per_page: String(perPage),
+    customer_id: customerId,
+  });
 }

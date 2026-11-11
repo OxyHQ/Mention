@@ -20,6 +20,7 @@ import {
 } from '../../db/oxyFiles/fileReferenceSyncRepository';
 import { getDb } from '../../db/postgres';
 import { oxyFileReferenceReconciliations, oxyFileReferenceSync } from '../../db/schema/oxyFiles';
+import { warnOnFailure } from '../../utils/error';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { describeOxyError, oxyErrorStatus } from './oxyErrors';
@@ -198,7 +199,11 @@ async function reconcileOne(
       .update(oxyFileReferenceReconciliations)
       .set({ outcome: 'failed', error: reason.slice(0, 500), finishedAt: new Date() })
       .where(eq(oxyFileReferenceReconciliations.id, record.id))
-      .catch(() => undefined);
+      .catch(
+        warnOnFailure('[FileReferences] could not record a failed reconciliation', {
+          oxyEntityType,
+        }),
+      );
     return { oxyEntityType, ok: false, error: reason };
   }
 }

@@ -1,5 +1,6 @@
 import { readResponseBody, safeFetch, type ReadResponseBodyResult } from '@oxy.so/core/server';
 import { config, getMetaGraphAccessToken } from '../../config';
+import { warnOnFailure } from '../../utils/error';
 import { logger } from '../../utils/logger';
 import { GRAPH_API_HOST, isInstagramGraphEnabled, isValidInstagramUsername } from './constants';
 import {
@@ -329,7 +330,9 @@ export async function fetchBusinessDiscovery(
         until: until ? new Date(until).toISOString() : undefined,
       });
     } else if (error.kind === 'token_invalid') {
-      await recordTokenInvalid().catch(() => undefined);
+      await recordTokenInvalid().catch(
+        warnOnFailure('[instagram] could not record the invalid token'),
+      );
       if (!tokenInvalidLogged) {
         tokenInvalidLogged = true;
         // Loud, once: nothing Instagram imports again until an operator rotates
