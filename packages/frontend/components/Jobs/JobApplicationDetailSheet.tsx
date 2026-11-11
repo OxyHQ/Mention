@@ -107,7 +107,7 @@ const JobApplicationDetailSheet = ({
     // The resume is an Oxy file id (`resumeFileId`), never a URL — resolved
     // through the ONE canonical chokepoint every Oxy-hosted file in this app
     // goes through (`oxyServices.assets.publicUrl`), never a hand-rolled
-    // per-app URL (see `~/Oxy/docs/frontend-conventions.md`'s "canonical
+    // per-app URL (see the Oxy engineering docs' "canonical
     // media" rule).
     if (!application.resumeFileId) return;
     void openExternalLink(oxyServices.assets.publicUrl(application.resumeFileId));

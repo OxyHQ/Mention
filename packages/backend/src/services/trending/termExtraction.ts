@@ -541,7 +541,7 @@ export function isTrendStopWord(term: string): boolean {
  *
  * Uses Unicode property escapes, which is safe HERE and would not be in the
  * frontend: this module is backend-only (Bun), while mobile Hermes rejects
- * `\p{...}` at runtime (see `~/Oxy/AGENTS.md` § Hermes).
+ * `\p{...}` at runtime (see Oxy build-and-runtime-traps, Hermes).
  */
 const SEGMENT_BOUNDARY = /[^\p{L}\p{N}' ]+/u;
 

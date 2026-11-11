@@ -114,7 +114,7 @@ const BASELINE = [
     protocol: 'activitypub',
     reason:
       'Lives in services/federation/; re-exports the SAME committed block policy array the public transparency ' +
-      'page and enforcement both read (see AGENTS.md § Federation Blocklist) — intentional, not incidental.',
+      'page and enforcement both read (see docs/federation-behaviors.md, Federation Blocklist) — intentional, not incidental.',
   },
   {
     file: 'src/services/federation/BlocklistProposalService.ts',

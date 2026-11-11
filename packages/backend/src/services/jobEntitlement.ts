@@ -1,6 +1,6 @@
 /**
  * The Phase D publish gate. Mention stores no payment/plan state of its own —
- * billing lives entirely in Oxy (`~/Oxy/OxyHQServices`, Stripe-backed), the same
+ * billing lives entirely in Oxy (the oxy repo, Stripe-backed), the same
  * `/billing/accounts/:id/entitlements` boundary Alia reads its own plan
  * entitlements through. This module is the seam a real paid tier plugs into.
  *
