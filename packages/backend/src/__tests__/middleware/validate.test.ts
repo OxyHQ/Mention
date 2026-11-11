@@ -108,8 +108,8 @@ describe('validateBody', () => {
     validateBody(schemas.manageFeedMembers)(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    const body = getJsonBody(res) as { error: { message: string } };
-    expect(body.error.message).toContain('userIds');
+    const body = getJsonBody(res) as { message: string };
+    expect(body.message).toContain('userIds');
   });
 });
 
@@ -213,8 +213,8 @@ describe('validateObjectId middleware', () => {
     validateObjectId('postId')(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    const body = getJsonBody(res) as { error: { message: string } };
-    expect(body.error.message).toContain('postId');
+    const body = getJsonBody(res) as { message: string };
+    expect(body.message).toContain('postId');
   });
 
   it('accepts a uuid v7, the id shape every row created after the cutover has', () => {
