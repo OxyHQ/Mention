@@ -31,7 +31,7 @@
     "@aws-sdk/credential-provider-node": "3.972.92",
     "@clarity.surf/sdk": "0.12.0",
     "@crowdsource.you/contracts": "1.1.1",
-    "@crowdsource.you/core": "3.1.0",
+    "@crowdsource.you/core": "4.0.0",
     "@kaana.ai/contracts": "8.2.0",
     "@kaana.ai/sdk": "3.5.0",
     "@mention/shared-types": "workspace:*",
