@@ -41,3 +41,12 @@ it('keeps each account’s local layout mode separate from synchronized columns'
   useDeckSettings.getState().activate('anonymous');
   expect(useDeckSettings.getState().deckEnabled).toBe(true);
 });
+
+it.each([true, false])(
+  'keeps the fixed application column independent of the saved resize preference (%s)',
+  (resizable) => {
+    const snapshot = emptySnapshot();
+    snapshot.panels['deck-0'].resizable = resizable;
+    expect(isDefaultLeadingDeckPanel(snapshot)).toBe(true);
+  },
+);

@@ -556,12 +556,14 @@ export function useReelChrome({
 
   useEffect(
     () => () => {
+      // A deferred tap belongs to this viewing interval, not a later visit.
+      lastTapRef.current = 0;
       if (pausePendingRef.current) {
         clearTimeout(pausePendingRef.current);
         pausePendingRef.current = null;
       }
     },
-    [],
+    [isActive, screenFocused],
   );
 
   const popHeart = useCallback(() => {

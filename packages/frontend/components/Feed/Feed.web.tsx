@@ -57,7 +57,7 @@ const POST_URI_ATTR = 'data-post-uri';
  */
 function EmbeddedWebFeed(props: FeedProps) {
   const core = useFeedCore(props);
-  const { props: merged, theme, router, feedRows, feedDescriptor } = core;
+  const { props: merged, theme, router, feedRows, feedDescriptor, openPostEngagement } = core;
 
   return (
     <View style={[{ minHeight: 0 }, merged.style]}>
@@ -71,7 +71,12 @@ function EmbeddedWebFeed(props: FeedProps) {
         <View style={merged.contentContainerStyle}>
           {feedRows.map((row) => (
             <View key={feedRowKey(row)}>
-              {renderFeedRow(row, { router, threadLineColor: theme.colors.border, feedDescriptor })}
+              {renderFeedRow(row, {
+                router,
+                threadLineColor: theme.colors.border,
+                feedDescriptor,
+                openPostEngagement,
+              })}
             </View>
           ))}
         </View>
@@ -101,6 +106,7 @@ function VirtualizedWebFeed(props: FeedProps) {
     props: merged,
     theme,
     router,
+    openPostEngagement,
     feedState,
     feedRows,
     handleLoadMore,
@@ -158,6 +164,7 @@ function VirtualizedWebFeed(props: FeedProps) {
         router,
         threadLineColor: theme.colors.border,
         feedDescriptor,
+        openPostEngagement,
       });
       // Recommendation cards never carry a post URI or enter impression tracking.
       if (row.kind !== 'post') return content;
@@ -167,7 +174,7 @@ function VirtualizedWebFeed(props: FeedProps) {
         </div>
       );
     },
-    [router, theme.colors.border, feedDescriptor, observeImpressions],
+    [router, theme.colors.border, feedDescriptor, openPostEngagement, observeImpressions],
   );
 
   // The route alone is not enough: Explore/profile tabs can host distinct

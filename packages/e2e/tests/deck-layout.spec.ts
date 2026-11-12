@@ -2,12 +2,14 @@ import { PROFILE_HANDLE } from '../environment';
 import { expect, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
-/** Geometry assertions and pointer coordinates require the completed layout. */
+/** Measure workspace tracks, excluding the nested screen/supporting-panel tracks. */
 async function expectDeckColumnWidths(page: Page, widths: number[]) {
   await expect
     .poll(() =>
       page
-        .locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-"]')
+        .locator(
+          '[data-bloom-panel-index][data-testid^="mention-shell-panels-"]:not([data-bloom-panel-index] [data-bloom-panel-index])',
+        )
         .filter({ visible: true })
         .evaluateAll((panels) => panels.map((panel) => panel.getBoundingClientRect().width)),
     )
@@ -313,7 +315,9 @@ test.describe('configured Deck', () => {
     await dialog.getByRole('button', { name: 'Add panel', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     const added = page
-      .locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-deck-"]')
+      .locator(
+        '[data-bloom-panel-index][data-testid^="mention-shell-panels-deck-"]:not([data-bloom-panel-index] [data-bloom-panel-index])',
+      )
       .filter({ has: page.getByRole('heading', { name: 'Explore', exact: true }) })
       .last();
     await expect
@@ -326,7 +330,9 @@ test.describe('configured Deck', () => {
       .getByRole('button', { name: 'Remove panel', exact: true })
       .click();
     await expect(
-      page.locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-deck-"]'),
+      page.locator(
+        '[data-bloom-panel-index][data-testid^="mention-shell-panels-deck-"]:not([data-bloom-panel-index] [data-bloom-panel-index])',
+      ),
     ).toHaveCount(4);
     expect(
       candidate.scriptErrors.filter(

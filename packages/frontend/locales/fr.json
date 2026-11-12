@@ -656,7 +656,11 @@
       "public": "Tout le monde",
       "direct": "Mention privée : uniquement les personnes que vous mentionnez",
       "needsRecipient": "Mentionnez au moins une personne. Seules les personnes mentionnées verront cette publication."
-    }
+    },
+    "compactLimitHint": "Les réponses compactes sont limitées à {{max}} caractères. Développez l’éditeur pour écrire davantage.",
+    "characterCountLabel": "Caractères",
+    "characterCountValue": "{{count}} sur {{max}} caractères",
+    "expand": "Ouvrir le compositeur complet"
   },
   "post": {
     "threadPosition": "Publication {{index}} sur {{total}} du fil",
@@ -2774,6 +2778,7 @@
     "empty": "Aucune communauté pour le moment."
   },
   "videos": {
+    "addThought": "Ajouter une idée…",
     "unavailable": "Vidéo indisponible",
     "shared_a_post": "a partagé un post",
     "link_copied": "Lien copié",

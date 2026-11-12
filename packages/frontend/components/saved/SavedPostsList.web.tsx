@@ -3,6 +3,7 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { Pressable } from 'react-native';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import PostItem from '@/components/Feed/PostItem';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import type { SavedPost, SavedPostsListProps } from './SavedPostsList.types';
 
 const ESTIMATED_POST_HEIGHT = 280;
@@ -25,6 +26,7 @@ export default function SavedPostsList({
   onLongPress,
 }: SavedPostsListProps) {
   const panel = usePanelScrollContainer<HTMLElement>();
+  const openPostEngagement = useOpenPostEngagement();
   useScrollRestoration('window', { enabled: !panel, key: restorationKey });
 
   return (
@@ -34,7 +36,7 @@ export default function SavedPostsList({
       keyExtractor={keyExtractor}
       renderItem={({ item }) => (
         <Pressable onLongPress={() => onLongPress(item.id)} delayLongPress={500}>
-          <PostItem post={item} />
+          <PostItem post={item} openPostEngagement={openPostEngagement} />
         </Pressable>
       )}
       estimatedItemSize={ESTIMATED_POST_HEIGHT}

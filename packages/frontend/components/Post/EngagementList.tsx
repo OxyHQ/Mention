@@ -1,7 +1,9 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
-import { useState, useEffect, useCallback } from 'react';
-import { View, FlatList } from 'react-native';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Screen } from '@oxy.so/bloom/screen';
+import { VirtualList } from '@oxy.so/bloom/list';
+import type { Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
@@ -22,11 +24,13 @@ interface EngagementListProps {
   postId: string;
   type: 'likes' | 'boosts';
   onClose: () => void;
+  onNavigate?: (href: Href) => void;
 }
 
-const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }) => {
+const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose, onNavigate }) => {
   const router = useRouter();
   const { t } = useTranslation();
+  const requestGeneration = useRef(0);
   const [users, setUsers] = useState<PostUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -42,6 +46,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
 
   const loadUsers = useCallback(
     async (cursor?: string) => {
+      const generation = requestGeneration.current;
       try {
         if (cursor) {
           setLoadingMore(true);
@@ -52,6 +57,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
             ? await feedService.getPostLikes(postId, cursor)
             : await feedService.getPostBoosts(postId, cursor);
 
+        if (generation !== requestGeneration.current) return;
         if (cursor) {
           setUsers((prev) => [...prev, ...result.users]);
         } else {
@@ -62,19 +68,25 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
         setNextCursor(result.nextCursor);
         setFailed(false);
       } catch (error) {
+        if (generation !== requestGeneration.current) return;
         logger.error(`Error loading ${type}`, error);
         // A failed later page keeps the rows already shown.
         if (!cursor) setFailed(true);
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (generation === requestGeneration.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [postId, type],
   );
 
   useEffect(() => {
-    loadUsers();
+    void loadUsers();
+    return () => {
+      requestGeneration.current += 1;
+    };
   }, [loadUsers]);
 
   const handleLoadMore = useCallback(() => {
@@ -88,10 +100,11 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
       onClose();
       const href = profileHrefForUser(user);
       if (href) {
-        router.push(href);
+        if (onNavigate) onNavigate(href);
+        else router.push(href);
       }
     },
-    [onClose, router],
+    [onClose, onNavigate, router],
   );
 
   const renderUser = useCallback(
@@ -115,11 +128,12 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
     [handleUserPress],
   );
 
-  if (loading) {
-    return (
-      <View className="flex-1 bg-background">
+  return (
+    <Screen
+      header={
         <PageHeader
           title={title}
+          onBack={null}
           safeArea={false}
           actions={
             <Button
@@ -132,61 +146,42 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
             />
           }
         />
-        {/* The rows this list is about to paint, as placeholders. */}
-        <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
-      </View>
-    );
-  }
-
-  return (
-    <View className="flex-1 bg-background">
-      <PageHeader
-        title={title}
-        safeArea={false}
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-            onPress={onClose}
-          />
+      }
+    >
+      <VirtualList
+        screen={{}}
+        data={loading || failed ? [] : users}
+        renderItem={renderUser}
+        keyExtractor={(item) => item.id}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={loadingMore ? <ListSkeleton count={2} /> : undefined}
+        ListEmptyComponent={
+          loading ? (
+            <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
+          ) : failed ? (
+            <EmptyState
+              error={{
+                title: t('post.engagement.loadError', { defaultValue: "Couldn't load this list" }),
+                message: t('post.engagement.loadErrorMessage', {
+                  defaultValue: 'Check your connection and try again.',
+                }),
+                onRetry: () => loadUsers(),
+              }}
+            />
+          ) : (
+            <EmptyState
+              title={
+                type === 'likes'
+                  ? t('post.engagement.noLikes', { defaultValue: 'No likes yet' })
+                  : t('post.engagement.noBoosts', { defaultValue: 'No reposts yet' })
+              }
+              sticker="postNoEngagement"
+            />
+          )
         }
       />
-
-      {failed ? (
-        <EmptyState
-          error={{
-            title: t('post.engagement.loadError', { defaultValue: "Couldn't load this list" }),
-            message: t('post.engagement.loadErrorMessage', {
-              defaultValue: 'Check your connection and try again.',
-            }),
-            onRetry: () => loadUsers(),
-          }}
-          containerStyle={{ flex: 1 }}
-        />
-      ) : users.length === 0 ? (
-        <EmptyState
-          title={
-            type === 'likes'
-              ? t('post.engagement.noLikes', { defaultValue: 'No likes yet' })
-              : t('post.engagement.noBoosts', { defaultValue: 'No reposts yet' })
-          }
-          sticker="postNoEngagement"
-          containerStyle={{ flex: 1 }}
-        />
-      ) : (
-        <FlatList
-          data={users}
-          renderItem={renderUser}
-          keyExtractor={(item) => item.id}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={loadingMore ? <ListSkeleton count={2} /> : undefined}
-        />
-      )}
-    </View>
+    </Screen>
   );
 };
 

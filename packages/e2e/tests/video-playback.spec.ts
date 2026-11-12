@@ -1,111 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { arrangeVideoPost, POST_ID, MEDIA_ORIGIN, POSTER } from '../fixtures/videoPlayback';
 import type { Page } from '@playwright/test';
 import { expect, contractTest as test } from '../fixtures';
-
-const POST_ID = '019e23ee-2d68-7000-8000-000000000009';
-const MEDIA_ORIGIN = 'https://media.mention.earth/playback-regression';
-const POSTER = `${MEDIA_ORIGIN}/poster.svg`;
-
-async function arrangeVideoPost(
-  page: Page,
-  format: 'mp4' | 'hls',
-  options: { rankedReady?: Promise<void>; otherRankedPost?: boolean; missingTarget?: boolean } = {},
-) {
-  const requests: string[] = [];
-  await page.route(`${MEDIA_ORIGIN}/**`, async (route) => {
-    const filename = new URL(route.request().url()).pathname.split('/').pop();
-    if (!filename) throw new Error('Fixture filename is missing');
-    requests.push(filename);
-    if (filename === 'poster.svg') {
-      await route.fulfill({
-        contentType: 'image/svg+xml',
-        body: '<svg xmlns="http://www.w3.org/2000/svg" width="90" height="160"><rect width="100%" height="100%" fill="magenta"/></svg>',
-        headers: { 'access-control-allow-origin': '*' },
-      });
-      return;
-    }
-    const body = await readFile(
-      join(
-        import.meta.dirname,
-        '../fixtures/video',
-        filename === 'second.mp4'
-          ? 'clip.mp4'
-          : filename === 'second.m3u8'
-            ? 'clip.m3u8'
-            : filename,
-      ),
-    );
-    await route.fulfill({
-      contentType: filename.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4',
-      body,
-      headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=3600' },
-    });
-  });
-  const media = [
-    {
-      id: 'playback-first',
-      type: 'video',
-      url: `${MEDIA_ORIGIN}/clip.mp4`,
-      ...(format === 'hls' ? { hlsUrl: `${MEDIA_ORIGIN}/clip.m3u8` } : {}),
-    },
-    {
-      id: 'playback-second',
-      type: 'video',
-      url: `${MEDIA_ORIGIN}/second.mp4`,
-      ...(format === 'hls' ? { hlsUrl: `${MEDIA_ORIGIN}/second.m3u8` } : {}),
-    },
-  ].map((item) => ({ ...item, width: 90, height: 160, durationSec: 16, thumbUrl: POSTER }));
-  const post = {
-    id: POST_ID,
-    type: 'post',
-    user: {
-      id: 'playback-fixture-user',
-      username: 'playback-fixture',
-      name: { displayName: 'Playback Fixture' },
-    },
-    authors: [],
-    attachments: {},
-    viewerState: {
-      isOwner: false,
-      isCollaborator: false,
-      isLiked: false,
-      isDownvoted: false,
-      isBoosted: false,
-      isSaved: false,
-      isFollowingAuthor: false,
-    },
-    content: { text: 'Video playback regression', media },
-    metadata: { visibility: 'public', status: 'published', createdAt: '2026-01-01T00:00:00Z' },
-    engagement: { likes: 0, downvotes: 0, replies: 0, boosts: 0, views: 0 },
-  };
-  const targetResponse = options.missingTarget
-    ? { status: 404, json: { message: 'Post unavailable' } }
-    : { json: post };
-  await page.route(`**/feed/item/${POST_ID}`, (route) => route.fulfill(targetResponse));
-  await page.route(`**/posts/${POST_ID}`, (route) => route.fulfill(targetResponse));
-  await page.route(`**/feed/replies/${POST_ID}**`, (route) =>
-    route.fulfill({ json: { items: [], hasMore: false } }),
-  );
-  await page.route('**/feed/mtn?**', async (route) => {
-    await options.rankedReady;
-    const ranked = options.otherRankedPost
-      ? {
-          ...post,
-          id: '019e23ee-2d68-7000-8000-000000000010',
-          content: {
-            text: 'Different ranked video',
-            media: [media[1]],
-          },
-        }
-      : post;
-    await route.fulfill({ json: { items: [ranked], hasMore: false } });
-  });
-  await page.route(`**/statistics/post/${POST_ID}/view`, (route) =>
-    route.fulfill({ json: { viewsCount: 1 } }),
-  );
-  return requests;
-}
 
 async function observeFrames(page: Page, index = 0) {
   const video = page.locator('video').nth(index);
@@ -330,5 +225,122 @@ test('immediate ranking and an explicit repeated navigation keep the requested m
   await expect
     .poll(() => requested.evaluate((video: HTMLVideoElement) => video.currentTime))
     .toBeGreaterThan(position + 0.5);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('video replies follow their host across desktop, mobile and Deck without replacing the active third decoder', async ({
+  page,
+  candidate,
+}) => {
+  await arrangeVideoPost(page, 'mp4', { thirdMedia: true, replyCount: 40 });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/videos?postId=${POST_ID}&mediaIndex=2`);
+  const screen = page.getByTestId('videos-screen');
+  await expect(screen.getByRole('tab', { name: 'For You', exact: true })).toBeVisible();
+  await expect(screen.getByRole('tab', { name: 'Following', exact: true })).toBeVisible();
+  const video = screen.locator('video').filter({ visible: true }).first();
+  await expect
+    .poll(() => video.evaluate((node: HTMLVideoElement) => node.currentSrc))
+    .toContain('third.mp4');
+  await video.evaluate((node) => {
+    node.dataset.retainedVideo = 'true';
+  });
+  const retained = page.locator('video[data-retained-video="true"]');
+  const replies = page.getByTestId('video-replies-screen');
+  await expect(replies).toBeVisible();
+  // Signed-out readers can browse replies; publication stays behind the account boundary.
+  await expect(replies.getByRole('textbox')).toHaveCount(0);
+  const replyViewport = replies.locator('[data-bloom-screen-viewport="element"]');
+  await replyViewport.hover();
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => replyViewport.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  await expect(retained).toHaveCount(1);
+  await expect(page.locator('[data-bloom-resize-handle]')).toHaveCount(0);
+  await screen.getByRole('button', { name: 'Reply', exact: true }).last().click();
+  await expect(replies).toHaveCount(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId('video-replies-screen')).toHaveCount(1);
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(retained).toHaveCount(1);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(replies).toBeVisible();
+  await page.getByRole('button', { name: 'Deck mode', exact: true }).click();
+  await expect(replies).toBeHidden();
+  await screen.getByRole('button', { name: 'Reply', exact: true }).last().click();
+  await expect(dialog.getByTestId('video-replies-screen')).toBeVisible();
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await expect(retained).toHaveCount(1);
+  expect(await retained.evaluate((node: HTMLVideoElement) => node.currentSrc)).toContain(
+    'third.mp4',
+  );
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Deck mode', exact: true }).click();
+  await expect(replies).toBeVisible();
+  await expect(replies.getByRole('textbox')).toHaveCount(0);
+  const time = await retained.evaluate((node: HTMLVideoElement) => node.currentTime);
+  await expect
+    .poll(() => retained.evaluate((node: HTMLVideoElement) => node.currentTime))
+    .not.toBe(time);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('Videos reserves its replies column before delayed feed data arrives', async ({
+  page,
+  candidate,
+}) => {
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await arrangeVideoPost(page, 'mp4', { rankedReady: ready });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/videos');
+  const primary = page.getByTestId('mention-shell-panels-main-content');
+  await expect(page.getByTestId('video-replies-pending')).toBeVisible();
+  await expect.poll(async () => (await primary.boundingBox())?.width ?? 0).toBeCloseTo(620, 0);
+  await primary.evaluate((node) => {
+    node.dataset.retainedPendingVideo = 'true';
+  });
+  const before = await primary.boundingBox();
+  release();
+  await expect(page.getByTestId('video-replies-screen')).toBeVisible();
+  await expect(primary).toHaveAttribute('data-retained-pending-video', 'true');
+  await expect
+    .poll(async () => (await primary.boundingBox())?.width ?? 0)
+    .toBeCloseTo(before?.width ?? 0, 0);
+  await expect(page.getByTestId('videos-screen').locator('video').first()).toBeVisible();
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('manual pause stays with the previous video and the next video autoplays', async ({
+  page,
+  candidate,
+}) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  await arrangeVideoPost(page, 'mp4', { otherRankedPost: true });
+  await page.goto(`/videos?postId=${POST_ID}&mediaIndex=0`);
+  const screen = page.getByTestId('videos-screen');
+  const first = screen.locator(`video[src="${MEDIA_ORIGIN}/clip.mp4"]`);
+  const next = screen.locator(`video[src="${MEDIA_ORIGIN}/second.mp4"]`);
+  await expect.poll(() => first.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+  const bounds = await first.boundingBox();
+  if (!bounds) throw Error('no first video');
+  const tap = () => page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await tap();
+  await page.waitForTimeout(350);
+  await tap();
+  await expect.poll(() => first.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+  await next.scrollIntoViewIfNeeded();
+  await expect.poll(() => next.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+  const position = await next.evaluate((v: HTMLVideoElement) => v.currentTime);
+  await expect
+    .poll(() => next.evaluate((v: HTMLVideoElement) => v.currentTime))
+    .toBeGreaterThan(position + 0.3);
+  await first.scrollIntoViewIfNeeded();
+  await expect.poll(() => first.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
   expect(candidate.scriptErrors).toEqual([]);
 });

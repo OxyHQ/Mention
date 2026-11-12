@@ -13,7 +13,6 @@ export function isDefaultLeadingDeckPanel({
   if (order[0] !== 'deck-0' || first?.source !== 'explore') return false;
   if (
     first.width !== 390 ||
-    !first.resizable ||
     first.appearance !== 'solid' ||
     first.colorPreset ||
     first.liveUpdates ||

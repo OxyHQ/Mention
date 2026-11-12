@@ -35,7 +35,6 @@ import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import { usePostInteractions } from './postInteractions';
@@ -45,6 +44,7 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
+import { openPostInsights, type OpenPostPanel } from '@/components/Post/postEngagementContext';
 import { postLinkCards } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
@@ -158,9 +158,11 @@ interface PostItemProps {
    * the search screen committing its query to the search history).
    */
   onOpen?: () => void;
+  /** Feed-level dispatch, read once per feed instead of once per mounted row. */
+  openPostEngagement?: OpenPostPanel | null;
 }
 
-const PostItem: React.FC<PostItemProps> = ({
+const PostItemContent: React.FC<PostItemProps> = ({
   post,
   isNested = false,
   showPinned = false,
@@ -182,8 +184,8 @@ const PostItem: React.FC<PostItemProps> = ({
   threadOpenId,
   isThread = false,
   onOpen,
+  openPostEngagement = null,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
   // Every command this row can issue — engagement, share, the ⋯ menu, sources,
@@ -575,17 +577,14 @@ const PostItem: React.FC<PostItemProps> = ({
     setArticleModalFor(undefined);
   }, []);
 
+  // Each shell host opens its supporting panel; standalone posts use the shared sheet.
   const handleInsightsPress = useCallback(() => {
-    if (viewPostId) interactions.openInsights(viewPostId);
-  }, [interactions, viewPostId]);
-
-  // Detail-only: open the likes/boosts engagement list. No-op outside the
-  // focused post-detail variant (the feed action row doesn't expose it). Same
-  // surface as the post's ⋯ menu — a centered card on desktop, a sheet on
-  // mobile — so everything a post opens looks like the same app.
+    if (viewPostId) openPostInsights(openPostEngagement, viewPostId, interactions.openInsights);
+  }, [openPostEngagement, interactions, viewPostId]);
   const openEngagementList = useCallback(
     (type: 'likes' | 'boosts') => {
       if (!viewPostId) return;
+      if (openPostEngagement?.(viewPostId, type)) return;
       void presentSheet(
         (surface) => (
           <Suspense fallback={null}>
@@ -602,7 +601,7 @@ const PostItem: React.FC<PostItemProps> = ({
         },
       );
     },
-    [viewPostId, t],
+    [viewPostId, t, openPostEngagement],
   );
 
   // Bound once each so the memoized <PostDetailStats> is not handed a fresh
@@ -837,7 +836,12 @@ const PostItem: React.FC<PostItemProps> = ({
       <ProfileHoverCard key="reposted" username={reposterHandle}>
         <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
           <View className="-ml-4 mr-[3px]">
-            <RiRepeat2Line width={13} height={13} fill={theme.colors.textSecondary} />
+            <RiRepeat2Line
+              width={13}
+              height={13}
+              fill="currentColor"
+              className="text-muted-foreground"
+            />
           </View>
           {reposterHref ? (
             // A link to the BOOSTER's profile. The click stops here:
@@ -907,9 +911,19 @@ const PostItem: React.FC<PostItemProps> = ({
         >
           <View className="-ml-4 mr-[3px]">
             {isBoostSocialContext ? (
-              <RiRepeat2Line width={13} height={13} fill={theme.colors.textSecondary} />
+              <RiRepeat2Line
+                width={13}
+                height={13}
+                fill="currentColor"
+                className="text-muted-foreground"
+              />
             ) : (
-              <RiHeartFill width={13} height={13} fill={theme.colors.textSecondary} />
+              <RiHeartFill
+                width={13}
+                height={13}
+                fill="currentColor"
+                className="text-muted-foreground"
+              />
             )}
           </View>
           <Text
@@ -929,7 +943,12 @@ const PostItem: React.FC<PostItemProps> = ({
         style={{ height: POST_CONTEXT_ROW_HEIGHT }}
       >
         <View className="-ml-4 mr-[3px]">
-          <RiPushpinLine width={13} height={13} fill={theme.colors.textSecondary} />
+          <RiPushpinLine
+            width={13}
+            height={13}
+            fill="currentColor"
+            className="text-muted-foreground"
+          />
         </View>
         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
           {t('post.pinned', { defaultValue: 'Pinned' })}
@@ -951,22 +970,11 @@ const PostItem: React.FC<PostItemProps> = ({
   // belongs to its thread's community, so only a post that starts one says it.
   if (communityHandle && !viewPost.replyContext) {
     contextRows.push(
-      <PostCommunityRow
-        key="community"
-        handle={communityHandle}
-        href={communityHref}
-        iconColor={theme.colors.textSecondary}
-      />,
+      <PostCommunityRow key="community" handle={communityHandle} href={communityHref} />,
     );
   }
   if (viewPost.crosspost) {
-    contextRows.push(
-      <PostCrosspostRow
-        key="crosspost"
-        crosspost={viewPost.crosspost}
-        iconColor={theme.colors.textSecondary}
-      />,
-    );
+    contextRows.push(<PostCrosspostRow key="crosspost" crosspost={viewPost.crosspost} />);
   }
   if (replyContextRow) {
     // Named when the parent author resolved; otherwise the row still states
@@ -975,7 +983,12 @@ const PostItem: React.FC<PostItemProps> = ({
     const replyRow = (
       <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
         <View className="-ml-4 mr-[3px]">
-          <RiCornerDownRightLine width={13} height={13} fill={theme.colors.textSecondary} />
+          <RiCornerDownRightLine
+            width={13}
+            height={13}
+            fill="currentColor"
+            className="text-muted-foreground"
+          />
         </View>
         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
           {replyContextRow.label
@@ -1114,10 +1127,10 @@ const PostItem: React.FC<PostItemProps> = ({
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
               height: headerTopOffset + 4,
-              backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
             }}
+            className="bg-border"
           />
         )}
         {/* Thread line below avatar — connects to next post's top. Shifted
@@ -1130,10 +1143,10 @@ const PostItem: React.FC<PostItemProps> = ({
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
               bottom: 0,
-              backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
             }}
+            className="bg-border"
           />
         )}
         {replyBranch && !isNested && (
@@ -1148,8 +1161,8 @@ const PostItem: React.FC<PostItemProps> = ({
               borderLeftWidth: THREAD_LINE_W,
               borderBottomWidth: THREAD_LINE_W,
               borderBottomLeftRadius: 8,
-              borderColor: theme.colors.border,
             }}
+            className="border-border"
           />
         )}
         <View style={{ gap: headerToBlocksGap }}>
@@ -1200,6 +1213,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     isPostDetail={isDetailMain}
                     source={feedDescriptor}
                     onOpenArticle={openArticleSheet}
+                    onInsights={handleInsightsPress}
                   />
                 </Suspense>
               ) : undefined
@@ -1297,7 +1311,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     onTranslateLongPress={openLanguagePicker}
                     isTranslated={isTranslated}
                     isTranslating={isTranslating}
-                    onInsightsPress={isOwner ? handleInsightsPress : undefined}
+                    onInsightsPress={isOwner && isDetailMain ? handleInsightsPress : undefined}
                   />
                 </View>
               )}
@@ -1377,6 +1391,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.threadPosition?.index === nextProps.threadPosition?.index &&
   prevProps.threadPosition?.total === nextProps.threadPosition?.total &&
   prevProps.feedDescriptor === nextProps.feedDescriptor &&
+  prevProps.openPostEngagement === nextProps.openPostEngagement &&
   prevProps.sliceKey === nextProps.sliceKey &&
   prevProps.threadOpenId === nextProps.threadOpenId &&
   prevProps.isThread === nextProps.isThread &&
@@ -1386,7 +1401,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.repostPlacement === nextProps.repostPlacement &&
   prevProps.socialContext === nextProps.socialContext;
 
-const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
+const MemoPostItem = React.memo(PostItemContent, (prevProps, nextProps) => {
   if (!rowPlacementEqual(prevProps, nextProps)) return false;
   // Fast path: same post reference.
   if (prevProps.post === nextProps.post) return true;
@@ -1441,8 +1456,13 @@ const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
 
 // Quotes already have their data and use the same loaded post component. Keep
 // this renderer stable: no deferred empty card, import cycle or per-row hook.
-const renderNestedPost: NestedPostRenderer = (post, nestingDepth) => (
-  <MemoPostItem post={post} isNested nestingDepth={nestingDepth} />
+const renderNestedPost: NestedPostRenderer = (post, nestingDepth, openPostEngagement) => (
+  <MemoPostItem
+    post={post}
+    isNested
+    nestingDepth={nestingDepth}
+    openPostEngagement={openPostEngagement}
+  />
 );
 
 export default MemoPostItem;

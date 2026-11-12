@@ -18,12 +18,20 @@ import PostActions from '../PostActions';
 jest.mock('@oxy.so/bloom/engagement-bar', () => {
   const { createElement } = require('react');
   return {
-    EngagementBar: ({ children, trailing }: { children: unknown; trailing: unknown }) =>
-      createElement('EngagementBar', null, children, trailing),
+    EngagementBar: ({ children, trailing, ...props }: { children: unknown; trailing: unknown }) =>
+      createElement('EngagementBar', props, children, trailing),
     EngagementAction: 'EngagementAction',
     EngagementGroup: 'EngagementGroup',
   };
 });
+
+jest.mock('@oxy.so/bloom/dropdown-menu', () => ({
+  DropdownMenu: 'DropdownMenu',
+  DropdownMenuContent: 'DropdownMenuContent',
+  DropdownMenuItem: 'DropdownMenuItem',
+  DropdownMenuTrigger: 'DropdownMenuTrigger',
+}));
+jest.mock('@oxy.so/bloom/button', () => ({ IconButton: 'IconButton' }));
 
 let mockVoteStyle = 'icons';
 jest.mock('@/hooks/useVoteStyle', () => ({ useVoteStyle: () => mockVoteStyle }));
@@ -110,4 +118,33 @@ describe('PostActions', () => {
     );
     act(() => renderer.unmount());
   });
+});
+
+it('uses the same animated actions vertically on video and keeps Save visible and Share in overflow', () => {
+  const onLike = jest.fn(() => false);
+  const onSave = jest.fn();
+  const onShare = jest.fn();
+  const renderer = renderBar({
+    presentation: 'video',
+    onLike,
+    onSave,
+    onShare,
+    onSendInAllo: noop,
+  });
+  const bar = renderer.root.find((node) => String(node.type) === 'EngagementBar');
+  expect(bar.props).toMatchObject({ orientation: 'vertical', size: 'lg', tone: 'onImage' });
+  expect(bar.findAll((node) => String(node.type) === 'EngagementAction')).toHaveLength(5);
+  expect(action(renderer, 'Like')).toMatchObject({
+    popOnActivate: true,
+    rollCount: true,
+    count: 3,
+  });
+  expect(action(renderer, 'Like').onPress()).toBe(false);
+  const entries = renderer.root.findAll((node) => String(node.type) === 'DropdownMenuItem');
+  expect(entries).toHaveLength(1);
+  act(() => action(renderer, 'Save').onPress());
+  act(() => entries[0].props.onPress());
+  expect(onSave).toHaveBeenCalledTimes(1);
+  expect(onShare).toHaveBeenCalledTimes(1);
+  act(() => renderer.unmount());
 });

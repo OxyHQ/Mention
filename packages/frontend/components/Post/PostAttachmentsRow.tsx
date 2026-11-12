@@ -61,6 +61,7 @@ import { parseEmbedPlayerFromUrl, canEmbed, type EmbedPlayerParams } from '@/uti
 import { documentByline, postLinkCards } from '@/utils/postLinkCards';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import type { NestedPostRenderer } from './Attachments/PostAttachmentNested';
+import type { OpenPostPanel } from '@/components/Post/postEngagementContext';
 
 // Runtime media reference. The server now resolves final URLs (`url`, `thumbUrl`,
 // `posterUrl`, `fullUrl`); `id` remains for the legacy fallback path (old cached
@@ -88,6 +89,7 @@ interface Props {
   nestedPost?: HydratedPostSummary | null;
   /** Supplied by the post owner so quotes render without a circular lazy import. */
   renderNestedPost?: NestedPostRenderer;
+  openPostEngagement?: OpenPostPanel | null;
   leftOffset?: number;
   pollId?: string;
   pollData?: PollData | null;
@@ -225,6 +227,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     attachments,
     nestedPost,
     renderNestedPost,
+    openPostEngagement,
     leftOffset = 0,
     pollId,
     pollData,
@@ -1115,6 +1118,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
               nestedPost={nestedPost}
               nestingDepth={nestingDepth}
               renderPost={renderNestedPost}
+              openPostEngagement={openPostEngagement}
             />
           </View>
         )}
@@ -1138,6 +1142,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       prevProps.attachments === nextProps.attachments &&
       prevProps.nestedPost === nextProps.nestedPost &&
       prevProps.renderNestedPost === nextProps.renderNestedPost &&
+      prevProps.openPostEngagement === nextProps.openPostEngagement &&
       prevProps.leftOffset === nextProps.leftOffset &&
       prevProps.pollId === nextProps.pollId &&
       prevProps.pollData === nextProps.pollData &&

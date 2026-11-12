@@ -13,21 +13,25 @@ for (const viewport of [
     await expect(page.getByText('No video posts yet', { exact: true })).toBeVisible();
     const screen = page.getByTestId('videos-screen');
     const status = page.getByTestId('videos-status');
-    const panel = page.getByTestId('mention-shell-panels-main');
-    const invitation = panel.getByTestId('sign-in-banner');
-    await expect(invitation).toBeVisible();
+    const viewportOwner = screen.locator('[data-bloom-screen-viewport]');
+    await expect(page.getByTestId('sign-in-banner')).toHaveCount(0);
+    await expect(screen.getByRole('tab', { name: 'For You', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(screen.getByRole('tab', { name: 'Following', exact: true })).toBeEnabled();
     await expect
       .poll(async () => {
-        const area = await panel.boundingBox();
+        const area = await viewportOwner.boundingBox();
         const content = await status.boundingBox();
-        const footer = await invitation.boundingBox();
-        if (!area || !content || !footer) return Infinity;
-        // The invitation now belongs to this panel. The empty state fills its
-        // reading area above that footer, without a gap, overlap or overflow.
+        if (!area || !content) return Infinity;
+        // Videos keeps its immersive viewport even when the feed is empty.
+        // The shared shell reserves mobile navigation; no sign-in footer consumes the reel.
         return Math.max(
+          Math.abs(content.x - area.x),
+          Math.abs(content.width - area.width),
           Math.abs(content.y - area.y),
-          Math.abs(content.y + content.height - footer.y),
-          Math.abs(footer.y + footer.height - area.y - area.height),
+          Math.abs(content.height - area.height),
         );
       })
       .toBeLessThan(2);
@@ -39,7 +43,7 @@ for (const viewport of [
       )
       .toBe(0);
     const bounds = await screen.boundingBox();
-    const selector = await page.getByRole('radiogroup').boundingBox();
+    const selector = await screen.getByRole('tablist').boundingBox();
     expect(bounds).not.toBeNull();
     expect(selector).not.toBeNull();
     if (!bounds || !selector) throw new Error('Missing video layout');

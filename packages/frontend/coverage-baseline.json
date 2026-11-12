@@ -329,6 +329,7 @@
     "utils/prettifyUrl.ts": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[2,2]},
     "utils/profileAccountFacts.ts": {"statements":[3,3],"branches":[9,10],"functions":[1,1],"lines":[3,3]},
     "utils/publicProfileHandle.ts": {"statements":[18,18],"branches":[15,15],"functions":[4,4],"lines":[13,13]},
+    "utils/replyComposerHandoff.ts": {"statements":[36,36],"branches":[29,30],"functions":[7,7],"lines":[30,30]},
     "utils/replyContextRow.ts": {"statements":[8,8],"branches":[12,12],"functions":[1,1],"lines":[6,6]},
     "utils/resolveMention.ts": {"statements":[11,12],"branches":[15,17],"functions":[1,1],"lines":[9,9]},
     "utils/safeJson.ts": {"statements":[3,5],"branches":[1,2],"functions":[1,1],"lines":[3,4]},

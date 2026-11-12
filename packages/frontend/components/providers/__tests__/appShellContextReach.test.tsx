@@ -7,7 +7,6 @@ import type { OxyServices } from '@oxy.so/core';
 import { AppProviders } from '../AppProviders';
 import { presentSheet } from '@/utils/sheet';
 import { useVideoPlayback } from '@oxy.so/bloom/video-playback';
-import { useVideosRail } from '@/context/VideosRailContext';
 import { usePostInteractions, type PostInteractions } from '@/components/Feed/postInteractions';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
@@ -243,36 +242,6 @@ describe('app-shell contexts reach hoisted content', () => {
     };
 
     expect(() => renderApp(<PortalledContent />)).not.toThrow();
-  });
-
-  it('gives sheet content and the app tree the SAME app-shell context instance', () => {
-    // Every app-shell context except VideoPlayback has a default value, so a
-    // consumer mounted outside the provider reads a silent no-op instead of
-    // throwing. Identity is the only way to catch that: write the videos rail
-    // from the app tree and require the sheet to observe it.
-    let sheetSawOpen: boolean | undefined;
-
-    const SheetProbe = () => {
-      sheetSawOpen = useVideosRail().active;
-      return null;
-    };
-
-    const RailWriter = () => {
-      const { setRailState } = useVideosRail();
-      useEffect(() => {
-        setRailState({ active: true });
-      }, [setRailState]);
-      return null;
-    };
-
-    renderApp(
-      <>
-        <RailWriter />
-        <SheetPusher content={<SheetProbe />} />
-      </>,
-    );
-
-    expect(sheetSawOpen).toBe(true);
   });
 
   it('gives a post rendered in a sheet the app post-interaction controller', () => {

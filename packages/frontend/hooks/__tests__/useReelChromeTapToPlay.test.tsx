@@ -94,15 +94,15 @@ type Chrome = ReturnType<typeof useReelChrome>;
 
 function render(player: object, muted = true) {
   const result: { current?: Chrome } = {};
-  function Harness() {
+  function Harness({ active = true, focused = true }: { active?: boolean; focused?: boolean }) {
     result.current = useReelChrome({
       player,
       restartOnActivate: true,
       postId: 'post-1',
       videoUrl: 'https://example.test/clip.mp4',
       posterUrl: undefined,
-      isActive: true,
-      screenFocused: true,
+      isActive: active,
+      screenFocused: focused,
       windowHeight: 800,
       muted,
       onMutedChange: () => {},
@@ -119,10 +119,18 @@ function render(player: object, muted = true) {
     } as never);
     return null;
   }
+  let tree: TestRenderer.ReactTestRenderer;
   act(() => {
-    TestRenderer.create(<Harness />);
+    tree = TestRenderer.create(<Harness />);
   });
-  return result as { current: Chrome };
+  return {
+    get current() {
+      return result.current as Chrome;
+    },
+    update(active: boolean, focused = true) {
+      act(() => tree.update(<Harness active={active} focused={focused} />));
+    },
+  };
 }
 
 describe('a refused autoplay', () => {
@@ -159,4 +167,24 @@ describe('a video that is playing', () => {
     expect(fake.player.play).not.toHaveBeenCalled();
     expect(chrome.current.showPauseAffordance).toBe(false);
   });
+});
+
+describe('a deferred pause belongs to the watched video', () => {
+  it.each(['inactive', 'unfocused'])(
+    'cancels a pending tap when %s, so returning can autoplay',
+    (reason) => {
+      jest.useFakeTimers();
+      try {
+        const fake = fakePlayer(true);
+        const chrome = render(fake.player, false);
+        act(() => chrome.current.handleSurfacePress());
+        chrome.update(reason !== 'inactive', reason !== 'unfocused');
+        act(() => jest.advanceTimersByTime(300));
+        chrome.update(true, true);
+        expect(chrome.current.showPauseAffordance).toBe(false);
+      } finally {
+        jest.useRealTimers();
+      }
+    },
+  );
 });

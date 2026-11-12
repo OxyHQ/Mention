@@ -651,7 +651,11 @@
       "public": "全員",
       "direct": "非公開メンション：メンションした人のみ",
       "needsRecipient": "少なくとも1人をメンションしてください。メンションした人だけがこの投稿を見られます。"
-    }
+    },
+    "compactLimitHint": "簡易返信は{{max}}文字までです。さらに書くにはエディターを広げてください。",
+    "characterCountLabel": "文字数",
+    "characterCountValue": "{{max}}文字中{{count}}文字",
+    "expand": "全画面のエディターを開く"
   },
   "post": {
     "threadPosition": "スレッド内の投稿 {{index}} / {{total}}",
@@ -2751,6 +2755,7 @@
     "empty": "まだコミュニティはありません。"
   },
   "videos": {
+    "addThought": "ひとことを追加…",
     "unavailable": "動画を再生できません",
     "shared_a_post": "が投稿を共有しました",
     "link_copied": "リンクをコピーしました",

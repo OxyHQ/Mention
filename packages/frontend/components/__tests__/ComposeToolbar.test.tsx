@@ -100,7 +100,7 @@ jest.mock('@oxy.so/bloom/icons', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   const glyph = (name: string) =>
     Object.assign((props: object) => <View {...props} />, { displayName: name });
-  // Every `Ri*` name, one component per name, so a case can assert on the glyph
+  // Each shared icon has one component per name, so a case can assert on the glyph
   // it imports by subpath (the barrel and the subpaths are one mocked module).
   const glyphs = new Map<string, ReturnType<typeof glyph>>();
   return new Proxy(
@@ -108,7 +108,11 @@ jest.mock('@oxy.so/bloom/icons', () => {
     {
       get(target, name) {
         if (name in target) return target[name as keyof typeof target];
-        if (typeof name !== 'string' || !name.startsWith('Ri')) return undefined;
+        if (
+          typeof name !== 'string' ||
+          (!name.startsWith('Ri') && !['MediaAttachmentIcon', 'GifAttachmentIcon'].includes(name))
+        )
+          return undefined;
         if (!glyphs.has(name)) glyphs.set(name, glyph(name));
         return glyphs.get(name);
       },

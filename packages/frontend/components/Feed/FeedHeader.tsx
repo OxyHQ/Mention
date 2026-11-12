@@ -8,7 +8,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
+import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Text } from '@oxy.so/bloom/typography';
 
@@ -68,7 +68,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
           tone="neutral"
           size="xs"
           iconOnly
-          icon={<RiGalleryLine width={20} height={20} fill={theme.colors.textSecondary} />}
+          icon={<MediaAttachmentIcon width={20} height={20} fill={theme.colors.textSecondary} />}
           accessibilityLabel={t('compose.toolbar.media')}
           onPress={() => router.push('/compose')}
         />

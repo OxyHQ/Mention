@@ -21,10 +21,10 @@ interface Props {
   /** Its profile, or null when it has no route. */
   href: Href | null;
   /** Colour for the leading glyph, from the active theme. */
-  iconColor: string;
+  iconColor?: string;
 }
 
-const PostCommunityRow: React.FC<Props> = ({ handle, href, iconColor }) => {
+const PostCommunityRow: React.FC<Props> = ({ handle, href }) => {
   const { t } = useTranslation();
 
   const label = (
@@ -37,7 +37,12 @@ const PostCommunityRow: React.FC<Props> = ({ handle, href, iconColor }) => {
     <ProfileHoverCard username={handle}>
       <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
         <View className="-ml-4 mr-[3px]">
-          <RiGroupLine width={13} height={13} fill={iconColor} />
+          <RiGroupLine
+            width={13}
+            height={13}
+            fill="currentColor"
+            className="text-muted-foreground"
+          />
         </View>
         {href ? (
           // The row lives inside the post's own press target: opening the

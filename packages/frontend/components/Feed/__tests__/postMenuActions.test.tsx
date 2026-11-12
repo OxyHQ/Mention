@@ -149,6 +149,7 @@ function build(
       moderatesCommunity: false,
       onSave: jest.fn(async () => undefined),
       onOpenArticle: jest.fn(),
+      onInsights: jest.fn(),
       ...params,
     },
     { ...deps, ...depOverrides },
@@ -364,16 +365,18 @@ describe('what the actions do', () => {
     });
   });
 
-  it('opens its sheets in the one bottom sheet', () => {
+  it('dispatches Insights through its host and opens other sheets through the shared presenter', () => {
+    const onInsights = jest.fn();
     const actions = build({
+      onInsights,
       viewPost: makePost({ lane: { id: 'l1', name: 'Dev' } as HydratedPost['lane'] }),
       isOwner: true,
       canViewInsights: true,
     });
     presentSheetMock.mockClear();
     find(actions, 'postActions.insights').onPress();
-    expect(presentSheetMock).toHaveBeenCalledTimes(1);
-    expect(presentSheetMock.mock.calls[0][0](surface)).toBeTruthy();
+    expect(onInsights).toHaveBeenCalledTimes(1);
+    expect(presentSheetMock).not.toHaveBeenCalled();
     const strangerActions = build({ viewPost: makePost() });
     for (const label of ['postActions.reportPost', 'lists.addTo.menuItem']) {
       presentSheetMock.mockClear();

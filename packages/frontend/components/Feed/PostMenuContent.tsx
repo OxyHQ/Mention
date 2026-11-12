@@ -32,6 +32,8 @@ interface PostMenuContentProps {
   source?: string;
   /** The article reader is row-local state (a modal the row renders). */
   onOpenArticle: () => void;
+  /** Captured by the row so portals retain the originating host. */
+  onInsights: () => void;
 }
 
 /**
@@ -46,6 +48,7 @@ export function PostMenuContent({
   isPostDetail,
   source,
   onOpenArticle,
+  onInsights,
 }: PostMenuContentProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -83,6 +86,7 @@ export function PostMenuContent({
       moderatesCommunity,
       onSave: () => interactions.toggleSave(post, source),
       onOpenArticle,
+      onInsights,
     },
     {
       theme,

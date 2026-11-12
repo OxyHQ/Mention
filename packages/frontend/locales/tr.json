@@ -651,7 +651,11 @@
       "public": "Herkes",
       "direct": "Özel bahsetme: yalnızca bahsettiğin kişiler",
       "needsRecipient": "En az bir kişiden bahset. Bu gönderiyi yalnızca bahsettiğin kişiler görür."
-    }
+    },
+    "compactLimitHint": "Kısa yanıtlar en fazla {{max}} karakter olabilir. Daha fazla yazmak için düzenleyiciyi genişletin.",
+    "characterCountLabel": "Karakter",
+    "characterCountValue": "{{max}} karakterden {{count}} karakter",
+    "expand": "Tam düzenleyiciyi aç"
   },
   "post": {
     "threadPosition": "Dizideki {{total}} gönderiden {{index}}. gönderi",
@@ -2751,6 +2755,7 @@
     "empty": "Henüz topluluk yok."
   },
   "videos": {
+    "addThought": "Bir düşünce ekle…",
     "unavailable": "Video kullanılamıyor",
     "shared_a_post": "bir gönderi paylaştı",
     "link_copied": "Bağlantı kopyalandı",

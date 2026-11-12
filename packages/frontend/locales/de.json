@@ -651,7 +651,11 @@
       "public": "Alle",
       "direct": "Private Erwähnung: nur die Personen, die du erwähnst",
       "needsRecipient": "Erwähne mindestens eine Person. Nur die erwähnten Personen sehen diesen Beitrag."
-    }
+    },
+    "compactLimitHint": "Kurze Antworten sind auf {{max}} Zeichen begrenzt. Öffne den vollständigen Editor, um mehr zu schreiben.",
+    "characterCountLabel": "Zeichen",
+    "characterCountValue": "{{count}} von {{max}} Zeichen",
+    "expand": "Vollständigen Editor öffnen"
   },
   "post": {
     "threadPosition": "Beitrag {{index}} von {{total}} im Thread",
@@ -2751,6 +2755,7 @@
     "empty": "Noch keine Communitys."
   },
   "videos": {
+    "addThought": "Gedanken hinzufügen…",
     "unavailable": "Video nicht verfügbar",
     "shared_a_post": "hat einen Beitrag geteilt",
     "link_copied": "Link kopiert",

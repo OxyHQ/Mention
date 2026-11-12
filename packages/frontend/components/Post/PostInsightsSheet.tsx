@@ -4,7 +4,8 @@ import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Text } from 'react-native';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
 import {
@@ -56,6 +57,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     <PageHeader
       title={t('insights.post.title')}
       safeArea={false}
+      onBack={null}
       actions={
         <Button
           appearance="subtle"
@@ -69,113 +71,86 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     />
   );
 
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-background">
-        {headerEl}
-        <InsightsSkeleton />
-      </View>
-    );
-  }
-
-  if (!insights) {
-    return (
-      <View className="flex-1 bg-background">
-        {headerEl}
-        <EmptyState
-          title={t('insights.post.noInsightsAvailable')}
-          icon={RiBarChartHorizontalLine}
-        />
-      </View>
-    );
-  }
-
-  const totalInteractions = insights.engagement.totalInteractions;
-
   return (
-    <View className="flex-1 bg-background">
-      {headerEl}
-
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
-      >
-        {commerce.data ? (
-          <ChartCardSurface height="auto" testID="post-commerce-insights">
-            <Text className="text-foreground font-semibold">
-              {t('commerce.shop', { defaultValue: 'Shop' })}
-            </Text>
-            <Text className="text-muted-foreground">
-              {commerce.data.suppressed
-                ? t('commerce.metricsSuppressed', {
-                    defaultValue:
-                      'Activity totals appear after at least {{count}} opens in the last 30 days.',
-                    count: commerce.data.minimumOpens,
-                  })
-                : t('commerce.metricsSummary', {
-                    defaultValue:
-                      'Last 30 days: {{opens}} opens · {{handoffs}} visits to Mercaria. Counts are interactions, not unique visitors or sales.',
-                    opens: commerce.data.opens,
-                    handoffs: commerce.data.handoffs,
-                  })}
-            </Text>
-          </ChartCardSurface>
-        ) : null}
-        <ChartCardSurface height="auto" testID="post-insights-summary">
-          <ChartHeadline
-            label={t('insights.post.views')}
-            value={insights.stats.views}
-            format={formatCompactNumber}
+    <Screen scroll="auto" header={headerEl} testID="post-insights-screen">
+      <ScreenScrollView contentContainerClassName="gap-4 px-5 pt-2 pb-6">
+        {isLoading ? (
+          <InsightsSkeleton />
+        ) : !insights ? (
+          <EmptyState
+            title={t('insights.post.noInsightsAvailable')}
+            icon={RiBarChartHorizontalLine}
           />
-          <ChartStatTiles
-            items={[
-              {
-                label: t('insights.post.engagementRate'),
-                value: `${insights.engagement.engagementRate.toFixed(1)}%`,
-              },
-              {
-                label: t('insights.post.interactions'),
-                value: formatCompactNumber(totalInteractions),
-              },
-              ...(insights.engagement.reach > 0
-                ? [
-                    {
-                      label: t('insights.post.reach'),
-                      value: formatCompactNumber(insights.engagement.reach),
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        </ChartCardSurface>
-        <BarListCard
-          testID="post-insights-interactions"
-          title={t('insights.post.interactions')}
-          metricLabel={t('insights.post.interactions')}
-          metric="value"
-          showShares
-          format={formatCompactNumber}
-          items={[
-            { label: t('insights.post.likes'), value: insights.stats.likes },
-            { label: t('insights.post.replies'), value: insights.stats.replies },
-            { label: t('insights.post.boosts'), value: insights.stats.boosts },
-            { label: t('insights.post.shares'), value: insights.stats.shares },
-            { label: t('insights.post.quotes'), value: insights.stats.quotes },
-          ]}
-        />
-      </ScrollView>
-    </View>
+        ) : (
+          <>
+            {commerce.data ? (
+              <ChartCardSurface height="auto" testID="post-commerce-insights">
+                <Text className="text-foreground font-semibold">
+                  {t('commerce.shop', { defaultValue: 'Shop' })}
+                </Text>
+                <Text className="text-muted-foreground">
+                  {commerce.data.suppressed
+                    ? t('commerce.metricsSuppressed', {
+                        defaultValue:
+                          'Activity totals appear after at least {{count}} opens in the last 30 days.',
+                        count: commerce.data.minimumOpens,
+                      })
+                    : t('commerce.metricsSummary', {
+                        defaultValue:
+                          'Last 30 days: {{opens}} opens · {{handoffs}} visits to Mercaria. Counts are interactions, not unique visitors or sales.',
+                        opens: commerce.data.opens,
+                        handoffs: commerce.data.handoffs,
+                      })}
+                </Text>
+              </ChartCardSurface>
+            ) : null}
+            <ChartCardSurface height="auto" testID="post-insights-summary">
+              <ChartHeadline
+                label={t('insights.post.views')}
+                value={insights.stats.views}
+                format={formatCompactNumber}
+              />
+              <ChartStatTiles
+                items={[
+                  {
+                    label: t('insights.post.engagementRate'),
+                    value: `${insights.engagement.engagementRate.toFixed(1)}%`,
+                  },
+                  {
+                    label: t('insights.post.interactions'),
+                    value: formatCompactNumber(insights.engagement.totalInteractions),
+                  },
+                  ...(insights.engagement.reach > 0
+                    ? [
+                        {
+                          label: t('insights.post.reach'),
+                          value: formatCompactNumber(insights.engagement.reach),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            </ChartCardSurface>
+            <BarListCard
+              testID="post-insights-interactions"
+              title={t('insights.post.interactions')}
+              metricLabel={t('insights.post.interactions')}
+              metric="value"
+              showShares
+              format={formatCompactNumber}
+              items={[
+                { label: t('insights.post.likes'), value: insights.stats.likes },
+                { label: t('insights.post.replies'), value: insights.stats.replies },
+                { label: t('insights.post.boosts'), value: insights.stats.boosts },
+                { label: t('insights.post.shares'), value: insights.stats.shares },
+                { label: t('insights.post.quotes'), value: insights.stats.quotes },
+              ]}
+            />
+          </>
+        )}
+      </ScreenScrollView>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  contentContainer: {
-    gap: 16,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
-});
 
 export default PostInsightsSheet;

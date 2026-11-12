@@ -265,6 +265,7 @@ const Feed = (props: FeedProps) => {
     },
     theme,
     router,
+    openPostEngagement,
     feedState,
     feedRows,
     leading,
@@ -369,9 +370,14 @@ const Feed = (props: FeedProps) => {
           </VideoViewabilityScope>
         );
       }
-      return renderFeedRow(row, { router, threadLineColor: theme.colors.border, feedDescriptor });
+      return renderFeedRow(row, {
+        router,
+        threadLineColor: theme.colors.border,
+        feedDescriptor,
+        openPostEngagement,
+      });
     },
-    [router, theme.colors.border, feedDescriptor],
+    [router, theme.colors.border, feedDescriptor, openPostEngagement],
   );
 
   // Everything currently on screen, published to the video playback authority in

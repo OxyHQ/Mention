@@ -1,61 +1,60 @@
+import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { Screen } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { IconButton } from '@oxy.so/bloom/button';
 import { useTranslation } from 'react-i18next';
-import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import Feed from '@/components/Feed/Feed';
-import { useVideosRail } from '@/context/VideosRailContext';
-import { InlineReplyComposer } from './InlineReplyComposer';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { usePostSelector } from '@/stores/postsStore';
+import { isPrivateMention, postAcceptsReplies } from '@/utils/postReplies';
+import { CompactReplyComposer } from '@/components/Post/CompactReplyComposer';
+import type { Href } from '@/lib/navigation/router';
+import type { ReplyDraft } from '@/components/Post/replyDraft';
 
 export interface VideoRepliesProps {
   postId: string;
-  /**
-   * Omitted on desktop — the replies column (RightBar) is always open and
-   * cannot be dismissed. Only the mobile bottom sheet passes this to close
-   * itself.
-   */
-  onClose?: () => void;
-  /** Called after a reply successfully posts — see InlineReplyComposer. */
-  onCommentPosted: () => void;
+  focusComposerNonce?: number;
+  draft?: ReplyDraft;
+  onNavigate?: (href: Href) => void;
 }
 
 /**
- * Shared replies list + composer content, presented inside the mobile bottom
- * sheet (toggled by the on-video comment button) and the always-open desktop
- * replies column (rendered inside `RightBar`, next to the videos rail).
+ * One replies list and composer in the originating video's Bloom group.
+ * Bloom presents the same screen inline or in its responsive floating surface.
  * Bloom owns chrome and scroll; Feed virtualizes against that same viewport.
  */
-export function VideoReplies({ postId, onClose, onCommentPosted }: VideoRepliesProps) {
+export function VideoReplies({
+  postId,
+  focusComposerNonce = 0,
+  draft,
+  onNavigate,
+}: VideoRepliesProps) {
   const { t } = useTranslation();
-  // Desktop's on-video comment button opens nothing (this column is already
-  // there) — it takes the caret instead. The mobile sheet never bumps the nonce,
-  // so its composer is unaffected.
-  const { focusComposerNonce } = useVideosRail();
+  const { user } = useAuth();
+  const post = usePostSelector(postId);
 
   return (
     <Screen
       scroll="auto"
-      documentScroll={onClose ? false : undefined}
-      header={
-        <PageHeader
-          title={t('videos.replies')}
-          actions={
-            onClose ? (
-              <IconButton
-                leadingIcon={RiCloseLine}
-                onPress={onClose}
-                accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-              />
-            ) : undefined
-          }
-        />
-      }
+      testID="video-replies-screen"
+      bottomBarKeyboardBehavior="follow"
+      header={<PageHeader title={t('videos.replies')} onBack={null} safeArea={false} />}
       bottomBar={
-        <InlineReplyComposer
-          postId={postId}
-          onPosted={onCommentPosted}
-          focusNonce={focusComposerNonce}
-        />
+        user && postAcceptsReplies(post) ? (
+          <PageFooter scrim="auto" contentContainerStyle={{ paddingLeft: 8, paddingRight: 8 }}>
+            <CompactReplyComposer
+              key={user.id}
+              postId={postId}
+              placeholder={
+                isPrivateMention(post)
+                  ? t('privateMentions.replyPlaceholder', { defaultValue: 'Reply privately' })
+                  : undefined
+              }
+              focusNonce={focusComposerNonce}
+              draft={draft}
+              onNavigate={onNavigate}
+            />
+          </PageFooter>
+        ) : undefined
       }
     >
       <Feed type="replies" filters={{ postId, parentPostId: postId }} hideHeader />

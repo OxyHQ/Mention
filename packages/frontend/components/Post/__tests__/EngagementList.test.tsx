@@ -1,3 +1,4 @@
+import type React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';
@@ -75,11 +76,32 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 // Header/close/loading/empty-state are chrome — render nothing.
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({ children }: { children: React.ReactNode }) => children,
+}));
+jest.mock('@oxy.so/bloom/list', () => ({
+  VirtualList: ({
+    data,
+    renderItem,
+    ListEmptyComponent,
+  }: {
+    data: PostUser[];
+    renderItem: (info: { item: PostUser }) => React.ReactNode;
+    ListEmptyComponent: React.ReactNode;
+  }) => (data.length ? data.map((item) => renderItem({ item })) : ListEmptyComponent),
+}));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
-jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
+const mockEmptyState = jest.fn();
+jest.mock('@/components/common/EmptyState', () => ({
+  EmptyState: (props: unknown) => {
+    mockEmptyState(props);
+    return null;
+  },
+}));
+const mockProfilePresses: Array<() => void> = [];
 
 // The skeleton list stands in for the loading branch; render nothing so only the
 // real (loaded) rows show up in the tree.
@@ -87,7 +109,14 @@ jest.mock('@/components/ProfileCard', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
   // Faithful reproduction of ProfileCard's primary-label decision: a real display
   // name wins; otherwise the `@handle`; otherwise "Unknown user".
-  const ProfileCard = ({ profile }: { profile: Record<string, unknown> }) => {
+  const ProfileCard = ({
+    profile,
+    onPress,
+  }: {
+    profile: Record<string, unknown>;
+    onPress: () => void;
+  }) => {
+    mockProfilePresses.push(onPress);
     const handle =
       mockNormalizedHandle(profile as Parameters<typeof mockNormalizedHandle>[0]) ?? '';
     const name = profile.name as { displayName?: string } | undefined;
@@ -142,6 +171,7 @@ describe('EngagementList — canonical PostUser rendering', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCapturedProfiles.length = 0;
+    mockProfilePresses.length = 0;
   });
 
   it('renders the boosts list from canonical PostUser objects — real name and federated handle, never "Unknown user"', async () => {
@@ -203,4 +233,43 @@ describe('EngagementList — canonical PostUser rendering', () => {
     expect(renderedTexts(renderer)).toContain('@gargron@mastodon.social');
     expect(renderedTexts(renderer)).not.toContain('Unknown user');
   });
+});
+
+it('retains the error and retry state instead of showing an empty list after a failed request', async () => {
+  mockGetPostLikes.mockRejectedValueOnce(new Error('offline'));
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <EngagementList postId="failed-post" type="likes" onClose={jest.fn()} />,
+    );
+  });
+  await flush();
+  expect(mockEmptyState).toHaveBeenLastCalledWith(
+    expect.objectContaining({ error: expect.objectContaining({ onRetry: expect.any(Function) }) }),
+  );
+  await act(async () => renderer?.unmount());
+});
+
+it('navigates through the originating panel after closing the supporting list', async () => {
+  mockGetPostLikes.mockResolvedValue({ users: [localEngager], hasMore: false });
+  mockProfilePresses.length = 0;
+  const onClose = jest.fn();
+  const onNavigate = jest.fn();
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <EngagementList
+        postId="navigation-post"
+        type="likes"
+        onClose={onClose}
+        onNavigate={onNavigate}
+      />,
+    );
+  });
+  await flush();
+  await act(async () => mockProfilePresses[0]?.());
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(onNavigate).toHaveBeenCalledTimes(1);
+  expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onNavigate.mock.invocationCallOrder[0]);
+  await act(async () => renderer?.unmount());
 });

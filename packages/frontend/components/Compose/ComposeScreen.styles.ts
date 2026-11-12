@@ -146,10 +146,6 @@ export const composeStyles = StyleSheet.create({
     gap: 8,
     flexShrink: 0,
   },
-  charCount: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   /* compose toolbar */
   toolbarIcons: {
     flexDirection: 'row',

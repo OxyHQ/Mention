@@ -16,6 +16,7 @@ import {
 import type { HydratedPost } from '@mention/shared-types';
 import type { AccountInsights } from '@/services/insightsService';
 import PostItem from '@/components/Feed/PostItem';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { buildInsightsSeries, buildPublishingSummary } from './insightsSeries';
 
 export interface WeeklyRecapContentProps {
@@ -25,6 +26,7 @@ export interface WeeklyRecapContentProps {
 }
 
 export function WeeklyRecapContent({ stats, summary, topPosts }: WeeklyRecapContentProps) {
+  const openPostEngagement = useOpenPostEngagement();
   const { t, i18n } = useTranslation();
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 });
   const date = new Intl.DateTimeFormat(i18n.language, {
@@ -251,7 +253,7 @@ export function WeeklyRecapContent({ stats, summary, topPosts }: WeeklyRecapCont
           {topPosts.length ? (
             topPosts.map((post, index) => (
               <Fragment key={post.id}>
-                <PostItem post={post} />
+                <PostItem post={post} openPostEngagement={openPostEngagement} />
                 {index < topPosts.length - 1 && <Divider />}
               </Fragment>
             ))
