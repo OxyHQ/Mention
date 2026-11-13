@@ -2,6 +2,7 @@ import { canParticipateInDeployment } from '@mention/shared-types/deployment';
 import type { AuthenticatedPresenceSocket } from '../services/SocketPresenceLifecycle';
 import type http from 'node:http';
 import type { OxyMiddleware } from '@oxy.so/core/server';
+import { OXY_TELEMETRY_REQUEST_HEADERS } from '@oxy.so/telemetry';
 import { type Namespace, Server as SocketIOServer } from 'socket.io';
 import { PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
 import { config } from '../config';
@@ -65,8 +66,7 @@ export function createSocketIoServer(server: http.Server): SocketIOServer {
         'Content-MD5',
         'Date',
         'X-Api-Version',
-        'X-Oxy-Edge-Region',
-        'X-Oxy-Activity-Id',
+        ...OXY_TELEMETRY_REQUEST_HEADERS,
       ],
     },
     perMessageDeflate: {

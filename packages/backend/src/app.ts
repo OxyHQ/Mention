@@ -12,6 +12,7 @@ import {
   oxyTrustProxy,
   type OxyCspExtensions,
 } from '@oxy.so/core/server';
+import { OXY_TELEMETRY_REQUEST_HEADERS } from '@oxy.so/telemetry';
 import compression from 'compression';
 import express, { type ErrorRequestHandler, type Request, type RequestHandler } from 'express';
 import type { AppRoutes } from './appRoutes';
@@ -146,7 +147,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      `Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version, X-Oxy-Edge-Region, X-Oxy-Activity-Id, ${EXPECTED_VIEWER_HEADER}`,
+      `Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version, ${OXY_TELEMETRY_REQUEST_HEADERS.join(', ')}, ${EXPECTED_VIEWER_HEADER}`,
     );
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (

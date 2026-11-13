@@ -5,6 +5,7 @@ import {
   runWithQueryAccounting,
   type QueryTally,
 } from '../db/queryMetrics';
+import { statusClass } from '@oxy.so/telemetry/metrics';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 import {
@@ -78,11 +79,6 @@ function isQuietRequest(method: string, route: string, statusCode: number): bool
   return (
     route === '/health/ready' || route === '/telemetry/web' || (method === 'HEAD' && route === '/')
   );
-}
-
-function statusClass(statusCode: number): string {
-  const bucket = Math.floor(statusCode / 100);
-  return bucket >= 1 && bucket <= 5 ? `${bucket}xx` : 'other';
 }
 
 function round(value: number): number {
