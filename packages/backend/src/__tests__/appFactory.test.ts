@@ -586,8 +586,8 @@ describe('createApp', () => {
 
     // Exact tokens, never substrings: everything the embedded Alia SDK declares
     // (`@alia.onl/sdk/csp`) — its API, the voice call's socket, the avatar runtime.
+    // The hosts are the SDK's own, never restated here.
     for (const source of ALIA_SDK_CSP.connectSrc) expect(connectSources).toContain(source);
-    expect(connectSources).toContain('wss://api.alia.onl');
     expect(connectSources).not.toContain('https:');
 
     // Stickers animate on the web through WebAssembly: compiling it is allowed,
