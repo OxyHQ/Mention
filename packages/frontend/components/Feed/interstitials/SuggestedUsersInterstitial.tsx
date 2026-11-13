@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCardData } from '@/components/ProfileCard';
 import { SuggestedProfileCardSkeleton } from '@/components/SuggestedProfileCard';
@@ -13,6 +13,7 @@ import {
   shouldRenderInterstitial,
 } from './interstitialLayout';
 import { useInterstitialReporter, type InterstitialCardProps } from './interstitialTelemetry';
+import { dismissInterstitialItem, useDismissedInterstitialItems } from '@/stores/readerStateStore';
 
 /**
  * "Who to follow", inline in the feed.
@@ -32,7 +33,7 @@ export function SuggestedUsersInterstitial({
 }: InterstitialCardProps) {
   const { t } = useTranslation();
   const { recommendations, isLoading } = useRecommendations();
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  const dismissed = useDismissedInterstitialItems('suggestedUsers');
   const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'suggestedUsers' });
 
   const limits = resolveInterstitialLimits('suggestedUsers');
@@ -45,11 +46,7 @@ export function SuggestedUsersInterstitial({
   const handleDismiss = useCallback(
     (id: string, position: number) => {
       report('dismiss', position);
-      setDismissed((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        return next;
-      });
+      dismissInterstitialItem('suggestedUsers', id);
     },
     [report],
   );

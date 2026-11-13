@@ -1,5 +1,4 @@
 import { tokens } from '@oxy.so/bloom/styles';
-import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -10,6 +9,7 @@ import { RiThumbDownLine } from '@oxy.so/bloom/icons/RiThumbDownLine';
 import { RiThumbUpLine } from '@oxy.so/bloom/icons/RiThumbUpLine';
 import type { CommunityNoteRating, CommunityNoteSummary } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { readerKeys, useReaderFlag } from '@/stores/readerStateStore';
 
 interface CommunityNoteCardProps {
   note: CommunityNoteSummary;
@@ -46,7 +46,10 @@ export function CommunityNoteCard({
 }: CommunityNoteCardProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const [expanded, setExpanded] = useState(false);
+  // Held by the NOTE (`readerStateStore`), not the card: in a feed the card is
+  // drawn by a recycled row, and a card-held boolean opened the next post's
+  // note and folded this one shut after a scroll away and back.
+  const [expanded, toggleExpanded] = useReaderFlag(readerKeys.communityNote(note.id));
   const isRate = variant === 'rate';
   // Measuring rendered lines is unreliable on web (`onTextLayout` does not
   // fire), so "long" is decided by length: past this a note needs 3+ lines at
@@ -76,7 +79,7 @@ export function CommunityNoteCard({
         </View>
       )}
 
-      <Pressable disabled={!collapsed} onPress={() => setExpanded(true)}>
+      <Pressable disabled={!collapsed} onPress={toggleExpanded}>
         <Text
           className="text-foreground text-[14px] leading-5"
           numberOfLines={collapsed ? 3 : undefined}

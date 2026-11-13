@@ -1,13 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
-import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
+import {
+  customFeedsService,
+  type MarketplaceFeed,
+  type MarketplaceListResponse,
+} from '@/services/customFeedsService';
 import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell } from './InterstitialShell';
@@ -25,6 +29,7 @@ import {
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { dismissInterstitialItem, useDismissedInterstitialItems } from '@/stores/readerStateStore';
 
 /**
  * Custom feeds the viewer does not already read, inline in the feed.
@@ -42,16 +47,17 @@ export function SuggestedFeedsInterstitial({
 }: InterstitialCardProps) {
   const { t } = useTranslation();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
-  const [subscribed, setSubscribed] = useState<ReadonlySet<string>>(() => new Set());
+  const dismissed = useDismissedInterstitialItems('suggestedFeeds');
+  const queryClient = useQueryClient();
   const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'suggestedFeeds' });
 
   const limits = resolveInterstitialLimits('suggestedFeeds');
 
+  // Keyed on the viewer: `excludeSubscribed` makes this list viewer-specific,
+  // so it must never be shared across an account switch.
+  const queryKey = viewerQueryKeys.feedInterstitial(user?.id, 'suggested-feeds');
   const query = useQuery({
-    // Keyed on the viewer: `excludeSubscribed` makes this list viewer-specific,
-    // so it must never be shared across an account switch.
-    queryKey: viewerQueryKeys.feedInterstitial(user?.id, 'suggested-feeds'),
+    queryKey,
     queryFn: () =>
       customFeedsService.getMarketplace({
         excludeSubscribed: true,
@@ -65,14 +71,24 @@ export function SuggestedFeedsInterstitial({
   // position so the reported event can say WHERE in the card the viewer acted.
   const subscribe = useMutation({
     mutationFn: ({ feedId }: SubscribeTarget) => customFeedsService.likeFeed(feedId),
-    onSuccess: (_result, { feedId, position }) => {
+    onSuccess: (result, { feedId, position }) => {
       // Reported on success, not on press: a subscription that failed is not one.
       report('subscribe', position);
-      setSubscribed((prev) => {
-        const next = new Set(prev);
-        next.add(feedId);
-        return next;
-      });
+      // The cached suggestion IS the card's state: written there, a subscription
+      // outlives this band, which is a feed row that is recycled or unmounted on
+      // scroll. A band-held set reverted the button after a scroll away and back.
+      queryClient.setQueryData<MarketplaceListResponse>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((feed) =>
+                marketplaceFeedId(feed) === feedId
+                  ? { ...feed, isLiked: result.liked, likeCount: result.likeCount }
+                  : feed,
+              ),
+            }
+          : current,
+      );
     },
     onError: (error, { feedId }) => {
       logger.warn('Feed interstitial: subscribe failed', { error, feedId });
@@ -95,11 +111,7 @@ export function SuggestedFeedsInterstitial({
   const handleDismiss = useCallback(
     (id: string, position: number) => {
       report('dismiss', position);
-      setDismissed((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        return next;
-      });
+      dismissInterstitialItem('suggestedFeeds', id);
     },
     [report],
   );
@@ -118,7 +130,7 @@ export function SuggestedFeedsInterstitial({
         <SuggestedFeedItem
           feed={feed}
           position={position}
-          isSubscribed={subscribed.has(id) || feed.isLiked === true}
+          isSubscribed={feed.isLiked === true}
           isSubscribing={subscribe.isPending && subscribe.variables?.feedId === id}
           report={report}
           onSubscribe={handleSubscribe}
@@ -126,7 +138,7 @@ export function SuggestedFeedsInterstitial({
         />
       );
     },
-    [subscribed, subscribe.isPending, subscribe.variables, report, handleSubscribe, handleDismiss],
+    [subscribe.isPending, subscribe.variables, report, handleSubscribe, handleDismiss],
   );
 
   const renderSkeleton = useCallback(() => <FeedCardSkeleton />, []);

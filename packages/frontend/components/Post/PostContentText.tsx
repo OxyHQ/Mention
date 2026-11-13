@@ -9,7 +9,7 @@ import { LinkifiedText, MentionTextLink } from '../common/LinkifiedText';
 import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { useTextExpansion } from '@/hooks/useExpandableText';
+import { usePostTextExpansion } from '@/hooks/useExpandableText';
 import { type PostLinkCard, withoutCardLinks } from '@/utils/postLinkCards';
 import { useTranslation } from 'react-i18next';
 
@@ -66,15 +66,19 @@ const PostContentText: React.FC<Props> = ({
     () => truncateInlineMarkdown(parsed.nodes, effectivePreviewChars),
     [parsed.nodes, effectivePreviewChars],
   );
-  const { isExpanded, toggle } = useTextExpansion(textContent, postReadMoreAction);
+  const expandInline = postReadMoreAction === 'expandInline';
+  const expansion = usePostTextExpansion(postId);
+  // Only the inline-expand setting shows a body expanded; turning it off folds
+  // every post back without forgetting which ones the reader opened.
+  const isExpanded = expandInline && expansion.isExpanded;
   const isTruncated = preview.isTruncated;
 
   if (!textContent && !trailingContent) return null;
 
   const suffix =
     isTruncated && postId ? (
-      postReadMoreAction === 'expandInline' ? (
-        <Text className="text-primary" onPress={toggle}>
+      expandInline ? (
+        <Text className="text-primary" onPress={expansion.toggle}>
           {isExpanded ? <ShowLessLabel /> : ' Read more'}
         </Text>
       ) : (

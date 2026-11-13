@@ -898,7 +898,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         stopDragging();
         element.style.removeProperty('user-select');
       };
-    }, [items.length]);
+      // The carousel is remounted for every post (it is keyed by `postId`), so
+      // the drag handlers rebind to the new scroll node.
+    }, [items.length, postId]);
 
     if (items.length === 0 && !showNested) return null;
 
@@ -909,11 +911,15 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // the final one — there is no measurement to wait for, and nothing to reflow
     // when it arrives. Only a row of several items scrolls, and its cells have
     // fixed sizes.
+    // Every key carries the post. A feed cell is recycled — this component is
+    // handed another post — and an attachment keyed by position alone kept its
+    // state across that: an external player started on one post was already
+    // playing on the next, without that post's press or consent.
     const renderItem = (item: AttachmentItem, idx: number): React.ReactNode => {
       if (item.type === 'article') {
         return (
           <PostAttachmentArticle
-            key={`article-${idx}`}
+            key={`article-${postId ?? ''}-${idx}`}
             title={article?.title?.trim()}
             body={article?.body?.trim()}
             onPress={onArticlePress || undefined}
@@ -924,7 +930,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       if (item.type === 'event') {
         return (
           <PostAttachmentEvent
-            key={`event-${idx}`}
+            key={`event-${postId ?? ''}-${idx}`}
             name={event?.name || ''}
             date={event?.date || ''}
             location={event?.location}
@@ -940,7 +946,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       if (item.type === 'room') {
         return (
           <PostAttachmentRoom
-            key={`room-${idx}`}
+            key={`room-${postId ?? ''}-${idx}`}
             roomId={room?.roomId || ''}
             title={room?.title || ''}
             status={room?.status}
@@ -954,7 +960,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       if (item.type === 'homiioCase') {
         return homiioCase ? (
           <HomiioCaseCard
-            key={`homiio-${idx}`}
+            key={`homiio-${postId ?? ''}-${idx}`}
             caseId={homiioCase.caseId}
             postId={postId}
             width={isSingleItem ? '100%' : 340}
@@ -967,7 +973,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         if (!podcast) return null;
         return (
           <PostPodcastAttachment
-            key={`podcast-${idx}`}
+            key={`podcast-${postId ?? ''}-${idx}`}
             podcast={podcast}
             postId={postId}
             width={isSingleItem ? '100%' : 340}
@@ -984,7 +990,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         if (idx === primaryEmbedIndex && isSingleItem) {
           return (
             <PostAttachmentExternalEmbed
-              key={`embed-${idx}`}
+              key={`embed-${postId ?? ''}-${item.url}`}
               url={item.url}
               title={item.title}
               description={item.description}
@@ -996,7 +1002,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         }
         return (
           <PostAttachmentLink
-            key={`link-${idx}`}
+            key={`link-${postId ?? ''}-${idx}`}
             url={item.url}
             title={item.title}
             description={item.description}
@@ -1023,7 +1029,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         if (!job) return null;
         return (
           <JobCard
-            key={`job-${idx}`}
+            key={`job-${postId ?? ''}-${idx}`}
             job={job}
             className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
           />
@@ -1032,7 +1038,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       if (item.type === 'poll') {
         return (
           <PostAttachmentPoll
-            key={`poll-${idx}`}
+            key={`poll-${postId ?? ''}-${idx}`}
             pollId={pollId}
             pollData={pollData ?? undefined}
             className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
@@ -1098,6 +1104,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         )}
         {items.length > 1 && (
           <ScrollView
+            // A recycled cell hands this row another post; keyed by the post, the
+            // carousel starts at its beginning instead of where the reader left
+            // the previous post's.
+            key={postId}
             ref={scrollViewRef}
             horizontal
             showsHorizontalScrollIndicator={false}

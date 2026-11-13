@@ -42,6 +42,7 @@ import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
 import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
+import { readerKeys, useReaderFlag } from '@/stores/readerStateStore';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
 import { useStorePost } from '@/hooks/useStorePost';
@@ -352,8 +353,15 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const postId = String(item.leadNotification.entityId ?? '');
   const someone = t('notification.someone', { defaultValue: 'Someone' });
 
-  const [expanded, setExpanded] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  // The reader opened this group's actor list: held by the GROUP
+  // (`readerStateStore`), not the row. The list recycles rows by notification
+  // type, so a row-held boolean opened the next group of that type, and an
+  // opened group folded shut when the reader scrolled away and back.
+  const [expanded, toggleExpanded] = useReaderFlag(readerKeys.notificationGroup(item.key));
+  // An invite action in flight, stamped with the post it is for so a recycled
+  // row never shows another notification's request as its own.
+  const [actionLoadingFor, setActionLoadingFor] = useState<string | null>(null);
+  const actionLoading = actionLoadingFor !== null && actionLoadingFor === postId;
 
   // Resolve the PRIMARY actor from the Oxy user cache reactively (the screen
   // prewarms it via `prewarmUsersByIds`). Cached fields are merged over the raw
@@ -596,7 +604,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const runAccept = useCallback(
     async (intent: NotificationIntent): Promise<boolean> => {
       if (!postId || !isCurrentIntent(intent)) return false;
-      setActionLoading(true);
+      setActionLoadingFor(postId);
       try {
         const result = await feedService.acceptCollabInvite(postId, intent.viewerId);
         if (!isCurrentIntent(intent)) return false;
@@ -624,7 +632,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         });
         return false;
       } finally {
-        setActionLoading(false);
+        setActionLoadingFor((current) => (current === postId ? null : current));
       }
     },
     [postId, cachePosts, onMarkAsRead, item.notificationIds, t, isCurrentIntent],
@@ -634,7 +642,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const runDecline = useCallback(
     async (intent: NotificationIntent): Promise<boolean> => {
       if (!postId || !isCurrentIntent(intent)) return false;
-      setActionLoading(true);
+      setActionLoadingFor(postId);
       try {
         const result = await feedService.declineCollabInvite(postId, intent.viewerId);
         if (!isCurrentIntent(intent)) return false;
@@ -656,7 +664,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         });
         return false;
       } finally {
-        setActionLoading(false);
+        setActionLoadingFor((current) => (current === postId ? null : current));
       }
     },
     [postId, cachePosts, onMarkAsRead, item.notificationIds, t, isCurrentIntent],
@@ -690,8 +698,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
       ),
     );
   }, [inviter, runAccept, runDecline, captureIntent, isCurrentIntent, ownNotificationSurface]);
-
-  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
 
   const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
 

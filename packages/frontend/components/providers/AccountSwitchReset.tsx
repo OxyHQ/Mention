@@ -9,6 +9,7 @@ import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
+import { resetReaderState } from '@/stores/readerStateStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { resetLivePresence } from '@/stores/livePresenceStore';
@@ -128,6 +129,8 @@ export function AccountSwitchReset({
       queryClient.clear();
       usePostsStore.getState().resetViewerState({ clearCachedData });
       useEntityFollowStore.getState().reset();
+      // What the previous viewer translated, opened, revealed or dismissed.
+      resetReaderState();
       useExternalEmbedsStore.getState().resetViewerState(previousViewerId ?? undefined);
       useLiveRoomsStore.getState().resetViewerState();
       resetLivePresence();
