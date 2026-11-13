@@ -205,11 +205,10 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // reader scrolls away and back, and never opens another post's.
   const isContentWarningOpen = usePostReader(postId, (entry) => entry.contentWarningOpen === true);
   const toggleContentWarning = useCallback(() => {
-    if (postId)
-      patchPostReader(postId, (entry) => ({
-        ...entry,
-        contentWarningOpen: !entry.contentWarningOpen,
-      }));
+    patchPostReader(postId, (entry) => ({
+      ...entry,
+      contentWarningOpen: !entry.contentWarningOpen,
+    }));
   }, [postId]);
   // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
   // under the hood — never `useMemo` over an out-of-band SQLite read).

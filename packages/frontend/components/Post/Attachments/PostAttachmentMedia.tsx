@@ -584,9 +584,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   // and back.
   const mediaKey = mediaId ?? src;
   const revealed = useMediaRevealed(postId, mediaKey);
-  const reveal = () => {
-    if (postId) revealMedia(postId, mediaKey);
-  };
+  const reveal = () => revealMedia(postId, mediaKey);
   // Drawn INSIDE the media's own box, so the cover is exactly the media's size
   // and no wrapper stands between the box and the row it sizes against. Keeping
   // the media mounted under it means revealing does not remount or reload it —

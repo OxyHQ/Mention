@@ -259,6 +259,7 @@
     "stores/postsStore.ts": {"statements":[817,1020],"branches":[399,631],"functions":[115,155],"lines":[735,852]},
     "stores/profileCountsInvalidation.ts": {"statements":[2,2],"branches":[4,4],"functions":[2,2],"lines":[2,2]},
     "stores/readerLanguageInvalidation.ts": {"statements":[16,16],"branches":[7,7],"functions":[5,5],"lines":[14,14]},
+    "stores/readerStateStore.ts": {"statements":[51,54],"branches":[21,27],"functions":[25,27],"lines":[43,44]},
     "stores/safetyInvalidation.ts": {"statements":[7,7],"branches":[2,2],"functions":[5,5],"lines":[7,7]},
     "stores/threadHoverStore.ts": {"statements":[5,5],"branches":[4,4],"functions":[4,4],"lines":[4,4]},
     "stores/topicRailStore.ts": {"statements":[3,3],"branches":[0,0],"functions":[2,2],"lines":[2,2]},

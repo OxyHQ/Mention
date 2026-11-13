@@ -161,7 +161,6 @@ export function usePostLanguage(
 
   const selectLanguage = useCallback(
     (tag: string) => {
-      if (!postId) return;
       if (tag === servedTag) {
         patchPostTranslation(postId, () => ({ selectedTag: null }));
         return;
@@ -178,7 +177,7 @@ export function usePostLanguage(
 
   const toggleReaderTranslation = useCallback(() => {
     if (selectedTag !== null) {
-      if (postId) patchPostTranslation(postId, () => ({ selectedTag: null }));
+      patchPostTranslation(postId, () => ({ selectedTag: null }));
       return;
     }
     const target = resolveTranslateTarget(options, readerLanguages);

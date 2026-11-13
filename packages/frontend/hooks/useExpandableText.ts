@@ -43,8 +43,7 @@ export function useTextExpansion(text: string, resetKey?: unknown) {
 export function usePostTextExpansion(postId: string | undefined) {
   const isExpanded = usePostReader(postId, (entry) => entry.textExpanded === true);
   const toggle = useCallback(() => {
-    if (postId)
-      patchPostReader(postId, (entry) => ({ ...entry, textExpanded: !entry.textExpanded }));
+    patchPostReader(postId, (entry) => ({ ...entry, textExpanded: !entry.textExpanded }));
   }, [postId]);
   return { isExpanded, toggle };
 }

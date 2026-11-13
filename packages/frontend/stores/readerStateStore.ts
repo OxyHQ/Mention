@@ -109,12 +109,13 @@ export function currentReaderEpoch(): number {
 }
 
 /**
- * Merge `patch` into one post's entry. `epoch`, when given, is the
+ * Merge `patch` into one post's entry; a row with no post id yet writes
+ * nothing. `epoch`, when given, is the
  * {@link currentReaderEpoch} the write was started under — a write from a
  * previous viewer is dropped.
  */
 export function patchPostReader(
-  postId: string,
+  postId: string | undefined,
   patch: (entry: PostReaderEntry) => PostReaderEntry,
   epoch?: number,
 ): void {
@@ -126,7 +127,7 @@ export function patchPostReader(
 
 /** Merge into one post's translation override (see {@link patchPostReader}). */
 export function patchPostTranslation(
-  postId: string,
+  postId: string | undefined,
   patch: (translation: PostTranslationState) => Partial<PostTranslationState>,
   epoch?: number,
 ): void {
@@ -186,7 +187,7 @@ export function useMediaRevealed(
   );
 }
 
-export function revealMedia(postId: string, mediaKey: string): void {
+export function revealMedia(postId: string | undefined, mediaKey: string): void {
   patchPostReader(postId, (entry) => ({
     ...entry,
     revealedMedia: { ...entry.revealedMedia, [mediaKey]: true },
