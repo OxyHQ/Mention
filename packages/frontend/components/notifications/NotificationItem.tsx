@@ -96,6 +96,7 @@ interface ResolvedActor {
   /** Oxy account kind, so a channel actor carries the channel marker. */
   kind?: PostUser['kind'];
   character?: unknown;
+  color?: string | null;
 }
 
 /**
@@ -121,6 +122,7 @@ type CachedIdentity = Partial<
     // edit never changes it, so it only ever arrives from the cache entry.
     | 'kind'
     | 'character'
+    | 'color'
   >
 >;
 
@@ -179,6 +181,7 @@ function mergeActor(
     isFederated: cached?.isFederated === true,
     kind: cached?.kind ?? actor?.kind,
     character: cached && Object.hasOwn(cached, 'character') ? cached.character : actor?.character,
+    color: cached && Object.hasOwn(cached, 'color') ? cached.color : actor?.color,
   };
 }
 

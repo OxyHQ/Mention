@@ -1176,6 +1176,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
               isFederated: author.isFederated,
               kind: author.kind,
               character: author.character,
+              color: author.color,
               instance: author.instance,
             }}
             authors={bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined}
@@ -1423,7 +1424,8 @@ const MemoPostItem = React.memo(PostItemContent, (prevProps, nextProps) => {
     if (prevAuthors[i]?.id !== nextAuthors[i]?.id) return false;
     if (
       prevAuthors[i]?.kind !== nextAuthors[i]?.kind ||
-      prevAuthors[i]?.character !== nextAuthors[i]?.character
+      prevAuthors[i]?.character !== nextAuthors[i]?.character ||
+      prevAuthors[i]?.color !== nextAuthors[i]?.color
     )
       return false;
   }
@@ -1433,6 +1435,7 @@ const MemoPostItem = React.memo(PostItemContent, (prevProps, nextProps) => {
     prev?.id === next?.id &&
     prev?.user?.kind === next?.user?.kind &&
     prev?.user?.character === next?.user?.character &&
+    prev?.user?.color === next?.user?.color &&
     // Hydration and access changes can add/remove an embedded post without
     // editing the quoting parent. Never retain a missing or revoked quote.
     prev?.quotedPost === next?.quotedPost &&

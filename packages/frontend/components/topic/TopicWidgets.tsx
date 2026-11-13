@@ -33,6 +33,7 @@ function toProfileCard(user: PostUser): ProfileCardData {
     isFederated: user.isFederated,
     kind: user.kind,
     character: user.character,
+    color: user.color,
   };
 }
 

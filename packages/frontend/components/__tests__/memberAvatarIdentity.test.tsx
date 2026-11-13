@@ -3,15 +3,19 @@ import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { FeedCard } from '../FeedCard';
 import { StarterPackCard } from '../StarterPackCard';
 
-jest.mock('@oxy.so/bloom/agent-avatar', () => ({
-  parseAvatarCharacter: jest.requireActual(
+jest.mock('@oxy.so/bloom/agent-avatar', () => {
+  const character = jest.requireActual(
     require('node:path').join(
       require.resolve('@oxy.so/bloom/package.json'),
       '../src/agent-avatar/character.ts',
     ),
-  ).parseAvatarCharacter,
-  useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
-}));
+  );
+  return {
+    parseAvatarCharacter: character.parseAvatarCharacter,
+    avatarCharacterInColor: character.avatarCharacterInColor,
+    useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
+  };
+});
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: 'Avatar' }));
 jest.mock('@oxy.so/bloom/card', () => ({ Card: 'Card' }));

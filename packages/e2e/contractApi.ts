@@ -51,6 +51,10 @@ export async function installContractApi(context: BrowserContext): Promise<strin
         else if (/^\/commerce\/accounts\/[^/]+$/.test(pathname)) json = { state: 'disconnected' };
         else if (/^\/feed\/replies\/[^/]+$/.test(pathname)) json = { items: [], hasMore: false };
         else if (/^\/feed\/thread-continuations\/[^/]+$/.test(pathname)) json = { items: [] };
+        // The profile hover card's activity heatmap. A pointer resting on an
+        // author's name opens the card after its delay, also when that name was
+        // just clicked to navigate (the feed stays mounted under the profile).
+        else if (/^\/statistics\/user\/[^/]+\/activity$/.test(pathname)) json = { activity: [] };
         if (json !== undefined) {
           await route.fulfill({ json });
           return;

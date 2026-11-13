@@ -78,6 +78,7 @@ export const KnownLikersRow = memo(function KnownLikersRow({
           uri: liker.avatar,
           kind: liker.kind,
           character: liker.character,
+          color: liker.color,
           displayName: displayNameOrHandle(liker.name.displayName, handle),
           username: handle || undefined,
         };

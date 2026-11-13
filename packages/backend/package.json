@@ -27,7 +27,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@gemies/sdk": "1.0.0",
+    "@gemies/sdk": "3.1.0",
     "@aws-sdk/credential-provider-node": "3.972.92",
     "@clarity.surf/sdk": "0.12.0",
     "@crowdsource.you/contracts": "1.1.1",
@@ -39,10 +39,10 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/db": "^1.5.0",
-    "@oxy.so/federation": "^3.2.0",
+    "@oxy.so/federation": "^3.2.1",
     "@oxy.so/mcp": "catalog:",
     "@oxy.so/mention-contracts": "workspace:*",
-    "@oxy.so/telemetry": "^2.1.0",
+    "@oxy.so/telemetry": "^2.2.0",
     "@oxy.so/utils": "catalog:",
     "@peable.to/sdk": "catalog:",
     "@socket.io/redis-adapter": "^8.3.0",

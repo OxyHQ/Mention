@@ -343,6 +343,7 @@ function toProfileCardData(user: SearchUserResult): ProfileCardData | null {
     avatar: user.avatar || undefined,
     kind: user.kind,
     character: user.character,
+    color: user.color,
     verified: Boolean(user.verified),
     description: user.bio,
     isFederated: user.isFederated || user.type === 'federated',
@@ -414,6 +415,7 @@ function toFeedCardData(feed: SearchFeedResult): FeedCardData | null {
           avatar: owner.avatar,
           kind: owner.kind,
           character: owner.character,
+          color: owner.color,
         }
       : undefined,
     likeCount: feed.likeCount,

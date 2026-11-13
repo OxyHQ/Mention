@@ -22,6 +22,7 @@ export interface CollaboratorUser {
   avatar?: string;
   kind?: AccountKind;
   character?: AvatarCharacter;
+  color?: string | null;
 }
 
 interface CollaboratorPickerProps {
@@ -70,6 +71,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
             avatar?: string | null;
             kind?: AccountKind;
             character?: AvatarCharacter;
+            color?: string | null;
           }) => {
             const username = profile.username || profile.handle || '';
             const id = profile.id || profile._id || '';
@@ -82,6 +84,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                 avatar: profile.avatar || undefined,
                 kind: profile.kind,
                 character: profile.character,
+                color: profile.color,
               },
             ];
           },

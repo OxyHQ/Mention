@@ -1060,6 +1060,11 @@ export interface PostUser {
   kind?: AccountKind;
   /** Canonical stored 3D avatar; absent for accounts without one, including remote bots. */
   character?: AvatarCharacter;
+  /**
+   * The account's colour (Oxy's `User.color`, a Bloom preset key or a hex). A bot's
+   * `character` carries no paint: Bloom draws it in this colour.
+   */
+  color?: string | null;
   isFederated?: boolean;
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
@@ -1074,6 +1079,7 @@ export type AvatarIdentitySummary = Pick<
   | 'avatar'
   | 'kind'
   | 'character'
+  | 'color'
   | 'isFederated'
   | 'instance'
   | 'federation'

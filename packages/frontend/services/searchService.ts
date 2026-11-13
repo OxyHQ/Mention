@@ -27,6 +27,7 @@ export type SearchUserResult = User & {
 export interface SearchOwnerResult {
   kind?: AvatarIdentitySummary['kind'];
   character?: AvatarIdentitySummary['character'];
+  color?: AvatarIdentitySummary['color'];
   username?: string;
   handle?: string;
   displayName?: string;

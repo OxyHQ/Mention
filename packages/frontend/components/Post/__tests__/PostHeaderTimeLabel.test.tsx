@@ -5,6 +5,12 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
       '../src/agent-avatar/character.ts',
     ),
   ).parseAvatarCharacter,
+  avatarCharacterInColor: jest.requireActual(
+    require('node:path').join(
+      require.resolve('@oxy.so/bloom/package.json'),
+      '../src/agent-avatar/character.ts',
+    ),
+  ).avatarCharacterInColor,
   useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
 }));
 import TestRenderer, { act } from 'react-test-renderer';

@@ -118,6 +118,7 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
         id: profile.id,
         kind: profile.kind,
         character: profile.character,
+        color: profile.color,
         uri: profile.avatar,
         displayName: profile.name?.displayName,
         username: getNormalizedUserHandle(profile) ?? undefined,

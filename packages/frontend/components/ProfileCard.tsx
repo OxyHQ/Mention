@@ -59,7 +59,7 @@ export interface ProfileCardData {
     displayName?: string;
   };
   avatar?: string | null;
-  /** The user's chosen profile color, used as the avatar placeholder tint. */
+  /** The account's colour: the avatar placeholder tint, and the paint of a bot's `character`. */
   color?: string | null;
   verified?: boolean;
   description?: string;
