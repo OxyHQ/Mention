@@ -71,8 +71,8 @@ and the branch (SDK 21.2):
 
 The growth is the chat that SDK 21 and Bloom 10.17 add (the multi-agent header, host tools and
 renderers, the sheet's recent conversations, Bloom's Markdown), and almost all of it is deferred:
-the app mounts the SDK's `AliaAskProvider` from `@alia.onl/sdk/ask`, which loads the sheet with
-the first Ask Alia, and the `deferredSources` gate asserts the SDK's `AliaChatSheet` stays out of the
+the app mounts the SDK's `GemieAskProvider` from `@gemies/sdk/ask`, which loads the sheet with
+the first Ask Alia, and the `deferredSources` gate asserts the SDK's `GemieChatSheet` stays out of the
 initial chunk. What reaches the initial chunk is the provider and the modules the sheet shares
 with the SDK's own lazily loaded voice call, which `extractCommonChunk` hoists into `__common`.
 

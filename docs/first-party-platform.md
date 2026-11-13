@@ -192,8 +192,8 @@ runtime deployment or completion of the rollout canaries.
 
 ## Alia client transport
 
-The frontend source uses the published `@alia.onl/sdk` 22.0.0 with the existing
-Core 7.3 / services 13 stack. Alia owns conversation, history, streaming and audio
+The frontend source uses the published `@gemies/sdk` (from OxyHQ/Gemies) with the existing
+Oxy Core / services stack. Alia owns conversation, history, streaming and audio
 transport through the shared Oxy session; the app keeps its existing provider,
 agent selection and UI. No app-local bearer refresh or internal permission prompt
 is introduced. Package installation was checked against the published artifact;

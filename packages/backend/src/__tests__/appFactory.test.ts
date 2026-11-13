@@ -1,4 +1,4 @@
-import { ALIA_SDK_CSP } from '@alia.onl/sdk/csp';
+import { GEMIES_SDK_CSP } from '@gemies/sdk/csp';
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -585,9 +585,9 @@ describe('createApp', () => {
       .slice(1);
 
     // Exact tokens, never substrings: everything the embedded Alia SDK declares
-    // (`@alia.onl/sdk/csp`) — its API, the voice call's socket, the avatar runtime.
+    // (`@gemies/sdk/csp`) — its API, the voice call's socket, the avatar runtime.
     // The hosts are the SDK's own, never restated here.
-    for (const source of ALIA_SDK_CSP.connectSrc) expect(connectSources).toContain(source);
+    for (const source of GEMIES_SDK_CSP.connectSrc) expect(connectSources).toContain(source);
     expect(connectSources).not.toContain('https:');
 
     // Stickers animate on the web through WebAssembly: compiling it is allowed,
@@ -600,7 +600,7 @@ describe('createApp', () => {
     expect(scriptSources).toContain("'wasm-unsafe-eval'");
     // Ask Alia's avatar runtime and voice worklets are modules from this exact
     // origin; never `blob:`, which would let any blob the page makes run as script.
-    for (const source of ALIA_SDK_CSP.scriptSrc) expect(scriptSources).toContain(source);
+    for (const source of GEMIES_SDK_CSP.scriptSrc) expect(scriptSources).toContain(source);
     expect(scriptSources).not.toContain('blob:');
     expect(scriptSources).not.toContain('https:');
     expect(scriptSources).not.toContain("'unsafe-eval'");

@@ -58,7 +58,7 @@ updates:
       oxy-platform:
         patterns:
           - '@oxy.so/*'
-          - '@alia.onl/*'
+          - '@gemies/*'
           - '@clarity.surf/*'
       minor-and-patch:
         applies-to: version-updates

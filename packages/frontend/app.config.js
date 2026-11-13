@@ -320,7 +320,7 @@ module.exports = (_config) => {
             { enableBackgroundPlayback: false },
           ],
           [
-            // Voice calls with Alia (`@alia.onl/sdk/voice`) capture and play audio through
+            // Voice calls with Alia (`@gemies/sdk/voice`) capture and play audio through
             // react-native-audio-api on iOS and Android; dictation records with expo-audio
             // and is transcribed by Alia, so nothing is recognised on the device. The plugin
             // writes the iOS purpose string and declares RECORD_AUDIO.

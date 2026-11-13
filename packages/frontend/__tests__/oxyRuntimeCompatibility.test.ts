@@ -7,7 +7,7 @@ const SERVICES_ROOT = dirname(SERVICES_PACKAGE);
 
 describe('Oxy runtime compatibility unit', () => {
   it.each([
-    ['@alia.onl/sdk', 'useOxy'],
+    ['@gemies/sdk', 'useOxy'],
     ['@syra.fm/sdk', 'useAuth'],
   ])('%s resolves its Services peer to the app singleton', (sdk, hook) => {
     const sdkPackage = require.resolve(`${sdk}/package.json`);
@@ -27,8 +27,8 @@ describe('Oxy runtime compatibility unit', () => {
   });
 
   it('gives the embedded Alia sheet the same Bloom runtime as Mention', () => {
-    const aliaRequire = createRequire(require.resolve('@alia.onl/sdk/package.json'));
-    expect(aliaRequire.resolve('@oxy.so/bloom/package.json')).toBe(
+    const gemiesRequire = createRequire(require.resolve('@gemies/sdk/package.json'));
+    expect(gemiesRequire.resolve('@oxy.so/bloom/package.json')).toBe(
       require.resolve('@oxy.so/bloom/package.json'),
     );
   });

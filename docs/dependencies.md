@@ -49,10 +49,10 @@ move it when the reason goes away.
   peers `typescript <6.1.0`, and TypeScript 7.0's package exports no compiler
   API for it to load.
 - `postgres` stays on 3.4: `@oxy.so/db` peers `postgres ^3.4.9`.
-- `@react-native-async-storage/async-storage` stays on 2.x: `@alia.onl/sdk`
+- `@react-native-async-storage/async-storage` stays on 2.x: `@gemies/sdk`
   peers `^2.2.0` (`@oxy.so/core`, `@oxy.so/services` and `@oxy.so/protocol`
   already accept 3).
-- `react-native-audio-api` stays on 0.13: `@alia.onl/sdk` peers `^0.13.6`.
+- `react-native-audio-api` stays on 0.13: `@gemies/sdk` peers `^0.13.6`.
 - `nativewind` 5.0.0-rc.0 and `react-native-css` 3.1.0-rc.0: `@oxy.so/bloom`
   depends on `react-native-css` 3.1.0-rc.0 exactly and peers `nativewind`
   `>=5.0.0 || 5.0.0-rc.0`.
