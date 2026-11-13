@@ -54,6 +54,7 @@ import {
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
+import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
 import { ThreadHoverOverlay } from './ThreadHoverOverlay';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -193,21 +194,22 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // instantiated per row; each command resolves the post when pressed.
   const interactions = usePostInteractions();
   const postId = post?.id;
-  // Per-post UI state is held as "the post it is open FOR", not as a bare
-  // boolean. FlashList reuses this component instance for a different post
-  // when a cell is recycled, and a boolean survived that: a warning opened on
-  // one post showed up already open on whichever post took over the cell.
-  // Keyed this way it resets itself, with no extra hook in the row budget.
+  // The article modal is held as "the post it is open FOR", not as a bare
+  // boolean: FlashList reuses this component instance for a different post
+  // when a cell is recycled, and a modal open for one post must not show up
+  // open on whichever post took over the cell.
   const [articleModalFor, setArticleModalFor] = useState<string | undefined>(undefined);
   const isArticleModalVisible = articleModalFor !== undefined && articleModalFor === postId;
-  // The reader's answer to this post's content warning, per mounted row.
-  const [contentWarningOpenFor, setContentWarningOpenFor] = useState<string | undefined>(undefined);
-  const isContentWarningOpen =
-    contentWarningOpenFor !== undefined && contentWarningOpenFor === postId;
-  const toggleContentWarning = useCallback(
-    () => setContentWarningOpenFor((openFor) => (openFor === postId ? undefined : postId)),
-    [postId],
-  );
+  // The reader's answer to this post's content warning belongs to the POST, not
+  // to the row (`readerStateStore`): an opened warning stays open when the
+  // reader scrolls away and back, and never opens another post's.
+  const isContentWarningOpen = usePostReader(postId, (entry) => entry.contentWarningOpen === true);
+  const toggleContentWarning = useCallback(() => {
+    patchPostReader(postId, (entry) => ({
+      ...entry,
+      contentWarningOpen: !entry.contentWarningOpen,
+    }));
+  }, [postId]);
   // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
   // under the hood — never `useMemo` over an out-of-band SQLite read).
   const storePost = usePostSelector(postId ? String(postId) : undefined);

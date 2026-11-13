@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { Href } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +21,7 @@ import {
 } from './interstitialLayout';
 import { useInterstitialReporter, type InterstitialCardProps } from './interstitialTelemetry';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { dismissInterstitialItem, useDismissedInterstitialItems } from '@/stores/readerStateStore';
 
 /**
  * "Accounts similar to the one whose feed you are reading" — the profile-feed
@@ -42,7 +43,7 @@ export function SimilarAccountsInterstitial({
 }: SimilarAccountsInterstitialProps) {
   const { t } = useTranslation();
   const { oxyServices, user } = useAuth();
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  const dismissed = useDismissedInterstitialItems('similarAccounts');
   const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'similarAccounts' });
 
   const limits = resolveInterstitialLimits('similarAccounts');
@@ -97,11 +98,7 @@ export function SimilarAccountsInterstitial({
   const handleDismiss = useCallback(
     (id: string, position: number) => {
       report('dismiss', position);
-      setDismissed((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        return next;
-      });
+      dismissInterstitialItem('similarAccounts', id);
     },
     [report],
   );

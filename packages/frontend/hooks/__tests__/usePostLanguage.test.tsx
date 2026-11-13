@@ -4,6 +4,7 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostContent } from '@mention/shared-types';
 
+import { resetReaderState } from '@/stores/readerStateStore';
 import { usePostLanguage, type PostLanguageState } from '../usePostLanguage';
 
 /**
@@ -115,6 +116,7 @@ beforeEach(() => {
   mockToast.mockReset();
   mockReaderLanguage = 'en-US';
   mockAccountLanguages = [];
+  resetReaderState();
 });
 
 /** Let any queued microtask or promise continuation run before asserting. */
@@ -126,18 +128,16 @@ async function flush() {
 }
 
 /**
- * WHAT A RECYCLED ROW COSTS, AND WHAT IT MUST NOT SHOW.
+ * THE TRANSLATION BELONGS TO THE POST, NOT THE ROW.
  *
  * FlashList hands one mounted `PostItem` a different post as the reader scrolls,
- * so this hook sees `postId` change under it. Two things have to be true at
- * once, and the pair is the point: the reader's translation of the PREVIOUS post
- * must be gone on the FIRST render of the new one (an Effect would paint a frame
- * of the wrong body), and getting there must not cost a second render of the row
- * (React's "adjust state during render" throws the first one away — measured on
- * a Pixel 10 Pro, that was ~31 extra `PostItem` renders in a single scroll, a
- * whole row rebuilt per recycle).
- *
- * Either assertion alone is satisfiable by the thing the other one forbids.
+ * and the web list unmounts a row that leaves the window. The reader's choice
+ * must survive both — scrolling back to a translated post shows it translated —
+ * and must never show on another post, not even for the first frame of a
+ * recycled row (an Effect would paint a frame of the wrong body). Getting there
+ * must not cost a second render of the row either: measured on a Pixel 10 Pro,
+ * React's "adjust state during render" cost ~31 extra `PostItem` renders in a
+ * single scroll.
  */
 describe('a row recycled onto another post', () => {
   it('drops the previous post’s translation on the first render of the new one', async () => {
@@ -159,6 +159,70 @@ describe('a row recycled onto another post', () => {
 
     expect(state.activeTag).toBe('es-ES');
     expect(state.displayText).toBeNull();
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('is still translated when the reader scrolls back to the post', async () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe content={bilingual} postId="post-1" />);
+    });
+    await act(async () => {
+      state.selectLanguage('en');
+    });
+
+    // Scrolled away: the row unmounts (web) or is handed another post (native).
+    await act(async () => {
+      renderer.unmount();
+    });
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe content={bilingual} postId="post-1" />);
+    });
+
+    expect(state.activeTag).toBe('en');
+    expect(state.displayText).toBe('Hello world');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('lands a translation on its own post after the row moved on', async () => {
+    let resolveRequest!: (value: unknown) => void;
+    mockApiPost.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe content={englishOnly} postId="post-1" />);
+    });
+    await act(async () => {
+      state.selectLanguage('fr');
+    });
+    await act(async () => {
+      renderer.update(<Probe content={englishOnly} postId="post-2" />);
+    });
+    await act(async () => {
+      resolveRequest({ data: { translatedText: 'Bonjour le monde', tag: 'fr' } });
+    });
+    await flush();
+
+    // The row now showing post-2 is untouched…
+    expect(state.displayText).toBeNull();
+    expect(state.isTranslating).toBe(false);
+
+    // …and post-1 is translated when it is drawn again.
+    await act(async () => {
+      renderer.update(<Probe content={englishOnly} postId="post-1" />);
+    });
+    expect(state.displayText).toBe('Bonjour le monde');
+    expect(mockApiPost).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       renderer.unmount();

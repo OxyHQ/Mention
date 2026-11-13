@@ -1,9 +1,16 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import type { PostContent } from '@mention/shared-types';
 import { api } from '@/utils/api';
 import { useTrendsStore } from '@/stores/trendsStore';
+import {
+  currentReaderEpoch,
+  NO_TRANSLATION,
+  patchPostTranslation,
+  type PostTranslationState,
+  usePostReader,
+} from '@/stores/readerStateStore';
 import {
   buildPostLanguageOptions,
   resolveTranslateTarget,
@@ -17,30 +24,6 @@ interface TranslateResponse {
   /** The CANONICAL tag the variant was stored under — `es` requested may come back `es-ES`. */
   tag?: string;
 }
-
-/** Machine bodies fetched during this session, keyed by their language tag. */
-type FetchedBodies = Readonly<Record<string, string>>;
-
-const NO_FETCHED_BODIES: FetchedBodies = {};
-
-/**
- * Everything the reader has done to ONE post's language, and which post that
- * was. A recycled row holds the previous post's override until it writes its
- * own; `postId` is what makes that harmless.
- */
-interface ReaderOverride {
-  postId: string | undefined;
-  selectedTag: string | null;
-  fetchedBodies: FetchedBodies;
-  isTranslating: boolean;
-}
-
-const NO_OVERRIDE: ReaderOverride = {
-  postId: undefined,
-  selectedTag: null,
-  fetchedBodies: NO_FETCHED_BODIES,
-  isTranslating: false,
-};
 
 export interface PostLanguageState {
   /**
@@ -115,42 +98,16 @@ export function usePostLanguage(
   const readerLanguages = useTrendsStore((s) => s.readerLanguages);
 
   /**
-   * THE OVERRIDE IS STAMPED WITH THE POST IT BELONGS TO, and that stamp is the
-   * whole design.
-   *
-   * A feed row is recycled: FlashList hands the same component instance a
-   * different post, and the reader's translation of the PREVIOUS post must not
-   * survive that. The obvious way to do it is React's documented "adjust state
-   * during render" — notice the id changed, call the setters, let React throw
-   * the render away and run it again. It is correct, and on this component it is
-   * expensive: measured on a Pixel 10 Pro, a scroll through the feed produced
-   * ~97 `PostItem` renders where 67 were needed, and removing this one
-   * adjustment accounted for every one of the extra 31 — a whole second render
-   * of a row (header, body, media, action bar) per recycle.
-   *
-   * So nothing is reset. The override carries the id it was made for, and a row
-   * showing a different post simply does not read it: the reset is a comparison,
-   * not a render. An Effect would be worse than either — it lands after paint,
-   * so the recycled row would show the previous post's translation for a frame.
+   * The reader's override lives in `readerStateStore`, keyed by the POST, never
+   * in this component. A feed row is recycled (FlashList hands the instance a
+   * different post) or unmounted (the web list), and a translation held in the
+   * row died with it: translate, scroll on, come back, and the post was in its
+   * original language again. Keyed by post it outlives every row, never leaks
+   * into another post a recycled row is handed, and a translation that lands
+   * after the row moved on still reaches the post it was asked for.
    */
-  const [override, setOverride] = useState<ReaderOverride>(NO_OVERRIDE);
-  const current = override.postId === postId ? override : NO_OVERRIDE;
-  const { selectedTag, fetchedBodies, isTranslating } = current;
-
-  /**
-   * Write into this post's override, starting from a blank one if what is held
-   * belongs to the post this row used to show.
-   */
-  const patchOverride = useCallback(
-    (patch: Partial<ReaderOverride>) => {
-      setOverride((previous) => ({
-        ...(previous.postId === postId ? previous : NO_OVERRIDE),
-        ...patch,
-        postId,
-      }));
-    },
-    [postId],
-  );
+  const translation = usePostReader(postId, (entry) => entry.translation) ?? NO_TRANSLATION;
+  const { selectedTag, fetchedBodies, isTranslating } = translation;
 
   const servedTag = servedLanguageTag(content, postLanguage);
 
@@ -162,7 +119,12 @@ export function usePostLanguage(
   const translateInto = useCallback(
     async (tag: string) => {
       if (!postId) return;
-      patchOverride({ isTranslating: true });
+      // Every write below targets THIS post under THIS viewer, wherever the row
+      // that asked has gone since.
+      const epoch = currentReaderEpoch();
+      const patch = (next: Partial<PostTranslationState>) =>
+        patchPostTranslation(postId, () => next, epoch);
+      patch({ isTranslating: true });
       try {
         const { data } = await api.post<TranslateResponse>(`/posts/${postId}/translate`, {
           targetLanguage: tag,
@@ -171,59 +133,56 @@ export function usePostLanguage(
         if (typeof translated === 'string' && translated.length > 0) {
           // Key the body by the tag the SERVER canonicalized it to, not the one
           // we asked for, so it lines up with the variant the next hydration
-          // ships. Follow the selection over to it.
+          // ships, and follow the selection over to it.
           const storedTag = data.tag ?? tag;
-          setOverride((previous) => {
-            const base = previous.postId === postId ? previous : NO_OVERRIDE;
-            return {
-              ...base,
-              postId,
-              fetchedBodies: { ...base.fetchedBodies, [storedTag]: translated },
-              // Follow the selection over to the tag the SERVER canonicalized to.
+          patchPostTranslation(
+            postId,
+            (previous) => ({
+              fetchedBodies: { ...previous.fetchedBodies, [storedTag]: translated },
               selectedTag: storedTag,
-            };
-          });
+              isTranslating: false,
+            }),
+            epoch,
+          );
           return;
         }
-        patchOverride({ selectedTag: null });
+        patch({ selectedTag: null, isTranslating: false });
         toast(t('translation.failed'), { type: 'error' });
       } catch (error: unknown) {
-        patchOverride({ selectedTag: null });
+        patch({ selectedTag: null, isTranslating: false });
         const status = (error as { response?: { status?: number } })?.response?.status;
         toast(t(status === 429 ? 'translation.rateLimited' : 'translation.failed'), {
           type: 'error',
         });
-      } finally {
-        patchOverride({ isTranslating: false });
       }
     },
-    [postId, t, patchOverride],
+    [postId, t],
   );
 
   const selectLanguage = useCallback(
     (tag: string) => {
       if (tag === servedTag) {
-        patchOverride({ selectedTag: null });
+        patchPostTranslation(postId, () => ({ selectedTag: null }));
         return;
       }
-      patchOverride({ selectedTag: tag });
+      patchPostTranslation(postId, () => ({ selectedTag: tag }));
       // An author variant (and any body already fetched) is on hand — switching
       // to it must not cost a request.
       const known = options.find((option) => option.tag === tag);
       if (known?.text) return;
       void translateInto(tag);
     },
-    [servedTag, options, translateInto, patchOverride],
+    [postId, servedTag, options, translateInto],
   );
 
   const toggleReaderTranslation = useCallback(() => {
     if (selectedTag !== null) {
-      patchOverride({ selectedTag: null });
+      patchPostTranslation(postId, () => ({ selectedTag: null }));
       return;
     }
     const target = resolveTranslateTarget(options, readerLanguages);
     if (target) selectLanguage(target);
-  }, [selectedTag, options, readerLanguages, selectLanguage, patchOverride]);
+  }, [postId, selectedTag, options, readerLanguages, selectLanguage]);
 
   const canTranslate = shouldOfferTranslation({
     content,

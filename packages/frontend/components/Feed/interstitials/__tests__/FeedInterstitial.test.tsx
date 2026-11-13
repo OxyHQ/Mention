@@ -30,6 +30,7 @@ import { SuggestedFeedsInterstitial } from '../SuggestedFeedsInterstitial';
 import { SuggestedStarterPacksInterstitial } from '../SuggestedStarterPacksInterstitial';
 import { SuggestedUsersInterstitial } from '../SuggestedUsersInterstitial';
 import { TrendingTopicsInterstitial } from '../TrendingTopicsInterstitial';
+import { resetReaderState } from '@/stores/readerStateStore';
 
 /**
  * Render + telemetry tests for the four feed recommendation bands.
@@ -838,6 +839,8 @@ const TITLES: Record<FeedInterstitialKind, string> = {
 };
 
 beforeEach(() => {
+  // Dismissals belong to the session, not the band; every case starts a new one.
+  resetReaderState();
   mockIsDesktop = true;
   mockRecommendations = [];
   mockRecommendationsLoading = false;

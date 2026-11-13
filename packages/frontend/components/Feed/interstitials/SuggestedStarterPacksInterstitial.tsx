@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -28,6 +28,7 @@ import {
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { dismissInterstitialItem, useDismissedInterstitialItems } from '@/stores/readerStateStore';
 
 /**
  * Starter packs, inline in the feed — the one suggestion that fixes an empty
@@ -46,7 +47,7 @@ export function SuggestedStarterPacksInterstitial({
 }: InterstitialCardProps) {
   const { t } = useTranslation();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  const dismissed = useDismissedInterstitialItems('suggestedStarterPacks');
   const report = useInterstitialReporter({
     feedDescriptor,
     slotKey,
@@ -83,11 +84,7 @@ export function SuggestedStarterPacksInterstitial({
   const handleDismiss = useCallback(
     (id: string, position: number) => {
       report('dismiss', position);
-      setDismissed((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        return next;
-      });
+      dismissInterstitialItem('suggestedStarterPacks', id);
     },
     [report],
   );
