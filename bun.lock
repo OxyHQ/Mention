@@ -32,7 +32,7 @@
         "@oxy.so/federation": "^3.2.0",
         "@oxy.so/mcp": "catalog:",
         "@oxy.so/mention-contracts": "workspace:*",
-        "@oxy.so/telemetry": "^2.1.0",
+        "@oxy.so/telemetry": "^2.2.0",
         "@oxy.so/utils": "catalog:",
         "@peable.to/sdk": "catalog:",
         "@socket.io/redis-adapter": "^8.3.0",
@@ -1096,7 +1096,7 @@
 
     "@oxy.so/stickers": ["@oxy.so/stickers@0.2.2", "", { "dependencies": { "@oxy.so/contracts": "^6.0.0" }, "peerDependencies": { "@tanstack/react-query": "^5.0.0", "react": ">=18" }, "optionalPeers": ["@tanstack/react-query", "react"] }, "sha512-rsF7OOP410FH31xtbfJZMxAkHKGmw6bN4eEFUl2t0tgDPcVk+ztJokFqiAeO+sDMRMqVoNtrNfPKGVkSfVod2w=="],
 
-    "@oxy.so/telemetry": ["@oxy.so/telemetry@2.1.0", "", {}, "sha512-YxI/7XQLFf+WglPzUndec4LItM9cSJNsA67UZRLPj4w4mw38+bYNhV9hw/aOqXx4MXCD4Yk8CJ9mwcW72uAnwA=="],
+    "@oxy.so/telemetry": ["@oxy.so/telemetry@2.2.0", "", {}, "sha512-OfQVuxFSDa2epBed5m58nxuXzebcZeTln86AiFIoJosQ9zJDYKalTST6TM9eprOEyHmJIIkqGoVG67ejQXr4ig=="],
 
     "@oxy.so/utils": ["@oxy.so/utils@1.5.2", "", {}, "sha512-t56zODHuokbfzmz2LdTsRTzntSq8YyWGCbxDzC+gkQey6zgWQA/tVkGxObY3lcbkD1Aa1hPe+00SBGvPRpZqOw=="],
 

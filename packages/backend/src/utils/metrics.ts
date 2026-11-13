@@ -1,5 +1,5 @@
 import {
-  createEmfPublisher,
+  createEmfPublisherIfDeployed,
   type EmfPublisher,
   type MetricDefinition as EmfMetricDefinition,
 } from '@oxy.so/telemetry/metrics';
@@ -588,7 +588,5 @@ export class MetricsCollector {
  * `awslogs` stream; anywhere else the lines would be noise in a terminal.
  */
 export const metrics = new MetricsCollector(
-  process.env.ECS_CONTAINER_METADATA_URI_V4
-    ? createEmfPublisher({ namespace: 'Mention/Backend', service: 'mention' })
-    : null,
+  createEmfPublisherIfDeployed({ namespace: 'Mention/Backend', service: 'mention' }),
 );

@@ -41,6 +41,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { statusClass as httpStatusClass } from '@oxy.so/telemetry/metrics';
 import { config } from '../config';
 import { logger } from './logger';
 import { metrics } from './metrics';
@@ -119,8 +120,7 @@ export function templateOxyRoute(rawUrl: string): string {
 function statusClass(error: unknown): string {
   const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
   if (typeof status !== 'number') return '5xx';
-  const bucket = Math.floor(status / 100);
-  return bucket >= 1 && bucket <= 5 ? `${bucket}xx` : 'other';
+  return httpStatusClass(status);
 }
 
 /** What one HTTP request cost in Oxy calls. Mirrors `QueryTally`. */
