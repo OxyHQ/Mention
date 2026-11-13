@@ -64,6 +64,7 @@ export const CommunityPanel = memo(function CommunityPanel({
         uri: moderator.avatar,
         kind: moderator.kind,
         character: moderator.character,
+        color: moderator.color,
         displayName: moderator.name?.displayName,
         username: getNormalizedUserHandle(moderator) ?? undefined,
       })),

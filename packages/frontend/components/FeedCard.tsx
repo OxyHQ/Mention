@@ -26,6 +26,7 @@ export interface FeedCardData {
     avatar?: string;
     kind?: AvatarIdentitySummary['kind'];
     character?: AvatarIdentitySummary['character'];
+    color?: AvatarIdentitySummary['color'];
   };
   likeCount?: number;
   memberCount?: number;
@@ -109,6 +110,7 @@ export function FeedCard({
         id: profile.id,
         kind: profile.kind,
         character: profile.character,
+        color: profile.color,
         uri: profile.avatar,
         displayName: profile.name?.displayName,
         username: getNormalizedUserHandle(profile) ?? undefined,

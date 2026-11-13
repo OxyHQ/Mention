@@ -40,6 +40,7 @@ export const FollowedByRow = memo(function FollowedByRow({
         uri: mutual.avatar,
         kind: mutual.kind,
         character: mutual.character,
+        color: mutual.color,
         // Fall back to the handle when a mutual has no display name.
         displayName: displayNameOrHandle(mutual.name.displayName, mutual.username),
         username: mutual.username,

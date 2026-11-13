@@ -28,7 +28,15 @@ export function FollowingAvatars() {
   const items = ids.flatMap((id) => {
     const account = accounts.find((profile) => profile.id === id);
     return account
-      ? [{ id, uri: account.avatar, kind: account.kind, character: account.character }]
+      ? [
+          {
+            id,
+            uri: account.avatar,
+            kind: account.kind,
+            character: account.character,
+            color: account.color,
+          },
+        ]
       : [];
   });
   if (items.length === 0) return null;

@@ -51,6 +51,7 @@ interface User {
   /** Account kind, so a channel's post header carries the channel marker. */
   kind?: PostUser['kind'];
   character?: PostUser['character'];
+  color?: PostUser['color'];
   instance?: string;
 }
 
@@ -355,6 +356,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             uri: member.avatar,
             kind: member.kind,
             character: member.character,
+            color: member.color,
             displayName: displayNameOrHandle(
               member.name?.displayName,
               getNormalizedUserHandle(member) ?? '',

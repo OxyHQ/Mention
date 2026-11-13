@@ -202,6 +202,7 @@ function SuggestedFeedItem({
           displayName: feed.owner.name?.displayName,
           kind: feed.owner.kind,
           character: feed.owner.character,
+          color: feed.owner.color,
           avatar: feed.owner.avatar ?? undefined,
         }
       : undefined,

@@ -6,15 +6,19 @@ let mockShared = false;
 const mockAvatar = jest.fn((_props: unknown) => null);
 const mockGroup = jest.fn((_props: unknown) => null);
 const mockCapability = jest.fn(() => ({ sharedLiveRendering: mockShared }));
-jest.mock('@oxy.so/bloom/agent-avatar', () => ({
-  parseAvatarCharacter: jest.requireActual(
+jest.mock('@oxy.so/bloom/agent-avatar', () => {
+  const character = jest.requireActual(
     require('node:path').join(
       require.resolve('@oxy.so/bloom/package.json'),
       '../src/agent-avatar/character.ts',
     ),
-  ).parseAvatarCharacter,
-  useAvatarRendererCapabilities: () => mockCapability(),
-}));
+  );
+  return {
+    parseAvatarCharacter: character.parseAvatarCharacter,
+    avatarCharacterInColor: character.avatarCharacterInColor,
+    useAvatarRendererCapabilities: () => mockCapability(),
+  };
+});
 jest.mock('@oxy.so/bloom/avatar-group', () => ({
   AvatarGroup: (props: unknown) => mockGroup(props),
 }));
@@ -116,5 +120,33 @@ it('keeps group capability hooks out of photo-only lists and follows mixed-group
   expect(mockGroup.mock.lastCall?.[0]).toMatchObject({ motion: 'never' });
   act(() => tree.update(<AccountAvatarGroup items={photos} />));
   expect(mockCapability).not.toHaveBeenCalled();
+  act(() => tree.unmount());
+});
+
+it("hands Bloom each bot member painted in its account's colour", () => {
+  const { avatarCharacterInColor } = jest.requireMock('@oxy.so/bloom/agent-avatar');
+  const character = {
+    shape: 'rounded_head_two_ears',
+    eyes: 'oval',
+    eyewear: 'none',
+    accessory: 'none',
+  };
+  const human = { id: 'human', kind: 'personal', uri: 'photo', color: 'pink' };
+  const bot = { id: 'bot', kind: 'bot', character, color: 'teal' };
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = TestRenderer.create(<AccountAvatarGroup items={[human, bot]} />);
+  });
+  const handed = mockGroup.mock.lastCall?.[0] as {
+    items: { character?: { bodyColor?: string } }[];
+  };
+  const [handedHuman, handedBot] = handed.items;
+  expect(handedHuman).toEqual({ id: 'human', kind: 'personal', uri: 'photo' });
+  expect(handedBot).toEqual({
+    id: 'bot',
+    kind: 'bot',
+    character: avatarCharacterInColor(character, 'teal'),
+  });
+  expect(handedBot.character?.bodyColor).toEqual(expect.any(String));
   act(() => tree.unmount());
 });

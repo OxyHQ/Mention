@@ -35,6 +35,7 @@ const LEGACY_VIEWER_FIELDS = ['isLiked', 'isDownvoted', 'isBoosted', 'isSaved'] 
 export const ZActor = z.object({
   kind: z.enum(ACCOUNT_KINDS).optional(),
   character: z.unknown().optional(),
+  color: z.string().nullable().optional(),
   _id: z.string().optional(),
   id: z.string().optional(),
   username: z.string().optional(),

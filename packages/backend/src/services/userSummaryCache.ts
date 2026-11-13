@@ -46,13 +46,15 @@ import { LocalTtlCache } from '../utils/localTtlCache';
  *
  *  - `v8` — preserves the canonical stored `character`; the old selective
  *    hydration mapper dropped it even when Oxy supplied one.
+ *  - `v9` — adds the account's `color`, which paints a bot's `character`
+ *    (contracts 7: a character carries no paint of its own).
  *
  * `languages` (v3) is gone again without a bump: Oxy's public user projection
  * never carries an account's languages, so the field was always empty, and a
  * `v7` entry that still holds one is read back with it ignored. The viewer's own
  * languages come from `loadViewerLanguages` (`utils/viewerLanguage`).
  */
-const USER_SUMMARY_PREFIX = 'usersummary:v8:';
+const USER_SUMMARY_PREFIX = 'usersummary:v9:';
 
 /**
  * TTL for a cached summary. Display name / avatar / verification change rarely;

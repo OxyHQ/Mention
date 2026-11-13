@@ -80,6 +80,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
           displayName: item.owner.name?.displayName,
           kind: item.owner.kind,
           character: item.owner.character,
+          color: item.owner.color,
           avatar: item.owner.avatar ?? undefined,
         }
       : undefined,

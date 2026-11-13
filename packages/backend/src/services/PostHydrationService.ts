@@ -485,6 +485,7 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
     // `/c/<handle>`, and what `services/publishAsAccount` reads server-side.
     kind: userData.kind,
     character: userData.character,
+    color: userData.color,
     isFederated: isFederated || undefined,
     federation: federation
       ? { domain: federation.domain, actorUri: federation.actorUri, actorId: federation.actorId }

@@ -13,6 +13,8 @@ export interface NotificationActorProfile {
   avatar?: string | null;
   kind?: AccountKind;
   character?: AvatarCharacter | null;
+  /** The account's colour, which paints a bot's `character`. */
+  color?: string | null;
 }
 
 function safeVisualValue(value: unknown, rawIds: Set<string>): string {
@@ -47,6 +49,7 @@ export function toPopulatedActor(
     _id: id,
     kind: actor?.kind,
     character: actor?.character,
+    color: actor?.color,
     username: username || fallback.username,
     name: {
       displayName: resolvedDisplayName || username || fallback.name.displayName,

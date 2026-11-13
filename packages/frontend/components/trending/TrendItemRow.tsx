@@ -137,6 +137,7 @@ export const TrendItemRow = memo(function TrendItemRow({
             uri: actor.avatar,
             kind: actor.kind,
             character: actor.character,
+            color: actor.color,
             displayName: actor.name?.displayName,
             username: getNormalizedUserHandle(actor) ?? undefined,
           }))
