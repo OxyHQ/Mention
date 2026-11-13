@@ -1,9 +1,8 @@
 import { memo, useCallback } from 'react';
 import type { ProfileMedia as ProfileMediaData } from '@/stores/appearanceStore';
-import { presentSheet } from '@/utils/sheet';
 import { ProfileSong } from './ProfileSong';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
-import { MediaPickerSheet } from './MediaPickerSheet';
+import { openProfileMediaPicker } from './openProfileMediaPicker';
 
 interface ProfileMediaProps {
   media: ProfileMediaData | null;
@@ -25,9 +24,7 @@ interface ProfileMediaProps {
  */
 export const ProfileMedia = memo(function ProfileMedia({ media, isOwnProfile }: ProfileMediaProps) {
   const openPicker = useCallback(() => {
-    void presentSheet((surface) => (
-      <MediaPickerSheet currentMedia={media} onClose={() => surface.dismiss()} />
-    ));
+    openProfileMediaPicker(media);
   }, [media]);
 
   if (!media) {

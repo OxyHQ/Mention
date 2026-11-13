@@ -14,7 +14,7 @@
 import type { Page } from '@playwright/test';
 
 import { PROFILE_HANDLE } from '../environment';
-import { expect, test } from '../fixtures';
+import { contractTest, expect, test } from '../fixtures';
 
 /** Chunk names (Metro names an async chunk after its entry module). */
 const DEFERRED = [
@@ -22,6 +22,8 @@ const DEFERRED = [
   'MentionSettingsModal',
   'LiveFeatureRuntime',
   'VideoReplies',
+  'FeedBuilder',
+  'MediaPickerSheet',
 ] as const;
 
 function recordScripts(page: Page): Set<string> {
@@ -44,6 +46,26 @@ test('home and a profile fetch no optional runtime', async ({ page, candidate })
   expect(DEFERRED.filter((name) => loaded.has(name))).toEqual([]);
   expect(candidate.scriptErrors).toEqual([]);
 });
+
+test('the feed builder loads on its create route', async ({ page, candidate }) => {
+  const loaded = recordScripts(page);
+  await page.goto('/feeds/new');
+
+  await expect(page.getByText('Sign in to build a feed', { exact: true })).toBeVisible();
+  expect(loaded.has('FeedBuilder')).toBe(true);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+contractTest(
+  'the live rooms runtime loads and initializes on its route',
+  async ({ page, candidate }) => {
+    const loaded = recordScripts(page);
+    await page.goto('/live-rooms');
+    await expect.poll(() => loaded.has('LiveFeatureRuntime')).toBe(true);
+    await expect(page.getByText('Sign in to join live rooms', { exact: true })).toBeVisible();
+    expect(candidate.scriptErrors).toEqual([]);
+  },
+);
 
 test('settings and live rooms fetch their chunk when opened, and work', async ({
   page,

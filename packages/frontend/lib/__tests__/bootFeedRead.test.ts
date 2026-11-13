@@ -68,6 +68,36 @@ describe('the home feed boot read', () => {
     expect(start).toHaveBeenCalledWith('user-of-token-a');
     expect(mockTokenListener).toBeUndefined();
   });
+
+  it('starts immediately when the session already exists', async () => {
+    owner.mockReturnValue('viewer-a');
+    window.history.pushState({}, '', '/');
+    mockToken = 'token-a';
+
+    startHomeFeedBootRead();
+    await settle();
+
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledWith('user-of-token-a');
+    expect(mockTokenListener).toBeUndefined();
+  });
+
+  it('does not use an already available token after the session changes while language loads', async () => {
+    owner.mockReturnValue('viewer-a');
+    window.history.pushState({}, '', '/');
+    mockToken = 'token-a';
+    let ready!: () => void;
+    mockLanguageReady = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+
+    startHomeFeedBootRead();
+    mockToken = 'token-b';
+    ready();
+    await settle();
+
+    expect(start).not.toHaveBeenCalled();
+  });
   it('waits for the SDK-selected catalog without choosing its own boot language', async () => {
     owner.mockReturnValue('anon');
     window.history.pushState({}, '', '/');

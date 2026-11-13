@@ -14,6 +14,8 @@
   "deferredSources": {
     "The experience history and editor load only when the profile Experience tab opens": "/packages/frontend/components/Profile/(ProfileExperience|ExperienceEditor)\\.tsx$",
     "The composer loads when /compose or /write opens (LazyComposeScreen)": "/packages/frontend/components/Compose/ComposeScreen\\.tsx$",
+    "The feed builder loads only when creating or editing a feed": "/packages/frontend/components/feeds/FeedBuilder\\.tsx$",
+    "The profile media picker loads only when editing pinned media": "/packages/frontend/components/Profile/MediaPickerSheet\\.tsx$",
     "The video replies panel loads when a video is open (LazyVideoReplies)": "/packages/frontend/components/videos/VideoReplies\\.tsx$",
     "The insights dashboard loads when /insights or /c/<handle>/insights opens (LazyInsightsView)": "/packages/frontend/components/insights/InsightsView\\.tsx$",
     "The settings dialog and its pages load on the first open request": "/packages/frontend/components/settings/(MentionSettingsModal|settingsPages)\\.tsx$",

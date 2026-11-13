@@ -5,10 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { presentSheet } from '@/utils/sheet';
 import { ProfileSong } from '../ProfileSong';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
-import { MediaPickerSheet } from '../MediaPickerSheet';
+import { openProfileMediaPicker } from '../openProfileMediaPicker';
 
 /**
  * Pinned song/podcast editor for the Edit Profile screen. Unlike
@@ -23,9 +22,7 @@ export const PinnedMediaSection: React.FC = () => {
   const media = useAppearanceStore((state) => state.mySettings?.profileMedia ?? null);
 
   const openPicker = useCallback(() => {
-    void presentSheet((surface) => (
-      <MediaPickerSheet currentMedia={media} onClose={() => surface.dismiss()} />
-    ));
+    openProfileMediaPicker(media);
   }, [media]);
 
   if (!media) {

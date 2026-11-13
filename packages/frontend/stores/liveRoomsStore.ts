@@ -22,6 +22,7 @@ interface LiveRoomsState {
 
 interface LiveRoomsActions {
   fetchLiveRooms: (opts?: { silent?: boolean }) => Promise<void>;
+  refreshObservedLiveRooms: () => void;
   startPolling: () => number;
   stopPolling: (subscriptionId: number) => void;
   hideRoom: (id: string) => void;
@@ -37,6 +38,7 @@ function roomsEqual(prev: Room[], next: Room[]): boolean {
     const b = next[i];
     if (!a || !b) return false;
     if (a._id !== b._id) return false;
+    if (a.host !== b.host) return false;
     if (a.status !== b.status) return false;
     if ((a.participants?.length || 0) !== (b.participants?.length || 0)) return false;
     if (a.title !== b.title) return false;
@@ -61,13 +63,13 @@ export const useLiveRoomsStore = create<LiveRoomsStore>()((set, get) => ({
   fetchLiveRooms: async (opts?: { silent?: boolean }) => {
     const operationEpoch = viewerEpoch;
     const silent = !!opts?.silent;
-    if (!silent) set({ error: null });
+    if (!silent && get().error !== null) set({ error: null });
     try {
       const next = await getLiveRooms(LIVE_ROOMS_STATUS);
       if (operationEpoch !== viewerEpoch) return;
       const { rooms: prev } = get();
       if (roomsEqual(prev, next)) {
-        set({ hasFetched: true });
+        if (!get().hasFetched) set({ hasFetched: true });
       } else {
         set({ rooms: next, hasFetched: true });
       }
@@ -77,6 +79,12 @@ export const useLiveRoomsStore = create<LiveRoomsStore>()((set, get) => ({
       logger.warn('Failed to fetch live rooms', { error });
       if (!silent) set({ error: message, hasFetched: true });
     }
+  },
+
+  // The socket is app-wide; its updates need a read only while a widget is
+  // observing rooms. Starting a new subscription always fetches fresh data.
+  refreshObservedLiveRooms: () => {
+    if (pollSubscriptions.size > 0) void get().fetchLiveRooms({ silent: true });
   },
 
   startPolling: () => {

@@ -492,6 +492,25 @@ describe('the writers list', () => {
     expect(latest?.hasMore).toBe(false);
   });
 
+  it('stops a cursor cycle while preserving the disclosed writers', async () => {
+    mockGet
+      .mockResolvedValueOnce(page({ writers: [], nextCursor: 'cursor-1' }))
+      .mockResolvedValueOnce(page({ writers: [], nextCursor: 'cursor-2' }))
+      .mockResolvedValueOnce(page({ writers: [], nextCursor: 'cursor-1' }));
+    const client = newClient();
+    render(<Probe channelId={CHANNEL_ID} />, client);
+    await settleHook();
+
+    act(() => latest?.loadMore());
+    await waitUntil(() => mockGet.mock.calls.length === 2 && !latest?.loadingMore, 'second page');
+    act(() => latest?.loadMore());
+    await waitUntil(() => mockGet.mock.calls.length === 3 && !latest?.hasMore, 'cycle to stop');
+    act(() => latest?.loadMore());
+
+    expect(latest?.disclosed).toBe(true);
+    expect(mockGet).toHaveBeenCalledTimes(3);
+  });
+
   it('caches under the VIEWER’s key, so one reader’s refusal is not another’s', async () => {
     mockGet.mockResolvedValue(page({ writers: [] }));
     const client = newClient();

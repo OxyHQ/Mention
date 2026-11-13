@@ -283,6 +283,20 @@ describe('useFeedState memory mode: one feed query', () => {
   });
 
   describe('warm start', () => {
+    it('stops a cursor cycle without losing the loaded posts', async () => {
+      getFeedMock
+        .mockResolvedValueOnce(page(['p1'], 'cursor-1'))
+        .mockResolvedValueOnce(page(['p2'], 'cursor-2'))
+        .mockResolvedValueOnce(page(['p3'], 'cursor-1'));
+      await mount();
+      await loadMore();
+      await loadMore();
+      expect(ids()).toEqual(['p1', 'p2', 'p3']);
+      expect(latest?.hasMore).toBe(false);
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(3);
+    });
+
     it('renders every loaded page on the FIRST paint of a remount, and requests nothing', async () => {
       const first = await loadTwoPages();
       unmount(first);

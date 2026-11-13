@@ -243,7 +243,6 @@ const LabelersScreen: React.FC = () => {
       }
     >
       <ScreenScrollView
-        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isFetching}

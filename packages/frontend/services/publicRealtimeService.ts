@@ -35,7 +35,7 @@ class PublicRealtimeService {
   private readonly handleTrendsUpdated = () => {
     // The payload is a notice; the data arrives through the one cached, filtered
     // `GET /trending`. Silent so a push never flashes the list back to a spinner.
-    void useTrendsStore.getState().fetchTrends({ silent: true });
+    useTrendsStore.getState().refreshAfterUpdate();
   };
 
   /**

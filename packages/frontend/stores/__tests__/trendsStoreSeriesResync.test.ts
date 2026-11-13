@@ -84,6 +84,45 @@ describe('trendsStore series', () => {
     expect(after).not.toBe(before);
     expect(after[0].series).toEqual([1, 2, 3, 4, 5, 9]);
   });
+
+  it.each([
+    ['volume', { volume: 99 }, { volume: 99 }],
+    ['description', { description: 'Updated' }, { description: 'Updated' }],
+    ['momentum', { momentum: 0.8 }, { momentum: 0.8 }],
+    ['rank', { rank: 2 }, { rank: 2 }],
+    [
+      'date',
+      { calculatedAt: '2026-07-29T06:30:00.000Z' },
+      { created_at: '2026-07-29T06:30:00.000Z' },
+    ],
+    ['category', { category: 'sports' }, { category: 'sports' }],
+    ['start', { startedAt: '2026-07-29T06:00:00.000Z' }, { startedAt: '2026-07-29T06:00:00.000Z' }],
+    [
+      'first appearance',
+      { firstSeenAt: '2026-07-28T06:00:00.000Z' },
+      { firstSeenAt: '2026-07-28T06:00:00.000Z' },
+    ],
+    ['author count', { authorCount: 12 }, { authorCount: 12 }],
+    [
+      'actors',
+      { actors: [{ id: 'author', name: { displayName: 'Updated' } }] },
+      { actors: [{ id: 'author', name: { displayName: 'Updated' } }] },
+    ],
+  ])('commits a %s change within the same batch', async (_label, update, expected) => {
+    respond([trend('tech')]);
+    await useTrendsStore.getState().fetchTrends();
+    respond([{ ...trend('tech'), ...update }]);
+    await useTrendsStore.getState().fetchTrends({ silent: true });
+    expect(useTrendsStore.getState().trends[0]).toEqual(expect.objectContaining(expected));
+  });
+
+  it('commits a change to an existing actor within the same batch', async () => {
+    respond([{ ...trend('tech'), actors: [{ id: 'author', name: { displayName: 'Before' } }] }]);
+    await useTrendsStore.getState().fetchTrends();
+    respond([{ ...trend('tech'), actors: [{ id: 'author', name: { displayName: 'After' } }] }]);
+    await useTrendsStore.getState().fetchTrends({ silent: true });
+    expect(useTrendsStore.getState().trends[0].actors?.[0].name.displayName).toBe('After');
+  });
 });
 
 describe('trend identity', () => {

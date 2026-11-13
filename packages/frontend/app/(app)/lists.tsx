@@ -190,12 +190,7 @@ function ListsScreen() {
               'Lists group the accounts you want to read together. The ones you create or follow appear here.',
           })}
         >
-          <ScreenScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerClassName="px-3 pt-2.5"
-          >
-            {content}
-          </ScreenScrollView>
+          <ScreenScrollView contentContainerClassName="px-3 pt-2.5">{content}</ScreenScrollView>
         </SignInRequired>
       </Screen>
     </>

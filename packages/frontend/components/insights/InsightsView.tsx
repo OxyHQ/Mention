@@ -55,7 +55,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   const [selectedPeriod, setSelectedPeriod] = useState(30);
   const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'publishing'>('overview');
 
-  const { getPostById } = usePostsStore();
+  const getPostById = usePostsStore((state) => state.getPostById);
 
   // Stats + engagement + hydrated top posts for the selected period. Keyed on
   // the auth identity, the SUBJECT and the period so it fires only once the

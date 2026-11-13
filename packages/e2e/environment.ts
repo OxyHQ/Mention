@@ -40,9 +40,8 @@ export const CANDIDATE_ORIGIN = readOrigin('MENTION_E2E_CANDIDATE_ORIGIN');
  * The origin the browser runs at. For the ordinary release gate this is NOT
  * interchangeable with the candidate origin, because:
  *
- *   * the production build hardcodes `https://api.mention.earth` as its API
- *     (`packages/frontend/config.ts` ignores `EXPO_PUBLIC_API_URL` when
- *     `NODE_ENV=production`), and
+ *   * the production deployment uses `https://api.mention.earth` as its API
+ *     (an explicit `EXPO_PUBLIC_API_URL` overrides this even in production), and
  *   * that API answers every request with a fixed
  *     `access-control-allow-origin: https://mention.earth`
  *     (`packages/backend/src/utils/allowedOrigins.ts` allowlists exactly the one

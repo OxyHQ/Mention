@@ -26,9 +26,8 @@ that statement, automated.
 
 ## Why it browses at `https://mention.earth` and not at the preview URL
 
-Because at the preview URL there is nothing to assert. The production web build
-hardcodes `https://api.mention.earth` as its API (`packages/frontend/config.ts`
-ignores `EXPO_PUBLIC_API_URL` when `NODE_ENV=production`), and that API answers
+Because at the preview URL there is nothing to assert. The production deployment
+uses `https://api.mention.earth` as its API, and that API answers
 every request with a fixed `access-control-allow-origin: https://mention.earth`
 (`packages/backend/src/utils/allowedOrigins.ts` allowlists exactly one
 production frontend origin). A browser parked on `*.pages.dev` therefore has
@@ -133,7 +132,11 @@ reset is survived, and that an exhausted budget still fails.
 MENTION_E2E_CANDIDATE_ORIGIN=https://<deployment>.mention-frontend.pages.dev \
   bun run --cwd packages/e2e test
 
-# Or against a local export: bun run build:frontend && bunx serve packages/frontend/dist
+# Or against a local export configured for the same API as the release gate.
+# Expo also reads .env.local: verify its EXPO_PUBLIC_* values before building.
+EXPO_PUBLIC_API_URL=https://api.mention.earth \
+  EXPO_PUBLIC_API_URL_SOCKET=wss://api.mention.earth bun run build:frontend
+bunx serve packages/frontend/dist
 MENTION_E2E_CANDIDATE_ORIGIN=http://127.0.0.1:4110 bun run --cwd packages/e2e test
 ```
 

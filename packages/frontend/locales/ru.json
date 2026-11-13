@@ -2947,5 +2947,21 @@
   "commerce.sortRelevance": "По релевантности",
   "commerce.inStockOnly": "Только в наличии",
   "commerce.featuredCollections": "Избранные коллекции",
-  "commerce.moreCollectionProducts": "Загрузить ещё · {{title}}"
+  "commerce.moreCollectionProducts": "Загрузить ещё · {{title}}",
+  "plus.subscribe": "Subscribe",
+  "plus.payment.title": "Pay with Peable",
+  "plus.payment.description": "Mention Plus is included in Oxy One. Review the approved subscription before continuing to secure checkout.",
+  "plus.payment.monthlyPrice": "{{price}} / month, tax included",
+  "plus.payment.loading": "Loading subscription…",
+  "plus.payment.unavailable": "This subscription is not available for purchase yet.",
+  "plus.payment.failed": "We could not confirm the payment status. Try again to recover the same checkout.",
+  "plus.payment.pending": "Payment is pending. Closing this window does not cancel a payment already authorized.",
+  "plus.payment.fulfilled": "Oxy has confirmed this subscription. Access is managed by your Oxy account.",
+  "plus.payment.closed": "This checkout has closed. Close this window and subscribe again to start a new checkout.",
+  "plus.payment.review": "This payment needs review. Do not start another payment. Check your account before trying again.",
+  "plus.payment.blocked": "The payment window was blocked or closed. Continue again to reopen the same checkout.",
+  "plus.payment.signIn": "Sign in to continue",
+  "plus.payment.continue": "Continue to payment",
+  "plus.payment.checkStatus": "Check payment status",
+  "plus.payment.pricingUnavailable": "Pricing unavailable"
 }

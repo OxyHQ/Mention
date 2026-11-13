@@ -546,7 +546,6 @@ const FeedsScreen: React.FC = () => {
         }
       >
         <ScreenScrollView
-          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

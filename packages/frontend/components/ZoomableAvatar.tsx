@@ -17,14 +17,14 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useImageResolver } from '@oxy.so/bloom/image-resolver';
-import {
-  ZoomableMediaGallery,
-  type MeasuredRect,
-  type ZoomableMediaGalleryHandle,
+import type {
+  MeasuredRect,
+  ZoomableMediaGalleryHandle,
 } from '@oxy.so/bloom/zoomable-media-gallery';
 import { useAuth, useFileDownloadUrl } from '@oxy.so/services/ui/client';
 
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
+import { LazyZoomableGallery } from '@/components/common/LazyZoomableGallery';
 import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 
 interface ZoomableAvatarProps {
@@ -184,7 +184,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         </View>
       </Pressable>
 
-      <ZoomableMediaGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius="circle" />
+      <LazyZoomableGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius="circle" />
     </>
   );
 };

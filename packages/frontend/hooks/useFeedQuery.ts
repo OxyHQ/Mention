@@ -117,10 +117,9 @@ function feedQueryOptions(feed: FeedReadIdentity) {
       }
     },
     initialPageParam: undefined as FeedPageParam,
-    // A page that claims more but hands back the cursor it was read with
-    // would page forever; it is the end.
-    getNextPageParam: (lastPage, _pages, lastPageParam) =>
-      lastPage.hasMore && lastPage.nextCursor && lastPage.nextCursor !== lastPageParam
+    // A cursor already visited would repeat pages indefinitely.
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) =>
+      lastPage.hasMore && lastPage.nextCursor && !pageParams.includes(lastPage.nextCursor)
         ? lastPage.nextCursor
         : undefined,
     // Staleness is decided by RULE, never by age: a remount renders the
