@@ -27,7 +27,7 @@ import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
-import { useAskAgent } from '@alia.onl/sdk/ask';
+import { useAskGemie } from '@gemies/sdk/ask';
 import { usePostsStore } from '@/stores/postsStore';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -179,7 +179,7 @@ export function usePersonProfileView({
   const { user: currentUser, canUsePrivateApi } = useAuth();
   const communitiesPreview = useCommunitiesPreview();
   const { t } = useTranslation();
-  const { ask: askAlia } = useAskAgent();
+  const { ask: askAlia } = useAskGemie();
 
   /**
    * The whole of "do nothing while a non-tab sibling is showing", in one place.

@@ -14,7 +14,7 @@ const cleanFiles = {
     "export const kaana = import('@kaana.ai/sdk').then(({ Kaana }) => new Kaana({ credential: 'token' }));\n",
   // Alia is the intentional chat/agent boundary, not a provider SDK.
   'packages/frontend/components/AskAliaSheet.tsx':
-    "import { AliaChatSheet } from '@alia.onl/sdk';\nexport { AliaChatSheet };\n",
+    "import { GemieChatSheet } from '@gemies/sdk';\nexport { GemieChatSheet };\n",
   // Claude's MCP client origin is OAuth/browser infrastructure, not inference.
   'packages/mcp/lib/config.ts':
     'export const allowedOrigins = [\n  "https://api.anthropic.com",\n];\n',

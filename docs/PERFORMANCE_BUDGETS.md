@@ -71,8 +71,8 @@ and the branch (SDK 21.2):
 
 The growth is the chat that SDK 21 and Bloom 10.17 add (the multi-agent header, host tools and
 renderers, the sheet's recent conversations, Bloom's Markdown), and almost all of it is deferred:
-the app mounts the SDK's `AliaAskProvider` from `@alia.onl/sdk/ask`, which loads the sheet with
-the first Ask Alia, and the `deferredSources` gate asserts the SDK's `AliaChatSheet` stays out of the
+the app mounts the SDK's `GemieAskProvider` from `@gemies/sdk/ask`, which loads the sheet with
+the first Ask Alia, and the `deferredSources` gate asserts the SDK's `GemieChatSheet` stays out of the
 initial chunk. What reaches the initial chunk is the provider and the modules the sheet shares
 with the SDK's own lazily loaded voice call, which `extractCommonChunk` hoists into `__common`.
 
@@ -185,6 +185,14 @@ MiB (15.71875 -> 72 MiB), initial JavaScript 5.84 -> 6.03 MiB (5.84375 -> 6.1 Mi
 unchanged. The initial growth is Bloom's own (its sidebar, shell and error screens), not the app's.
 The size of the async catalog is the thing to give back, in Bloom: a consumer cannot select which
 characters it ships.
+
+`@gemies/sdk` 1.0.0 (2026-11-13), which replaces `@alia.onl/sdk` 22.10.1, moves the two initial
+ceilings: initial JavaScript 6.1 -> 6.25 MiB and initial gzip 1.72 -> 1.75 MiB (the 1.6 MiB target
+stands). The merge-queue export measured +84.76 KiB raw and +11.35 KiB gzip against main `193cd6bda`.
+The growth is Bloom's SVG character renderer: the home header's `GemieAvatarIcon` now draws Alia with
+Bloom's `Avatar` instead of the pre-rendered still the old SDK shipped (removed with the hosted runtime
+in its 23.0.0), so that part of Bloom joins the initial chunk (+12.64 KiB gzip) while the SDK's own
+share is about 1 KiB smaller. Every other ceiling is unchanged.
 
 ### Initial JavaScript after #1216
 

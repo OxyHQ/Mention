@@ -58,7 +58,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ isDark: false }),
 }));
 jest.mock('@oxy.so/services/ui/one-video', () => ({ OxyOneVideo: () => null }));
-jest.mock('@alia.onl/sdk/avatar', () => ({ AliaAvatarIcon: () => null }));
+jest.mock('@gemies/sdk/avatar', () => ({ GemieAvatarIcon: () => null }));
 
 // The boot visual AppProviders hands to AccountSwitchReset as its `fallback`.
 // A leaf like the others above: it reaches straight into Bloom's ESM-only theme

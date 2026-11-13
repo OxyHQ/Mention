@@ -12,7 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { OxyProvider } from '@oxy.so/services/ui/client';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
-import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
+import { GemieAvatarIcon } from '@gemies/sdk/avatar';
 import type { OxyServices } from '@oxy.so/core';
 import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
@@ -93,7 +93,7 @@ export const AppProviders = memo(function AppProviders({
         <OxyProvider
           onAskAlia={onAskAlia}
           documentationUrl="https://oxy.so/developers/docs/mention/"
-          aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
+          aliaAvatar={<GemieAvatarIcon width={32} height={32} />}
           oxyOneArtwork={<OxyOneVideo />}
           oxyServices={oxyServices}
           clientId={OXY_CLIENT_ID}

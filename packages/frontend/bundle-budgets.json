@@ -3,8 +3,8 @@
   "budgets": {
     "totalBytes": 80740352,
     "javascriptBytes": 75497472,
-    "initialJavascriptBytes": 6396314,
-    "initialJavascriptGzipBytes": 1806336,
+    "initialJavascriptBytes": 6553600,
+    "initialJavascriptGzipBytes": 1835008,
     "fontBytes": 4194304,
     "largestFileBytes": 7864320
   },
@@ -23,7 +23,7 @@
     "LiveKit and the Syra rooms engine load with the first live-room request (LiveFeatureProviders)": "/node_modules/(livekit-client/|@syra\\.fm/sdk/lib/module/live/)",
     "Bloom's settings dialog loads with Mention's (screens outside it use settings-modal/rows)": "/node_modules/@oxy\\.so/bloom/lib/module/settings-modal/SettingsModalBase\\.js$",
     "zod loads with the notification validators (lib/notificationValidation), its one way in; @syra.fm/sdk 0.18+ checks responses without it": "^/node_modules/zod/",
-    "Alia's chat sheet loads with the first Ask Alia (@alia.onl/sdk/ask loads it lazily)": "/node_modules/@alia\\.onl/sdk/src/components/AliaChatSheet\\.tsx$",
+    "Alia's chat sheet loads with the first Ask Alia (@gemies/sdk/ask loads it lazily)": "/node_modules/@gemies/sdk/src/components/GemieChatSheet\\.tsx$",
     "Screens two routes share load through one lazy boundary each (components/sharedRouteScreens), never with the page": "/packages/frontend/components/(AccountInfoScreen|WhoToFollowTab|Commerce/ProfileShop|Jobs/JobFormFields|Profile/ConnectionsScreen|OperatedAccounts/OperatedAccount(s|Settings)Screen)\\.tsx$"
   }
 }

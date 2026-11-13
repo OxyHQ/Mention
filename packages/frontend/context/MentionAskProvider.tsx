@@ -2,18 +2,18 @@ import type React from 'react';
 import { useCallback, useMemo, useRef } from 'react';
 import { usePathname } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { AliaAskProvider, type AliaAsk } from '@alia.onl/sdk/ask';
+import { GemieAskProvider, type GemieAsk } from '@gemies/sdk/ask';
 
 /** Bridges Oxy's support action to the same Alia sheet used by the app. */
 export function useMentionAskBridge() {
-  const askRef = useRef<AliaAsk>(null);
+  const askRef = useRef<GemieAsk>(null);
   const openAlia = useCallback(() => askRef.current?.ask(), []);
   return { askRef, openAlia };
 }
 
 /**
- * Alia's one sheet for the whole app (`@alia.onl/sdk/ask`). Anything below opens it with
- * `useAskAgent().ask(undefined, turn?)`; signed out, the SDK opens the Oxy sign-in instead. The
+ * Alia's one sheet for the whole app (`@gemies/sdk/ask`). Anything below opens it with
+ * `useAskGemie().ask(undefined, turn?)`; signed out, the SDK opens the Oxy sign-in instead. The
  * sheet loads with the first ask, so the chat stays out of the entry bundle (`bundle-budgets.json`
  * holds that). Alia is told which screen the person is on, as the route names it, and the
  * conversations the sheet starts are labelled Mention's (`app`), so its recents are Mention's.
@@ -23,7 +23,7 @@ export function useMentionAskBridge() {
  */
 export const MentionAskProvider: React.FC<{
   children: React.ReactNode;
-  askRef?: React.Ref<AliaAsk>;
+  askRef?: React.Ref<GemieAsk>;
 }> = ({ children, askRef }) => {
   const { t } = useTranslation();
   const pathname = usePathname() || '/';
@@ -38,13 +38,13 @@ export const MentionAskProvider: React.FC<{
   );
 
   return (
-    <AliaAskProvider
+    <GemieAskProvider
       ref={askRef}
       app="mention"
       clientContext={`${t('alia.clientContext')} ${t('alia.onScreen', { path: pathname })}`}
       welcomeSuggestions={welcomeSuggestions}
     >
       {children}
-    </AliaAskProvider>
+    </GemieAskProvider>
   );
 };

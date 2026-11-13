@@ -1,8 +1,8 @@
 import { Pressable } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { useAskAgent } from '@alia.onl/sdk/ask';
-import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
+import { useAskGemie } from '@gemies/sdk/ask';
+import { GemieAvatarIcon } from '@gemies/sdk/avatar';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAppShell } from '@oxy.so/bloom/app-shell/hooks';
 import { IconButton } from '@oxy.so/bloom/button';
@@ -23,7 +23,7 @@ export function MentionHomeHeader() {
   const { selectDestination } = useTabPager();
   // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
   // (`MentionAskProvider`).
-  const { ask } = useAskAgent();
+  const { ask } = useAskGemie();
   return (
     <PageHeader
       title={
@@ -62,7 +62,7 @@ export function MentionHomeHeader() {
       }
       actions={
         <ButtonGroup accessibilityLabel={t('common.actions', { defaultValue: 'Page actions' })}>
-          <ButtonGroupItem leadingIcon={AliaAvatarIcon} onPress={() => ask()}>
+          <ButtonGroupItem leadingIcon={GemieAvatarIcon} onPress={() => ask()}>
             {t('header.askAlia')}
           </ButtonGroupItem>
           <ButtonGroupItem

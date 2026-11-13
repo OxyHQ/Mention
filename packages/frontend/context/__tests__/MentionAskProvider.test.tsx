@@ -5,10 +5,10 @@ import { MentionAskProvider, useMentionAskBridge } from '@/context/MentionAskPro
 
 const mockProvider = jest.fn((props: { children: React.ReactNode }) => props.children);
 const mockAsk = jest.fn();
-jest.mock('@alia.onl/sdk/ask', () => {
+jest.mock('@gemies/sdk/ask', () => {
   const React = require('react');
   return {
-    AliaAskProvider: React.forwardRef(function MockAliaAskProvider(
+    GemieAskProvider: React.forwardRef(function MockGemieAskProvider(
       props: { children: React.ReactNode },
       ref: React.Ref<unknown>,
     ) {

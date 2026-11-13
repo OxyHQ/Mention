@@ -4,7 +4,7 @@ import {
   nodeinfoStatisticsExtension,
   type NodeinfoStatistics,
 } from './services/nodeinfoStatistics';
-import { withAliaSdkCsp } from '@alia.onl/sdk/csp';
+import { withGemiesSdkCsp } from '@gemies/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
 import { EXPECTED_VIEWER_HEADER } from '@mention/shared-types/common';
 import {
@@ -50,7 +50,7 @@ export interface CreateAppDependencies {
  * only: the baseline already carries `'self'`, the Cloudflare Insights beacon
  * hosts, the Oxy API/CDN origins, inline styles and `data:` images/fonts, and
  * what the embedded Alia SDK loads (its API and voice socket, the avatar runtime,
- * the voice worklets) is the SDK's own declaration (`withAliaSdkCsp` below), so
+ * the voice worklets) is the SDK's own declaration (`withGemiesSdkCsp` below), so
  * nothing either provides is restated here — only what is specific to Mention.
  */
 // `satisfies`, not an annotation: the type check against `OxyCspExtensions` is
@@ -182,7 +182,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   // Dropping it from package.json uninstalls it and this call throws at boot.
   app.use(
     createOxySecurityHeaders({
-      csp: withAliaSdkCsp({
+      csp: withGemiesSdkCsp({
         ...MENTION_CSP_EXTENSIONS,
         connectSrc: [
           ...MENTION_CSP_EXTENSIONS.connectSrc,
