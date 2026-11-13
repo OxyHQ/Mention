@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@gemies/sdk": "1.0.0",
-    "@aws-sdk/credential-provider-node": "3.972.92",
+    "@aws-sdk/credential-provider-node": "3.972.95",
     "@clarity.surf/sdk": "0.12.0",
     "@crowdsource.you/contracts": "1.1.1",
     "@crowdsource.you/core": "3.1.0",
@@ -47,12 +47,12 @@
     "@peable.to/sdk": "catalog:",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "catalog:",
-    "bullmq": "^6.5.4",
+    "bullmq": "^6.7.3",
     "compression": "^1.8.2",
     "drizzle-orm": "0.45.4",
-    "eld": "^2.1.0",
+    "eld": "^2.1.1",
     "express": "^5.3.0",
-    "express-rate-limit": "^8.7.3",
+    "express-rate-limit": "^8.7.4",
     "express-slow-down": "^3.1.1",
     "firebase-admin": "^14.5.0",
     "he": "^2.0.0",
@@ -77,7 +77,7 @@
     "drizzle-kit": "0.31.11",
     "jsonwebtoken": "catalog:",
     "pino-pretty": "^13.2.0",
-    "supertest": "^7.3.1",
+    "supertest": "^7.3.2",
     "typescript": "catalog:",
     "vitest": "^5.1.0"
   }

@@ -13,7 +13,7 @@
     "@oxy.so/core": "catalog:",
     "@oxy.so/mcp": "catalog:",
     "zod": "catalog:",
-    "@aws-sdk/credential-provider-node": "3.972.92"
+    "@aws-sdk/credential-provider-node": "3.972.95"
   },
   "scripts": {
     "start": "bun server.ts",
