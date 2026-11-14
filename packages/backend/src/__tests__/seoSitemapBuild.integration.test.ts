@@ -317,6 +317,26 @@ describe('SEO sitemaps', () => {
     expect(plainShard.text).toContain(`https://mention.earth/p/${plain.id}`);
   });
 
+  it('still lists the profile of an author whose every post is behind a content warning', async () => {
+    const warned = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
+    await getDb()
+      .update(posts)
+      .set({ federationSpoilerText: 'Spoiler: the ending' })
+      .where(eq(posts.id, warned.id));
+
+    await buildAllSitemaps();
+
+    const app = makeApp();
+    // The post is left out, the profile is not: the warning gates one page, never the author.
+    const postShard = await request(app).get(`/sitemaps/posts-${bucketOf(warned.id)}-0.xml`);
+    expect(postShard.text).not.toContain(warned.id);
+    const profileShard = await request(app).get(`/sitemaps/profiles-${bucketOf(AUTHOR)}-0.xml`);
+    expect(profileShard.text).toContain('https://mention.earth/@sitemapauthor');
+  });
+
   it('keeps the previous sitemaps when a build fails', async () => {
     await seedPost(scope, {
       oxyUserId: AUTHOR,
