@@ -1797,7 +1797,11 @@ export default function VideosScreen() {
 
   return (
     <>
-      <SEO title={t('seo.videos.title')} description={t('seo.videos.description')} />
+      <SEO
+        title={t('seo.videos.title')}
+        description={t('seo.videos.description')}
+        robots="index,follow"
+      />
       {/* The reel is a dark surface: its header and controls render dark over it. */}
       <BloomColorScope mode={posts.length > 0 ? 'dark' : undefined} asChild>
         <Screen

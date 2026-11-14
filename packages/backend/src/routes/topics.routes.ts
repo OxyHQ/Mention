@@ -1,7 +1,8 @@
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { Router, type Request, type Response } from 'express';
 import { topicService } from '../services/TopicService';
 import { TopicType } from '@oxy.so/core';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 
 const router = Router();
 
@@ -29,8 +30,11 @@ router.get('/', async (req: Request, res: Response) => {
     const type = rawType === undefined ? undefined : toTopicType(rawType);
     const query = queryString(req.query.q);
     const locale = queryString(req.query.locale);
-    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_TOPIC_LIMIT, MAX_TOPIC_LIMIT);
-    const offset = Math.max(queryInt(req.query.offset) || 0, 0);
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_TOPIC_LIMIT,
+      max: MAX_TOPIC_LIMIT,
+    });
+    const offset = resolvePageOffset(req.query.offset);
 
     if (rawType !== undefined && type === undefined) {
       return res
@@ -70,10 +74,10 @@ router.get('/search', async (req: Request, res: Response) => {
       return res.json({ topics: [] });
     }
 
-    const limit = Math.min(
-      queryInt(req.query.limit) || DEFAULT_TOPIC_SEARCH_LIMIT,
-      MAX_TOPIC_SEARCH_LIMIT,
-    );
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_TOPIC_SEARCH_LIMIT,
+      max: MAX_TOPIC_SEARCH_LIMIT,
+    });
     const topics = await topicService.search(query, limit);
     res.json({ topics });
   } catch (error) {

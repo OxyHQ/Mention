@@ -48,8 +48,8 @@ import type { CachedUserSummary } from '../services/userSummaryCache';
 import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { respondWithApiError } from '../utils/error';
-import { queryInt, queryString } from '../utils/queryParams';
-import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
+import { queryString } from '../utils/queryParams';
+import { resolvePageLimit, resolvePageNumber, resolvePageOffset } from '@oxy.so/utils/paging';
 import { customFeedSearchPredicate } from '../utils/searchPredicates';
 import { likeContains } from '@oxy.so/utils/sql';
 
@@ -411,11 +411,11 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     const { search, sortBy = 'trending' } = req.query;
     const category = queryString(req.query.category);
 
-    const page = Math.max(1, queryInt(req.query.page) || 1);
-    const limit = Math.min(
-      Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE),
-      MAX_FEED_PAGE_SIZE,
-    );
+    const page = resolvePageNumber(req.query.page);
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_FEED_PAGE_SIZE,
+      max: MAX_FEED_PAGE_SIZE,
+    });
     const skip = (page - 1) * limit;
 
     const conditions: Array<SQL | undefined> = [eq(customFeeds.isPublic, true)];
@@ -904,10 +904,10 @@ router.delete(
 router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const limit = Math.min(
-      Math.max(queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE, 1),
-      MAX_FEED_PAGE_SIZE,
-    );
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_FEED_PAGE_SIZE,
+      max: MAX_FEED_PAGE_SIZE,
+    });
     const cursor = queryString(req.query.cursor)?.trim();
 
     const loaded = await loadFeed(getDb(), String(req.params.id));
@@ -1090,11 +1090,11 @@ router.delete('/:id/like', validateObjectId('id'), async (req: AuthRequest, res:
 // Get reviews for a feed
 router.get('/:id/reviews', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
-    const page = Math.max(1, queryInt(req.query.page) || 1);
-    const limit = Math.min(
-      Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE),
-      MAX_FEED_PAGE_SIZE,
-    );
+    const page = resolvePageNumber(req.query.page);
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_FEED_PAGE_SIZE,
+      max: MAX_FEED_PAGE_SIZE,
+    });
     const skip = (page - 1) * limit;
 
     const feedId = String(req.params.id);

@@ -5,6 +5,7 @@
  * in `jobsManagement.controller.ts` / `routes/jobsManagement.ts`.
  */
 
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import type { Response, NextFunction } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
@@ -114,7 +115,7 @@ class JobsController {
         publishedAfter: queryString(req.query.publishedAfter),
         employers: employer ? [employer] : undefined,
         cursor: queryString(req.query.cursor),
-        limit: Math.min(queryInt(req.query.limit) ?? 20, 50),
+        limit: resolvePageLimit(req.query.limit, { fallback: 20, max: 50 }),
       });
       res.json(result);
     } catch (error) {

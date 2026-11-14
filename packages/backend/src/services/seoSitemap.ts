@@ -167,14 +167,16 @@ export async function hashtagHasListablePosts(tag: string): Promise<boolean> {
   return Boolean(row);
 }
 
-function publicSeoPost(): ReturnType<typeof and> {
+/**
+ * A post whose AUTHOR may be listed: public and published, by an author who has not opted out of
+ * discovery. A profile is listed because of this alone: a content warning gates one post's page,
+ * never the profile, so an author whose every post has a warning still has an indexable profile.
+ */
+function publicSeoAuthorPost(): ReturnType<typeof and> {
   return and(
     eq(posts.visibility, 'public'),
     eq(posts.status, 'published'),
     discoverySafeSql(),
-    // A post behind a content warning is served `noindex,nofollow` (the page
-    // gates it, see `requiresContentWarning`), so it is not listed here either.
-    or(isNull(posts.federationSpoilerText), sql`trim(${posts.federationSpoilerText}) = ''`),
     isNotNull(posts.oxyUserId),
     or(
       isNull(userSettings.privacyProfileVisibility),
@@ -188,6 +190,16 @@ function publicSeoPost(): ReturnType<typeof and> {
     ),
     // The same choice made at a federated author's origin.
     not(federatedSearchOptOutExists(posts.oxyUserId)),
+  );
+}
+
+/** A post that may be listed: an author's post (above) that is not behind a content warning. */
+function publicSeoPost(): ReturnType<typeof and> {
+  return and(
+    publicSeoAuthorPost(),
+    // A post behind a content warning is served `noindex,nofollow` (the page
+    // gates it, see `requiresContentWarning`), so it is not listed here.
+    or(isNull(posts.federationSpoilerText), sql`trim(${posts.federationSpoilerText}) = ''`),
   );
 }
 
@@ -403,7 +415,7 @@ async function buildProfileSitemaps(): Promise<{
     .select({ bucket, oxyUserId: posts.oxyUserId, lastModified: max(posts.updatedAt) })
     .from(posts)
     .leftJoin(userSettings, eq(userSettings.oxyUserId, posts.oxyUserId))
-    .where(publicSeoPost())
+    .where(publicSeoAuthorPost())
     .groupBy(posts.oxyUserId)
     .orderBy(asc(posts.oxyUserId));
 

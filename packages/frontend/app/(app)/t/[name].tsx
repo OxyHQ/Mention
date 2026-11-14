@@ -219,6 +219,8 @@ export default function TrendScreen() {
           onValueChange={(value) => setSort(value as TopicSort)}
           variant="underline"
           fullWidth
+          // Pressing the sort you are on reselects the screen: back to the top, then a reload.
+          pressOpenTab="reselect"
           label={t('trend.topic.order', { defaultValue: 'Orden' })}
         >
           <TabsTrigger value="top" label={t('trend.topic.sortTop', { defaultValue: 'Top' })} />

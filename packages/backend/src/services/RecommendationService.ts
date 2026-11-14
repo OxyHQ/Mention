@@ -35,6 +35,7 @@ import { getMentionOxyClientId } from '../utils/oxyHelpers';
 import { ForegroundRankingError } from './ForegroundOxyProfileClient';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 import type { OxyClient } from '../utils/privacyHelpers';
+import { encodeOffsetCursor } from '../utils/offsetCursor';
 
 /** Default page size when the caller omits `limit`. */
 export const DEFAULT_RECOMMENDATION_LIMIT = 20;
@@ -112,30 +113,6 @@ export class RecommendationsUnavailableError extends Error {
 }
 
 /**
- * Encode a numeric offset into the opaque cursor the frontend echoes back. The
- * scheme is intentionally simple (base64url of the decimal offset) — it is NOT a
- * security boundary, only a stable, URL-safe token so the API can evolve the
- * cursor format later without the frontend depending on a raw integer.
- */
-export function encodeRecommendationCursor(offset: number): string {
-  return Buffer.from(String(offset), 'utf8').toString('base64url');
-}
-
-/**
- * Decode a cursor produced by {@link encodeRecommendationCursor} back into a
- * non-negative offset. Returns `null` for any malformed/invalid cursor so the
- * caller can fall back to the first page rather than error the discovery surface.
- * `Buffer.from(..., 'base64url')` decodes leniently and never throws, so no
- * try/catch is needed.
- */
-export function decodeRecommendationCursor(cursor: string): number | null {
-  const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-  const parsed = Number.parseInt(decoded, 10);
-  if (!Number.isInteger(parsed) || parsed < 0) return null;
-  return parsed;
-}
-
-/**
  * Shape one upstream page into the paginated response. A FULL upstream page
  * (`rawCount >= limit`) implies a next page may exist. The cursor advances by
  * the raw count Oxy returned (NOT the mapped `profiles.length`) so dropped
@@ -151,7 +128,7 @@ function toOffsetPage(
   const candidateNextOffset = offset + rawCount;
   const hasMore = rawCount >= limit && candidateNextOffset <= MAX_RECOMMENDATION_OFFSET;
   const nextOffset = hasMore ? candidateNextOffset : null;
-  const nextCursor = nextOffset !== null ? encodeRecommendationCursor(nextOffset) : null;
+  const nextCursor = nextOffset !== null ? encodeOffsetCursor({ offset: nextOffset }) : null;
   return { recommendations: profiles, nextCursor, nextOffset, hasMore };
 }
 

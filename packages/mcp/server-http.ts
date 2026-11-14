@@ -13,11 +13,11 @@
  *   MCP_MAX_REQUEST_BODY_BYTES   — Max JSON body size (default: 1048576)
  *   MCP_MAX_SESSIONS             — Max open legacy SSE sessions per task (default: 1000)
  */
-import { startPlatformActivity } from './lib/platform-activity.js';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { startEcosystemTraffic } from '@oxy.so/core/server';
 import { buildProtectedResourceMetadata, extractBearerToken } from '@oxy.so/mcp';
 import { MENTION_MCP_CAPABILITIES } from '@mention/shared-types/mcpCapabilities';
 import { loadMcpHttpConfig, type McpHttpConfig } from './lib/config.js';
@@ -320,9 +320,13 @@ async function main() {
   const { createServer } = await import('node:http');
 
   let listening = false;
-  const activity = startPlatformActivity(() => listening);
+  const activity = startEcosystemTraffic({
+    service: 'mention-mcp',
+    ready: () => listening,
+    deployedOnly: true,
+  });
   const httpServer = createServer((req, res) => {
-    activity?.observeHttp(req, res, () => {});
+    activity.observeHttp(req, res, () => {});
     void (async () => {
       const url = new URL(req.url || '/', `http://localhost:${PORT}`);
       const pathname = url.pathname;
@@ -510,7 +514,7 @@ async function main() {
     await legacySseSessions.closeAll();
     httpServer.closeIdleConnections?.();
     await serverClosed;
-    await activity?.stop();
+    await activity.stop();
     clearTimeout(forceExit);
     logInfo('Shutdown complete');
     process.exit(0);

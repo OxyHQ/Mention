@@ -41,12 +41,11 @@ vi.mock('../../services/ContentAffinityService', () => ({
 import {
   RecommendationService,
   buildBoostsFromCandidates,
-  encodeRecommendationCursor,
-  decodeRecommendationCursor,
   MAX_RECOMMENDATION_OFFSET,
   RecommendationsUnavailableError,
 } from '../../services/RecommendationService';
 import { ForegroundRankingError } from '../../services/ForegroundOxyProfileClient';
+import { decodeOffsetCursor, encodeOffsetCursor } from '../../utils/offsetCursor';
 import { logger } from '../../utils/logger';
 
 const rankingClient = { rank: mocks.rank, newest: mocks.newest };
@@ -268,7 +267,7 @@ describe('RecommendationService.getRecommendations', () => {
           _count: { followers: 0, following: 0 },
         },
       ],
-      nextCursor: 'MTA',
+      nextCursor: encodeOffsetCursor({ offset: 10 }),
       nextOffset: 10,
       hasMore: true,
     };
@@ -540,9 +539,9 @@ describe('RecommendationService pagination', () => {
 
     expect(result.hasMore).toBe(true);
     expect(result.nextOffset).toBe(30); // offset (20) + rawCount (10)
-    expect(result.nextCursor).toBe(encodeRecommendationCursor(30));
+    expect(result.nextCursor).toBe(encodeOffsetCursor({ offset: 30 }));
     // A round-trip through the cursor yields the same next offset.
-    expect(decodeRecommendationCursor(result.nextCursor as string)).toBe(30);
+    expect(decodeOffsetCursor(result.nextCursor as string)?.offset).toBe(30);
   });
 
   it('advances the cursor by the RAW upstream count, not the mapped length', async () => {
@@ -629,20 +628,6 @@ describe('RecommendationService.getNewest', () => {
     expect(mocks.newest).toHaveBeenCalledWith({ limit: 3, offset: 6 });
     expect(result.recommendations.map((p) => p.id)).toEqual(['new']);
     expect(result.nextOffset).toBe(9);
-  });
-});
-
-describe('recommendation cursor codec', () => {
-  it('round-trips an offset through encode/decode', () => {
-    for (const offset of [0, 1, 20, 250, 1000]) {
-      expect(decodeRecommendationCursor(encodeRecommendationCursor(offset))).toBe(offset);
-    }
-  });
-
-  it('returns null for a malformed/garbage cursor', () => {
-    expect(decodeRecommendationCursor('not-a-real-cursor!!')).toBeNull();
-    expect(decodeRecommendationCursor(Buffer.from('-3', 'utf8').toString('base64url'))).toBeNull();
-    expect(decodeRecommendationCursor(Buffer.from('abc', 'utf8').toString('base64url'))).toBeNull();
   });
 });
 

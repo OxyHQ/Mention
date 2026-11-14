@@ -1,3 +1,4 @@
+import { resolvePageOffset } from '@oxy.so/utils/paging';
 import { Router, type Response } from 'express';
 import {
   requireOxyAuth as requireAuth,
@@ -7,7 +8,6 @@ import { syraClient, listPodcastEpisodes } from '../utils/syraPodcast';
 import { sendErrorResponse } from '../utils/apiHelpers';
 import { sendPaginated } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
-import { queryInt } from '../utils/queryParams';
 
 const router = Router();
 
@@ -50,7 +50,7 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
 
     // Zero-based page offset for infinite scroll. Absent or malformed values
     // start from the first page rather than erroring a scroll.
-    const offset = Math.max(queryInt(req.query.offset) ?? 0, 0);
+    const offset = resolvePageOffset(req.query.offset);
 
     if (type === 'song') {
       const page = await syraClient.searchTracks(query, { limit: SEARCH_RESULT_LIMIT, offset });
@@ -123,7 +123,7 @@ router.get('/podcasts/:id/episodes', async (req: AuthRequest, res: Response) => 
 
     // Zero-based page offset for infinite scroll. Absent or malformed values
     // start from the first page rather than erroring a scroll.
-    const offset = Math.max(queryInt(req.query.offset) ?? 0, 0);
+    const offset = resolvePageOffset(req.query.offset);
 
     const page = await listPodcastEpisodes(id, { offset });
 

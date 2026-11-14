@@ -301,16 +301,16 @@ describe('GET /notifications keyset pagination', () => {
     }
   });
 
-  it('clamps the page size and rejects an anonymous viewer', async () => {
+  it('bounds the page size and rejects an anonymous viewer', async () => {
     const viewer = viewerId();
     for (let index = 1; index <= 3; index += 1) await seed(viewer, { id: objectIdShaped(index) });
 
     const clamped = await request(makeApp(viewer)).get('/').query({ limit: 5000 }).expect(200);
     expect(clamped.body.limit).toBe(50);
 
-    const floored = await request(makeApp(viewer)).get('/').query({ limit: -3 }).expect(200);
-    expect(floored.body.limit).toBe(1);
-    expect(floored.body.notifications).toHaveLength(1);
+    const unusable = await request(makeApp(viewer)).get('/').query({ limit: -3 }).expect(200);
+    expect(unusable.body.limit).toBe(20);
+    expect(unusable.body.notifications).toHaveLength(3);
 
     await request(makeApp(undefined)).get('/').expect(401);
   });

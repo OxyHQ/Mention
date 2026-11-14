@@ -1,3 +1,4 @@
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { Router, type Response } from 'express';
 import { getErrorStatus } from '@oxy.so/core';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -5,7 +6,7 @@ import { isAccountErased } from '../services/accountErasure/erasedAccounts';
 import { loadProfileConnections } from '../services/federation/remoteConnections';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get('/:userId/:kind', async (req: AuthRequest, res: Response) => {
   try {
     if (await isAccountErased(userId))
       return res.status(404).json({ message: 'Profile not found' });
-    const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+    const limit = resolvePageLimit(req.query.limit, { fallback: DEFAULT_LIMIT, max: MAX_LIMIT });
     const page = await loadProfileConnections({
       profileUserId: userId,
       kind,

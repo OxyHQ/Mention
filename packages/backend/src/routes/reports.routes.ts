@@ -1,3 +1,4 @@
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import type { ModerationReportReceipt } from '@mention/shared-types';
@@ -13,7 +14,6 @@ import { DuplicateReportError, createReport } from '../services/moderation/Repor
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 import { callerAccountAccess } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
-import { queryInt } from '../utils/queryParams';
 
 const router = Router();
 
@@ -262,10 +262,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         ? (reportedType as ReportedType)
         : undefined;
 
-    const limitNum = Math.min(
-      Math.max(queryInt(req.query.limit) || DEFAULT_REPORTS_PAGE_SIZE, 1),
-      MAX_REPORTS_PAGE_SIZE,
-    );
+    const limitNum = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_REPORTS_PAGE_SIZE,
+      max: MAX_REPORTS_PAGE_SIZE,
+    });
 
     /**
      * The cursor is opaque and the keyset names the SAME pair the sort does.

@@ -1,3 +1,4 @@
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { Router, type Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -6,7 +7,7 @@ import { getDb } from '../db/postgres';
 import { postSubscriptions } from '../db/schema/engagement';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import type { CachedUserSummary } from '../services/userSummaryCache';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { logger } from '../utils/logger';
 
@@ -122,10 +123,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const limit = Math.min(
-      Math.max(queryInt(req.query.limit) || DEFAULT_SUBSCRIPTION_PAGE_SIZE, 1),
-      MAX_SUBSCRIPTION_PAGE_SIZE,
-    );
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_SUBSCRIPTION_PAGE_SIZE,
+      max: MAX_SUBSCRIPTION_PAGE_SIZE,
+    });
     // A malformed token yields the first page rather than an error.
     const cursor = decodeChronoCursor(queryString(req.query.cursor));
 

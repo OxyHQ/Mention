@@ -22,7 +22,7 @@ import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
 import { logger } from '../utils/logger';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
@@ -767,10 +767,10 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     const cursor = queryString(req.query.cursor);
     // Bounded positive integer: the page's last row is read by index below, so a
     // NaN / zero / negative limit would index outside the page.
-    const limit = Math.min(
-      Math.max(queryInt(req.query.limit) || DEFAULT_TIMELINE_PAGE_SIZE, 1),
-      MAX_TIMELINE_PAGE_SIZE,
-    );
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_TIMELINE_PAGE_SIZE,
+      max: MAX_TIMELINE_PAGE_SIZE,
+    });
     const listId = String(req.params.id);
     const db = getDb();
     const [list] = await db

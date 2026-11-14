@@ -220,25 +220,10 @@ describe('polls controller called the way Express calls it', () => {
   });
 });
 
-describe('the id guards — a documented 400, widened to both live shapes', () => {
-  it.each([
-    ['getPoll', 'getPoll' as const],
-    ['getResults', 'getResults' as const],
-    ['deletePoll', 'deletePoll' as const],
-  ])('%s answers 400 for a malformed id', async (_label, key) => {
-    const handler = pollsController[key];
-    const { captured } = await call(handler, {
-      accessToken: 'test-viewer-session',
-      params: { id: 'definitely-not-an-id' },
-      user: { id: 'u1' },
-    });
-    expect(captured.status).toBe(400);
-  });
-
+describe('the id shapes — malformed ids are refused by `validateObjectId` at the route', () => {
   it('accepts a uuid v7 id and answers 404 when it names nothing', async () => {
-    // `@oxy.so/db` exists for exactly this: the 400 stays a contract, but a poll
-    // created after the cutover carries a uuid v7 and must not be rejected as
-    // malformed.
+    // A poll created after the cutover carries a uuid v7 and must not be
+    // rejected as malformed.
     const { getPoll } = pollsController;
     const { captured } = await call(getPoll, {
       accessToken: 'test-viewer-session',
@@ -524,7 +509,7 @@ describe('updatePollPostId', () => {
     expect(post.contentPollId).toBe(poll.id);
   });
 
-  it('answers 400 when either id is malformed', async () => {
+  it('answers 400 when the post id is malformed', async () => {
     const author = `author-${randomUUID()}`;
     const { poll } = await seedPoll({ createdBy: author });
     const { updatePollPostId } = pollsController;

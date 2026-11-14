@@ -9,6 +9,7 @@ import { getDb } from '../db/postgres';
 import { pollOptions, polls } from '../db/schema/polls';
 import { posts } from '../db/schema/posts';
 import { config } from '../config';
+import { sendErrorResponse } from '../utils/apiHelpers';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import {
@@ -171,7 +172,7 @@ function isTemporaryPostId(value: string): boolean {
  * `db/schema/CONVENTIONS.md`. The body carries no `details` map.
  */
 function validationError(res: Response, message: string) {
-  return res.status(400).json({ error: 'Validation Error', message });
+  return sendErrorResponse(res, 400, 'Validation Error', message);
 }
 
 /**
@@ -208,7 +209,7 @@ async function canViewerAccessPoll(
 
 function pollNotFound(res: Response) {
   // Do not disclose whether a poll exists behind an inaccessible post.
-  return res.status(404).json({ error: 'Not found', message: 'Poll not found' });
+  return sendErrorResponse(res, 404, 'Not found', 'Poll not found');
 }
 
 class PollsController {
@@ -225,18 +226,18 @@ class PollsController {
       });
 
       if (!userId) {
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'User ID not found in request',
-        });
+        return sendErrorResponse(
+          res,
+          401,
+          'Authentication required',
+          'User ID not found in request',
+        );
       }
 
       // Parsed AFTER the 401, which is the order the hand-rolled checks ran in
       // and the reason this is not `validateBody` in the route position: that
       // middleware runs before the handler, so an unauthenticated caller with a
-      // malformed body would stop getting the 401 it gets today. `middleware/
-      // validate.ts` also answers in a different envelope from this file's
-      // `validationError`, whose docstring explains why it looks the way it does.
+      // malformed body would stop getting the 401 it gets today.
       const parsed = createPollSchema.safeParse(req.body);
       if (!parsed.success) {
         return validationError(res, parsed.error.issues.map((issue) => issue.message).join('; '));
@@ -269,16 +270,15 @@ class PollsController {
           .where(eq(posts.id, attachedPostId))
           .limit(1);
         if (!post) {
-          return res.status(404).json({
-            error: 'Not found',
-            message: 'Post not found',
-          });
+          return sendErrorResponse(res, 404, 'Not found', 'Post not found');
         }
         if (post.oxyUserId !== userId) {
-          return res.status(403).json({
-            error: 'Forbidden',
-            message: 'You can only create polls for your own posts',
-          });
+          return sendErrorResponse(
+            res,
+            403,
+            'Forbidden',
+            'You can only create polls for your own posts',
+          );
         }
       }
 
@@ -330,7 +330,7 @@ class PollsController {
         // The post was there a moment ago and is not now — the same condition
         // the pre-check answers 404 for, observed one statement later.
         if (isForeignKeyViolation(error)) {
-          return res.status(404).json({ error: 'Not found', message: 'Post not found' });
+          return sendErrorResponse(res, 404, 'Not found', 'Post not found');
         }
         // Unnamed on purpose: every CHECK on `polls`/`poll_options` is
         // application-controlled, so this is a backstop that keeps a
@@ -349,16 +349,6 @@ class PollsController {
   async getPoll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-
-      // A 400 for a malformed poll id is a documented contract of these routes
-      // (`@oxy.so/db` names them), so the guard is WIDENED to both live id shapes
-      // rather than deleted. It rejects; it never decides what to query.
-      if (!id || !isLiveEntityId(id)) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Invalid poll ID',
-        });
-      }
 
       const viewerId = req.user?.id;
       if (!viewerId) return pollNotFound(res);
@@ -387,19 +377,16 @@ class PollsController {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'User ID not found in request',
-        });
+        return sendErrorResponse(
+          res,
+          401,
+          'Authentication required',
+          'User ID not found in request',
+        );
       }
 
       const parsedVote = voteSchema.safeParse(req.body);
-      if (!id || !isLiveEntityId(id) || !parsedVote.success) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Valid poll ID and option ID are required',
-        });
-      }
+      if (!parsedVote.success) return validationError(res, 'optionId is required');
 
       // The ACL runs off the header alone, before the write: the vote path
       // used to hydrate every voter on the poll just to decide whether the
@@ -425,15 +412,18 @@ class PollsController {
 
       switch (result.reason) {
         case 'poll_not_found':
-          return res.status(404).json({ error: 'Not found', message: 'Poll not found' });
+          return sendErrorResponse(res, 404, 'Not found', 'Poll not found');
         case 'poll_ended':
-          return res.status(400).json({ error: 'Invalid request', message: 'This poll has ended' });
+          return sendErrorResponse(res, 400, 'Invalid request', 'This poll has ended');
         case 'option_not_found':
-          return res.status(404).json({ error: 'Not found', message: 'Option not found' });
+          return sendErrorResponse(res, 404, 'Not found', 'Option not found');
         case 'already_voted':
-          return res
-            .status(400)
-            .json({ error: 'Invalid request', message: 'You have already voted in this poll' });
+          return sendErrorResponse(
+            res,
+            400,
+            'Invalid request',
+            'You have already voted in this poll',
+          );
       }
     } catch (error) {
       logger.error('[Polls] Error voting in poll:', error);
@@ -444,13 +434,6 @@ class PollsController {
   async getResults(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-
-      if (!id || !isLiveEntityId(id)) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Invalid poll ID',
-        });
-      }
 
       const viewerId = req.user?.id;
       if (!viewerId) return pollNotFound(res);
@@ -491,17 +474,12 @@ class PollsController {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'User ID not found in request',
-        });
-      }
-
-      if (!id || !isLiveEntityId(id)) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Invalid poll ID',
-        });
+        return sendErrorResponse(
+          res,
+          401,
+          'Authentication required',
+          'User ID not found in request',
+        );
       }
 
       const [poll] = await getDb()
@@ -510,18 +488,12 @@ class PollsController {
         .where(eq(polls.id, id))
         .limit(1);
       if (!poll) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: 'Poll not found',
-        });
+        return sendErrorResponse(res, 404, 'Not found', 'Poll not found');
       }
 
       // Check if user is the poll creator
       if (poll.createdBy !== userId) {
-        return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only delete your own polls',
-        });
+        return sendErrorResponse(res, 403, 'Forbidden', 'You can only delete your own polls');
       }
 
       // Unlinking the post and deleting the poll are one unit. A NULL `post_id`
@@ -551,19 +523,16 @@ class PollsController {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({
-          error: 'Authentication required',
-          message: 'User ID not found in request',
-        });
+        return sendErrorResponse(
+          res,
+          401,
+          'Authentication required',
+          'User ID not found in request',
+        );
       }
 
-      // Both ids are a documented 400 on this route ("Valid poll ID and post ID
-      // are required"), so both guards widen rather than disappear.
-      if (!id || !isLiveEntityId(id) || typeof postId !== 'string' || !isLiveEntityId(postId)) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Valid poll ID and post ID are required',
-        });
+      if (typeof postId !== 'string' || !isLiveEntityId(postId)) {
+        return validationError(res, 'A valid postId is required');
       }
 
       // Find the poll
@@ -573,18 +542,12 @@ class PollsController {
         .where(eq(polls.id, id))
         .limit(1);
       if (!poll) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: 'Poll not found',
-        });
+        return sendErrorResponse(res, 404, 'Not found', 'Poll not found');
       }
 
       // Check if user is the poll creator
       if (poll.createdBy !== userId) {
-        return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only update your own polls',
-        });
+        return sendErrorResponse(res, 403, 'Forbidden', 'You can only update your own polls');
       }
 
       // Check if post exists
@@ -594,18 +557,17 @@ class PollsController {
         .where(eq(posts.id, postId))
         .limit(1);
       if (!post) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: 'Post not found',
-        });
+        return sendErrorResponse(res, 404, 'Not found', 'Post not found');
       }
 
       // Check if user is the post owner
       if (post.oxyUserId !== userId) {
-        return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only update polls for your own posts',
-        });
+        return sendErrorResponse(
+          res,
+          403,
+          'Forbidden',
+          'You can only update polls for your own posts',
+        );
       }
 
       // Both directions of the link move together — the poll pointing at the

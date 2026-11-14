@@ -1,3 +1,4 @@
+import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -20,7 +21,7 @@ import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { blockedEitherWay } from '../utils/privacyHelpers';
 import { resolveNotificationInboxIds } from '../services/notificationInbox';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
@@ -194,10 +195,10 @@ const listNotificationsHandler = async (req: AuthRequest, res: Response) => {
 
     // Use cursor-based pagination for better performance at scale
     const cursor = queryString(req.query.cursor);
-    const limit = Math.min(
-      Math.max(queryInt(req.query.limit) || DEFAULT_NOTIFICATIONS_PAGE_SIZE, 1),
-      MAX_NOTIFICATIONS_PAGE_SIZE,
-    );
+    const limit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_NOTIFICATIONS_PAGE_SIZE,
+      max: MAX_NOTIFICATIONS_PAGE_SIZE,
+    });
 
     const recipientIds = await inboxRecipientIds(req, userId);
     /** The channels among them — everything in the scope that is not the viewer. */
