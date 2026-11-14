@@ -6,10 +6,9 @@ import { api } from '@/utils/api';
 import { useTrendsStore } from '@/stores/trendsStore';
 import {
   currentReaderEpoch,
-  NO_TRANSLATION,
   patchPostTranslation,
   type PostTranslationState,
-  usePostReader,
+  usePostTranslation,
 } from '@/stores/readerStateStore';
 import {
   buildPostLanguageOptions,
@@ -106,8 +105,7 @@ export function usePostLanguage(
    * into another post a recycled row is handed, and a translation that lands
    * after the row moved on still reaches the post it was asked for.
    */
-  const translation = usePostReader(postId, (entry) => entry.translation) ?? NO_TRANSLATION;
-  const { selectedTag, fetchedBodies, isTranslating } = translation;
+  const { selectedTag, fetchedBodies, isTranslating } = usePostTranslation(postId);
 
   const servedTag = servedLanguageTag(content, postLanguage);
 
@@ -122,9 +120,9 @@ export function usePostLanguage(
       // Every write below targets THIS post under THIS viewer, wherever the row
       // that asked has gone since.
       const epoch = currentReaderEpoch();
-      const patch = (next: Partial<PostTranslationState>) =>
-        patchPostTranslation(postId, () => next, epoch);
-      patch({ isTranslating: true });
+      const patch = (next: (previous: PostTranslationState) => Partial<PostTranslationState>) =>
+        patchPostTranslation(postId, next, epoch);
+      patch(() => ({ isTranslating: true }));
       try {
         const { data } = await api.post<TranslateResponse>(`/posts/${postId}/translate`, {
           targetLanguage: tag,
@@ -135,21 +133,17 @@ export function usePostLanguage(
           // we asked for, so it lines up with the variant the next hydration
           // ships, and follow the selection over to it.
           const storedTag = data.tag ?? tag;
-          patchPostTranslation(
-            postId,
-            (previous) => ({
-              fetchedBodies: { ...previous.fetchedBodies, [storedTag]: translated },
-              selectedTag: storedTag,
-              isTranslating: false,
-            }),
-            epoch,
-          );
+          patch((previous) => ({
+            fetchedBodies: { ...previous.fetchedBodies, [storedTag]: translated },
+            selectedTag: storedTag,
+            isTranslating: false,
+          }));
           return;
         }
-        patch({ selectedTag: null, isTranslating: false });
+        patch(() => ({ selectedTag: null, isTranslating: false }));
         toast(t('translation.failed'), { type: 'error' });
       } catch (error: unknown) {
-        patch({ selectedTag: null, isTranslating: false });
+        patch(() => ({ selectedTag: null, isTranslating: false }));
         const status = (error as { response?: { status?: number } })?.response?.status;
         toast(t(status === 429 ? 'translation.rateLimited' : 'translation.failed'), {
           type: 'error',

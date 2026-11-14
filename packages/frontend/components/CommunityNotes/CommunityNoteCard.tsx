@@ -9,7 +9,7 @@ import { RiThumbDownLine } from '@oxy.so/bloom/icons/RiThumbDownLine';
 import { RiThumbUpLine } from '@oxy.so/bloom/icons/RiThumbUpLine';
 import type { CommunityNoteRating, CommunityNoteSummary } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { readerKeys, useReaderFlag } from '@/stores/readerStateStore';
+import { readerKeys, toggleReaderFlag, useReaderFlag } from '@/stores/readerStateStore';
 
 interface CommunityNoteCardProps {
   note: CommunityNoteSummary;
@@ -49,7 +49,9 @@ export function CommunityNoteCard({
   // Held by the NOTE (`readerStateStore`), not the card: in a feed the card is
   // drawn by a recycled row, and a card-held boolean opened the next post's
   // note and folded this one shut after a scroll away and back.
-  const [expanded, toggleExpanded] = useReaderFlag(readerKeys.communityNote(note.id));
+  const expandedKey = readerKeys.communityNote(note.id);
+  const expanded = useReaderFlag(expandedKey);
+  const toggleExpanded = () => toggleReaderFlag(expandedKey);
   const isRate = variant === 'rate';
   // Measuring rendered lines is unreliable on web (`onTextLayout` does not
   // fire), so "long" is decided by length: past this a note needs 3+ lines at

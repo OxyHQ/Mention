@@ -7,7 +7,7 @@ import {
   useReaderStateStore,
 } from '../readerStateStore';
 
-const posts = () => useReaderStateStore.getState().posts;
+const translations = () => useReaderStateStore.getState().translations;
 
 beforeEach(() => {
   resetReaderState();
@@ -20,9 +20,9 @@ it('keeps the most recent entries and evicts the oldest past the cap', () => {
   // Touching an old entry makes it the newest, so the next one out is `1`.
   patchPostTranslation('0', () => ({ selectedTag: 'fr' }));
 
-  expect(posts().size).toBe(MAX_READER_ENTRIES);
-  expect(posts().get('0')?.translation?.selectedTag).toBe('fr');
-  expect(posts().has('1')).toBe(false);
+  expect(translations().size).toBe(MAX_READER_ENTRIES);
+  expect(translations().get('0')?.selectedTag).toBe('fr');
+  expect(translations().has('1')).toBe(false);
 });
 
 it('forgets everything on a viewer switch and drops writes started before it', () => {
@@ -34,6 +34,6 @@ it('forgets everything on a viewer switch and drops writes started before it', (
   // A translation the previous viewer asked for lands after the switch.
   patchPostTranslation('post-1', () => ({ selectedTag: 'en' }), epoch);
 
-  expect(posts().size).toBe(0);
+  expect(translations().size).toBe(0);
   expect(useReaderStateStore.getState().flags.size).toBe(0);
 });

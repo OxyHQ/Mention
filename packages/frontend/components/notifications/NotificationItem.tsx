@@ -42,7 +42,7 @@ import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
 import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
-import { readerKeys, useReaderFlag } from '@/stores/readerStateStore';
+import { readerKeys, toggleReaderFlag, useReaderFlag } from '@/stores/readerStateStore';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
 import { useStorePost } from '@/hooks/useStorePost';
@@ -357,11 +357,13 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // (`readerStateStore`), not the row. The list recycles rows by notification
   // type, so a row-held boolean opened the next group of that type, and an
   // opened group folded shut when the reader scrolled away and back.
-  const [expanded, toggleExpanded] = useReaderFlag(readerKeys.notificationGroup(item.key));
+  const expandedKey = readerKeys.notificationGroup(item.key);
+  const expanded = useReaderFlag(expandedKey);
+  const toggleExpanded = () => toggleReaderFlag(expandedKey);
   // An invite action in flight, stamped with the post it is for so a recycled
   // row never shows another notification's request as its own.
   const [actionLoadingFor, setActionLoadingFor] = useState<string | null>(null);
-  const actionLoading = actionLoadingFor !== null && actionLoadingFor === postId;
+  const actionLoading = actionLoadingFor === postId;
 
   // Resolve the PRIMARY actor from the Oxy user cache reactively (the screen
   // prewarms it via `prewarmUsersByIds`). Cached fields are merged over the raw

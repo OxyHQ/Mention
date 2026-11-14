@@ -1,20 +1,15 @@
 import { useCallback, useRef, useState } from 'react';
 import { computeExpandableText } from '@/utils/expandableText';
-import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
 
 /**
- * Shared expansion state for plain text and parsed Markdown previews outside a
- * list (a profile bio). A POST's body uses {@link usePostTextExpansion}.
+ * Expansion state for text outside a list (a profile bio). A POST's body is
+ * held by the post in `readerStateStore` instead, so it survives scrolling.
  *
- * `resetKey` collapses `isExpanded` back to `false` whenever it (or `text`)
- * changes, using the ref-during-render pattern (no `useEffect`). This covers
- * two cases in one place: callers that pass the setting driving the preview
- * length/behavior (e.g. `postReadMoreAction`, `collapseLongBio`) so flipping
- * it in Settings doesn't leave a stale expanded post/bio; and content reuse
- * (e.g. a recycled list item) where `text` itself changes out from under an
- * already-expanded instance.
+ * `resetKey` (the setting driving the preview, e.g. `collapseLongBio`) or a new
+ * `text` collapses it again, using the ref-during-render pattern (no
+ * `useEffect`), so flipping the setting never leaves a stale expanded bio.
  */
-export function useTextExpansion(text: string, resetKey?: unknown) {
+function useTextExpansion(text: string, resetKey?: unknown) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const prevTextRef = useRef(text);
@@ -28,23 +23,6 @@ export function useTextExpansion(text: string, resetKey?: unknown) {
   }
 
   const toggle = useCallback(() => setIsExpanded((prev) => !prev), []);
-  return { isExpanded, toggle };
-}
-
-/**
- * Whether the reader expanded one post's body inline ("Read more").
- *
- * Held by the POST in `readerStateStore`, not by the row: post rows live in
- * virtualized lists that recycle or unmount them, and an expansion held in the
- * row collapsed again when the reader scrolled away and back. It survives a
- * switch to another rendition of the same post too — reading a translation of
- * a long post the reader already opened should not fold it shut.
- */
-export function usePostTextExpansion(postId: string | undefined) {
-  const isExpanded = usePostReader(postId, (entry) => entry.textExpanded === true);
-  const toggle = useCallback(() => {
-    patchPostReader(postId, (entry) => ({ ...entry, textExpanded: !entry.textExpanded }));
-  }, [postId]);
   return { isExpanded, toggle };
 }
 

@@ -54,7 +54,7 @@ import {
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
-import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
+import { readerKeys, toggleReaderFlag, useReaderFlag } from '@/stores/readerStateStore';
 import { ThreadHoverOverlay } from './ThreadHoverOverlay';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -203,13 +203,9 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // The reader's answer to this post's content warning belongs to the POST, not
   // to the row (`readerStateStore`): an opened warning stays open when the
   // reader scrolls away and back, and never opens another post's.
-  const isContentWarningOpen = usePostReader(postId, (entry) => entry.contentWarningOpen === true);
-  const toggleContentWarning = useCallback(() => {
-    patchPostReader(postId, (entry) => ({
-      ...entry,
-      contentWarningOpen: !entry.contentWarningOpen,
-    }));
-  }, [postId]);
+  const contentWarningKey = readerKeys.contentWarning(postId);
+  const isContentWarningOpen = useReaderFlag(contentWarningKey);
+  const toggleContentWarning = () => toggleReaderFlag(contentWarningKey);
   // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
   // under the hood — never `useMemo` over an out-of-band SQLite read).
   const storePost = usePostSelector(postId ? String(postId) : undefined);
@@ -1254,6 +1250,11 @@ const PostItemContent: React.FC<PostItemProps> = ({
 
               {shouldRenderMediaBlock && !isContentGated && (
                 <PostAttachmentsRow
+                  // Keyed by the post: a recycled cell hands this row another
+                  // post, and nothing an attachment holds (a started player, a
+                  // carousel offset) may carry over to it — an external embed
+                  // would play on the next post without its press or consent.
+                  key={viewPostId}
                   sensitive={isSensitiveContent && !spoilerText}
                   media={mediaItems}
                   attachments={attachmentDescriptors}

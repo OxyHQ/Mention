@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import type { FeedInterstitialKind } from '@mention/shared-types';
 
@@ -23,7 +23,8 @@ import type { FeedInterstitialKind } from '@mention/shared-types';
  *
  * In memory for the session and nothing more: a machine translation the reader
  * asked for is cached server-side and served on the next hydration anyway.
- * Bounded, oldest first, and cleared on an account switch.
+ * Translations and flags are bounded, oldest first; all of it is cleared on an
+ * account switch.
  */
 
 /** The reader's override of the rendition the server served for one post. */
@@ -35,26 +36,21 @@ export interface PostTranslationState {
   isTranslating: boolean;
 }
 
-export interface PostReaderEntry {
-  translation?: PostTranslationState;
-  contentWarningOpen?: boolean;
-  textExpanded?: boolean;
-  /** Sensitive media the reader chose to see, by media id. */
-  revealedMedia?: Readonly<Record<string, true>>;
-}
-
 interface ReaderState {
-  posts: ReadonlyMap<string, PostReaderEntry>;
-  /** On/off answers about things that are not posts — see {@link readerKeys}. */
+  /** Per post: the one answer that is data rather than on/off. */
+  translations: ReadonlyMap<string, PostTranslationState>;
+  /** Every on/off answer, by a {@link readerKeys} key. */
   flags: ReadonlyMap<string, true>;
-  /** Suggestion cards the reader dismissed, per interstitial band kind. */
+  /**
+   * Suggestion cards the reader dismissed, per interstitial band kind — a set,
+   * because a band filters its whole pool by it. Grows only by hand, one tap
+   * per card, so it is not capped.
+   */
   dismissedInterstitialItems: ReadonlyMap<FeedInterstitialKind, ReadonlySet<string>>;
 }
 
 /** Enough for a long session of scrolling; each entry is a few small fields. */
 export const MAX_READER_ENTRIES = 1_000;
-
-const EMPTY_ENTRY: PostReaderEntry = Object.freeze({});
 
 export const NO_TRANSLATION: PostTranslationState = Object.freeze({
   selectedTag: null,
@@ -64,9 +60,14 @@ export const NO_TRANSLATION: PostTranslationState = Object.freeze({
 
 /**
  * Every flag key, built in one place so no two features can collide and no
- * caller hand-writes a key string.
+ * caller hand-writes a key string. A post key with no post id yet is
+ * `undefined`, which reads off and writes nothing.
  */
 export const readerKeys = {
+  contentWarning: (postId: string | undefined) => postId && `content-warning:${postId}`,
+  postText: (postId: string | undefined) => postId && `post-text:${postId}`,
+  /** One sensitive media item of a post; revealing one never reveals the rest. */
+  media: (postId: string | undefined, mediaKey: string) => postId && `media:${postId}:${mediaKey}`,
   notificationGroup: (id: string) => `notification-group:${id}`,
   communityNote: (id: string) => `community-note:${id}`,
 } as const;
@@ -78,7 +79,7 @@ export const readerKeys = {
 let readerEpoch = 0;
 
 const emptyReaderState = (): ReaderState => ({
-  posts: new Map(),
+  translations: new Map(),
   flags: new Map(),
   dismissedInterstitialItems: new Map(),
 });
@@ -109,42 +110,37 @@ export function currentReaderEpoch(): number {
 }
 
 /**
- * Merge `patch` into one post's entry; a row with no post id yet writes
- * nothing. `epoch`, when given, is the
- * {@link currentReaderEpoch} the write was started under — a write from a
- * previous viewer is dropped.
+ * Merge into one post's translation override; a row with no post id yet writes
+ * nothing. `epoch`, when given, is the {@link currentReaderEpoch} the write was
+ * started under — a write from a previous viewer is dropped.
  */
-export function patchPostReader(
-  postId: string | undefined,
-  patch: (entry: PostReaderEntry) => PostReaderEntry,
-  epoch?: number,
-): void {
-  if (!postId || (epoch !== undefined && epoch !== readerEpoch)) return;
-  useReaderStateStore.setState((state) => ({
-    posts: withEntry(state.posts, postId, patch(state.posts.get(postId) ?? EMPTY_ENTRY)),
-  }));
-}
-
-/** Merge into one post's translation override (see {@link patchPostReader}). */
 export function patchPostTranslation(
   postId: string | undefined,
   patch: (translation: PostTranslationState) => Partial<PostTranslationState>,
   epoch?: number,
 ): void {
-  patchPostReader(
-    postId,
-    (entry) => {
-      const translation = entry.translation ?? NO_TRANSLATION;
-      return { ...entry, translation: { ...translation, ...patch(translation) } };
-    },
-    epoch,
-  );
+  if (!postId || (epoch !== undefined && epoch !== readerEpoch)) return;
+  useReaderStateStore.setState((state) => {
+    const translation = state.translations.get(postId) ?? NO_TRANSLATION;
+    return {
+      translations: withEntry(state.translations, postId, {
+        ...translation,
+        ...patch(translation),
+      }),
+    };
+  });
 }
 
-export function setReaderFlag(key: string, on: boolean): void {
+export function setReaderFlag(key: string | undefined, on: boolean): void {
+  if (!key) return;
   useReaderStateStore.setState((state) => ({
     flags: withEntry(state.flags, key, on ? true : undefined),
   }));
+}
+
+/** Flip one flag; an undefined key writes nothing. */
+export function toggleReaderFlag(key: string | undefined): void {
+  setReaderFlag(key, !(key && useReaderStateStore.getState().flags.has(key)));
 }
 
 export function resetReaderState(): void {
@@ -163,44 +159,16 @@ function useReaderSelect<T>(select: (state: ReaderState) => T): T {
   return useSyncExternalStore(useReaderStateStore.subscribe, getSnapshot, getSnapshot);
 }
 
-/**
- * One value read from one post's entry. `select` must return something stable
- * (a primitive, or an object held in the entry) so a write to another post, or
- * to another field of this one, does not re-render the caller.
- */
-export function usePostReader<T>(
-  postId: string | undefined,
-  select: (entry: PostReaderEntry) => T,
-): T {
-  return useReaderSelect((state) =>
-    select((postId ? state.posts.get(postId) : undefined) ?? EMPTY_ENTRY),
+/** One post's translation override, or {@link NO_TRANSLATION}. */
+export function usePostTranslation(postId: string | undefined): PostTranslationState {
+  return useReaderSelect(
+    (state) => (postId ? state.translations.get(postId) : undefined) ?? NO_TRANSLATION,
   );
 }
 
-/** Whether the reader revealed one sensitive media item of a post. */
-export function useMediaRevealed(
-  postId: string | undefined,
-  mediaKey: string | undefined,
-): boolean {
-  return usePostReader(postId, (entry) =>
-    mediaKey ? entry.revealedMedia?.[mediaKey] === true : false,
-  );
-}
-
-export function revealMedia(postId: string | undefined, mediaKey: string): void {
-  patchPostReader(postId, (entry) => ({
-    ...entry,
-    revealedMedia: { ...entry.revealedMedia, [mediaKey]: true },
-  }));
-}
-
-/** One flag and its toggle. An undefined key reads off and does not write. */
-export function useReaderFlag(key: string | undefined): [boolean, () => void] {
-  const on = useReaderSelect((state) => (key ? state.flags.has(key) : false));
-  const toggle = useCallback(() => {
-    if (key) setReaderFlag(key, !useReaderStateStore.getState().flags.has(key));
-  }, [key]);
-  return [on, toggle];
+/** Whether one flag is on; an undefined key reads off. Toggle with {@link toggleReaderFlag}. */
+export function useReaderFlag(key: string | undefined): boolean {
+  return useReaderSelect((state) => (key ? state.flags.has(key) : false));
 }
 
 /**

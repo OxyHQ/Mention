@@ -29,7 +29,7 @@ import {
   DEFAULT_ASPECT_RATIO,
 } from '@oxy.so/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
-import { revealMedia, useMediaRevealed } from '@/stores/readerStateStore';
+import { readerKeys, setReaderFlag, useReaderFlag } from '@/stores/readerStateStore';
 import type { MeasuredRect } from '@oxy.so/bloom/media-flight';
 import {
   useVideoPlayerLease,
@@ -582,9 +582,9 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   // (`readerStateStore`), not to the cell: revealing one never reveals the rest
   // of the row, and a revealed item stays revealed when the reader scrolls away
   // and back.
-  const mediaKey = mediaId ?? src;
-  const revealed = useMediaRevealed(postId, mediaKey);
-  const reveal = () => revealMedia(postId, mediaKey);
+  const revealKey = readerKeys.media(postId, mediaId ?? src);
+  const revealed = useReaderFlag(revealKey);
+  const reveal = () => setReaderFlag(revealKey, true);
   // Drawn INSIDE the media's own box, so the cover is exactly the media's size
   // and no wrapper stands between the box and the row it sizes against. Keeping
   // the media mounted under it means revealing does not remount or reload it —
