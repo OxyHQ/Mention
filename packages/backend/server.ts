@@ -6,10 +6,10 @@ import {
   assertQueueReady,
   runsBackgroundJobs,
 } from './src/runtime/processRole';
+import { startEcosystemTraffic } from '@oxy.so/core/server';
 import { startBackgroundJobs } from './src/runtime/backgroundJobs';
 import { getRuntimeOxyClient } from './src/runtime/oxyClient';
 import { initConnectors } from './src/connectors';
-import { startPlatformActivity } from './src/runtime/platformActivity';
 import { getRuntimeHealthState } from './src/utils/runtimeHealth';
 import { hostname } from 'node:os';
 import { config, validateEnvironment } from './src/config';
@@ -42,7 +42,11 @@ import {
 // have finished, so the sanitizer and validated config are live in a handler.
 registerGlobalErrorHandlers();
 
-const activity = startPlatformActivity(() => getRuntimeHealthState().phase === 'ready');
+const activity = startEcosystemTraffic({
+  service: 'mention',
+  ready: () => getRuntimeHealthState().phase === 'ready',
+  deployedOnly: true,
+});
 const isWorker = config.runtime.processRole === 'worker';
 const splitProcess = config.runtime.processRole !== 'combined';
 if (isWorker) initConnectors();
@@ -53,7 +57,7 @@ export const { app, oxy } = isWorker
 /** Do not load product route trees or their caches into a dedicated worker. */
 function createHttpRuntime() {
   const { createRuntimeApp }: typeof import('./src/runtimeApp') = require('./src/runtimeApp');
-  return createRuntimeApp(activity?.observeHttp);
+  return createRuntimeApp(activity.observeHttp);
 }
 
 // --- Sockets ---
@@ -80,7 +84,7 @@ if (!isWorker) presence.startHousekeeping();
 
 const namespaces = createSocketNamespaces(io, oxy);
 for (const namespace of [io.of('/'), ...Object.values(namespaces)]) {
-  namespace.on('connection', (socket: Socket) => activity?.observeSocket(socket));
+  namespace.on('connection', (socket: Socket) => activity.observeSocket(socket));
 }
 if (!isWorker) registerSocketHandlers(io, namespaces, presence);
 const notificationsNamespace = namespaces.notificationsNamespace;
@@ -141,7 +145,7 @@ const bootServer = async () => {
 };
 
 registerGracefulShutdown({
-  stopActivity: () => activity?.stop() ?? Promise.resolve(),
+  stopActivity: () => activity.stop(),
   server,
   io,
   presence,
