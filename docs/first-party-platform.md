@@ -21,26 +21,35 @@ own registration explicitly. An application identifier is identity, not proof
 that a credential is internal. Only shared verification may produce
 `authority: first_party`; API keys remain external even for an official app.
 
-## Original account and downstream operations
+## Acting for people (oxy ADR 0066)
 
-Shared middleware verifies every own incoming service token and requester
-session/task live. Mention preserves the verified effective account. It never
-substitutes a bot owner, service owner, arbitrary account header or service JWT
-for the requester. For a human operating an organization, foreground profile
-operations keep the original operator and effective organization separately.
+Oxy's own services never ask people for permissions, tasks, sessions-as-proof or
+consent; permissions, scopes and consent are only for third parties. Mention's
+entry in [Oxy's first-party registry](https://github.com/OxyHQ/oxy/blob/main/packages/api/src/scripts/seedOxyApplicationsSpecs.ts) declares
+what its backend does for the people who use it: `oxy:files` write, `oxy:safety`
+read, `oxy:privacy` read, `oxy:tools` read and Peable read. Oxy checks that
+declaration and the accounts live on every call; nothing is minted, stored or
+renewed. Mention preserves the verified effective account and never substitutes
+a bot owner, service owner, arbitrary header or service JWT for it.
 
-- A human session uses the isolated SDK requester/session client.
-- An Alia capability operation passes its actual ticket to the shared Files,
-  private graph and safety APIs. The ticket's original task, actor, account,
-  recipient and current authorization remain Oxy's responsibility.
-- An own service call receives a short-lived `requesterContext` from Oxy through
-  shared middleware. Mention uses that proof for downstream Files, graph and
-  safety reads; it does not reuse the upstream coordinator's task ID under its
-  own workload. Missing context fails closed. Proofs are never persisted or
-  logged and downstream calls revalidate the original authority.
+- A person's own request reads Oxy with their verified bearer (`oxy.asUser`,
+  Safety `{ accessToken }`). Files they upload or that Mention keeps for them go
+  through `assets.actingFor({ accountId })` (with `requesterAccountId` when they
+  operate an organization).
+- A Gemies/Alia capability ticket stays the tool transport into Mention. Its
+  downstream Files, privacy and Safety reads are Mention acting for the ticket's
+  effective account (`oxy.actingFor`, `{ actingForAccountId }`); the ticket is
+  never forwarded.
+- Another Oxy service (Move, Gemies) arrives through `OxyServer`'s `auth()`
+  middleware as `req.serviceActingAs = { userId, authority: 'first_party',
+  requesterId }`. Mention admits it only with that answer and `userId` equal to
+  the request's account, then acts for that account in the same way. Imports
+  stay Move-only; publishing keeps its durable `mcp:` receipt.
+- Recommendations (`recommendProfiles`) use
+  `agency.createFirstPartyExecutionAuthorization` on the declared `oxy:tools`.
 - External MCP media uses `withMcpMediaRequester` with the original connection
   token and exact upload tool. Oxy checks the live connection/grant and media
-  capability. This grants neither a human session nor general Files access.
+  capability. That is third-party authority and is unchanged.
 
 Public post media keeps the verified account as owner. Domain rules such as
 Move-only importing, publication ownership, blocks, supervision, quotas and
@@ -57,20 +66,20 @@ reuse the own path or infer an account from a header.
 
 ## Migration ledger
 
-| Edge                                      | Source in this branch                                                                                                                                                                     | Remaining release work                                                                                                  |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Mention backend/MCP → Oxy                 | Shared workload provider; MCP catalog/audit/introspection use v2 transport                                                                                                                | Foundation is published/live; final lock composition, deployment and canary remain                                      |
-| Alia → Mention → Oxy Files/privacy/safety | Actual capability ticket, live revalidation, no owner/session fallback                                                                                                                    | Deploy Mention receiver; verify Alia task/account revocation end to end                                                 |
-| Move → Mention → Oxy                      | Own receiver and derived requester context; published import SDK 0.2                                                                                                                      | Move PR 47 has public pins and green CI; receiver first, then lookup/import/undo canary                                 |
-| Mention backend → Clarity                 | `clarityForOxyService`, shared canonical transport; published SDK 0.10                                                                                                                    | Reader live and legacy reconciliation verified; caller deployment/canary remain                                         |
-| Mention frontend → Clarity                | `clarityForOxySession`, shared linked client; published SDK 0.10                                                                                                                          | Final frontend composition/build/deployment                                                                             |
-| Mention memberships → Oxy Files           | Original foreground requester, Mention-owned private copy (no personal/guardian access), authoritative linked-download visibility; shared reference lifecycle                             | Core 7.5.1 published; deploy Mention and verify a private upload/read/revocation canary                                 |
-| Mention membership receipts → Peable      | Official SDK workload transport with original foreground payer; native invoice, subscription and PaymentIntent reads with exact offer binding; no status observations accepted as payment | SDK 2.0.0; catalogue empty, so no provider call or paid activation until the Mention merchant/offer binding is approved |
-| Mention media cache → Oxy                 | SDK `assets.mediaCache` / `assets.federatedMedia` as the workload identity; Blob body streamed from disk                                                                                  | Core 7.19 methods; verify live cancellation/outbox retry after deployment                                               |
-| Mention backend → Kaana                   | Published SDK 3.3 own factory and immutable attribution                                                                                                                                   | Producer receiver live; verify one-dispatch ledger and app-paid accounting                                              |
-| Mention frontend → Syra                   | Linked-session factory, lazy client-only entry                                                                                                                                            | Published SDK 0.23 pinned and artifact verified; account-switch runtime canary remains                                  |
-| Mention frontend → Alia                   | Existing product SDK client; no backend Alia proxy found                                                                                                                                  | Coordinate SDK update with Alia owner; do not infer adoption from the foundation version                                |
-| Schedio → Mention                         | Own publishing adapter and published SDK 0.2; original automation root                                                                                                                    | Schedio PR 71 has public pins and green CI; receiver before caller, external Mastodon OAuth retained                    |
+| Edge                                        | Source in this branch                                                                                                                                                                                  | Remaining release work                                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Mention backend/MCP → Oxy                   | Shared workload provider; MCP catalog/audit/introspection use v2 transport                                                                                                                             | Foundation is published/live; final lock composition, deployment and canary remain                                      |
+| Gemies → Mention → Oxy Files/privacy/safety | Capability ticket into Mention; Mention acts for its account on its declared authority (ADR 0066)                                                                                                      | Verify after the declarations deploy                                                                                    |
+| Move → Mention → Oxy                        | Own receiver admitting Move's declared authority; import SDK 0.3 (`actingFor`)                                                                                                                         | Receiver first, then Move on SDK 0.3                                                                                    |
+| Mention backend → Clarity                   | `clarityForOxyService`, shared canonical transport; published SDK 0.10                                                                                                                                 | Reader live and legacy reconciliation verified; caller deployment/canary remain                                         |
+| Mention frontend → Clarity                  | `clarityForOxySession`, shared linked client; published SDK 0.10                                                                                                                                       | Final frontend composition/build/deployment                                                                             |
+| Mention memberships → Oxy Files             | Member's own request, `assets.actingFor` on Mention's declared `oxy:files`; Mention-owned private copy, authoritative linked-download visibility                                                       | Core 7.5.1 published; deploy Mention and verify a private upload/read/revocation canary                                 |
+| Mention membership receipts → Peable        | Official SDK workload transport acting for the payer (declared Peable read); native invoice, subscription and PaymentIntent reads with exact offer binding; no status observations accepted as payment | SDK 2.0.0; catalogue empty, so no provider call or paid activation until the Mention merchant/offer binding is approved |
+| Mention media cache → Oxy                   | SDK `assets.mediaCache` / `assets.federatedMedia` as the workload identity; Blob body streamed from disk                                                                                               | Core 7.19 methods; verify live cancellation/outbox retry after deployment                                               |
+| Mention backend → Kaana                     | Published SDK 3.3 own factory and immutable attribution                                                                                                                                                | Producer receiver live; verify one-dispatch ledger and app-paid accounting                                              |
+| Mention frontend → Syra                     | Linked-session factory, lazy client-only entry                                                                                                                                                         | Published SDK 0.23 pinned and artifact verified; account-switch runtime canary remains                                  |
+| Mention frontend → Alia                     | Existing product SDK client; no backend Alia proxy found                                                                                                                                               | Coordinate SDK update with Alia owner; do not infer adoption from the foundation version                                |
+| Schedio → Mention                           | Own publishing adapter, SDK 0.3 (`actingFor`)                                                                                                                                                          | Schedio needs its registry entry (`actsForPeople`: Mention write) before launch; external Mastodon OAuth retained       |
 
 No local allowlist, token decoding fallback or `internal`-tier promotion is added
 to Mention. Any temporary legacy workload bridge is centralized in Oxy and
@@ -78,12 +87,9 @@ limited to its verified live cohort. Remove that bridge only after all producers
 use v2 and live consumers are verified. Existing queue/import records must not
 be reclassified as authorized from app branding or an owner ID.
 
-The manual Telegram export script now requires `IMPORT_OXY_TASK_ID` for writes:
-it must identify a task created for the original account under Mention's
-coordinator identity. Dry runs do not need a task. The script does not mint
-requester authority from its target account argument. Operators must establish
-that task through the verified account flow before running a live import; no
-unattended legacy bearer is promoted automatically.
+The manual Telegram export script uploads to the channel's files on Mention's
+declared `oxy:files`, for the person `IMPORT_OPERATOR_OXY_USER_ID` names; Oxy
+checks they run the channel at that moment. Dry runs upload nothing.
 
 ## Validation and release boundary
 
@@ -92,8 +98,8 @@ must never be committed. The final registry pins and lockfile are a release
 prerequisite, not an optional cleanup. Root coordinates publication and rollout.
 
 Coverage includes actual shared SDK → HTTP → Mention receiver → shared Files
-transport, separate original person/bot owner, revoked authority, wrong account,
-no task forwarding to the downstream workload, external MCP behavior and
+transport, an undeclared or revoked caller, wrong account, nothing of the
+incoming request forwarded downstream, external MCP behavior and
 managed-account foreground attribution. HTTP authority fixtures cover transport
 composition; Oxy's API integration suites cover the database authority checks.
 Run backend Vitest and Bun suites, MCP suite, SDK suite, affected frontend tests,
@@ -103,9 +109,9 @@ and cross-service runtime canaries are still pending.
 ## Own scheduled publication follow-up
 
 The own SDK now provides `identity()` and `publish(input, originalEffectKey)`
-through its shared workload/requester transport. `/publishing/v1/posts` is a thin
+through its shared workload transport (`actingFor`). `/publishing/v1/posts` is a thin
 adapter behind central authentication and the same post-write limiter: verified
-own principal plus matching account proof, durable receipt reservation, then the
+first-party principal acting for the same account, durable receipt reservation, then the
 existing `createPost` domain handler. No MCP grant, fabricated connector or tool
 catalog is created. External `MentionPublishingClient` remains unchanged.
 

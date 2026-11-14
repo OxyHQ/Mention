@@ -4,7 +4,7 @@ import { getDb } from '../../../db/postgres';
 import { membershipBillingReceipts } from '../../../db/schema/membershipBilling';
 import { membershipTiers } from '../../../db/schema/memberships';
 import { getServiceOxyClient } from '../../../utils/oxyHelpers';
-import type { RequestSafetyContext } from '../../../utils/safetyRequester';
+import { personActingFor, type RequestSafetyContext } from '../../../utils/safetyRequester';
 import { requireMembershipSafety } from '../safety';
 import { communityById, MembershipError, type MembershipActor } from '../access';
 import { MEMBERSHIP_BILLING_CATALOGUE } from './catalogue';
@@ -104,7 +104,7 @@ export async function reconcileMembershipInvoice(
   if (tier?.kind !== 'paid') throw new MembershipError(409, 'Paid tier required');
   const client = peableForOxyService({
     oxy: getServiceOxyClient(),
-    requester: { accountId: actor.accountId, token: request.accessToken },
+    actingFor: personActingFor(request, actor.accountId),
   });
   try {
     // Authoritative native objects, read with Mention's own merchant credential.

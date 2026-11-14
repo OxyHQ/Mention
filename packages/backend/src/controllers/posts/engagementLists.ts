@@ -57,7 +57,7 @@ const likesLimit = (raw: unknown): number =>
 const mapActorSummary = (userId: string, user: PostUser | undefined): PostUser =>
   user ?? degradedActorSummary(userId);
 
-/** Adapt HTTP requester proofs; the service owns subject authorization and storage. */
+/** Adapt the verified HTTP requester; the service owns subject authorization and storage. */
 async function engagementAudience(req: AuthRequest, postId: string): Promise<Set<string> | null> {
   return loadPostEngagementAudience(postId, {
     viewerId: req.user?.id,

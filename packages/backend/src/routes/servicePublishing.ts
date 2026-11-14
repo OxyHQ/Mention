@@ -1,4 +1,7 @@
-/** Own publishing adapter: shared middleware proves identity; native createPost owns policy/effects. */
+/**
+ * Own publishing adapter: an Oxy service publishes for the account Oxy verified
+ * on its declared authority (ADR 0066); native createPost owns policy and effects.
+ */
 import { Router, type RequestHandler } from 'express';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { MentionPublishInput } from '@oxy.so/mention-contracts';
@@ -23,7 +26,6 @@ export function createServicePublishingRouter(
       if (
         service?.authority !== 'first_party' ||
         requester?.authority !== 'first_party' ||
-        !requester.requesterContext ||
         !requester.userId ||
         authenticated.user?.id !== requester.userId
       ) {

@@ -100,8 +100,8 @@ The backend refuses managed configuration without explicit `DATABASE_URL`,
 and `MENTION_SHELL_ACCESS_KEY`. Other existing runtime secret requirements still
 apply. MCP uses its independently registered infrastructure workload identity.
 Backend, worker and MCP roles bind to the same canonical managed application
-through Oxy's operator registration. Own-product calls use workload transport and
-original requester proof where an account is involved; no static service secret,
+through Oxy's operator registration. Own-product calls use workload transport and act for an account on what
+Oxy's first-party registry declares (oxy ADR 0066); no static service secret,
 app scope, consent grant or caller-provided tenant header substitutes for it.
 Keep secrets in the infrastructure secret store; they never belong in this JSON.
 

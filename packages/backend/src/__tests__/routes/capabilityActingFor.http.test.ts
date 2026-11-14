@@ -10,6 +10,7 @@ import { createOptionalMentionCapabilityAuth } from '../../capabilities/capabili
 import { setRuntimeOxyClient, clearRuntimeOxyClient } from '../../runtime/oxyClient';
 import intentMediaRoutes from '../../routes/intentMedia';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
+import { getBlockedUserIds, OxyPrivacyAuthorizationError } from '../../utils/privacyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import type { RequestSafetyContext } from '../../utils/safetyRequester';
 
@@ -34,10 +35,25 @@ let revoked = false;
 let denyDownstream = false;
 const writes: Array<{
   account: string;
-  ticket: string | undefined;
-  session: string | undefined;
-  task: string | undefined;
+  forwarded: Array<string | undefined>;
 }> = [];
+/** What Oxy admits Mention to act for on its declared authority (ADR 0066). */
+const actsFor = new Set(['original-person', 'org-account|original-person']);
+function admitted(req: express.Request): boolean {
+  const account = req.header('x-oxy-user-id');
+  const person = req.header('x-oxy-requester-id');
+  const forwarded = [
+    req.header('x-oxy-capability-ticket'),
+    req.header('x-oxy-requester-context'),
+    req.header('x-oxy-requester-token'),
+    req.header('x-oxy-task-id'),
+  ];
+  return (
+    !!account &&
+    forwarded.every((value) => value === undefined) &&
+    actsFor.has(person ? `${account}|${person}` : account)
+  );
+}
 const now = Math.floor(Date.now() / 1000);
 const claims: CapabilityTicketClaims = {
   iss: 'https://api.oxy.so',
@@ -90,26 +106,36 @@ beforeAll(async () => {
   });
   api.post('/assets/service/user-media', express.raw({ type: '*/*' }), (req, res) => {
     expect(req.headers.authorization).toBe(`Bearer ${serviceToken}`);
-    const proof = req.header('x-oxy-capability-ticket');
     const account = req.header('x-owner-user-id');
     if (
       denyDownstream ||
       revoked ||
-      proof !== ticket ||
-      account !== claims.resource.effectiveAccountId
+      !admitted(req) ||
+      account !== claims.resource.effectiveAccountId ||
+      req.header('x-oxy-user-id') !== account
     ) {
-      res.status(403).json({ error: 'original_operation_refused' });
+      res.status(403).json({ error: 'first_party_capability_not_declared' });
       return;
     }
     writes.push({
       account,
-      ticket: proof,
-      session: req.header('x-oxy-requester-token'),
-      task: req.header('x-oxy-task-id'),
+      forwarded: [
+        req.header('x-oxy-capability-ticket'),
+        req.header('x-oxy-requester-token'),
+        req.header('x-oxy-task-id'),
+      ],
     });
     res.json({
       data: { file: { id: 'file-original-person', mime: 'image/png', status: 'active' } },
     });
+  });
+  // Mention's declared `oxy:privacy` read: the blocks of the account it acts for.
+  api.get('/privacy/blocked', (req, res) => {
+    if (!admitted(req)) {
+      res.status(403).json({ error: 'verified_requester_required' });
+      return;
+    }
+    res.json([{ blockedId: `blocked-by-${req.header('x-oxy-user-id')}` }]);
   });
   // Metadata enrichment is optional and contains no private requester identity.
   api.use((_req, res) => res.json({ data: [] }));
@@ -164,13 +190,13 @@ function upload(value = ticket) {
       ownerUserId: 'bot-owner-other',
     });
 }
-describe('Alia operation → Mention HTTP → shared Oxy Files requester proof', () => {
-  it('keeps the original person through the bot and receiver workload without reusing the Alia task', async () => {
+describe('Gemies operation → Mention HTTP → Oxy Files on Mention’s declared authority', () => {
+  it('stores in the ticket’s account and never forwards the ticket, a session or a task', async () => {
     const result = await upload();
     expect(result.status).toBe(200);
     expect(result.body.fileId).toBe('file-original-person');
     expect(writes).toEqual([
-      { account: 'original-person', ticket, session: undefined, task: undefined },
+      { account: 'original-person', forwarded: [undefined, undefined, undefined] },
     ]);
   });
   it('refuses a revoked original operation before touching Files', async () => {
@@ -193,12 +219,47 @@ describe('Alia operation → Mention HTTP → shared Oxy Files requester proof',
     ).toBe(403);
     expect(writes).toHaveLength(0);
   });
-  it('selects the same original proof for private graph and safety helpers', () => {
+  it('asks Safety for the ticket’s account, never with the ticket', () => {
     const context: RequestSafetyContext = {
       user: { id: 'original-person' },
       capability: { ticket, claims },
     };
-    expect(createScopedOxyClient(context)).toBeDefined();
-    expect(safetyRequesterFor(context)).toEqual({ capabilityTicket: ticket });
+    expect(safetyRequesterFor(context)).toEqual({ actingForAccountId: 'original-person' });
+  });
+});
+
+describe('a blocked person stays hidden when Mention acts for an account', () => {
+  const capability: RequestSafetyContext = {
+    user: { id: 'original-person' },
+    capability: { ticket, claims },
+  };
+  const service: RequestSafetyContext = {
+    user: { id: 'org-account' },
+    serviceApp: { authority: 'first_party' },
+    serviceActingAs: {
+      authority: 'first_party',
+      userId: 'org-account',
+      requesterId: 'original-person',
+    },
+  };
+  it('on the capability-ticket path', async () => {
+    expect(await getBlockedUserIds(createScopedOxyClient(capability))).toEqual([
+      'blocked-by-original-person',
+    ]);
+  });
+  it('on the service path, for the account the person operates', async () => {
+    expect(await getBlockedUserIds(createScopedOxyClient(service))).toEqual([
+      'blocked-by-org-account',
+    ]);
+    expect(safetyRequesterFor(service)).toEqual({ actingForAccountId: 'org-account' });
+  });
+  it('fails closed, never empty, when Oxy refuses the read', async () => {
+    const undeclared: RequestSafetyContext = {
+      ...service,
+      serviceActingAs: { authority: 'first_party', userId: 'org-account', requesterId: 'other' },
+    };
+    await expect(getBlockedUserIds(createScopedOxyClient(undeclared))).rejects.toBeInstanceOf(
+      OxyPrivacyAuthorizationError,
+    );
   });
 });

@@ -22,7 +22,7 @@ const state = vi.hoisted(() => ({
   safetyUnavailable: false,
   safety: vi.fn(),
   memberReadDenied: false,
-  withRequester: vi.fn(),
+  actingFor: vi.fn(),
   upload: vi.fn(),
   download: vi.fn(),
 }));
@@ -65,8 +65,8 @@ vi.mock('../../utils/oxyHelpers', async () => ({
       },
     },
     assets: {
-      withRequester: (proof: unknown) => {
-        state.withRequester(proof);
+      actingFor: (proof: unknown) => {
+        state.actingFor(proof);
         return {
           uploadAppFile: async (...args: unknown[]) => {
             state.upload(...args);
@@ -482,7 +482,7 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
       (await request(app).get(`${base}/content/${poll.id}`)).body.data.poll.selectedOptionId,
     ).toBe(poll.poll.options[0].id);
   });
-  it('uses original requester proof for private Files and rechecks membership before minting URLs', async () => {
+  it('acts for the member in private Files and rechecks membership before minting URLs', async () => {
     const c = await community();
     const uploaded = await request(app)
       .post(`${base}/${c.id}/media`)
@@ -498,9 +498,7 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     const download = await request(app).get(mediaPath);
     expect(download.status).toBe(200);
     expect(download.body.data.expiresIn).toBe(300);
-    expect(state.withRequester).toHaveBeenLastCalledWith({
-      requesterToken: 'session-membership-member',
-    });
+    expect(state.actingFor).toHaveBeenLastCalledWith({ accountId: 'membership-member' });
     await request(app).delete(`${base}/${c.id}/membership`);
     state.download.mockClear();
     expect((await request(app).get(mediaPath)).status).toBe(403);
@@ -798,9 +796,7 @@ describe('membership domain HTTP and PostgreSQL authority', () => {
     expect((await request(app).get(mediaPath)).status).toBe(403);
     await join(c, 'another-member');
     expect((await request(app).get(mediaPath)).status).toBe(200);
-    expect(state.withRequester).toHaveBeenLastCalledWith({
-      requesterToken: 'session-another-member',
-    });
+    expect(state.actingFor).toHaveBeenLastCalledWith({ accountId: 'another-member' });
     expect(state.upload).toHaveBeenCalledWith(expect.any(Buffer), 'image/png', {
       visibility: 'private',
     });
