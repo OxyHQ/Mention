@@ -272,7 +272,7 @@ describe('GET /subscriptions', () => {
     }
   });
 
-  it('defaults to 50 rows and clamps an oversized limit to 100', async () => {
+  it('defaults to 50 rows, clamps an oversized limit to 100 and defaults an unusable one', async () => {
     const viewer = subscriberId();
     for (let index = 0; index < 3; index += 1) {
       await seed(viewer, `author-${index}`, `2026-07-0${index + 1}T00:00:00.000Z`);
@@ -287,7 +287,7 @@ describe('GET /subscriptions', () => {
     ).toHaveLength(3);
     expect(
       (await request(app).get('/subscriptions').query({ limit: -3 })).body.subscriptions,
-    ).toHaveLength(1);
+    ).toHaveLength(3);
     expect(
       (await request(app).get('/subscriptions').query({ limit: 2 })).body.subscriptions,
     ).toHaveLength(2);

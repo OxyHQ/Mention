@@ -3,6 +3,7 @@ import { postSafetyMaterial, safetyVerdictSchema } from './contentClassification
 import { savePostSafetyAssessment } from '../db/posts/postSafetyRepository';
 import { createJevLane, JEV_SHADOW_DAILY_LIMIT } from './contentClassification/jevLane';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
+import { clamp } from '@oxy.so/utils/text';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -702,14 +703,13 @@ export class PostClassificationService {
 
   /** Clamp every score into the 0..1 range as a defensive guard post-validation. */
   private normalizeScores(scores: PostClassificationScores): PostClassificationScores {
-    const clamp = (n: number): number => Math.min(1, Math.max(0, n));
     return {
-      toxicity: clamp(scores.toxicity),
-      constructiveness: clamp(scores.constructiveness),
-      spam: clamp(scores.spam),
-      quality: clamp(scores.quality),
-      controversy: clamp(scores.controversy),
-      negativity: clamp(scores.negativity),
+      toxicity: clamp(scores.toxicity, 0, 1),
+      constructiveness: clamp(scores.constructiveness, 0, 1),
+      spam: clamp(scores.spam, 0, 1),
+      quality: clamp(scores.quality, 0, 1),
+      controversy: clamp(scores.controversy, 0, 1),
+      negativity: clamp(scores.negativity, 0, 1),
     };
   }
 }

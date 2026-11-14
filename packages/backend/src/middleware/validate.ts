@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { isLiveEntityId } from '@oxy.so/db';
-import { sendError, ErrorCodes } from '../utils/apiResponse';
+import { sendErrorResponse } from '../utils/apiHelpers';
 
 /**
  * Express middleware factory for request body validation using Zod schemas.
@@ -14,7 +14,7 @@ export function validateBody<T extends z.ZodType>(schema: T) {
       const message = result.error.issues
         .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
         .join('; ');
-      sendError(res, ErrorCodes.VALIDATION_ERROR, message, 400);
+      sendErrorResponse(res, 400, 'Validation Error', message);
       return;
     }
     req.body = result.data;
@@ -37,13 +37,13 @@ export function validateObjectId(paramName: string = 'id') {
   return (req: Request, res: Response, next: NextFunction): void => {
     const id = req.params[paramName];
     if (!id) {
-      sendError(res, ErrorCodes.VALIDATION_ERROR, `${paramName} parameter is required`, 400);
+      sendErrorResponse(res, 400, 'Validation Error', `${paramName} parameter is required`);
       return;
     }
     // Handle both string and string[] (Express params can be arrays with duplicate path segments)
     const idString = Array.isArray(id) ? id[0] : id;
     if (!isLiveEntityId(idString)) {
-      sendError(res, ErrorCodes.VALIDATION_ERROR, `Invalid ${paramName} format`, 400);
+      sendErrorResponse(res, 400, 'Validation Error', `Invalid ${paramName} format`);
       return;
     }
     next();

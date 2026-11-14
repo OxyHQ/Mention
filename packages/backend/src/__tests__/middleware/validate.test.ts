@@ -4,7 +4,6 @@ import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { uuidv7 } from '@oxy.so/db';
 import { validateBody, validateObjectId, schemas } from '../../middleware/validate';
-import { ErrorCodes } from '../../utils/apiResponse';
 
 // --- helpers ----------------------------------------------------------------
 
@@ -45,7 +44,7 @@ function getJsonBody(res: Response): unknown {
  *
  * These cases are about `validateBody` — that it calls `next()`, that it
  * replaces `req.body` with the PARSED value, that a failure is a 400 in the
- * `ErrorCodes.VALIDATION_ERROR` envelope. They used to borrow `schemas.createPost`
+ * `Validation Error` envelope. They used to borrow `schemas.createPost`
  * and `schemas.likeRequest`, two schemas no route ever mounted, which made this
  * file the only thing keeping them alive. A fixture states the property under
  * test without pretending to describe a request anybody sends.
@@ -67,7 +66,7 @@ describe('validateBody', () => {
     expect(req.body).toMatchObject({ postId: 'abc123' });
   });
 
-  it('returns 400 with VALIDATION_ERROR when body is missing required fields', () => {
+  it('returns 400 with the validation envelope when body is missing required fields', () => {
     const req = makeReq({});
     const res = makeRes();
     const next = makeNext();
@@ -76,8 +75,8 @@ describe('validateBody', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(400);
-    const body = getJsonBody(res) as { error: { code: string } };
-    expect(body.error.code).toBe(ErrorCodes.VALIDATION_ERROR);
+    const body = getJsonBody(res) as { error: string };
+    expect(body.error).toBe('Validation Error');
   });
 
   it('returns 400 when a string field is empty (fails min(1))', () => {
@@ -109,8 +108,8 @@ describe('validateBody', () => {
     validateBody(schemas.manageFeedMembers)(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    const body = getJsonBody(res) as { error: { message: string } };
-    expect(body.error.message).toContain('userIds');
+    const body = getJsonBody(res) as { message: string };
+    expect(body.message).toContain('userIds');
   });
 });
 
@@ -180,8 +179,8 @@ describe('validateObjectId middleware', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(next).not.toHaveBeenCalled();
-    const body = getJsonBody(res) as { error: { code: string } };
-    expect(body.error.code).toBe(ErrorCodes.VALIDATION_ERROR);
+    const body = getJsonBody(res) as { error: string };
+    expect(body.error).toBe('Validation Error');
   });
 
   it('returns 400 when the param is missing entirely', () => {
@@ -214,8 +213,8 @@ describe('validateObjectId middleware', () => {
     validateObjectId('postId')(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    const body = getJsonBody(res) as { error: { message: string } };
-    expect(body.error.message).toContain('postId');
+    const body = getJsonBody(res) as { message: string };
+    expect(body.message).toContain('postId');
   });
 
   it('accepts a uuid v7, the id shape every row created after the cutover has', () => {

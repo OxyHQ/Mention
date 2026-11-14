@@ -25,7 +25,7 @@ function toUserSummary(user: PostUser) {
 }
 
 function extractUsersFromResult(result: unknown, key: 'followers' | 'following'): User[] {
-  const list = isRecord(result) ? result[key] : result;
+  const list = isRecord(result) ? result[key] : undefined;
   return Array.isArray(list)
     ? list.filter((user): user is User => isRecord(user) && typeof user.id === 'string')
     : [];

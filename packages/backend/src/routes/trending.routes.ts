@@ -1,3 +1,4 @@
+import { resolvePageLimit, resolvePageNumber } from '@oxy.so/utils/paging';
 import { Router, type Request, type Response } from 'express';
 import { trendingService } from '../services/TrendingService';
 import { TrendingType } from '../db/schema/discovery';
@@ -11,7 +12,7 @@ import { loadTrendGraph } from '../services/trending/trendGraphQuery';
 import { getTrendTopic } from '../services/trending/trendTopic';
 import { getTrendingHistory } from '../services/trending/trendHistory';
 import { getBaseLanguage } from '@oxy.so/core';
-import { queryInt, queryString } from '../utils/queryParams';
+import { queryString } from '../utils/queryParams';
 
 const router = Router();
 
@@ -38,10 +39,10 @@ const MAX_TRENDING_HISTORY_LIMIT = 20;
  */
 router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
   try {
-    const limitNum = Math.min(
-      Math.max(queryInt(req.query.limit) || DEFAULT_TRENDING_LIMIT, 1),
-      MAX_TRENDING_LIMIT,
-    );
+    const limitNum = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_TRENDING_LIMIT,
+      max: MAX_TRENDING_LIMIT,
+    });
 
     // Validate type filter — an unrecognized (or tampered) type means "all types".
     const rawType = queryString(req.query.type);
@@ -82,11 +83,11 @@ router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
  */
 router.get('/history', cachePublicMedium, async (req: Request, res: Response) => {
   try {
-    const pageNum = Math.max(queryInt(req.query.page) || 1, 1);
-    const limitNum = Math.min(
-      Math.max(queryInt(req.query.limit) || DEFAULT_TRENDING_HISTORY_LIMIT, 1),
-      MAX_TRENDING_HISTORY_LIMIT,
-    );
+    const pageNum = resolvePageNumber(req.query.page);
+    const limitNum = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_TRENDING_HISTORY_LIMIT,
+      max: MAX_TRENDING_HISTORY_LIMIT,
+    });
 
     const result = await getTrendingHistory(pageNum, limitNum);
 
