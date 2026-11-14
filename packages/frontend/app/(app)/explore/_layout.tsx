@@ -62,7 +62,11 @@ export default function ExploreLayout() {
         />
       }
     >
-      <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
+      <SEO
+        title={t('seo.explore.title')}
+        description={t('seo.explore.description')}
+        robots="index,follow"
+      />
       <Tabs value={activeTab} onValueChange={pushTab} pressOpenTab="reselect" variant="underline">
         {TABS.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
