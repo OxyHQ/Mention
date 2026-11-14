@@ -13,14 +13,16 @@ PoPs, direction, scope, category and aggregate counts. It never sends payloads,
 paths, query strings, IPs, user IDs, credentials or socket IDs. A Cloudflare PoP
 is a network ingress location, not a visitor's physical location.
 
-There is no variable that switches the producer on. It publishes where it is
-deployed and stays quiet everywhere else, because "am I a deployed process or
-somebody's laptop" is a fact about the environment rather than something to
-type: ECS sets the container credentials endpoint on every task and nothing
-else does, which is the same signal the credential-free service token uses to
-prove what the process IS (oxy ADR 0026). A local checkout with AWS storage
-configured therefore publishes nothing, which is what the old
-`OXY_ECOSYSTEM_ACTIVITY_ENABLED=false` was there to ask for.
+Both processes start the publisher with one call, `startEcosystemTraffic` from
+`@oxy.so/core/server`, with `deployedOnly: true`: unset, it publishes only where
+the process can attest its workload identity. "Am I a deployed process or
+somebody's laptop" is a fact about the environment: ECS sets the container
+credentials endpoint on every task and nothing else does, which is the same
+signal the credential-free service token uses to prove what the process IS
+(oxy ADR 0026). A local checkout with AWS storage configured therefore
+publishes nothing. The shared call honours `OXY_ECOSYSTEM_ACTIVITY_ENABLED` when it is set (the
+API task does not set it; the `mention-mcp` task sets `true`): `false` silences a process, `true`
+starts one outside ECS, and any other value stops the process at startup.
 
 `AWS_REGION` supplies the process location. Publication authenticates with the
 Oxy service token, which Mention's deployment obtains by attesting its ECS task
