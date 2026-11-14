@@ -218,7 +218,7 @@ interface RawPost {
 }
 
 export interface HydrationOptions {
-  /** Original requester proof, independent of display/ranking viewer IDs. */
+  /** Who Safety decides for, independent of display/ranking viewer IDs. */
   safetyRequester?: SafetyRequester;
   /** Only create/edit-source responses: nested references remain ordinary reads. */
   manageOwnPostIds?: readonly string[];

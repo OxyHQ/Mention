@@ -192,7 +192,7 @@ function buildApp() {
 const { app, oxy } = buildApp();
 const verifyActingAs = vi.spyOn(oxy, 'verifyActingAs');
 const introspectService = vi.spyOn(oxy, 'introspectServiceToken');
-// The other app has verified requester evidence so its negative still reaches
+// Oxy answers first-party for the other app too, so its negative still reaches
 // the domain's Move-only gate. No Oxy database or production authority is written.
 const fixtureRequesterPairs = new Set([
   JSON.stringify([MOVE_APP_ID, ALICE]),
@@ -203,8 +203,7 @@ const fixtureRequesterPairs = new Set([
 function asMove(req: request.Test, userId: string = ALICE): request.Test {
   return req
     .set('Authorization', `Bearer ${serviceToken(MOVE_APP_ID)}`)
-    .set('X-Oxy-User-Id', userId)
-    .set('X-Oxy-Requester-Token', `session:${userId}`);
+    .set('X-Oxy-User-Id', userId);
 }
 
 let batchCounter = 0;
@@ -263,10 +262,13 @@ beforeEach(async () => {
       taskId: undefined,
       requesterContext: undefined,
       presentedServiceToken: expect.any(String),
-      requesterToken: `session:${userId}`,
+      requesterToken: undefined,
+      requesterId: undefined,
+      effect: expect.stringMatching(/^(read|write)$/),
     });
+    // ADR 0066: Move's declared authority, answered with the person; no proof.
     return fixtureRequesterPairs.has(JSON.stringify([appId, userId]))
-      ? { authorized: true, authority: 'first_party', epoch: '1' }
+      ? { authorized: true, authority: 'first_party', epoch: '1', requesterId: userId }
       : null;
   });
   mocks.getUserById.mockResolvedValue({ id: ALICE, username: 'alice' });
@@ -297,11 +299,13 @@ describe('who may call the import API', () => {
       taskId: undefined,
       requesterContext: undefined,
       presentedServiceToken: expect.any(String),
-      requesterToken: `session:${ALICE}`,
+      requesterToken: undefined,
+      requesterId: undefined,
+      effect: 'write',
     });
   });
 
-  it('refuses Move without valid original requester proof before writing an import or post', async () => {
+  it('refuses Move when Oxy does not admit it for the account, before writing an import or post', async () => {
     verifyActingAs.mockResolvedValueOnce(null);
     const batch = body();
     const res = await postBatch(batch);
@@ -359,7 +363,6 @@ describe('who may call the import API', () => {
       .post('/imports/v1/posts:batch')
       .set('Authorization', `Bearer ${serviceToken(OTHER_APP_ID)}`)
       .set('X-Oxy-User-Id', ALICE)
-      .set('X-Oxy-Requester-Token', `session:${ALICE}`)
       .send(body());
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('IMPORT_CALLER_NOT_ALLOWED');

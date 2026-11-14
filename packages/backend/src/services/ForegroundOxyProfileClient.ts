@@ -3,14 +3,14 @@ import { capabilityCatalogBindingSchema, type CapabilityCatalogBinding } from '@
 import type { OxyServer } from '@oxy.so/core/server';
 import type { OxyRecommendationItem } from './OxyRankingClient';
 
-/** A present requester and independently authenticated Mention coordinator.
- * The requester bearer reaches only the configured Oxy authority. */
+/** Ranks profiles for a person on Mention's declared `oxy:tools` (ADR 0066):
+ * no session, bearer or approval travels with it. */
 export interface ForegroundProfileReader {
   recommend(input: Readonly<Record<string, unknown>>): Promise<OxyRecommendationItem[]>;
 }
 
 /** The foreground round trip that failed. */
-export type ForegroundRankingStage = 'approval' | 'ticket' | 'invoke' | 'cleanup';
+export type ForegroundRankingStage = 'approval' | 'ticket' | 'invoke';
 
 /** Why a stage failed, reduced to values that can never carry a bearer or a body. */
 export interface ForegroundRankingFailure {
@@ -60,28 +60,19 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
 
   constructor(
     private readonly server: OxyServer,
-    private readonly requesterToken: string,
     private readonly subjectAccountId: string,
     catalog: unknown,
     private readonly requesterAccountId: string,
   ) {
     this.catalog = capabilityCatalogBindingSchema.parse(catalog);
-    if (
-      !requesterToken ||
-      requesterToken.length > 16_384 ||
-      /\s/.test(requesterToken) ||
-      !subjectAccountId ||
-      !requesterAccountId
-    )
-      throw new Error('FOREGROUND_REQUESTER_REQUIRED');
+    if (!subjectAccountId || !requesterAccountId) throw new Error('FOREGROUND_REQUESTER_REQUIRED');
   }
 
   async recommend(input: Readonly<Record<string, unknown>>): Promise<OxyRecommendationItem[]> {
     const runId = `mention_foreground_${randomUUID()}`;
     const stepId = 'recommendProfiles';
-    // Cleanup is required even when issuance or invocation refuses authority.
     const authorization = await this.server.agency
-      .createForegroundExecutionAuthorization(
+      .createFirstPartyExecutionAuthorization(
         {
           authority: 'first_party',
           kind: 'direct_request',
@@ -96,9 +87,12 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
           expectedCatalog: this.catalog,
           runId,
           stepId,
+          limits: [],
           expiresAt: new Date(Date.now() + 60_000).toISOString(),
         },
-        { requesterToken: this.requesterToken },
+        this.requesterAccountId === this.subjectAccountId
+          ? {}
+          : { requesterAccountId: this.requesterAccountId },
       )
       .catch((error: unknown) => {
         throw new ForegroundRankingError(
@@ -173,18 +167,6 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
         'FOREGROUND_PROFILE_READ_REFUSED',
         describeFailure('invoke', error),
       );
-    } finally {
-      try {
-        await this.server.agency.revokeExecutionAuthorization(authorization.id, {
-          requesterToken: this.requesterToken,
-        });
-      } catch (error) {
-        // Do not return private data while bounded approval cleanup failed.
-        throw new ForegroundRankingError(
-          'FOREGROUND_APPROVAL_CLEANUP_FAILED',
-          describeFailure('cleanup', error),
-        );
-      }
     }
   }
 }

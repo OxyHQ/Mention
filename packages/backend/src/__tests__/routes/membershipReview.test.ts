@@ -21,7 +21,7 @@ import type { RequestSafetyContext } from '../../utils/safetyRequester';
 
 const files = vi.hoisted(() => ({
   visibility: 'private',
-  withRequester: vi.fn(),
+  actingFor: vi.fn(),
   download: vi.fn(),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -29,8 +29,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     assets: {
-      withRequester: (proof: unknown) => {
-        files.withRequester(proof);
+      actingFor: (proof: unknown) => {
+        files.actingFor(proof);
         return {
           linkedDownloadUrls: async (ids: string[]) => {
             await files.download(ids);
@@ -248,13 +248,11 @@ describe('report-bound review through the real Oxy app permissions resolver', ()
       );
     }
   });
-  it('uses original operator proof for bound media and refuses fresh public visibility', async () => {
+  it('reads bound media for the operator and refuses fresh public visibility', async () => {
     expect((await request(app).post(`${target()}/media/${mediaId}`).send({ purpose })).status).toBe(
       200,
     );
-    expect(files.withRequester).toHaveBeenCalledWith({
-      requesterToken: 'synthetic-original-session',
-    });
+    expect(files.actingFor).toHaveBeenCalledWith({ accountId: 'review-human' });
     files.visibility = 'public';
     expect((await request(app).post(`${target()}/media/${mediaId}`).send({ purpose })).status).toBe(
       404,

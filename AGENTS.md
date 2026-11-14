@@ -40,7 +40,8 @@ Setup and local services: [README](./README.md) and [docs/development.md](./docs
 
 - Never `git stash` in this repo. Many worktrees share one stash stack and a pop applies another session's work.
 - Never publish to npm from a laptop. Merging a version bump to `main` publishes it through `release-packages.yml` once CI passed ([npm releases](https://github.com/OxyHQ/oxy/blob/main/docs/npm-releases.md)).
-- Never add an inter-product call that uses app scopes, consent or an API-key fallback. Own product calls use shared workload/session transport plus the original requester's proof; external OAuth/API credentials stay bounded. Read [first-party-platform](./docs/first-party-platform.md) first; domain roles, account isolation and billing remain.
+- First-party never asks people for permissions: this service acts for a person with `actingFor` on what oxy's first-party registry declares (oxy ADR 0066); permissions, scopes and consent are only for third parties.
+- Never add an inter-product call that uses app scopes, consent, an API-key fallback, a forwarded session or a task. External OAuth/MCP credentials stay bounded. Read [first-party-platform](./docs/first-party-platform.md) first; domain roles, account isolation and billing remain.
 - Ask first before changing a gate (`validate:*`, `coverage-policy.json`, CI workflows), a Drizzle migration, or the `docker-compose` services.
 
 ## Testing
@@ -62,4 +63,4 @@ Secrets come from the environment and the deploy workflows; never print or commi
 
 Org standards: <https://github.com/OxyHQ/engineering/blob/main/AGENTS.md>. Agent team: [agent-team-workflow](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/agent-team-workflow.md).
 
-Owner: Oxy platform team. Last reviewed 2026-11-11.
+Owner: Oxy platform team. Last reviewed 2026-11-14.

@@ -1,8 +1,9 @@
 /**
- * Move's content import boundary. Shared Oxy middleware must verify an active
- * own workload and the original requester session/task for the effective account.
- * The Move-only domain gate remains: an attributed header or external key, even
- * for Move's app registration, is not authority to import a person's history.
+ * Move's content import boundary. Shared Oxy middleware verifies with Oxy that
+ * the caller is Move's live workload acting for the account on its declared
+ * authority (`authority: first_party`, ADR 0066). The Move-only domain gate
+ * remains: an attributed header or external key, even for Move's app
+ * registration, is not authority to import a person's history.
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -143,7 +144,7 @@ function requireMoveServiceCaller(req: Request, res: Response, next: NextFunctio
   ) {
     res.status(403).json({
       error: 'IMPORT_USER_REQUIRED',
-      message: 'The original requester must authorize this account import',
+      message: 'Oxy must verify the account Move imports for',
     });
     return;
   }

@@ -160,13 +160,13 @@ async function sendBatches(pending: Pending[], requester: SafetyRequester): Prom
     await Promise.all(chunks.slice(index, index + MAX_CONCURRENT_BATCHES).map(run));
 }
 
+/** Requests share a batch only when Oxy decides for the same reader. */
 function keyOfRequester(requester: SafetyRequester): string {
-  if ('requesterContext' in requester) return `context:${requester.requesterContext}`;
-  if ('capabilityTicket' in requester) return `capability:${requester.capabilityTicket}`;
+  if ('actingForAccountId' in requester) return `account:${requester.actingForAccountId}`;
   if ('connectionToken' in requester) return `connection:${requester.connectionToken}`;
-  if ('capabilityTicket' in requester) return `ticket:${requester.capabilityTicket}`;
-  if ('requesterContext' in requester) return `context:${requester.requesterContext}`;
-  return requester.accessToken ? `session:${requester.accessToken}` : 'anonymous';
+  if ('accessToken' in requester)
+    return requester.accessToken ? `session:${requester.accessToken}` : 'anonymous';
+  throw new Error('Mention never sends a retired Safety requester proof');
 }
 
 function keyOfItem(item: ContentAccessInput): string {

@@ -20,7 +20,6 @@ const CATALOG = {
   version: '1.0.0',
   digest: 'a'.repeat(64),
 };
-const REQUESTER = 'fixture_requester_bearer';
 afterEach(async () => {
   for (const server of servers.splice(0)) {
     server.closeAllConnections();
@@ -30,7 +29,7 @@ afterEach(async () => {
 });
 
 async function endpoint(
-  failure: 'approval' | 'ticket' | 'invoke' | 'subject' | 'cleanup' | undefined = undefined,
+  failure: 'approval' | 'ticket' | 'invoke' | 'subject' | undefined = undefined,
 ) {
   const observed: Array<{
     path: string;
@@ -51,7 +50,7 @@ async function endpoint(
         res.end(JSON.stringify({ nonce: 'fixture-nonce' }));
       } else if (req.url === '/auth/service-token/workload') {
         res.end(JSON.stringify({ token: 'fixture_presenter_service_token', expiresIn: 3600 }));
-      } else if (req.url === '/capabilities/foreground-execution-authorizations') {
+      } else if (req.url === '/capabilities/first-party-execution-authorizations') {
         approval = body;
         res.statusCode = failure === 'approval' ? 403 : 201;
         res.end(JSON.stringify({ authorization: { id: 'fixture_approval' } }));
@@ -103,12 +102,6 @@ async function endpoint(
             ],
           }),
         );
-      } else if (
-        req.method === 'DELETE' &&
-        req.url === '/capabilities/execution-authorizations/fixture_approval'
-      ) {
-        res.statusCode = failure === 'cleanup' ? 503 : 204;
-        res.end();
       } else {
         res.statusCode = 404;
         res.end('{}');
@@ -128,7 +121,6 @@ async function endpoint(
   return {
     client: new ForegroundOxyProfileClient(
       serverClient,
-      REQUESTER,
       'fixture_subject',
       CATALOG,
       'fixture_principal',
@@ -139,8 +131,8 @@ async function endpoint(
 
 // Installed candidate SDK and real loopback HTTP; authority responses are
 // synthetic transport fixtures. Real SQL/signatures are in Oxy's separate suite.
-describe('foreground ranking through common agency and installed SDK transport', () => {
-  it('preserves private clientId, signed subject, request-body requester and requester-only cleanup', async () => {
+describe('ranking on Mention’s declared authority through the installed SDK transport', () => {
+  it('preserves private clientId and signed subject, names the person, and sends no bearer', async () => {
     const { client, observed } = await endpoint();
     const page = await new OxyRankingClient().rank({
       viewerId: 'fixture_subject',
@@ -150,10 +142,10 @@ describe('foreground ranking through common agency and installed SDK transport',
     expect(page.profiles[0].score).toBe(42);
     expect(page.profiles[0].matchedSignals).toEqual(['private_mention_profile']);
     const approval = observed.find(
-      (record) => record.path === '/capabilities/foreground-execution-authorizations',
+      (record) => record.path === '/capabilities/first-party-execution-authorizations',
     );
     expect(approval?.headers.authorization).toBe('Bearer fixture_presenter_service_token');
-    expect(approval?.body.subjectToken).toBe(REQUESTER);
+    expect(approval?.body).not.toHaveProperty('subjectToken');
     expect(approval?.body.expectedCatalog).toEqual(CATALOG);
     expect(approval?.body).toMatchObject({
       authority: 'first_party',
@@ -161,7 +153,8 @@ describe('foreground ranking through common agency and installed SDK transport',
       actor: { type: 'requester', accountId: 'fixture_principal' },
       resource: { effectiveAccountId: 'fixture_subject', resourceId: 'fixture_subject' },
     });
-    expect(approval?.body).not.toHaveProperty('requesterAccountId');
+    // The person operates the subject account, so Oxy is told who they are.
+    expect(approval?.body.requesterAccountId).toBe('fixture_principal');
     const ticket = observed.find((record) => record.path === '/capabilities/tickets');
     expect(ticket?.body).toEqual({
       executionAuthorizationId: 'fixture_approval',
@@ -172,14 +165,8 @@ describe('foreground ranking through common agency and installed SDK transport',
     );
     expect(invoke?.headers.authorization).toBe('Capability fixture_signed_ticket');
     expect(invoke?.body).toEqual({ clientId: 'fixture_mention_application', limit: 10 });
-    const cleanup = observed.at(-1);
-    expect(cleanup?.method).toBe('DELETE');
-    expect(cleanup?.headers.authorization).toBe(`Bearer ${REQUESTER}`);
-    expect(cleanup?.body).toEqual({});
+    expect(observed.some((record) => record.method === 'DELETE')).toBe(false);
     expect(observed.every((record) => record.headers['x-oxy-user-id'] === undefined)).toBe(true);
-    expect(
-      observed.filter((record) => JSON.stringify(record.body).includes(REQUESTER)),
-    ).toHaveLength(1);
     expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
@@ -189,21 +176,20 @@ describe('foreground ranking through common agency and installed SDK transport',
     await ranking.rank({ viewerId: 'fixture_subject', foregroundClient: client, limit: 10 });
     await ranking.rank({ viewerId: 'fixture_subject', foregroundClient: client, limit: 10 });
     const approvals = observed.filter(
-      (record) => record.path === '/capabilities/foreground-execution-authorizations',
+      (record) => record.path === '/capabilities/first-party-execution-authorizations',
     );
     expect(approvals).toHaveLength(2);
     expect(approvals[0].body.runId).not.toBe(approvals[1].body.runId);
-    expect(observed.filter((record) => record.method === 'DELETE')).toHaveLength(2);
   });
 
-  it('rejects a missing foreground proof before using app-only identity', async () => {
+  it('rejects a viewer without the foreground client before using app-only identity', async () => {
     await expect(
       new OxyRankingClient().rank({ viewerId: 'fixture_subject', limit: 10 }),
-    ).rejects.toThrow('verified foreground bearer');
+    ).rejects.toThrow('verified foreground viewer');
     expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
-  it.each(['approval', 'ticket', 'invoke', 'subject', 'cleanup'] as const)(
+  it.each(['approval', 'ticket', 'invoke', 'subject'] as const)(
     'refuses %s without legacy or app-only fallback',
     async (failure) => {
       const { client, observed } = await endpoint(failure);
@@ -216,7 +202,6 @@ describe('foreground ranking through common agency and installed SDK transport',
       ).rejects.toThrow(/^FOREGROUND_/);
       expect(mocks.serviceRequest).not.toHaveBeenCalled();
       expect(observed.some((record) => record.path === '/profiles/recommendations')).toBe(false);
-      if (failure !== 'approval') expect(observed.at(-1)?.method).toBe('DELETE');
       if (failure === 'ticket' || failure === 'subject')
         expect(observed.some((record) => record.path.startsWith('/_oxy/'))).toBe(false);
     },
@@ -227,16 +212,11 @@ describe('foreground ranking through common agency and installed SDK transport',
     ['ticket', 'FOREGROUND_TICKET_REFUSED', { stage: 'ticket', code: 'decision_refused' }],
     ['subject', 'FOREGROUND_TICKET_REFUSED', { stage: 'ticket', code: 'claims_mismatch' }],
     ['invoke', 'FOREGROUND_PROFILE_READ_REFUSED', { stage: 'invoke', status: 403 }],
-    ['cleanup', 'FOREGROUND_APPROVAL_CLEANUP_FAILED', { stage: 'cleanup', status: 503 }],
-  ] as const)(
-    'says which round trip failed on %s, without the bearer',
-    async (failure, message, expected) => {
-      const { client } = await endpoint(failure);
-      const error = await client.recommend({ limit: 10 }).catch((caught: unknown) => caught);
-      expect(error).toBeInstanceOf(ForegroundRankingError);
-      expect((error as ForegroundRankingError).message).toBe(message);
-      expect((error as ForegroundRankingError).failure).toMatchObject(expected);
-      expect(JSON.stringify((error as ForegroundRankingError).failure)).not.toContain(REQUESTER);
-    },
-  );
+  ] as const)('says which round trip failed on %s', async (failure, message, expected) => {
+    const { client } = await endpoint(failure);
+    const error = await client.recommend({ limit: 10 }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ForegroundRankingError);
+    expect((error as ForegroundRankingError).message).toBe(message);
+    expect((error as ForegroundRankingError).failure).toMatchObject(expected);
+  });
 });

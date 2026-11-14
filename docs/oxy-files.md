@@ -272,7 +272,7 @@ its supervised-owner contact policy can outlive or bypass community membership.
 Uploads require `private` visibility, including deduplicated uploads. Public GIF
 imports reject private dedup results and never change their visibility. Their durable references are
 registered through the same outbox, reconciliation and deletion triggers (0098),
-without impersonating the uploader or replacing the original requester's proof.
+without impersonating the uploader.
 Deleting a community, channel or account removes its media records and dirties
 those references in the same transaction.
 

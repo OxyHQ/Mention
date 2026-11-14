@@ -337,7 +337,7 @@ accept/decline) to a `_viewer` twin instead: `GET /notifications/_viewer/inbox`,
 it is missing or malformed, or `409 VIEWER_CHANGED` when it differs from the subject
 Oxy authenticated. The header is a precondition that stops a request captured for
 account A from running as B; it is never authentication, and the handlers keep
-their own subject, domain policy and requester proof. The old routes remain for
+their own subject and domain policy. The old routes remain for
 existing clients. A new client does not fall back to them, so deploy the backend
 before the frontend: against an older backend those writes fail visibly (404 or
 a failed preflight) instead of running unguarded.
