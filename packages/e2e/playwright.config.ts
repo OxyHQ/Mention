@@ -42,6 +42,12 @@ export default defineConfig({
     // which reads as "the app never rendered". Headless Chromium always treats
     // its page as foregrounded, so the readings here are real.
     video: 'off',
+    // The export ships a service worker (oxy-web-pwa). Requests a worker makes
+    // bypass `page.route`, so the flows that fail a chunk download on purpose
+    // (chunk recovery, on-demand screens) would never see their failure: the
+    // worker would fetch or serve the chunk. The gate tests the app's own
+    // network handling, so no worker registers here.
+    serviceWorkers: 'block',
   },
   projects: [
     {
