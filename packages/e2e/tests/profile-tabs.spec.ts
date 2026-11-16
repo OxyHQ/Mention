@@ -150,17 +150,18 @@ test('a profile pushed from another profile still opens on the default tab', asy
   // polling is harmless: it runs only once a match exists, and the same call
   // below leaves the focus this test's Enter needs.
   const focusFederatedCard = (here: string): boolean => {
-    const first = Array.from(document.querySelectorAll('[role="button"]')).filter((element) => {
+    const first = Array.from(document.querySelectorAll('[data-bloom-list-row]')).find((element) => {
       const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
       if (text.length > 200 || text.includes('·')) return false;
       const match = text.match(/@([a-z0-9_.@-]+)/i);
       // An instance suffix is what makes the actor remote, and therefore cold.
       return Boolean(match) && match?.[1] !== here && Boolean(match?.[1]?.includes('@'));
-    })[0];
-    if (!first) return false;
-    // Focus + Enter: `mention.earth` renders zero anchors, and a real mouse
-    // click on an RNW `Pressable` is a measured no-op.
-    (first as HTMLElement).focus();
+    });
+    // Bloom keeps passive identity content beside the empty opening target;
+    // choose by the rendered row, then focus that row's navigation control.
+    const opening = first?.querySelector<HTMLElement>('[data-bloom-list-link][role="button"]');
+    if (!opening) return false;
+    opening.focus();
     return true;
   };
 
@@ -216,10 +217,15 @@ test('a profile pushed from another profile still opens on the default tab', asy
     pathname.startsWith('/@'),
     `expected a profile URL after the push, landed on ${pathname}`,
   ).toBe(true);
+  expect(pathname.slice(2).includes('@'), 'the pushed target must remain federated').toBe(true);
   expect(
     { segments: pathname.split('/').filter(Boolean).length, tab },
     `the pushed profile did not open on its own default tab — landed on ${pathname}`,
   ).toEqual({ segments: 1, tab: DEFAULT_TAB });
+  await test.info().attach('federated-profile-push', {
+    body: JSON.stringify({ pathname, tab }),
+    contentType: 'application/json',
+  });
 
   expect(candidate.scriptErrors).toEqual([]);
 });
