@@ -1,3 +1,4 @@
+import { PostEngagementProvider } from '@/components/Post/PostEngagementProvider';
 import { reportBoundaryError } from '@/components/AppRootErrorBoundary';
 import { FeedUpdatePolicyProvider } from '@/components/Feed/FeedUpdatePolicy';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -211,21 +212,23 @@ function DeckColumnContent() {
   const navigation = usePanelNavigation();
   return (
     <PanelRouterProvider routes={deckRoutes} notFound={<NotFoundScreen />}>
-      <PanelErrorBoundary
-        onError={reportBoundaryError}
-        resetKey={navigation.entry.key}
-        emptyState={{ action: { label: t('common.retry'), onPress: retryFailedDeckRoutes } }}
-      >
-        <Suspense
-          fallback={
-            <Screen scroll="auto">
-              <FeedSkeleton />
-            </Screen>
-          }
+      <PostEngagementProvider>
+        <PanelErrorBoundary
+          onError={reportBoundaryError}
+          resetKey={navigation.entry.key}
+          emptyState={{ action: { label: t('common.retry'), onPress: retryFailedDeckRoutes } }}
         >
-          <PanelRouteSlot />
-        </Suspense>
-      </PanelErrorBoundary>
+          <Suspense
+            fallback={
+              <Screen scroll="auto">
+                <FeedSkeleton />
+              </Screen>
+            }
+          >
+            <PanelRouteSlot />
+          </Suspense>
+        </PanelErrorBoundary>
+      </PostEngagementProvider>
     </PanelRouterProvider>
   );
 }

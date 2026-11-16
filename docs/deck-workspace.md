@@ -207,7 +207,11 @@ server behavior. Neither proves that production has been deployed.
 Opening a post's likes, reposts or Insights splits only the originating panel
 vertically. The direct Insights button is offered only on an owned focused post
 detail (including a Deck route), not feed cards or nested replies; the existing
-permission-gated overflow menu shares the same host dispatch. The
+permission-gated overflow menu shares the same host dispatch. Each Deck column
+places its engagement provider inside Bloom's `PanelRouterProvider`: opening,
+closing and navigation callbacks belong to that column's route. A global route
+transition, including the cold `/deck` entry redirect to `/`, preserves supporting
+panels in other columns; navigating the owning column releases its old panel. The
 post and engagement list share the available height equally; each uses its own
 real Bloom scroll owner. Bloom's separator resizes this vertical split while enforcing
 the authored minimums and the auxiliary content limit. Saved Deck columns retain
