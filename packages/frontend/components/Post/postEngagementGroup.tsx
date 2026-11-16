@@ -48,16 +48,9 @@ export function postEngagementGroup(
           ) : (
             <PostEngagementProvider>{content}</PostEngagementProvider>
           ),
-          navigation: navigation
-            ? {
-                ...navigation,
-                render: (entry, controller) => (
-                  <PostEngagementProvider>
-                    {navigation.render(entry, controller)}
-                  </PostEngagementProvider>
-                ),
-              }
-            : undefined,
+          // Navigable hosts place the engagement provider inside their router
+          // so panel-local navigation, rather than the global route, owns it.
+          navigation,
           bottomBar,
           headerActions,
           scroll,
