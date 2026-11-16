@@ -1,6 +1,7 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -75,73 +76,93 @@ export default function HideCountsScreen() {
     <View className="gap-4">
       <View className="gap-4">
         <SettingsSection>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.hideAllCounts')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.hideAllCounts')}
               description={t('settings.privacy.hideAllCountsDesc')}
-            >
-              {
-                <Switch
-                  checked={allHidden}
-                  onCheckedChange={(value) => updateAllSettings(value)}
-                  accessibilityLabel={t('settings.privacy.hideAllCounts')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={allHidden}
+                      onCheckedChange={(value) => updateAllSettings(value)}
+                      accessibilityLabel={t('settings.privacy.hideAllCounts')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection label={t('settings.privacy.individualSettings')}>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.hideLikeCounts')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.hideLikeCounts')}
               description={t('settings.privacy.hideLikeCountsDesc')}
-            >
-              {
-                <Switch
-                  checked={hideLikeCounts}
-                  onCheckedChange={(value) => updateSetting('hideLikeCounts', value)}
-                  accessibilityLabel={t('settings.privacy.hideLikeCounts')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={hideLikeCounts}
+                      onCheckedChange={(value) => updateSetting('hideLikeCounts', value)}
+                      accessibilityLabel={t('settings.privacy.hideLikeCounts')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.hideShareCounts')}
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.hideShareCounts')}
               description={t('settings.privacy.hideShareCountsDesc')}
-            >
-              {
-                <Switch
-                  checked={hideShareCounts}
-                  onCheckedChange={(value) => updateSetting('hideShareCounts', value)}
-                  accessibilityLabel={t('settings.privacy.hideShareCounts')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={hideShareCounts}
+                      onCheckedChange={(value) => updateSetting('hideShareCounts', value)}
+                      accessibilityLabel={t('settings.privacy.hideShareCounts')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.hideReplyCounts')}
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.hideReplyCounts')}
               description={t('settings.privacy.hideReplyCountsDesc')}
-            >
-              {
-                <Switch
-                  checked={hideReplyCounts}
-                  onCheckedChange={(value) => updateSetting('hideReplyCounts', value)}
-                  accessibilityLabel={t('settings.privacy.hideReplyCounts')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={hideReplyCounts}
+                      onCheckedChange={(value) => updateSetting('hideReplyCounts', value)}
+                      accessibilityLabel={t('settings.privacy.hideReplyCounts')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.hideSaveCounts')}
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.hideSaveCounts')}
               description={t('settings.privacy.hideSaveCountsDesc')}
-            >
-              {
-                <Switch
-                  checked={hideSaveCounts}
-                  onCheckedChange={(value) => updateSetting('hideSaveCounts', value)}
-                  accessibilityLabel={t('settings.privacy.hideSaveCounts')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={hideSaveCounts}
+                      onCheckedChange={(value) => updateSetting('hideSaveCounts', value)}
+                      accessibilityLabel={t('settings.privacy.hideSaveCounts')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

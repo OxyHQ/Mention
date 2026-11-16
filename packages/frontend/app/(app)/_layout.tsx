@@ -206,8 +206,8 @@ export default function AppLayout() {
       <PostReplyNavigationContext.Provider value={ownsMainReplyNavigation}>
         <AppShell
           testID="mention-shell"
-          variant="feed"
-          scroll={IS_WEB ? 'document' : 'page'}
+          layout={deckOpen ? 'deck' : 'feed'}
+          presentation="framed"
           drawer="reveal"
           sidebar={sidebar}
           // The sidebar's compose row and the bar's FAB: the composer page.
@@ -217,8 +217,6 @@ export default function AppLayout() {
             onPress: () => selectTab('write'),
           }}
           header={null}
-          navigationAlign="content"
-          navigationGap={0}
           gutter={8}
           bottomBar={bottomContent === 'tabs' && !ownsMainReplyNavigation ? undefined : null}
           bottomBarVisibility="compact"
@@ -227,7 +225,6 @@ export default function AppLayout() {
           // the full-bleed camera.
           reserveBottomBarSpace={IS_WEB && pathname !== '/camera' && !ownsMainReplyNavigation}
           panelLayout={{
-            mode: deckOpen ? 'deck' : 'split',
             onPanelOrderChange: deckOpen
               ? (order) => {
                   const current = useDeckSettings.getState();
@@ -243,8 +240,6 @@ export default function AppLayout() {
             widths: Object.fromEntries(
               Object.entries(deckPanels).map(([id, panel]) => [id, panel.width]),
             ),
-            flow: deckOpen || !IS_WEB ? 'bounded' : 'document',
-            appearance: 'separated',
             gap: deckOpen ? undefined : 0,
             activePanel:
               deckOpen &&
@@ -257,6 +252,7 @@ export default function AppLayout() {
               withEngagement(
                 {
                   id: 'main',
+                  role: 'main',
                   visible: true,
                   // A screen that throws fails inside its panel, never the whole app;
                   // navigating to another route recovers it.
@@ -285,6 +281,7 @@ export default function AppLayout() {
               ),
               {
                 id: 'context',
+                role: 'context',
                 visible: !deckOpen && !onVideosRoute,
                 errorBoundary: { onError: reportBoundaryError },
                 sticky: true,
@@ -302,6 +299,7 @@ export default function AppLayout() {
                   return withEngagement(
                     {
                       id,
+                      role: 'main',
                       visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
                       errorBoundary: { onError: reportBoundaryError },
                       width: panel.width,

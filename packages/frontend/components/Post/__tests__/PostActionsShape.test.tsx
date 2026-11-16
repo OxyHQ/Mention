@@ -31,7 +31,7 @@ jest.mock('@oxy.so/bloom/dropdown-menu', () => ({
   DropdownMenuItem: 'DropdownMenuItem',
   DropdownMenuTrigger: 'DropdownMenuTrigger',
 }));
-jest.mock('@oxy.so/bloom/button', () => ({ IconButton: 'IconButton' }));
+jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
 
 let mockVoteStyle = 'icons';
 jest.mock('@/hooks/useVoteStyle', () => ({ useVoteStyle: () => mockVoteStyle }));

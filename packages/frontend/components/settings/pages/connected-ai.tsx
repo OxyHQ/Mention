@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -9,7 +10,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import type { ConnectedMcpClient } from '@oxy.so/core';
@@ -168,7 +169,7 @@ export default function ConnectedAiScreen() {
                 'These apps can access your Mention account on your behalf. Revoke any you no longer use.',
             })}
           >
-            <SettingsCard>
+            <GroupedSection>
               {connections.map((connection) => {
                 const revoking =
                   revokeMutation.isPending && revokeMutation.variables === connection.id;
@@ -188,35 +189,39 @@ export default function ConnectedAiScreen() {
                       })
                     : undefined;
                 return (
-                  <SettingsRow
-                    label={connectionLabel(connection)}
+                  <GroupedSectionItem
+                    wrapControl
+                    title={connectionLabel(connection)}
                     description={timeLine}
                     key={connection.id}
-                  >
-                    {revoking ? (
-                      <Loading
-                        className="text-primary"
-                        variant="inline"
-                        size="sm"
-                        style={{ flex: undefined }}
-                      />
-                    ) : (
-                      <Button
-                        appearance="subtle"
-                        tone="neutral"
-                        size="sm"
-                        onPress={() => handleRevoke(connection)}
-                        disabled={revokeMutation.isPending}
-                      >
-                        {t('mcp.connections.revoke', {
-                          defaultValue: 'Revoke',
-                        })}
-                      </Button>
-                    )}
-                  </SettingsRow>
+                    rightElement={
+                      <>
+                        {revoking ? (
+                          <Loading
+                            className="text-primary"
+                            variant="inline"
+                            size="sm"
+                            style={{ flex: undefined }}
+                          />
+                        ) : (
+                          <Button
+                            appearance="subtle"
+                            tone="neutral"
+                            size="sm"
+                            onPress={() => handleRevoke(connection)}
+                            disabled={revokeMutation.isPending}
+                          >
+                            {t('mcp.connections.revoke', {
+                              defaultValue: 'Revoke',
+                            })}
+                          </Button>
+                        )}
+                      </>
+                    }
+                  />
                 );
               })}
-            </SettingsCard>
+            </GroupedSection>
           </SettingsSection>
         )}
       </View>

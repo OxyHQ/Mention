@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { Button, IconButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { RiInsertColumnRight } from '@oxy.so/bloom/icons/RiInsertColumnRight';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { DECK_SOURCES, useDeckSettings, type DeckSource } from './deckSettings';
@@ -14,7 +14,10 @@ export function DeckAddPanel() {
   const addPanel = useDeckSettings((state) => state.addPanel);
   return (
     <>
-      <IconButton
+      <Button
+        appearance="outline"
+        tone="neutral"
+        iconOnly
         leadingIcon={RiInsertColumnRight}
         accessibilityLabel={t('deck.addPanel', 'Add panel')}
         onPress={() => setOpen(true)}

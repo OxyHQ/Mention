@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -128,7 +128,8 @@ const PostActions: React.FC<Props> = ({
         video ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild label={t('videos.more')}>
-              <IconButton
+              <Button
+                iconOnly
                 appearance="plain"
                 tone="neutral"
                 size="lg"

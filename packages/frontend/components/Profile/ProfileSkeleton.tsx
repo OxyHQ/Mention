@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
@@ -69,7 +69,7 @@ export interface ProfileSkeletonProps {
 export const ProfileSkeleton = memo(function ProfileSkeleton({
   variant = 'person',
 }: ProfileSkeletonProps = {}) {
-  const insets = useSafeAreaInsets();
+  const insets = useContentSafeAreaInsets();
   // The avatar ring is the colour of the surface under it, as on the loaded profile.
   const surfaceFill = useSurfaceFill();
   // Mirrors the loaded profile: the same opaque blocks, in the same colour as

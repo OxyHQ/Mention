@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { Slider } from '@oxy.so/bloom/slider';
@@ -5,7 +6,7 @@ import { DEFAULT_FEED_SETTINGS, useFeedSettings, type FeedSettings } from '@/hoo
 import { confirmDialog } from '@/utils/alerts';
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useCallback } from 'react';
@@ -161,66 +162,78 @@ export default function FeedSettingsScreen() {
       {isSaving ? <Loading variant="inline" size="sm" /> : null}
       <View className="gap-4">
         <SettingsSection label={t('settings.feed.following.title')}>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.feed.following.order')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.feed.following.order')}
               description={t('settings.feed.following.description')}
-            >
-              <SettingsSelect
-                label={t('settings.feed.following.order')}
-                value={settings.following.sort}
-                onChange={(sort) => commit({ following: { sort } })}
-                items={[
-                  { value: 'chronological', label: t('settings.feed.following.chronological') },
-                  { value: 'relevance', label: t('settings.feed.following.relevance') },
-                ]}
-              />
-            </SettingsRow>
-          </SettingsCard>
+              rightElement={
+                <>
+                  <SettingsSelect
+                    label={t('settings.feed.following.order')}
+                    value={settings.following.sort}
+                    onChange={(sort) => commit({ following: { sort } })}
+                    items={[
+                      { value: 'chronological', label: t('settings.feed.following.chronological') },
+                      { value: 'relevance', label: t('settings.feed.following.relevance') },
+                    ]}
+                  />
+                </>
+              }
+            />
+          </GroupedSection>
         </SettingsSection>
         {/* Presets */}
         <SettingsSection label={t('settings.feed.presets.title')}>
-          <SettingsCard>
+          <GroupedSection>
             {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
-              <SettingsRow
-                label={PRESETS[key].name}
+              <GroupedSectionItem
+                wrapControl
+                title={PRESETS[key].name}
                 description={t(`settings.feed.presets.${key}Desc`)}
                 key={key}
-              >
-                <Button
-                  size="sm"
-                  appearance="subtle"
-                  tone="neutral"
-                  onPress={() => applyPreset(key)}
-                  accessibilityLabel={PRESETS[key].name}
-                >
-                  {t('common.open', { defaultValue: 'Open' })}
-                </Button>
-              </SettingsRow>
+                rightElement={
+                  <>
+                    <Button
+                      size="sm"
+                      appearance="subtle"
+                      tone="neutral"
+                      onPress={() => applyPreset(key)}
+                      accessibilityLabel={PRESETS[key].name}
+                    >
+                      {t('common.open', { defaultValue: 'Open' })}
+                    </Button>
+                  </>
+                }
+              />
             ))}
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
 
         {/* Diversity */}
         <SettingsSection label={t('settings.feed.diversity.title')}>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.feed.diversity.enabled')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.feed.diversity.enabled')}
               description={t('settings.feed.diversity.enabledDesc')}
-            >
-              {
-                <Switch
-                  checked={settings.diversity.enabled}
-                  onCheckedChange={(value) =>
-                    commit({
-                      diversity: { ...settings.diversity, enabled: value },
-                    })
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={settings.diversity.enabled}
+                      onCheckedChange={(value) =>
+                        commit({
+                          diversity: { ...settings.diversity, enabled: value },
+                        })
+                      }
+                      accessibilityLabel={t('settings.feed.diversity.enabled')}
+                    />
                   }
-                  accessibilityLabel={t('settings.feed.diversity.enabled')}
-                />
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
 
         {settings.diversity.enabled && (
@@ -288,7 +301,7 @@ export default function FeedSettingsScreen() {
 
         {/* Recency */}
         <SettingsSection label={t('settings.feed.recency.title')}>
-          <SettingsCard>
+          <GroupedSection>
             <View className="py-3 gap-4">
               <View>
                 <Slider
@@ -349,46 +362,56 @@ export default function FeedSettingsScreen() {
                 </Text>
               </View>
             </View>
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
 
         {/* Quality */}
         <SettingsSection label={t('settings.feed.quality.title')}>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.feed.quality.boostHighQuality')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.feed.quality.boostHighQuality')}
               description={t('settings.feed.quality.boostHighQualityDesc')}
-            >
-              {
-                <Switch
-                  checked={settings.quality.boostHighQuality}
-                  onCheckedChange={(value) =>
-                    commit({
-                      quality: { ...settings.quality, boostHighQuality: value },
-                    })
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={settings.quality.boostHighQuality}
+                      onCheckedChange={(value) =>
+                        commit({
+                          quality: { ...settings.quality, boostHighQuality: value },
+                        })
+                      }
+                      accessibilityLabel={t('settings.feed.quality.boostHighQuality')}
+                    />
                   }
-                  accessibilityLabel={t('settings.feed.quality.boostHighQuality')}
-                />
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
 
         {/* Reset */}
         <SettingsSection>
-          <SettingsCard>
-            <SettingsRow label={t('settings.feed.resetToDefaults')}>
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="danger"
-                onPress={resetToDefaults}
-                accessibilityLabel={t('settings.feed.resetToDefaults')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-          </SettingsCard>
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.feed.resetToDefaults')}
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="danger"
+                    onPress={resetToDefaults}
+                    accessibilityLabel={t('settings.feed.resetToDefaults')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

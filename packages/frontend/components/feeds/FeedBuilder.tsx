@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
@@ -18,7 +19,7 @@ import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1008,11 +1009,11 @@ export function FeedBuilder({
               </View>
 
               {/* Visibility */}
-              <SettingsListGroup
+              <GroupedSection
                 title={t('feeds.builder.visibility')}
                 footer={t('feeds.builder.publicDescription')}
               >
-                <SettingsListItem
+                <GroupedSectionItem
                   title={t('feeds.builder.public')}
                   showChevron={false}
                   rightElement={
@@ -1023,26 +1024,26 @@ export function FeedBuilder({
                     />
                   }
                 />
-              </SettingsListGroup>
+              </GroupedSection>
 
               {/* Mode */}
-              <SettingsListGroup
+              <GroupedSection
                 title={t('feeds.builder.mode')}
                 footer={t('feeds.builder.modeDescription')}
               >
-                <SettingsListItem
+                <GroupedSectionItem
                   title={t('feeds.builder.ranked')}
                   onPress={() => setMode('ranked')}
                   showChevron={false}
                   rightElement={<ModeCheck active={mode === 'ranked'} />}
                 />
-                <SettingsListItem
+                <GroupedSectionItem
                   title={t('feeds.builder.chronological')}
                   onPress={() => setMode('chronological')}
                   showChevron={false}
                   rightElement={<ModeCheck active={mode === 'chronological'} />}
                 />
-              </SettingsListGroup>
+              </GroupedSection>
 
               {/* Sources */}
               <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">

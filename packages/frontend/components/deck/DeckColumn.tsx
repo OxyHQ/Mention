@@ -11,7 +11,7 @@ import { PanelErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { usePanelNavigation } from '@oxy.so/bloom/app-shell/hooks';
-import { Button, IconButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -50,7 +50,10 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
   };
   return (
     <>
-      <IconButton
+      <Button
+        appearance="outline"
+        tone="neutral"
+        iconOnly
         leadingIcon={RiSettings3Line}
         accessibilityLabel={t('deck.settings')}
         onPress={() => setOpen(true)}

@@ -1,7 +1,8 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { TopicPicker } from '@/components/interests/TopicPicker';
 import { Search } from '@oxy.so/bloom/search';
-import { SettingsCard, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -85,9 +86,9 @@ export default function InterestsSettingsScreen() {
             defaultValue: 'Topics you follow shape your feed, and come with you to every Oxy app.',
           })}
         >
-          <SettingsCard>
+          <GroupedSection>
             <TopicPicker query={query} />
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

@@ -34,25 +34,7 @@ import TestRenderer, { act } from 'react-test-renderer';
  * report what they were handed rather than `null`.
  */
 
-jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } =
-    jest.requireActual<typeof import('react-native')>('react-native');
-  const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return {
-    ContactRow: ({
-      avatarSlot,
-      identitySlot,
-      onPress,
-    }: {
-      avatarSlot: React.ReactNode;
-      identitySlot: React.ReactNode;
-      onPress?: () => void;
-    }) =>
-      onPress
-        ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot)
-        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
-  };
-});
+jest.mock('@oxy.so/bloom/list', () => require('@/test-support/bloomPersonList'));
 jest.mock('@oxy.so/bloom/avatar', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
@@ -215,7 +197,6 @@ describe('ProfileCard follows the identity it names', () => {
         <ProfileCard
           profile={{ id: PERSON_ID, username: 'ada' }}
           size="sm"
-          horizontalInset={0}
           showFollowButton
           onFollowChange={onFollowChange}
         />,
@@ -225,11 +206,8 @@ describe('ProfileCard follows the identity it names', () => {
     act(() => follow.props.onPress());
     expect(onFollowChange).toHaveBeenCalledWith(true);
     expect(mockPush).not.toHaveBeenCalled();
-    // The navigation ContactRow and FollowButton are siblings: even platforms
-    // that bubble press events cannot deliver this press to the row.
-    const row = mounted!.root.findByType(
-      require('@oxy.so/bloom/chat-people/contact-row').ContactRow,
-    );
+    // The shared row's open target and trailing follow action stay independent.
+    const row = mounted!.root.findByProps({ testID: 'profile-row-open' });
     expect(row.findAllByProps({ testID: 'follow-control' })).toHaveLength(0);
     act(() => row.props.onPress());
     expect(mockPush).toHaveBeenCalled();

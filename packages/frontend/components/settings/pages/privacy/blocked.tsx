@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { queryClient } from '@/lib/queryClient';
@@ -9,7 +10,7 @@ import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Search } from '@oxy.so/bloom/search';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
@@ -283,7 +284,7 @@ export default function BlockedUsersScreen() {
     <View className="gap-4">
       <View className="gap-4">
         <SettingsSection label={t('settings.privacy.searchUsersToBlock')}>
-          <SettingsCard>
+          <GroupedSection>
             <View className="px-4 py-3 flex-row items-center gap-3">
               <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
               <Search
@@ -297,12 +298,12 @@ export default function BlockedUsersScreen() {
               />
               {searching && <ListSkeleton count={2} />}
             </View>
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
 
         {searchQuery.length > 0 && searchResults.length > 0 && (
           <SettingsSection>
-            <SettingsCard>
+            <GroupedSection>
               {searchResults.map((user) => {
                 const userId = getUserId(user);
                 const handle = user.username || user.handle || '';
@@ -310,34 +311,38 @@ export default function BlockedUsersScreen() {
                 if (!userId || !user.name?.displayName) return null;
 
                 return (
-                  <SettingsRow
-                    label={user.name.displayName}
+                  <GroupedSectionItem
+                    wrapControl
+                    title={user.name.displayName}
                     description={`@${handle}`}
                     key={userId}
-                  >
-                    <Button
-                      size="sm"
-                      appearance="subtle"
-                      tone="neutral"
-                      onPress={() => !isBlocking && handleBlock(user)}
-                      disabled={isBlocking}
-                      accessibilityLabel={user.name.displayName}
-                    >
-                      {isBlocking ? (
-                        <Loading
-                          className="text-primary"
-                          variant="inline"
+                    rightElement={
+                      <>
+                        <Button
                           size="sm"
-                          style={{ flex: undefined }}
-                        />
-                      ) : (
-                        <RiAddCircleLine width={22} height={22} fill={colors.primary} />
-                      )}
-                    </Button>
-                  </SettingsRow>
+                          appearance="subtle"
+                          tone="neutral"
+                          onPress={() => !isBlocking && handleBlock(user)}
+                          disabled={isBlocking}
+                          accessibilityLabel={user.name.displayName}
+                        >
+                          {isBlocking ? (
+                            <Loading
+                              className="text-primary"
+                              variant="inline"
+                              size="sm"
+                              style={{ flex: undefined }}
+                            />
+                          ) : (
+                            <RiAddCircleLine width={22} height={22} fill={colors.primary} />
+                          )}
+                        </Button>
+                      </>
+                    }
+                  />
                 );
               })}
-            </SettingsCard>
+            </GroupedSection>
           </SettingsSection>
         )}
 
@@ -350,7 +355,7 @@ export default function BlockedUsersScreen() {
         )}
 
         <SettingsSection label={t('settings.privacy.blockedUsers')}>
-          <SettingsCard>
+          <GroupedSection>
             {loading ? (
               <ListSkeleton />
             ) : blockedUsers.length === 0 ? (
@@ -367,33 +372,37 @@ export default function BlockedUsersScreen() {
                 if (!userId || !user.name?.displayName) return null;
 
                 return (
-                  <SettingsRow
-                    label={user.name.displayName}
+                  <GroupedSectionItem
+                    wrapControl
+                    title={user.name.displayName}
                     description={`@${handle}`}
                     key={userId}
-                  >
-                    {
-                      <Button
-                        size="sm"
-                        appearance="subtle"
-                        tone="danger"
-                        onPress={() => {
-                          if (userId) {
-                            handleUnblock(userId);
-                          } else {
-                            blockedLogger.error('No userId found for user');
-                            void showSettingsAlert(t('common.error'), 'Invalid user ID');
-                          }
-                        }}
-                      >
-                        {t('settings.privacy.unblock')}
-                      </Button>
+                    rightElement={
+                      <>
+                        {
+                          <Button
+                            size="sm"
+                            appearance="subtle"
+                            tone="danger"
+                            onPress={() => {
+                              if (userId) {
+                                handleUnblock(userId);
+                              } else {
+                                blockedLogger.error('No userId found for user');
+                                void showSettingsAlert(t('common.error'), 'Invalid user ID');
+                              }
+                            }}
+                          >
+                            {t('settings.privacy.unblock')}
+                          </Button>
+                        }
+                      </>
                     }
-                  </SettingsRow>
+                  />
                 );
               })
             )}
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

@@ -694,12 +694,16 @@ async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height')
           '[data-testid="mention-shell-panels-main-engagement"]',
         );
         const requiredTracks = axis === 'width' ? [mainTrack] : [mainTrack, auxiliaryTrack!];
-        // Shared flex space depends on every sibling track's width, including outgoing columns.
+        // Shared flex space depends on sibling tracks and the semantic shell's
+        // reading envelope. Seek their coupled constraints together, just as
+        // the real RAF transition does, including outgoing columns.
         const tracks =
           axis === 'width'
             ? [
                 ...document.querySelectorAll<HTMLElement>(
-                  `[data-bloom-panel-owner="${mainTrack.dataset.bloomPanelOwner}"][data-bloom-panel-index]`,
+                  `[data-bloom-panel-owner="${mainTrack.dataset.bloomPanelOwner}"][data-bloom-panel-index],
+                   [data-bloom-reading-envelope="${mainTrack.dataset.bloomPanelOwner}"],
+                   [data-bloom-shell-frame="${mainTrack.dataset.bloomPanelOwner}"]`,
                 ),
               ]
             : requiredTracks;
@@ -715,6 +719,7 @@ async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height')
           `max-${axis}`,
           axis,
           'margin-top',
+          ...(axis === 'width' ? ['padding-left', 'padding-right'] : []),
         ];
         const onTransition = (event: Event) => {
           const transition = event as TransitionEvent;

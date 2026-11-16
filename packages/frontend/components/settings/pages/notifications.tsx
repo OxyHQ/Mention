@@ -1,9 +1,10 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { logger } from '@oxy.so/core/logger';
@@ -106,26 +107,30 @@ export default function NotificationSettingsScreen() {
             defaultValue: 'General',
           })}
         >
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.notifications.push', {
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.notifications.push', {
                 defaultValue: 'Push notifications',
               })}
               description={t('settings.notifications.pushDesc', {
                 defaultValue: 'Receive push notifications on your device',
               })}
-            >
-              {
-                <Switch
-                  checked={prefs.pushEnabled}
-                  onCheckedChange={(v) => updatePreference('pushEnabled', v)}
-                  accessibilityLabel={t('settings.notifications.push', {
-                    defaultValue: 'Push notifications',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={prefs.pushEnabled}
+                      onCheckedChange={(v) => updatePreference('pushEnabled', v)}
+                      accessibilityLabel={t('settings.notifications.push', {
+                        defaultValue: 'Push notifications',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection
@@ -133,28 +138,32 @@ export default function NotificationSettingsScreen() {
             defaultValue: 'Activity from others',
           })}
         >
-          <SettingsCard>
-            <SettingsRow
-              label={t('subscription.list.title', {
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('subscription.list.title', {
                 defaultValue: 'Activity notifications',
               })}
               description={t('subscription.list.entryDesc', {
                 defaultValue: 'Accounts that notify you when they post',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/notifications/subscriptions')}
-                accessibilityLabel={t('subscription.list.title', {
-                  defaultValue: 'Activity notifications',
-                })}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-          </SettingsCard>
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/notifications/subscriptions')}
+                    accessibilityLabel={t('subscription.list.title', {
+                      defaultValue: 'Activity notifications',
+                    })}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection
@@ -162,116 +171,140 @@ export default function NotificationSettingsScreen() {
             defaultValue: 'Notification types',
           })}
         >
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.notifications.likes', {
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.notifications.likes', {
                 defaultValue: 'Likes',
               })}
               description={t('settings.notifications.likesDesc', {
                 defaultValue: 'When someone likes your post',
               })}
-            >
-              {
-                <Switch
-                  checked={prefs.likes}
-                  onCheckedChange={(v) => updatePreference('likes', v)}
-                  accessibilityLabel={t('settings.notifications.likes', {
-                    defaultValue: 'Likes',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={prefs.likes}
+                      onCheckedChange={(v) => updatePreference('likes', v)}
+                      accessibilityLabel={t('settings.notifications.likes', {
+                        defaultValue: 'Likes',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.notifications.boosts', {
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.notifications.boosts', {
                 defaultValue: 'Boosts',
               })}
               description={t('settings.notifications.boostsDesc', {
                 defaultValue: 'When someone boosts your post',
               })}
-            >
-              {
-                <Switch
-                  checked={prefs.boosts}
-                  onCheckedChange={(v) => updatePreference('boosts', v)}
-                  accessibilityLabel={t('settings.notifications.boosts', {
-                    defaultValue: 'Boosts',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={prefs.boosts}
+                      onCheckedChange={(v) => updatePreference('boosts', v)}
+                      accessibilityLabel={t('settings.notifications.boosts', {
+                        defaultValue: 'Boosts',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.notifications.follows', {
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.notifications.follows', {
                 defaultValue: 'New followers',
               })}
               description={t('settings.notifications.followsDesc', {
                 defaultValue: 'When someone follows you',
               })}
-            >
-              {
-                <Switch
-                  checked={prefs.follows}
-                  onCheckedChange={(v) => updatePreference('follows', v)}
-                  accessibilityLabel={t('settings.notifications.follows', {
-                    defaultValue: 'New followers',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={prefs.follows}
+                      onCheckedChange={(v) => updatePreference('follows', v)}
+                      accessibilityLabel={t('settings.notifications.follows', {
+                        defaultValue: 'New followers',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.notifications.mentions', {
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.notifications.mentions', {
                 defaultValue: 'Mentions',
               })}
               description={t('settings.notifications.mentionsDesc', {
                 defaultValue: 'When someone mentions you in a post',
               })}
-            >
-              {
-                <Switch
-                  checked={prefs.mentions}
-                  onCheckedChange={(v) => updatePreference('mentions', v)}
-                  accessibilityLabel={t('settings.notifications.mentions', {
-                    defaultValue: 'Mentions',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={prefs.mentions}
+                      onCheckedChange={(v) => updatePreference('mentions', v)}
+                      accessibilityLabel={t('settings.notifications.mentions', {
+                        defaultValue: 'Mentions',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.notifications.replies', {
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.notifications.replies', {
                 defaultValue: 'Replies',
               })}
               description={t('settings.notifications.repliesDesc', {
                 defaultValue: 'When someone replies to your post',
               })}
-            >
-              {
-                <Switch
-                  checked={prefs.replies}
-                  onCheckedChange={(v) => updatePreference('replies', v)}
-                  accessibilityLabel={t('settings.notifications.replies', {
-                    defaultValue: 'Replies',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={prefs.replies}
+                      onCheckedChange={(v) => updatePreference('replies', v)}
+                      accessibilityLabel={t('settings.notifications.replies', {
+                        defaultValue: 'Replies',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.notifications.quotes', {
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.notifications.quotes', {
                 defaultValue: 'Quote posts',
               })}
               description={t('settings.notifications.quotesDesc', {
                 defaultValue: 'When someone quotes your post',
               })}
-            >
-              {
-                <Switch
-                  checked={prefs.quotes}
-                  onCheckedChange={(v) => updatePreference('quotes', v)}
-                  accessibilityLabel={t('settings.notifications.quotes', {
-                    defaultValue: 'Quote posts',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={prefs.quotes}
+                      onCheckedChange={(v) => updatePreference('quotes', v)}
+                      accessibilityLabel={t('settings.notifications.quotes', {
+                        defaultValue: 'Quote posts',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>
