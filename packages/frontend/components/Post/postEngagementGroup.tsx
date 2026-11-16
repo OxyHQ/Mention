@@ -41,6 +41,7 @@ export function postEngagementGroup(
       panels: [
         {
           id: host.id,
+          role: host.role,
           testID: `mention-shell-panels-${host.id}-content`,
           content: navigation ? (
             content
@@ -71,6 +72,7 @@ export function postEngagementGroup(
         },
         {
           id: `${host.id}:engagement`,
+          role: 'inspector',
           testID: `mention-shell-panels-${host.id}-engagement`,
           visible: videoRoute || (engagement?.isOpen ?? false),
           onExitComplete,
