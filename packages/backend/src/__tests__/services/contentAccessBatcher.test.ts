@@ -37,6 +37,24 @@ describe('request-scoped content decisions', () => {
     expect(contentAccessBatch).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps first-party account decisions separate from each other and anonymous decisions', async () => {
+    contentAccessBatch.mockClear();
+    const first = { actingForAccountId: 'first-account' };
+    const second = { actingForAccountId: 'second-account' };
+    await runWithContentAccessScope(async () => {
+      await Promise.all([
+        decideContentAccess([post('same-post')], first),
+        decideContentAccess([post('same-post')], second),
+        decideContentAccess([post('same-post')], anonymous),
+      ]);
+      await decideContentAccess([post('same-post')], first);
+    });
+    expect(contentAccessBatch).toHaveBeenCalledTimes(3);
+    for (const requester of [first, second, anonymous]) {
+      expect(contentAccessBatch).toHaveBeenCalledWith({ items: [post('same-post')] }, requester);
+    }
+  });
+
   it('fails closed and never remembers a failure as an answer', async () => {
     contentAccessBatch.mockClear();
     contentAccessBatch.mockImplementationOnce(async () => {
