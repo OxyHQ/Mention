@@ -5,7 +5,7 @@ import type { PrivateMentionConversation } from '@mention/shared-types';
 
 /**
  * The private-mentions inbox screen: each conversation becomes one Bloom
- * `ChatListItem` naming who it is with, previewing the newest post and opening
+ * `ListItem` naming who it is with, previewing the newest post and opening
  * the thread root; an empty or failed read stays inside the list. The hook is
  * stubbed (it has its own test); the rows run for real.
  */
@@ -51,13 +51,11 @@ jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
-jest.mock('@oxy.so/bloom/chat-list', () => ({
-  ChatListItem: 'ChatListItem',
-  ChatListItemSkeleton: 'ChatListItemSkeleton',
-}));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: 'EmptyState' }));
 jest.mock('@oxy.so/bloom/list', () => ({
+  ListItem: 'ListItem',
+  List: 'List',
   VirtualList: ({
     data,
     renderItem,
@@ -126,11 +124,11 @@ describe('private mentions screen', () => {
       conversation('root-1', ['u1'], { id: 'u1', username: 'ana', displayName: 'Ana' }, 'hi'),
       conversation('root-2', ['u1', 'u2', 'u3'], { id: 'viewer', username: 'me' }, 'plan'),
     ];
-    const rows = render().root.findAllByType('ChatListItem' as unknown as React.ElementType);
+    const rows = render().root.findAllByType('ListItem' as unknown as React.ElementType);
 
-    expect(rows.map((row) => row.props.name)).toEqual(['Ana', 'Luis and 2 more']);
-    expect(rows[0].props.preview).toEqual({ text: 'hi', sender: undefined });
-    expect(rows[1].props.preview).toEqual({ text: 'plan', sender: 'You' });
+    expect(rows.map((row) => row.props.conversation.name)).toEqual(['Ana', 'Luis and 2 more']);
+    expect(rows[0].props.conversation.preview).toEqual({ text: 'hi', sender: undefined });
+    expect(rows[1].props.conversation.preview).toEqual({ text: 'plan', sender: 'You' });
 
     act(() => rows[1].props.onPress());
     expect(mockPush).toHaveBeenCalledWith('/p/root-2');
@@ -143,12 +141,12 @@ describe('private mentions screen', () => {
       conversation('root-3', ['u1', 'u2'], { id: 'u1', username: 'ana', displayName: 'Ana' }, 'yo'),
       media,
     ];
-    const rows = render().root.findAllByType('ChatListItem' as unknown as React.ElementType);
+    const rows = render().root.findAllByType('ListItem' as unknown as React.ElementType);
 
-    expect(rows[0].props.name).toBe('Ana and Luis');
-    expect(rows[0].props.preview).toEqual({ text: 'yo', sender: 'Ana' });
-    expect(rows[1].props.name).toBe('Private mentions');
-    expect(rows[1].props.preview.attachment.label).toBe('Media');
+    expect(rows[0].props.conversation.name).toBe('Ana and Luis');
+    expect(rows[0].props.conversation.preview).toEqual({ text: 'yo', sender: 'Ana' });
+    expect(rows[1].props.conversation.name).toBe('Private mentions');
+    expect(rows[1].props.conversation.preview.attachment.label).toBe('Media');
   });
 
   it('keeps an empty or failed read inside the list', () => {
@@ -161,8 +159,6 @@ describe('private mentions screen', () => {
 
     mockHook.isError = false;
     mockHook.isLoading = true;
-    expect(
-      render().root.findAllByType('ChatListItemSkeleton' as unknown as React.ElementType),
-    ).not.toHaveLength(0);
+    expect(render().root.findAllByType('List' as unknown as React.ElementType)).not.toHaveLength(0);
   });
 });

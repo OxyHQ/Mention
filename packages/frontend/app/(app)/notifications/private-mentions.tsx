@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { ChatListItemSkeleton } from '@oxy.so/bloom/chat-list';
+import { List } from '@oxy.so/bloom/list';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -49,7 +49,7 @@ export default function PrivateMentionsScreen() {
   // One list in every state, so Bloom pads each of them clear of the header.
   const renderEmpty = () => {
     if (!isAuthResolved || isPrivateApiPending || isLoading) {
-      return <ChatListItemSkeleton count={8} />;
+      return <List loading loadingCount={8} />;
     }
     if (!canUsePrivateApi) {
       return (
@@ -120,7 +120,7 @@ export default function PrivateMentionsScreen() {
           ListFooterComponent={
             isFetchingNextPage ? (
               <View>
-                <ChatListItemSkeleton count={2} />
+                <List loading loadingCount={2} />
               </View>
             ) : null
           }

@@ -87,25 +87,7 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
 }));
 
-jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } =
-    jest.requireActual<typeof import('react-native')>('react-native');
-  const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return {
-    ContactRow: ({
-      avatarSlot,
-      identitySlot,
-      onPress,
-    }: {
-      avatarSlot: React.ReactNode;
-      identitySlot: React.ReactNode;
-      onPress?: () => void;
-    }) =>
-      onPress
-        ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot)
-        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
-  };
-});
+jest.mock('@oxy.so/bloom/list', () => require('@/test-support/bloomPersonList'));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mockTranslate }),
 }));

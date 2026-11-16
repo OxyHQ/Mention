@@ -1,6 +1,7 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -55,20 +56,24 @@ export default function OnlineStatusScreen() {
     <View className="gap-4">
       <View className="gap-4">
         <SettingsSection>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.showOnlineStatus')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.showOnlineStatus')}
               description={t('settings.privacy.showOnlineStatusDesc')}
-            >
-              {
-                <Switch
-                  checked={showOnlineStatus}
-                  onCheckedChange={updateSetting}
-                  accessibilityLabel={t('settings.privacy.showOnlineStatus')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={showOnlineStatus}
+                      onCheckedChange={updateSetting}
+                      accessibilityLabel={t('settings.privacy.showOnlineStatus')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

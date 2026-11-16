@@ -28,9 +28,9 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   Screen: ({ children }: { children: unknown }) => children,
   ScreenScrollView: ({ children }: { children: unknown }) => children,
 }));
-jest.mock('@oxy.so/bloom/settings-list', () => ({
-  SettingsListGroup: 'SettingsListGroup',
-  SettingsListItem: 'SettingsListItem',
+jest.mock('@oxy.so/bloom/grouped-section', () => ({
+  GroupedSection: 'GroupedSection',
+  GroupedSectionItem: 'GroupedSectionItem',
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
   BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
@@ -87,7 +87,7 @@ function render(profile: Record<string, unknown>): ReactTestRenderer {
 function federationSection(renderer: ReactTestRenderer): ReactTestInstance {
   const [section] = renderer.root.findAll(
     (node) =>
-      node.type === ('SettingsListGroup' as unknown) &&
+      node.type === ('GroupedSection' as unknown) &&
       node.props.footer !== undefined &&
       node.findAll((child) => child.props?.title === catalogText('fediverse.about.network'))
         .length > 0,
@@ -97,7 +97,7 @@ function federationSection(renderer: ReactTestRenderer): ReactTestInstance {
 
 function row(section: ReactTestInstance, title: string): ReactTestInstance {
   return section.find(
-    (node) => node.type === ('SettingsListItem' as unknown) && node.props.title === title,
+    (node) => node.type === ('GroupedSectionItem' as unknown) && node.props.title === title,
   );
 }
 

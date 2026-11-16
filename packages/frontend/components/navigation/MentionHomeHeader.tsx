@@ -5,10 +5,10 @@ import { useAskGemie } from '@gemies/sdk/ask';
 import { GemieAvatarIcon } from '@gemies/sdk/avatar';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAppShell } from '@oxy.so/bloom/app-shell/hooks';
-import { IconButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiMenuLine } from '@oxy.so/bloom/icons/RiMenuLine';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { LogoIcon } from '@/assets/logo';
@@ -41,7 +41,10 @@ export function MentionHomeHeader() {
       leading={
         <>
           {shell.drawerAvailable && (
-            <IconButton
+            <Button
+              appearance="outline"
+              tone="neutral"
+              iconOnly
               size="md"
               leadingIcon={shell.drawerOpen ? RiCloseLine : RiMenuLine}
               accessibilityLabel={t('navigation.menu')}
@@ -50,28 +53,28 @@ export function MentionHomeHeader() {
               testID="sidebar-menu-button"
             />
           )}
-          <ButtonGroup accessibilityLabel={t('common.search')}>
-            <ButtonGroupItem
+          <Button.Group accessibilityLabel={t('common.search')}>
+            <Button
               iconOnly
               leadingIcon={RiSearchLine}
               accessibilityLabel={t('common.search')}
               onPress={() => router.push('/search')}
             />
-          </ButtonGroup>
+          </Button.Group>
         </>
       }
       actions={
-        <ButtonGroup accessibilityLabel={t('common.actions', { defaultValue: 'Page actions' })}>
-          <ButtonGroupItem leadingIcon={GemieAvatarIcon} onPress={() => ask()}>
+        <Button.Group accessibilityLabel={t('common.actions', { defaultValue: 'Page actions' })}>
+          <Button leadingIcon={GemieAvatarIcon} onPress={() => ask()}>
             {t('header.askAlia')}
-          </ButtonGroupItem>
-          <ButtonGroupItem
+          </Button>
+          <Button
             iconOnly
             leadingIcon={RiNotification3Line}
             accessibilityLabel={t('notifications.title')}
             onPress={() => router.push('/notifications')}
           />
-        </ButtonGroup>
+        </Button.Group>
       }
     />
   );

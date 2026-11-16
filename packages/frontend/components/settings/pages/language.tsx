@@ -1,6 +1,7 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { getNativeLanguageName } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useCallback } from 'react';
@@ -40,19 +41,26 @@ export default function LanguageSettingsScreen() {
     <View className="gap-4">
       <View className="gap-4">
         <SettingsSection label={t('settings.language.selectLanguage')}>
-          <SettingsCard>
-            <SettingsRow label={t('settings.language.title')} description={languageDescription}>
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={openLanguageSelector}
-                accessibilityLabel={t('settings.language.title')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-          </SettingsCard>
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.language.title')}
+              description={languageDescription}
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={openLanguageSelector}
+                    accessibilityLabel={t('settings.language.title')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

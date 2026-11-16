@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -7,7 +8,7 @@ import { getErrorMessage } from '@/utils/apiError';
 import type { MutedLane } from '@mention/shared-types';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
@@ -100,7 +101,7 @@ export default function MutedLanesScreen() {
         </View>
 
         <SettingsSection label={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
-          <SettingsCard>
+          <GroupedSection>
             {isLoading ? (
               <ListSkeleton />
             ) : isError ? (
@@ -138,29 +139,33 @@ export default function MutedLanesScreen() {
                 // be resolved is dropped there, never rendered blank.
                 const handle = getNormalizedUserHandle(entry.owner) || '';
                 return (
-                  <SettingsRow
-                    label={entry.lane.name}
+                  <GroupedSectionItem
+                    wrapControl
+                    title={entry.lane.name}
                     description={handle ? `@${handle}` : undefined}
                     key={entry.lane.id}
-                  >
-                    {
-                      <Button
-                        size="sm"
-                        appearance="subtle"
-                        tone="danger"
-                        onPress={() => unmuteMutation.mutate(entry.lane.id)}
-                        accessibilityLabel={t('lanes.muted.unmute', {
-                          defaultValue: 'Unmute',
-                        })}
-                      >
-                        {t('lanes.muted.unmute', { defaultValue: 'Unmute' })}
-                      </Button>
+                    rightElement={
+                      <>
+                        {
+                          <Button
+                            size="sm"
+                            appearance="subtle"
+                            tone="danger"
+                            onPress={() => unmuteMutation.mutate(entry.lane.id)}
+                            accessibilityLabel={t('lanes.muted.unmute', {
+                              defaultValue: 'Unmute',
+                            })}
+                          >
+                            {t('lanes.muted.unmute', { defaultValue: 'Unmute' })}
+                          </Button>
+                        }
+                      </>
                     }
-                  </SettingsRow>
+                  />
                 );
               })
             )}
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

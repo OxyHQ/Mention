@@ -17,16 +17,7 @@ jest.mock('@/components/settings/settingsRoutes', () => ({ requestSettings: jest
 jest.mock('@/components/interests/TopicPicker', () => ({ TopicPicker: () => 'topics' }));
 jest.mock('@/components/sharedRouteScreens', () => ({ LazyWhoToFollowTab: () => 'people' }));
 jest.mock('../WelcomeStarterPacks', () => ({ WelcomeStarterPacks: () => null }));
-jest.mock('@oxy.so/bloom/button-group', () => {
-  const item = ({ children, onPress }: { children: ReactNode; onPress: () => void }) => {
-    const { Text } = require('react-native');
-    return <Text onPress={onPress}>{children}</Text>;
-  };
-  return {
-    ButtonGroup: ({ children }: { children: ReactNode }) => children,
-    ButtonGroupItem: item,
-  };
-});
+
 jest.mock('@oxy.so/bloom/card', () => {
   const pass = ({ children }: { children?: ReactNode }) => children;
   return { CardHeader: pass, CardBody: pass, CardTitle: pass, CardDescription: pass };
@@ -36,7 +27,9 @@ jest.mock('@oxy.so/bloom/button', () => {
     const { Text } = require('react-native');
     return <Text onPress={onPress}>{children}</Text>;
   };
-  return { Button: press, LinkButton: press };
+  return {
+    Button: Object.assign(press, { Group: ({ children }: { children: ReactNode }) => children }),
+  };
 });
 jest.mock('@oxy.so/bloom/typography', () => ({
   Title: ({ children }: { children: ReactNode }) => children,

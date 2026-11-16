@@ -1,10 +1,11 @@
+import { Button } from '@oxy.so/bloom/button';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -165,14 +166,14 @@ export default function TrendScreen() {
   };
 
   const headerActions = (
-    <ButtonGroup accessibilityLabel={t('trend.topic.actions', { defaultValue: 'Acciones' })}>
-      <ButtonGroupItem
+    <Button.Group accessibilityLabel={t('trend.topic.actions', { defaultValue: 'Acciones' })}>
+      <Button
         iconOnly
         leadingIcon={RiFlagLine}
         accessibilityLabel={t('trend.topic.report', { defaultValue: 'Reportar' })}
         onPress={reportTopic}
       />
-      <ButtonGroupItem
+      <Button
         iconOnly
         leadingIcon={RiShare2Line}
         accessibilityLabel={t('widgetMenu.share', { defaultValue: 'Compartir' })}
@@ -181,7 +182,7 @@ export default function TrendScreen() {
       {trendActions ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild label={t('trend.topic.more', { defaultValue: 'Más' })}>
-            <ButtonGroupItem
+            <Button
               iconOnly
               leadingIcon={RiMoreFill}
               accessibilityLabel={t('trend.topic.more', { defaultValue: 'Más' })}
@@ -197,7 +198,7 @@ export default function TrendScreen() {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-    </ButtonGroup>
+    </Button.Group>
   );
 
   const listHeader = useMemo(

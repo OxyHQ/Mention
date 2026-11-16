@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -6,7 +7,7 @@ import { Redirect } from '@/lib/navigation/router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, View } from 'react-native';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { RiAtLine } from '@oxy.so/bloom/icons/RiAtLine';
@@ -271,9 +272,9 @@ function AccountInfoContent({
             row is marked as the primary, which is the only thing that explains
             why that one and not another appears under the name. */}
       {categories.length > 0 && (
-        <SettingsListGroup title={t('accountCategories.title', { defaultValue: 'Categories' })}>
+        <GroupedSection title={t('accountCategories.title', { defaultValue: 'Categories' })}>
           {categories.map((category, index) => (
-            <SettingsListItem
+            <GroupedSectionItem
               key={category.id}
               icon={<RowIcon icon={RiHashtag} />}
               title={category.label}
@@ -284,36 +285,36 @@ function AccountInfoContent({
               }
             />
           ))}
-        </SettingsListGroup>
+        </GroupedSection>
       )}
 
       {/* Profile details — the source's own fields (pronouns, and the like). A link
           is never one of them: links are the profile's chips. */}
       {(pronouns || (profileData.fields && profileData.fields.length > 0)) && (
-        <SettingsListGroup
+        <GroupedSection
           title={t('profile.about.profileDetails', { defaultValue: 'Profile details' })}
         >
           {pronouns && (
-            <SettingsListItem
+            <GroupedSectionItem
               title={t('profile.about.pronouns', { defaultValue: 'Pronouns' })}
               value={pronouns}
             />
           )}
           {profileData.fields?.map((field) => (
-            <SettingsListItem
+            <GroupedSectionItem
               key={`${field.name}:${field.value}`}
               title={field.name}
               value={field.value}
             />
           ))}
-        </SettingsListGroup>
+        </GroupedSection>
       )}
 
       {/* Account details — dates, location, activity */}
       {hasAccountDetails && (
-        <SettingsListGroup title={t('profile.about.details', { defaultValue: 'Account details' })}>
+        <GroupedSection title={t('profile.about.details', { defaultValue: 'Account details' })}>
           {joinDate && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RiCalendar2Line width={20} height={20} fill={theme.colors.textSecondary} />}
               title={t('profile.about.dateJoined', { defaultValue: 'Date joined' })}
               value={joinDate}
@@ -321,7 +322,7 @@ function AccountInfoContent({
           )}
 
           {profileData.primaryLocation && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RowIcon icon={RiMapPinLine} />}
               title={t('profile.about.basedIn', { defaultValue: 'Account based in' })}
               value={profileData.primaryLocation}
@@ -329,7 +330,7 @@ function AccountInfoContent({
           )}
 
           {websiteUrl && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RowIcon icon={RiLinkM} />}
               title={t('profile.about.website', { defaultValue: 'Website' })}
               value={website?.replace(/^https?:\/\//i, '')}
@@ -338,7 +339,7 @@ function AccountInfoContent({
           )}
 
           {hasUsernameChanges && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RowIcon icon={RiAtLine} />}
               title={t('profile.about.usernameChanges', { defaultValue: 'Username changes' })}
               value={String(profileData.usernameChangeCount)}
@@ -346,22 +347,20 @@ function AccountInfoContent({
           )}
 
           {profileData.connectedVia && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RowIcon icon={RiEarthLine} />}
               title={t('profile.about.connectedVia', { defaultValue: 'Connected via' })}
               value={profileData.connectedVia}
             />
           )}
-        </SettingsListGroup>
+        </GroupedSection>
       )}
 
       {/* Verification — its own section, matching the profile's emphasis on the
             verified badge */}
       {profileData.verified && (
-        <SettingsListGroup
-          title={t('profile.about.verification', { defaultValue: 'Verification' })}
-        >
-          <SettingsListItem
+        <GroupedSection title={t('profile.about.verification', { defaultValue: 'Verification' })}>
+          <GroupedSectionItem
             icon={<RiVerifiedBadgeFill width={20} height={20} fill={VERIFIED_BADGE_COLOR} />}
             title={t('profile.fields.verified', { defaultValue: 'Verified' })}
             value={
@@ -373,7 +372,7 @@ function AccountInfoContent({
                 : t('profile.about.verifiedAccount', { defaultValue: 'Verified account' })
             }
           />
-        </SettingsListGroup>
+        </GroupedSection>
       )}
 
       {/* Fediverse — every non-Oxy account, whichever network it lives on,
@@ -384,7 +383,7 @@ function AccountInfoContent({
             "Learn more" row opens the FediverseInfoSheet for ActivityPub
             accounts only, the network that sheet describes. */}
       {federationInfo && (
-        <SettingsListGroup
+        <GroupedSection
           title={t('fediverse.about.title', { defaultValue: 'Fediverse' })}
           footer={
             federationInfo.network === 'atproto'
@@ -405,7 +404,7 @@ function AccountInfoContent({
                   })
           }
         >
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<RiFediverseLine width={20} height={20} fill={theme.colors.textSecondary} />}
             title={t('fediverse.about.network', { defaultValue: 'Network' })}
             value={
@@ -418,7 +417,7 @@ function AccountInfoContent({
           />
 
           {federationInfo.instance && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RowIcon icon={RiDatabase2Line} />}
               title={t('fediverse.about.homeServer', { defaultValue: 'Home server' })}
               value={federationInfo.instance}
@@ -426,7 +425,7 @@ function AccountInfoContent({
           )}
 
           {federationInfo.handle && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RowIcon icon={RiAtLine} />}
               title={t('fediverse.about.handle', { defaultValue: 'Handle' })}
               value={`@${federationInfo.handle}`}
@@ -434,7 +433,7 @@ function AccountInfoContent({
           )}
 
           {federationInfo.originalProfileUrl && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RiExternalLinkLine width={20} height={20} fill={theme.colors.textSecondary} />}
               title={t('fediverse.about.viewOriginal', { defaultValue: 'View original profile' })}
               onPress={() => {
@@ -445,7 +444,7 @@ function AccountInfoContent({
           )}
 
           {federationInfo.network === 'activitypub' && (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<RiFediverseLine width={20} height={20} fill={theme.colors.textSecondary} />}
               title={t('fediverse.about.learnMore', {
                 defaultValue: 'Learn more about the fediverse',
@@ -453,7 +452,7 @@ function AccountInfoContent({
               onPress={() => showFediverseInfo()}
             />
           )}
-        </SettingsListGroup>
+        </GroupedSection>
       )}
     </View>
   );

@@ -46,7 +46,6 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
             count={MAX_DISPLAY_USERS}
             showFollowButton
             size="sm"
-            horizontalInset={0}
             showDivider={false}
           />
           <Skeleton.Box width={88} height={SHOW_MORE_HEIGHT} borderRadius={SHOW_MORE_HEIGHT / 2} />
@@ -104,15 +103,7 @@ const FollowRowComponent = React.memo(
       federation: profileData.federation,
     };
 
-    return (
-      <ProfileCard
-        profile={profile}
-        showFollowButton
-        showDivider={showBorder}
-        size="sm"
-        horizontalInset={0}
-      />
-    );
+    return <ProfileCard profile={profile} showFollowButton showDivider={showBorder} size="sm" />;
   },
 );
 

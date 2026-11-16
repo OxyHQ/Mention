@@ -32,10 +32,10 @@ jest.mock('@oxy.so/bloom/layout', () => ({
   useContentSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 
-jest.mock('@oxy.so/bloom/settings-modal', () => {
-  const { View } = jest.requireActual('react-native');
-  return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
-});
+jest.mock('@oxy.so/bloom/settings-modal', () => ({
+  SettingsSection: require('react-native').View,
+}));
+jest.mock('@oxy.so/bloom/grouped-section', () => require('@/test-support/bloomGroupedSection'));
 
 /**
  * Render tests for the activity-subscriptions screen — the three behaviours that
@@ -92,25 +92,7 @@ function mockTranslate(
   return value.replace(/\{\{(\w+)\}\}/g, (_m, name: string) => String(vars[name] ?? ''));
 }
 
-jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } =
-    jest.requireActual<typeof import('react-native')>('react-native');
-  const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return {
-    ContactRow: ({
-      avatarSlot,
-      identitySlot,
-      onPress,
-    }: {
-      avatarSlot: React.ReactNode;
-      identitySlot: React.ReactNode;
-      onPress?: () => void;
-    }) =>
-      onPress
-        ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot)
-        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
-  };
-});
+jest.mock('@oxy.so/bloom/list', () => require('@/test-support/bloomPersonList'));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mockTranslate }),
 }));
@@ -233,19 +215,6 @@ jest.mock('@oxy.so/bloom/button', () => {
     </TouchableOpacity>
   );
   return { Button, ButtonText: Text };
-});
-
-jest.mock('@oxy.so/bloom/settings-list', () => {
-  const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    SettingsListGroup: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
-    SettingsListItem: ({ title, description }: { title?: string; description?: string }) => (
-      <View>
-        <Text>{title}</Text>
-        <Text>{description}</Text>
-      </View>
-    ),
-  };
 });
 
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));

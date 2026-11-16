@@ -60,25 +60,25 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
-// Bloom's button entry is untranspiled source. The stand-in keeps GlyphButton's
+// Bloom's button entry is untranspiled source. The stand-in keeps Button's
 // contract as Bloom's own tests pin it: a button with the given name, disabled
 // and busy both announced and both refusing a press, and the glyph painted in
 // `color` or, by default, the theme's secondary text colour.
 jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    GlyphButton: ({
+    Button: ({
       children,
       accessibilityLabel,
       disabled = false,
-      busy = false,
+      loading: busy = false,
       onPress,
       color,
     }: {
       children: (foreground: string) => React.ReactNode;
       accessibilityLabel: string;
       disabled?: boolean;
-      busy?: boolean;
+      loading?: boolean;
       onPress?: () => void;
       color?: string;
     }) => (

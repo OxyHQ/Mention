@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import { GlyphButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -351,7 +351,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
 );
 
 /**
- * One control of the row: Bloom's `GlyphButton`, so every control is a real
+ * One control of the row: Bloom's `Button`, so every control is a real
  * button with a required name, keyboard focus and activation, a hover wash and
  * a focus ring — the row used to be hand-rolled pressables, most of them with
  * no name or role (OxyHQ/Mention#1124).
@@ -384,24 +384,26 @@ const ToolbarAction = ({
   const theme = useTheme();
   const tint = invalid ? theme.colors.error : active ? theme.colors.primary : undefined;
   return (
-    <GlyphButton
-      size={TOOLBAR_ACTION_SIZE}
-      glyphSize={TOOLBAR_GLYPH_SIZE}
+    <Button
+      appearance="plain"
+      tone="neutral"
+      iconOnly
+      iconSize={TOOLBAR_GLYPH_SIZE}
       accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled}
-      busy={busy}
+      loading={busy}
+      loadingIndicator={null}
       color={tint}
       hoverColor={tint}
     >
       {children}
-    </GlyphButton>
+    </Button>
   );
 };
 
-/** The glyphs are 20px, and the target keeps the 4px of padding round each it had. */
+/** Custom glyphs retain their size inside the shared md interaction target. */
 const TOOLBAR_GLYPH_SIZE = 20;
-const TOOLBAR_ACTION_SIZE = 28;
 
 ComposeToolbar.displayName = 'ComposeToolbar';
 

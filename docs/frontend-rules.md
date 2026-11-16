@@ -374,3 +374,11 @@ Android recording to 67 ms during upward zoom. Finalization resets zoom, while
 `cameraShutterGestures.test.tsx` exercises actual Gesture Handler transitions
 and the recorder with a native camera stub; device acceptance still checks the
 native event ordering and encoded clip.
+
+## Shared controls and rows
+
+Bloom 22 supplies `Button` and `Button.Group` for actions, `GroupedSection` and
+`GroupedSectionItem` for settings, and `ListItem` for person and conversation rows.
+Mention supplies identities, translated labels, permissions and callbacks. Custom
+noninteractive row text uses `pointerEvents="none"` so clicking the visible name
+opens the shared row; follow controls stay in the separate trailing slot.

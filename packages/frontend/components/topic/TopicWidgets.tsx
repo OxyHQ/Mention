@@ -45,13 +45,7 @@ function TopicPeopleWidget({ authors }: { authors: PostUser[] }) {
     <BaseWidget title={t('trend.topic.people', { defaultValue: 'Personas relevantes' })} divider>
       <View className="gap-2">
         {authors.map((user) => (
-          <ProfileCard
-            key={user.id}
-            profile={toProfileCard(user)}
-            size="sm"
-            showDivider={false}
-            horizontalInset={0}
-          />
+          <ProfileCard key={user.id} profile={toProfileCard(user)} size="sm" showDivider={false} />
         ))}
       </View>
     </BaseWidget>
