@@ -3,13 +3,12 @@ const React = require('react');
 const { View, TouchableOpacity } = require('react-native');
 
 exports.ListItem = function ListItem({ leading, content, trailing, onPress }) {
-  const identity = onPress
-    ? React.createElement(
-        TouchableOpacity,
-        { onPress, accessibilityRole: 'button', testID: 'profile-row-open' },
-        leading,
-        content,
-      )
-    : React.createElement(View, null, leading, content);
-  return React.createElement(View, null, identity, trailing);
+  const opening = onPress
+    ? React.createElement(TouchableOpacity, {
+        onPress,
+        accessibilityRole: 'button',
+        testID: 'profile-row-open',
+      })
+    : null;
+  return React.createElement(View, null, opening, leading, content, trailing);
 };

@@ -189,14 +189,16 @@ export function ProfileCard({
         person={{ name: nameLabel || handle, subtitle: handle || undefined }}
         onPress={press}
         leading={
-          <AccountAvatar
-            account={resolved}
-            source={resolved.avatar || undefined}
-            size={size === 'sm' ? 36 : 44}
-            variant={MEDIA_VARIANT_AVATAR}
-            verified={resolved.verified}
-            placeholderColor={getUserPlaceholderColor(resolved)}
-          />
+          <View pointerEvents="none">
+            <AccountAvatar
+              account={resolved}
+              source={resolved.avatar || undefined}
+              size={size === 'sm' ? 36 : 44}
+              variant={MEDIA_VARIANT_AVATAR}
+              verified={resolved.verified}
+              placeholderColor={getUserPlaceholderColor(resolved)}
+            />
+          </View>
         }
         content={
           <View pointerEvents="none" className="flex-1 gap-0.5">
