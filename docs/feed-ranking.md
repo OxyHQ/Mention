@@ -294,6 +294,17 @@ this ordering. Signed-in Media and anonymous For You/Videos keep their existing
 fallback policies; older media remains eligible in the fallback.
 
 Explore remains pre-scored in SQL rather than running the full ranking service.
+Its recency decay uses PostgreSQL's double-precision `power` overload for both
+operands. Casting only the completed score leaves `power(0.5, numeric)` doing
+arbitrary-precision work across the full candidate window. Ranking revision 4
+separates these scores from old numeric-power boundaries through the existing
+stateless cursor check, session binding and anonymous cache namespace. Existing
+cursors receive `410 FEED_CURSOR_EXPIRED` and the client refreshes the feed;
+other feeds retain their ranking revisions. The mathematical formula, discovery
+filters, frozen window, candidate count and score/ID ordering are unchanged.
+See [the production query measurements](audits/2026-11-16-explore-decay.md) for
+what was measured and its limits.
+
 It now excludes explicitly hidden/muted/blocked authors before source caps and
 applies the existing hidden-topic multiplier to canonical topics and hashtags
 before its score keyset. Old Explore score/session cursors restart with typed

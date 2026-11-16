@@ -33,8 +33,8 @@ import {
   parseChronoCursor,
 } from '../../utils/chronoCursor';
 
-/** Explore source ordering now includes explicit negative author/topic intent. */
-export const EXPLORE_RANKING_VERSION = 3;
+/** Explore uses double-precision decay; old numeric-power boundaries must restart. */
+export const EXPLORE_RANKING_VERSION = 4;
 
 // --- Score-based cursor (for ranked feeds: for_you, explore) ---
 

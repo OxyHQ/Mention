@@ -214,6 +214,21 @@ describe('ranked feed session storage', () => {
     });
   });
 
+  it('expires Explore sessions carrying numeric-power score boundaries', async () => {
+    // Produced by the deployed revision-3 binding at 4cc7622d7 with this
+    // definition fixture and viewer. Reusing its scores would mix arithmetic.
+    const cursor = await store.save({
+      ...state(),
+      binding: '15a7e3f91fb8e1e8ae44f1d2b27d3a0acea2724034d5cbbedfbaa2ccfb0dfc76',
+    });
+    await expect(
+      store.load(
+        cursor,
+        rankedSessionBinding({ ...definition, id: 'explore' }, { currentUserId: 'viewer' }, 20),
+      ),
+    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
+  });
+
   it('stores immutable minimal state with a thirty-minute lifetime', async () => {
     const initial = state();
     const cursor = await store.save(initial);

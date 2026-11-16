@@ -136,12 +136,15 @@ describe('Explore source respects explicit negative intent without reapplying ra
     expect(served).toEqual(expected.map((post) => post.id));
     expect(new Set(served).size).toBe(6);
   });
-  it('rejects the old pre-scored score boundary with the explicit restart contract', async () => {
-    await expect(
-      engine.run(definition, await context(), {
-        limit: 2,
-        cursor: ScoreCursor.build(1, fixtures[0].id, { asOf: now, rankingVersion: 2 }),
-      }),
-    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
-  });
+  it.each([2, 3])(
+    'rejects revision %i score boundaries with the explicit restart contract',
+    async (rankingVersion) => {
+      await expect(
+        engine.run(definition, await context(), {
+          limit: 2,
+          cursor: ScoreCursor.build(1, fixtures[0].id, { asOf: now, rankingVersion }),
+        }),
+      ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
+    },
+  );
 });
