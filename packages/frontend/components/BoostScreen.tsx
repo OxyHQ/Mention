@@ -22,7 +22,7 @@ import type { FeedItem } from '@/db';
 import PostContentText from '@/components/Post/PostContentText';
 
 import UserName from './UserName';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { usePostsStore } from '../stores/postsStore';
@@ -35,7 +35,7 @@ const MAX_CHARACTERS = 280;
 const BoostScreen: React.FC = () => {
   const { user } = useAuth();
   const { id: postId } = useLocalSearchParams<{ id: string }>();
-  const insets = useSafeAreaInsets();
+  const insets = useContentSafeAreaInsets();
   const theme = useTheme();
   const { t } = useTranslation();
   const back = useScreenBack();

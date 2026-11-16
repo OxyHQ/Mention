@@ -2,7 +2,7 @@ import { View, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { Button } from '@oxy.so/bloom/button';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import { EmptyState } from '@/components/common/EmptyState';
 
 interface ErrorProps {
@@ -28,7 +28,7 @@ export function Error({
   style,
 }: ErrorProps) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const insets = useContentSafeAreaInsets();
 
   const handleGoBack = () => {
     if (onGoBack) {

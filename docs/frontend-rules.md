@@ -65,6 +65,11 @@ family's mode, flow or navigation gap. Insights sets `expandedPanel: 'main'`, pr
 same outer width; Bloom owns visibility, transitions, scrolling and bottom-bar
 clearance. Do not add another app-specific sidebar breakpoint or width animation.
 
+Inline content that reads device insets uses Bloom's `useContentSafeAreaInsets`
+from `@oxy.so/bloom/layout`, so the semantic shell and page do not reserve the
+same edge twice. Keep raw device insets for independent portaled/fullscreen
+surfaces. Product spacing (such as a profile content offset) remains separate.
+
 Deck uses the same compositor through `layout="deck"`. Its default composition has the current
 application page as a fixed first column and three configurable columns. Saved
 custom columns can change that count. The compact sidebar mode control preserves

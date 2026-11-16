@@ -27,6 +27,11 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
 jest.mock('@/stores/feedRankingInvalidation', () => ({
   notifyFeedRankingChanged: (...args: unknown[]) => mockRankingChanged(...args),
 }));
+// The inline error state consumes the enclosing frame's insets; this renderer has none.
+jest.mock('@oxy.so/bloom/layout', () => ({
+  useContentSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
 jest.mock('@oxy.so/bloom/settings-modal', () => {
   const { View } = jest.requireActual('react-native');
   return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
