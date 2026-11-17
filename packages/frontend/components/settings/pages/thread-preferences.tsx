@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { ThreadSortGroup } from '@/components/settings/ThreadSortGroup';
 import { useThreadPreferencesStore, type VoteStyle } from '@/hooks/useThreadPreferences';
@@ -5,7 +6,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
@@ -51,28 +52,32 @@ export default function ThreadPreferencesScreen() {
             defaultValue: 'Like style',
           })}
         >
-          <SettingsCard>
+          <GroupedSection>
             {VOTE_STYLE_OPTIONS.map((option) => (
-              <SettingsRow
-                label={t(option.labelKey, {
+              <GroupedSectionItem
+                wrapControl
+                title={t(option.labelKey, {
                   defaultValue: option.defaultLabel,
                 })}
                 key={option.value}
-              >
-                <Button
-                  size="sm"
-                  appearance="subtle"
-                  tone="neutral"
-                  onPress={() => setVoteStyle(option.value)}
-                  accessibilityLabel={t(option.labelKey, {
-                    defaultValue: option.defaultLabel,
-                  })}
-                >
-                  {<RadioIndicator selected={voteStyle === option.value} />}
-                </Button>
-              </SettingsRow>
+                rightElement={
+                  <>
+                    <Button
+                      size="sm"
+                      appearance="subtle"
+                      tone="neutral"
+                      onPress={() => setVoteStyle(option.value)}
+                      accessibilityLabel={t(option.labelKey, {
+                        defaultValue: option.defaultLabel,
+                      })}
+                    >
+                      {<RadioIndicator selected={voteStyle === option.value} />}
+                    </Button>
+                  </>
+                }
+              />
             ))}
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection
@@ -80,26 +85,30 @@ export default function ThreadPreferencesScreen() {
             defaultValue: 'Display',
           })}
         >
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.threadPreferences.treeView', {
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.threadPreferences.treeView', {
                 defaultValue: 'Threaded tree view',
               })}
               description={t('settings.threadPreferences.treeViewDesc', {
                 defaultValue: 'Show replies in a threaded tree structure',
               })}
-            >
-              {
-                <Switch
-                  checked={treeView}
-                  onCheckedChange={setTreeView}
-                  accessibilityLabel={t('settings.threadPreferences.treeView', {
-                    defaultValue: 'Threaded tree view',
-                  })}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={treeView}
+                      onCheckedChange={setTreeView}
+                      accessibilityLabel={t('settings.threadPreferences.treeView', {
+                        defaultValue: 'Threaded tree view',
+                      })}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

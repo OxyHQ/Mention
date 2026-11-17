@@ -52,10 +52,10 @@ jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiEarthLine', () => ({ RiEarthLine: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiRefreshLine', () => ({ RiRefreshLine: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiSparklingLine', () => ({ RiSparklingLine: () => null }));
-jest.mock('@oxy.so/bloom/settings-modal', () => {
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
-});
+jest.mock('@oxy.so/bloom/settings-modal', () => ({
+  SettingsSection: require('react-native').View,
+}));
+jest.mock('@oxy.so/bloom/grouped-section', () => require('@/test-support/bloomGroupedSection'));
 jest.mock('@oxy.so/bloom/switch', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return {

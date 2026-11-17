@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { WEB_BASE_URL } from '@/config';
@@ -5,7 +6,7 @@ import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
@@ -104,38 +105,56 @@ function FediverseSharingBody() {
   return (
     <View className="gap-4">
       <SettingsSection description={t('fediverse.settings.description')}>
-        <SettingsCard>
-          <SettingsRow label={t('fediverse.settings.share')} description={federatedHandle}>
-            {<Switch checked={sharing} onCheckedChange={onToggle} disabled={pending} />}
-          </SettingsRow>
-        </SettingsCard>
+        <GroupedSection>
+          <GroupedSectionItem
+            wrapControl
+            title={t('fediverse.settings.share')}
+            description={federatedHandle}
+            rightElement={
+              <>{<Switch checked={sharing} onCheckedChange={onToggle} disabled={pending} />}</>
+            }
+          />
+        </GroupedSection>
       </SettingsSection>
 
       <SettingsSection>
-        <SettingsCard>
-          <SettingsRow label={t('fediverse.settings.whatIs')}>
-            <Button
-              size="sm"
-              appearance="subtle"
-              tone="neutral"
-              onPress={openInfoSheet}
-              accessibilityLabel={t('fediverse.settings.whatIs')}
-            >
-              {t('common.open', { defaultValue: 'Open' })}
-            </Button>
-          </SettingsRow>
-          <SettingsRow label={t('transparency.title')} description={t('transparency.list.title')}>
-            <Button
-              size="sm"
-              appearance="subtle"
-              tone="neutral"
-              onPress={() => router.push('/settings/fediverse/transparency')}
-              accessibilityLabel={t('transparency.title')}
-            >
-              {t('common.open', { defaultValue: 'Open' })}
-            </Button>
-          </SettingsRow>
-        </SettingsCard>
+        <GroupedSection>
+          <GroupedSectionItem
+            wrapControl
+            title={t('fediverse.settings.whatIs')}
+            rightElement={
+              <>
+                <Button
+                  size="sm"
+                  appearance="subtle"
+                  tone="neutral"
+                  onPress={openInfoSheet}
+                  accessibilityLabel={t('fediverse.settings.whatIs')}
+                >
+                  {t('common.open', { defaultValue: 'Open' })}
+                </Button>
+              </>
+            }
+          />
+          <GroupedSectionItem
+            wrapControl
+            title={t('transparency.title')}
+            description={t('transparency.list.title')}
+            rightElement={
+              <>
+                <Button
+                  size="sm"
+                  appearance="subtle"
+                  tone="neutral"
+                  onPress={() => router.push('/settings/fediverse/transparency')}
+                  accessibilityLabel={t('transparency.title')}
+                >
+                  {t('common.open', { defaultValue: 'Open' })}
+                </Button>
+              </>
+            }
+          />
+        </GroupedSection>
       </SettingsSection>
     </View>
   );

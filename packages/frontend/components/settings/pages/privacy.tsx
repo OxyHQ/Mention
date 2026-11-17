@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
@@ -16,7 +17,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -150,214 +151,264 @@ function PrivacySettingsScreen() {
     <View className="gap-4">
       <View className="gap-4">
         <SettingsSection>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.privateProfile')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.privateProfile')}
               description={t('settings.privacy.privateProfileDesc', {
                 defaultValue: 'Control who can see your profile',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/profile-visibility')}
-                accessibilityLabel={t('settings.privacy.privateProfile')}
-              >
-                {getProfileVisibilityText()}
-              </Button>
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.searchEngines')}
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/profile-visibility')}
+                    accessibilityLabel={t('settings.privacy.privateProfile')}
+                  >
+                    {getProfileVisibilityText()}
+                  </Button>
+                </>
+              }
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.searchEngines')}
               description={t('settings.privacy.searchEnginesDesc')}
-            >
-              <Switch
-                checked={privacySettings.searchEngineIndexing ?? true}
-                onCheckedChange={(value) => updatePrivacyToggle('searchEngineIndexing', value)}
-                accessibilityLabel={t('settings.privacy.searchEngines')}
-              />
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.showLikes')}
+              rightElement={
+                <>
+                  <Switch
+                    checked={privacySettings.searchEngineIndexing ?? true}
+                    onCheckedChange={(value) => updatePrivacyToggle('searchEngineIndexing', value)}
+                    accessibilityLabel={t('settings.privacy.searchEngines')}
+                  />
+                </>
+              }
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.showLikes')}
               description={t('settings.privacy.showLikesDesc')}
-            >
-              <Switch
-                checked={privacySettings.showLikes ?? false}
-                onCheckedChange={(value) => updatePrivacyToggle('showLikes', value)}
-                accessibilityLabel={t('settings.privacy.showLikes')}
-              />
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.tagsAndMentions')}
+              rightElement={
+                <>
+                  <Switch
+                    checked={privacySettings.showLikes ?? false}
+                    onCheckedChange={(value) => updatePrivacyToggle('showLikes', value)}
+                    accessibilityLabel={t('settings.privacy.showLikes')}
+                  />
+                </>
+              }
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.tagsAndMentions')}
               description={t('settings.privacy.tagsAndMentionsDesc', {
                 defaultValue: 'Choose who can tag or mention you',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/tags-mentions')}
-                accessibilityLabel={t('settings.privacy.tagsAndMentions')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.onlineStatus.title')}
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/tags-mentions')}
+                    accessibilityLabel={t('settings.privacy.tagsAndMentions')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.onlineStatus.title')}
               description={t('settings.privacy.onlineStatusDesc', {
                 defaultValue: 'Show when you are active',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/online-status')}
-                accessibilityLabel={t('settings.privacy.onlineStatus.title')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-          </SettingsCard>
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/online-status')}
+                    accessibilityLabel={t('settings.privacy.onlineStatus.title')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.restrictedProfiles')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.restrictedProfiles')}
               description={t('settings.privacy.restrictedProfilesDesc', {
                 defaultValue: 'Limit interactions from specific people',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/restricted')}
-                accessibilityLabel={t('settings.privacy.restrictedProfiles')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.blockedProfiles')}
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/restricted')}
+                    accessibilityLabel={t('settings.privacy.restrictedProfiles')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.blockedProfiles')}
               description={t('settings.privacy.blockedProfilesDesc', {
                 defaultValue: 'People you have blocked',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/blocked')}
-                accessibilityLabel={t('settings.privacy.blockedProfiles')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-          </SettingsCard>
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/blocked')}
+                    accessibilityLabel={t('settings.privacy.blockedProfiles')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.hiddenWords')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.hiddenWords')}
               description={t('settings.privacy.hiddenWordsDesc', {
                 defaultValue: 'Filter posts containing specific words',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/hidden-words')}
-                accessibilityLabel={t('settings.privacy.hiddenWords')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/hidden-words')}
+                    accessibilityLabel={t('settings.privacy.hiddenWords')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
             {/* Beside muted words because a reader looking for "stop
                         showing me this" looks in one place — but a separate
                         screen, because the two are different rules: a muted word
                         is a safety filter that reaches search and notifications,
                         a muted lane is a timeline preference that reaches feeds
                         only. */}
-            <SettingsRow
-              label={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}
+            <GroupedSectionItem
+              wrapControl
+              title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}
               description={t('lanes.muted.settingsDesc', {
                 defaultValue: 'Hide one track of an account you follow',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/muted-lanes')}
-                accessibilityLabel={t('lanes.muted.title', {
-                  defaultValue: 'Muted lanes',
-                })}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.hideLikeShareCounts')}
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/muted-lanes')}
+                    accessibilityLabel={t('lanes.muted.title', {
+                      defaultValue: 'Muted lanes',
+                    })}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.hideLikeShareCounts')}
               description={t('settings.privacy.hideLikeShareCountsDesc', {
                 defaultValue: 'Hide engagement counts on posts',
               })}
-            >
-              <Button
-                size="sm"
-                appearance="subtle"
-                tone="neutral"
-                onPress={() => router.push('/settings/privacy/hide-counts')}
-                accessibilityLabel={t('settings.privacy.hideLikeShareCounts')}
-              >
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </SettingsRow>
-          </SettingsCard>
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/hide-counts')}
+                    accessibilityLabel={t('settings.privacy.hideLikeShareCounts')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection label={t('settings.privacy.content')}>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.showSensitiveContent')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.showSensitiveContent')}
               description={t('settings.privacy.showSensitiveContentDesc', {
                 defaultValue:
                   "Sensitive and NSFW posts never appear in your feeds. They remain visible on the author's profile.",
               })}
-            >
-              {
-                <Switch
-                  checked={privacySettings.showSensitiveContent ?? false}
-                  onCheckedChange={(value) => updatePrivacyToggle('showSensitiveContent', value)}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={privacySettings.showSensitiveContent ?? false}
+                      onCheckedChange={(value) =>
+                        updatePrivacyToggle('showSensitiveContent', value)
+                      }
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection>
-          <SettingsCard>
+          <GroupedSection>
             {FILTER_TOGGLES.map(
               ({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) => (
-                <SettingsRow
-                  label={t(titleKey, { defaultValue: titleDefault })}
+                <GroupedSectionItem
+                  wrapControl
+                  title={t(titleKey, { defaultValue: titleDefault })}
                   description={t(descKey, { defaultValue: descDefault })}
                   key={filterKey}
-                >
-                  {
-                    <Switch
-                      checked={recFilters[filterKey]}
-                      onCheckedChange={(v) => updateRecFilter(filterKey, v)}
-                    />
+                  rightElement={
+                    <>
+                      {
+                        <Switch
+                          checked={recFilters[filterKey]}
+                          onCheckedChange={(v) => updateRecFilter(filterKey, v)}
+                        />
+                      }
+                    </>
                   }
-                </SettingsRow>
+                />
               ),
             )}
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

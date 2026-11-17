@@ -1,10 +1,11 @@
+import { GroupedSectionItem, GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import {
   FOR_YOU_TUNING_MODULES,
   type ForYouFeedTuning,
   type ForYouTuningModuleSpec,
 } from '@mention/shared-types/mtn/feedTuning';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMemo } from 'react';
@@ -59,17 +60,24 @@ function TuningModuleRow({
 
   return (
     <>
-      <SettingsRow label={t(spec.labelKey)} description={t(spec.descriptionKey)}>
-        {
-          <Switch
-            checked={enabled}
-            onCheckedChange={(value) =>
-              onSave(updateTuning(tuning, spec, { enabled: value, threshold }))
+      <GroupedSectionItem
+        wrapControl
+        title={t(spec.labelKey)}
+        description={t(spec.descriptionKey)}
+        rightElement={
+          <>
+            {
+              <Switch
+                checked={enabled}
+                onCheckedChange={(value) =>
+                  onSave(updateTuning(tuning, spec, { enabled: value, threshold }))
+                }
+                accessibilityLabel={t(spec.labelKey)}
+              />
             }
-            accessibilityLabel={t(spec.labelKey)}
-          />
+          </>
         }
-      </SettingsRow>
+      />
       {enabled && range !== undefined && threshold !== undefined ? (
         <View className="px-5 pb-3">
           <Slider
@@ -152,11 +160,11 @@ export default function ForYouTuningScreen() {
             label={t(`feed.tuning.categories.${group.category}`)}
             key={group.category}
           >
-            <SettingsCard>
+            <GroupedSection>
               {group.modules.map((spec) => (
                 <TuningModuleRow key={spec.moduleId} spec={spec} tuning={tuning} onSave={save} />
               ))}
-            </SettingsCard>
+            </GroupedSection>
           </SettingsSection>
         ))}
       </View>

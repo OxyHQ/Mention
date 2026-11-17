@@ -123,30 +123,7 @@ jest.mock('@oxy.so/bloom/media-header', () => {
   };
 });
 
-jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } =
-    jest.requireActual<typeof import('react-native')>('react-native');
-  const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return {
-    ContactRow: ({
-      avatarSlot,
-      identitySlot,
-      onPress,
-    }: {
-      avatarSlot: React.ReactNode;
-      identitySlot: React.ReactNode;
-      onPress?: () => void;
-    }) =>
-      onPress
-        ? ReactActual.createElement(
-            TouchableOpacity,
-            { onPress, accessibilityRole: 'button' },
-            avatarSlot,
-            identitySlot,
-          )
-        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
-  };
-});
+jest.mock('@oxy.so/bloom/list', () => require('@/test-support/bloomPersonList'));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mockTranslate }),
 }));
@@ -329,28 +306,6 @@ jest.mock('@oxy.so/bloom/skeleton', () => {
 
 // Bloom's carousel, reduced to what the band hands it: the header row (title,
 // link, arrows when asked for) over ONE horizontal scroller of slides.
-jest.mock('@oxy.so/bloom/button-group', () => {
-  const { View, TouchableOpacity } =
-    jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    ButtonGroup: ({ children }: { children: React.ReactNode }) => (
-      <View testID="carousel-controls">{children}</View>
-    ),
-    ButtonGroupItem: ({
-      children,
-      ...props
-    }: {
-      children?: React.ReactNode;
-      onPress?: () => void;
-      disabled?: boolean;
-      accessibilityLabel?: string;
-    }) => (
-      <TouchableOpacity {...props} testID="carousel-control" accessibilityRole="button">
-        {children}
-      </TouchableOpacity>
-    ),
-  };
-});
 
 jest.mock('@oxy.so/bloom/carousel', () => {
   const { ScrollView, View } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -430,7 +385,16 @@ jest.mock('@oxy.so/bloom/typography', () => {
 
 jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Button: TouchableOpacity };
+  return {
+    Button: Object.assign(TouchableOpacity, {
+      Group: ({ children }: { children?: React.ReactNode }) => {
+        const React = require('react');
+        return React.Children.map(children, (child: React.ReactElement) =>
+          React.cloneElement(child, { testID: 'carousel-control' }),
+        );
+      },
+    }),
+  };
 });
 
 /** The breakpoint the band renders for. Flipped per test. */

@@ -1,10 +1,11 @@
+import { Button } from '@oxy.so/bloom/button';
 import type React from 'react';
 import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -101,25 +102,25 @@ export function InterstitialShell<TItem>({
         header={header}
         showArrows={isDesktop && !showSkeleton}
         renderControls={({ previous, next }) => (
-          <ButtonGroup size="sm" accessibilityLabel={title}>
-            <ButtonGroupItem onPress={handleSeeMore} accessibilityLabel={seeMoreLabel}>
+          <Button.Group size="sm" accessibilityLabel={title}>
+            <Button onPress={handleSeeMore} accessibilityLabel={seeMoreLabel}>
               {seeMoreLabel}
-            </ButtonGroupItem>
-            <ButtonGroupItem
+            </Button>
+            <Button
               onPress={previous.onPress}
               disabled={previous.disabled}
               accessibilityLabel={previous.accessibilityLabel}
               leadingIcon={previous.icon}
               iconOnly
             />
-            <ButtonGroupItem
+            <Button
               onPress={next.onPress}
               disabled={next.disabled}
               accessibilityLabel={next.accessibilityLabel}
               leadingIcon={next.icon}
               iconOnly
             />
-          </ButtonGroup>
+          </Button.Group>
         )}
         showDots={false}
         gap={INTERSTITIAL_CARD_GAP}

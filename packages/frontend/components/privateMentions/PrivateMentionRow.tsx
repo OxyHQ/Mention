@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { skipToken, useQueries } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { ChatListItem } from '@oxy.so/bloom/chat-list';
+import { ListItem } from '@oxy.so/bloom/list';
 import type { ChatFace, ChatPreview } from '@oxy.so/bloom/chat-list';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -32,7 +32,7 @@ function participantName(participant: Participant | undefined): string {
 }
 
 /**
- * One private-mention conversation, drawn by Bloom's `ChatListItem`: who it is
+ * One private-mention conversation, drawn by Bloom's `ListItem`: who it is
  * with, the newest post's text, when it last moved, and a lock that says only
  * those people can read it. Participants come from the shared Oxy user cache,
  * which `usePrivateMentionConversations` warms in one batch — this row reads it
@@ -126,16 +126,18 @@ export const PrivateMentionRow = memo(function PrivateMentionRow({
   const badge = t('privateMentions.badge', { defaultValue: 'Private mention' });
 
   return (
-    <ChatListItem
-      name={name}
-      avatar={faces ? undefined : (participants[0]?.avatar ?? undefined)}
-      faces={faces}
-      kind={faces ? 'group' : 'direct'}
-      marker={<RiLockLine width={14} height={14} fill={theme.colors.textSecondary} />}
-      preview={preview}
-      time={time}
+    <ListItem
+      conversation={{
+        name,
+        avatar: faces ? undefined : (participants[0]?.avatar ?? undefined),
+        faces,
+        kind: faces ? 'group' : 'direct',
+        marker: <RiLockLine width={14} height={14} fill={theme.colors.textSecondary} />,
+        preview,
+        time,
+      }}
       onPress={() => router.push(`/p/${rootId}`)}
-      accessibilityLabel={[name, badge, sender ? `${sender}: ${text ?? ''}` : text, time]
+      label={[name, badge, sender ? `${sender}: ${text ?? ''}` : text, time]
         .filter(Boolean)
         .join(', ')}
       swipeEnabled={false}

@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 /**
  * Activity notification subscriptions — the accounts the viewer asked to be
@@ -8,11 +9,11 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
  * layout — an explanatory settings header above the list, the empty state that
  * teaches the bell affordance instead of just saying "nothing here", and the
  * per-row toggle — is theirs. The primitives are Mention's (Bloom
- * `SettingsCard`/`SettingsRow`, `ProfileCard`, `useTranslation`, React Query).
+ * `GroupedSection`/`GroupedSectionItem`, `ProfileCard`, `useTranslation`, React Query).
  */
 
 import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
@@ -165,16 +166,18 @@ export default function ActivitySubscriptionsScreen() {
   const listHeader = useMemo(
     () => (
       <SettingsSection>
-        <SettingsCard>
-          <SettingsRow
-            label={t('subscription.list.intro.title', {
+        <GroupedSection>
+          <GroupedSectionItem
+            wrapControl
+            title={t('subscription.list.intro.title', {
               defaultValue: 'Activity from others',
             })}
             description={t('subscription.list.intro.description', {
               defaultValue: 'Get notified when these accounts post.',
             })}
-          ></SettingsRow>
-        </SettingsCard>
+            rightElement={<></>}
+          />
+        </GroupedSection>
       </SettingsSection>
     ),
     [t],

@@ -55,12 +55,22 @@ owned feed/profile/search fixtures; it is separate from production API checks.
 See [Deck workspace](./deck-workspace.md) for account-scoped persistence,
 settings, offline/conflict behavior and backend rollout requirements.
 
-The app shell declares its main and context panels through Bloom's
-`AppShell.panelLayout`. Insights sets `expandedPanel: 'main'`, preserving the
+The app shell declares `layout="feed"` or `layout="deck"` with
+`presentation="framed"`. Bloom resolves the navigation alignment, panel mode,
+platform scroll flow and default surface separation. Its `panelLayout` retains
+the same main/context IDs and application-owned histories in both families;
+descriptors declare their main, context or inspector role. Mention keeps its
+8px frame and product-specific column constraints, but does not repeat the
+family's mode, flow or navigation gap. Insights sets `expandedPanel: 'main'`, preserving the
 same outer width; Bloom owns visibility, transitions, scrolling and bottom-bar
 clearance. Do not add another app-specific sidebar breakpoint or width animation.
 
-Deck uses the same API in `mode: 'deck'`. Its default composition has the current
+Inline content that reads device insets uses Bloom's `useContentSafeAreaInsets`
+from `@oxy.so/bloom/layout`, so the semantic shell and page do not reserve the
+same edge twice. Keep raw device insets for independent portaled/fullscreen
+surfaces. Product spacing (such as a profile content offset) remains separate.
+
+Deck uses the same compositor through `layout="deck"`. Its default composition has the current
 application page as a fixed first column and three configurable columns. Saved
 custom columns can change that count. The compact sidebar mode control preserves
 the current route and mounted page; `/deck` activates that mode and resolves to Home.
@@ -364,3 +374,11 @@ Android recording to 67 ms during upward zoom. Finalization resets zoom, while
 `cameraShutterGestures.test.tsx` exercises actual Gesture Handler transitions
 and the recorder with a native camera stub; device acceptance still checks the
 native event ordering and encoded clip.
+
+## Shared controls and rows
+
+Bloom 22 supplies `Button` and `Button.Group` for actions, `GroupedSection` and
+`GroupedSectionItem` for settings, and `ListItem` for person and conversation rows.
+Mention supplies identities, translated labels, permissions and callbacks. Custom
+noninteractive row text uses `pointerEvents="none"` so clicking the visible name
+opens the shared row; follow controls stay in the separate trailing slot.

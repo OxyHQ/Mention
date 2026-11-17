@@ -41,22 +41,16 @@ export function postEngagementGroup(
       panels: [
         {
           id: host.id,
+          role: host.role,
           testID: `mention-shell-panels-${host.id}-content`,
           content: navigation ? (
             content
           ) : (
             <PostEngagementProvider>{content}</PostEngagementProvider>
           ),
-          navigation: navigation
-            ? {
-                ...navigation,
-                render: (entry, controller) => (
-                  <PostEngagementProvider>
-                    {navigation.render(entry, controller)}
-                  </PostEngagementProvider>
-                ),
-              }
-            : undefined,
+          // Navigable hosts place the engagement provider inside their router
+          // so panel-local navigation, rather than the global route, owns it.
+          navigation,
           bottomBar,
           headerActions,
           scroll,
@@ -71,6 +65,7 @@ export function postEngagementGroup(
         },
         {
           id: `${host.id}:engagement`,
+          role: 'inspector',
           testID: `mention-shell-panels-${host.id}-engagement`,
           visible: videoRoute || (engagement?.isOpen ?? false),
           onExitComplete,

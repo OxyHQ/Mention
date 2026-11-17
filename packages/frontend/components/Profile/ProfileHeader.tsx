@@ -17,7 +17,7 @@ import { useLiveUser } from '@/stores/livePresenceStore';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { Button } from '@oxy.so/bloom/button';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
@@ -172,37 +172,37 @@ export const ProfileHeader = memo(function ProfileHeader({
             <Button appearance="subtle" tone="neutral" onPress={openEditProfile}>
               {t('profile.editProfile')}
             </Button>
-            <ButtonGroup testID="profile-owner-actions">
-              <ButtonGroupItem
+            <Button.Group testID="profile-owner-actions">
+              <Button
                 iconOnly
                 onPress={goInsights}
                 accessibilityLabel="Analytics"
                 leadingIcon={RiLineChartLine}
               />
-              <ButtonGroupItem
+              <Button
                 iconOnly
                 onPress={goSettings}
                 accessibilityLabel="Settings"
                 leadingIcon={RiSettings3Line}
               />
-            </ButtonGroup>
+            </Button.Group>
           </View>
         ) : profileId ? (
           <View className="flex-row flex-wrap justify-end items-center gap-2">
             {(canPoke || interactionActions) && (
-              <ButtonGroup testID="profile-interaction-actions">
+              <Button.Group testID="profile-interaction-actions">
                 {canPoke && (
-                  <ButtonGroupItem
+                  <Button
                     iconOnly
                     onPress={togglePoke}
                     disabled={pokeLoading}
-                    checked={poked}
+                    pressed={poked}
                     accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
                     leadingIcon={RiHand}
                   />
                 )}
                 {interactionActions}
-              </ButtonGroup>
+              </Button.Group>
             )}
             {/* Seed from the profile DTO's authoritative viewer relationship so
                 the button paints correctly on first render. When the DTO omits it,

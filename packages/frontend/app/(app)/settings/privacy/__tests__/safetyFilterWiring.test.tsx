@@ -71,10 +71,10 @@ jest.mock('@oxy.so/bloom/loading', () => {
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
-jest.mock('@oxy.so/bloom/settings-modal', () => {
-  const { View } = jest.requireActual('react-native');
-  return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
-});
+jest.mock('@oxy.so/bloom/settings-modal', () => ({
+  SettingsSection: require('react-native').View,
+}));
+jest.mock('@oxy.so/bloom/grouped-section', () => require('@/test-support/bloomGroupedSection'));
 jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual('react-native');
   return { Button: TouchableOpacity };

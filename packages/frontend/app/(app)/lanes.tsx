@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -7,7 +8,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
@@ -289,7 +290,7 @@ export default function LanesScreen() {
       />
       <Screen header={header}>
         <ScreenScrollView contentContainerClassName="py-2" keyboardShouldPersistTaps="handled">
-          <SettingsListGroup>
+          <GroupedSection>
             <View className="px-4 py-3.5 flex-row items-center gap-3">
               <RiInformationFill size="md" fill={colors.primary} />
               <Text className="flex-1 text-[13px] text-foreground">
@@ -299,9 +300,9 @@ export default function LanesScreen() {
                 })}
               </Text>
             </View>
-          </SettingsListGroup>
+          </GroupedSection>
 
-          <SettingsListGroup title={t('lanes.addLane', { defaultValue: 'New lane' })}>
+          <GroupedSection title={t('lanes.addLane', { defaultValue: 'New lane' })}>
             <View className="px-4 py-3 flex-row items-center gap-3">
               <RiNodeTree width={20} height={20} fill={colors.textSecondary} />
               <TextInput
@@ -351,9 +352,9 @@ export default function LanesScreen() {
                 </Text>
               </View>
             ) : null}
-          </SettingsListGroup>
+          </GroupedSection>
 
-          <SettingsListGroup title={t('lanes.yourLanes', { defaultValue: 'Your lanes' })}>
+          <GroupedSection title={t('lanes.yourLanes', { defaultValue: 'Your lanes' })}>
             {isLoading ? (
               <ListSkeleton />
             ) : isError ? (
@@ -404,7 +405,7 @@ export default function LanesScreen() {
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <SettingsListItem
+                  <GroupedSectionItem
                     key={lane.id}
                     icon={
                       <ModeIcon mode={lane.displayMode} size={20} fill={colors.textSecondary} />
@@ -419,7 +420,7 @@ export default function LanesScreen() {
                 ),
               )
             )}
-          </SettingsListGroup>
+          </GroupedSection>
 
           <View className="px-4 pt-2 pb-6 gap-1">
             {LANE_DISPLAY_MODES.map((mode) => (

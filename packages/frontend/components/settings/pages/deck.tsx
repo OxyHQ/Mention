@@ -1,6 +1,7 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { useDeckSettings } from '@/components/deck/deckSettings';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -17,34 +18,42 @@ export default function DeckSettingsPage() {
   const status = useDeckSettings((state) => state.status);
   return (
     <SettingsSection label={t('deck.workspace.title', 'Deck')}>
-      <SettingsCard>
+      <GroupedSection>
         {available && (
-          <SettingsRow
-            label={t('deck.workspace.homeScreen')}
+          <GroupedSectionItem
+            wrapControl
+            title={t('deck.workspace.homeScreen')}
             description={t('deck.workspace.homeScreenDescription')}
-          >
-            <Switch
-              checked={homeScreen}
-              onCheckedChange={setHomeScreen}
-              accessibilityLabel={t('deck.workspace.homeScreen')}
-            />
-          </SettingsRow>
+            rightElement={
+              <>
+                <Switch
+                  checked={homeScreen}
+                  onCheckedChange={setHomeScreen}
+                  accessibilityLabel={t('deck.workspace.homeScreen')}
+                />
+              </>
+            }
+          />
         )}
-        <SettingsRow
-          label={t('deck.workspace.sync', 'Sync across devices')}
+        <GroupedSectionItem
+          wrapControl
+          title={t('deck.workspace.sync', 'Sync across devices')}
           description={t(
             'deck.workspace.description',
             'Save your panels, pages, navigation history and reading positions to your account.',
           )}
-        >
-          <Switch
-            checked={syncEnabled}
-            disabled={!canUsePrivateApi}
-            onCheckedChange={setSyncEnabled}
-            accessibilityLabel={t('deck.workspace.sync', 'Sync across devices')}
-          />
-        </SettingsRow>
-      </SettingsCard>
+          rightElement={
+            <>
+              <Switch
+                checked={syncEnabled}
+                disabled={!canUsePrivateApi}
+                onCheckedChange={setSyncEnabled}
+                accessibilityLabel={t('deck.workspace.sync', 'Sync across devices')}
+              />
+            </>
+          }
+        />
+      </GroupedSection>
       <Text className="text-muted-foreground text-sm px-4" accessibilityLiveRegion="polite">
         {!user?.id
           ? t(

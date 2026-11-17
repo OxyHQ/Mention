@@ -1,6 +1,7 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -56,32 +57,40 @@ export default function TagsMentionsScreen() {
     <View className="gap-4">
       <View className="gap-4">
         <SettingsSection>
-          <SettingsCard>
-            <SettingsRow
-              label={t('settings.privacy.allowTags')}
+          <GroupedSection>
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.allowTags')}
               description={t('settings.privacy.allowTagsDesc')}
-            >
-              {
-                <Switch
-                  checked={allowTags}
-                  onCheckedChange={(value) => updateSetting('allowTags', value)}
-                  accessibilityLabel={t('settings.privacy.allowTags')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={allowTags}
+                      onCheckedChange={(value) => updateSetting('allowTags', value)}
+                      accessibilityLabel={t('settings.privacy.allowTags')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-            <SettingsRow
-              label={t('settings.privacy.allowMentions')}
+            />
+            <GroupedSectionItem
+              wrapControl
+              title={t('settings.privacy.allowMentions')}
               description={t('settings.privacy.allowMentionsDesc')}
-            >
-              {
-                <Switch
-                  checked={allowMentions}
-                  onCheckedChange={(value) => updateSetting('allowMentions', value)}
-                  accessibilityLabel={t('settings.privacy.allowMentions')}
-                />
+              rightElement={
+                <>
+                  {
+                    <Switch
+                      checked={allowMentions}
+                      onCheckedChange={(value) => updateSetting('allowMentions', value)}
+                      accessibilityLabel={t('settings.privacy.allowMentions')}
+                    />
+                  }
+                </>
               }
-            </SettingsRow>
-          </SettingsCard>
+            />
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

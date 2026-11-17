@@ -1,8 +1,9 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { EXTERNAL_EMBED_SOURCES, externalEmbedLabels } from '@mention/shared-types/externalEmbeds';
 import { Admonition } from '@oxy.so/bloom/admonition';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -56,20 +57,27 @@ export default function ExternalMediaSettingsScreen() {
             defaultValue: 'Enable media players for',
           })}
         >
-          <SettingsCard>
+          <GroupedSection>
             {EXTERNAL_EMBED_SOURCES.map((source) => (
-              <SettingsRow label={externalEmbedLabels[source]} key={source}>
-                {
-                  <Switch
-                    checked={prefs[source] === 'show'}
-                    onCheckedChange={() =>
-                      setPref(source, prefs[source] === 'show' ? 'hide' : 'show')
+              <GroupedSectionItem
+                wrapControl
+                title={externalEmbedLabels[source]}
+                key={source}
+                rightElement={
+                  <>
+                    {
+                      <Switch
+                        checked={prefs[source] === 'show'}
+                        onCheckedChange={() =>
+                          setPref(source, prefs[source] === 'show' ? 'hide' : 'show')
+                        }
+                      />
                     }
-                  />
+                  </>
                 }
-              </SettingsRow>
+              />
             ))}
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

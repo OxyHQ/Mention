@@ -694,12 +694,16 @@ async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height')
           '[data-testid="mention-shell-panels-main-engagement"]',
         );
         const requiredTracks = axis === 'width' ? [mainTrack] : [mainTrack, auxiliaryTrack!];
-        // Shared flex space depends on every sibling track's width, including outgoing columns.
+        // Shared flex space depends on sibling tracks and the semantic shell's
+        // reading envelope. Seek their coupled constraints together, just as
+        // the real RAF transition does, including outgoing columns.
         const tracks =
           axis === 'width'
             ? [
                 ...document.querySelectorAll<HTMLElement>(
-                  `[data-bloom-panel-owner="${mainTrack.dataset.bloomPanelOwner}"][data-bloom-panel-index]`,
+                  `[data-bloom-panel-owner="${mainTrack.dataset.bloomPanelOwner}"][data-bloom-panel-index],
+                   [data-bloom-reading-envelope="${mainTrack.dataset.bloomPanelOwner}"],
+                   [data-bloom-shell-frame="${mainTrack.dataset.bloomPanelOwner}"]`,
                 ),
               ]
             : requiredTracks;
@@ -715,6 +719,7 @@ async function samplePanelTransition(trigger: Locator, axis: 'width' | 'height')
           `max-${axis}`,
           axis,
           'margin-top',
+          ...(axis === 'width' ? ['padding-left', 'padding-right'] : []),
         ];
         const onTransition = (event: Event) => {
           const transition = event as TransitionEvent;
@@ -925,21 +930,38 @@ test('the Insights button and overflow menu target their independent Deck hosts'
       }),
     );
   }, post.id);
-  await page.goto('/deck');
+  // A cold entry can render independent columns before Expo's /deck redirect
+  // chunk arrives. Keep that ordering deterministic: neither column may lose
+  // its engagement panel when the global route subsequently becomes home.
+  let releaseDeckEntry!: () => void;
+  const deckEntryReady = new Promise<void>((resolve) => {
+    releaseDeckEntry = resolve;
+  });
+  await page.route('**/_expo/static/js/web/deck-*.js', async (route) => {
+    await deckEntryReady;
+    await route.fallback();
+  });
   const first = page.getByTestId('mention-shell-panels-custom-a-content');
   const second = page.getByTestId('mention-shell-panels-custom-b-content');
-  await expect(first.getByTestId('post-screen')).toBeVisible();
-  await first.getByRole('button', { name: 'Insights', exact: true }).click();
-  await expect(
-    page
-      .getByTestId('mention-shell-panels-custom-a-engagement')
-      .getByTestId('post-insights-screen'),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByTestId('mention-shell-panels-custom-b-engagement')
-      .getByTestId('post-insights-screen'),
-  ).toHaveCount(0);
+  try {
+    await page.goto('/deck', { waitUntil: 'domcontentloaded' });
+    await expect(first.getByTestId('post-screen')).toBeVisible();
+    await first.getByRole('button', { name: 'Insights', exact: true }).click();
+    await expect(
+      page
+        .getByTestId('mention-shell-panels-custom-a-engagement')
+        .getByTestId('post-insights-screen'),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByTestId('mention-shell-panels-custom-b-engagement')
+        .getByTestId('post-insights-screen'),
+    ).toHaveCount(0);
+    await expect(page).toHaveURL(/\/deck$/);
+  } finally {
+    releaseDeckEntry();
+  }
+  await expect(page).toHaveURL(/\/$/);
   await second.getByRole('button', { name: 'Post options', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Insights', exact: true }).click();
   await expect(

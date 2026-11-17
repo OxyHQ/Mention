@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -14,7 +15,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { confirm as confirmSettingsAction } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -161,7 +162,7 @@ export default function HiddenWordsScreen() {
             defaultValue: 'Add a word or hashtag',
           })}
         >
-          <SettingsCard>
+          <GroupedSection>
             <View className="px-4 py-3 flex-row items-center gap-3">
               <RiEyeOffLine size="md" fill={colors.textSecondary} />
               <TextFieldInput
@@ -205,7 +206,7 @@ export default function HiddenWordsScreen() {
                 </Button>
               )}
             </View>
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
 
         <SettingsSection
@@ -213,7 +214,7 @@ export default function HiddenWordsScreen() {
             defaultValue: 'Muted words and hashtags',
           })}
         >
-          <SettingsCard>
+          <GroupedSection>
             {isLoading ? (
               <ListSkeleton />
             ) : isError ? (
@@ -248,8 +249,9 @@ export default function HiddenWordsScreen() {
               mutedWords.map((word) => {
                 const isHashtag = isHashtagMuteWord(word);
                 return (
-                  <SettingsRow
-                    label={muteWordDisplayValue(word)}
+                  <GroupedSectionItem
+                    wrapControl
+                    title={muteWordDisplayValue(word)}
                     description={
                       isHashtag
                         ? t('settings.privacy.mutedWordTypeHashtag', {
@@ -260,25 +262,28 @@ export default function HiddenWordsScreen() {
                           })
                     }
                     key={word.id}
-                  >
-                    {
-                      <Button
-                        size="sm"
-                        appearance="subtle"
-                        tone="danger"
-                        onPress={() => handleRemove(word)}
-                        accessibilityLabel={t('settings.privacy.removeMutedWord', {
-                          defaultValue: 'Remove muted word',
-                        })}
-                      >
-                        {t('common.remove', { defaultValue: 'Remove' })}
-                      </Button>
+                    rightElement={
+                      <>
+                        {
+                          <Button
+                            size="sm"
+                            appearance="subtle"
+                            tone="danger"
+                            onPress={() => handleRemove(word)}
+                            accessibilityLabel={t('settings.privacy.removeMutedWord', {
+                              defaultValue: 'Remove muted word',
+                            })}
+                          >
+                            {t('common.remove', { defaultValue: 'Remove' })}
+                          </Button>
+                        }
+                      </>
                     }
-                  </SettingsRow>
+                  />
                 );
               })
             )}
-          </SettingsCard>
+          </GroupedSection>
         </SettingsSection>
       </View>
     </View>

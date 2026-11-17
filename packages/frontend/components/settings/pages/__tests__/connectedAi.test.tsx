@@ -44,19 +44,10 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxy.so/bloom/settings-modal', () => {
-  const { View, Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    SettingsCard: View,
-    SettingsSection: View,
-    SettingsRow: ({ label, children }: { label: string; children?: React.ReactNode }) => (
-      <View>
-        <Text>{label}</Text>
-        {children}
-      </View>
-    ),
-  };
-});
+jest.mock('@oxy.so/bloom/settings-modal', () => ({
+  SettingsSection: require('react-native').View,
+}));
+jest.mock('@oxy.so/bloom/grouped-section', () => require('@/test-support/bloomGroupedSection'));
 jest.mock('@oxy.so/bloom/button', () => {
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');

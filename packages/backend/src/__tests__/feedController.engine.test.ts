@@ -216,7 +216,7 @@ describe('MtnFeedController.getFeed → engine', () => {
   });
 
   it.each([
-    ['explore', 'mtn:quote-v2:explore-v3'],
+    ['explore', 'mtn:quote-v2:explore-v4'],
     ['media', 'mtn:quote-v2:media-v2'],
     ['for_you', 'mtn:quote-v2'],
     ['following', 'mtn:quote-v2'],

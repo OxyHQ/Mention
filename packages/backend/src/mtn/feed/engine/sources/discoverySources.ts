@@ -344,7 +344,10 @@ function exploreNegativeTopicSql(ctx: FeedEngineContext): SQL {
 function exploreFinalScoreSql(now: Date, relevance: SQL, negativeTopic: SQL): SQL<number> {
   const halfLifeHours = MtnConfig.ranking.recency.halfLifeMs / (1000 * 60 * 60);
   const ageHours = sql`(extract(epoch from (${now.toISOString()}::timestamptz - ${posts.createdAt})) / 3600.0)`;
-  const recencyDecay = sql`power(0.5, ${ageHours} / ${halfLifeHours})`;
+  // Keep the ranking calculation in its published double-precision domain.
+  // An untyped 0.5 selects PostgreSQL's arbitrary-precision numeric power;
+  // casting only the final score leaves that expensive operation unchanged.
+  const recencyDecay = sql`power(0.5::double precision, (${ageHours} / ${halfLifeHours})::double precision)`;
   const engagementBase = sql`(1 + ln(1 + ${engagementScoreSql()}))`;
   return sql<number>`(${engagementBase} * ${recencyDecay} * ${relevance} * ${negativeTopic})::double precision`;
 }

@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@/components/FollowButton';
-import { ContactRow } from '@oxy.so/bloom/chat-people/contact-row';
+import { ListItem } from '@oxy.so/bloom/list';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
@@ -112,7 +112,6 @@ interface ProfileCardProps {
   /** Bottom hairline. Off for the last row inside an already-bordered container. */
   showDivider?: boolean;
   size?: 'sm' | 'md';
-  horizontalInset?: number;
 }
 
 /**
@@ -181,35 +180,28 @@ export function ProfileCard({
   accessory,
   showDivider = true,
   size = 'md',
-  horizontalInset = 12,
 }: ProfileCardProps) {
   const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
 
   return (
-    <View
-      className={cn('w-full flex-row items-center gap-3', showDivider && 'border-b border-border')}
-      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}
-    >
-      <ContactRow
-        id={resolved.id}
-        name={nameLabel || handle}
-        subtitle={handle || undefined}
-        size={size}
-        horizontalInset={0}
-        style={{ flex: 1 }}
+    <View className={cn('w-full', showDivider && 'border-b border-border')}>
+      <ListItem
+        person={{ name: nameLabel || handle, subtitle: handle || undefined }}
         onPress={press}
-        avatarSlot={
-          <AccountAvatar
-            account={resolved}
-            source={resolved.avatar || undefined}
-            size={size === 'sm' ? 36 : 44}
-            variant={MEDIA_VARIANT_AVATAR}
-            verified={resolved.verified}
-            placeholderColor={getUserPlaceholderColor(resolved)}
-          />
+        leading={
+          <View pointerEvents="none">
+            <AccountAvatar
+              account={resolved}
+              source={resolved.avatar || undefined}
+              size={size === 'sm' ? 36 : 44}
+              variant={MEDIA_VARIANT_AVATAR}
+              verified={resolved.verified}
+              placeholderColor={getUserPlaceholderColor(resolved)}
+            />
+          </View>
         }
-        identitySlot={
-          <View className="flex-1 gap-0.5">
+        content={
+          <View pointerEvents="none" className="flex-1 gap-0.5">
             {/* Identity line via the shared UserName: the name + verified /
               federated / agent / automated markers and the muted @handle line,
               consistent with every other user surface. */}
@@ -235,24 +227,27 @@ export function ProfileCard({
             ) : null}
           </View>
         }
+        trailing={
+          <View className="flex-row items-center gap-3">
+            {showFollowButton && (
+              <FollowButton
+                userId={resolved.id}
+                username={handle || undefined}
+                size="sm"
+                initiallyFollowing={initiallyFollowing}
+                onFollowChange={onFollowChange}
+              />
+            )}
+            {accessory}
+          </View>
+        }
       />
-      {showFollowButton && (
-        <FollowButton
-          userId={resolved.id}
-          username={handle || undefined}
-          size="sm"
-          initiallyFollowing={initiallyFollowing}
-          onFollowChange={onFollowChange}
-        />
-      )}
-      {accessory}
     </View>
   );
 }
 
 interface ProfileCardSkeletonProps {
   size?: 'sm' | 'md';
-  horizontalInset?: number;
   /** Reserve the follow-button pill, matching the row this stands in for. */
   showFollowButton?: boolean;
   showDivider?: boolean;
@@ -270,7 +265,6 @@ export function ProfileCardSkeleton({
   showFollowButton = false,
   showDivider = true,
   size = 'md',
-  horizontalInset = 12,
 }: ProfileCardSkeletonProps) {
   return (
     <View
@@ -278,7 +272,7 @@ export function ProfileCardSkeleton({
         'w-full flex-row items-center gap-3 py-2',
         showDivider && 'border-b border-border',
       )}
-      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}
+      style={{ paddingHorizontal: 12 }}
     >
       <Skeleton.Circle size={size === 'sm' ? 36 : 44} />
       <Skeleton.Col style={{ flex: 1, gap: 6 }}>
@@ -301,7 +295,6 @@ export function ProfileCardSkeletonList({
   showFollowButton = false,
   showDivider = true,
   size,
-  horizontalInset,
 }: ProfileCardSkeletonListProps) {
   return (
     <View className="w-full">
@@ -309,7 +302,6 @@ export function ProfileCardSkeletonList({
         <ProfileCardSkeleton
           key={index}
           size={size}
-          horizontalInset={horizontalInset}
           showFollowButton={showFollowButton}
           // The last row's hairline would double the container's own border.
           showDivider={showDivider && index < count - 1}

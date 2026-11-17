@@ -42,11 +42,11 @@
  *    arriving can move an existing candidate across a page boundary.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { inArray } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 
-import { closePostgres, connectPostgres, type Database } from '../db/postgres';
+import { closePostgres, connectPostgres, getPostgresClient, type Database } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecordInput } from '../db/posts/postRecord';
@@ -138,6 +138,25 @@ afterEach(async () => {
 
 afterAll(async () => {
   await closePostgres();
+});
+
+it('uses floating-point decay in the executed PostgreSQL plan', async () => {
+  await create({}, { likes: 10 });
+  const client = getPostgresClient();
+  const statements = vi.spyOn(client, 'unsafe');
+  let sourceQuery: (typeof statements.mock.calls)[number] | undefined;
+  try {
+    await gatherMine(context());
+    sourceQuery = statements.mock.calls.find(([text]) => text.includes('power('));
+  } finally {
+    statements.mockRestore();
+  }
+  if (!sourceQuery) throw new Error('Explore did not execute its scoring query');
+  // Rows and final-score types alone cannot expose numeric power: the outer
+  // cast already returned doubles. Ask PostgreSQL which overload it planned
+  // for the actual source query, without a machine-dependent timing threshold.
+  const plan = await client.unsafe(`explain (format json) ${sourceQuery[0]}`, sourceQuery[1]);
+  expect(JSON.stringify(plan)).toContain("power('0.5'::double precision,");
 });
 
 describe('discovery is hard SFW', () => {

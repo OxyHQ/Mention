@@ -1,5 +1,5 @@
 import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
-import { IconButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useOpenInAllo } from '@/hooks/useOpenInAllo';
 import { alloDirectMessageLinks } from '@oxy.so/allo-sdk/links';
@@ -13,7 +13,7 @@ import { useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { FollowButton as OxyFollowButton } from '@/components/FollowButton';
 import type { FeedType } from '@mention/shared-types';
 import { Badge } from '@oxy.so/bloom/badge';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiFlowerLine } from '@oxy.so/bloom/icons/RiFlowerLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
@@ -459,7 +459,7 @@ export function usePersonProfileView({
           interactionActions={
             canUsePrivateApi && !isOwnProfile ? (
               <>
-                <ButtonGroupItem
+                <Button
                   iconOnly
                   leadingIcon={subscribed ? RiNotification3Fill : RiNotification3Line}
                   onPress={toggleSubscription}
@@ -477,7 +477,7 @@ export function usePersonProfileView({
                   }
                 />
                 {!isFederated && (
-                  <ButtonGroupItem
+                  <Button
                     iconOnly
                     renderLeadingIcon={({ size, color }) => (
                       <RiSendPlaneFill width={size} height={size} fill={color} />
@@ -630,7 +630,10 @@ export function usePersonProfileView({
   const headerActions = (
     <>
       {!isOwnProfile && profileData && (
-        <IconButton
+        <Button
+          appearance="outline"
+          tone="neutral"
+          iconOnly
           leadingIcon={RiSparklingLine}
           onPress={() => askAlia(undefined, { text: t('profile.askAlia.prompt', { handle }) })}
           accessibilityLabel={t('profile.actions.askAlia', {
@@ -639,9 +642,9 @@ export function usePersonProfileView({
           })}
         />
       )}
-      <ButtonGroup testID="profile-header-actions">
+      <Button.Group testID="profile-header-actions">
         {isFederated && (
-          <ButtonGroupItem
+          <Button
             iconOnly
             leadingIcon={RiExternalLinkLine}
             onPress={handleOpenOnInstance}
@@ -652,7 +655,7 @@ export function usePersonProfileView({
           />
         )}
 
-        <ButtonGroupItem
+        <Button
           iconOnly
           leadingIcon={RiUpload2Line}
           onPress={handleShare}
@@ -663,7 +666,7 @@ export function usePersonProfileView({
         />
         {!isOwnProfile && canUsePrivateApi && (
           <ProfileMoreMenu profileData={profileData} viewerOperatesAccount={operatesThisAccount}>
-            <ButtonGroupItem
+            <Button
               iconOnly
               leadingIcon={RiMoreFill}
               accessibilityLabel={t('profile.actions.more', {
@@ -673,7 +676,7 @@ export function usePersonProfileView({
             />
           </ProfileMoreMenu>
         )}
-      </ButtonGroup>
+      </Button.Group>
     </>
   );
 

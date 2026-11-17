@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { CardBody, CardDescription, CardHeader } from '@oxy.so/bloom/card';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+
 import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
@@ -107,13 +107,11 @@ export function WelcomeScreen() {
       bottomBar={
         <PageFooter scrim="always" actions={primaryAction}>
           {/* Always present, so the primary action stays on the right on every step. */}
-          <ButtonGroup separated>
+          <Button.Group separated>
             {step > 0 ? (
-              <ButtonGroupItem onPress={() => setStep(step - 1)}>
-                {t('welcome.back')}
-              </ButtonGroupItem>
+              <Button onPress={() => setStep(step - 1)}>{t('welcome.back')}</Button>
             ) : null}
-          </ButtonGroup>
+          </Button.Group>
         </PageFooter>
       }
     >

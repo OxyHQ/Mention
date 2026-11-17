@@ -1,3 +1,4 @@
+import { PostEngagementProvider } from '@/components/Post/PostEngagementProvider';
 import { reportBoundaryError } from '@/components/AppRootErrorBoundary';
 import { FeedUpdatePolicyProvider } from '@/components/Feed/FeedUpdatePolicy';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -11,7 +12,7 @@ import { PanelErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { usePanelNavigation } from '@oxy.so/bloom/app-shell/hooks';
-import { Button, IconButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -50,7 +51,10 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
   };
   return (
     <>
-      <IconButton
+      <Button
+        appearance="outline"
+        tone="neutral"
+        iconOnly
         leadingIcon={RiSettings3Line}
         accessibilityLabel={t('deck.settings')}
         onPress={() => setOpen(true)}
@@ -208,21 +212,23 @@ function DeckColumnContent() {
   const navigation = usePanelNavigation();
   return (
     <PanelRouterProvider routes={deckRoutes} notFound={<NotFoundScreen />}>
-      <PanelErrorBoundary
-        onError={reportBoundaryError}
-        resetKey={navigation.entry.key}
-        emptyState={{ action: { label: t('common.retry'), onPress: retryFailedDeckRoutes } }}
-      >
-        <Suspense
-          fallback={
-            <Screen scroll="auto">
-              <FeedSkeleton />
-            </Screen>
-          }
+      <PostEngagementProvider>
+        <PanelErrorBoundary
+          onError={reportBoundaryError}
+          resetKey={navigation.entry.key}
+          emptyState={{ action: { label: t('common.retry'), onPress: retryFailedDeckRoutes } }}
         >
-          <PanelRouteSlot />
-        </Suspense>
-      </PanelErrorBoundary>
+          <Suspense
+            fallback={
+              <Screen scroll="auto">
+                <FeedSkeleton />
+              </Screen>
+            }
+          >
+            <PanelRouteSlot />
+          </Suspense>
+        </PanelErrorBoundary>
+      </PostEngagementProvider>
     </PanelRouterProvider>
   );
 }
