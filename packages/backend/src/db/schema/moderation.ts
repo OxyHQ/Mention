@@ -54,6 +54,9 @@ export const REPORTED_TYPES = [
  * and `duplicate` exist for `job` reports (issue #952 "Moderation / abuse") —
  * kept in this one shared closed vocabulary rather than a job-only enum,
  * matching how every other category here already applies across reported types.
+ *
+ * `child_safety` is never reviewed by a jury: CrowdSource routes it to its legal
+ * pool, and Mention refers the content to Oxy's claim review (oxy ADR 0043 D14).
  */
 export const REPORT_CATEGORIES = [
   'spam',
@@ -61,6 +64,7 @@ export const REPORT_CATEGORIES = [
   'harassment',
   'misinformation',
   'explicit_content',
+  'child_safety',
   'scam',
   'discriminatory',
   'impersonation',
@@ -89,13 +93,14 @@ export const MODERATION_ENFORCEMENT_ACTIONS = [
   'label_sensitive',
   'unlabel_sensitive',
   'manual_review',
+  'legal_referral',
 ] as const;
 
 /** `ModerationEnforcementMode` — `CROWDSOURCE_ENFORCEMENT_MODE`. */
 export const MODERATION_ENFORCEMENT_MODES = ['observe', 'manual', 'automatic'] as const;
 
 /** `ModerationOutboxKind`. */
-export const MODERATION_OUTBOX_KINDS = ['report.submit', 'decision.apply'] as const;
+export const MODERATION_OUTBOX_KINDS = ['report.submit', 'decision.apply', 'report.refer'] as const;
 
 /**
  * `ModerationOutboxStatus`. `dead_letter` is the difference from
@@ -323,7 +328,7 @@ export const moderationOutbox = pgTable(
     /** Caller-supplied and deterministic — see the docblock. */
     id: text().primaryKey(),
     kind: text({ enum: MODERATION_OUTBOX_KINDS }).notNull(),
-    /** The local `reports.id`, for `report.submit`. */
+    /** The local `reports.id`, for `report.submit` and `report.refer`. */
     payloadReportId: text().references(() => reports.id, { onDelete: 'cascade' }),
     /** The inbound webhook event id, for `decision.apply` (Appendix D). */
     payloadEventId: text(),

@@ -38,11 +38,14 @@ import type { ModerationEnforcementAction } from '@mention/shared-types';
  *   separate distribution dial, and pretending otherwise would mean recording an
  *   action that did not happen.
  * - `manual_review` — a recommendation Mention will not execute automatically.
- *   `suspend_user` is Oxy's to carry out, not Mention's; `legal_queue` needs a
- *   human. §7.6 explicitly allows an application to refuse or adapt a
+ *   `suspend_user` is Oxy's to carry out, not Mention's. §7.6 explicitly allows an application to refuse or adapt a
  *   recommendation provided it records what it did, so these are RECORDED, never
  *   dropped: a recommendation Mention declined must not look like one it never
  *   received.
+ * - `legal_referral` — a `legal_queue` recommendation. §7.6 leaves the legal queue
+ *   to the application, and Mention's is Oxy's reviewed takedown: the content is
+ *   referred there and a person on Oxy's staff decides (oxy ADR 0043 D14). It
+ *   removes nothing here.
  */
 
 export interface PlannedEnforcementAction {
@@ -80,7 +83,8 @@ const RECOMMENDATION_TO_ACTION: Readonly<Record<RecommendedAction, ModerationEnf
     keep_restricted_temporarily: 'manual_review',
     escalate: 'manual_review',
     specialist_queue: 'manual_review',
-    legal_queue: 'manual_review',
+    // The legal queue is Oxy's reviewed takedown: referred, and decided by a person there.
+    legal_queue: 'legal_referral',
     safety_queue: 'manual_review',
   });
 

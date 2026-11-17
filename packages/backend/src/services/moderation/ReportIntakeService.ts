@@ -9,7 +9,7 @@ import {
   type ReportedType,
 } from '../../db/moderation/reportRepository';
 import { enqueueModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
-import { reportSubmitEventId } from './ModerationOutboxService';
+import { reportReferEventId, reportSubmitEventId } from './ModerationOutboxService';
 import { subjectProviderFor } from './subjects/registry';
 import type { ModerationSubjectProvider, ModerationUrgency } from './subjects/types';
 import { logger } from '../../utils/logger';
@@ -220,6 +220,23 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
         },
         tx,
       );
+
+      /**
+       * A child-safety report never gets a jury's decision (CrowdSource routes it
+       * to its legal pool, §7.5), so it is referred to Oxy's claim review as it is
+       * taken, in the same transaction: a stored report is a referral that will be
+       * sent. It still goes to CrowdSource above, which is what records the case.
+       */
+      if (input.categories.includes('child_safety')) {
+        await enqueueModerationOutboxEvent(
+          {
+            eventId: reportReferEventId(report.id),
+            kind: 'report.refer',
+            payload: { reportId: report.id },
+          },
+          tx,
+        );
+      }
 
       return { report, outboxEventId };
     });

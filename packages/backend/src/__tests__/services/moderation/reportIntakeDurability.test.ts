@@ -86,7 +86,10 @@ import {
   createReport,
   type CreateReportInput,
 } from '../../../services/moderation/ReportIntakeService';
-import { reportSubmitEventId } from '../../../services/moderation/ModerationOutboxService';
+import {
+  reportReferEventId,
+  reportSubmitEventId,
+} from '../../../services/moderation/ModerationOutboxService';
 import { subjectProviderFor } from '../../../services/moderation/subjects/registry';
 
 /** Namespaces every row this file writes, so a parallel file cannot collide. */
@@ -503,5 +506,45 @@ describe('report intake — an operator is not an identifier', () => {
         .from(reports)
         .where(like(reports.reporter, `${PREFIX}%`)),
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * A child-safety report never gets a jury's decision, so its referral to Oxy is
+ * queued as the report is taken, in the SAME transaction: a stored report is a
+ * referral that will be sent.
+ */
+describe('a child-safety report', () => {
+  it('queues its referral to Oxy beside its delivery, and no other category does', async () => {
+    withSubjectProvider();
+    const { report } = await createReport(
+      postInput({ reportedId: `${PREFIX}child-safety`, categories: ['child_safety'] }),
+    );
+    const kinds = (await outboxRowsFor(report.id)).map((row) => [row.kind, row.id]).sort();
+    expect(kinds).toEqual([
+      ['report.refer', reportReferEventId(report.id)],
+      ['report.submit', reportSubmitEventId(report.id)],
+    ]);
+
+    const { report: ordinary } = await createReport(
+      postInput({ reportedId: `${PREFIX}ordinary`, categories: ['explicit_content'] }),
+    );
+    expect((await outboxRowsFor(ordinary.id)).map((row) => row.kind)).toEqual(['report.submit']);
+  });
+
+  it('queues no referral for a type Mention cannot describe', async () => {
+    vi.mocked(subjectProviderFor).mockReturnValue(undefined);
+    const { report } = await createReport(roomInput({ categories: ['child_safety'] }));
+    expect(await outboxRowsFor(report.id)).toEqual([]);
+  });
+
+  it('stores no report when the referral cannot be queued', async () => {
+    withSubjectProvider();
+    const input = postInput({
+      reportedId: ATOMICITY_PROBE_SUBJECT,
+      categories: ['child_safety'],
+    });
+    await expect(createReport(input)).rejects.toThrow();
+    expect(await reportRowsFor(input.reporter)).toEqual([]);
   });
 });

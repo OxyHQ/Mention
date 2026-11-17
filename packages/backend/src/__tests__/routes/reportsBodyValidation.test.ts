@@ -183,7 +183,9 @@ describe('POST /reports body validation', () => {
       });
 
     expect(flood.status).toBe(400);
-    expect(flood.body.message).toContain('at most 11');
+    // The bound IS the vocabulary's size, so it is read from it: a category added
+    // later moves the bound without this test needing to be told.
+    expect(flood.body.message).toContain(`at most ${REPORT_CATEGORIES.length}`);
     expect(createReport).not.toHaveBeenCalled();
 
     // Seven entries is already one value named twice too many.

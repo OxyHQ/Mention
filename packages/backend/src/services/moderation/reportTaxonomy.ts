@@ -35,6 +35,13 @@ import type { ReportCategory } from '../../db/moderation/reportRepository';
  * only nudity will say so — whereas alleging nudity when explicit activity was
  * reported would understate the report and could route it to a lighter review.
  *
+ * **`child_safety` maps to `child_safety.exploitation`**, the broadest of the
+ * family's three codes: a reporter pressing "child safety" is not telling
+ * sexualisation from grooming, and CrowdSource routes all three the same way,
+ * to its legal pool and never to a jury (§7.5). That is also why Mention does
+ * not wait for a decision on it: the report is referred to Oxy's claim review
+ * as it is taken (`ContentReferralWorker`).
+ *
  * **The five `job`-only categories (#952) read as listing-accuracy claims, not
  * person-harm ones**, which is why three of them land in `commerce.*`/`integrity.*`
  * rather than `harassment.*`: `scam` is `integrity.scam` (an exact match — a
@@ -48,7 +55,7 @@ import type { ReportCategory } from '../../db/moderation/reportRepository';
  * `integrity.spam`, matching how `spam` itself is mapped — a repeat posting is
  * that allegation aimed at a listing.
  */
-export const REPORT_TAXONOMY_VERSION = '2026.07';
+export const REPORT_TAXONOMY_VERSION = '2026.11';
 
 const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = Object.freeze({
   spam: 'integrity.spam',
@@ -56,6 +63,7 @@ const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = O
   harassment: 'harassment.targeted_abuse',
   misinformation: 'other.policy_specific',
   explicit_content: 'sexual_content.explicit_activity',
+  child_safety: 'child_safety.exploitation',
   scam: 'integrity.scam',
   discriminatory: 'hate.protected_targeting',
   impersonation: 'integrity.impersonation',

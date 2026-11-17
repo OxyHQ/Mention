@@ -59,7 +59,12 @@ with no recommendation. The map lives in `enforcementPlan.ts`
   dial and recording an effect that did not happen would be worse than
   mapping honestly.
 - `manual_review` → recorded, never executed. `suspend_user` is Oxy's to
-  carry out, `legal_queue` needs a human.
+  carry out.
+- `legal_referral` → what `legal_queue` becomes. The post's media and its
+  page are referred to Oxy's claim review (`OxyServer.referContent`, oxy ADR
+  0043 D14), where a person on Oxy's staff decides. It runs in every mode,
+  `observe` included, because it does nothing to the post: if Oxy blocks the
+  files, Mention learns through `file.blocked` like any other takedown.
 
 `no_violation` always plans a `restore`, whatever it recommended — a
 correction's recommendation is frequently `no_action`, which means "take no
@@ -70,6 +75,18 @@ Enforcement itself is idempotent on `decisionId + revision + action` —
 claimed before acting and released if the effect throws. `revision` is in
 the key so an appeal's `restore` can supersede an earlier removal rather
 than being treated as a duplicate of it.
+
+## Child safety is referred, not judged
+
+A reporter can pick `child_safety`. CrowdSource routes that allegation to its
+legal pool, never shows it to a jury and publishes no decision for it, and it
+leaves the legal queue to the application. Mention's legal queue is Oxy's
+reviewed takedown, so `createReport` queues a `report.refer` outbox event in
+the report's own transaction and `ContentReferralWorker` refers the content.
+The report still goes to CrowdSource, which records the case.
+
+Nothing about the reporter is sent, and the post is not restricted: one report
+must not take content down, and a critical finding is a person's decision.
 
 ## The subject-provider seam (what a second app writes)
 

@@ -8,6 +8,7 @@ export const REPORT_CATEGORIES = [
   { id: 'harassment', label: 'Harassment or Bullying' },
   { id: 'misinformation', label: 'Misinformation' },
   { id: 'explicit_content', label: 'Explicit Content' },
+  { id: 'child_safety', label: 'Child Safety' },
   { id: 'other', label: 'Other' },
 ] as const;
 

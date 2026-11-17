@@ -45,7 +45,7 @@ export type ModerationOutboxStatus = (typeof MODERATION_OUTBOX_STATUSES)[number]
  * a union would force a narrowing step at every call site that adds nothing.
  */
 export interface ModerationOutboxPayload {
-  /** The local report id, for `report.submit`. */
+  /** The local report id, for `report.submit` and `report.refer`. */
   reportId?: string;
   /** The inbound webhook event id, for `decision.apply` (Appendix D). */
   eventId?: string;

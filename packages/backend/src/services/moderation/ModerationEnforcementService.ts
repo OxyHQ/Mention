@@ -8,6 +8,7 @@ import { POST_STATUSES, posts } from '../../db/schema/posts';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
+import { referSubjectForChildSafety } from './ContentReferralWorker';
 import { planEnforcement, type PlannedEnforcementAction } from './enforcementPlan';
 
 /**
@@ -108,6 +109,19 @@ async function applyEffect(
 > {
   if (action === 'none' || action === 'manual_review') {
     return { changed: false, reason: `Action '${action}' has no effect by definition` };
+  }
+
+  if (action === 'legal_referral') {
+    /**
+     * Handed to Oxy's claim review, where a person decides. Nothing in Mention
+     * changes, so there is no previous state to keep and nothing a `restore`
+     * could undo. A failure throws, which releases the claim for the retry; Oxy
+     * answers a repeated referral with the claim it already opened.
+     */
+    const outcome = await referSubjectForChildSafety(subject);
+    return outcome.referred
+      ? { changed: true, previousState: {} }
+      : { changed: false, reason: outcome.reason };
   }
 
   if (!POST_SUBJECT_TYPES.has(subject.type)) {
@@ -282,6 +296,13 @@ function asPostStatus(value: string | null | undefined): PostStatus {
  * person. `automatic` allows the mapped set.
  */
 function modeAllows(mode: ModerationEnforcementMode, action: ModerationEnforcementAction): boolean {
+  /**
+   * A referral runs in every mode. The modes gate what Mention does to CONTENT,
+   * and a referral does nothing to it: it tells Oxy's staff, who decide. Holding
+   * it behind `observe` would leave a jury's "this is for the legal queue" with
+   * nobody ever told.
+   */
+  if (action === 'legal_referral') return true;
   switch (mode) {
     case 'observe':
       return false;

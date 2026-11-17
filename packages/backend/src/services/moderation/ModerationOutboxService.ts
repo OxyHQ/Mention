@@ -63,6 +63,14 @@ export function reportSubmitEventId(reportId: string): string {
 }
 
 /**
+ * The event id for referring a child-safety report to Oxy: one per report, so a
+ * report taken twice by a race still refers once.
+ */
+export function reportReferEventId(reportId: string): string {
+  return `moderation:report.refer:${reportId}`;
+}
+
+/**
  * The event id for applying an inbound decision (Appendix D: "Mention inbound
  * event → eventId").
  *
