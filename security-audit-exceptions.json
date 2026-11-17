@@ -1,3 +1,12 @@
 {
-  "exceptions": []
+  "exceptions": [
+    {
+      "advisory": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "scope": "React Native, Expo, Metro and Jest tooling only: tinyglobby, @expo/metro-config, @expo/cli, metro-file-map > micromatch, jest-util. No file under packages/*/src or the frontend's own code imports picomatch or a glob matcher.",
+      "reason": "No patched release exists: the advisory covers every version up to the latest, 4.0.7. It is a ReDoS on a hostile glob pattern, and every consumer here matches patterns from developer configuration at build, bundle and test time, so no request served by the backend, the MCP server or the shipped app supplies one.",
+      "compensation": "The exception names this advisory only, so another high advisory against picomatch still blocks the build. It expires, which forces a second look: raise picomatch and delete this entry as soon as a release past the advisory is published.",
+      "expires": "2026-12-17"
+    }
+  ]
 }
