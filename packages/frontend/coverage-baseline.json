@@ -32,6 +32,7 @@
     "db/schema.ts": {"statements":[27,34],"branches":[74,114],"functions":[11,13],"lines":[23,28]},
     "hooks/useAccountCategoryLabel.ts": {"statements":[5,5],"branches":[0,0],"functions":[2,2],"lines":[5,5]},
     "hooks/useAccountTheme.ts": {"statements":[23,23],"branches":[15,15],"functions":[5,5],"lines":[21,21]},
+    "hooks/useAgeProtections.ts": {"statements":[4,4],"branches":[0,0],"functions":[2,2],"lines":[3,3]},
     "hooks/useAppLanguage.ts": {"statements":[7,7],"branches":[2,2],"functions":[4,4],"lines":[7,7]},
     "hooks/useArticleManager.ts": {"statements":[0,30],"branches":[0,8],"functions":[0,7],"lines":[0,30]},
     "hooks/useAttachmentOrder.ts": {"statements":[41,48],"branches":[12,20],"functions":[10,11],"lines":[40,45]},
