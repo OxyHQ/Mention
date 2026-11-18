@@ -2065,6 +2065,7 @@
     "hide": "Ausblenden"
   },
   "feed": {
+    "caughtUp": "Du bist auf dem neuesten Stand.",
     "empty": {
       "title": "Beiträge konnten nicht geladen werden",
       "message": "Beim Laden deines Feeds ist etwas schiefgelaufen. Zieh nach unten, um zu aktualisieren, oder tippe unten auf die Schaltfläche, um es erneut zu versuchen."

@@ -2065,6 +2065,7 @@
     "hide": "Sembunyikan"
   },
   "feed": {
+    "caughtUp": "Kamu sudah melihat semuanya.",
     "empty": {
       "title": "Tidak bisa memuat postingan",
       "message": "Terjadi kesalahan saat memuat feed-mu. Tarik ke bawah untuk menyegarkan atau ketuk tombol di bawah untuk mencoba lagi."

@@ -16,7 +16,10 @@ export function createOxySessionAuth(oxy: OxyServer): RequestHandler {
   const mountFor = (supervisedAction: SupervisedAction | undefined): RequestHandler => {
     let mount = mounts.get(supervisedAction);
     if (!mount) {
-      mount = oxy.middleware.auth(supervisedAction ? { supervisedAction } : {});
+      // A reviewed supervised endpoint validates through Oxy's safety session,
+      // which already returns the user: keeping it costs no extra round trip, and
+      // it carries the age band the feed's protective defaults read (oxy ADR 0068).
+      mount = oxy.middleware.auth(supervisedAction ? { supervisedAction, loadUser: true } : {});
       mounts.set(supervisedAction, mount);
     }
     return mount;

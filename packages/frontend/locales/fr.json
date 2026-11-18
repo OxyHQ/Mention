@@ -2085,6 +2085,7 @@
     "hide": "Masquer"
   },
   "feed": {
+    "caughtUp": "Vous êtes à jour.",
     "empty": {
       "title": "Impossible de charger les posts",
       "message": "Une erreur est survenue pendant le chargement de ton fil. Tire vers le bas pour actualiser ou appuie sur le bouton ci-dessous pour réessayer."

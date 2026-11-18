@@ -2065,6 +2065,7 @@
     "hide": "Hide"
   },
   "feed": {
+    "caughtUp": "You're all caught up.",
     "empty": {
       "title": "Couldn't load posts",
       "message": "Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again."

@@ -43,6 +43,16 @@ vi.mock('../../config', async (importOriginal) => ({
   }),
 }));
 
+// Oxy's answer to "who is in their quiet hours", set per test. Empty by default,
+// so every case that is not about quiet hours sees no one held.
+const quietAccounts = vi.hoisted(() => ({ ids: new Set<string>(), asked: [] as string[][] }));
+vi.mock('../../services/quietHours', () => ({
+  accountsInQuietHours: async (ids: readonly string[]) => {
+    quietAccounts.asked.push([...ids]);
+    return new Set(ids.filter((id) => quietAccounts.ids.has(id)));
+  },
+}));
+
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { pushTokens } from '../../db/schema/discovery';
 import { userSettings } from '../../db/schema/userProfile';
@@ -73,6 +83,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  quietAccounts.ids.clear();
+  quietAccounts.asked.length = 0;
   vi.clearAllMocks();
   mocks.sendEachForMulticast.mockResolvedValue({ responses: [] });
 });
@@ -285,5 +297,38 @@ describe('loadPushTargets', () => {
 
     expect([...targets.keys()]).toEqual([withDevice]);
     expect(targets.get(withDevice)).toEqual([token]);
+  });
+});
+
+/**
+ * Quiet hours (oxy ADR 0068): a recipient Oxy says is in theirs is not pushed
+ * to. The notification row is somebody else's write and is not touched here.
+ */
+describe('loadPushTargets and quiet hours', () => {
+  async function withDevice(): Promise<{ id: string; token: string }> {
+    const id = userId();
+    const token = tokenValue('fcm');
+    await db.insert(pushTokens).values({ userId: id, token, type: 'fcm', enabled: true });
+    return { id, token };
+  }
+
+  it('leaves out a recipient in their quiet hours and keeps the others', async () => {
+    const awake = await withDevice();
+    const asleep = await withDevice();
+    quietAccounts.ids.add(asleep.id);
+
+    const targets = await loadPushTargets([awake.id, asleep.id], 'reply');
+
+    expect([...targets.keys()]).toEqual([awake.id]);
+    expect(targets.get(awake.id)).toEqual([awake.token]);
+  });
+
+  it('asks Oxy only about recipients who have a device to push to', async () => {
+    const withPhone = await withDevice();
+    const withoutPhone = userId();
+
+    await loadPushTargets([withPhone.id, withoutPhone], 'reply');
+
+    expect(quietAccounts.asked).toEqual([[withPhone.id]]);
   });
 });
