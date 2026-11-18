@@ -20,7 +20,12 @@ import type {
   SlicedFeedResponse,
 } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { resolveDefinition } from '../feed/definitions/resolveDefinition';
+import {
+  isWithheldFromProtectedProfile,
+  resolveDefinition,
+} from '../feed/definitions/resolveDefinition';
+import { protectionsFor } from '@oxy.so/contracts';
+import { ageBandOf } from '../../utils/ageBand';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
@@ -582,9 +587,26 @@ class MtnFeedController {
         return;
       }
       const storedSort = context.feedSettings?.following?.sort;
-      const followingSort =
+      const followingSort: 'relevance' | 'chronological' =
         (requestedSort ?? storedSort) === 'relevance' ? 'relevance' : 'chronological';
-      const definition = await resolveDefinition(descriptor, { ...context, followingSort });
+      // A minor's feed profile (oxy ADR 0068): nothing ranked by engagement.
+      // The band is on the user Oxy returned for this session; an account of
+      // unknown age has none and gets the standard profile.
+      const { feedProfile } = protectionsFor(ageBandOf(req.user));
+      const resolveContext = { ...context, followingSort, feedProfile };
+      const definition = await resolveDefinition(descriptor, resolveContext);
+      if (
+        definition === null &&
+        feedProfile === 'protected' &&
+        (await isWithheldFromProtectedProfile(descriptor, resolveContext))
+      ) {
+        res.status(403).json({
+          success: false,
+          error: 'This feed is not available for this account',
+          code: 'FEED_WITHHELD_FOR_PROFILE',
+        });
+        return;
+      }
 
       if (context.socialGraphUnavailable && GRAPH_FEED_SOURCES.has(feedSource)) {
         throw graphUnavailable('following list unreadable');

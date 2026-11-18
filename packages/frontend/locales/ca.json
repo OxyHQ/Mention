@@ -2085,6 +2085,7 @@
     "hide": "Amaga"
   },
   "feed": {
+    "caughtUp": "Ja estàs al dia.",
     "empty": {
       "title": "No s'han pogut carregar les publicacions",
       "message": "Hi ha hagut un problema en carregar el teu flux. Estira cap avall per actualitzar-lo o toca el botó de sota per tornar-ho a provar."

@@ -2065,6 +2065,7 @@
     "hide": "Gizle"
   },
   "feed": {
+    "caughtUp": "Hepsini gördün.",
     "empty": {
       "title": "Gönderiler yüklenemedi",
       "message": "Akışın yüklenirken bir şeyler ters gitti. Yenilemek için aşağı çek veya tekrar denemek için aşağıdaki düğmeye dokun."

@@ -13,6 +13,7 @@
 
 import { isAuthorFeedFilter, parseFeedDescriptor } from '@mention/shared-types';
 import type { FeedDescriptor } from '@mention/shared-types';
+import type { AgeProtections } from '@oxy.so/contracts';
 import type { FeedDefinition } from '../engine/types';
 import { loadCustomFeedDefinition } from './customFeedDefinition';
 import {
@@ -40,9 +41,59 @@ import {
 export interface ResolveDefinitionContext {
   currentUserId?: string;
   followingSort?: 'chronological' | 'relevance';
+  /**
+   * The viewer's feed profile, from their Oxy age band (`protectionsFor`, oxy ADR
+   * 0068). `protected` is a minor's: nothing ranked by engagement is served.
+   * Absent means `standard`.
+   */
+  feedProfile?: AgeProtections['feedProfile'];
 }
 
+/**
+ * The definition a descriptor runs for this viewer.
+ *
+ * A `protected` viewer is served no ranked feed at all. The home feed and
+ * Following both become the chronological Following timeline, so the tab a
+ * minor lands on is posts from the accounts they follow in the order they were
+ * posted. Every other ranked feed (Explore, Trending, Videos, a ranked custom
+ * feed) resolves to nothing here, and `isWithheldFromProtectedProfile` is how
+ * the endpoint tells "withheld for this viewer" from "no such feed".
+ *
+ * The rule is applied to the RESOLVED definition's `mode`, not to a list of
+ * names, so a ranked feed added later is withheld without anyone remembering to
+ * add it here.
+ */
 export async function resolveDefinition(
+  descriptor: FeedDescriptor,
+  ctx?: ResolveDefinitionContext,
+): Promise<FeedDefinition | null> {
+  if (ctx?.feedProfile !== 'protected') return resolveStandardDefinition(descriptor, ctx);
+  const definition = await resolveStandardDefinition(descriptor, {
+    ...ctx,
+    followingSort: 'chronological',
+  });
+  if (definition === null || definition.mode !== 'ranked') return definition;
+  return parseFeedDescriptor(descriptor).source === 'for_you' ? followingDefinition : null;
+}
+
+/**
+ * Whether a descriptor names a real feed that a `protected` viewer is not
+ * served because it is ranked. False for the home feed (it is served, as
+ * Following), for a chronological feed and for a descriptor that names nothing.
+ */
+export async function isWithheldFromProtectedProfile(
+  descriptor: FeedDescriptor,
+  ctx?: ResolveDefinitionContext,
+): Promise<boolean> {
+  if (parseFeedDescriptor(descriptor).source === 'for_you') return false;
+  const standard = await resolveStandardDefinition(descriptor, {
+    ...ctx,
+    followingSort: 'chronological',
+  });
+  return standard !== null && standard.mode === 'ranked';
+}
+
+async function resolveStandardDefinition(
   descriptor: FeedDescriptor,
   ctx?: ResolveDefinitionContext,
 ): Promise<FeedDefinition | null> {

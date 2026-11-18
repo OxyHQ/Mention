@@ -46,3 +46,46 @@ describe('FeedFooter after a failed page', () => {
     ).toBeNull();
   });
 });
+
+/**
+ * A feed that loads on request (a minor's account, oxy ADR 0068) offers its next
+ * page instead of fetching it; and a home timeline read to its end says so.
+ */
+describe('FeedFooter on a feed that loads on request', () => {
+  it('offers the next page, and loads it when asked', () => {
+    const onRetryLoadMore = jest.fn();
+    const tree = render({ loadOnRequest: true, onRetryLoadMore });
+    const button = tree.root.findByType('Button' as never);
+    expect(button.props.children).toBe('common.loadMore');
+    act(() => button.props.onPress());
+    expect(onRetryLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers nothing once there is no next page', () => {
+    expect(
+      render({ loadOnRequest: true, hasMore: false, onRetryLoadMore: jest.fn() }).toJSON(),
+    ).toBeNull();
+  });
+
+  it('offers nothing before there are rows', () => {
+    expect(
+      render({ loadOnRequest: true, hasItems: false, onRetryLoadMore: jest.fn() }).toJSON(),
+    ).toBeNull();
+  });
+});
+
+describe('FeedFooter at the end of a home timeline', () => {
+  const text = (tree: ReturnType<typeof render>) => JSON.stringify(tree.toJSON());
+
+  it('says the reader is caught up', () => {
+    expect(text(render({ hasMore: false, caughtUp: true }))).toContain('feed.caughtUp');
+  });
+
+  it('says nothing while there is more to load', () => {
+    expect(render({ hasMore: true, caughtUp: true }).toJSON()).toBeNull();
+  });
+
+  it('says nothing unless the feed asks for it', () => {
+    expect(render({ hasMore: false }).toJSON()).toBeNull();
+  });
+});

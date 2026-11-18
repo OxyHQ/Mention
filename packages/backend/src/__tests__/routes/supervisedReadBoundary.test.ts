@@ -31,7 +31,10 @@ describe('reviewed optional reads', () => {
     expect(anonymousFeed).not.toHaveBeenCalled();
     // The accepted service audience is the server's own (`runtime/oxyClient`),
     // not repeated at the mount.
-    expect(oxy.middleware.auth).toHaveBeenCalledWith({ supervisedAction: 'content' });
+    expect(oxy.middleware.auth).toHaveBeenCalledWith({
+      supervisedAction: 'content',
+      loadUser: true,
+    });
   });
 
   it('builds each auth mount once, not once per request', async () => {
@@ -47,7 +50,7 @@ describe('reviewed optional reads', () => {
       await request(app).get(path).set('Authorization', 'Bearer session');
     }
     expect(auth).toHaveBeenCalledTimes(2);
-    expect(auth).toHaveBeenCalledWith({ supervisedAction: 'content' });
+    expect(auth).toHaveBeenCalledWith({ supervisedAction: 'content', loadUser: true });
     expect(auth).toHaveBeenCalledWith({});
   });
 

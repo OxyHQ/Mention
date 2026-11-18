@@ -26,6 +26,13 @@ export interface PresetFeed {
   icon: string;
   defaultPinned: boolean;
   requiresAuth: boolean;
+  /**
+   * Whether the feed is ranked by engagement rather than shown in the order it
+   * was posted. A `protected` feed profile (a minor's account, oxy ADR 0068) is
+   * served no ranked feed, so these are not offered to it. The backend's
+   * definitions are the authority; a test holds this flag equal to them.
+   */
+  ranked: boolean;
 }
 
 /**
@@ -66,6 +73,7 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'sparkles',
     defaultPinned: true,
     requiresAuth: false,
+    ranked: true,
   },
   {
     id: 'following',
@@ -75,6 +83,7 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'users',
     defaultPinned: true,
     requiresAuth: true,
+    ranked: false,
   },
   {
     id: 'trending',
@@ -84,6 +93,7 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'flame',
     defaultPinned: false,
     requiresAuth: false,
+    ranked: true,
   },
   {
     id: 'explore',
@@ -93,6 +103,7 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'compass',
     defaultPinned: false,
     requiresAuth: false,
+    ranked: true,
   },
   {
     id: 'mutuals',
@@ -102,6 +113,7 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'user-check',
     defaultPinned: false,
     requiresAuth: true,
+    ranked: false,
   },
   {
     id: 'friends_popular',
@@ -111,6 +123,7 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'heart-handshake',
     defaultPinned: false,
     requiresAuth: true,
+    ranked: true,
   },
   {
     id: 'friends_of_friends',
@@ -120,5 +133,26 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'users',
     defaultPinned: false,
     requiresAuth: true,
+    ranked: false,
   },
 ];
+
+/**
+ * The saved feeds a viewer is OFFERED: for a `protected` feed profile (a
+ * minor's account, oxy ADR 0068), every ranked preset is left out, so the home
+ * tabs open on Following. Everything else is returned unchanged, in the same
+ * order.
+ *
+ * This is presentation. The server decides what is served from the same
+ * profile, and refuses a ranked feed to a protected viewer whoever asks.
+ */
+export function savedFeedsOfferedTo(
+  savedFeeds: readonly SavedFeed[],
+  feedProfile: 'standard' | 'protected',
+): SavedFeed[] {
+  if (feedProfile !== 'protected') return [...savedFeeds];
+  const rankedPresets = new Set(
+    PRESET_FEEDS.filter((preset) => preset.ranked).map((preset) => preset.descriptor),
+  );
+  return savedFeeds.filter((feed) => !rankedPresets.has(feed.descriptor));
+}

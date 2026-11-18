@@ -23,7 +23,8 @@ import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { useHoldForLeading } from './holdForLeading';
 import { type FeedRow, buildFeedRows } from './feedRows';
-import { boundFeedRows, canLoadMoreFeed } from './feedPaging';
+import { boundFeedRows, canAutoLoadFeed, showsCaughtUp } from './feedPaging';
+import { useAgeProtections } from '@/hooks/useAgeProtections';
 
 /**
  * EVERYTHING A FEED IS, except how it scrolls.
@@ -190,13 +191,23 @@ export function useFeedCore(props: FeedProps) {
   // never prompted to sign in by scrolling: `signIn()` opens the SDK sheet, and
   // opening it from here hijacked public browse one fling in (#1272). The
   // footer's tap is the only sign-in affordance. A bounded preview never pages.
+  //
+  // The one exception is a minor's account (oxy ADR 0068): its feed loads on
+  // request. This handler is the list's end-reached trigger, so it does nothing
+  // there and the footer's "Load more" is how the next page is asked for.
+  const loadsOnRequest = useAgeProtections().feedProfile === 'protected';
   const handleLoadMore = useCallback(() => {
     if (
-      !canLoadMoreFeed({ previewLimit, hasMore: feedState.hasMore, isLoading: feedState.isLoading })
+      !canAutoLoadFeed({
+        previewLimit,
+        hasMore: feedState.hasMore,
+        isLoading: feedState.isLoading,
+        loadsOnRequest,
+      })
     )
       return;
     feedLoadMore();
-  }, [previewLimit, feedState.hasMore, feedState.isLoading, feedLoadMore]);
+  }, [previewLimit, feedState.hasMore, feedState.isLoading, loadsOnRequest, feedLoadMore]);
 
   const handleRetry = useCallback(async () => {
     feedClearError();
@@ -247,8 +258,24 @@ export function useFeedCore(props: FeedProps) {
   // `error` is reported only while nothing is in flight, so with rows on screen
   // it is the next page that failed, not the feed.
   const loadMoreFailed = Boolean(feedState.error) && presentedRows.length > 0;
+  const paged = previewLimit === undefined && presentedRows.length > 0;
+  // A feed that loads on request offers its next page instead of fetching it.
+  const offersLoadMore = loadsOnRequest && paged && feedState.hasMore && !feedState.isLoading;
+  // The end of a home timeline, said out loud: there is nothing more to read,
+  // rather than a list that just stops. For everyone, not only a minor.
+  const caughtUp =
+    paged &&
+    isAuthenticated &&
+    !feedState.hasMore &&
+    !feedState.isLoading &&
+    !feedState.error &&
+    showsCaughtUp(feedDescriptor);
   const showFooter =
-    isLoadingMore || loadMoreFailed || (!isAuthenticated && presentedRows.length > 0);
+    isLoadingMore ||
+    loadMoreFailed ||
+    offersLoadMore ||
+    caughtUp ||
+    (!isAuthenticated && presentedRows.length > 0);
 
   const { listHeaderComponent, showComposeButton, onComposePress, hideHeader } = merged;
   const header = useMemo(
@@ -301,9 +328,20 @@ export function useFeedCore(props: FeedProps) {
           hasItems={hasPresentedRows}
           loadFailed={loadMoreFailed}
           onRetryLoadMore={feedLoadMore}
+          loadOnRequest={offersLoadMore}
+          caughtUp={caughtUp}
         />
       ) : null,
-    [showFooter, footerHasMore, isLoadingMore, hasPresentedRows, loadMoreFailed, feedLoadMore],
+    [
+      showFooter,
+      footerHasMore,
+      isLoadingMore,
+      hasPresentedRows,
+      loadMoreFailed,
+      feedLoadMore,
+      offersLoadMore,
+      caughtUp,
+    ],
   );
 
   return {

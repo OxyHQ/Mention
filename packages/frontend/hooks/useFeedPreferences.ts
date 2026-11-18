@@ -5,8 +5,10 @@ import type { FeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import {
   type FeedPreferences,
   PRESET_FEEDS,
+  savedFeedsOfferedTo,
   type SavedFeed,
 } from '@mention/shared-types/mtn/presetFeeds';
+import { useAgeProtections } from '@/hooks/useAgeProtections';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -77,9 +79,20 @@ export function useFeedPreferences(): UseFeedPreferences {
     meta: { persist: 'account' },
   });
 
-  const savedFeeds = useMemo<SavedFeed[]>(
+  // A minor's account is not offered the ranked presets (oxy ADR 0068), so its
+  // home tabs open on Following. The server refuses those feeds to it as well.
+  //
+  // Two lists on purpose. `storedFeeds` is the whole layout and is what every
+  // edit is computed from and written back, so pinning a feed never drops the
+  // presets this viewer is not shown. `savedFeeds` is what the screens read.
+  const { feedProfile } = useAgeProtections();
+  const storedFeeds = useMemo<SavedFeed[]>(
     () => query.data?.savedFeeds ?? (canUsePrivateApi ? [] : anonSavedFeeds()),
     [query.data, canUsePrivateApi],
+  );
+  const savedFeeds = useMemo<SavedFeed[]>(
+    () => savedFeedsOfferedTo(storedFeeds, feedProfile),
+    [storedFeeds, feedProfile],
   );
   const customFeedTitles = query.data?.customFeedTitles ?? NO_TITLES;
 
@@ -121,23 +134,23 @@ export function useFeedPreferences(): UseFeedPreferences {
 
   const pin = useCallback(
     (feed: PinnableFeed) => {
-      const existing = savedFeeds.find((f) => f.key === feed.key);
+      const existing = storedFeeds.find((f) => f.key === feed.key);
       const next = existing
-        ? savedFeeds.map((f) => (f.key === feed.key ? { ...f, pinned: true } : f))
+        ? storedFeeds.map((f) => (f.key === feed.key ? { ...f, pinned: true } : f))
         : [
-            ...savedFeeds,
-            { key: feed.key, descriptor: feed.descriptor, pinned: true, order: savedFeeds.length },
+            ...storedFeeds,
+            { key: feed.key, descriptor: feed.descriptor, pinned: true, order: storedFeeds.length },
           ];
       commit(next);
     },
-    [savedFeeds, commit],
+    [storedFeeds, commit],
   );
 
   const unpin = useCallback(
     (key: string) => {
-      commit(savedFeeds.map((f) => (f.key === key ? { ...f, pinned: false } : f)));
+      commit(storedFeeds.map((f) => (f.key === key ? { ...f, pinned: false } : f)));
     },
-    [savedFeeds, commit],
+    [storedFeeds, commit],
   );
 
   const reorder = useCallback(
@@ -145,14 +158,14 @@ export function useFeedPreferences(): UseFeedPreferences {
       const orderIndex = new Map(orderedPinnedKeys.map((key, index) => [key, index]));
       // Pinned feeds take the requested order; unpinned feeds keep their relative
       // order after them. `order` is a single monotonic sequence across the list.
-      const pinnedInOrder = savedFeeds
+      const pinnedInOrder = storedFeeds
         .filter((f) => f.pinned && orderIndex.has(f.key))
         .sort((a, b) => (orderIndex.get(a.key) ?? 0) - (orderIndex.get(b.key) ?? 0));
-      const rest = savedFeeds.filter((f) => !(f.pinned && orderIndex.has(f.key)));
+      const rest = storedFeeds.filter((f) => !(f.pinned && orderIndex.has(f.key)));
       const next = [...pinnedInOrder, ...rest].map((f, index) => ({ ...f, order: index }));
       commit(next);
     },
-    [savedFeeds, commit],
+    [storedFeeds, commit],
   );
 
   const pinnedFeeds = useMemo(

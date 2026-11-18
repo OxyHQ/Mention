@@ -20,6 +20,7 @@ import { RiUserCommunityLine } from '@oxy.so/bloom/icons/RiUserCommunityLine';
 import { useTranslation } from 'react-i18next';
 import { useRouter, useFocusEffect } from '@/lib/navigation/router';
 import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types/mtn/presetFeeds';
+import { useAgeProtections } from '@/hooks/useAgeProtections';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
@@ -317,10 +318,17 @@ const FeedsScreen: React.FC = () => {
   }, [loadFeeds]);
 
   // Presets available to this viewer: hide viewer-relative (requiresAuth) presets
-  // for anonymous viewers.
+  // for anonymous viewers, and the ranked ones for a minor's account, which is
+  // served none of them (oxy ADR 0068).
+  const { feedProfile } = useAgeProtections();
   const visiblePresets = useMemo(
-    () => PRESET_FEEDS.filter((preset) => canUsePrivateApi || !preset.requiresAuth),
-    [canUsePrivateApi],
+    () =>
+      PRESET_FEEDS.filter(
+        (preset) =>
+          (canUsePrivateApi || !preset.requiresAuth) &&
+          !(feedProfile === 'protected' && preset.ranked),
+      ),
+    [canUsePrivateApi, feedProfile],
   );
 
   /*

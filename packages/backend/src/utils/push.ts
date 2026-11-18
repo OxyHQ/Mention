@@ -7,6 +7,7 @@ import { getFirebaseConfig } from '../config';
 import { getDb } from '../db/postgres';
 import { pushTokens, type NOTIFICATION_TYPES } from '../db/schema/discovery';
 import { userSettings } from '../db/schema/userProfile';
+import { accountsInQuietHours } from '../services/quietHours';
 import { logger } from './logger';
 import { chunk } from '@oxy.so/utils/text';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
@@ -164,6 +165,9 @@ const PUSH_PREFERENCE_COLUMN = {
  * The toggles govern the push only; the notification row and the socket event
  * are written regardless, so turning "Replies" off silences the phone without
  * the inbox losing anything.
+ *
+ * A recipient in their quiet hours (a minor's night, oxy ADR 0068) is absent
+ * too, for the same reason: the push waits, the inbox does not.
  */
 export async function loadPushTargets(
   userIds: readonly string[],
@@ -202,6 +206,9 @@ export async function loadPushTargets(
     if (tokens) tokens.push(row.token);
     else targets.set(row.userId, [row.token]);
   }
+  // Asked LAST and only about recipients who would actually be pushed to: most
+  // have no device, and they cost Oxy nothing.
+  for (const quietId of await accountsInQuietHours([...targets.keys()])) targets.delete(quietId);
   return targets;
 }
 
