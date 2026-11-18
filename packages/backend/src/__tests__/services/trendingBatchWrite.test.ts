@@ -92,9 +92,28 @@ function item(overrides: Partial<TrendItem> & { name: string }): TrendItem {
 
 /** A batch stamp unique to this test, tracked so the rows can be removed after. */
 function batchStamp(offsetMs = 0): Date {
-  const at = new Date(Date.now() + offsetMs);
+  return trackedStamp(new Date(Date.now() + offsetMs));
+}
+
+function trackedStamp(at: Date): Date {
   createdBatchStamps.push(at);
   return at;
+}
+
+/**
+ * Two batch stamps a minute apart, both in the past and on ONE UTC day.
+ *
+ * "Two minutes ago and one minute ago" are two different days for the two
+ * minutes after UTC midnight, and a test about collapsing ONE day's batches
+ * then sees two days and fails for a reason that has nothing to do with the
+ * code (it did, in the merge queue at 00:01 UTC). Inside that window the pair
+ * sits in the last minutes of the day before, which the history still covers.
+ */
+function sameDayBatchStamps(now = Date.now()): [Date, Date] {
+  const today = new Date(now);
+  const dayStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const later = now - dayStart >= 120_000 ? now - 60_000 : dayStart - 60_000;
+  return [trackedStamp(new Date(later - 60_000)), trackedStamp(new Date(later))];
 }
 
 async function seedPost(hashtags: string[], author?: string): Promise<void> {
@@ -501,11 +520,29 @@ describe("getTrending — the reader's languages select the audience", () => {
   });
 });
 
+describe('sameDayBatchStamps', () => {
+  const utcDay = (at: Date) => at.toISOString().slice(0, 10);
+
+  it.each([
+    ['at midnight exactly', '2026-11-18T00:00:00.000Z'],
+    ['a minute and a half after midnight', '2026-11-18T00:01:30.000Z'],
+    ['just under two minutes after midnight', '2026-11-18T00:01:59.999Z'],
+    ['two minutes after midnight', '2026-11-18T00:02:00.000Z'],
+    ['at noon', '2026-11-18T12:00:00.000Z'],
+    ['a second before midnight', '2026-11-18T23:59:59.000Z'],
+  ])('puts both stamps on one UTC day, in the past, %s', (_label, now) => {
+    const at = Date.parse(now);
+    const [first, second] = sameDayBatchStamps(at);
+    expect(utcDay(first)).toBe(utcDay(second));
+    expect(second.getTime() - first.getTime()).toBe(60_000);
+    expect(second.getTime()).toBeLessThan(at);
+  });
+});
+
 describe('getTrendingHistory — one row per (day, name, type)', () => {
   it("collapses a day's batches to the highest score per trend", async () => {
     const name = uniqueName('archived');
-    const first = batchStamp(-120_000);
-    const second = batchStamp(-60_000);
+    const [first, second] = sameDayBatchStamps();
 
     await saveTrendingBatch([item({ name, score: 10, volume: 1 })], first);
     await saveTrendingBatch([item({ name, score: 40, volume: 4 })], second);
