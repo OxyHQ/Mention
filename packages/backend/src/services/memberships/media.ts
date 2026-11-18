@@ -1,6 +1,6 @@
 import { currentPrivateMembershipMedia } from './privateMedia';
 import { and, eq, isNull } from 'drizzle-orm';
-import type { RequestSafetyContext } from '../../utils/safetyRequester';
+import { personActingFor, type RequestSafetyContext } from '../../utils/safetyRequester';
 import { getDb } from '../../db/postgres';
 import { membershipMedia } from '../../db/schema/memberships';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
@@ -12,7 +12,7 @@ import {
 } from './access';
 import { readableMembershipContent } from './content';
 
-/** The original foreground requester travels to Oxy even when reading another member's file. */
+/** A member's own request; Mention keeps the bytes as application files on its declared `oxy:files`. */
 function privateFiles(request: RequestSafetyContext) {
   if (
     !request.user ||
@@ -22,7 +22,7 @@ function privateFiles(request: RequestSafetyContext) {
     request.serviceApp
   )
     throw new MembershipError(403, 'A foreground account session is required');
-  return getServiceOxyClient().assets.withRequester({ requesterToken: request.accessToken });
+  return getServiceOxyClient().assets.actingFor(personActingFor(request, request.user.id));
 }
 export async function uploadMembershipMedia(
   communityId: string,

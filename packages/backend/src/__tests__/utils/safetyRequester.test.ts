@@ -14,10 +14,15 @@ describe('safetyRequesterFor', () => {
     expect(thrown).toBeInstanceOf(ApiError);
     expect(thrown).toMatchObject({ statusCode: 403, code: 'SAFETY_REQUESTER_UNPROVABLE' });
   });
-  it('forwards the actual capability operation proof without a user/session substitute', () => {
-    expect(safetyRequesterFor({ capability: { ticket: 'signed-original-ticket' } })).toEqual({
-      capabilityTicket: 'signed-original-ticket',
-    });
+  it('asks for the ticket’s account on Mention’s declared authority, never with the ticket', () => {
+    expect(
+      safetyRequesterFor({
+        capability: {
+          ticket: 'signed-original-ticket',
+          claims: { resource: { effectiveAccountId: 'acct' } },
+        },
+      }),
+    ).toEqual({ actingForAccountId: 'acct' });
   });
   /**
    * Only what the auth middleware VERIFIED is a person's proof. A raw
@@ -37,19 +42,15 @@ describe('safetyRequesterFor', () => {
   });
 });
 
-describe('verified service requester context', () => {
+describe('another Oxy service acting for an account (ADR 0066)', () => {
   const own = {
     user: { id: 'person' },
     serviceApp: { authority: 'first_party' as const },
     accessToken: 'service-jwt-never-user-session',
-    serviceActingAs: {
-      authority: 'first_party' as const,
-      userId: 'person',
-      requesterContext: 'central-short-lived-context',
-    },
+    serviceActingAs: { authority: 'first_party' as const, userId: 'person', requesterId: 'person' },
   };
-  it('forwards only the context derived for this recipient and account', () => {
-    expect(safetyRequesterFor(own)).toEqual({ requesterContext: 'central-short-lived-context' });
+  it('asks for the account Oxy verified, never with the service JWT', () => {
+    expect(safetyRequesterFor(own)).toEqual({ actingForAccountId: 'person' });
   });
   it('refuses legacy attribution, an external credential, and a different account', () => {
     for (const request of [
@@ -58,7 +59,7 @@ describe('verified service requester context', () => {
       { ...own, user: { id: 'bot-owner' } },
     ])
       expect(() => safetyRequesterFor(request)).toThrow(
-        'Verified downstream requester proof is required',
+        'A verified first-party service account is required',
       );
   });
 });

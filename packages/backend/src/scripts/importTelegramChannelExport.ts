@@ -25,7 +25,9 @@
  * the subject of a delegation (`isDelegatedActAsEligibleKind`), so Move — which
  * imports by acting as the user — cannot reach one today. The operator running
  * this workflow is the channel's owner; the script refuses to run unless the
- * target id resolves to the username the operator named.
+ * target id resolves to the username the operator named. Media goes to the
+ * channel's files on Mention's declared authority (oxy ADR 0066), for the person
+ * `IMPORT_OPERATOR_OXY_USER_ID` names: Oxy checks they run the channel now.
  *
  * IDEMPOTENT. Items already in the ledger are skipped BEFORE their media is
  * uploaded, so a re-run neither duplicates a post nor re-uploads its files.
@@ -163,8 +165,8 @@ const fetchStaged: Fetcher = async (url, maxBytes) => {
 export interface TelegramImportDeps {
   fetchStaged: Fetcher;
   uploadMedia(params: {
-    taskId: string;
     ownerUserId: string;
+    operatorUserId?: string;
     buffer: Buffer;
     contentType: string;
     fileName: string;
@@ -176,7 +178,11 @@ const defaultDeps: TelegramImportDeps = {
   fetchStaged,
   async uploadMedia(params) {
     const file = await getServiceOxyClient()
-      .assets.withRequester({ taskId: params.taskId, accountId: params.ownerUserId })
+      // Mention's declared `oxy:files`, for the channel the operator runs (ADR 0066).
+      .assets.actingFor({
+        accountId: params.ownerUserId,
+        ...(params.operatorUserId ? { requesterAccountId: params.operatorUserId } : {}),
+      })
       .uploadUserMedia(params.ownerUserId, new Uint8Array(params.buffer), params.contentType, {
         originalName: params.fileName,
         visibility: 'public',
@@ -196,7 +202,7 @@ export interface TelegramImportResult {
 
 export async function importTelegramChannelExport(
   manifest: TelegramManifest,
-  opts: { targetOxyUserId: string; batchId: string; dryRun?: boolean; taskId?: string },
+  opts: { targetOxyUserId: string; batchId: string; dryRun?: boolean; operatorOxyUserId?: string },
   deps: TelegramImportDeps = defaultDeps,
 ): Promise<TelegramImportResult> {
   const dryRun = opts.dryRun ?? true;
@@ -225,10 +231,6 @@ export async function importTelegramChannelExport(
     mediaFiles: pending.reduce((n, item) => n + item.media.length, 0),
   });
   if (dryRun || pending.length === 0) return result;
-  if (!opts.taskId)
-    throw new Error(
-      'IMPORT_OXY_TASK_ID must identify the original account-authorized Mention task',
-    );
 
   for (let i = 0; i < pending.length; i += MAX_IMPORT_BATCH_ITEMS) {
     const chunk = pending.slice(i, i + MAX_IMPORT_BATCH_ITEMS);
@@ -239,8 +241,8 @@ export async function importTelegramChannelExport(
         for (const entry of item.media) {
           const buffer = await deps.fetchStaged(entry.url, MAX_MEDIA_BYTES);
           const uploaded = await deps.uploadMedia({
-            taskId: opts.taskId,
             ownerUserId: opts.targetOxyUserId,
+            ...(opts.operatorOxyUserId ? { operatorUserId: opts.operatorOxyUserId } : {}),
             buffer,
             contentType: entry.mimeType,
             fileName: entry.fileName,
@@ -298,7 +300,9 @@ async function main(): Promise<number> {
   const targetOxyUserId = (process.env.IMPORT_TARGET_OXY_USER_ID ?? '').trim();
   const targetUsername = stripHandlePrefix(process.env.IMPORT_TARGET_USERNAME ?? '');
   const batchId = (process.env.IMPORT_BATCH_ID ?? '').trim();
-  const taskId = (process.env.IMPORT_OXY_TASK_ID ?? '').trim();
+  // The person who runs the channel, when the target is a channel: Oxy checks
+  // they hold it now. Unset when the target is the operator's own account.
+  const operatorOxyUserId = (process.env.IMPORT_OPERATOR_OXY_USER_ID ?? '').trim() || undefined;
   if (!targetOxyUserId || !targetUsername || !batchId) {
     throw new Error(
       'IMPORT_TARGET_OXY_USER_ID, IMPORT_TARGET_USERNAME and IMPORT_BATCH_ID are required',
@@ -322,7 +326,7 @@ async function main(): Promise<number> {
       targetOxyUserId,
       batchId,
       dryRun,
-      taskId,
+      operatorOxyUserId,
     });
     return result.failed > 0 ? EXIT_INCOMPLETE : 0;
   } finally {

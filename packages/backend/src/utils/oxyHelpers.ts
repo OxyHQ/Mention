@@ -1,4 +1,4 @@
-import { verifiedDownstreamRequester, type RequestSafetyContext } from './safetyRequester';
+import { declaredActingFor, personActingFor, type RequestSafetyContext } from './safetyRequester';
 import type {
   OxyAccountAccess,
   OxyCallerRequest,
@@ -21,20 +21,13 @@ const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer
  * Normal Oxy sessions get the person's own user client (`oxy.asUser`). MCP
  * requests MUST NOT plant the resource-bound MCP bearer into an Oxy client;
  * instead they present their original connection proof to the shared authority.
- * Capability requests use the original live ticket; neither proof is planted as
- * a session.
+ * A capability ticket's account and an account another Oxy service acts for
+ * are read on Mention's own declared authority (`oxy.actingFor`, ADR 0066):
+ * nothing of the incoming request is forwarded as a session.
  */
 export function createScopedOxyClient(req: RequestSafetyContext): OxyClient | undefined {
-  if (req.capability) {
-    if (!req.capability.ticket || !req.capability.claims?.resource?.effectiveAccountId) {
-      throw new Error('Verified capability requester proof is missing');
-    }
-    return getServiceOxyClient().withRequester({ capabilityTicket: req.capability.ticket });
-  }
-  if (req.serviceApp)
-    return getServiceOxyClient().withRequester({
-      requesterContext: verifiedDownstreamRequester(req),
-    });
+  const declared = declaredActingFor(req);
+  if (declared) return getServiceOxyClient().actingFor(declared);
   const delegatedUserId = req.mcp?.activeUserId?.trim();
   if (req.mcp) {
     if (!delegatedUserId) {
@@ -95,14 +88,13 @@ export function callerAccountAccess(
   };
 }
 
-/** Already verified HTTP request only; an MCP or attribution proof is not a session. */
+/** A person's own HTTP request only; an MCP connection, ticket or service call ranks without it. */
 export function createForegroundOxyProfileClient(
   req: RequestSafetyContext,
 ): ForegroundOxyProfileClient | undefined {
   if (!req.user || req.mcp || req.capability || req.serviceApp) return undefined;
-  const token = req.accessToken;
   const configuration = process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING;
-  if (!token || !configuration) throw new Error('FOREGROUND_RANKING_NOT_CONFIGURED');
+  if (!configuration) throw new Error('FOREGROUND_RANKING_NOT_CONFIGURED');
   if (!req.oxyActor || req.oxyActor.effectiveAccountId !== req.user.id)
     throw new Error('FOREGROUND_REQUESTER_REQUIRED');
   let binding: unknown;
@@ -113,7 +105,6 @@ export function createForegroundOxyProfileClient(
   }
   return new ForegroundOxyProfileClient(
     getServiceOxyClient(),
-    token,
     req.user.id,
     binding,
     req.oxyActor.actorAccountId,
@@ -269,7 +260,11 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
   };
 }
 
-/** Select the SDK proof lane from already verified HTTP context, never an owner header. */
+/**
+ * Oxy Files of the request's verified account. An external MCP connection keeps
+ * its connection grant; everything else is Mention acting for the account on
+ * its declared `oxy:files` (ADR 0066), the person's own session included.
+ */
 export function requesterFiles(
   req: RequestSafetyContext,
   tool: 'upload-media' | 'upload-media-from-url',
@@ -283,22 +278,20 @@ export function requesterFiles(
       throw new Error('Verified media connection proof is missing');
     return assets.withMcpMediaRequester({ connectionToken, accountId, tool });
   }
-  if (req.capability) {
-    if (!req.capability.ticket || req.capability.claims?.resource?.effectiveAccountId !== accountId)
-      throw new Error('Verified media capability proof is missing');
-    return assets.withRequester({ capabilityTicket: req.capability.ticket, accountId });
+  const declared = declaredActingFor(req);
+  if (declared) {
+    if (declared.accountId !== accountId) throw new Error('Verified media account is missing');
+    return assets.actingFor(declared);
   }
-  if (req.serviceApp)
-    return assets.withRequester({ requesterContext: verifiedDownstreamRequester(req), accountId });
-  if (!req.accessToken) throw new Error('Verified media session proof is missing');
-  return assets.withRequester({ requesterToken: req.accessToken });
+  if (!req.accessToken) throw new Error('Verified media session is missing');
+  return assets.actingFor(personActingFor(req, accountId));
 }
 
 export interface ServiceUserMediaUploadResult {
   fileId: string;
   contentType: string;
 }
-/** Public post media retains the original account and operation proof at Oxy Files. */
+/** Public post media, stored in the verified account's Oxy Files. */
 export async function uploadServiceUserMedia(params: {
   requester: RequestSafetyContext;
   ownerUserId: string;

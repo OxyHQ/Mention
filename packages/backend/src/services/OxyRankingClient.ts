@@ -7,11 +7,10 @@
  * to Mention's frontend DTO) lives in exactly one place. If the Oxy contract
  * changes, only this file changes.
  *
- * Foreground viewer requests use a common foreground capability with independent
- * Mention coordinator proof and the request-scoped user bearer. Anonymous
- * requests use the application's service identity without a delegated viewer.
- * Oxy derives private clientId from the verified coordinator and the viewer from
- * a live requester session. An ordinary bearer alone cannot select that profile.
+ * A signed-in viewer's request uses the `recommendProfiles` tool on Mention's
+ * declared `oxy:tools` authority (oxy ADR 0066), for the verified viewer.
+ * Anonymous requests use the application's service identity without a viewer.
+ * Oxy derives private clientId from the verified coordinator.
  */
 
 import type { UserNameResponse } from '@oxy.so/contracts';
@@ -82,7 +81,7 @@ export interface RankOptions {
   clientId?: string;
   /** Verified foreground viewer; never sent in a delegated identity header. */
   viewerId?: string;
-  /** Fresh client carrying the verified foreground request's own bearer. */
+  /** Ranks for the verified viewer on Mention's declared authority. */
   foregroundClient?: ForegroundProfileReader;
   /** Page size (already validated/capped by the caller). */
   limit: number;
@@ -233,7 +232,7 @@ export class OxyRankingClient {
 
     const foregroundClient = options.foregroundClient;
     if (options.viewerId && !foregroundClient) {
-      throw new Error('Personalized ranking requires the verified foreground bearer');
+      throw new Error('Personalized ranking requires the verified foreground viewer');
     }
     const items =
       options.viewerId && foregroundClient

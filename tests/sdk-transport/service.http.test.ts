@@ -81,19 +81,22 @@ beforeAll(async () => {
         : { active: false },
     ),
   );
+  // Move declares Mention in its registry entry (ADR 0066): Oxy admits it for
+  // live personal accounts and answers the person; nothing else travels.
   api.get('/internal/service-acting-as/verify', (req, res) => {
     const authorized =
       !revoked &&
       req.query.appId === 'move' &&
       ['person-a', 'person-b'].includes(String(req.query.userId)) &&
-      req.query.taskId === `task:${String(req.query.userId)}`;
+      req.query.taskId === undefined &&
+      req.query.requesterId === undefined;
     res.json(
       authorized
         ? {
             authorized: true,
             authority: 'first_party',
             epoch: '1',
-            requesterContext: 'verified-context',
+            requesterId: String(req.query.userId),
           }
         : { authorized: false, scopes: [], epoch: '1' },
     );
@@ -110,7 +113,8 @@ beforeAll(async () => {
   app.use(verifier.middleware.auth({ expectedAudience: audience, serviceTokenJwksUrl: jwks }));
   app.get('/imports/v1/lookup', (req: OxyAuthRequest, res) => {
     const account = req.user?.id;
-    if (!account) throw new Error('Missing verified requester');
+    if (!account || req.serviceActingAs?.authority !== 'first_party')
+      throw new Error('Missing verified account');
     effectiveAccounts.push(account);
     res.json({ imported: { sameSource: account }, federated: {} });
   });
@@ -126,16 +130,13 @@ afterAll(async () => {
       .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
   );
 });
-it('composes published core 7 and the shared receiver with original accounts and live revocation', async () => {
+it('composes published core 7 and the shared receiver acting for exact accounts with live revocation', async () => {
   const clients = ['person-a', 'person-b'].map((accountId) =>
-    mentionForOxyService(caller, {
-      baseURL: receiverURL,
-      requester: { accountId, taskId: `task:${accountId}` },
-    }),
+    mentionForOxyService(caller, { baseURL: receiverURL, actingFor: { accountId } }),
   );
   const wrong = mentionForOxyService(caller, {
     baseURL: receiverURL,
-    requester: { accountId: 'person-b', taskId: 'task:person-a' },
+    actingFor: { accountId: 'person-c' },
   });
   try {
     for (const [index, client] of clients.entries()) {

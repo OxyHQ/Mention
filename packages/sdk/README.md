@@ -5,14 +5,15 @@ connection token. Publishing retains its durable `mcp:` effect key and never
 replays an unknown outcome automatically.
 
 Own backends use `mentionForOxyService` from `@oxy.so/mention-sdk/server`, passing
-their process `OxyServer` from Oxy core 7 and the original requester proof.
-The structural factory is tested with core 7; external OAuth clients need no
-Oxy runtime dependency. The shared transport
-owns workload attestation, refresh and origin binding. Use a verified session
-`{accountId, token}` for a present person or `{accountId, taskId}` for that
-coordinator's original durable task. A verified downstream hop uses
-`{accountId, requesterContext}`; never copy another coordinator's task ID. An
-attributed account ID alone is not proof.
+their process `OxyServer` from Oxy core 7.52 or newer and the account they act
+for: `actingFor: { accountId }`, plus `requesterAccountId` when the person
+operates that account rather than owns it. The calling service's entry in Oxy's
+first-party registry must declare Mention in `actsForPeople` (oxy ADR 0066); Oxy
+checks that declaration and the accounts live on every request, so nothing is
+renewed and the same call works in the background. No session, task or
+requester context is sent. The structural factory is tested with core 7.52;
+external OAuth clients need no Oxy runtime dependency. The shared transport owns
+workload attestation, refresh and origin binding.
 Managed receivers must specify their registered `receiverApplicationId`.
 
 The service client provides `identity`, `publish`, `importBatch`, `lookupImports`
@@ -23,8 +24,7 @@ come from `@oxy.so/mention-contracts`; Move must use this contract instead of a
 parallel schema. Retain the original batch ID after ambiguous delivery. No
 SDK-level mutation retry is added.
 
-SDK/contracts 0.2.0 is an additive release independent of the backend. Own
-imports and publishing need the matching Mention receiver deployment before
-Move/Schedio enable these methods. The SDK release itself does not enable those
-routes or convert external connections into own authority. See the
-[release record](../../docs/first-party-sdk-release.md).
+SDK 0.3.0 replaces the 0.2 `requester` proofs (`token`, `taskId`,
+`requesterContext`) with `actingFor`; it needs a Mention receiver that admits a
+declared first-party caller, which Mention runs from the same release. The
+earlier release is recorded in [first-party-sdk-release](../../docs/first-party-sdk-release.md).

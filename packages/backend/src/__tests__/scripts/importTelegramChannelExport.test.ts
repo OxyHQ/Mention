@@ -144,19 +144,6 @@ describe('importTelegramChannelExport', () => {
     expect(deps.ingestBatch).not.toHaveBeenCalled();
   });
 
-  it('refuses writes before fetching media when no original task was authorized', async () => {
-    const deps = fakeDeps();
-    await expect(
-      importTelegramChannelExport(
-        manifest([item('1')]),
-        { targetOxyUserId: scope.user('channel-no-proof'), batchId: 'b', dryRun: false },
-        deps as unknown as TelegramImportDeps,
-      ),
-    ).rejects.toThrow('IMPORT_OXY_TASK_ID');
-    expect(deps.fetchStaged).not.toHaveBeenCalled();
-    expect(deps.ingestBatch).not.toHaveBeenCalled();
-  });
-
   it('uploads media as the target account, then ingests as telegram with the original date', async () => {
     const deps = fakeDeps();
     const target = scope.user('channel-live');
@@ -173,7 +160,7 @@ describe('importTelegramChannelExport', () => {
         targetOxyUserId: target,
         batchId: 'batch-1',
         dryRun: false,
-        taskId: 'original-mentioned-task',
+        operatorOxyUserId: 'channel-operator',
       },
       deps as unknown as TelegramImportDeps,
     );
@@ -183,6 +170,7 @@ describe('importTelegramChannelExport', () => {
     expect(deps.uploadMedia).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerUserId: target,
+        operatorUserId: 'channel-operator',
         contentType: 'image/jpeg',
         fileName: 'a.jpg',
       }),
@@ -236,7 +224,6 @@ describe('importTelegramChannelExport', () => {
         targetOxyUserId: target,
         batchId: 'batch-2',
         dryRun: false,
-        taskId: 'original-mentioned-task',
       },
       deps as unknown as TelegramImportDeps,
     );
@@ -263,7 +250,6 @@ describe('importTelegramChannelExport', () => {
         targetOxyUserId: scope.user('channel-fail'),
         batchId: 'b',
         dryRun: false,
-        taskId: 'original-mentioned-task',
       },
       deps as unknown as TelegramImportDeps,
     );

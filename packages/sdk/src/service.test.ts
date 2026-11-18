@@ -37,19 +37,19 @@ function harness(responses: Response[]) {
   return { identity, calls, options: () => configured, disposed: () => disposed };
 }
 describe('own Mention service SDK', () => {
-  it('uses canonical workload transport with original task/account proof and no local bearer', async () => {
+  it('uses the canonical workload transport acting for the account, with no bearer or task', async () => {
     const h = harness([
       Response.json({
         results: [{ sourceId: batch.items[0].sourceId, status: 'created', postId: 'p' }],
       }),
     ]);
-    const requester = { accountId: 'person', taskId: 'original-move-task' };
-    const client = mentionForOxyService(h.identity, { requester });
+    const actingFor = { accountId: 'organization', requesterAccountId: 'person' };
+    const client = mentionForOxyService(h.identity, { actingFor });
     await client.importBatch(batch);
     expect(h.options()).toEqual({
       baseURL: 'https://api.mention.earth',
       audience: 'oxy-service:6a2f851751b784a86fd0e916',
-      requester,
+      actingFor,
     });
     expect(h.calls[0]?.init?.headers).toEqual({ 'content-type': 'application/json' });
     expect(h.calls[0]?.init?.redirect).toBe('error');
@@ -60,7 +60,7 @@ describe('own Mention service SDK', () => {
   it('encodes repeated lookup IDs and preserves commas inside source URLs', async () => {
     const h = harness([Response.json({ imported: {}, federated: {} })]);
     const client = mentionForOxyService(h.identity, {
-      requester: { accountId: 'person', token: 'real-session' },
+      actingFor: { accountId: 'person' },
     });
     await client.lookupImports({
       platform: 'mastodon',
@@ -74,7 +74,7 @@ describe('own Mention service SDK', () => {
   it('bounds batches before transport and never replays an unknown mutation', async () => {
     const h = harness([]);
     const client = mentionForOxyService(h.identity, {
-      requester: { accountId: 'person', taskId: 'task' },
+      actingFor: { accountId: 'person' },
     });
     await expect(client.importBatch({ ...batch, items: [] })).rejects.toThrow();
     expect(h.calls).toHaveLength(0);
@@ -90,7 +90,7 @@ describe('own Mention service SDK', () => {
       Response.json({ deleted: 1, failed: 0 }),
     ]);
     const client = mentionForOxyService(h.identity, {
-      requester: { accountId: 'person', taskId: 'task' },
+      actingFor: { accountId: 'person' },
     });
     await expect(client.importBatch(batch)).rejects.toMatchObject({
       status: 403,
@@ -108,7 +108,7 @@ describe('own Mention service SDK', () => {
       Response.json({}, { status: 429, headers: { 'retry-after': '120' } }),
     ]);
     const client = mentionForOxyService(h.identity, {
-      requester: { accountId: 'person', taskId: 'scheduled-revision' },
+      actingFor: { accountId: 'person' },
     });
     const input = {
       content: { text: 'hello' },

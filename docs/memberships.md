@@ -15,9 +15,9 @@ rows; dependent records cascade and media reference removals enter Oxy's outbox.
 
 Owners and authorized organization/project/channel operators manage communities
 through the existing publish-as authority predicate. An active Oxy account seat
-alone is not a paid/community membership. Foreground session endpoints preserve
-the original requester; arbitrary owner IDs, MCP publishing grants, task proofs
-and own-service credentials cannot be exchanged for member access.
+alone is not a paid/community membership. Foreground session endpoints act for the
+signed-in member; arbitrary owner IDs, MCP publishing grants and own-service
+credentials cannot be exchanged for member access.
 
 Public/unlisted is the community's independent metadata setting, not the owner's
 profile privacy. Every response still applies canonical account availability,
@@ -32,18 +32,18 @@ content but does not delete memberships or ordinary public social content.
 
 ## Privacy boundary
 
-| Surface                         | Protected content behavior                                                                                                                                                       | Evidence                                                   |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| HTTP page, direct ID and thread | Membership plus tier policy before body hydration; expired/revoked/blocked denied                                                                                                | PostgreSQL-backed membership route tests                   |
-| Public metadata/teaser          | Explicit authored teaser projection; no body, attachment metadata, poll options or results                                                                                       | Route tests, separate shared DTO                           |
-| Public feeds/search             | Dedicated tables are not written to `posts` or public search indexes                                                                                                             | Domain write paths; test verifies no public post created   |
-| ActivityPub/embeds              | No publication/federation/outbox writer; protected IDs are not ordinary posts                                                                                                    | Dedicated domain storage and routes                        |
-| MCP/AI                          | Foreground-only endpoints reject MCP, capability and service proofs                                                                                                              | Three independent route denial tests                       |
-| Push/notifications              | No private body, membership activity or named viewer fan-out is emitted                                                                                                          | No notification writer in the domain                       |
-| Media                           | Mention-owned private copy, original requester, no personal/guardian file access; authoritative live visibility required; callback changes withhold; original requester retained | Route tests, reference registry/outbox tests               |
-| Frontend/account switch         | Viewer-scoped ephemeral query keys; no stale body after denied refetch or account change; pending leave hides content and cancels/removes pages                                  | React Query screen regressions                             |
-| Directory/insights              | Directory includes explicit badge opt-ins only; metrics aggregate membership states, never page viewers                                                                          | Route tests                                                |
-| Reports                         | Creator queue omits reporter identity; independent safety review requires a fresh Oxy app permission and a committed report-bound audit                                          | Real SDK/HTTP authority fixture and PostgreSQL route tests |
+| Surface                         | Protected content behavior                                                                                                                             | Evidence                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| HTTP page, direct ID and thread | Membership plus tier policy before body hydration; expired/revoked/blocked denied                                                                      | PostgreSQL-backed membership route tests                   |
+| Public metadata/teaser          | Explicit authored teaser projection; no body, attachment metadata, poll options or results                                                             | Route tests, separate shared DTO                           |
+| Public feeds/search             | Dedicated tables are not written to `posts` or public search indexes                                                                                   | Domain write paths; test verifies no public post created   |
+| ActivityPub/embeds              | No publication/federation/outbox writer; protected IDs are not ordinary posts                                                                          | Dedicated domain storage and routes                        |
+| MCP/AI                          | Foreground-only endpoints reject MCP, capability and service proofs                                                                                    | Three independent route denial tests                       |
+| Push/notifications              | No private body, membership activity or named viewer fan-out is emitted                                                                                | No notification writer in the domain                       |
+| Media                           | Mention-owned private copy, acting for the member, no personal/guardian file access; authoritative live visibility required; callback changes withhold | Route tests, reference registry/outbox tests               |
+| Frontend/account switch         | Viewer-scoped ephemeral query keys; no stale body after denied refetch or account change; pending leave hides content and cancels/removes pages        | React Query screen regressions                             |
+| Directory/insights              | Directory includes explicit badge opt-ins only; metrics aggregate membership states, never page viewers                                                | Route tests                                                |
+| Reports                         | Creator queue omits reporter identity; independent safety review requires a fresh Oxy app permission and a committed report-bound audit                | Real SDK/HTTP authority fixture and PostgreSQL route tests |
 
 The absence of public integrations is intentional, not a claim of authenticated
 production validation of every surface. New integrations must extend this matrix
@@ -126,8 +126,8 @@ behavior, not a production operator grant or live protected jury integration.
 ## Billing work and activation prerequisites
 
 Peable is the canonical payment execution boundary. Its official SDK supports
-`peableForOxyService({ oxy, requester })`: Oxy owns workload credentials and the original
-requester proof. Do not use Mercaria's legacy credential-backed adapter as a new
+`peableForOxyService({ oxy, actingFor })`: Oxy owns workload credentials and checks
+Mention's declared Peable read for the payer (oxy ADR 0066). Do not use Mercaria's legacy credential-backed adapter as a new
 integration, embed Stripe directly, or invent an app merchant/customer mapping.
 
 A receipt is bound to Peable's **native** billing engine (Peable ADR 0018): the

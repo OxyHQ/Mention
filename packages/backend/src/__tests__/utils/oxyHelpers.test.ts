@@ -37,7 +37,7 @@ const mockState = vi.hoisted(() => {
     serviceRequest = vi.fn().mockResolvedValue({
       data: { blockedIds: [], restrictedIds: [], followingIds: [], mutualIds: [] },
     });
-    withRequester = vi.fn(() => ({
+    actingFor = vi.fn(() => ({
       privacy: { blocked: vi.fn(), restricted: vi.fn() },
       follows: { viewerGraph: vi.fn() },
     }));
@@ -123,38 +123,41 @@ describe('request-scoped Oxy clients', () => {
     expect(mockState.userClients.length).toBe(before);
   });
 
-  it('uses the centrally derived service context without reusing a task or service JWT as a session', () => {
+  it('acts for the account another Oxy service verified, never reusing its JWT as a session', () => {
     const service = serviceClient();
     const own = {
-      user: { id: 'original-person' },
+      user: { id: 'organization' },
       accessToken: 'service-jwt',
       serviceApp: { authority: 'first_party' as const },
       serviceActingAs: {
-        userId: 'original-person',
+        userId: 'organization',
         authority: 'first_party' as const,
-        requesterContext: 'verified-context',
+        requesterId: 'original-person',
       },
     };
     expect(createScopedOxyClient(own)).toBeDefined();
-    expect(service.withRequester).toHaveBeenCalledWith({ requesterContext: 'verified-context' });
+    expect(service.actingFor).toHaveBeenCalledWith({
+      accountId: 'organization',
+      requesterAccountId: 'original-person',
+    });
     expect(service.session.setAccessToken).not.toHaveBeenCalledWith('service-jwt');
     expect(service.asUser).not.toHaveBeenCalledWith('service-jwt');
     expect(callerOxyUser(own)).toBeUndefined();
     expect(callerAccountAccess(own)).toBeUndefined();
     expect(() => createScopedOxyClient({ ...own, user: { id: 'other-account' } })).toThrow(
-      'requester proof',
+      'verified first-party service account',
     );
     expect(() => createScopedOxyClient({ ...own, serviceActingAs: undefined })).toThrow(
-      'requester proof',
+      'verified first-party service account',
     );
   });
 
-  it('requires the actual capability ticket and never plants it as a session', () => {
+  it('acts for a verified capability ticket’s account and never plants the ticket', () => {
     expect(() =>
       createScopedOxyClient({
         capability: { claims: { resource: { effectiveAccountId: 'assigned-account' } } },
       }),
-    ).toThrow('proof is missing');
+    ).toThrow('Capability account is missing');
     const service = serviceClient();
     const result = createScopedOxyClient({
       headers: { authorization: 'Capability signed-ticket' },
@@ -164,7 +167,7 @@ describe('request-scoped Oxy clients', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(service.withRequester).toHaveBeenCalledWith({ capabilityTicket: 'signed-ticket' });
+    expect(service.actingFor).toHaveBeenCalledWith({ accountId: 'assigned-account' });
     expect(service.session.setAccessToken).not.toHaveBeenCalledWith('signed-ticket');
   });
 });
@@ -329,7 +332,7 @@ describe('verified foreground profile client selection', () => {
       Reflect.deleteProperty(process.env, 'MENTION_OXY_FOREGROUND_CATALOG_BINDING');
     else process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING = previous;
   });
-  it('requires explicit exact catalogue pin and verified accessToken', () => {
+  it('requires an explicit exact catalogue pin and the verified actor chain', () => {
     process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING = JSON.stringify({
       registrationId: 'registered',
       version: '1.0.0',
@@ -352,7 +355,7 @@ describe('verified foreground profile client selection', () => {
         user: { id: 'subject' },
         headers: { authorization: 'Bearer free-header' },
       }),
-    ).toThrow('FOREGROUND_RANKING_NOT_CONFIGURED');
+    ).toThrow('FOREGROUND_REQUESTER_REQUIRED');
   });
   it('never treats attribution or MCP tokens as the foreground requester', () => {
     expect(

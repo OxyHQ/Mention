@@ -18,17 +18,21 @@ export interface MentionServiceTransport {
   fetch: typeof fetch;
   dispose(): void;
 }
-export type MentionRequester = { accountId: string } & (
-  | { token: string; taskId?: never; requesterContext?: never }
-  | { taskId: string; token?: never; requesterContext?: never }
-  | { requesterContext: string; token?: never; taskId?: never }
-);
+/**
+ * The account an Oxy service acts for in Mention, and the person when they
+ * operate it rather than own it (oxy ADR 0066). The service's first-party
+ * registry entry must declare Mention; Oxy checks it and the accounts live.
+ */
+export interface MentionActingFor {
+  accountId: string;
+  requesterAccountId?: string;
+}
 /** Structural boundary: the application owns OxyServer and its workload provider. */
 export interface MentionServiceIdentity {
   createServiceClient(options: {
     baseURL: string;
     audience: `oxy-service:${string}`;
-    requester: MentionRequester;
+    actingFor: MentionActingFor;
   }): MentionServiceTransport;
 }
 export class MentionServiceError extends Error {
@@ -45,7 +49,7 @@ export class MentionServiceError extends Error {
   }
 }
 
-/** Own import operations; authority and the original account proof belong to core. */
+/** Own import operations; the transport and its declared authority belong to core. */
 export class MentionServiceClient {
   constructor(
     private readonly transport: MentionServiceTransport,
@@ -128,7 +132,7 @@ export class MentionServiceClient {
 export function mentionForOxyService(
   oxy: MentionServiceIdentity,
   options: {
-    requester: MentionRequester;
+    actingFor: MentionActingFor;
     baseURL?: string;
     receiverApplicationId?: string;
   },
@@ -141,7 +145,7 @@ export function mentionForOxyService(
     oxy.createServiceClient({
       baseURL,
       audience: `oxy-service:${receiver}`,
-      requester: options.requester,
+      actingFor: { ...options.actingFor },
     }),
     baseURL,
   );

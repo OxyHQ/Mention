@@ -26,7 +26,6 @@ vi.mock('../../middleware/rateLimitStore', () => ({
 
 const keys = generateKeyPairSync('ed25519');
 const audience = `oxy-service:${MENTION_SERVICE_APPLICATION_ID}` as const;
-const context = 'central-verified-recipient-context';
 const now = Math.floor(Date.now() / 1000);
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
 const claims = {
@@ -65,11 +64,12 @@ let downstreamRevoked = false;
 const publications: string[] = [];
 const receipts = new Set<string>();
 const writes: Array<{
-  account: string;
-  proof: string;
-  task: string | undefined;
-  session: string | undefined;
+  owner: string;
+  actingFor: string | undefined;
+  forwarded: Array<string | undefined>;
 }> = [];
+/** People Oxy admits Move and Mention to act for (their registry declarations, ADR 0066). */
+const declared = new Set(['original-person', 'second-person']);
 
 beforeAll(async () => {
   const api = express();
@@ -98,31 +98,41 @@ beforeAll(async () => {
   });
   api.get('/internal/service-acting-as/verify', (req, res) => {
     expect(req.headers.authorization).toBe(`Bearer ${platformToken}`);
-    // The original coordinator task reaches Oxy, never Files under Mention's identity.
+    // Move names the account and nothing else; Oxy answers with the person.
     const authorized =
       !revoked &&
       req.query.appId === 'move' &&
-      ((req.query.userId === 'original-person' && req.query.taskId === 'original-move-task') ||
-        (req.query.userId === 'second-person' && req.query.taskId === 'second-task'));
+      req.query.taskId === undefined &&
+      declared.has(String(req.query.userId));
     res.json(
       authorized
-        ? { authorized: true, authority: 'first_party', epoch: '1', requesterContext: context }
+        ? {
+            authorized: true,
+            authority: 'first_party',
+            epoch: '1',
+            requesterId: String(req.query.userId),
+          }
         : { authorized: false, scopes: [], epoch: '1' },
     );
   });
   api.post('/assets/service/user-media', express.raw({ type: '*/*' }), (req, res) => {
     expect(req.headers.authorization).toBe(`Bearer ${platformToken}`);
-    const proof = req.header('x-oxy-requester-context');
-    const account = req.header('x-owner-user-id');
-    if (downstreamRevoked || revoked || proof !== context || account !== 'original-person') {
-      res.status(403).json({ error: 'original_authority_refused' });
+    const owner = req.header('x-owner-user-id');
+    const actingFor = req.header('x-oxy-user-id');
+    // Mention's own declared `oxy:files`, checked live for the account.
+    if (downstreamRevoked || revoked || !owner || actingFor !== owner || !declared.has(owner)) {
+      res.status(403).json({ error: 'first_party_capability_not_declared' });
       return;
     }
     writes.push({
-      account,
-      proof,
-      task: req.header('x-oxy-task-id'),
-      session: req.header('x-oxy-requester-token'),
+      owner,
+      actingFor,
+      forwarded: [
+        req.header('x-oxy-requester-context'),
+        req.header('x-oxy-task-id'),
+        req.header('x-oxy-requester-token'),
+        req.header('x-oxy-capability-ticket'),
+      ],
     });
     res.json({
       data: { file: { id: 'original-person-file', mime: 'image/png', status: 'active' } },
@@ -192,7 +202,7 @@ async function upload(accountId = 'original-person') {
   const transport = caller.createServiceClient({
     baseURL: receiverURL,
     audience,
-    requester: { accountId, taskId: 'original-move-task' },
+    actingFor: { accountId },
   });
   try {
     return await transport.fetch(`${receiverURL}/posts/intent-media`, {
@@ -208,19 +218,23 @@ async function upload(accountId = 'original-person') {
     transport.dispose();
   }
 }
-describe('Move shared SDK → Mention receiver → Oxy Files', () => {
-  it('derives recipient authority and preserves the original account without copying the coordinator task', async () => {
+describe('Move shared SDK → Mention receiver → Oxy Files (ADR 0066)', () => {
+  it('acts for the verified account on Mention’s own authority, forwarding nothing of the caller', async () => {
     const response = await upload();
     expect(response.status).toBe(200);
     expect(writes).toEqual([
-      { account: 'original-person', proof: context, task: undefined, session: undefined },
+      {
+        owner: 'original-person',
+        actingFor: 'original-person',
+        forwarded: [undefined, undefined, undefined, undefined],
+      },
     ]);
   });
-  it('does not turn another attributed account into authority', async () => {
+  it('does not turn an account Oxy does not admit into authority', async () => {
     expect((await upload('move-operator')).status).toBe(403);
     expect(writes).toHaveLength(0);
   });
-  it('revalidates a revoked workload before deriving any downstream proof', async () => {
+  it('revalidates a revoked workload before acting downstream', async () => {
     revoked = true;
     expect((await upload()).status).toBe(401);
     expect(writes).toHaveLength(0);
@@ -239,8 +253,8 @@ describe('Own publishing SDK → Mention shared auth → native publication adap
     visibility: 'public' as const,
     status: 'published' as const,
   };
-  function publishing(accountId = 'original-person', taskId = 'original-move-task') {
-    return mentionForOxyService(caller, { baseURL: receiverURL, requester: { accountId, taskId } });
+  function publishing(accountId = 'original-person') {
+    return mentionForOxyService(caller, { baseURL: receiverURL, actingFor: { accountId } });
   }
   it('reserves a stable effect before domain dispatch and refuses duplicate without another effect', async () => {
     const sdk = publishing();
@@ -257,7 +271,7 @@ describe('Own publishing SDK → Mention shared auth → native publication adap
   });
   it('keeps the same idempotency key separate for two independently authorized accounts', async () => {
     const first = publishing(),
-      second = publishing('second-person', 'second-task');
+      second = publishing('second-person');
     try {
       await first.publish(input, key);
       await second.publish(input, key);
@@ -267,8 +281,8 @@ describe('Own publishing SDK → Mention shared auth → native publication adap
       second.dispose();
     }
   });
-  it('refuses wrong-account and revoked original authority before reserving or publishing', async () => {
-    const wrong = publishing('second-person'),
+  it('refuses an account Oxy does not admit and a revoked caller before reserving or publishing', async () => {
+    const wrong = publishing('move-operator'),
       valid = publishing();
     try {
       await expect(wrong.publish(input, key)).rejects.toMatchObject({ status: 403 });

@@ -134,10 +134,9 @@ export async function reviewMembershipReportMedia(
       .values({ reportId, operatorOxyUserId, action: 'download_media', purpose });
     return row;
   });
-  // The operator's real session accompanies the owning app; no creator impersonation.
-  if (!req.accessToken) throw new MembershipError(403, 'Original operator session required');
+  // Read for the operator, never the creator: Mention's application file on its declared `oxy:files`.
   const files = await getServiceOxyClient()
-    .assets.withRequester({ requesterToken: req.accessToken })
+    .assets.actingFor({ accountId: operatorOxyUserId })
     .linkedDownloadUrls([media.fileId]);
   const file = files.find((item) => item.id === media.fileId);
   if (!file || file.visibility !== 'private')
