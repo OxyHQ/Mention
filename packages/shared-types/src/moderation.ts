@@ -65,6 +65,10 @@ export type ModerationReportStatus = 'pending' | 'reviewed' | 'resolved' | 'dism
  *   automatically (a suspension belongs to Oxy, not to Mention) and it is queued
  *   for a human instead. Recording it is the point: a recommendation Mention
  *   declined must not look like one it never received.
+ * - `legal_referral` — the content was referred to Oxy's claim review, where a
+ *   person on Oxy's staff decides (oxy ADR 0043 D14). It changes nothing in
+ *   Mention by itself: if Oxy blocks the files, Mention learns through
+ *   `file.blocked` like any other takedown.
  */
 export type ModerationEnforcementAction =
   | 'none'
@@ -72,7 +76,8 @@ export type ModerationEnforcementAction =
   | 'restore'
   | 'label_sensitive'
   | 'unlabel_sensitive'
-  | 'manual_review';
+  | 'manual_review'
+  | 'legal_referral';
 
 /**
  * How much of a decision Mention is allowed to act on (§14.6).

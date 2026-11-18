@@ -1,5 +1,6 @@
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
+import { referReportOutboxEvent } from './ContentReferralWorker';
 import { applyDecisionOutboxEvent } from './ModerationDecisionWorker';
 import { deliverReportOutboxEvent } from './ModerationDeliveryWorker';
 import type { ModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
@@ -34,6 +35,9 @@ export async function handleModerationOutboxEvent(event: ModerationOutboxEvent):
       return;
     case 'decision.apply':
       await applyDecisionOutboxEvent(event);
+      return;
+    case 'report.refer':
+      await referReportOutboxEvent(event);
       return;
   }
 }

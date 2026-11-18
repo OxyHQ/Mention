@@ -245,6 +245,11 @@ const DEFINITIONS = {
     help: 'Report delivery attempts to CrowdSource, by outcome',
     labelNames: ['result'],
   },
+  oxy_content_referral_total: {
+    kind: 'counter',
+    help: "Content referred to Oxy's claim review, by reason",
+    labelNames: ['reason'],
+  },
   crowdsource_enforcement_total: {
     kind: 'counter',
     help: 'Enforcement actions planned or applied from a CrowdSource decision',
