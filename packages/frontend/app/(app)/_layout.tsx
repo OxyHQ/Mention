@@ -208,6 +208,11 @@ export default function AppLayout() {
           testID="mention-shell"
           layout={deckOpen ? 'deck' : 'feed'}
           presentation="framed"
+          // The pages own the device edges, so they run edge to edge: each
+          // route's PageHeader keeps its controls below the status bar while its
+          // paint and the scrolling content reach behind it. The semantic
+          // layout would otherwise frame the top and paint a band there.
+          safeArea={false}
           drawer="reveal"
           sidebar={sidebar}
           // The sidebar's compose row and the bar's FAB: the composer page.
