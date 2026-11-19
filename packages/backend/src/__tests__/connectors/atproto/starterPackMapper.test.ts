@@ -25,9 +25,14 @@ import { asc, eq } from 'drizzle-orm';
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
   fetchProfile: vi.fn(),
+  lookupIdentities: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
+
+vi.mock('../../../connectors/oxyIdentity', () => ({
+  lookupOxyIdentities: mocks.lookupIdentities,
+}));
 
 vi.mock('../../../connectors/atproto/profile.mapper', () => ({
   fetchAndUpsertAtprotoProfile: mocks.fetchProfile,
@@ -99,6 +104,8 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Oxy knows nobody unless a test says so: every member takes the full resolve.
+  mocks.lookupIdentities.mockResolvedValue([]);
   mocks.fetchProfile.mockImplementation((did: string) =>
     Promise.resolve({
       network: 'atproto',
@@ -201,6 +208,64 @@ describe('syncActorStarterPacks', () => {
 
     const [pack] = await packsOf();
     expect((await membersOf(pack.id)).map((m) => m.oxyUserId)).toEqual(['oxy-ok']);
+  });
+
+  it('takes members Oxy already knows from one batched lookup and resolves only the rest', async () => {
+    routeXrpc({
+      starterPacks: {
+        starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }],
+      },
+      list: {
+        [listUri('l1')]: {
+          items: [{ subject: { did: 'did:plc:known' } }, { subject: { did: 'did:plc:new' } }],
+        },
+      },
+    });
+    mocks.lookupIdentities.mockResolvedValue([
+      {
+        identifier: 'did:plc:known',
+        userId: 'oxy-known',
+        externalIdentities: [],
+        redirectedUserIds: [],
+      },
+      { identifier: 'did:plc:new', userId: null, externalIdentities: [], redirectedUserIds: [] },
+    ]);
+    mocks.fetchProfile.mockResolvedValue({
+      network: 'atproto',
+      externalId: 'did:plc:new',
+      handle: 'h',
+      oxyUserId: 'oxy-new',
+    });
+
+    await syncActorStarterPacks(DID, OWNER);
+
+    expect(mocks.lookupIdentities).toHaveBeenCalledTimes(1);
+    expect(mocks.lookupIdentities).toHaveBeenCalledWith(['did:plc:known', 'did:plc:new']);
+    // Only the member Oxy did not know is read from its source and minted.
+    expect(mocks.fetchProfile.mock.calls).toEqual([['did:plc:new']]);
+    const [pack] = await packsOf();
+    expect((await membersOf(pack.id)).map((m) => m.oxyUserId)).toEqual(['oxy-known', 'oxy-new']);
+  });
+
+  it('resolves the members itself when the identity lookup fails', async () => {
+    routeXrpc({
+      starterPacks: {
+        starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }],
+      },
+      list: { [listUri('l1')]: { items: [{ subject: { did: 'did:plc:m1' } }] } },
+    });
+    mocks.lookupIdentities.mockRejectedValue(new Error('Oxy unavailable'));
+    mocks.fetchProfile.mockResolvedValue({
+      network: 'atproto',
+      externalId: 'did:plc:m1',
+      handle: 'h',
+      oxyUserId: 'oxy-m1',
+    });
+
+    await syncActorStarterPacks(DID, OWNER);
+
+    const [pack] = await packsOf();
+    expect((await membersOf(pack.id)).map((m) => m.oxyUserId)).toEqual(['oxy-m1']);
   });
 
   it('resolves each DISTINCT member DID once even when shared across packs', async () => {
