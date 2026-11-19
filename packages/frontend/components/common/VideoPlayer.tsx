@@ -90,11 +90,11 @@ interface VideoPlayerProps {
    *
    * `useVideoPlayer` ties a player's life to this component, which is right for
    * a surface that owns its video and wrong for one whose video has to survive
-   * the route change — the shared registry owns those. When this is set the
-   * internal player is built with a `null` source so it opens no decoder, and
-   * every presentation setting below is applied to the player passed in
-   * instead: the registry deliberately configures nothing, because two surfaces
-   * showing one video may legitimately disagree about `loop` or `muted`.
+   * the route change — the shared registry owns those. When this is set no
+   * player is built here at all (`OwnedVideoPlayer` is not mounted), and every
+   * presentation setting below is applied to the player passed in: the
+   * registry deliberately configures nothing, because two surfaces showing one
+   * video may legitimately disagree about `loop` or `muted`.
    */
   player?: ExpoVideoPlayer;
   /**
@@ -176,7 +176,10 @@ const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
   );
 });
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({
+/** What the surface draws once it has a player, built here or handed in. */
+type VideoSurfaceProps = Omit<VideoPlayerProps, 'player'> & { player: ExpoVideoPlayer };
+
+const VideoSurface: React.FC<VideoSurfaceProps> = ({
   src,
   fallbackSrc,
   concealed = false,
@@ -189,7 +192,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   gif = false,
   viewabilityKey,
   onAspectRatio,
-  player: externalPlayer,
+  player,
   flightHostId,
 }) => {
   const { t } = useTranslation();
@@ -271,19 +274,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const seekSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressBarRef = useRef<ViewInstance>(null);
 
-  const [ownSource] = useState(() =>
-    externalPlayer || needsJsHlsDecoder(src) ? null : videoSourceFor(src),
-  );
-
-  // Built unconditionally so the hook order never depends on a prop, but with a
-  // `null` source when a player was handed in — a null-sourced player opens no
-  // decoder, so the unused one costs nothing.
-  const ownPlayer = useVideoPlayer(ownSource, (p) => {
-    p.loop = gif ? true : loop;
-    p.muted = gif ? true : isMuted;
-    p.timeUpdateEventInterval = tracksTime ? TIME_UPDATE_INTERVAL : 0;
-  });
-  const player = externalPlayer ?? ownPlayer;
   const desiredSource = usedFallback && fallbackSrc ? fallbackSrc : src;
 
   const scheduleHideControls = useCallback(() => {
@@ -299,9 +289,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }, CONTROLS_HIDE_DELAY);
   }, [tracksTime]);
 
-  // The setup callback above only ever runs for the player built here, so a
-  // borrowed one is configured from this effect instead. Idempotent property
-  // writes, so running it for both is simpler than branching and cannot drift.
+  // `OwnedVideoPlayer`'s setup callback only ever runs for the player it
+  // builds, so a borrowed one is configured from this effect instead.
+  // Idempotent property writes, so running it for both is simpler than
+  // branching and cannot drift.
   // A borrowed player's `timeUpdate` cadence is only ever raised here, never
   // lowered: the surface it is shared with (the reel) may be drawing a bar.
   useEffect(() => {
@@ -750,6 +741,31 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 });
+
+/**
+ * The surface that owns its video: builds the player from `src` once, at mount,
+ * and releases it on unmount.
+ *
+ * Its own component so a surface handed a player builds none. On Android every
+ * expo-video player constructs an ExoPlayer whatever its source, so a `null`-
+ * sourced spare built "for hook order" was a second ExoPlayer in every feed
+ * video row.
+ */
+const OwnedVideoPlayer: React.FC<Omit<VideoPlayerProps, 'player'>> = (props) => {
+  const { src, gif = false, loop = false, onPress } = props;
+  const isMuted = useVideoMuteStore((s) => s.isMuted);
+  const tracksTime = onPress === undefined && !gif;
+  const [source] = useState(() => (needsJsHlsDecoder(src) ? null : videoSourceFor(src)));
+  const player = useVideoPlayer(source, (p) => {
+    p.loop = gif ? true : loop;
+    p.muted = gif ? true : isMuted;
+    p.timeUpdateEventInterval = tracksTime ? TIME_UPDATE_INTERVAL : 0;
+  });
+  return <VideoSurface {...props} player={player} />;
+};
+
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ player, ...props }) =>
+  player ? <VideoSurface {...props} player={player} /> : <OwnedVideoPlayer {...props} />;
 
 // Owns an expensive expo-video player instance, mounted per video cell in feeds
 // and the reels viewer. Memoized so a parent re-render with unchanged props does

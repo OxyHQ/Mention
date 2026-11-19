@@ -23,8 +23,9 @@ const mockPlayer = {
   },
 };
 
+const mockUseVideoPlayer = jest.fn(() => mockPlayer);
 jest.mock('expo-video', () => ({
-  useVideoPlayer: () => mockPlayer,
+  useVideoPlayer: () => mockUseVideoPlayer(),
 }));
 jest.mock('expo', () => {
   const React = jest.requireActual<typeof import('react')>('react');
@@ -87,6 +88,22 @@ beforeEach(() => {
   mockPlayer.play.mockClear();
   mockPlayer.pause.mockClear();
   mockPlaybackReads.mockClear();
+  mockUseVideoPlayer.mockClear();
+});
+
+// On Android every expo-video player builds an ExoPlayer whatever its source,
+// so a surface handed a player (a feed row's registry lease) must build none.
+it('builds a player only for a surface that owns its video', () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    renderer = TestRenderer.create(
+      <VideoPlayer src={SOURCE} player={mockPlayer as never} onPress={jest.fn()} />,
+    );
+  });
+  expect(mockUseVideoPlayer).not.toHaveBeenCalled();
+  act(() => renderer.update(<VideoPlayer src={SOURCE} onPress={jest.fn()} />));
+  expect(mockUseVideoPlayer).toHaveBeenCalled();
+  act(() => renderer.unmount());
 });
 afterEach(() => {
   jest.useRealTimers();
