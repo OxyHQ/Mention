@@ -8,6 +8,7 @@
  */
 
 import { parseHomiioCaseUrl } from '@mention/shared-types/homiio';
+import { parseEventUrl } from '@mention/shared-types/vibbr';
 import { type ClarityDocument, MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import {
   scanTextEntities,
@@ -58,7 +59,9 @@ export function postLinkCards(
 ): PostLinkCard[] {
   const resolved = (documents ?? []).filter(
     (document) =>
-      Boolean(document?.canonicalUrl) && parseHomiioCaseUrl(document.canonicalUrl) === null,
+      Boolean(document?.canonicalUrl) &&
+      parseHomiioCaseUrl(document.canonicalUrl) === null &&
+      parseEventUrl(document.canonicalUrl) === null,
   );
   const byUrl = new Map<string, ClarityDocument>();
   for (const document of resolved) {
@@ -67,7 +70,12 @@ export function postLinkCards(
   }
   const sourceUrls = extractUrls(text ?? '')
     .slice(0, MAX_POST_DOCUMENTS)
-    .filter((url) => ownProfileLinkHandle(url) === undefined && parseHomiioCaseUrl(url) === null);
+    .filter(
+      (url) =>
+        ownProfileLinkHandle(url) === undefined &&
+        parseHomiioCaseUrl(url) === null &&
+        parseEventUrl(url) === null,
+    );
 
   const cards = new Map<string, PostLinkCard>();
   const add = (link: string, sourceUrl: string | undefined) => {

@@ -3355,6 +3355,14 @@
       "cancelled": "İptal edildi"
     }
   },
+  "vibbr": {
+    "loading": "Vibbr etkinliği yükleniyor…",
+    "unavailable": "Bu Vibbr etkinliği artık mevcut değil",
+    "open": "Etkinliği Vibbr'da aç",
+    "cancelled": "İptal edildi",
+    "soldOut": "Biletler tükendi",
+    "free": "Ücretsiz"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

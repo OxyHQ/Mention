@@ -1679,6 +1679,7 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['posts.contentArticleId', 'the Article row the post owns, removed by `articles.post_id`'],
   ['posts.contentEventId', 'an event attachment id'],
   ['posts.contentHomiioCaseId', 'a Homiio case id, owned by Homiio'],
+  ['posts.contentVibbrEventId', 'a Vibbr event id, owned by Vibbr'],
   ['posts.contentPodcastSyraId', 'a Syra podcast id, owned by Syra'],
   ['posts.contentPollId', 'the Poll row the post owns, removed by `polls.post_id`'],
   ['posts.contentRoomId', 'a Syra live-room id, owned by Syra'],

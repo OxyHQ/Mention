@@ -3355,6 +3355,14 @@
       "cancelled": "বাতিল"
     }
   },
+  "vibbr": {
+    "loading": "Vibbr ইভেন্ট লোড হচ্ছে…",
+    "unavailable": "এই Vibbr ইভেন্টটি আর পাওয়া যাচ্ছে না",
+    "open": "Vibbr-এ ইভেন্ট খুলুন",
+    "cancelled": "বাতিল",
+    "soldOut": "বিক্রি শেষ",
+    "free": "বিনামূল্যে"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

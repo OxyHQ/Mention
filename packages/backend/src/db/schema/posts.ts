@@ -543,6 +543,9 @@ export const posts = pgTable(
     /** Opaque Homiio case reference. No address, snapshot, or foreign key. */
     contentHomiioCaseId: text(),
 
+    /** Opaque Vibbr event id (`evt_…`). Vibbr owns the event; no snapshot, no foreign key. */
+    contentVibbrEventId: text(),
+
     /** A Syra podcast show. Cross-service id — no foreign key. */
     contentPodcastSyraId: text(),
     // Legacy copies of Syra's show facts. Nothing reads them and every write

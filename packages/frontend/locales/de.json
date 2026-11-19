@@ -3355,6 +3355,14 @@
       "cancelled": "Abgesagt"
     }
   },
+  "vibbr": {
+    "loading": "Vibbr-Event wird geladen…",
+    "unavailable": "Dieses Vibbr-Event ist nicht mehr verfügbar",
+    "open": "Event in Vibbr öffnen",
+    "cancelled": "Abgesagt",
+    "soldOut": "Ausverkauft",
+    "free": "Kostenlos"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

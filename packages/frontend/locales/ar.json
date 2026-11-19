@@ -3470,6 +3470,14 @@
       "cancelled": "ملغى"
     }
   },
+  "vibbr": {
+    "loading": "جارٍ تحميل فعالية Vibbr…",
+    "unavailable": "لم تعد فعالية Vibbr هذه متاحة",
+    "open": "افتح الفعالية في Vibbr",
+    "cancelled": "أُلغيت",
+    "soldOut": "نفدت التذاكر",
+    "free": "مجاني"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

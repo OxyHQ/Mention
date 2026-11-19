@@ -1,6 +1,8 @@
 import { CommerceCard } from './Attachments/CommerceCard';
 import type { HomiioCaseReference } from '@mention/shared-types/homiio';
+import type { VibbrEventReference } from '@mention/shared-types/vibbr';
 import { HomiioCaseCard } from './Attachments/HomiioCaseCard';
+import { VibbrEventCard } from './Attachments/VibbrEventCard';
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   ScrollView,
@@ -114,6 +116,7 @@ interface Props {
   } | null;
   onRoomPress?: (() => void) | null;
   homiioCase?: HomiioCaseReference | null;
+  vibbrEvent?: VibbrEventReference | null;
   podcast?: PostPodcastContent | null;
   /** Denormalized Mention job attachment — see `PostJobContent`. */
   job?: PostJobContent | null;
@@ -140,6 +143,7 @@ type AttachmentItem =
   | { type: 'event' }
   | { type: 'room' }
   | { type: 'homiioCase' }
+  | { type: 'vibbrEvent' }
   | { type: 'podcast' }
   | { type: 'job' }
   | { type: 'commerce'; referenceId: string }
@@ -241,6 +245,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     onRoomPress,
     podcast,
     homiioCase,
+    vibbrEvent,
     job,
     text,
     documents,
@@ -266,6 +271,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
     const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
     const hasHomiioCase = Boolean(homiioCase?.caseId);
+    const hasVibbrEvent = Boolean(vibbrEvent?.eventId);
     const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
     const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
     const linkItems = useMemo<AttachmentItem[]>(
@@ -491,6 +497,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         results.push({ type: 'podcast' });
       }
       if (hasHomiioCase) results.push({ type: 'homiioCase' });
+      if (hasVibbrEvent) results.push({ type: 'vibbrEvent' });
       if (hasJob && !results.some((item) => item.type === 'job')) {
         results.push({ type: 'job' });
       }
@@ -509,6 +516,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       hasRoom,
       hasPodcast,
       hasHomiioCase,
+      hasVibbrEvent,
       hasJob,
       linkItems,
       resolveMediaSrc,
@@ -969,6 +977,18 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         ) : null;
       }
 
+      if (item.type === 'vibbrEvent') {
+        return vibbrEvent ? (
+          <VibbrEventCard
+            key={`vibbr-${postId ?? ''}-${idx}`}
+            eventId={vibbrEvent.eventId}
+            postId={postId}
+            width={isSingleItem ? '100%' : 340}
+            height={rowHeight}
+          />
+        ) : null;
+      }
+
       if (item.type === 'podcast') {
         if (!podcast) return null;
         return (
@@ -1165,6 +1185,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       prevProps.room === nextProps.room &&
       prevProps.onRoomPress === nextProps.onRoomPress &&
       prevProps.homiioCase?.caseId === nextProps.homiioCase?.caseId &&
+      prevProps.vibbrEvent?.eventId === nextProps.vibbrEvent?.eventId &&
       prevProps.podcast === nextProps.podcast &&
       prevProps.job === nextProps.job &&
       prevProps.text === nextProps.text &&

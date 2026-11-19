@@ -34,3 +34,19 @@ drafts serialize and restore only IDs, including thread items; their previews
 use the same resolver. Reading old local drafts strips snapshots in memory, and
 the next save writes the reference-only representation. Search picker results
 remain ephemeral. Pinned profile/music integration is outside this change.
+
+## Vibbr event cards
+
+A post can share a Vibbr event (`content.vibbrEvent.eventId`, stored in
+`posts.content_vibbr_event_id`). Mention keeps only that id: the card is read
+in the browser with `@vibbr.co/sdk` (`GET https://api.vibbr.co/v1/events/cards`,
+anonymous, public events only), on first use and when the card is visible, like
+the Homiio and Syra cards above. The SDK checks its answers with a structural
+guard and carries no zod at runtime, and the URL helpers in
+`@mention/shared-types/vibbr` come from `@vibbr.co/sdk/links`, which imports
+nothing. `api.vibbr.co` is in `MENTION_CSP_EXTENSIONS.connectSrc`; Vibbr's API
+must list `https://mention.earth` and `https://www.mention.earth` as embedders
+for these reads. No provider call runs in post creation, repository reads or
+hydration. A cancelled event shows as cancelled; one that is gone, or was never
+public, shows as unavailable. The legacy native event (`content.event`) keeps
+working until it is removed in a separate, owner-approved change.

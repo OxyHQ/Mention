@@ -164,6 +164,11 @@
       "import": "./dist/homiio.js",
       "require": "./dist/homiio.js"
     },
+    "./vibbr": {
+      "types": "./dist/vibbr.d.ts",
+      "import": "./dist/vibbr.js",
+      "require": "./dist/vibbr.js"
+    },
     "./deck": {
       "types": "./dist/deck.d.ts",
       "import": "./dist/deck.js",
@@ -204,6 +209,7 @@
     "@oxy.so/utils": "catalog:",
     "zod": "catalog:",
     "@oxy.so/homiio-contracts": "0.2.2",
+    "@vibbr.co/sdk": "catalog:",
     "@mercaria.co/sdk": "0.8.0"
   },
   "devDependencies": {

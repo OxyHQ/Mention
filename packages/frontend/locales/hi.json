@@ -3355,6 +3355,14 @@
       "cancelled": "रद्द"
     }
   },
+  "vibbr": {
+    "loading": "Vibbr इवेंट लोड हो रहा है…",
+    "unavailable": "यह Vibbr इवेंट अब उपलब्ध नहीं है",
+    "open": "Vibbr में इवेंट खोलें",
+    "cancelled": "रद्द",
+    "soldOut": "बिक चुका",
+    "free": "निःशुल्क"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

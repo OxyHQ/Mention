@@ -307,6 +307,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   const roomContent: PostRoomContent | null = attachmentsBundle.room ?? content.room ?? null;
 
   const homiioCase = attachmentsBundle.homiioCase ?? content.homiioCase ?? null;
+  const vibbrEvent = attachmentsBundle.vibbrEvent ?? content.vibbrEvent ?? null;
   const podcastContent = attachmentsBundle.podcast ?? content.podcast ?? null;
 
   const jobContent = attachmentsBundle.job ?? content.job ?? null;
@@ -351,6 +352,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
     Boolean(eventContent) ||
     Boolean(roomContent) ||
     Boolean(homiioCase) ||
+    Boolean(vibbrEvent) ||
     Boolean(podcastContent) ||
     Boolean(jobContent) ||
     documents.length > 0 ||
@@ -1271,6 +1273,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
                   room={roomProp}
                   onRoomPress={roomId ? handleRoomPress : undefined}
                   homiioCase={homiioCase}
+                  vibbrEvent={vibbrEvent}
                   podcast={podcastContent}
                   job={jobContent}
                   location={location}

@@ -1,5 +1,6 @@
 import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import { sanitizeVibbrEvent, vibbrEventFromText } from '@mention/shared-types/vibbr';
 import { createHash } from 'node:crypto';
 import {
   MAX_AUTHOR_VARIANTS,
@@ -293,6 +294,8 @@ export function toStoredContent(
     room: content.room,
     homiioCase:
       sanitizeHomiioCase(content.homiioCase) ?? homiioCaseFromText(variants[0]?.text ?? ''),
+    vibbrEvent:
+      sanitizeVibbrEvent(content.vibbrEvent) ?? vibbrEventFromText(variants[0]?.text ?? ''),
     podcast: sanitizePodcast(content.podcast) ?? undefined,
     attachments: content.attachments,
   };

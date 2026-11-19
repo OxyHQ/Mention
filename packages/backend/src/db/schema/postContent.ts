@@ -121,6 +121,7 @@ export const POST_ATTACHMENT_TYPES = [
   'homiioCase',
   'job',
   'commerce',
+  'vibbrEvent',
 ] as const;
 
 /** `ClassificationTopicRef.type`. */

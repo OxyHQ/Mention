@@ -1,6 +1,7 @@
 import { respondWithApiError, warnOnFailure } from '../../utils/error';
 import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
+import { sanitizeVibbrEvent } from '@mention/shared-types/vibbr';
 import {
   requesterPublicationPolicy,
   publicationVisibility,
@@ -279,6 +280,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const postContent: PostContent = {
       text: text || '',
       homiioCase: sanitizeHomiioCase(content?.homiioCase),
+      vibbrEvent: sanitizeVibbrEvent(content?.vibbrEvent),
       media: normalizedMedia,
       ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
       ...(title ? { title } : {}),
