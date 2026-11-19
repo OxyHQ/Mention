@@ -34,7 +34,7 @@ jest.mock('@oxy.so/bloom/media-flight', () => ({
 }));
 
 jest.mock('@/stores/videoPlayerRegistry', () => ({
-  useVideoPlayerLease: () => undefined,
+  useAttachedVideoPlayer: () => undefined,
   videoPlayerKey: (postId: string, mediaId: string) => `${postId}:${mediaId}`,
 }));
 

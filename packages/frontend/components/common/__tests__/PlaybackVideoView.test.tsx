@@ -235,8 +235,13 @@ it('keeps a registry player alive while the persistent view outlives its present
   const renderer = await mount(
     <PlaybackVideoView player={presenter.player} registryKey={key} source={STREAM} />,
   );
+  // Given back means emptied and parked for the next video (or destroyed once
+  // the pool is full): either way, not while the view still shows it.
+  const givenBack = () =>
+    (fake.replaceAsync.mock.calls as unknown[][]).some(([next]) => next === null);
   presenter.release();
+  expect(givenBack()).toBe(false);
   expect(fake.release).not.toHaveBeenCalled();
   await act(async () => renderer.unmount());
-  expect(fake.release).toHaveBeenCalledTimes(1);
+  expect(givenBack()).toBe(true);
 });

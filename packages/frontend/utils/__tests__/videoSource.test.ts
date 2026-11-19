@@ -90,3 +90,32 @@ describe('the identity of an HLS source', () => {
     expect(rebuilt).toEqual(original);
   });
 });
+
+describe('the disk cache', () => {
+  function sourceOn(os: string, url: string): unknown {
+    let source: unknown;
+    jest.isolateModules(() => {
+      jest.doMock('react-native', () => ({ Platform: { OS: os } }));
+      source = require('../videoSource').videoSourceFor(url);
+    });
+    jest.dontMock('react-native');
+    return source;
+  }
+
+  it('is asked for on Android, for files and HLS alike', () => {
+    expect(sourceOn('android', 'https://cloud.oxy.so/a.mp4')).toEqual({
+      uri: 'https://cloud.oxy.so/a.mp4',
+      useCaching: true,
+    });
+    expect(sourceOn('android', 'https://cloud.oxy.so/68f2?variant=hls_master')).toEqual({
+      uri: 'https://cloud.oxy.so/68f2?variant=hls_master',
+      contentType: 'hls',
+      useCaching: true,
+    });
+  });
+
+  it('is not asked for on iOS, which cannot cache HLS, nor on the web', () => {
+    expect(sourceOn('ios', 'https://cloud.oxy.so/a.mp4')).toBe('https://cloud.oxy.so/a.mp4');
+    expect(sourceOn('web', 'https://cloud.oxy.so/a.mp4')).toBe('https://cloud.oxy.so/a.mp4');
+  });
+});
