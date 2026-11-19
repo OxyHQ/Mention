@@ -23,11 +23,27 @@ jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: (...args: unknown[]) => mockError(...args) }),
 }));
 
+/**
+ * `givenBack` counts the times the registry let go of the player: destroyed
+ * (`release()`) or parked for the next video (`replaceAsync(null)`). Which of
+ * the two is the pool's business, asserted on its own below; the reference
+ * count only decides WHEN a player is given back.
+ */
 interface FakePlayer {
   readonly id: number;
   readonly source: string;
-  releaseCount: number;
+  givenBack: number;
+  destroyed: boolean;
+  replacedWith: unknown[];
+  pause: jest.Mock;
+  muted: boolean;
+  loop: boolean;
+  timeUpdateEventInterval: number;
+  bufferOptions?: unknown;
+  status: string;
+  addListener: () => { remove: () => void };
   release: () => void;
+  replaceAsync: (source: unknown) => Promise<void>;
 }
 
 // Prefixed `mock` so the hoisted `jest.mock` factory below may reference it.
@@ -41,10 +57,24 @@ jest.mock('expo-video', () => ({
     const player: FakePlayer = {
       id: mockVideo.created.length,
       source,
-      releaseCount: 0,
+      givenBack: 0,
+      destroyed: false,
+      replacedWith: [],
+      pause: jest.fn(),
+      muted: false,
+      loop: true,
+      timeUpdateEventInterval: 0.25,
+      status: 'idle',
+      addListener: () => ({ remove: () => {} }),
       release: () => {
-        player.releaseCount += 1;
+        player.givenBack += 1;
+        player.destroyed = true;
         if (mockVideo.releaseThrows) throw new Error('already released');
+      },
+      replaceAsync: (next: unknown) => {
+        player.replacedWith.push(next);
+        if (next === null) player.givenBack += 1;
+        return Promise.resolve();
       },
     };
     mockVideo.created.push(player);
@@ -65,6 +95,7 @@ import {
   pendingVideoTransition,
   releaseTransitionHold,
   peekVideoPlayer,
+  useAttachedVideoPlayer,
   useVideoPlayerLease,
   useVideoPlayerRegistry,
   videoPlayerKey,
@@ -158,12 +189,12 @@ describe('reference counting', () => {
     // The control for the assertion below: a count that released eagerly
     // would already be at 1 here, and a `VideoView` still pointing at this
     // player would be holding a freed shared object.
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
     expect(entryFor(KEY).refCount).toBe(1);
 
     second.release();
 
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
     expect(entryFor(KEY)).toBeUndefined();
   });
 
@@ -171,10 +202,10 @@ describe('reference counting', () => {
     const only = acquire(KEY, SOURCE);
     const player = only.player as unknown as FakePlayer;
 
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
     only.release();
 
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
     expect(entryFor(KEY)).toBeUndefined();
   });
 
@@ -187,23 +218,23 @@ describe('reference counting', () => {
     expect(entryFor(KEY).refCount).toBe(2);
     leases[1].release();
     expect(entryFor(KEY).refCount).toBe(1);
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
 
     leases[2].release();
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
   });
 
-  it('lets a key be acquired again after it was fully released, with a fresh player', () => {
+  it('lets a key be acquired again after it was fully released, from a clean entry', () => {
     const first = acquire(KEY, SOURCE);
     first.release();
+    expect(entryFor(KEY)).toBeUndefined();
 
     const second = acquire(KEY, SOURCE);
 
     // A stranded entry would be the leak's quiet form: the key survives with
     // a dead player and every later video for that media is unplayable.
-    expect(second.player).not.toBe(first.player);
-    expect(mockVideo.created).toHaveLength(2);
     expect(entryFor(KEY).refCount).toBe(1);
+    expect((second.player as unknown as FakePlayer).destroyed).toBe(false);
   });
 });
 
@@ -220,11 +251,11 @@ describe('over-release', () => {
     // The whole reason `release` lives on the lease rather than taking a
     // key: three calls from one holder must not spend the OTHER holder's
     // reference and free a player it is still rendering.
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
     expect(entryFor(KEY).refCount).toBe(1);
 
     second.release();
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
   });
 
   it('does not release the player twice when the last lease is released twice', () => {
@@ -234,7 +265,7 @@ describe('over-release', () => {
     only.release();
     only.release();
 
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
   });
 
   it('survives a lease released after the registry was reset', () => {
@@ -242,17 +273,22 @@ describe('over-release', () => {
     const player = only.player as unknown as FakePlayer;
 
     __resetVideoPlayerRegistry();
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
 
     expect(() => only.release()).not.toThrow();
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
   });
 });
 
 describe('a player whose release throws', () => {
   it('reports it and still drops the entry, so the key is not stranded', () => {
-    mockVideo.releaseThrows = true;
+    // Fill the park, so the last release below destroys rather than parks.
+    const parked = [videoPlayerKey('p', 'a'), videoPlayerKey('p', 'b')].map((k) =>
+      acquire(k, SOURCE),
+    );
     const only = acquire(KEY, SOURCE);
+    for (const lease of parked) lease.release();
+    mockVideo.releaseThrows = true;
 
     expect(() => only.release()).not.toThrow();
     expect(entryFor(KEY)).toBeUndefined();
@@ -346,12 +382,12 @@ describe('useVideoPlayerLease', () => {
     });
 
     expect(seen[1]).toBe(player);
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
 
     TestRenderer.act(() => {
       tree!.unmount();
     });
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
     expect(entryFor(KEY)).toBeUndefined();
   });
 
@@ -376,13 +412,13 @@ describe('useVideoPlayerLease', () => {
     TestRenderer.act(() => {
       feed!.unmount();
     });
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
     expect(entryFor(KEY).refCount).toBe(1);
 
     TestRenderer.act(() => {
       reel!.unmount();
     });
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
   });
 });
 
@@ -397,7 +433,7 @@ describe('holding a player across a route change', () => {
 
     // Without the hold this is where the count reached zero and the player
     // was destroyed, so the destination built a fresh one starting at 0.
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
     expect(entryFor(KEY).refCount).toBe(1);
 
     const reel = acquireVideoPlayer(KEY, SOURCE);
@@ -413,10 +449,10 @@ describe('holding a player across a route change', () => {
     releaseTransitionHold(KEY);
 
     expect(entryFor(KEY).refCount).toBe(1);
-    expect(player.releaseCount).toBe(0);
+    expect(player.givenBack).toBe(0);
 
     owner.release();
-    expect(player.releaseCount).toBe(1);
+    expect(player.givenBack).toBe(1);
   });
 
   it('holds at most one, so a hand-off that never lands strands one player', () => {
@@ -427,7 +463,7 @@ describe('holding a player across a route change', () => {
 
     // The previous hold is spent by the new one: a transition is a single
     // user action, so two live holds would mean a decoder nobody will free.
-    expect(first.releaseCount).toBe(1);
+    expect(first.givenBack).toBe(1);
     expect(entryFor(KEY)).toBeUndefined();
     expect(entryFor(OTHER_KEY).refCount).toBe(1);
   });
@@ -456,10 +492,10 @@ describe('cancelled handoff', () => {
     expect(cancel()).toBe(true);
     expect(cancel()).toBe(false);
     expect(entryFor(KEY).refCount).toBe(1);
-    expect(mockVideo.created[0].releaseCount).toBe(0);
+    expect(mockVideo.created[0].givenBack).toBe(0);
     view.release();
     expect(entryFor(KEY)).toBeUndefined();
-    expect(mockVideo.created[0].releaseCount).toBe(1);
+    expect(mockVideo.created[0].givenBack).toBe(1);
   });
 
   it('does not let an old navigation cancel a newer bridge for the same media', () => {
@@ -503,7 +539,97 @@ it('cancels the captured pending transition exactly once and clears its lookup',
   expect(pending?.key).toBe(KEY);
   expect(pending?.release()).toBe(true);
   expect(entryFor(KEY)).toBeUndefined();
-  expect(mockVideo.created[0].releaseCount).toBe(1);
+  expect(mockVideo.created[0].givenBack).toBe(1);
   expect(pending?.release()).toBe(false);
   expect(pendingVideoTransition('post-1')).toBeNull();
+});
+
+describe('the parking pool', () => {
+  const keys = ['a', 'b', 'c'].map((media) => videoPlayerKey('pool', media));
+  const fake = (lease: { player: unknown }) => lease.player as unknown as FakePlayer;
+
+  it('empties a player nobody holds and hands it to the next video instead of building one', () => {
+    const first = acquire(keys[0], SOURCE);
+    fake(first).muted = false;
+    first.release();
+
+    // Emptied, paused and silenced: no download, no decoder, no stray audio.
+    expect(fake(first).destroyed).toBe(false);
+    expect(fake(first).replacedWith).toEqual([null]);
+    expect(fake(first).pause).toHaveBeenCalled();
+    expect(fake(first)).toMatchObject({ muted: true, loop: false, timeUpdateEventInterval: 0 });
+
+    const next = acquire(keys[1], 'https://cdn.example/two.mp4');
+    expect(next.player).toBe(first.player);
+    expect(mockVideo.created).toHaveLength(1);
+    expect(fake(next).replacedWith.at(-1)).toBe('https://cdn.example/two.mp4');
+  });
+
+  it('keeps at most two waiting, and destroys the third', () => {
+    const leases = keys.map((key) => acquire(key, SOURCE));
+    for (const lease of leases) lease.release();
+
+    expect(leases.map((lease) => fake(lease).destroyed)).toEqual([false, false, true]);
+  });
+
+  it('builds every new player with the bounded forward buffer', () => {
+    expect(fake(acquire(keys[0], SOURCE)).bufferOptions).toEqual({
+      preferredForwardBufferDuration: 10,
+      minBufferForPlayback: 1,
+    });
+  });
+
+  it('destroys the parked players on reset', () => {
+    const lease = acquire(keys[0], SOURCE);
+    lease.release();
+    __resetVideoPlayerRegistry();
+    expect(fake(lease).destroyed).toBe(true);
+  });
+});
+
+describe('useAttachedVideoPlayer', () => {
+  let seen: (FakePlayer | null)[] = [];
+  function Row({ attached }: { attached: boolean }) {
+    seen.push(useAttachedVideoPlayer(KEY, SOURCE, attached) as unknown as FakePlayer | null);
+    return null;
+  }
+  beforeEach(() => {
+    seen = [];
+  });
+
+  it('has the player in its first render when it mounts attached', () => {
+    TestRenderer.act(() => {
+      TestRenderer.create(React.createElement(Row, { attached: true }));
+    });
+    expect(seen[0]).toBe(entryFor(KEY).player);
+    expect(entryFor(KEY).refCount).toBe(1);
+  });
+
+  it('holds nothing while detached, then attaches and gives back without remounting', () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    TestRenderer.act(() => {
+      tree = TestRenderer.create(React.createElement(Row, { attached: false }));
+    });
+    expect(seen.at(-1)).toBeNull();
+    expect(entryFor(KEY)).toBeUndefined();
+
+    TestRenderer.act(() => {
+      tree!.update(React.createElement(Row, { attached: true }));
+    });
+    const player = seen.at(-1);
+    expect(player).toBe(entryFor(KEY).player);
+    expect(entryFor(KEY).refCount).toBe(1);
+
+    TestRenderer.act(() => {
+      tree!.update(React.createElement(Row, { attached: false }));
+    });
+    expect(seen.at(-1)).toBeNull();
+    expect(entryFor(KEY)).toBeUndefined();
+    expect(player?.givenBack).toBe(1);
+
+    TestRenderer.act(() => {
+      tree!.unmount();
+    });
+    expect(player?.givenBack).toBe(1);
+  });
 });

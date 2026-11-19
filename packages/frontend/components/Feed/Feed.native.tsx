@@ -162,6 +162,25 @@ function collectRowVideoKeys(item: FeedItem, into: string[]): void {
 }
 
 /**
+ * The rows around the reader that hold a loaded video player before they are
+ * on screen: two below the last viewable row (where the reader is heading) and
+ * one above the first (a scroll back). A video row entering this window gets a
+ * player from the shared pool and buffers its first seconds, so it is already
+ * showing its first frame when it scrolls into view; a row leaving it hands
+ * the player back. Measured in ROWS, not pixels: FlashList's `drawDistance`
+ * mounts far more than this, and every mounted video row used to hold its own
+ * ExoPlayer.
+ */
+const PRELOAD_ROWS_AHEAD = 2;
+const PRELOAD_ROWS_BEHIND = 1;
+
+/** Every key a row can render a video under, row keys for auxiliary rows. */
+function collectNativeRowVideoKeys(row: NativeFeedRow, into: string[]): void {
+  if (row.kind === 'auxiliary') into.push(nativeFeedRowKey(row));
+  else if (row.kind === 'post' && row.item) collectRowVideoKeys(row.item, into);
+}
+
+/**
  * The header and the list's header wrapper are document content: their height
  * is their measured content height, so the following sticky row starts right
  * below them. FlashList may otherwise stretch the wrapper to the viewport when
@@ -315,6 +334,12 @@ const Feed = (props: FeedProps) => {
     }
     return auxiliaryRows.length > 0 ? [...auxiliaryRows, ...feedRows] : feedRows;
   }, [feedRows, listContentHeaderComponent, leading, listStickyHeaderComponent]);
+  // Read by the viewability callback, which FlashList needs to keep one
+  // identity for the life of the list, to find the rows around the viewable ones.
+  const listRowsRef = useRef(listRows);
+  useEffect(() => {
+    listRowsRef.current = listRows;
+  }, [listRows]);
 
   // Bloom intentionally delegates native restoration to the navigator, but a
   // route/tab swap can genuinely unmount a feed. Restore the last feed-scoped
@@ -389,6 +414,7 @@ const Feed = (props: FeedProps) => {
   // a viewability change re-renders the players whose rank moved, never the list.
   const [viewableVideoKeys] = useState(createViewableKeysStore);
   const rowViewableKeysRef = useRef<readonly string[]>(EMPTY_ROW_KEYS);
+  const rowNearKeysRef = useRef<readonly string[]>(EMPTY_ROW_KEYS);
   const headerOnScreenRef = useRef(false);
   const headerBottomRef = useRef(0);
   const scrollOffsetRef = useRef(0);
@@ -399,7 +425,7 @@ const Feed = (props: FeedProps) => {
     // inside it outrank the rows for the single audible slot while it shows.
     if (headerOnScreenRef.current) keys.add(FEED_HEADER_VIEWABILITY_KEY);
     for (const key of rowViewableKeysRef.current) keys.add(key);
-    viewableVideoKeys.publish(keys);
+    viewableVideoKeys.publish(keys, new Set(rowNearKeysRef.current));
   }, [viewableVideoKeys]);
 
   // The header spans [0, height) of the scrollable content, so
@@ -439,10 +465,16 @@ const Feed = (props: FeedProps) => {
     }) => {
       const visibleUris: string[] = [];
       const rowKeys: string[] = [];
+      let firstIndex = Number.POSITIVE_INFINITY;
+      let lastIndex = Number.NEGATIVE_INFINITY;
       for (const token of viewableItems) {
         if (!token.isViewable) continue;
         const row = token.item as NativeFeedRow | undefined;
         if (!row) continue;
+        if (token.index !== null && token.index !== undefined) {
+          firstIndex = Math.min(firstIndex, token.index);
+          lastIndex = Math.max(lastIndex, token.index);
+        }
         // An auxiliary row produces no impression, but can hold a video (a
         // profile's pinned post), so it publishes its ROW key for the scope.
         if (row.kind === 'auxiliary') {
@@ -456,6 +488,17 @@ const Feed = (props: FeedProps) => {
         collectRowVideoKeys(row.item, rowKeys);
       }
       rowViewableKeysRef.current = rowKeys;
+      const nearKeys: string[] = [];
+      const rows = listRowsRef.current;
+      if (lastIndex >= firstIndex) {
+        const from = Math.max(0, firstIndex - PRELOAD_ROWS_BEHIND);
+        const to = Math.min(rows.length - 1, lastIndex + PRELOAD_ROWS_AHEAD);
+        for (let index = from; index <= to; index++) {
+          if (index < firstIndex || index > lastIndex)
+            collectNativeRowVideoKeys(rows[index], nearKeys);
+        }
+      }
+      rowNearKeysRef.current = nearKeys;
       publishViewableKeys();
       impressionTracker.current.syncVisible(visibleUris);
     },

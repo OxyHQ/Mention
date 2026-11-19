@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
-import { videoSourceFor } from '@/utils/videoSource';
+import { setVideoHasRenderedFrame } from '@oxy.so/bloom/video-playback';
+import { VIDEO_BUFFER_OPTIONS, videoSourceFor } from '@/utils/videoSource';
 import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
 import { createLogger } from '@oxy.so/core/logger';
 
@@ -37,6 +38,15 @@ const logger = createLogger('VideoPlayerRegistry');
  * consumers may legitimately disagree), it does not play or pause them, and it
  * does not swap their sources — a live player changes video through
  * `replaceAsync`, never by being rebuilt, which is the whole reason this exists.
+ *
+ * A PLAYER NOBODY HOLDS IS PARKED, NOT DESTROYED. Building an expo-video player
+ * on Android builds an ExoPlayer, its playback thread and a MediaSession, and a
+ * feed attaches and detaches players constantly as rows enter and leave the
+ * preload window. So the last release parks the player emptied (paused, source
+ * cleared, which frees its decoder and its buffer), and the next acquire for
+ * any key takes a parked player and hands it the new source. Media3's own
+ * short-form sample does the same with a pool of three. At most
+ * {@link MAX_PARKED_PLAYERS} wait; past that a released player is destroyed.
  */
 
 /**
@@ -99,13 +109,7 @@ export const useVideoPlayerRegistry = create<VideoPlayerRegistryState>((set, get
 
   acquire: (key, source) => {
     const existing = get().entries[key];
-    // A source hls.js will decode (a federated playlist, on a browser that
-    // cannot play one itself) is withheld from the player: hls.js attaches
-    // its own MediaSource to the element, and a player holding the playlist
-    // url would first start — and fail — a native load of it.
-    const player =
-      existing?.player ??
-      createVideoPlayer(needsJsHlsDecoder(source) ? null : videoSourceFor(source));
+    const player = existing?.player ?? takePlayer(source);
 
     set((state) => ({
       entries: {
@@ -142,7 +146,7 @@ export const useVideoPlayerRegistry = create<VideoPlayerRegistryState>((set, get
         const { [key]: _dropped, ...rest } = state.entries;
         return { entries: rest };
       });
-      releasePlayer(entry.player, key);
+      parkPlayer(entry.player, key);
     };
 
     return { key, player, release };
@@ -274,6 +278,101 @@ export function useVideoPlayerLease(key: VideoPlayerKey, source: string): VideoP
 }
 
 /**
+ * The registry's player for `key` while `attached`, and `null` otherwise: a
+ * feed row's player, held while the row is inside its list's preload window
+ * (`useViewableNear`) and given back once it leaves, so the pool lends it to
+ * the next row. The row keeps drawing its poster and controls either way.
+ *
+ * The lease is a subscription (taken in an effect, released by its cleanup)
+ * and the player is READ from the store, so attaching and detaching are
+ * ordinary re-renders of the one row. A row that mounts already attached
+ * takes its first lease while rendering, as `useVideoPlayerLease` does, so a
+ * row mounting on screen has its player in its first commit; the effect then
+ * takes the lasting lease before letting that one go (1 → 2 → 1).
+ *
+ * Same caller contract as `useVideoPlayerLease`: a React `key` carrying `key`.
+ */
+export function useAttachedVideoPlayer(
+  key: VideoPlayerKey,
+  source: string,
+  attached: boolean,
+): VideoPlayer | null {
+  const [mountLease] = useState(() => {
+    if (!attached) return null;
+    const lease = acquireVideoPlayer(key, source);
+    releaseTransitionHold(key);
+    return lease;
+  });
+  useEffect(() => {
+    if (!attached) {
+      mountLease?.release();
+      return;
+    }
+    const lease = acquireVideoPlayer(key, source);
+    mountLease?.release();
+    releaseTransitionHold(key);
+    return lease.release;
+  }, [attached, key, source, mountLease]);
+  return useVideoPlayerRegistry((state) =>
+    attached ? (state.entries[key]?.player ?? null) : null,
+  );
+}
+
+/** Emptied players waiting for their next video: the decoders a feed scroll reuses. */
+const MAX_PARKED_PLAYERS = 2;
+const parkedPlayers: VideoPlayer[] = [];
+
+/**
+ * A player for `source`: a parked one handed the new source, or a new one.
+ *
+ * A source hls.js will decode (a federated playlist, on a browser that cannot
+ * play one itself) is withheld from the player: hls.js attaches its own
+ * MediaSource to the element, and a player holding the playlist url would
+ * first start — and fail — a native load of it.
+ */
+function takePlayer(source: string): VideoPlayer {
+  const playable = needsJsHlsDecoder(source) ? null : videoSourceFor(source);
+  const parked = parkedPlayers.pop();
+  if (!parked) {
+    const player = createVideoPlayer(playable);
+    player.bufferOptions = VIDEO_BUFFER_OPTIONS;
+    return player;
+  }
+  parked.replaceAsync(playable).catch((error: unknown) => {
+    logger.error('Handing a parked video player its source failed', error);
+  });
+  return parked;
+}
+
+/**
+ * Give back a player nobody holds: emptied and parked for the next video, or
+ * destroyed once enough are waiting. Emptying stops the download and frees the
+ * decoder and the buffer; the playback control forgets the frame it painted,
+ * so the next row shows its poster until its own video paints. Presentation
+ * goes back to where a new player starts, because the next holder may not set
+ * all of it (`timeUpdateEventInterval` is only ever raised by a surface).
+ */
+function parkPlayer(player: VideoPlayer, key: VideoPlayerKey): void {
+  if (parkedPlayers.length >= MAX_PARKED_PLAYERS) {
+    releasePlayer(player, key);
+    return;
+  }
+  try {
+    player.pause();
+    Object.assign(player, { loop: false, muted: true, timeUpdateEventInterval: 0 });
+    setVideoHasRenderedFrame(player, false);
+    player.replaceAsync(null).catch((error: unknown) => {
+      logger.error('Emptying a parked video player failed', error, { key });
+    });
+    parkedPlayers.push(player);
+  } catch (error) {
+    // A player that cannot be emptied cannot be trusted with another video.
+    logger.error('Parking a video player threw', error, { key });
+    releasePlayer(player, key);
+  }
+}
+
+/**
  * A shared object that throws on `release` has already been released by someone
  * else, and the entry is gone either way — keeping it would strand the key so
  * the same video could never get a player again. Report it rather than swallow
@@ -296,5 +395,8 @@ export function __resetVideoPlayerRegistry(): void {
   useVideoPlayerRegistry.setState({ entries: {} });
   for (const [key, entry] of Object.entries(entries)) {
     releasePlayer(entry.player, key as VideoPlayerKey);
+  }
+  for (const player of parkedPlayers.splice(0)) {
+    releasePlayer(player, 'parked' as VideoPlayerKey);
   }
 }

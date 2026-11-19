@@ -54,7 +54,7 @@ import PostActions from '@/components/Post/PostActions';
 import { postAcceptsReplies } from '@/utils/postReplies';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
-import { videoSourceFor } from '@/utils/videoSource';
+import { VIDEO_BUFFER_OPTIONS, videoSourceFor } from '@/utils/videoSource';
 import type { HydratedPost } from '@mention/shared-types';
 import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
@@ -675,6 +675,7 @@ const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
     // Single source of truth for the initial mute: the global store value
     // captured at mount. Subsequent changes flow through the sync effect.
     p.muted = props.muted;
+    p.bufferOptions = VIDEO_BUFFER_OPTIONS;
   });
   return <ReelSurface {...props} player={player} restartOnActivate />;
 };

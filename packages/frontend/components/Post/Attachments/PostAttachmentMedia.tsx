@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
+import { useViewableNear } from '@oxy.so/bloom/video-playback';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import {
   MEDIA_CARD_WIDTH,
@@ -32,7 +33,7 @@ import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import { revealMedia, useMediaRevealed } from '@/stores/readerStateStore';
 import type { MeasuredRect } from '@oxy.so/bloom/media-flight';
 import {
-  useVideoPlayerLease,
+  useAttachedVideoPlayer,
   videoPlayerKey,
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
@@ -238,7 +239,8 @@ interface PostAttachmentVideoProps {
  */
 const PostAttachmentVideoShell: React.FC<
   PostAttachmentVideoProps & {
-    player?: ExpoVideoPlayer;
+    /** Lent by the pool (`null` while detached); omitted, the video builds its own. */
+    player?: ExpoVideoPlayer | null;
     flightHostId?: VideoPlayerKey;
   }
 > = ({
@@ -298,7 +300,10 @@ const FlyableVideo: React.FC<PostAttachmentVideoProps & { postId: string; mediaI
   props,
 ) => {
   const flightId = videoPlayerKey(props.postId, props.mediaId);
-  const player = useVideoPlayerLease(flightId, props.src);
+  // Held only while the row is on screen or about to be: a feed mounts far
+  // more rows than it shows, and the pool lends one player at a time.
+  const near = useViewableNear(props.postId);
+  const player = useAttachedVideoPlayer(flightId, props.src, near);
   // No `registerAnchor` here: the host registers ITSELF, and registering the
   // card as well would leave two anchors for one id, the outer one measuring a
   // box the media does not fill.

@@ -56,14 +56,35 @@ jest.mock('@oxy.so/bloom/video-playback', () => ({
     mockPlaybackReads();
     return { shouldPlay: true, claimActive: jest.fn() };
   },
-  useVideoPlaybackControl: () => true,
+  // A painted frame once a player is attached; none before.
+  useVideoPlaybackControl: (player: unknown) => player !== null,
 }));
-jest.mock('@oxy.so/bloom/icons', () => ({
-  RiExpandDiagonalSLine: () => null,
-  RiVolumeMuteLine: () => null,
-  RiVolumeUpLine: () => null,
-}));
-jest.mock('expo-image', () => ({ Image: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return {
+    RiExpandDiagonalSLine: () => null,
+    RiVolumeMuteLine: function MuteIcon() {
+      React.useEffect(() => {
+        mockMounts.muteIcon += 1;
+      }, []);
+      return null;
+    },
+    RiVolumeUpLine: () => null,
+  };
+});
+// Counts mounts, so a remount on attach or detach shows up as a second one.
+const mockMounts = { poster: 0, muteIcon: 0 };
+jest.mock('expo-image', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return {
+    Image: function Poster() {
+      React.useEffect(() => {
+        mockMounts.poster += 1;
+      }, []);
+      return null;
+    },
+  };
+});
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('@/stores/videoMuteStore', () => ({
   useVideoMuteStore: (
@@ -107,6 +128,45 @@ it('builds a player only for a surface that owns its video', () => {
 });
 afterEach(() => {
   jest.useRealTimers();
+});
+
+// A feed row outside its list's preload window holds no player. It must look
+// exactly as it does before a first frame (poster, mute button), and the pool
+// attaching a player must not remount either: a remounted poster fades in again.
+it('a lent surface keeps its poster and mute button through attach and detach', () => {
+  const { Image } = jest.requireMock<{ Image: React.FC }>('expo-image');
+  mockMounts.poster = 0;
+  mockMounts.muteIcon = 0;
+  let renderer!: TestRenderer.ReactTestRenderer;
+  const at = (player: unknown) => (
+    <VideoPlayer
+      src={SOURCE}
+      poster="https://media.example.test/poster.jpg"
+      player={player as never}
+      onPress={jest.fn()}
+    />
+  );
+  act(() => {
+    renderer = TestRenderer.create(at(null));
+  });
+  // Detached: the poster and the mute button, and no player listened to or built.
+  expect(renderer.root.findAllByType(Image)).toHaveLength(1);
+  expect(mockMounts).toEqual({ poster: 1, muteIcon: 1 });
+  expect(mockUseVideoPlayer).not.toHaveBeenCalled();
+  expect(mockListeners.size).toBe(0);
+
+  // Attached: its frame is painted, so the poster goes; the button stays put.
+  act(() => renderer.update(at(mockPlayer)));
+  expect(renderer.root.findAllByType(Image)).toHaveLength(0);
+  expect(mockMounts.muteIcon).toBe(1);
+  expect(mockListeners.get('playingChange')?.size).toBe(1);
+
+  // Detached again: the listeners go with the player, the button never moved.
+  act(() => renderer.update(at(null)));
+  expect(renderer.root.findAllByType(Image)).toHaveLength(1);
+  expect(mockMounts.muteIcon).toBe(1);
+  expect(mockListeners.get('playingChange')?.size).toBe(0);
+  act(() => renderer.unmount());
 });
 
 it.each(['preview', 'gif'] as const)(

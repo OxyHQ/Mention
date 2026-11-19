@@ -19,7 +19,6 @@ import { PlaybackVideoView } from './PlaybackVideoView';
 import { MediaFlightHost, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
 import { PlayButton } from '@oxy.so/bloom/media-controls';
 import { useTranslation } from 'react-i18next';
-import { useEvent, useEventListener } from 'expo';
 import { RiExpandDiagonalSLine } from '@oxy.so/bloom/icons/RiExpandDiagonalSLine';
 import { RiVolumeMuteLine } from '@oxy.so/bloom/icons/RiVolumeMuteLine';
 import { RiVolumeUpLine } from '@oxy.so/bloom/icons/RiVolumeUpLine';
@@ -27,7 +26,8 @@ import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback, useVideoPlaybackControl } from '@oxy.so/bloom/video-playback';
 import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
 import { formatDuration } from '@/utils/formatDuration';
-import { videoSourceFor } from '@/utils/videoSource';
+import { VIDEO_BUFFER_OPTIONS, videoSourceFor } from '@/utils/videoSource';
+import { useVideoPlayerEvent } from '@/hooks/useVideoPlayerEvent';
 import { findVideoElement } from './videoElementSize';
 
 interface VideoPlayerProps {
@@ -95,8 +95,14 @@ interface VideoPlayerProps {
    * presentation setting below is applied to the player passed in: the
    * registry deliberately configures nothing, because two surfaces showing one
    * video may legitimately disagree about `loop` or `muted`.
+   *
+   * `null` is a lent player that is not attached right now: the row is outside
+   * its list's preload window (`useViewableNear`). The surface draws exactly
+   * what it draws before a first frame (poster, mute button, tap area), and the
+   * same component takes the player when the pool attaches one, so nothing it
+   * draws is remounted either way.
    */
-  player?: ExpoVideoPlayer;
+  player?: ExpoVideoPlayer | null;
   /**
    * Paint through the shared media node under this id instead of mounting an
    * element of this component's own. One node moves between hosts, so the
@@ -177,7 +183,7 @@ const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
 });
 
 /** What the surface draws once it has a player, built here or handed in. */
-type VideoSurfaceProps = Omit<VideoPlayerProps, 'player'> & { player: ExpoVideoPlayer };
+type VideoSurfaceProps = Omit<VideoPlayerProps, 'player'> & { player: ExpoVideoPlayer | null };
 
 const VideoSurface: React.FC<VideoSurfaceProps> = ({
   src,
@@ -296,6 +302,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
   // A borrowed player's `timeUpdate` cadence is only ever raised here, never
   // lowered: the surface it is shared with (the reel) may be drawing a bar.
   useEffect(() => {
+    if (!player) return;
     configurePlayer(
       player,
       tracksTime
@@ -311,28 +318,31 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
     if (!tracksTime) {
       if (hideControlsTimer.current !== null) clearTimeout(hideControlsTimer.current);
       hideControlsTimer.current = null;
-    } else if (showControls && player.playing && hideControlsTimer.current === null) {
+    } else if (showControls && player?.playing && hideControlsTimer.current === null) {
       scheduleHideControls();
     }
   }, [tracksTime, showControls, player, scheduleHideControls]);
 
   // Sync mute state from global store (GIFs stay force-muted regardless).
   useEffect(() => {
-    configurePlayer(player, { muted: gif ? true : isMuted });
+    if (player) configurePlayer(player, { muted: gif ? true : isMuted });
   }, [isMuted, player, gif]);
 
-  // Player events. `useEvent` / `useEventListener` (from expo) own the
-  // subscription AND its removal, so playback state is derived from the player's
-  // own event stream instead of hand-rolled listener effects.
-  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  // Player events, subscribed while a player is attached. Playback state is
+  // derived from the player's own event stream; `playing` names the player it
+  // describes, so a newly attached player reads its own state until its first
+  // event rather than the previous one's.
+  const [playing, setPlaying] = useState(() => ({ player, isPlaying: player?.playing ?? false }));
+  const isPlaying = playing.player === player ? playing.isPlaying : (player?.playing ?? false);
 
-  useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
-    if (playing) {
+  useVideoPlayerEvent(player, 'playingChange', ({ isPlaying: nowPlaying }) => {
+    setPlaying({ player, isPlaying: nowPlaying });
+    if (nowPlaying) {
       scheduleHideControls();
     }
   });
 
-  useEventListener(player, 'timeUpdate', ({ currentTime: time }) => {
+  useVideoPlayerEvent(player, 'timeUpdate', ({ currentTime: time }) => {
     if (tracksTime && !isSeeking) {
       setCurrentTime(time);
     }
@@ -346,7 +356,8 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
       );
   }, [fallbackSrc, usedFallback, src]);
 
-  useEventListener(player, 'statusChange', ({ status }) => {
+  useVideoPlayerEvent(player, 'statusChange', ({ status }) => {
+    if (!player) return;
     if (status === 'error') {
       handleSourceError();
       return;
@@ -368,15 +379,19 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
     }
   });
 
-  useEventListener(player, 'sourceLoad', ({ duration: loadedDuration, availableVideoTracks }) => {
-    if (loadedDuration > 0) {
-      setDuration(loadedDuration);
-    }
-    const track = availableVideoTracks?.find((t) => t.size?.width > 0 && t.size?.height > 0);
-    if (track) {
-      reportAspectRatio(track.size.width, track.size.height);
-    }
-  });
+  useVideoPlayerEvent(
+    player,
+    'sourceLoad',
+    ({ duration: loadedDuration, availableVideoTracks }) => {
+      if (loadedDuration > 0) {
+        setDuration(loadedDuration);
+      }
+      const track = availableVideoTracks?.find((t) => t.size?.width > 0 && t.size?.height > 0);
+      if (track) {
+        reportAspectRatio(track.size.width, track.size.height);
+      }
+    },
+  );
 
   const [manualPlayback, setManualPlayback] = useState<boolean | null>(null);
   const [previousMayPlay, setPreviousMayPlay] = useState(mayPlay);
@@ -412,6 +427,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
   }, [isPlaying, scheduleHideControls]);
 
   const handlePlayPause = useCallback(() => {
+    if (!player) return;
     if (isPlaying) {
       setManualPlayback(false);
       player.pause();
@@ -453,7 +469,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
 
   const handleProgressBarPress = useCallback(
     (event: GestureResponderEvent) => {
-      if (duration <= 0) return;
+      if (duration <= 0 || !player) return;
 
       progressBarRef.current?.measure((_x, _y, width, _height, _pageX, _pageY) => {
         if (!width || width <= 0) return;
@@ -485,30 +501,32 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
   // which is how expo-video empties a source without an event — the silence that
   // stops an outgoing surface pausing the one that just landed.
   const renderFlightVideo = useCallback(
-    ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
-      <PlaybackVideoView
-        ref={videoViewRef}
-        registryKey={flightHostId}
-        source={desiredSource}
-        fallbackSource={fallbackSrc}
-        onSourceError={handleSourceError}
-        detached={slotPlayer === null}
-        // `null` is forwarded verbatim — it is the instruction to unbind
-        // this element, and expo-video answers it by emptying the source
-        // without an event, which is what stops an outgoing surface
-        // pausing the one that just landed. Anything else is OUR player:
-        // Bloom never makes one, it hands back what it was given, and
-        // that is the object this component already holds, fully typed.
-        // Narrowed rather than cast, because `VideoPlayerLike` is
-        // deliberately smaller than expo-video's `VideoPlayer`.
-        player={player}
-        style={slotStyle}
-        contentFit={slotFit}
-        nativeControls={false}
-        fullscreenOptions={{ enable: !isPreviewMode && !gif }}
-        allowsPictureInPicture={false}
-      />
-    ),
+    ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) =>
+      // The host is mounted only with a player attached; the slot cannot run without one.
+      player && (
+        <PlaybackVideoView
+          ref={videoViewRef}
+          registryKey={flightHostId}
+          source={desiredSource}
+          fallbackSource={fallbackSrc}
+          onSourceError={handleSourceError}
+          detached={slotPlayer === null}
+          // `null` is forwarded verbatim — it is the instruction to unbind
+          // this element, and expo-video answers it by emptying the source
+          // without an event, which is what stops an outgoing surface
+          // pausing the one that just landed. Anything else is OUR player:
+          // Bloom never makes one, it hands back what it was given, and
+          // that is the object this component already holds, fully typed.
+          // Narrowed rather than cast, because `VideoPlayerLike` is
+          // deliberately smaller than expo-video's `VideoPlayer`.
+          player={player}
+          style={slotStyle}
+          contentFit={slotFit}
+          nativeControls={false}
+          fullscreenOptions={{ enable: !isPreviewMode && !gif }}
+          allowsPictureInPicture={false}
+        />
+      ),
     [player, flightHostId, isPreviewMode, gif, desiredSource, fallbackSrc, handleSourceError],
   );
 
@@ -517,7 +535,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
 
   return (
     <View ref={containerRef} style={[styles.container, style]}>
-      {flightHostId === undefined ? (
+      {player === null ? null : flightHostId === undefined ? (
         <PlaybackVideoView
           ref={videoViewRef}
           source={desiredSource}
@@ -760,12 +778,17 @@ const OwnedVideoPlayer: React.FC<Omit<VideoPlayerProps, 'player'>> = (props) => 
     p.loop = gif ? true : loop;
     p.muted = gif ? true : isMuted;
     p.timeUpdateEventInterval = tracksTime ? TIME_UPDATE_INTERVAL : 0;
+    p.bufferOptions = VIDEO_BUFFER_OPTIONS;
   });
   return <VideoSurface {...props} player={player} />;
 };
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ player, ...props }) =>
-  player ? <VideoSurface {...props} player={player} /> : <OwnedVideoPlayer {...props} />;
+  player === undefined ? (
+    <OwnedVideoPlayer {...props} />
+  ) : (
+    <VideoSurface {...props} player={player} />
+  );
 
 // Owns an expensive expo-video player instance, mounted per video cell in feeds
 // and the reels viewer. Memoized so a parent re-render with unchanged props does

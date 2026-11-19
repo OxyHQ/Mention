@@ -22,7 +22,7 @@ jest.mock('@oxy.so/bloom/image-aspect-ratio-cache', () => ({
   DEFAULT_ASPECT_RATIO: 1,
 }));
 jest.mock('@/stores/videoPlayerRegistry', () => ({
-  useVideoPlayerLease: () => undefined,
+  useAttachedVideoPlayer: () => undefined,
   videoPlayerKey: (postId: string, mediaId: string) => `${postId}:${mediaId}`,
 }));
 
