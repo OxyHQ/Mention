@@ -117,29 +117,30 @@ export async function findPostsByFederatedObjects(
     }),
   );
   const keys = [...new Set(keyOf.values())];
-  const rows = await getDb()
-    .select({
-      id: posts.id,
-      threadId: posts.threadId,
-      activityId: posts.federationActivityId,
-      sourceKey: postSourceKeys.sourceKey,
-    })
-    .from(posts)
-    .leftJoin(postSourceKeys, eq(postSourceKeys.postId, posts.id))
-    .where(
-      keys.length > 0
-        ? or(
-            inArray(posts.federationActivityId, uris),
-            inArray(
-              posts.id,
-              getDb()
-                .select({ postId: postSourceKeys.postId })
-                .from(postSourceKeys)
-                .where(inArray(postSourceKeys.sourceKey, keys)),
-            ),
-          )
-        : inArray(posts.federationActivityId, uris),
-    );
+  // Two indexed lookups, not one `or`: `activity_id in (…) or id in (select … from
+  // post_source_keys)` makes Postgres seq-scan all of `posts` (millions of rows) and
+  // all of `post_source_keys` on every call.
+  const columns = {
+    id: posts.id,
+    threadId: posts.threadId,
+    activityId: posts.federationActivityId,
+    sourceKey: postSourceKeys.sourceKey,
+  };
+  const [byActivity, byKey] = await Promise.all([
+    getDb()
+      .select(columns)
+      .from(posts)
+      .leftJoin(postSourceKeys, eq(postSourceKeys.postId, posts.id))
+      .where(inArray(posts.federationActivityId, uris)),
+    keys.length > 0
+      ? getDb()
+          .select(columns)
+          .from(postSourceKeys)
+          .innerJoin(posts, eq(posts.id, postSourceKeys.postId))
+          .where(inArray(postSourceKeys.sourceKey, keys))
+      : Promise.resolve([]),
+  ]);
+  const rows = [...byActivity, ...byKey];
   for (const uri of uris) {
     const key = keyOf.get(uri);
     const row =
