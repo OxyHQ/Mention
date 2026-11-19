@@ -488,17 +488,22 @@ const Feed = (props: FeedProps) => {
         collectRowVideoKeys(row.item, rowKeys);
       }
       rowViewableKeysRef.current = rowKeys;
-      const nearKeys: string[] = [];
-      const rows = listRowsRef.current;
+      // No row viewable is the gap between one row leaving and the next being
+      // reported (`minimumViewTime` holds a row back 100 ms), not the reader
+      // moving away: the window stays where it was. Recomputed from nothing,
+      // it emptied for that gap and the row scrolling in lost the player it
+      // had preloaded (measured: detached and attached again 25 ms apart).
       if (lastIndex >= firstIndex) {
+        const nearKeys: string[] = [];
+        const rows = listRowsRef.current;
         const from = Math.max(0, firstIndex - PRELOAD_ROWS_BEHIND);
         const to = Math.min(rows.length - 1, lastIndex + PRELOAD_ROWS_AHEAD);
         for (let index = from; index <= to; index++) {
           if (index < firstIndex || index > lastIndex)
             collectNativeRowVideoKeys(rows[index], nearKeys);
         }
+        rowNearKeysRef.current = nearKeys;
       }
-      rowNearKeysRef.current = nearKeys;
       publishViewableKeys();
       impressionTracker.current.syncVisible(visibleUris);
     },
