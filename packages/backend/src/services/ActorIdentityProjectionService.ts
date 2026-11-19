@@ -110,16 +110,54 @@ function unprojectedPosts(input: ActorIdentityProjectionInput): SQL {
 }
 
 /**
+ * The common live refresh changes nothing: the actor row already carries this Oxy
+ * id (and account name) and no post of the source disagrees with it. Answer that
+ * without the transaction, the per-actor advisory lock and the `FOR UPDATE` row
+ * lock the full path takes. Production spent ~3 average active sessions of
+ * Postgres load waiting on that lock (Performance Insights, 2026-11-19), most of
+ * it refreshes that then returned at the "nothing to change" early exit.
+ *
+ * Returns the same result the locked path returns for an unchanged source, or
+ * `undefined` when anything differs (the caller then takes the locked path, which
+ * re-reads everything under the lock, so a concurrent change is never missed:
+ * this read only ever skips work that the locked path would also have skipped).
+ * Only `check: 'refresh'` qualifies; `'audit'` also looks for authorship drift.
+ */
+async function alreadyProjected(
+  input: ActorIdentityProjectionInput,
+): Promise<ActorIdentityProjectionResult | undefined> {
+  const db = getDb();
+  const [actor] = await db
+    .select({ oxyUserId: federatedActors.oxyUserId, networkAcct: federatedActors.networkAcct })
+    .from(federatedActors)
+    .where(eq(federatedActors.uri, input.actorUri))
+    .limit(1);
+  if (!actor || actor.oxyUserId !== input.oxyUserId) return undefined;
+  if (input.networkAcct !== undefined && actor.networkAcct !== input.networkAcct) return undefined;
+  const drift = await db.execute(
+    sql`select 1 from posts p where ${unprojectedPosts(input)} limit 1`,
+  );
+  if (drift.length) return undefined;
+  return {
+    actorChanged: false,
+    postsChanged: 0,
+    authorshipConflicts: 0,
+    clustersDissolved: 0,
+    mutesPreserved: 0,
+    previousUserIds: [input.oxyUserId],
+    oxyUserId: input.oxyUserId,
+  };
+}
+
+/**
  * Project ONE source, never everything that happens to share its previous Oxy id.
  * No network calls run in the transaction. The caller obtains current authority
  * from Oxy; a later unlink runs this same operation with the restored source id.
  */
-export async function reconcileActorIdentityProjection(
+async function reconcileUnderLock(
   input: ActorIdentityProjectionInput,
 ): Promise<ActorIdentityProjectionResult> {
-  if (!input.actorUri || !input.oxyUserId)
-    throw new Error('A source actor and authoritative Oxy user are required');
-  const result = await getDb().transaction(async (tx) => {
+  return await getDb().transaction(async (tx) => {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${`actor-projection:${input.actorUri}`}))`,
     );
@@ -227,6 +265,15 @@ export async function reconcileActorIdentityProjection(
       .where(eq(federatedActors.id, actor.id));
     return result;
   });
+}
+
+export async function reconcileActorIdentityProjection(
+  input: ActorIdentityProjectionInput,
+): Promise<ActorIdentityProjectionResult> {
+  if (!input.actorUri || !input.oxyUserId)
+    throw new Error('A source actor and authoritative Oxy user are required');
+  const unchanged = input.check === 'refresh' ? await alreadyProjected(input) : undefined;
+  const result = unchanged ?? (await reconcileUnderLock(input));
   const changedIds = [...result.previousUserIds, input.oxyUserId];
   let invalidationRecorded = false;
   const recordInvalidation = () => {
