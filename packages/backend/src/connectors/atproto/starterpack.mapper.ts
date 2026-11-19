@@ -2,6 +2,7 @@ import { logger } from '../../utils/logger';
 import { upsertMirroredStarterPack } from '../../db/lists/starterPackRepository';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { xrpcGet } from './xrpcClient';
+import { lookupOxyIdentities } from '../oxyIdentity';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { PUBLIC_APPVIEW, STARTER_PACK_COLLECTION } from './constants';
 
@@ -11,8 +12,9 @@ import { PUBLIC_APPVIEW, STARTER_PACK_COLLECTION } from './constants';
  *
  * A Bluesky starter pack is a named curation whose `record.list` points at an
  * `app.bsky.graph.list` of member accounts. This module resolves each pack's
- * member DIDs to Oxy users through the SAME sanctioned identity path post mentions
- * use (`fetchAndUpsertAtprotoProfile` — creates the federated Oxy user if new),
+ * member DIDs to Oxy users — from Oxy's identity registry in one batched lookup
+ * when Oxy already knows them, else through the SAME sanctioned identity path post
+ * mentions use (`fetchAndUpsertAtprotoProfile` — creates the federated Oxy user),
  * then upserts a `StarterPack` owned by the profile's Oxy user, deduped on the
  * source AT-URI (`source.uri`) so a re-sync updates name + membership in place and
  * never duplicates.
@@ -38,8 +40,8 @@ const MAX_LIST_PAGES = 3;
 
 /**
  * Hard ceiling on the number of DISTINCT member DIDs resolved to Oxy users per
- * actor sync. Each resolution mints/refreshes a federated Oxy user (a getProfile +
- * `PUT /users/resolve`), so this bounds the oxy-api write load a single popular
+ * actor sync. Each one Oxy does not know yet mints a federated Oxy user (a getProfile
+ * + `PUT /users/resolve`), so this bounds the oxy-api write load a single popular
  * Bluesky account can trigger. Exceeding it warns (no silent truncation) and packs
  * beyond the budget mirror with the members that resolved.
  */
@@ -50,6 +52,9 @@ const PACK_CONCURRENCY = 4;
 
 /** How many member DIDs to resolve to Oxy users in parallel. */
 const MEMBER_CONCURRENCY = 6;
+
+/** Identifiers per Oxy identity lookup: the endpoint's own maximum. */
+const IDENTITY_LOOKUP_BATCH_SIZE = 100;
 
 // --- AppView response shapes (only the fields this connector reads) ----------
 
@@ -171,23 +176,54 @@ async function collectPackMemberDids(listUri: string): Promise<string[]> {
 }
 
 /**
- * Resolve a batch of member DIDs to Oxy user ids through the shared atproto profile
- * path (mints the federated Oxy user if new), with bounded concurrency. Returns a
- * `did → oxyUserId` map; DIDs that fail to resolve to an Oxy user are absent
- * (fail-soft — a member we can't mint is simply dropped from the pack).
+ * The Oxy users Oxy ALREADY knows for these DIDs: one read-only lookup per 100,
+ * answered from Oxy's identity registry (no source fetch, nothing minted). A
+ * membership only needs `did → oxy user`, which Oxy holds; a fresh read of every
+ * member's source per sync cost Oxy a registry transaction each, and a popular
+ * account's packs filled Mention's Oxy queue with them.
+ *
+ * A DID the lookup cannot answer (unknown to Oxy, or the lookup failed) is simply
+ * absent from the map and is resolved the full way by the caller.
+ */
+async function lookupKnownMemberOxyIds(dids: readonly string[]): Promise<Map<string, string>> {
+  const known = new Map<string, string>();
+  const batches: string[][] = [];
+  for (let i = 0; i < dids.length; i += IDENTITY_LOOKUP_BATCH_SIZE) {
+    batches.push(dids.slice(i, i + IDENTITY_LOOKUP_BATCH_SIZE));
+  }
+  await mapWithConcurrency(batches, 2, async (batch) => {
+    try {
+      for (const identity of await lookupOxyIdentities(batch)) {
+        if (identity.userId) known.set(identity.identifier, identity.userId);
+      }
+    } catch (err) {
+      logger.debug('[atproto] starter-pack member lookup failed; resolving the batch', err);
+    }
+  });
+  return known;
+}
+
+/**
+ * Resolve a batch of member DIDs to Oxy user ids. Members Oxy already knows come
+ * from one batched lookup ({@link lookupKnownMemberOxyIds}); only the rest go
+ * through the shared atproto profile path (mints the federated Oxy user if new),
+ * with bounded concurrency. Returns a `did → oxyUserId` map; DIDs that fail to
+ * resolve to an Oxy user are absent (fail-soft — a member we can't mint is simply
+ * dropped from the pack).
  */
 async function resolveMemberOxyIds(dids: readonly string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (dids.length === 0) return map;
+  const map = await lookupKnownMemberOxyIds(dids);
+  const unknown = dids.filter((did) => !map.has(did));
+  if (unknown.length === 0) return map;
 
-  const settled = await mapWithConcurrency(dids, MEMBER_CONCURRENCY, async (did) => {
+  const settled = await mapWithConcurrency(unknown, MEMBER_CONCURRENCY, async (did) => {
     const actor = await fetchAndUpsertAtprotoProfile(did);
     return actor?.oxyUserId ? String(actor.oxyUserId) : undefined;
   });
 
-  for (let i = 0; i < dids.length; i++) {
+  for (let i = 0; i < unknown.length; i++) {
     const result = settled[i];
-    if (result.status === 'fulfilled' && result.value) map.set(dids[i], result.value);
+    if (result.status === 'fulfilled' && result.value) map.set(unknown[i], result.value);
   }
   return map;
 }
