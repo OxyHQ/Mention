@@ -36,6 +36,13 @@ jest.mock('@/db', () => ({
     for (const post of posts) if (post.id) mockPosts.set(post.id, post);
   },
   getPostById: (postId: string) => mockPosts.get(postId) ?? null,
+  getPostsByIds: (postIds: string[]) =>
+    Object.fromEntries(
+      postIds.flatMap((postId) => {
+        const post = mockPosts.get(postId);
+        return post ? [[postId, post]] : [];
+      }),
+    ),
   updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null | undefined) => {
     const previous = mockPosts.get(postId);
     if (!previous) return null;

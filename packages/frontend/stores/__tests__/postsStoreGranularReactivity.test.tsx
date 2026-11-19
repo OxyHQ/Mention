@@ -16,6 +16,8 @@ const mockPosts = new Map<string, FeedItem>();
 const mockFeedIds = new Map<string, string[]>();
 const mockFeedMeta = new Map<string, FeedMetaData>();
 const mockPostReadCounts = new Map<string, number>();
+/** The ids of each batched `getPostsByIds` read, in order. */
+const mockPostBatchReads: string[][] = [];
 const mockPostWriteCounts = new Map<string, number>();
 const mockFeedReadCounts = new Map<string, number>();
 const mockClearAllCachedData = jest.fn(() => {
@@ -54,6 +56,15 @@ jest.mock('@/db', () => ({
   getPostById: (postId: string) => {
     mockPostReadCounts.set(postId, (mockPostReadCounts.get(postId) ?? 0) + 1);
     return mockPosts.get(postId) ?? null;
+  },
+  getPostsByIds: (postIds: string[]) => {
+    mockPostBatchReads.push([...postIds]);
+    const found: Record<string, FeedItem> = {};
+    for (const postId of postIds) {
+      const post = mockPosts.get(postId);
+      if (post) found[postId] = post;
+    }
+    return found;
   },
   updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null | undefined) => {
     const previous = mockPosts.get(postId);
@@ -259,6 +270,7 @@ describe('postsStore keyed SQLite reactivity', () => {
     mockFeedIds.clear();
     mockFeedMeta.clear();
     mockPostReadCounts.clear();
+    mockPostBatchReads.length = 0;
     mockPostWriteCounts.clear();
     mockFeedReadCounts.clear();
     mockClearAllCachedData.mockClear();
@@ -377,6 +389,75 @@ describe('postsStore keyed SQLite reactivity', () => {
     expect(mockFeedReadCounts.get('posts') ?? 0).toBe(postsReadsBefore);
     expect(mockFeedReadCounts.get('following') ?? 0).toBe(followingReadsBefore);
 
+    act(() => renderer.unmount());
+  });
+
+  // A write wakes every row showing a post it changed. Each of those rows used
+  // to miss the cache and run its own SELECT during render; the store now
+  // re-reads the watched ones in one batch before the wake.
+  it('re-reads the watched posts a write changed in one batch, so their rows render without SQLite', () => {
+    const postA = makePost('batched-a');
+    const postB = makePost('batched-b');
+    const unwatched = makePost('batched-unwatched');
+    for (const post of [postA, postB, unwatched]) mockPosts.set(post.id, post);
+
+    const postARenders = jest.fn();
+    const postBRenders = jest.fn();
+    const viewsBRenders = jest.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <>
+          <PostProbe postId={postA.id} onRender={postARenders} />
+          <PostProbe postId={postB.id} onRender={postBRenders} />
+          <ViewCountProbe postId={postB.id} onRender={viewsBRenders} />
+        </>,
+      );
+    });
+    mockPostReadCounts.clear();
+    postARenders.mockClear();
+    postBRenders.mockClear();
+    viewsBRenders.mockClear();
+
+    const likedA = { ...postA, engagement: { ...postA.engagement, likes: 7 } };
+    const viewedB = { ...postB, engagement: { ...postB.engagement, views: 12 } };
+    act(() => {
+      usePostsStore.getState().cachePosts([likedA, viewedB, unwatched]);
+    });
+
+    expect(mockPostBatchReads).toEqual([[postA.id, postB.id]]);
+    expect(mockPostReadCounts.size).toBe(0);
+    expect(postARenders.mock.calls.at(-1)?.[0]?.engagement.likes).toBe(7);
+    expect(postBRenders.mock.calls.at(-1)?.[0]?.engagement.views).toBe(12);
+    expect(viewsBRenders.mock.calls.at(-1)?.[0]).toBe(12);
+
+    // A post nobody watches is not read until a row asks for it.
+    act(() => renderer.unmount());
+    act(() => {
+      renderer = TestRenderer.create(
+        <PostProbe postId={unwatched.id} onRender={() => undefined} />,
+      );
+    });
+    expect(mockPostReadCounts.get(unwatched.id)).toBe(1);
+    act(() => renderer.unmount());
+  });
+
+  it('a deleted post renders as gone from the batch read, without a SQLite read of its own', () => {
+    const post = makePost('batched-deleted');
+    mockPosts.set(post.id, post);
+    const renders = jest.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<PostProbe postId={post.id} onRender={renders} />);
+    });
+    mockPostReadCounts.clear();
+
+    act(() => {
+      usePostsStore.getState().removePostEverywhere(post.id);
+    });
+
+    expect(renders.mock.calls.at(-1)?.[0]).toBeNull();
+    expect(mockPostReadCounts.size).toBe(0);
     act(() => renderer.unmount());
   });
 

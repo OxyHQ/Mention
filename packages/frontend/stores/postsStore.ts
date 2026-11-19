@@ -431,15 +431,25 @@ const subscribeToSnapshotKey = (
   };
 };
 
+/**
+ * Wakes each key's listeners after a write. With `freshValue`, a key somebody is
+ * watching gets its new value stored first, so the render the wake causes reads
+ * it from the cache; a key nobody watches is just forgotten and read on demand.
+ */
 const notifySnapshotKeys = <T>(
   cache: Map<string, T>,
   listenersByKey: Map<string, Set<SnapshotListener>>,
   revisionsByKey: Map<string, number>,
   keys: Iterable<string>,
+  freshValue?: (key: string) => T,
 ) => {
   for (const key of new Set(keys)) {
     if (!key) continue;
-    cache.delete(key);
+    if (freshValue && listenersByKey.has(key)) {
+      setBoundedSnapshot(cache, key, freshValue(key), MAX_POST_SNAPSHOTS);
+    } else {
+      cache.delete(key);
+    }
     wakeSnapshotKey(listenersByKey, revisionsByKey, key);
   }
 };
@@ -459,15 +469,49 @@ const wakeSnapshotKey = (
   for (const listener of listeners) listener();
 };
 
-const notifyViewCountChanges = (postIds: Iterable<string>) =>
-  notifySnapshotKeys(viewCountCache, viewCountListeners, viewCountRevisions, postIds);
+/** `undefined`: no row for the post; `null`: a row with no count. See `viewCountCache`. */
+const viewCountOf = (post: FeedItem | null | undefined): number | null | undefined =>
+  post ? (post.engagement.views ?? null) : undefined;
+
+/**
+ * The posts among `postIds` that a mounted reader watches on any of `channels`,
+ * re-read from SQLite in ONE batched query. A write wakes every row showing the
+ * post it changed; each of those rows used to miss the cache and run its own
+ * `SELECT` and `JSON.parse` during render. Reading them here, once, before the
+ * wake, keeps SQLite out of render.
+ */
+const readWatchedPosts = (
+  postIds: ReadonlySet<string>,
+  ...channels: Map<string, Set<SnapshotListener>>[]
+): Record<string, FeedItem> => {
+  const watched = [...postIds].filter((id) => channels.some((listeners) => listeners.has(id)));
+  return watched.length > 0 ? dbGetPostsByIds(watched) : {};
+};
+
+const wakeViewCounts = (postIds: ReadonlySet<string>, fresh: Record<string, FeedItem>) =>
+  notifySnapshotKeys(viewCountCache, viewCountListeners, viewCountRevisions, postIds, (id) =>
+    viewCountOf(fresh[id]),
+  );
+
+const notifyViewCountChanges = (postIds: Iterable<string>) => {
+  const ids = new Set(postIds);
+  wakeViewCounts(ids, readWatchedPosts(ids, viewCountListeners));
+};
 
 const notifyPostChanges = (postIds: Iterable<string>) => {
-  notifySnapshotKeys(postSnapshotCache, postSnapshotListeners, postSnapshotRevisions, postIds);
+  const ids = new Set(postIds);
+  const fresh = readWatchedPosts(ids, postSnapshotListeners, viewCountListeners);
+  notifySnapshotKeys(
+    postSnapshotCache,
+    postSnapshotListeners,
+    postSnapshotRevisions,
+    ids,
+    (id) => fresh[id] ?? null,
+  );
   // A post rewrite carries the server's view count in with it (a feed page, a
   // detail read, a cache seed), so the view channel is woken by every write to
   // the post — only the reverse is one-way.
-  notifyViewCountChanges(postIds);
+  wakeViewCounts(ids, fresh);
 };
 
 const notifyFeedChanges = (feedKeys: Iterable<string>) =>
@@ -1988,15 +2032,14 @@ export const applyServerViewCounts = (viewCounts: FeedPostViewCounts): void => {
 
 const getViewCountSnapshot = (postId: string, _revision: number): number | null | undefined => {
   if (viewCountCache.has(postId)) return viewCountCache.get(postId);
-  const post = dbGetPostById(postId);
-  const views = post ? (post.engagement.views ?? null) : undefined;
+  const views = viewCountOf(dbGetPostById(postId));
   setBoundedSnapshot(viewCountCache, postId, views, MAX_POST_SNAPSHOTS);
   return views;
 };
 
-// The post cache is evicted on every write to a post (`notifyPostChanges`), so
-// an entry here is as fresh as a SQLite read — the feed read only parses posts
-// it does not already hold.
+// Every write to a post re-reads it into this cache when a reader watches it,
+// and evicts it otherwise (`notifyPostChanges`), so an entry here is as fresh as
+// a SQLite read — the feed read only parses posts it does not already hold.
 const reuseCachedPost = (postId: string): FeedItem | null | undefined =>
   postSnapshotCache.get(postId) ?? undefined;
 
