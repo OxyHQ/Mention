@@ -13,6 +13,7 @@ bun run lint             # expo lint . (Biome covers the rest from the root)
 bun run test             # Jest, --runInBand
 bun run test:coverage    # what CI runs; policy in coverage-policy.json
 bun run build            # web export with tree shaking
+OXY_LOCAL_BLOOM_SOURCE=<Bloom checkout> bun run dev:local   # Metro on local Bloom source, Fast Refresh (docs/development.md)
 ```
 
 ## Conventions

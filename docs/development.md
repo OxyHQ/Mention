@@ -34,6 +34,54 @@ bun run lint:fix / format   # Biome
 - **Do NOT regenerate `bun.lock` from scratch.** `.github/scripts/verify-lockfile.sh origin/main` prints the minimal correct delta, and compares the COMMITTED lockfile.
 - `validate:lockfile` check 4 is the only gate that catches a catalogued bump landing a major its dependents reject; deliberate cases live in `ACCEPTED_OVERRIDE_RANGE_VIOLATIONS`.
 
+## Developing against a local Bloom checkout
+
+Edit Bloom source and see it in Mention right away, on a phone and on web, without
+packing, publishing or reinstalling. Run from `packages/frontend`:
+
+```bash
+OXY_LOCAL_BLOOM_SOURCE=$HOME/Oxy/Bloom/.worktrees/<name> bun run dev:local   # Metro for the phone (LAN / adb reverse); `dev` for a tunnel
+OXY_LOCAL_BLOOM_SOURCE=$HOME/Oxy/Bloom/.worktrees/<name> bun run web         # Expo web
+```
+
+Metro prints `[metro] Local sources: @oxy.so/bloom, … from <path>` when the mode is on.
+With the variable unset, `metro.config.js` never loads `metro.local-sources.js`:
+installs, `bun.lock`, Jest, typecheck, exports and CI keep the published package, and
+nothing is written to `package.json` or `node_modules`.
+
+What it does: every `@oxy.so/bloom/*` request (Mention's and other packages', such
+as `@oxy.so/services`) resolves to the file Bloom's `react-native` export names in
+the checkout's `src/`, and Metro picks the platform fork from there (`index.web.ts`,
+`Button.web.tsx` on web). Bloom's sibling packages with a JS entry (`bloom-text`,
+`bloom-editor`) resolve the same way. The checkout is a watch folder, so an edit
+Fast Refreshes like app code (a new file or a regenerated export map too, without
+a restart). A bare import made from the checkout resolves from Mention, never from
+the checkout's own `node_modules`, `lib/` or `android/` (all ignored), so there is
+one React, React Native, Reanimated, worklets, NativeWind and react-native-css. The
+Bloom checkout needs neither `bun install` nor `bun run build`.
+`OXY_LOCAL_PEABLE_SDK_SOURCE=<Peable packages/sdk>` adds the Peable checkout UI the
+same way, alone or together with Bloom ([payments](./mention-plus-payments.md)).
+
+- **JS/TS changes hot-reload; native changes need a native build.** The app binary
+  carries the Kotlin/Swift of the Bloom installed in `node_modules` (`android/`,
+  `@oxy.so/bloom-lens`, `app.plugin.js`, `expo-module.config.json`). After changing
+  any of those, build a dev client once from an install that contains them (the
+  packed tarball in an isolated worktree, never committed), install it, then use this
+  mode for the JS. Local JS that needs native code the binary lacks takes Bloom's
+  fallback or fails.
+- **CSS comes from the installed Bloom.** `global.css` imports
+  `@oxy.so/bloom/design-tokens/theme.css` and scans `node_modules/@oxy.so/bloom/lib`
+  for classes, so a new token, or a utility class only the local Bloom uses, is not
+  generated until that Bloom is installed.
+- **A dependency the local Bloom adds** that Mention does not have yet is unresolved.
+- **Types and tests stay on the installed Bloom**: `bun run typecheck` reports new
+  Bloom APIs as missing, and nothing here verifies the published package.
+- **React Compiler compiles the local Bloom as app code** (it skips `node_modules`),
+  so never measure performance or hook counts in this mode (Bloom
+  `docs/verification.mdx`).
+- **Only an interactive `expo start`**: the config refuses `NODE_ENV=production`,
+  `CI` (which also disables watching) and `expo export`.
+
 ## This checkout: worktrees and stub servers
 
 - **Never `git stash` here.** ~70 linked worktrees share one repository stash stack, a committed worktree stashes nothing (exit 0, no entry), and `pop` then takes another session's work into your tree. Compare against another commit with a separate detached worktree or `git show <commit>:<path>`. If it happened: a CONFLICTED pop does not drop the entry — restore your files, then VERIFY the entry survived.

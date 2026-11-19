@@ -236,19 +236,20 @@ merchant-neutral `CheckoutSheet`; `@peable.to/sdk/checkout/ui` supplies Peable
 branding and copy as an optional UI entry; Mention supplies the offer binding
 and local preview controller. Headless SDK entries do not import the sheet.
 
-For live library iteration, set `OXY_LOCAL_CHECKOUT_SOURCES=1`,
-`OXY_LOCAL_CHECKOUT_ORIGIN=http://localhost:8110`, `OXY_LOCAL_BLOOM_SOURCE` to the
-active Bloom package directory, and `OXY_LOCAL_PEABLE_SDK_SOURCE` to the active
-Peable `packages/sdk` directory. The opt-in Metro resolver watches those source
-roots, resolves Bloom's declared source exports and the SDK UI entry directly,
-and shares Mention's React/native peers. Changes in all three working trees
-then use Fast Refresh; do not replace this with repeated package-copy cycles.
+For live library iteration, set `OXY_LOCAL_BLOOM_SOURCE` to the active Bloom
+checkout and `OXY_LOCAL_PEABLE_SDK_SOURCE` to the active Peable `packages/sdk`
+directory (either alone works); see
+[local Bloom checkout](./development.md#developing-against-a-local-bloom-checkout).
+The opt-in Metro resolver watches those source roots, resolves Bloom's declared
+source exports and the SDK UI entry directly, and shares Mention's React/native
+peers. Changes in all three working trees then use Fast Refresh; do not replace
+this with repeated package-copy cycles.
 Keep installed dependencies stable while Metro is serving: directory/symlink
 replacement invalidates its file map. Verify new declarations with a temporary
 TypeScript path configuration or a separate checkout, rather than changing the
 serving worktree’s dependency layout.
-The resolver refuses production, CI and non-loopback settings and is inactive
-without the explicit flag. A published SDK version containing the optional UI
+The resolver refuses production, CI and `expo export`, and is inactive without
+those variables. A published SDK version containing the optional UI
 entry is still required before any production consumer can adopt this work.
 
 ### Local customer, payment methods and feedback
