@@ -522,3 +522,39 @@ it('records committed invalidations before a later cluster read fails', async ()
   expect(mocks.invalidate).toHaveBeenCalledWith(['old-person', 'new']);
   expect(mocks.scan).toHaveBeenCalledTimes(1);
 });
+it('answers an unchanged refresh without a transaction or the per-actor lock', async () => {
+  await actor(source, 'current-source');
+  await post(source, 'current-source');
+  const transaction = vi.spyOn(getDb(), 'transaction');
+  const result = await reconcileActorIdentityProjection({
+    actorUri: source,
+    oxyUserId: 'current-source',
+    check: 'refresh',
+  });
+  expect(transaction).not.toHaveBeenCalled();
+  expect(result).toEqual({
+    actorChanged: false,
+    postsChanged: 0,
+    authorshipConflicts: 0,
+    clustersDissolved: 0,
+    mutesPreserved: 0,
+    previousUserIds: ['current-source'],
+    oxyUserId: 'current-source',
+  });
+});
+it('still takes the locked path when a refresh finds the actor or a post out of date', async () => {
+  await actor(source, 'old-person');
+  const drifted = await post(source, 'old-person');
+  const transaction = vi.spyOn(getDb(), 'transaction');
+  const result = await reconcileActorIdentityProjection({
+    actorUri: source,
+    oxyUserId: 'current-source',
+    check: 'refresh',
+  });
+  expect(transaction).toHaveBeenCalledTimes(1);
+  expect(result.actorChanged).toBe(true);
+  expect(result.postsChanged).toBe(1);
+  expect((await getDb().select().from(posts).where(eq(posts.id, drifted.id)))[0].oxyUserId).toBe(
+    'current-source',
+  );
+});
