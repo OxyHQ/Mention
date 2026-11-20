@@ -399,10 +399,8 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
     setPreviousMayPlay(mayPlay);
     if (!mayPlay) setManualPlayback(null);
   }
-  const hasRenderedFrame = useVideoPlaybackControl(
-    player,
-    mayPlay && !hasError && (manualPlayback ?? autoPlay),
-  );
+  const asksToPlay = mayPlay && !hasError && (manualPlayback ?? autoPlay);
+  const hasRenderedFrame = useVideoPlaybackControl(player, asksToPlay);
 
   useEffect(() => {
     return () => {
@@ -525,9 +523,19 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
           nativeControls={false}
           fullscreenOptions={{ enable: !isPreviewMode && !gif }}
           allowsPictureInPicture={false}
+          watched={asksToPlay}
         />
       ),
-    [player, flightHostId, isPreviewMode, gif, desiredSource, fallbackSrc, handleSourceError],
+    [
+      player,
+      flightHostId,
+      isPreviewMode,
+      gif,
+      desiredSource,
+      fallbackSrc,
+      handleSourceError,
+      asksToPlay,
+    ],
   );
 
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
@@ -547,6 +555,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
           nativeControls={false}
           fullscreenOptions={{ enable: !isPreviewMode && !gif }}
           allowsPictureInPicture={false}
+          watched={asksToPlay}
         />
       ) : (
         // The host registers itself as the flight's anchor, so it measures the

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 import { setVideoHasRenderedFrame } from '@oxy.so/bloom/video-playback';
@@ -319,6 +320,68 @@ export function useAttachedVideoPlayer(
   return useVideoPlayerRegistry((state) =>
     attached ? (state.entries[key]?.player ?? null) : null,
   );
+}
+
+/**
+ * THE VIEW A PLAYER PAINTS INTO.
+ *
+ * On Android a player draws into one view at a time: the last `VideoView` handed
+ * it takes it (expo-video moves it with `PlayerView.switchTargetView`), and
+ * nothing gives it back when that view goes out of sight. A feed video opened
+ * into the reel is exactly that: the reel's slide takes the player, and back on
+ * Home the row kept its last frame, frozen, while the video played on into the
+ * reel's hidden view (measured on the Pixel 8a: the row's pixels identical over
+ * 1.5 s with the player PLAYING).
+ *
+ * So the registry records which presenter's view took each player last, and a
+ * presenter that starts asking its player to play while another view holds it
+ * mounts a new view, which takes the picture back. On the rising edge only: two
+ * presenters asking at once (a flight's origin and destination for a frame)
+ * would otherwise take it from each other for as long as both ask.
+ */
+interface Picture {
+  readonly holder: object | null;
+}
+const NO_PICTURE: Picture = { holder: null };
+const pictures = new WeakMap<VideoPlayer, Picture>();
+const pictureListeners = new Set<() => void>();
+const RETAKES_PICTURE = Platform.OS === 'android';
+
+function subscribePictures(listener: () => void): () => void {
+  pictureListeners.add(listener);
+  return () => {
+    pictureListeners.delete(listener);
+  };
+}
+
+function notePictureTaken(player: VideoPlayer, presenter: object): void {
+  pictures.set(player, { holder: presenter });
+  for (const listener of pictureListeners) listener();
+}
+
+/**
+ * The React key for the view `presenter` paints `player` in. It changes when the
+ * presenter starts asking to play (`watched`) while another view holds the
+ * player, and every mount of that view is recorded as taking it.
+ */
+export function usePictureView(
+  player: VideoPlayer | null,
+  presenter: object,
+  watched: boolean,
+): number {
+  const picture = useSyncExternalStore(subscribePictures, () =>
+    player ? (pictures.get(player) ?? NO_PICTURE) : NO_PICTURE,
+  );
+  const [view, setView] = useState({ watched, key: 0 });
+  if (view.watched !== watched) {
+    const lost =
+      RETAKES_PICTURE && watched && picture.holder !== null && picture.holder !== presenter;
+    setView({ watched, key: lost ? view.key + 1 : view.key });
+  }
+  useEffect(() => {
+    if (player) notePictureTaken(player, presenter);
+  }, [player, presenter, view.key]);
+  return view.key;
 }
 
 /** Emptied players waiting for their next video: the decoders a feed scroll reuses. */
