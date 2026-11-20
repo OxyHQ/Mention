@@ -549,6 +549,7 @@ export function renderFeedRow(
         attachedBelow={showThreadLink || Boolean(row.replyBranch && !row.replyBranch.endsGroup)}
         replyBranch={Boolean(row.replyBranch && row.nestingDepth > 0)}
         style={row.replyBranch ? styles.branchPost : undefined}
+        hideSeparator={Boolean(row.replyBranch)}
         nestingDepth={row.nestingDepth}
         repostedBy={row.headReposter ?? (boostedOriginal ? boostCtx?.actor : undefined)}
         repostPlacement={
