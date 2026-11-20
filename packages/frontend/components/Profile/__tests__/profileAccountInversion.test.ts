@@ -59,7 +59,7 @@ describe('nothing renders a profile without saying whose', () => {
   });
 
   it('the /you tab passes the SESSION handle, and no override', () => {
-    const source = read('app/(app)/(tabs)/you.tsx');
+    const source = read('app/(app)/(tabs)/you/index.tsx');
     expect(source).toMatch(/<ProfileScreen username=\{user\.username\}/);
     expect(source).not.toMatch(/usernameOverride/);
   });
@@ -77,6 +77,6 @@ describe('canonicalization is asked, never implied', () => {
   });
 
   it('the /you tab never asks it', () => {
-    expect(read('app/(app)/(tabs)/you.tsx')).not.toMatch(/useProfileCanonicalHref/);
+    expect(read('app/(app)/(tabs)/you/index.tsx')).not.toMatch(/useProfileCanonicalHref/);
   });
 });

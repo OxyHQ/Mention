@@ -1,20 +1,10 @@
-import type React from 'react';
 import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import {
-  Button as LanguageButton,
-  Header,
-  Icon,
-  toElement,
-  type IconComponent,
-} from '@oxy.so/bloom-language';
-import { USE_LANGUAGE_CHROME } from '@/config';
-import { Screen } from '@oxy.so/bloom/screen';
+import { Button, Embed, Icon, type IconComponent } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
@@ -121,13 +111,34 @@ const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
 /** Per-tab unread tallies. The `all` tab uses the authoritative server total. */
 type TabUnreadCounts = Record<FilterableTab, number>;
 
-// The header in the Bloom language, only when the build chooses it (see config.ts), so
-// the default build and its tests never evaluate the language.
-const languageChrome = USE_LANGUAGE_CHROME
-  ? (require('@/components/notifications/LanguageNotificationsHeader') as typeof import('@/components/notifications/LanguageNotificationsHeader'))
-  : null;
+interface HeaderAction {
+  label: string;
+  onPress: () => void;
+  busy?: boolean;
+}
 
-const NotificationsScreen: React.FC = () => {
+/** A header control: subtle, neutral, icon-only; the glyph in the ink it names. */
+function headerControl(
+  icon: IconComponent,
+  action: HeaderAction | undefined,
+  ink: 'primary' | 'foreground' = 'foreground',
+) {
+  if (!action) return null;
+  return Button(Icon(icon).foreground(ink))
+    .style('subtle')
+    .tint('neutral')
+    .shape('circle')
+    .label(action.label)
+    .disabled(action.busy ?? false)
+    .onPress(action.onPress);
+}
+
+/**
+ * Notifications, in the Bloom language: the list and its tabs are the screen's
+ * content; its title, its controls and what reselecting it does are the
+ * screen's chrome (Bloom's PageHeader; on iOS the system navigation bar).
+ */
+const NotificationsScreen = screen(function NotificationsScreen() {
   const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const isCurrentIntent = useCallback(
     (intent: NotificationIntent) =>
@@ -809,140 +820,83 @@ const NotificationsScreen: React.FC = () => {
     );
   };
 
-  return (
+  return Embed(
     <>
       <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
-      <Screen
-        reselect={{ refresh: handleRefresh }}
-        scroll="auto"
-        header={
-          languageChrome ? (
-            languageChrome.notificationsHeader({
-              title: t('notifications.title'),
-              markAllRead:
-                unreadCount > 0
-                  ? {
-                      label: t('notification.mark_all_read'),
-                      busy: markAllAsReadMutation.isPending,
-                      onPress: handleMarkAllAsRead,
-                    }
-                  : undefined,
-              privateMentions: canUsePrivateApi
-                ? {
-                    label: t('privateMentions.title', { defaultValue: 'Private mentions' }),
-                    onPress: () => router.push('/notifications/private-mentions'),
-                  }
-                : undefined,
-              subscriptions: {
-                label: t('subscription.list.title', { defaultValue: 'Activity notifications' }),
-                onPress: () => requestSettings('/settings/notifications/subscriptions'),
-              },
-              settings: {
-                label: t('notification.settings', { defaultValue: 'Notification settings' }),
-                onPress: () => requestSettings('/settings/notifications'),
-              },
-            })
-          ) : (
-            <PageHeader
-              title={t('notifications.title')}
-              presentation="floating"
-              actions={
-                <>
-                  {unreadCount > 0 ? (
-                    <Button
-                      appearance="subtle"
-                      tone="neutral"
-                      iconOnly
-                      icon={
-                        <RiCheckDoubleLine width={20} height={20} fill={theme.colors.primary} />
-                      }
-                      onPress={handleMarkAllAsRead}
-                      disabled={markAllAsReadMutation.isPending}
-                      accessibilityLabel={t('notification.mark_all_read')}
-                    />
-                  ) : null}
-                  {canUsePrivateApi ? (
-                    <Button
-                      appearance="subtle"
-                      tone="neutral"
-                      iconOnly
-                      icon={<RiLockLine width={20} height={20} fill={theme.colors.text} />}
-                      onPress={() => router.push('/notifications/private-mentions')}
-                      accessibilityLabel={t('privateMentions.title', {
-                        defaultValue: 'Private mentions',
-                      })}
-                    />
-                  ) : null}
-                  <Button
-                    appearance="subtle"
-                    tone="neutral"
-                    iconOnly
-                    icon={<RiNotification3Fill width={20} height={20} fill={theme.colors.text} />}
-                    onPress={() => requestSettings('/settings/notifications/subscriptions')}
-                    accessibilityLabel={t('subscription.list.title', {
-                      defaultValue: 'Activity notifications',
-                    })}
-                  />
-                  <Button
-                    appearance="subtle"
-                    tone="neutral"
-                    iconOnly
-                    icon={<RiSettings3Line width={20} height={20} fill={theme.colors.text} />}
-                    onPress={() => requestSettings('/settings/notifications')}
-                    accessibilityLabel={t('notification.settings', {
-                      defaultValue: 'Notification settings',
-                    })}
-                  />
-                </>
-              }
-            />
-          )
-        }
-      >
-        {canUsePrivateApi && (
-          <Tabs
-            value={activeTab}
-            onValueChange={handleTabPress}
-            pressOpenTab="reselect"
-            variant="underline"
-          >
-            {[
-              { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
-              {
-                id: 'mentions',
-                label: t('notifications.tabs.mentions'),
-                count: tabUnreadCounts.mentions,
-              },
-              {
-                id: 'follows',
-                label: t('notifications.tabs.follows'),
-                count: tabUnreadCounts.follows,
-              },
-              {
-                id: 'likes',
-                label: t('notifications.tabs.likes'),
-                count: tabUnreadCounts.likes,
-              },
-              {
-                id: 'posts',
-                label: t('notifications.tabs.posts'),
-                count: tabUnreadCounts.posts,
-              },
-              {
-                id: 'pokes',
-                label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
-                count: tabUnreadCounts.pokes,
-              },
-            ].map((tab: { id: string; label: string; count?: number }) => (
-              <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-            ))}
-          </Tabs>
-        )}
-
-        {renderContent()}
-      </Screen>
-    </>
-  );
-};
+      {canUsePrivateApi && (
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabPress}
+          pressOpenTab="reselect"
+          variant="underline"
+        >
+          {[
+            { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+            {
+              id: 'mentions',
+              label: t('notifications.tabs.mentions'),
+              count: tabUnreadCounts.mentions,
+            },
+            {
+              id: 'follows',
+              label: t('notifications.tabs.follows'),
+              count: tabUnreadCounts.follows,
+            },
+            {
+              id: 'likes',
+              label: t('notifications.tabs.likes'),
+              count: tabUnreadCounts.likes,
+            },
+            {
+              id: 'posts',
+              label: t('notifications.tabs.posts'),
+              count: tabUnreadCounts.posts,
+            },
+            {
+              id: 'pokes',
+              label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
+              count: tabUnreadCounts.pokes,
+            },
+          ].map((tab: { id: string; label: string; count?: number }) => (
+            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+          ))}
+        </Tabs>
+      )}
+      {renderContent()}
+    </>,
+  )
+    .title(t('notifications.title'))
+    .toolbar(
+      headerControl(
+        RiCheckDoubleLine,
+        unreadCount > 0
+          ? {
+              label: t('notification.mark_all_read'),
+              busy: markAllAsReadMutation.isPending,
+              onPress: handleMarkAllAsRead,
+            }
+          : undefined,
+        'primary',
+      ),
+      headerControl(
+        RiLockLine,
+        canUsePrivateApi
+          ? {
+              label: t('privateMentions.title', { defaultValue: 'Private mentions' }),
+              onPress: () => router.push('/notifications/private-mentions'),
+            }
+          : undefined,
+      ),
+      headerControl(RiNotification3Fill, {
+        label: t('subscription.list.title', { defaultValue: 'Activity notifications' }),
+        onPress: () => requestSettings('/settings/notifications/subscriptions'),
+      }),
+      headerControl(RiSettings3Line, {
+        label: t('notification.settings', { defaultValue: 'Notification settings' }),
+        onPress: () => requestSettings('/settings/notifications'),
+      }),
+    )
+    .onReselect(handleRefresh);
+});
 
 export default NotificationsScreen;

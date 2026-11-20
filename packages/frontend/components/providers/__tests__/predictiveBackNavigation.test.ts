@@ -43,21 +43,26 @@ describe('Android predictive-back navigation wiring', () => {
     expect(appConfig).toMatch(/\['@oxy\.so\/bloom',\s*\{\s*predictiveBack:\s*true/);
   });
 
-  it('uses ExperimentalStack for every app-owned native navigator', () => {
-    const standardStackImports = navigationSources.flatMap(({ path, source }) =>
+  it('builds every app-owned stack with the Bloom language’s Stack (ExperimentalStack on Android)', () => {
+    // The language's Stack is expo-router's ExperimentalStack on Android and
+    // OxyOS (Bloom's router tests hold it); no route imports a stack itself.
+    const routerStacks = navigationSources.flatMap(({ path, source }) =>
       importedExpoRouterNames(source)
-        .filter((name) => /^Stack(?:\s+as\s+\w+)?$/.test(name))
+        .filter((name) => /^(?:Experimental)?Stack(?:\s+as\s+\w+)?$/.test(name))
         .map(() => path),
     );
-    const experimentalStackImports = navigationSources.reduce(
-      (count, { source }) =>
-        count +
-        importedExpoRouterNames(source).filter((name) => name === 'ExperimentalStack').length,
-      0,
+    const languageStacks = navigationSources.filter(({ source }) =>
+      /import\s*\{[^}]*\bStack\b[^}]*\}\s*from\s*['"]@oxy\.so\/bloom-language\/router['"]/.test(
+        source,
+      ),
     );
 
-    expect(standardStackImports).toEqual([]);
-    expect(experimentalStackImports).toBe(1);
+    expect(routerStacks).toEqual([]);
+    expect(languageStacks.map(({ path }) => path.slice(appRoot.length + 1)).sort()).toEqual([
+      '(app)/(tabs)/notifications/_layout.tsx',
+      '(app)/(tabs)/you/_layout.tsx',
+      '(app)/_layout.tsx',
+    ]);
   });
 
   it('keeps the hidden-header crash workaround installed', () => {

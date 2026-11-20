@@ -63,6 +63,13 @@
       "^@oxy.so/bloom/dropdown-menu$": "<rootDir>/test-support/bloomDropdownMenu.js",
       "^@oxy.so/bloom/typography$": "<rootDir>/test-support/bloomTypography.js",
       "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js",
+      "^@oxy.so/bloom/engagement-bar$": "<rootDir>/test-support/bloomEngagementBar.js",
+      "^@oxy.so/bloom/fab$": "<rootDir>/test-support/bloomFab.js",
+      "^@oxy.so/bloom/bottom-bar$": "<rootDir>/test-support/bloomBottomBar.js",
+      "^@oxy.so/bloom/dialog$": "<rootDir>/test-support/bloomDialog.js",
+      "^@oxy.so/bloom/app-shell$": "<rootDir>/test-support/bloomAppShell.js",
+      "^@oxy.so/bloom/tab-pager$": "<rootDir>/test-support/bloomTabPager.js",
+      "^@oxy.so/bloom/tab-pager/expo-router$": "<rootDir>/test-support/bloomTabPagerRouter.js",
       "^@oxy.so/core$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/index.js",
       "^@oxy.so/protocol/(.*)$": "<rootDir>/../../node_modules/@oxy.so/protocol/dist/cjs/$1.js",
       "^@oxy.so/protocol$": "<rootDir>/../../node_modules/@oxy.so/protocol/dist/cjs/index.js"

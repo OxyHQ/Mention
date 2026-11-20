@@ -1,6 +1,9 @@
 /**
  * The five root pages — camera, Home, Videos, the composer, Notifications and
- * the profile — as Bloom's tab pager: swiped between on native, routed in place
- * on web. The pages themselves are declared in `MentionTabPager`.
+ * the profile — declared in `MentionNavigation`. In the Bloom language, the
+ * tabs group's navigator: the system tab bar on iOS, Bloom's tab pager on
+ * Android (swiped between) and the web (routed in place).
  */
-export { TabPagerLayout as default } from '@oxy.so/bloom/tab-pager/expo-router';
+import { layout, TabView } from '@oxy.so/bloom-language/router';
+
+export default layout(() => TabView());
