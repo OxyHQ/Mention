@@ -42,18 +42,21 @@ const logger = createLogger('VideoPlayerRegistry');
  * A PLAYER NOBODY HOLDS IS PARKED, NOT DESTROYED. Building an expo-video player
  * on Android builds an ExoPlayer, its playback thread and a MediaSession, and a
  * feed attaches and detaches players constantly as rows enter and leave the
- * preload window. So the last release parks the player emptied (paused, source
- * cleared, which frees its decoder and its buffer), and the next acquire for
- * any key takes a parked player and hands it the new source. Media3's own
- * short-form sample does the same with a pool of three. At most
- * {@link MAX_PARKED_PLAYERS} wait; past that a released player is destroyed.
+ * preload window, as the reel does on every swipe. So the last release parks
+ * the player emptied (paused, source cleared, which frees its decoder and its
+ * buffer), and the next acquire for any key, from either, takes a parked player
+ * and hands it the new source. Media3's own short-form sample does the same
+ * with a pool of three. At most {@link MAX_PARKED_PLAYERS} wait; past that a
+ * released player is destroyed.
  */
 
 /**
- * A player is identified by the MEDIA, not by the surface showing it: the same
- * clip reached from the feed and from the reels pager is one video and must be
- * one decoder, holding one position. A post can carry several videos, so the
- * post id alone is not enough.
+ * A player is identified by the MEDIA, not by the surface showing it: a clip the
+ * feed carries into the reels pager is one video and must be one decoder,
+ * holding one position. A post can carry several videos, so the post id alone is
+ * not enough. The reel's own slides lease under a namespace of their own
+ * (`reelPlayerKey` in the videos screen): a player paints into one view at a
+ * time, and the feed under the reel keeps its on-screen rows.
  */
 export type VideoPlayerKey = string & { readonly __brand: 'VideoPlayerKey' };
 

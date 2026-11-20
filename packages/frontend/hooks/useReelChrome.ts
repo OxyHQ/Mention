@@ -48,12 +48,12 @@ const DOUBLE_TAP_WINDOW_MS = 280;
 export const REEL_TIME_UPDATE_INTERVAL_S = 0.25;
 
 /**
- * Raises a player's `timeUpdate` cadence to the reel's. A function rather than
- * an assignment in the hook: the player IS a mutable native object, and the
- * React Compiler treats a hook argument as immutable.
+ * Presents a player as a reel: looping, at the reel's `timeUpdate` cadence. A
+ * function rather than an assignment in the hook: the player IS a mutable native
+ * object, and the React Compiler treats a hook argument as immutable.
  */
-function ensureReelTimeUpdates(target: VideoPlayer): void {
-  Object.assign(target, { timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
+function presentAsReel(target: VideoPlayer): void {
+  Object.assign(target, { loop: true, timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
 }
 
 // Namespace for this screen's playback ids in the app-wide video authority. A
@@ -311,12 +311,13 @@ export function useReelChrome({
     }
   });
 
-  // The scrubber and the buffer-ahead report both ride `timeUpdate`, so the
-  // player has to emit it. A slide's own player is built with this cadence; an
-  // ADOPTED one was configured by the feed row that built it, which leaves the
-  // event off (no feed row draws a progress bar).
+  // A reel loops, and its scrubber and buffer-ahead report both ride
+  // `timeUpdate`, so the player has to emit it. Whoever handed the player over
+  // set neither: the registry hands out players reset (parked players are
+  // emptied back to `loop: false` and no `timeUpdate`), and an ADOPTED one was
+  // configured by the feed row that built it (no feed row draws a progress bar).
   useEffect(() => {
-    ensureReelTimeUpdates(player);
+    presentAsReel(player);
   }, [player]);
 
   // Single place that syncs the live player's mute with the store.
