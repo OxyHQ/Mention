@@ -570,7 +570,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // useful in the standard height, so a row holding one grows for all its items.
     const isSingleItem = items.length === 1;
     const rowHeight = items.some((item) => item.type === 'poll') ? TALL_ROW_HEIGHT : ROW_HEIGHT;
-    const rowItemHeight = isSingleItem ? undefined : rowHeight;
     const isTallRow = rowHeight === TALL_ROW_HEIGHT;
     // The same two heights as classes, for the cells that take their size from
     // layout. Literal strings: NativeWind compiles them at build time.

@@ -24,7 +24,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 const logger = createLogger('ScheduledPostsList');
 
-export interface ScheduledPostsListProps {
+interface ScheduledPostsListProps {
   posts: HydratedPost[];
   isLoading: boolean;
   isError: boolean;

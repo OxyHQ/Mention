@@ -34,7 +34,7 @@ const DEFAULT_PERIOD_DAYS = 30;
  * The account a period-scoped read is about. Omitted ⇒ the signed-in viewer,
  * which is what every call made before channels had an insights page.
  */
-export interface InsightsSubjectOptions {
+interface InsightsSubjectOptions {
   accountId?: string;
 }
 
@@ -77,7 +77,7 @@ export interface AccountInsights {
   postsByType: Record<string, number>;
 }
 
-export interface PostInsights {
+interface PostInsights {
   postId: string;
   createdAt: string;
   stats: {
@@ -130,7 +130,7 @@ export interface EngagementRatios {
   };
 }
 
-export interface FollowerChanges {
+interface FollowerChanges {
   period: {
     startDate: string;
     endDate: string;
@@ -148,12 +148,12 @@ export interface FollowerChanges {
   };
 }
 
-export interface WeeklySummary {
+interface WeeklySummary {
   summary: string | null;
 }
 
 /** Acknowledgement of a recorded post view, carrying the fresh total. */
-export interface PostViewAck {
+interface PostViewAck {
   success: boolean;
   viewsCount: number;
 }

@@ -2,7 +2,7 @@ import { feedService, type ExtendedFeedRequest } from '@/services/feedService';
 import type { FeedPageParam } from '@/stores/feedQueryCache';
 import type { FeedReadIdentity } from '@/stores/feedStaleness';
 
-export const FEED_PAGE_SIZE = 20;
+const FEED_PAGE_SIZE = 20;
 
 export type FeedPageResponse = Awaited<ReturnType<typeof feedService.getFeed>>;
 

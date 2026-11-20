@@ -46,42 +46,34 @@ export type MentionJobDiscoveryFilters = {
 };
 
 /** Query params shared by `GET /jobs/mine` and `GET /jobs/organization/:id`. Same type-alias-not-interface reason as {@link MentionJobDiscoveryFilters}. */
-export type MentionJobOwnedFilters = {
+type MentionJobOwnedFilters = {
   status?: MentionJobStatus;
   limit?: number;
 };
 
 /** Query params for `GET /jobs/places/search`. Same type-alias-not-interface reason as {@link MentionJobDiscoveryFilters}. */
-export type MentionJobPlaceSearchParams = {
+type MentionJobPlaceSearchParams = {
   q: string;
   countryCode?: CountryCode;
   kind?: 'city' | 'region';
   limit?: number;
 };
 
-export interface MentionJobListResponse {
-  jobs: MentionJobPosting[];
-  nextCursor?: string;
-}
-
 /**
  * `GET /jobs`'s actual response — proxied UNMODIFIED from Clarity
  * (`jobs.controller.ts#search`: `res.json(result)` where `result` is
  * `client.jobs.search(...)`'s own return value). That is `JobSearchResponse`
  * (`{data: JobSearchResult[], nextCursor?, mode, degraded?}`) — a different
- * shape from every other read in this file, none of which is
- * `MentionJobListResponse` (a Mention-authored `{jobs: MentionJobPosting[]}`
- * page). `list()` below is fixed to this shape rather than reusing
- * `MentionJobListResponse`, which was never populated by anything this route
- * returns.
+ * shape from every other read in this file (Mention-authored `{jobs: MentionJobPosting[]}`
+ * pages), so `list()` below is typed to this shape.
  */
-export type MentionJobDiscoveryResponse = JobSearchResponse;
+type MentionJobDiscoveryResponse = JobSearchResponse;
 
-export interface MentionJobCollectionResponse {
+interface MentionJobCollectionResponse {
   jobs: MentionJobPosting[];
 }
 
-export interface MentionJobResponse {
+interface MentionJobResponse {
   job: MentionJobPosting;
 }
 

@@ -1,7 +1,7 @@
 /** Local provider capability fixtures, never live financing eligibility or a credit decision. */
-export type InstallmentFamily = 'pay_later' | 'pay_in_3' | 'pay_in_4' | 'financing';
+type InstallmentFamily = 'pay_later' | 'pay_in_3' | 'pay_in_4' | 'financing';
 export type InstallmentPreviewDecision = 'available' | 'pending' | 'rejected' | 'unavailable';
-export type PurchaseKind = 'one_time' | 'subscription';
+type PurchaseKind = 'one_time' | 'subscription';
 export interface MerchantInstallmentPreferences {
   enabled: boolean;
   families: readonly InstallmentFamily[];

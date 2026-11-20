@@ -227,8 +227,6 @@ const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
 const bottomLeftPadWithHPadStyle = { marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD };
 const avatarMarginStyle = { marginRight: 12 };
 
-export type { ComposePresentation };
-
 export interface ComposeScreenProps {
   presentation?: ComposePresentation;
 }

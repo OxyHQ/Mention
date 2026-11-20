@@ -19,7 +19,7 @@ import { formatScheduledLabel } from '@/utils/dateUtils';
 
 const logger = createLogger('ScheduledPostPreview');
 
-export interface ScheduledPostPreviewProps {
+interface ScheduledPostPreviewProps {
   post: HydratedPost;
   onBack: () => void;
   /** Load the previewed post back into the composer. */

@@ -9,7 +9,7 @@ import PostItem from '@/components/Feed/PostItem';
 import { NoteSheetHeader } from './NoteSheetHeader';
 
 /** The longest note CrowdSource accepts. */
-export const COMMUNITY_NOTE_MAX_LENGTH = 500;
+const COMMUNITY_NOTE_MAX_LENGTH = 500;
 
 export interface CommunityNoteDraft {
   text: string;

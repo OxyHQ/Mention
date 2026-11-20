@@ -11,7 +11,6 @@ export const MEDIA_CARD_HEIGHT = 180;
 export const SINGLE_MEDIA_MAX_HEIGHT = 420;
 /** Corner radius of post media cards (thumbnail + zoomed gallery image). */
 export const MEDIA_CARD_RADIUS = 15;
-export const POLL_ATTACHMENT_KEY = 'poll';
 export const ARTICLE_ATTACHMENT_KEY = 'article';
 export const EVENT_ATTACHMENT_KEY = 'event';
 export const LOCATION_ATTACHMENT_KEY = 'location';
@@ -20,13 +19,13 @@ export const ROOM_ATTACHMENT_KEY = 'room';
 export const PODCAST_ATTACHMENT_KEY = 'podcast';
 /** OxyHQ/Mention#952 — the ROOT post only (see `useJobAttachmentManager.ts`). */
 export const JOB_ATTACHMENT_KEY = 'job';
-export const MEDIA_ATTACHMENT_PREFIX = 'media:';
+const MEDIA_ATTACHMENT_PREFIX = 'media:';
 /**
  * A post can carry several link previews, so each detected link gets its OWN
  * carousel key (keyed by URL) — the same per-item pattern media uses. A single
  * shared "link" key would make the whole set move and be removed as one block.
  */
-export const LINK_ATTACHMENT_PREFIX = 'link:';
+const LINK_ATTACHMENT_PREFIX = 'link:';
 
 export const createMediaAttachmentKey = (id: string) => `${MEDIA_ATTACHMENT_PREFIX}${id}`;
 export const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
@@ -64,7 +63,7 @@ export const toComposerMediaType = (value?: string, mime?: string): ComposerMedi
   return 'image';
 };
 
-export const normalizeUrl = (raw: string): string | null => {
+const normalizeUrl = (raw: string): string | null => {
   if (!raw || typeof raw !== 'string') return null;
   let value = raw.trim();
   if (!value) return null;

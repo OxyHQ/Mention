@@ -72,5 +72,3 @@ export const RoomsListSkeleton: React.FC = () => (
     ))}
   </Skeleton.Region>
 );
-
-export default RoomsListSkeleton;

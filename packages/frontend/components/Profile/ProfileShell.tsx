@@ -1,6 +1,6 @@
 import { resolveProfileColor, type ProfileColor } from '@oxy.so/bloom/color-presets';
 import type React from 'react';
-import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
 import { Platform, View, type ViewProps } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';

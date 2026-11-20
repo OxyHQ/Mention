@@ -62,7 +62,7 @@ export const CONTENT_LANGUAGES: readonly ContentLanguage[] = [
 ];
 
 /** The tag used when the app locale resolves to nothing usable. */
-export const FALLBACK_CONTENT_LANGUAGE_TAG = 'en';
+const FALLBACK_CONTENT_LANGUAGE_TAG = 'en';
 
 const BY_TAG = new Map(CONTENT_LANGUAGES.map((language) => [language.tag, language]));
 

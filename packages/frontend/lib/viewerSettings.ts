@@ -6,7 +6,7 @@ import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys, type ViewerId } from '@/lib/viewerQueryKeys';
 import { authenticatedClient, isNotFoundError } from '@/utils/api';
 
-export interface PrivacySettings {
+interface PrivacySettings {
   profileVisibility?: 'public' | 'private' | 'followers_only';
   showContactInfo?: boolean;
   allowTags?: boolean;
@@ -25,7 +25,7 @@ export interface PrivacySettings {
   restrictedUsers?: string[];
 }
 
-export interface NotificationPreferences {
+interface NotificationPreferences {
   pushEnabled?: boolean;
   likes?: boolean;
   boosts?: boolean;

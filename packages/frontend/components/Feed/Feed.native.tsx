@@ -255,7 +255,6 @@ const Feed = (props: FeedProps) => {
   const core = useFeedCore(props);
   const {
     props: {
-      type,
       hideRefreshControl,
       scrollEnabled,
       style,

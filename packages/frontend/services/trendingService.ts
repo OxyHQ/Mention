@@ -46,7 +46,7 @@ export interface TrendingTopic {
  * gives one resource two addresses, freezes a shared link's title at the moment
  * it was copied, and lets anyone hand a reader a name the server never chose.
  */
-export interface TrendDetail {
+interface TrendDetail {
   displayName?: string;
   category?: TrendCategory;
   /** Historical stored description, when one exists. */

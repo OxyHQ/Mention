@@ -1,6 +1,6 @@
 const ENGAGEMENT_QUEUE_KEY_PREFIX = 'mention-engagement-queue:v2';
 
-export interface PersistedEngagementQueue<T> {
+interface PersistedEngagementQueue<T> {
   version: 2;
   viewerId: string;
   updates: Record<string, T[]>;

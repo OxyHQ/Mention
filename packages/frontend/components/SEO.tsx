@@ -47,7 +47,7 @@ const DEFAULT_IMAGE_TAGS: ReadonlyArray<readonly ['property' | 'name', string, s
 ];
 
 /** Marks the nodes {@link useDefaultImageTags} owns, so it never touches anyone else's. */
-export const DEFAULT_IMAGE_TAG_MARKER = 'data-mention-default-og';
+const DEFAULT_IMAGE_TAG_MARKER = 'data-mention-default-og';
 
 /** The exported homepage and runtime share the same real public asset. */
 const DEFAULT_IMAGE = `${WEB_BASE_URL.replace(/\/$/, '')}/og-image.jpg`;
@@ -62,7 +62,7 @@ const DEFAULT_IMAGE = `${WEB_BASE_URL.replace(/\/$/, '')}/og-image.jpg`;
  * `og:image` (`data-mention-seo`) comes with its own descriptors, and is
  * released once the route's metadata has committed.
  */
-export function syncDefaultImageTags(head: HTMLHeadElement): void {
+function syncDefaultImageTags(head: HTMLHeadElement): void {
   const image = head.querySelector('meta[property="og:image"][data-rh]')?.getAttribute('content');
   const owned = head.querySelectorAll(`meta[${DEFAULT_IMAGE_TAG_MARKER}]`);
   const wanted = image === DEFAULT_IMAGE;
@@ -233,5 +233,3 @@ export const SEO: React.FC<SEOProps> = ({
     </ExpoHead>
   );
 };
-
-export default SEO;

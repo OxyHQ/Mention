@@ -28,7 +28,7 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
-export type PodcastCardVariant = 'full' | 'card' | 'video';
+type PodcastCardVariant = 'full' | 'card' | 'video';
 
 interface PodcastCardProps {
   title: string;

@@ -35,5 +35,3 @@ export const ComposeAltButton: React.FC<ComposeAltButtonProps> = ({ hasAlt, rais
     <Text className="text-white text-[11px] font-bold">ALT</Text>
   </TouchableOpacity>
 );
-
-export default ComposeAltButton;

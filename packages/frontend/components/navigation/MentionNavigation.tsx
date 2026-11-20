@@ -57,7 +57,7 @@ function ProfileAvatar({ width }: { width?: number }) {
  * On web the profile is the viewer's own `/@handle`; on native it is `/you`.
  * The sidebar lists Profile second, right after Home (`sidebarAfter`).
  */
-export function useMentionDestinations(): AppDestination[] {
+function useMentionDestinations(): AppDestination[] {
   const { t } = useTranslation();
   const { user, showBottomSheet } = useAuth();
   const haptic = useHaptics();

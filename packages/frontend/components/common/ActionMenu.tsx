@@ -13,7 +13,7 @@ interface ActionMenuGroupProps {
 }
 
 /** Related actions rendered with Bloom's shared grouped-section styling. */
-export const ActionMenuGroup = memo(function ActionMenuGroup({ actions }: ActionMenuGroupProps) {
+const ActionMenuGroup = memo(function ActionMenuGroup({ actions }: ActionMenuGroupProps) {
   if (actions.length === 0) return null;
 
   return (
@@ -41,7 +41,7 @@ interface ActionMenuRequest {
   groups: ActionMenuAction[][];
 }
 
-/** The menu currently on screen, so `hideActionMenu()` can dismiss it. */
+/** The menu currently on screen, so opening another one dismisses it first. */
 let activeMenu: SurfaceControls | null = null;
 
 /**
@@ -103,10 +103,4 @@ export function showCancelableActionMenu(
   request: ActionMenuRequest & { signal: AbortSignal; onClosed?: () => void },
 ): Promise<void> {
   return presentActionMenu(request);
-}
-
-/** Close the action menu without running an action. */
-export function hideActionMenu(): void {
-  activeMenu?.dismiss();
-  activeMenu = null;
 }

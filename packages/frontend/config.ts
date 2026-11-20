@@ -69,9 +69,6 @@ export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://men
 export const ALLO_APP_STORE_URL = process.env.EXPO_PUBLIC_ALLO_APP_STORE_URL || '';
 export const ALLO_PLAY_STORE_URL = process.env.EXPO_PUBLIC_ALLO_PLAY_STORE_URL || '';
 
-// KLIPY API
-export const KLIPY_APP_KEY = process.env.EXPO_PUBLIC_KLIPY_APP_KEY || '';
-
 // Non-secret, build-time branding generated from the server deployment manifest.
 export const INSTANCE_NAME = process.env.EXPO_PUBLIC_INSTANCE_NAME || 'Mention';
 export const INSTANCE_LOGO_URL = process.env.EXPO_PUBLIC_INSTANCE_LOGO_URL || '';

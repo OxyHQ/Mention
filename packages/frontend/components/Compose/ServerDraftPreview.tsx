@@ -16,7 +16,7 @@ import {
   otherDraftLanguages,
 } from './serverDraftActions';
 
-export interface ServerDraftPreviewProps {
+interface ServerDraftPreviewProps {
   post: HydratedPost;
   onBack: () => void;
   /** Open the previewed draft in the composer. */

@@ -7,13 +7,13 @@ const logger = createLogger('MuteWordsService');
  * Where a muted word is matched. `content` matches post body text;
  * `tag` matches a post's hashtags.
  */
-export type MuteWordTarget = 'content' | 'tag';
+type MuteWordTarget = 'content' | 'tag';
 
 /**
  * Which authors a muted word applies to. `all` mutes everyone;
  * `exclude-following` leaves accounts you follow unaffected.
  */
-export type MuteWordActorTarget = 'all' | 'exclude-following';
+type MuteWordActorTarget = 'all' | 'exclude-following';
 
 /**
  * Serialized muted word as returned by the backend `/mute-words` API.

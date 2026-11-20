@@ -19,9 +19,6 @@ interface FeedHeaderProps {
   promptText?: string;
 }
 
-/** 56px composer plus its 12px outer margins; reply footers reserve this height. */
-export const FEED_COMPOSER_PROMPT_HEIGHT = 80;
-
 /** Social template composer, with Mention's real account and camera destinations. */
 export const FeedHeader = memo<FeedHeaderProps>(
   ({ showComposeButton, onComposePress, hideHeader, promptText }) => {

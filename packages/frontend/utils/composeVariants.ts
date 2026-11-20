@@ -42,7 +42,7 @@ export interface ComposeVariantArticle {
  * When the set is replaced, each {@link ComposerMediaItem} carries its own alt,
  * which is why a second alt map would be a second source of truth.
  */
-export type ComposeVariantMedia =
+type ComposeVariantMedia =
   | { mode: 'inherit'; alt: Record<string, string> }
   | { mode: 'override'; media: ComposerMediaItem[] };
 
@@ -123,7 +123,7 @@ export function variantTextsForItem(
 }
 
 /** Whether a rendition holds anything at all. An untouched tab is not content. */
-export function hasVariantContent(item: ComposeVariantItem): boolean {
+function hasVariantContent(item: ComposeVariantItem): boolean {
   if (item.text.trim().length > 0) return true;
   if (item.article && (item.article.title.trim().length > 0 || item.article.body.trim().length > 0))
     return true;
@@ -142,7 +142,7 @@ export function canAddLanguage(state: ComposeVariantsState): boolean {
 }
 
 /** A language already in use cannot be added again, nor become the primary. */
-export function isTagInUse(state: ComposeVariantsState, tag: string): boolean {
+function isTagInUse(state: ComposeVariantsState, tag: string): boolean {
   return allTags(state).includes(tag);
 }
 
@@ -158,7 +158,7 @@ export function isTagInUse(state: ComposeVariantsState, tag: string): boolean {
  * server-side detection, exactly as today) is the correct payload until the
  * author says otherwise.
  */
-export function hasDeclaredLanguages(state: ComposeVariantsState): boolean {
+function hasDeclaredLanguages(state: ComposeVariantsState): boolean {
   return state.primaryChosen || state.variantTags.length > 0;
 }
 

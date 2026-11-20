@@ -11,27 +11,27 @@ import type {
 const jobsBase = (jobId: string) => `/jobs/${jobId}`;
 
 /** Query params for `GET /jobs/:id/applications` (employer-only). Type alias, not interface — same `params` assignability reason as `jobsService.ts`'s `MentionJobDiscoveryFilters`. */
-export type MentionJobApplicationListFilters = {
+type MentionJobApplicationListFilters = {
   status?: MentionJobApplicationStatus;
   limit?: number;
   cursor?: string;
 };
 
-export interface MentionJobApplicationListResponse {
+interface MentionJobApplicationListResponse {
   applications: MentionJobApplication[];
   hasMore: boolean;
   nextCursor?: string;
 }
 
-export interface MentionJobApplicationResponse {
+interface MentionJobApplicationResponse {
   application: MentionJobApplication;
 }
 
-export interface MentionJobApplicationNoteListResponse {
+interface MentionJobApplicationNoteListResponse {
   notes: MentionJobApplicationNote[];
 }
 
-export interface MentionJobApplicationNoteResponse {
+interface MentionJobApplicationNoteResponse {
   note: MentionJobApplicationNote;
 }
 
@@ -143,8 +143,6 @@ export const jobApplicationsService = new JobApplicationsService();
 // are identical for application writes, so a second copy of the same three
 // status-code checks would just be a second place for them to drift apart.
 export {
-  isJobEntitlementError,
   isJobForbiddenError,
-  isJobServiceUnavailableError,
   getJobErrorMessage,
 } from './jobsService';

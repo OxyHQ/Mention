@@ -1,4 +1,4 @@
-import type { ViewStyle, TextStyle } from 'react-native';
+import type { TextStyle } from 'react-native';
 
 /**
  * react-native-web accepts a handful of CSS values/properties that are valid on
@@ -24,25 +24,11 @@ type WebOnlyStyleProps = {
 /** Keys `WebOnlyStyleProps` redefines — omit them from the base before intersecting. */
 type WebOnlyStyleKeys = keyof WebOnlyStyleProps;
 
-/** Viewport-relative length values valid in CSS but absent from RN's number-only sizes. */
-type WebLength = `${number}vh` | `${number}vw` | `calc(${string})`;
-
-/** ViewStyle plus web-only CSS values/properties react-native-web understands. */
-export type WebViewStyle = Omit<ViewStyle, 'position' | 'height' | 'width' | WebOnlyStyleKeys> &
-  WebOnlyStyleProps & {
-    position?: ViewStyle['position'] | 'sticky' | 'fixed';
-    height?: ViewStyle['height'] | WebLength;
-    width?: ViewStyle['width'] | WebLength;
-  };
-
 /** TextStyle plus web-only CSS values/properties react-native-web understands. */
 export type WebTextStyle = Omit<TextStyle, 'position' | WebOnlyStyleKeys> &
   WebOnlyStyleProps & {
     position?: TextStyle['position'] | 'sticky' | 'fixed';
   };
-
-/** Bridge a `WebViewStyle` back to RN's `ViewStyle` at the consumption point. */
-export const asViewStyle = (style: WebViewStyle): ViewStyle => style as unknown as ViewStyle;
 
 /** Bridge a `WebTextStyle` back to RN's `TextStyle` at the consumption point. */
 export const asTextStyle = (style: WebTextStyle): TextStyle => style as unknown as TextStyle;

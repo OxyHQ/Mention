@@ -3,7 +3,7 @@ import type { Href } from '@/lib/navigation/router';
 import type { PostPanelKind } from './postEngagementContext';
 import { createReplyDraft, type ReplyDraft } from '@/components/Post/replyDraft';
 
-export interface PostEngagementDestination {
+interface PostEngagementDestination {
   postId: string;
   kind: PostPanelKind;
   route: string;

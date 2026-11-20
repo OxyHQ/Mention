@@ -17,13 +17,13 @@ import {
   type PlusCadence,
 } from '@/lib/payments/plusCheckout';
 
-export const mentionPlusBinding = plusOfferBinding(
+const mentionPlusBinding = plusOfferBinding(
   MENTION_PLUS_OFFER_ID,
   MENTION_PLUS_OFFER_VERSION,
   MENTION_PLUS_PRODUCT_ID,
   MENTION_PLUS_CAPABILITY_KEY,
 );
-export const mentionPlusBindings = {
+const mentionPlusBindings = {
   month: mentionPlusBinding,
   year: plusOfferBinding(
     MENTION_PLUS_ANNUAL_OFFER_ID,

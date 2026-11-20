@@ -8,7 +8,7 @@ import type { ProfileData } from '@/hooks/useProfileData';
  * Centralized type definitions following industry standards
  */
 
-import type { FollowButton, FollowVerb, useAuth } from '@oxy.so/services/ui/client';
+import type { FollowButton, FollowVerb } from '@oxy.so/services/ui/client';
 
 // Tab configuration
 export const TAB_NAMES = [
@@ -322,9 +322,6 @@ export function shouldGridOwnProfileScroll(input: {
   );
 }
 
-// Bottom sheet open helper from useAuth().showBottomSheet
-export type ShowBottomSheetFn = NonNullable<ReturnType<typeof useAuth>['showBottomSheet']>;
-
 // Props for the main ProfileScreen component
 export interface ProfileScreenProps {
   /**
@@ -352,7 +349,7 @@ export interface ProfileScreenProps {
 }
 
 // Keep injected follow controls aligned with the SDK's single-user contract.
-export type FollowButtonComponent = React.ComponentType<
+type FollowButtonComponent = React.ComponentType<
   Extract<React.ComponentProps<typeof FollowButton>, { userId: string }>
 >;
 
@@ -421,11 +418,11 @@ export interface UserNameProps {
   handleTrailing?: React.ReactNode;
 }
 
-export type UserNameComponent = React.ComponentType<UserNameProps>;
+type UserNameComponent = React.ComponentType<UserNameProps>;
 
 // What both headers need to draw an account at all. Everything past this point
 // differs, which is why there are two headers rather than one with flags.
-export interface ProfileHeaderBaseProps {
+interface ProfileHeaderBaseProps {
   username?: string;
   avatarUri?: string;
   /** Canonical profile link for sharing; absent disables sharing. */
@@ -512,16 +509,6 @@ export interface ProfileStatsProps {
   onPostsPress: () => void;
   onBoostsPress: () => void;
   onRepliesPress: () => void;
-}
-
-// Profile actions props
-export interface ProfileActionsProps {
-  isOwnProfile: boolean;
-  currentUsername?: string;
-  profileUsername?: string;
-  profileId?: string;
-  FollowButtonComponent: FollowButtonComponent;
-  showBottomSheet?: ShowBottomSheetFn;
 }
 
 // Profile meta props (location, join date)

@@ -57,5 +57,3 @@ export function PwaHead(): null {
 
   return null;
 }
-
-export default PwaHead;

@@ -35,7 +35,7 @@ const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
  * a landing session must force a refetch. Defined once here so this Mention-only
  * key has a single source of truth and can never drift from its reader.
  */
-export interface ProfileDesign {
+interface ProfileDesign {
   displayName: string;
   bannerUrl?: string;
   avatar?: string;

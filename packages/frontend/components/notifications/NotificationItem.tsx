@@ -1004,5 +1004,3 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 // re-render every row — the parent passes a stable `item` and a memoized
 // `onMarkAsRead`.
 export const NotificationItem = React.memo(NotificationItemComponent);
-
-export default NotificationItem;

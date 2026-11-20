@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
 import PostItem from '@/components/Feed/PostItem';
 
-export interface PostPreviewSurfaceProps {
+interface PostPreviewSurfaceProps {
   post: HydratedPost;
   title: string;
   /** One line under the title — the publish time, a thread count, a warning. */

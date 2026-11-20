@@ -25,7 +25,6 @@ import {
   useDeckSettings,
   type DeckSource,
 } from './deckSettings';
-export { DECK_SOURCES } from './deckSettings';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 
 /** Column actions compose into the current screen header through Bloom. */

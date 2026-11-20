@@ -14,7 +14,7 @@ import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
  * (e.g. a recycled list item) where `text` itself changes out from under an
  * already-expanded instance.
  */
-export function useTextExpansion(text: string, resetKey?: unknown) {
+function useTextExpansion(text: string, resetKey?: unknown) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const prevTextRef = useRef(text);

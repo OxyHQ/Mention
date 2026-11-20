@@ -38,5 +38,3 @@ export function usePresence(userId: string | undefined): boolean {
 
   return isOnline;
 }
-
-export default usePresence;

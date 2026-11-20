@@ -36,7 +36,7 @@ export interface FeedCardData {
   memberProfiles?: AvatarIdentitySummary[];
 }
 
-export type FeedCardVariant = 'card' | 'row';
+type FeedCardVariant = 'card' | 'row';
 
 interface FeedCardProps {
   feed: FeedCardData;

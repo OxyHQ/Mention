@@ -40,5 +40,3 @@ export const EntityFollowButton = memo(function EntityFollowButton({
     />
   );
 });
-
-export default EntityFollowButton;

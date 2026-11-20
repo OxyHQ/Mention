@@ -41,5 +41,3 @@ export const NotificationSkeleton: React.FC<{ count?: number }> = ({
     ))}
   </Skeleton.Region>
 );
-
-export default NotificationSkeleton;

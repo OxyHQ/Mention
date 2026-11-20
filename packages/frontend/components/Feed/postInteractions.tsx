@@ -78,7 +78,7 @@ async function guarded(key: string, action: () => Promise<unknown>, what: string
 }
 
 /** Save/unsave the post as it stands now; the menu's Save entry uses it too. */
-export function toggleSave(post: HydratedPost, source?: string): Promise<void> {
+function toggleSave(post: HydratedPost, source?: string): Promise<void> {
   const store = usePostsStore.getState();
   const isSaved = currentPost(post).viewerState?.isSaved ?? false;
   return guarded(

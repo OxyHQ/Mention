@@ -101,7 +101,7 @@ const VIDEO_EXTENSION_PATTERN = /\.(mp4|mov|m4v|webm|mpg|mpeg|avi|mkv)$/i;
  * True when the given URL/path ends in a known video file extension.
  * Tolerant of non-string input (a malformed media reference never throws).
  */
-export function isVideoExtension(url: string): boolean {
+function isVideoExtension(url: string): boolean {
   return VIDEO_EXTENSION_PATTERN.test(String(url ?? ''));
 }
 

@@ -46,7 +46,7 @@ import type { OperatedAccountKind } from './OperatedAccountSettingsScreen';
 const HANDLE_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
 
 /** The words one kind's screen speaks in. */
-export interface OperatedAccountsCopy {
+interface OperatedAccountsCopy {
   title: string;
   signInRequired: string;
   signInRequiredDesc: string;

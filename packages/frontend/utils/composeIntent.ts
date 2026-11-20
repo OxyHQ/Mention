@@ -54,19 +54,19 @@ export const MAX_THREAD_ITEMS = 5;
  */
 const THREAD_TEXT_KEY_REGEX = /^thread\[(\d+)\]\.text$/;
 
-export type ReplyPermissionIntent = 'anyone' | 'following';
+type ReplyPermissionIntent = 'anyone' | 'following';
 
-export interface ComposeIntentPollOptions {
+interface ComposeIntentPollOptions {
   options: string[];
   durationDays: number;
 }
 
-export interface ComposeIntentArticle {
+interface ComposeIntentArticle {
   title?: string;
   body?: string;
 }
 
-export interface ComposeIntentEvent {
+interface ComposeIntentEvent {
   name?: string;
   /** ISO-8601 date string. */
   date?: string;
@@ -74,7 +74,7 @@ export interface ComposeIntentEvent {
   description?: string;
 }
 
-export interface ComposeIntentLocation {
+interface ComposeIntentLocation {
   latitude: number;
   longitude: number;
   address?: string;

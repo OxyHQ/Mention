@@ -5,7 +5,7 @@ import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('ListsService');
 
-export interface MentionListOwner {
+interface MentionListOwner {
   username?: string;
   displayName?: string;
   avatar?: string | null;
@@ -28,12 +28,12 @@ export interface MentionList {
   [key: string]: unknown;
 }
 
-export interface MentionListCollection {
+interface MentionListCollection {
   items: MentionList[];
   total: number;
 }
 
-export interface MentionListTimeline {
+interface MentionListTimeline {
   items: unknown[];
   cursor?: string;
   nextCursor?: string;

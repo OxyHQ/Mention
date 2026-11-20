@@ -35,7 +35,7 @@ export interface ListCardData {
   subscriberCount?: number;
 }
 
-export type ListCardVariant = 'card' | 'row';
+type ListCardVariant = 'card' | 'row';
 
 interface ListCardProps {
   list: ListCardData;

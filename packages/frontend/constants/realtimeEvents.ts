@@ -15,7 +15,3 @@ export const SOCKET_EVENT_ROOMS_LIVE_UPDATED = 'rooms:live:updated' as const;
  * into a single silent refetch after this debounce window.
  */
 export const ROOMS_LIVE_REFETCH_DEBOUNCE_MS = 400;
-
-export interface RoomsLiveUpdatedPayload {
-  reason?: 'created' | 'ended' | 'participants';
-}

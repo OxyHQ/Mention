@@ -1,7 +1,7 @@
 import { authenticatedClient } from '@/utils/api';
 
-export type LabelSeverity = 'low' | 'medium' | 'high' | 'critical';
-export type LabelDefaultAction = 'show' | 'warn' | 'blur' | 'hide';
+type LabelSeverity = 'low' | 'medium' | 'high' | 'critical';
+type LabelDefaultAction = 'show' | 'warn' | 'blur' | 'hide';
 
 export interface LabelDefinition {
   slug: string;
@@ -11,7 +11,7 @@ export interface LabelDefinition {
   defaultAction?: LabelDefaultAction;
 }
 
-export interface Labeler {
+interface Labeler {
   _id: string;
   id?: string;
   name: string;
@@ -25,7 +25,7 @@ export interface Labeler {
   updatedAt?: string;
 }
 
-export interface ContentLabel {
+interface ContentLabel {
   _id: string;
   labelerId: string;
   targetType: string;

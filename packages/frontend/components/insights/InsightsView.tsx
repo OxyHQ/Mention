@@ -48,7 +48,7 @@ export interface InsightsViewProps {
  * Hiding the row is therefore the honest shape rather than a stub: affordance ⊆
  * permission — the app never offers a row the server will refuse or misanswer.
  */
-export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
+const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   const { t } = useTranslation();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
 

@@ -23,9 +23,7 @@ import {
 } from './useFeedQuery';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
 import { useFeedRankingStaleness } from './useFeedRankingStaleness';
-
 // Re-export so callers that already imported from here keep working.
-export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
 const logger = createLogger('useFeedState');
 

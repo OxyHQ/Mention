@@ -21,7 +21,7 @@ import { View } from 'react-native';
  */
 export default function EditProfileSettingsPage() {
   const { t } = useTranslation();
-  const { isAuthenticated, showBottomSheet, user } = useAuth();
+  const { isAuthenticated, showBottomSheet } = useAuth();
   const identityRows = useOxyIdentityRows({ full: true });
   const viewer = useMentionColorViewer();
   // The colour is the Oxy account colour: it is saved through the SDK, which
