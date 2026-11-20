@@ -65,6 +65,7 @@ import type { ReplyDraft } from '@/components/Post/replyDraft';
 import { VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
+import { useReelPrewarm } from '@/hooks/useReelPrewarm';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
 import { usePipTransportActions } from '@/hooks/usePipTransportActions';
 import {
@@ -144,13 +145,16 @@ function isSlideNear(
   aheadRadius: number,
   isPipOwner: boolean,
   screenFocused: boolean,
+  prewarm: boolean,
 ): boolean {
   if (isPipOwner) return true;
   // A reel the reader has left (another tab, a pushed profile) keeps the one
-  // slide it will come back to and gives every other decoder back: the tabs
-  // stay mounted side by side, and the home feed's own players would otherwise
-  // compete with the paused neighbours for Android's hardware decoders.
-  if (!screenFocused) return index === activeIndex;
+  // slide it will come back to, prepared, and gives every other decoder back:
+  // the tabs stay mounted side by side, and the home feed's own players would
+  // otherwise compete with the paused neighbours for Android's hardware
+  // decoders. It is also the Videos tab's prewarm, so it holds only while that
+  // is free (`useReelPrewarm`): foreground, unmetered, no video playing.
+  if (!screenFocused) return prewarm && index === activeIndex;
   return index <= activeIndex
     ? activeIndex - index <= RETAINED_BEHIND_RADIUS
     : index - activeIndex <= aheadRadius;
@@ -1276,6 +1280,7 @@ export default function VideosScreen() {
     setArmedIndex(index);
   }, []);
   const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
+  const prewarm = useReelPrewarm();
 
   // The reel plays edge to edge, under the app's bottom bar; its controls clear it.
 
@@ -1714,6 +1719,7 @@ export default function VideosScreen() {
           activeRadius,
           item.id === pipOwnerId,
           isFocused,
+          prewarm,
         )}
         onBufferAhead={handleBufferAhead}
         screenFocused={isFocused}
@@ -1743,6 +1749,7 @@ export default function VideosScreen() {
       activeRadius,
       handleBufferAhead,
       isFocused,
+      prewarm,
       theme,
       handleLike,
       handleComment,
@@ -1843,6 +1850,7 @@ export default function VideosScreen() {
                           activeRadius,
                           item.id === pipOwnerId,
                           isFocused,
+                          prewarm,
                         )}
                         onBufferAhead={handleBufferAhead}
                         screenFocused={isFocused}
