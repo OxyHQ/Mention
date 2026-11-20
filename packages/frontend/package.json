@@ -124,6 +124,7 @@
     "@oxy.so/core": "catalog:",
     "@oxy.so/expo-splash": "^1.1.0",
     "@oxy.so/homiio-sdk": "1.0.0",
+    "@vibbr.co/sdk": "catalog:",
     "@oxy.so/mention-contracts": "workspace:*",
     "@oxy.so/services": "catalog:",
     "@oxy.so/stickers": "^0.2.3",

@@ -70,6 +70,8 @@ const MENTION_CSP_EXTENSIONS = {
     'wss://livekit.oxy.so',
     // Homiio case cards: `@oxy.so/homiio-sdk` reads its public batch API directly.
     'https://api.homiio.com',
+    // Vibbr event cards: `@vibbr.co/sdk` reads its public card API directly.
+    'https://api.vibbr.co',
     // Peable's payer API; sensitive card inputs stay inside provider-owned frames.
     'https://api.peable.to',
     'https://api.stripe.com',

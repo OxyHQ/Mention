@@ -3355,6 +3355,14 @@
       "cancelled": "已取消"
     }
   },
+  "vibbr": {
+    "loading": "正在加载 Vibbr 活动…",
+    "unavailable": "此 Vibbr 活动已不可用",
+    "open": "在 Vibbr 中打开活动",
+    "cancelled": "已取消",
+    "soldOut": "已售罄",
+    "free": "免费"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

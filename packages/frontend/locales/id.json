@@ -3355,6 +3355,14 @@
       "cancelled": "Dibatalkan"
     }
   },
+  "vibbr": {
+    "loading": "Memuat acara Vibbr…",
+    "unavailable": "Acara Vibbr ini tidak lagi tersedia",
+    "open": "Buka acara di Vibbr",
+    "cancelled": "Dibatalkan",
+    "soldOut": "Terjual habis",
+    "free": "Gratis"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

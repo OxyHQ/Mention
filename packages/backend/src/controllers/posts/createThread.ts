@@ -1,6 +1,7 @@
 import { respondWithApiError } from '../../utils/error';
 import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import { sanitizeVibbrEvent } from '@mention/shared-types/vibbr';
 import {
   CommunityPostError,
   normalizeCommunityPostTitle,
@@ -527,6 +528,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       }
 
       postContent.homiioCase = sanitizeHomiioCase(content?.homiioCase);
+      postContent.vibbrEvent = sanitizeVibbrEvent(content?.vibbrEvent);
 
       // Persist only a reference; provider availability never blocks publication.
       postContent.podcast = sanitizePodcast(content?.podcast) ?? undefined;

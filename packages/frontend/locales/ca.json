@@ -3384,6 +3384,14 @@
       "cancelled": "Cancel·lat"
     }
   },
+  "vibbr": {
+    "loading": "Carregant l'esdeveniment de Vibbr…",
+    "unavailable": "Aquest esdeveniment de Vibbr ja no està disponible",
+    "open": "Obre l'esdeveniment a Vibbr",
+    "cancelled": "Cancel·lat",
+    "soldOut": "Exhaurit",
+    "free": "Gratuït"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

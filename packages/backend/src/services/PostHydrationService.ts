@@ -1,5 +1,6 @@
 import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import { sanitizeVibbrEvent, vibbrEventFromText } from '@mention/shared-types/vibbr';
 import { hydratePostMedia, prefetchPostMediaAccess } from './hydratePostMedia';
 import type { SafetyRequester, SafetyDecision } from '@oxy.so/contracts';
 import {
@@ -3466,6 +3467,8 @@ export class PostHydrationService {
       room: baseContent.room,
       homiioCase:
         sanitizeHomiioCase(baseContent.homiioCase) ?? homiioCaseFromText(resolved.text ?? ''),
+      vibbrEvent:
+        sanitizeVibbrEvent(baseContent.vibbrEvent) ?? vibbrEventFromText(resolved.text ?? ''),
       attachments: Array.isArray(baseContent.attachments) ? baseContent.attachments : undefined,
     };
   }
@@ -3541,6 +3544,8 @@ export class PostHydrationService {
 
     attachments.homiioCase =
       sanitizeHomiioCase(content.homiioCase) ?? homiioCaseFromText(resolved.text ?? '');
+    attachments.vibbrEvent =
+      sanitizeVibbrEvent(content.vibbrEvent) ?? vibbrEventFromText(resolved.text ?? '');
 
     attachments.podcast = sanitizePodcast(content.podcast) ?? undefined;
 

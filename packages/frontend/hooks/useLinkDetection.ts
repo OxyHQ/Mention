@@ -1,4 +1,5 @@
 import { parseHomiioCaseUrl } from '@mention/shared-types/homiio';
+import { parseEventUrl } from '@mention/shared-types/vibbr';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { feedService } from '@/services/feedService';
@@ -105,7 +106,10 @@ export const useLinkDetection = (text: string) => {
       const urls = extractUrls(text)
         .slice(0, MAX_POST_DOCUMENTS)
         .filter(
-          (url) => ownProfileLinkHandle(url) === undefined && parseHomiioCaseUrl(url) === null,
+          (url) =>
+            ownProfileLinkHandle(url) === undefined &&
+            parseHomiioCaseUrl(url) === null &&
+            parseEventUrl(url) === null,
         );
 
       if (urls.length === 0) {

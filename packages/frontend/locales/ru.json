@@ -3413,6 +3413,14 @@
       "cancelled": "Отменено"
     }
   },
+  "vibbr": {
+    "loading": "Загрузка события Vibbr…",
+    "unavailable": "Это событие Vibbr больше недоступно",
+    "open": "Открыть событие в Vibbr",
+    "cancelled": "Отменено",
+    "soldOut": "Билеты распроданы",
+    "free": "Бесплатно"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

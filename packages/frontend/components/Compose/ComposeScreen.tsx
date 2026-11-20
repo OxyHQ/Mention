@@ -8,7 +8,9 @@ import { FeedSkeleton, FormSkeleton } from '@/components/loading/ContentSkeleton
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
 import { homiioCaseFromText } from '@mention/shared-types/homiio';
+import { vibbrEventFromText } from '@mention/shared-types/vibbr';
 import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
+import { VibbrEventCard } from '@/components/Post/Attachments/VibbrEventCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import type React from 'react';
@@ -513,6 +515,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   });
   const postContent = mainMentionState.text;
   const homiioCase = homiioCaseFromText(postContent);
+  const vibbrEvent = vibbrEventFromText(postContent);
   const mentions = mainMentionState.mentions;
   /**
    * Whether this composer may choose a private mention, and whether it has.
@@ -3484,6 +3487,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         {homiioCase ? (
                           <View style={styles.mediaPreviewContainer}>
                             <HomiioCaseCard caseId={homiioCase.caseId} />
+                          </View>
+                        ) : null}
+                        {vibbrEvent ? (
+                          <View style={styles.mediaPreviewContainer}>
+                            <VibbrEventCard eventId={vibbrEvent.eventId} />
                           </View>
                         ) : null}
                         {/* Attachments row (poll + article + media + link) */}

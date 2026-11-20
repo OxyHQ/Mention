@@ -1,5 +1,6 @@
 import type { CommerceReference } from './commerce';
 import type { HomiioCaseReference } from './homiio';
+import type { VibbrEventReference } from './vibbr';
 /**
  * Post-related types for Mention social network
  */
@@ -204,6 +205,7 @@ export type PostAttachmentType =
   | 'room'
   | 'podcast'
   | 'homiioCase'
+  | 'vibbrEvent'
   | 'job'
   | 'commerce';
 
@@ -359,6 +361,7 @@ export interface StoredPostContent {
   event?: PostEventContent;
   room?: PostRoomContent;
   homiioCase?: HomiioCaseReference;
+  vibbrEvent?: VibbrEventReference;
   podcast?: PostPodcastContent;
   job?: PostJobContent;
   attachments?: PostAttachmentDescriptor[];
@@ -419,6 +422,7 @@ export interface PostContent {
   event?: PostEventContent; // Optional event content
   room?: PostRoomContent; // Optional room content
   homiioCase?: HomiioCaseReference;
+  vibbrEvent?: VibbrEventReference;
   podcast?: PostPodcastContent; // Optional Syra podcast show attached to the post
   job?: PostJobContent; // Optional Mention job listing attached to the post
   attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
@@ -1180,6 +1184,7 @@ export interface PostAttachmentBundle {
   event?: PostEventContent;
   room?: PostRoomContent;
   homiioCase?: HomiioCaseReference;
+  vibbrEvent?: VibbrEventReference;
   podcast?: PostPodcastContent;
   job?: PostJobContent;
 }

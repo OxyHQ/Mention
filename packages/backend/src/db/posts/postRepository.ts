@@ -4,6 +4,7 @@ import {
   observeFederationImportReason,
 } from '../federation/importProvenanceRepository';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import { sanitizeVibbrEvent, vibbrEventFromText } from '@mention/shared-types/vibbr';
 /**
  * The ONLY module that knows a post is nine tables.
  *
@@ -579,6 +580,7 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
     room,
     podcast,
     homiioCase: sanitizeHomiioCase({ caseId: row.contentHomiioCaseId }),
+    vibbrEvent: sanitizeVibbrEvent({ eventId: row.contentVibbrEventId }),
     attachments: attachments.length > 0 ? attachments : undefined,
     commerce: commerce.length > 0 ? commerce : undefined,
   });
@@ -1177,6 +1179,10 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     contentHomiioCaseId:
       sanitizeHomiioCase(content.homiioCase)?.caseId ??
       homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
+      null,
+    contentVibbrEventId:
+      sanitizeVibbrEvent(content.vibbrEvent)?.eventId ??
+      vibbrEventFromText(content.variants?.[0]?.text ?? '')?.eventId ??
       null,
     contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
     contentPodcastTitle: null,
@@ -2101,6 +2107,11 @@ export async function replacePostContent(
           ? null
           : (sanitizeHomiioCase(content.homiioCase)?.caseId ??
             homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
+            null),
+        contentVibbrEventId: managedEvent
+          ? null
+          : (sanitizeVibbrEvent(content.vibbrEvent)?.eventId ??
+            vibbrEventFromText(content.variants?.[0]?.text ?? '')?.eventId ??
             null),
         contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
         contentPodcastTitle: null,

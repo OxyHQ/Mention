@@ -3355,6 +3355,14 @@
       "cancelled": "Cancelled"
     }
   },
+  "vibbr": {
+    "loading": "Loading Vibbr event…",
+    "unavailable": "This Vibbr event is no longer available",
+    "open": "Open event in Vibbr",
+    "cancelled": "Cancelled",
+    "soldOut": "Sold out",
+    "free": "Free"
+  },
   "events": {
     "title": "Event",
     "loading": "Loading event…",

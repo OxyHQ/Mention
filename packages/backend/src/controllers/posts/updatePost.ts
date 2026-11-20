@@ -1,5 +1,6 @@
 import { parseCommerceReferences } from '../../utils/commerceReferences';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import { sanitizeVibbrEvent, vibbrEventFromText } from '@mention/shared-types/vibbr';
 import {
   requesterPublicationPolicy,
   PostPublicationPolicyError,
@@ -243,6 +244,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     if (contentObj && Object.hasOwn(contentObj, 'homiioCase')) {
       content.homiioCase = sanitizeHomiioCase(contentObj.homiioCase);
     }
+    if (contentObj && Object.hasOwn(contentObj, 'vibbrEvent')) {
+      content.vibbrEvent = sanitizeVibbrEvent(contentObj.vibbrEvent);
+    }
     if (
       editingUnpublishedPost &&
       (req.body.event !== undefined || contentObj?.event !== undefined)
@@ -304,6 +308,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     if (typeof text === 'string' && !Object.hasOwn(contentObj ?? {}, 'homiioCase')) {
       content.homiioCase = homiioCaseFromText(text);
+    }
+    if (typeof text === 'string' && !Object.hasOwn(contentObj ?? {}, 'vibbrEvent')) {
+      content.vibbrEvent = vibbrEventFromText(text);
     }
 
     if (content.event && content.homiioCase)
