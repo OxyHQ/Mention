@@ -388,7 +388,7 @@ interface OptInScorer {
  * order is load-bearing for bit-exact reproduction of the pre-refactor score —
  * do not reorder without re-baselining the golden master.
  */
-export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
+const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   { id: 'mediaBoost', score: (post) => mediaBoost(post) },
   { id: 'positivity', score: (post) => positivityBoost(post) },
   { id: 'conversational', score: (post) => conversationalBoost(post) },
@@ -434,7 +434,7 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
  * fixed {@link OPT_IN_SIGNALS} order (left fold from 1.0) to match the
  * pre-refactor behavior byte-for-byte.
  */
-export function composeOptInSignals(post: RankablePost, ctx: SignalContext): number {
+function composeOptInSignals(post: RankablePost, ctx: SignalContext): number {
   const enabled = ctx.enabledSignals;
   if (!enabled || enabled.size === 0) {
     return 1.0;

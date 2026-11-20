@@ -58,10 +58,10 @@ export interface AtprotoProfileView {
  * who is not signed in. Read from any source — a label can only make an
  * account LESS visible, never more.
  */
-export const NO_UNAUTHENTICATED_LABEL = '!no-unauthenticated';
+const NO_UNAUTHENTICATED_LABEL = '!no-unauthenticated';
 
 /** Whether this profile hides from signed-out readers ({@link NO_UNAUTHENTICATED_LABEL}). */
-export function atprotoRequiresSignIn(profile: AtprotoProfileView): boolean {
+function atprotoRequiresSignIn(profile: AtprotoProfileView): boolean {
   return (
     Array.isArray(profile.labels) &&
     profile.labels.some((label) => label?.val === NO_UNAUTHENTICATED_LABEL)

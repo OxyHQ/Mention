@@ -455,7 +455,7 @@ function hasHeadline(object: Record<string, unknown>): boolean {
  * The headline of a `Page`/`Article`, from its AS2 `name`, as one plain-text
  * line. Stored apart from the body (`content.title`), never folded into it.
  */
-export function extractApTitle(
+function extractApTitle(
   object: Record<string, unknown>,
   customEmojiNames: readonly string[] = extractDeclaredCustomEmojiNames(object),
 ): string | undefined {
@@ -475,7 +475,7 @@ export function extractApTitle(
  * media instead ({@link isMediaLinkAttachment}), and a `Note`'s `Link`
  * attachments are FEP-8967 cards for links already in its body.
  */
-export function extractApSubjectLink(object: Record<string, unknown>): string | undefined {
+function extractApSubjectLink(object: Record<string, unknown>): string | undefined {
   if (!hasHeadline(object)) return undefined;
   for (const entry of apList(object.attachment)) {
     if (typeof entry !== 'object') continue;

@@ -68,7 +68,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * the last one comes a final window with no lower bound. Sized from production
  * (2026-09-25): ~2k posts a day, ~39k a week, ~350k a month, 1.46M in all.
  */
-export const POST_SEARCH_WINDOWS_MS: readonly number[] = [DAY_MS, 7 * DAY_MS, 30 * DAY_MS];
+const POST_SEARCH_WINDOWS_MS: readonly number[] = [DAY_MS, 7 * DAY_MS, 30 * DAY_MS];
 
 /** A `[from, until)` span of `created_at`; an absent end is unbounded. */
 export interface PostSearchWindow {

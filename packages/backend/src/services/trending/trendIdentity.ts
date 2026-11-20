@@ -23,7 +23,7 @@ export interface PresentedNameRow {
  * do not make a different name (`Jensen Huang` and `jensen-huang` are one
  * name to a reader).
  */
-export function presentedNameKey(displayName: string): string {
+function presentedNameKey(displayName: string): string {
   return displayName
     .normalize('NFKD')
     .replace(/\p{M}+/gu, '')

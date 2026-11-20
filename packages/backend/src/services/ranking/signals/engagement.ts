@@ -46,7 +46,7 @@ export function engagementScore(post: RankablePost): number {
  * otherwise computing it fresh. This mirrors the pre-refactor orchestrator's
  * cache-or-compute branch exactly.
  */
-export function resolveEngagementScore(post: RankablePost, ctx: SignalContext): number {
+function resolveEngagementScore(post: RankablePost, ctx: SignalContext): number {
   const postId = post.id ?? '';
   const cache = ctx.engagementScoreCache;
   if (cache && cache.has(postId)) {

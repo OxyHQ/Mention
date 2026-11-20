@@ -58,13 +58,13 @@ import { logger } from '../../utils/logger';
 import { getMercariaClient } from './mercariaClient';
 
 /** A ref that did not hydrate. `invalid` carries no ref: there was none to parse. */
-export type MercariaUnresolvedState<TRef> =
+type MercariaUnresolvedState<TRef> =
   | { state: 'gone'; ref: TRef }
   | { state: 'not_found'; ref: TRef }
   | { state: 'unavailable'; ref: TRef; retryable: boolean }
   | { state: 'invalid' };
 
-export type MercariaProductHydration =
+type MercariaProductHydration =
   | { state: 'available'; ref: MercariaProductRef; product: MercariaProduct; url: string }
   | MercariaUnresolvedState<MercariaProductRef>;
 

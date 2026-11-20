@@ -48,7 +48,7 @@ import { logger } from '../../utils/logger';
  * Separate from "the object is gone": a deleted object is a fact about the world and
  * closes the report normally.
  */
-export class ModerationSubjectUnsupportedError extends Error {
+class ModerationSubjectUnsupportedError extends Error {
   readonly retryable = false;
 
   constructor(reportedType: string) {
@@ -67,7 +67,7 @@ export class ModerationSubjectUnsupportedError extends Error {
  * the literal below rather than by `Object.keys`, so the digest is stable across
  * Node versions and across a refactor that reorders a field.
  */
-export function snapshotHash(snapshot: ModerationSubjectSnapshot): string {
+function snapshotHash(snapshot: ModerationSubjectSnapshot): string {
   const canonical = JSON.stringify({
     subject: {
       externalId: snapshot.subject.externalId,

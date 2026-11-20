@@ -38,23 +38,14 @@ import { normalizeFederatedAcct, domainFromAcct } from './helpers';
 import { isOutboxMarkedUnavailable } from './outboxSyncCooldown';
 import {
   isPermanentlyUnavailableOutboxReason,
-  PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS,
   type OutboxSyncResult,
   type OutboxSyncOptions,
-  type OutboxSyncFailureReason,
 } from './outbox.service';
 
 // Re-export the outbox failure-reason contract from its owning sub-service so a
 // single import site (`activityPubConnector` + these helpers) serves every
 // caller that used to read them from the deleted FederationService facade.
-export {
-  isOutboxMarkedUnavailable,
-  isPermanentlyUnavailableOutboxReason,
-  PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS,
-  type OutboxSyncResult,
-  type OutboxSyncOptions,
-  type OutboxSyncFailureReason,
-};
+export { isOutboxMarkedUnavailable, isPermanentlyUnavailableOutboxReason };
 
 /**
  * A `post.delete` payload as Mention sends it: a deleted PRIVATE MENTION also
@@ -678,4 +669,3 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
 }
 
 export const activityPubConnector = new ActivityPubConnector();
-export default activityPubConnector;

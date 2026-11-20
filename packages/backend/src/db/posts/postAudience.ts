@@ -138,7 +138,7 @@ export async function insertPostRecipients(
  * them. The one SQL spelling of the read ACL `PostHydrationService` applies, for
  * the conversation reads that must find such posts before hydrating them.
  */
-export function directPostParticipantSql(viewerId: string): SQL {
+function directPostParticipantSql(viewerId: string): SQL {
   return and(
     eq(posts.visibility, PostVisibility.DIRECT),
     or(

@@ -677,7 +677,7 @@ const THREADS_AP_HOST = 'threads.net';
  * `posts.federation_url` — see {@link resolvePostIdFromNoteUrl} — and must never
  * hand it to a fetch.
  */
-export function extractThreadsQuoteUrl(object: Record<string, unknown>): string | undefined {
+function extractThreadsQuoteUrl(object: Record<string, unknown>): string | undefined {
   const content = typeof object.content === 'string' ? object.content : '';
   if (!content.includes('quote-inline')) return undefined;
 

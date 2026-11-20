@@ -46,7 +46,7 @@ import { logger } from '../utils/logger';
 
 const MAX_BODY_BYTES = '4mb';
 
-export const oxyFileEventsRateLimiter = rateLimit({
+const oxyFileEventsRateLimiter = rateLimit({
   store: new RedisStore({ prefix: 'rate-limit:oxy-file-events:', windowMs: 60 * 1000 }),
   windowMs: 60 * 1000,
   max: 1200,
@@ -79,7 +79,7 @@ function verify(raw: Buffer, req: Request): Verified {
   throw lastError;
 }
 
-export async function handleFileEvent(req: Request, res: Response): Promise<void> {
+async function handleFileEvent(req: Request, res: Response): Promise<void> {
   const raw = Buffer.isBuffer(req.body) ? req.body : null;
   if (!raw || raw.length === 0) {
     res.status(400).json({ error: 'Expected a JSON body' });

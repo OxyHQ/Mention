@@ -19,12 +19,12 @@ export interface InferenceChatOptions {
  * asks for the `instant` power level: Kaana picks the model of that reviewed
  * class, and Oxy accounts for the authenticated workload.
  */
-export const MENTION_TEXT_POWER_LEVEL = 'instant';
+const MENTION_TEXT_POWER_LEVEL = 'instant';
 
 /**
  * Mention bounds output for this product operation independently of service auth.
  */
-export const MENTION_MAX_OUTPUT_TOKENS = 8192;
+const MENTION_MAX_OUTPUT_TOKENS = 8192;
 const DEFAULT_OUTPUT_TOKENS = 1024;
 
 /** Send a non-streaming request to Kaana and return its text output. */

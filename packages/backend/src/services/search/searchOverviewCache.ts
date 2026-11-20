@@ -67,7 +67,7 @@ const cache = createCache({
  * 32 hex characters: 128 bits, so a collision between two live search terms is
  * not a thing that happens. Same reasoning as `anonFeedCache`'s key.
  */
-export function overviewCacheKey(query: string, limit: number): string {
+function overviewCacheKey(query: string, limit: number): string {
   const normalized = query.trim().toLowerCase().replace(/\s+/g, ' ');
   const digest = createHash('sha256').update(normalized).digest('hex').slice(0, 32);
   return `${OVERVIEW_PREFIX}${limit}:${digest}`;

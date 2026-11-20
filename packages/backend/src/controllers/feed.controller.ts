@@ -1368,4 +1368,3 @@ class FeedController {
 }
 
 export const feedController = new FeedController();
-export default feedController;

@@ -84,7 +84,7 @@ export function postMatchesFederatedObjectSql(objectUri: string): SQL {
  * `source_key` is UNIQUE, so the subquery yields at most one row; a claim
  * (NULL `post_id`) matches nothing.
  */
-export function postIsSourceKeySql(sourceKey: string): SQL {
+function postIsSourceKeySql(sourceKey: string): SQL {
   return sql`${qualified(posts.id)} = (
     select ${qualified(postSourceKeys.postId)} from ${postSourceKeys}
     where ${qualified(postSourceKeys.sourceKey)} = ${sourceKey}

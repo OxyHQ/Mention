@@ -27,10 +27,10 @@ import { getDb } from '../db/postgres';
 import { logger } from '../utils/logger';
 
 /** Ten minutes: short enough to drain a backlog in hours, cheap when there is none. */
-export const EXPIRY_SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+const EXPIRY_SWEEP_INTERVAL_MS = 10 * 60 * 1000;
 
 /** Defer the first run so boot is never contended. 5 minutes. */
-export const EXPIRY_SWEEP_START_DELAY_MS = 5 * 60 * 1000;
+const EXPIRY_SWEEP_START_DELAY_MS = 5 * 60 * 1000;
 
 export class ExpirySweepJob {
   private interval: ReturnType<typeof setInterval> | null = null;

@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 
-export function cacheControl(directive: string) {
+function cacheControl(directive: string) {
   return (_req: Request, res: Response, next: NextFunction) => {
     res.set('Cache-Control', directive);
     if (directive.startsWith('public')) {

@@ -206,7 +206,7 @@ export function resolveDiscoveryGate(): ModuleRef[] {
  * both profiles, each intersected with what it is allowed to run. A second env
  * var would be a second thing to remember during an incident.
  */
-export function resolveRecommendationGate(): ModuleRef[] {
+function resolveRecommendationGate(): ModuleRef[] {
   return resolveGateProfile(RECOMMENDATION_GATE_MODULE_IDS);
 }
 

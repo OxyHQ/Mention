@@ -30,7 +30,7 @@ import { escapeRegExp } from '@oxy.so/utils/text';
 export type MuteTarget = 'content' | 'tag';
 
 /** Which authors a muted entry applies to. */
-export type MuteActorTarget = 'all' | 'exclude-following';
+type MuteActorTarget = 'all' | 'exclude-following';
 
 /**
  * One stored muted entry, in the shape every surface loads it in. Mirrors the

@@ -46,7 +46,7 @@ import {
  * subscription is feed-inclusion, never a follow relationship). Extracted here
  * so the `following` source and the legacy `FollowingFeed` share one definition.
  */
-export function buildFollowingVisibilitySql(
+function buildFollowingVisibilitySql(
   currentUserId: string,
   followingIds: string[] = [],
   subscribedListMemberIds: string[] = [],
@@ -306,7 +306,7 @@ export const topicSource: SourceModule = {
 };
 
 /** `affinity`: For You ranked lane — posts from authors the viewer engages with. */
-export const affinitySource: SourceModule = {
+const affinitySource: SourceModule = {
   id: 'affinity',
   kind: 'source',
   userComposable: false,
@@ -319,7 +319,7 @@ export const affinitySource: SourceModule = {
 };
 
 /** `region`: For You ranked lane — posts in the viewer's learned region. */
-export const regionSource: SourceModule = {
+const regionSource: SourceModule = {
   id: 'region',
   kind: 'source',
   userComposable: true,
@@ -327,7 +327,7 @@ export const regionSource: SourceModule = {
 };
 
 /** `trending`: For You ranked lane — recent high-engagement posts. */
-export const trendingSource: SourceModule = {
+const trendingSource: SourceModule = {
   id: 'trending',
   kind: 'source',
   userComposable: true,

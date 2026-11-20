@@ -52,7 +52,7 @@ const USER_AGENT = 'Mention/atproto-connector (+https://mention.earth)';
 export const MAX_IN_FLIGHT_PER_HOST = 6;
 
 /** Total tries for one GET when the host answers 429/503 (the first try included). */
-export const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 3;
 
 /** Backoff for a 429/503 that names no wait: 1 s, then 2 s, then 4 s (plus jitter). */
 const BASE_BACKOFF_MS = 1_000;
@@ -62,7 +62,7 @@ const BASE_BACKOFF_MS = 1_000;
  * longer `Retry-After` still pauses the host for its full length; requests in
  * that window fail fast instead of holding a sync job open.
  */
-export const MAX_RETRY_WAIT_MS = 30_000;
+const MAX_RETRY_WAIT_MS = 30_000;
 
 /** Statuses that mean "slow down and try again", never "this request is wrong". */
 const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([429, 503]);
@@ -85,7 +85,7 @@ export class XrpcError extends Error {
 export type XrpcParams = Record<string, string | number | boolean | readonly string[] | undefined>;
 
 /** Build the absolute XRPC URL for `host`/`nsid` with `params` query-encoded. */
-export function buildXrpcUrl(host: string, nsid: string, params: XrpcParams = {}): string {
+function buildXrpcUrl(host: string, nsid: string, params: XrpcParams = {}): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined) continue;
@@ -149,7 +149,7 @@ function releaseSlot(host: string, gate: HostGate): void {
  * `Retry-After` is either delta-seconds or an HTTP date; atproto services also
  * send `RateLimit-Reset`, the epoch second the window reopens.
  */
-export function retryDelayFromHeaders(
+function retryDelayFromHeaders(
   headers: IncomingHttpHeaders,
   now: number = Date.now(),
 ): number | undefined {

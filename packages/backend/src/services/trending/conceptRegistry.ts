@@ -7,7 +7,7 @@
  * an unknown term simply remains unresolved.
  */
 
-export type TrendConceptKind = 'topic' | 'entity' | 'organization' | 'place' | 'product';
+type TrendConceptKind = 'topic' | 'entity' | 'organization' | 'place' | 'product';
 
 export interface TrendConceptDefinition {
   id: string;

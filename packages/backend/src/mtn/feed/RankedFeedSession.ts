@@ -8,7 +8,7 @@ import type { FeedDefinition, FeedEngineContext } from './engine/types';
 export const RANKED_SESSION_TTL_MS = 30 * 60 * 1000;
 export const RANKED_SESSION_MAX_SCANNED = 5000;
 
-export interface RankedSessionCandidate {
+interface RankedSessionCandidate {
   id: string;
   score: number;
   discovery: boolean;
@@ -45,7 +45,7 @@ export function expiredFeedCursor(): ApiError {
  * answer. Not {@link expiredFeedCursor}: nothing expired, and "refresh the feed"
  * would only rebuild page 1 against the same outage. A 503 says "retry".
  */
-export function feedSessionUnavailable(): ApiError {
+function feedSessionUnavailable(): ApiError {
   return new ApiError(
     503,
     'Feed pagination state is temporarily unavailable',
@@ -101,7 +101,7 @@ export function rankedSessionBinding(
 // Keep only the three most recent immutable snapshots per session. Trimming
 // and writing are atomic, including concurrent page retries. Earlier cursors
 // explicitly expire instead of retaining quadratic history during deep scroll.
-export const WRITE_RANKED_SESSION = `
+const WRITE_RANKED_SESSION = `
 redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
 redis.call('LPUSH', KEYS[2], KEYS[1])
 local expired = redis.call('LRANGE', KEYS[2], 3, -1)

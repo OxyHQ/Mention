@@ -123,5 +123,3 @@ export const deliveryService: DeliveryService = createDeliveryService<EngineFede
       detail === undefined ? logger.error(message) : logger.error(message, detail),
   },
 });
-
-export default deliveryService;

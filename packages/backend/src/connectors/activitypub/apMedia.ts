@@ -18,7 +18,7 @@ import { mergeMediaItem, patchFromApAttachment } from '../../services/MediaMetad
  */
 
 /** A single AP `Link` object as it appears inside `attachment[].url`. */
-export interface ApUrlEntry {
+interface ApUrlEntry {
   type?: string;
   href?: string;
   mediaType?: string;

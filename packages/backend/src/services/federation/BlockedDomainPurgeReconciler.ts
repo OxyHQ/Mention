@@ -111,10 +111,7 @@ import type { PurgeOptions, PurgeReport } from '../../scripts/purgeBlockedDomain
 const STALE_CLAIM_MS = 60 * 60 * 1_000;
 
 /** The purge entry point, injected so this is testable without a real sweep. */
-export type PurgeRunner = (
-  domains: ReadonlySet<string>,
-  options: PurgeOptions,
-) => Promise<PurgeReport>;
+type PurgeRunner = (domains: ReadonlySet<string>, options: PurgeOptions) => Promise<PurgeReport>;
 
 export interface ReconcileBlockedDomainPurgesInput {
   /**
@@ -150,7 +147,7 @@ export interface ReconcileBlockedDomainPurgesResult {
 }
 
 /** Build the breaker's input from a dry-run report. */
-export function toMeasurement(report: PurgeReport): PurgeMeasurement {
+function toMeasurement(report: PurgeReport): PurgeMeasurement {
   const perDomain = new Map<
     string,
     {

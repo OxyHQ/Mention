@@ -109,7 +109,7 @@ export async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
  * exactly as before; an Oxy error for a sender the ledger does not know is
  * rethrown so the job retries, as it always did.
  */
-export async function resolveSenderUsername(senderOxyUserId: string): Promise<string | null> {
+async function resolveSenderUsername(senderOxyUserId: string): Promise<string | null> {
   let lookupError: unknown = null;
   try {
     const user = await getServiceOxyClient().users.get(senderOxyUserId);
@@ -167,9 +167,7 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
 }
 
 /** Run one queued Instagram Graph sync (lease, cooldown and budget apply inside). */
-export async function processInstagramGraphSyncJob(
-  job: Job<InstagramGraphSyncJobData>,
-): Promise<void> {
+async function processInstagramGraphSyncJob(job: Job<InstagramGraphSyncJobData>): Promise<void> {
   await instagramGraphConnector.runQueuedSync(job.data.actorId, job.data.trigger);
 }
 
@@ -180,13 +178,13 @@ export async function processInstagramGraphSyncJob(
  *
  * Exported for unit testing (see {@link processInboxJob}).
  */
-export async function processSharingCleanupJob(job: Job<SharingCleanupJobData>): Promise<void> {
+async function processSharingCleanupJob(job: Job<SharingCleanupJobData>): Promise<void> {
   const { oxyUserId, username } = job.data;
   await runSharingCleanup(oxyUserId, username);
 }
 
 /** Process one media-metadata enrich retry job. */
-export async function processMediaMetadataEnrichWorkerJob(
+async function processMediaMetadataEnrichWorkerJob(
   job: Job<MediaMetadataEnrichJobData>,
 ): Promise<void> {
   await processMediaMetadataEnrichJob(job.data.postId);

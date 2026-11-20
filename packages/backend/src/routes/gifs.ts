@@ -39,7 +39,7 @@ const DEFAULT_GIF_PAGE_SIZE = 20;
  *    that proxy the Klipy bytes (never raw Klipy CDN URLs), so the picker renders
  *    while the background import copies it into the library.
  */
-export interface GifItem {
+interface GifItem {
   id: string;
   klipyId: string;
   slug: string;

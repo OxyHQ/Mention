@@ -28,10 +28,10 @@ import { userSettings, userSettingsLabelActions } from '../db/schema/userProfile
 import { logger } from '../utils/logger';
 import { likeContains } from '@oxy.so/utils/sql';
 
-export type LabelSeverity = (typeof LABEL_SEVERITIES)[number];
-export type LabelDefaultAction = (typeof LABEL_ACTIONS)[number];
+type LabelSeverity = (typeof LABEL_SEVERITIES)[number];
+type LabelDefaultAction = (typeof LABEL_ACTIONS)[number];
 
-export interface LabelDefinition {
+interface LabelDefinition {
   slug: string;
   name: string;
   description?: string;
@@ -546,5 +546,3 @@ function serializeContentLabel(
     updatedAt: row.updatedAt,
   };
 }
-
-export default LabelService;

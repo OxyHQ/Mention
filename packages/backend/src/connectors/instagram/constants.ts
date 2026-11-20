@@ -30,7 +30,7 @@ export const GRAPH_API_HOST = 'graph.facebook.com';
 export const INSTAGRAM_IDENTITY_DOMAIN = 'instagram.com';
 
 /** Scheme of an `instagram-graph` actor URI: `instagram-graph:<ig-user-id>`. */
-export const INSTAGRAM_GRAPH_ACTOR_URI_PREFIX = `${INSTAGRAM_GRAPH_NETWORK_ID}:`;
+const INSTAGRAM_GRAPH_ACTOR_URI_PREFIX = `${INSTAGRAM_GRAPH_NETWORK_ID}:`;
 
 /** An Instagram user id (the Graph API `id` of an IG professional account). */
 const IG_USER_ID_RE = /^\d{1,32}$/;

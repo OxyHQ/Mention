@@ -11,7 +11,7 @@ import { withRedisFallback } from '../utils/redisHelpers';
  * - Automatic size limiting (last 1000 posts)
  * - In-memory fallback if Redis unavailable (per-process, suitable for dev/single-instance)
  */
-export class FeedSeenPostsService {
+class FeedSeenPostsService {
   private readonly TTL_SECONDS = 30 * 60; // 30 minutes session TTL
   private readonly TTL_MS = this.TTL_SECONDS * 1000;
   private readonly MAX_SEEN_POSTS = 1000; // Limit to last 1000 seen posts

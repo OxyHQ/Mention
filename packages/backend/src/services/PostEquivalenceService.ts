@@ -113,7 +113,7 @@ export const CROSSPOST_WINDOW_MS =
  * accounts every day of their life, and at half an hour the fallback would
  * cluster two of them roughly whenever the two ingests landed near each other.
  */
-export const CROSSPOST_TEXT_ONLY_WINDOW_MS =
+const CROSSPOST_TEXT_ONLY_WINDOW_MS =
   Number.parseInt(process.env.CROSSPOST_TEXT_ONLY_WINDOW_MS ?? '', 10) || 5 * 60 * 1000;
 
 /** What happened to one detection attempt. */
@@ -608,7 +608,7 @@ function fingerprint(
  *   3. the earliest publication, which is the one that was written first;
  *   4. the lowest id, so the answer is total.
  */
-export function preferredVariant(
+function preferredVariant(
   members: readonly { postId: string; evidence: string }[],
   candidates: ReadonlyMap<string, EquivalenceCandidate>,
 ): string {

@@ -18,7 +18,7 @@ import express, { type ErrorRequestHandler, type Request, type RequestHandler } 
 import type { AppRoutes } from './appRoutes';
 import { createAppAssociationRouter, wellKnownNotFound } from './routes/appAssociation.routes';
 
-export interface AppMiddleware {
+interface AppMiddleware {
   activity?: RequestHandler;
   requestObservability: RequestHandler;
   /** Request-scoped Oxy content decisions (`services/contentAccessBatcher`). */
@@ -427,5 +427,3 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   app.use(middleware.globalErrorHandler);
   return app;
 }
-
-export default createApp;

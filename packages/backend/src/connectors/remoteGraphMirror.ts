@@ -55,10 +55,10 @@ import { didFromBridgyActorUri } from './shared/bridgyActor';
  * At most this many accounts an account follows are mirrored, and its followers
  * are read only when it has at most this many.
  */
-export const GRAPH_SIDE_CAP = 2_000;
+const GRAPH_SIDE_CAP = 2_000;
 
 /** An edge with an end not known here is kept this long after it was last seen. */
-export const UNKNOWN_EDGE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const UNKNOWN_EDGE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Edges deleted per expiry statement, and statements per sweep run. */
 const EXPIRY_BATCH = 5_000;

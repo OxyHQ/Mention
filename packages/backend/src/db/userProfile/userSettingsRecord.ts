@@ -25,19 +25,19 @@ import type { FollowingFeedSort } from '@mention/shared-types';
 
 import type { ExternalEmbedsSettings, FeedTuning } from '@mention/shared-types';
 
-export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
+type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
 /**
  * How much of a post's body text shows before truncating with a "read more"
  * link in feeds. Mention-only display preference applied client-side. `all`
  * disables in-feed truncation entirely.
  */
-export type PostTextExpand = 'default' | 'more' | 'muchMore' | 'all';
+type PostTextExpand = 'default' | 'more' | 'muchMore' | 'all';
 
 /** Behavior when tapping a truncated post's "Read more" link. */
-export type PostReadMoreAction = 'openPost' | 'expandInline';
+type PostReadMoreAction = 'openPost' | 'expandInline';
 
-export interface AppearanceSettings {
+interface AppearanceSettings {
   themeMode: ThemeMode;
   postTextExpand?: PostTextExpand;
   postReadMoreAction?: PostReadMoreAction;
@@ -50,12 +50,12 @@ export interface LabelAction {
   action: 'hide' | 'warn' | 'blur' | 'show';
 }
 
-export interface LabelPreferences {
+interface LabelPreferences {
   subscribedLabelers: string[];
   labelActions: LabelAction[];
 }
 
-export interface PrivacySettings {
+interface PrivacySettings {
   profileVisibility: 'public' | 'private' | 'followers_only';
   showContactInfo?: boolean;
   allowTags?: boolean;
@@ -96,7 +96,7 @@ export interface PrivacySettings {
  * time (never trusted from the client) so viewers can render the song row and
  * play its 30s preview without a round-trip to Syra.
  */
-export interface ProfileMediaSong {
+interface ProfileMediaSong {
   type: 'song';
   syraTrackId: string;
   title: string;
@@ -113,7 +113,7 @@ export interface ProfileMediaSong {
  * time (never trusted from the client) so viewers can render the show card and
  * deep-link into the Syra app without a round-trip to Syra.
  */
-export interface ProfileMediaPodcast {
+interface ProfileMediaPodcast {
   type: 'podcast';
   syraPodcastId: string;
   title: string;
@@ -134,17 +134,17 @@ export interface ProfileMediaPodcast {
  */
 export type ProfileMedia = ProfileMediaSong | ProfileMediaPodcast;
 
-export interface ProfileCustomization {
+interface ProfileCustomization {
   coverPhotoEnabled?: boolean;
   minimalistMode?: boolean;
   profileMedia?: ProfileMedia | null;
 }
 
-export interface InterestsSettings {
+interface InterestsSettings {
   tags?: string[];
 }
 
-export interface NotificationPreferences {
+interface NotificationPreferences {
   pushEnabled: boolean;
   likes: boolean;
   boosts: boolean;
@@ -182,7 +182,7 @@ export interface FeedSettings {
  * has no concept of signing a post, and Mention-owned settings do not belong
  * there.
  */
-export interface ChannelAccountSettings {
+interface ChannelAccountSettings {
   /**
    * Whether a post published by this channel also NAMES the person who wrote it
    * (rendered as a "by <writer>" line beneath the channel's byline; the writer

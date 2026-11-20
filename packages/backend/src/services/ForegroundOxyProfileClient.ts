@@ -10,7 +10,7 @@ export interface ForegroundProfileReader {
 }
 
 /** The foreground round trip that failed. */
-export type ForegroundRankingStage = 'approval' | 'ticket' | 'invoke';
+type ForegroundRankingStage = 'approval' | 'ticket' | 'invoke';
 
 /** Why a stage failed, reduced to values that can never carry a bearer or a body. */
 export interface ForegroundRankingFailure {

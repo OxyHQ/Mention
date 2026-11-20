@@ -95,7 +95,7 @@ export interface BuildPostFromNoteInput {
 }
 
 /** The post a Note becomes, in the shape `PostCreationService.create` takes. */
-export type NotePostParams = Pick<
+type NotePostParams = Pick<
   CreatePostParams,
   | 'content'
   | 'quoteOf'

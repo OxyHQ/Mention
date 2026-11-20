@@ -29,7 +29,7 @@ export interface RedisLockClient {
   eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>;
 }
 
-export type LockAttempt =
+type LockAttempt =
   | { status: 'acquired'; release: () => Promise<void> }
   | { status: 'held' }
   | { status: 'unavailable' };

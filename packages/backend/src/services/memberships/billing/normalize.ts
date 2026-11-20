@@ -3,7 +3,7 @@ import { MembershipError } from '../errors';
 import type { MembershipBillingOffer } from './catalogue';
 
 /** The merchant the calling credential resolves to (`GET /v1/merchants/me`). */
-export interface MembershipBillingMerchant {
+interface MembershipBillingMerchant {
   id: string;
   oxy_app_id: string;
   environment: string;
@@ -29,7 +29,7 @@ export interface MembershipInvoiceEvidence {
  * cannot write it, so it binds the subscription to one payer, community, tier
  * and offer version.
  */
-export const MEMBERSHIP_SUBSCRIPTION_METADATA = {
+const MEMBERSHIP_SUBSCRIPTION_METADATA = {
   payer: 'payer_account_id',
   community: 'community_id',
   tier: 'tier_id',

@@ -261,7 +261,7 @@ export interface NoteMentionContext {
  * (shared) inboxes, the only places it is delivered; a shared inbox is safe
  * because the addressing travels with the activity.
  */
-export interface NoteDirectAudience {
+interface NoteDirectAudience {
   to: string[];
   tags: Array<{ href: string; name: string }>;
   inboxes: string[];
@@ -505,7 +505,7 @@ function buildNoteContentMap(
  * remains reachable from PostCreationService via the connector registry's
  * registered PostFederator (the AP connector's `deliver`).
  */
-export class FollowService {
+class FollowService {
   /**
    * Convert a local Mention post to an ActivityPub Create(Note) activity.
    *
@@ -1836,4 +1836,3 @@ export class FollowService {
 }
 
 export const followService = new FollowService();
-export default followService;

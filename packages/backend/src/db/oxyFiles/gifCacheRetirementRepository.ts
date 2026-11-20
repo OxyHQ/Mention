@@ -70,7 +70,7 @@ export interface FileIdRewrite {
  * triggers move the Oxy reference (`post` entity) from the old file to the new
  * one in the same transaction.
  */
-export async function rewritePostFileId(
+async function rewritePostFileId(
   tx: DatabaseOrTransaction,
   oldId: string,
   newId: string,

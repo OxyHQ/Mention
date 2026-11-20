@@ -50,8 +50,8 @@ export interface RelatedTopic {
 }
 
 export const DEFAULT_RELATEDNESS_PRIOR: RelatednessPrior = { alpha: 0.5, beta: 49.5 };
-export const DEFAULT_MIN_COOCCURRENCE = 3;
-export const DEFAULT_TOP_K = 20;
+const DEFAULT_MIN_COOCCURRENCE = 3;
+const DEFAULT_TOP_K = 20;
 
 /** The posterior mean of P(B | A): shared items over A's items, smoothed by the prior. */
 export function posteriorConditional(

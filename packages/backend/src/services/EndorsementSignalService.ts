@@ -310,4 +310,3 @@ export class EndorsementSignalService {
 }
 
 export const endorsementSignalService = new EndorsementSignalService();
-export default endorsementSignalService;

@@ -23,7 +23,7 @@ export async function recheckCrosspostClusters(
 }
 
 /** Leader-only, bounded sequential batches; no overlapping sweep or persisted identity proof. */
-export class CrosspostReconciliationJob {
+class CrosspostReconciliationJob {
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight = false;
 

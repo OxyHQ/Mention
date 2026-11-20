@@ -57,7 +57,7 @@ import { z } from 'zod';
  * existing `isAbsoluteHttpUrl` helper. Empty strings are rejected because the
  * ingest code treats a missing/empty id as "no id".
  */
-export const apId = z.string().min(1);
+const apId = z.string().min(1);
 
 /**
  * Optional `published` / `updated` timestamp, read by `apDate`
@@ -87,12 +87,12 @@ export const apType = z.union([z.string(), z.array(z.string())]);
  * A field ActivityStreams lets a server send as one value or a list of them:
  * JSON-LD compaction turns a one-element array into the value itself.
  */
-export function apOneOrMany<T extends z.ZodType>(schema: T) {
+function apOneOrMany<T extends z.ZodType>(schema: T) {
   return z.union([schema, z.array(schema)]);
 }
 
 /** A reference: an IRI, or an embedded object naming it by its `id`. */
-export const apIriRef = z.union([z.string(), z.object({ id: z.string() }).loose()]);
+const apIriRef = z.union([z.string(), z.object({ id: z.string() }).loose()]);
 
 /** The primary `type` string from an `apType` value (first entry of an array). */
 export function primaryApType(type: unknown): string | undefined {
@@ -105,7 +105,7 @@ export function primaryApType(type: unknown): string | undefined {
  * A single AP `Link` object as it appears inside `attachment[].url`
  * (Pleroma/PeerTube/Lemmy). Mirrors `ApUrlEntry` in `connectors/activitypub/apMedia.ts`.
  */
-export const apLinkEntrySchema = z
+const apLinkEntrySchema = z
   .object({
     type: apType.nullish(),
     href: z.string().nullish(),
@@ -119,7 +119,7 @@ export const apLinkEntrySchema = z
  * Also covers actor `PropertyValue` attachments (profile fields), which carry
  * `name` + `value` (+ optional `verifiedAt`) instead of `url`.
  */
-export const apAttachmentSchema = z
+const apAttachmentSchema = z
   .object({
     type: apType.nullish(),
     mediaType: z.string().nullish(),
@@ -138,7 +138,7 @@ export const apAttachmentSchema = z
  * and custom `Emoji`. Only `type`, `name`, and `href` are read by the ingest
  * code (`extractApHashtags`).
  */
-export const apTagSchema = z
+const apTagSchema = z
   .object({
     type: apType.nullish(),
     name: z.string().nullish(),
@@ -152,7 +152,7 @@ export const apTagSchema = z
  * this through `apImageUrl` (`@oxy.so/federation`), so the schema is
  * deliberately permissive and only constrains the optional shape.
  */
-export const apImageSchema: z.ZodType<unknown> = z.lazy(() =>
+const apImageSchema: z.ZodType<unknown> = z.lazy(() =>
   z.union([
     z.string(),
     z
@@ -170,10 +170,10 @@ export const apImageSchema: z.ZodType<unknown> = z.lazy(() =>
 );
 
 /** Addressing field (`to` / `cc` / `audience`): a single IRI or an array of IRIs. */
-export const apAddressing = apOneOrMany(apIriRef).nullish();
+const apAddressing = apOneOrMany(apIriRef).nullish();
 
 /** A `publicKey` block on an actor. Only `id` + `publicKeyPem` are read. */
-export const apPublicKeySchema = z
+const apPublicKeySchema = z
   .object({
     id: z.string().nullish(),
     owner: z.string().nullish(),
@@ -182,7 +182,7 @@ export const apPublicKeySchema = z
   .loose();
 
 /** Actor `endpoints` block — only `sharedInbox` is read. */
-export const apEndpointsSchema = z
+const apEndpointsSchema = z
   .object({
     sharedInbox: z.string().nullish(),
   })
@@ -239,7 +239,7 @@ export const apNoteSchema = z.object(apContentObjectBase).loose();
  * `Note`s. A `Question` is a poll: stored as a post carrying a Mention poll
  * (`apPoll.ts`).
  */
-export const AP_POST_OBJECT_TYPES = ['Note', 'Article', 'Page', 'Question'] as const;
+const AP_POST_OBJECT_TYPES = ['Note', 'Article', 'Page', 'Question'] as const;
 
 /** Whether an AP `type` is one {@link AP_POST_OBJECT_TYPES} names. */
 export function isApPostObjectType(type: unknown): boolean {
@@ -307,7 +307,7 @@ export const apActorSchema = z
  * The ingest code branches on `typeof object === 'string'` everywhere, so this
  * union is the canonical model for that.
  */
-export const apObjectOrIri = z.union([
+const apObjectOrIri = z.union([
   z.string(),
   z.object({ id: apId.nullish(), type: apType.nullish() }).loose(),
 ]);
@@ -396,7 +396,7 @@ export const apAcceptSchema = z
   })
   .loose();
 
-export const apRejectSchema = z
+const apRejectSchema = z
   .object({
     id: apId.nullish(),
     type: z.literal('Reject'),
@@ -438,7 +438,7 @@ export const apUndoSchema = z
  */
 const apMoveActorRef = z.union([z.string().min(1), z.object({ id: apId }).loose()]);
 
-export const apMoveSchema = z
+const apMoveSchema = z
   .object({
     id: apId,
     type: z.literal('Move'),
@@ -456,7 +456,7 @@ export const apMoveSchema = z
  */
 const apCollectionTarget = z.union([z.string().min(1), z.object({ id: apId }).loose()]);
 
-export const apAddSchema = z
+const apAddSchema = z
   .object({
     id: apId.nullish(),
     type: z.literal('Add'),
@@ -466,7 +466,7 @@ export const apAddSchema = z
   })
   .loose();
 
-export const apRemoveSchema = apAddSchema.extend({ type: z.literal('Remove') });
+const apRemoveSchema = apAddSchema.extend({ type: z.literal('Remove') });
 
 /**
  * Discriminated-ish union of every inbound activity type the inbox dispatches
@@ -475,7 +475,7 @@ export const apRemoveSchema = apAddSchema.extend({ type: z.literal('Remove') });
  * rather than `discriminatedUnion` (which requires a literal single-value
  * discriminator key).
  */
-export const apInboundActivitySchema = z.union([
+const apInboundActivitySchema = z.union([
   apCreateSchema,
   apUpdateSchema,
   apDeleteSchema,
@@ -538,7 +538,6 @@ export const apOrderedCollectionSchema = z
 // Inferred TypeScript types
 // ---------------------------------------------------------------------------
 
-export type ApAttachment = z.infer<typeof apAttachmentSchema>;
 export type ApNote = z.infer<typeof apNoteSchema>;
 export type ApInboundActivity = z.infer<typeof apInboundActivitySchema>;
 export type ApOrderedCollection = z.infer<typeof apOrderedCollectionSchema>;

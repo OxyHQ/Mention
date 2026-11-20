@@ -34,7 +34,7 @@
  */
 
 /** What erasing an account does to a row that names it. */
-export type ErasureDisposition =
+type ErasureDisposition =
   /** The row exists because of the account; it goes. */
   | 'delete-row'
   /** One entry in somebody else's structure (a list membership, a vote). The entry goes; the parent stays. */

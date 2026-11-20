@@ -97,7 +97,7 @@ export function isXTimelinePageUrl(url: string, handle: string): boolean {
  * One timeline item: the account's own tweet (`reply` when it answers a tweet,
  * as a self-thread's continuation does), or its retweet of `author`'s tweet `id`.
  */
-export type XTimelineEntry =
+type XTimelineEntry =
   | { kind: 'post'; id: string; reply: boolean }
   | { kind: 'repost'; id: string; author: string };
 

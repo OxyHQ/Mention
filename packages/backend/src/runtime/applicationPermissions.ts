@@ -1,5 +1,5 @@
 /** Declare this vocabulary in Oxy Console for this deployment's registered application. */
-export const APPLICATION_PERMISSIONS = [
+const APPLICATION_PERMISSIONS = [
   {
     key: 'memberships.moderate',
     description: 'Inspect and moderate reported membership content with a durable access audit.',

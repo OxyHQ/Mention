@@ -117,7 +117,7 @@ export interface InstagramImportOptions {
   deadline?: number;
 }
 
-export type InstagramImportOutcome =
+type InstagramImportOutcome =
   | 'ok'
   /** Finished, but some post waits for media that could not be stored yet. */
   | 'partial'
@@ -204,7 +204,7 @@ export async function persistOne(
  * its thumbnail from the start (`planInstagramMedia`). A slot with nothing
  * storable is dropped when that is permanent. Exported for tests.
  */
-export async function materializeInstagramMedia(
+async function materializeInstagramMedia(
   plans: readonly InstagramMediaPlan[],
   ownerOxyUserId: string,
   context: { activityId: string; actorUri: string },

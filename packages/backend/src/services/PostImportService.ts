@@ -66,7 +66,7 @@ export const MAX_IMPORT_LINKS_PER_ITEM = 10;
  */
 const MAX_FUTURE_SKEW_MS = 60 * 60 * 1000;
 
-export type ImportVisibility = PostVisibility.PUBLIC | PostVisibility.FOLLOWERS_ONLY;
+type ImportVisibility = PostVisibility.PUBLIC | PostVisibility.FOLLOWERS_ONLY;
 
 /** One item as the route validated it. */
 export interface ImportItemInput {
@@ -97,16 +97,16 @@ export interface ImportItemInput {
  *   reference to import it as a standalone post.
  * - `failed` — the item was refused; `error` says why. Nothing written.
  */
-export type ImportItemStatus = 'created' | 'existing' | 'deferred' | 'failed';
+type ImportItemStatus = 'created' | 'existing' | 'deferred' | 'failed';
 
-export interface ImportItemResult {
+interface ImportItemResult {
   sourceId: string;
   status: ImportItemStatus;
   postId?: string;
   error?: string;
 }
 
-export interface ImportLookupResult {
+interface ImportLookupResult {
   /** Source id → Mention post id, for items this user already imported. */
   imported: Record<string, string>;
   /**

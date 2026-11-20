@@ -56,7 +56,7 @@ const OXY_BULK_CONCURRENCY = 2;
 const SITEMAP_CACHE_PREFIX = 'seo:sitemap:v5:';
 const CATALOG_KEY = `${SITEMAP_CACHE_PREFIX}catalog`;
 /** How old the catalog may get before the leader rebuilds everything. */
-export const SITEMAP_REFRESH_MS = 6 * 60 * 60 * 1000;
+const SITEMAP_REFRESH_MS = 6 * 60 * 60 * 1000;
 /**
  * Kept for days, so a run of failed builds (Oxy down, a deploy storm) keeps
  * serving the last good sitemaps rather than 503s.
@@ -313,7 +313,7 @@ export type SitemapShardLookup =
   | { status: 'ok'; xml: string; builtAt?: string }
   | { status: 'absent' };
 
-export async function readSitemapCatalog(): Promise<SitemapCatalog | undefined> {
+async function readSitemapCatalog(): Promise<SitemapCatalog | undefined> {
   return sitemapCache.get<SitemapCatalog>(CATALOG_KEY);
 }
 

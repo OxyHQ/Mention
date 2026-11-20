@@ -22,7 +22,7 @@ interface ActiveUser {
 const REDIS_ACTIVE_USERS_ZSET = 'feed:active_users';
 const REDIS_ACTIVE_USERS_COUNTS = 'feed:active_users:counts';
 
-export class FeedJobScheduler {
+class FeedJobScheduler {
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private isRunning: boolean = false;
 

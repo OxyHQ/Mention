@@ -125,7 +125,7 @@ async function getJson(url: string): Promise<JsonGet> {
 }
 
 /** A `Retry-After` (delta-seconds or HTTP date) as a bounded number of seconds. */
-export function retryAfterSeconds(value: string | undefined, nowMs = Date.now()): number {
+function retryAfterSeconds(value: string | undefined, nowMs = Date.now()): number {
   let seconds = Number.NaN;
   if (value !== undefined) {
     const trimmed = value.trim();
@@ -142,7 +142,7 @@ export function retryAfterSeconds(value: string | undefined, nowMs = Date.now())
  * `mention`, else the `*` group, longest matching rule wins, `Allow` on a tie.
  * No robots.txt (or an unreadable one) closes nothing.
  */
-export function robotsAllowsAccountApi(robotsTxt: string): boolean {
+function robotsAllowsAccountApi(robotsTxt: string): boolean {
   const groups: { agents: string[]; rules: { allow: boolean; path: string }[] }[] = [];
   let current: (typeof groups)[number] | undefined;
   for (const rawLine of robotsTxt.split(/\r?\n/)) {

@@ -15,12 +15,12 @@ import { recordSeenTopics } from './viewerRecentTopics';
  * `author|<id>`, `hashtag|<tag>`). Used for SURFACE-AWARE attribution; absent →
  * normal full attribution (backward compatible).
  */
-export interface InteractionContext {
+interface InteractionContext {
   surface?: string;
 }
 
 /** What a viewer did to a post, as preference learning weighs it. */
-export type InteractionType =
+type InteractionType =
   | 'like'
   | 'boost'
   | 'comment'
@@ -93,7 +93,7 @@ export function readInteractionSurface(
  */
 const ACTIVE_HOURS_WINDOW = 168;
 
-export class UserPreferenceService {
+class UserPreferenceService {
   // The accumulators (preferredAuthors weight/decay, top-N sort+slice, recency
   // factors, multiplicative skip-decay) are stateful and order-dependent, so the
   // write is a read-modify-write. Feed-impression telemetry fires many concurrent

@@ -43,7 +43,7 @@ const BUDGET_DEFER_MS = MINUTE_MS;
 const LEASE_MS = 15 * MINUTE_MS;
 
 /** Rows mirrored per sweep, and how many at once. */
-export const BANNER_SWEEP_BATCH = 50;
+const BANNER_SWEEP_BATCH = 50;
 const BANNER_SWEEP_CONCURRENCY = 4;
 
 /** The delay before the next attempt, after `attempts` failures (already incremented). */

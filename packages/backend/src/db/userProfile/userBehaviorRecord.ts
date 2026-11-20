@@ -57,7 +57,7 @@ export interface RegionPreference {
 }
 
 /** The four fixed post-type buckets, as accumulated weights. */
-export interface PostTypeAffinity {
+interface PostTypeAffinity {
   text: number;
   image: number;
   video: number;

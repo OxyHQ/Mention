@@ -15,7 +15,7 @@
  * Anything the rules produce MUST be a member of this set so downstream
  * reconciliation (P3) has a fixed, known vocabulary.
  */
-export const TOPIC_SLUGS = [
+const TOPIC_SLUGS = [
   'tech',
   'ai',
   'science',
@@ -57,7 +57,7 @@ export function isTopicSlug(value: string): value is TopicSlug {
  * The KEY is an already-normalized hashtag; the VALUE is the canonical hashtag
  * (NOT necessarily a topic slug — topic mapping is a separate step).
  */
-export const HASHTAG_ALIASES: Readonly<Record<string, string>> = {
+const HASHTAG_ALIASES: Readonly<Record<string, string>> = {
   artificialintelligence: 'ai',
   machinelearning: 'ai',
   ml: 'ai',

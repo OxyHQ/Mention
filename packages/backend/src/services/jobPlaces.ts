@@ -72,7 +72,7 @@ export function isClarityError(error: unknown): error is ClarityErrorLike {
 }
 
 /** Derive Mention's stored location from a Clarity place. */
-export function locationFromPlace(place: Place): MentionJobLocation {
+function locationFromPlace(place: Place): MentionJobLocation {
   if (!isCountryCode(place.countryCode)) {
     throw new JobLocationError({
       path: 'location.placeId',
@@ -90,7 +90,7 @@ export function locationFromPlace(place: Place): MentionJobLocation {
 }
 
 /** A Clarity place as the location picker receives it. */
-export function toMentionJobPlace(place: Place): MentionJobPlace {
+function toMentionJobPlace(place: Place): MentionJobPlace {
   return {
     id: place.id,
     kind: place.kind,

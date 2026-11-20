@@ -102,7 +102,7 @@ export interface GraphMedia {
   children?: { data?: GraphChildMedia[] };
 }
 
-export interface GraphMediaPage {
+interface GraphMediaPage {
   data: GraphMedia[];
   after?: string;
 }

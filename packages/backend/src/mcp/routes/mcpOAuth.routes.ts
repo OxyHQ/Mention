@@ -29,5 +29,3 @@ export function createMcpOAuthRoutes(): Router {
 
   return router;
 }
-
-export default createMcpOAuthRoutes;

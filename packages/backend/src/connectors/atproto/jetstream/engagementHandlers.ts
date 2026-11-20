@@ -47,9 +47,9 @@ import type { JetstreamCollectionHandler } from './JetstreamConsumer';
 import { deleteStoredAtprotoRecords } from './postHandler';
 import type { JetstreamCommit } from './protocol';
 
-export const LIKE_COLLECTION = 'app.bsky.feed.like';
-export const REPOST_COLLECTION = 'app.bsky.feed.repost';
-export const FOLLOW_COLLECTION = 'app.bsky.graph.follow';
+const LIKE_COLLECTION = 'app.bsky.feed.like';
+const REPOST_COLLECTION = 'app.bsky.feed.repost';
+const FOLLOW_COLLECTION = 'app.bsky.graph.follow';
 
 /** How long the known-account set is reused before it is read again. */
 const KNOWN_ACCOUNTS_TTL_MS = 5 * 60_000;

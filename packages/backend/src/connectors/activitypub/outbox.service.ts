@@ -247,7 +247,7 @@ function definedFields<T extends object>(value: T): Partial<T> {
  * `outbox-http-404`, `outbox-http-410`, `outbox-http-503`); the HTTP status is
  * preserved so the permanently-unavailable check can key off 404/410.
  */
-export type OutboxHttpFailureReason = `outbox-http-${number}`;
+type OutboxHttpFailureReason = `outbox-http-${number}`;
 
 export type OutboxSyncFailureReason =
   | 'missing-outbox'
@@ -324,7 +324,7 @@ export interface OutboxSyncOptions {
 }
 
 /** The actor fields an outbox sync reads. */
-export type OutboxSyncActor = Pick<
+type OutboxSyncActor = Pick<
   FederatedActorRecord,
   'outboxUrl' | 'acct' | 'uri' | 'followersUrl' | 'lastFetchedAt'
 > & {
@@ -366,7 +366,7 @@ function activityIdBelongsToActor(activityId: string, actorUri: string): boolean
  * an opaque pagination cursor. Also the dependency importer (boosted originals,
  * reply ancestors, quoted notes) every ingest path shares.
  */
-export class OutboxSyncService {
+class OutboxSyncService {
   /**
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
@@ -1879,4 +1879,3 @@ export class OutboxSyncService {
 }
 
 export const outboxSyncService = new OutboxSyncService();
-export default outboxSyncService;

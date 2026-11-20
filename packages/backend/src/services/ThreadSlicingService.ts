@@ -23,7 +23,7 @@ import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
 
-export interface ThreadSlicingOptions {
+interface ThreadSlicingOptions {
   enableThreadGrouping: boolean;
   enableReplyContext: boolean;
   /**

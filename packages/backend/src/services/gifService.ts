@@ -19,7 +19,7 @@ interface TrendingGifsParams {
 }
 
 /** A single encoded media file (one format within a size bucket). */
-export interface KlipyMediaVariant {
+interface KlipyMediaVariant {
   url: string;
   width: number;
   height: number;
@@ -27,7 +27,7 @@ export interface KlipyMediaVariant {
 }
 
 /** The set of formats available for a given size bucket. */
-export interface KlipyFileVariants {
+interface KlipyFileVariants {
   gif?: KlipyMediaVariant;
   webp?: KlipyMediaVariant;
   jpg?: KlipyMediaVariant;

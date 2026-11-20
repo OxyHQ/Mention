@@ -13,8 +13,6 @@ export const ProfileVisibility = {
   FOLLOWERS_ONLY: 'followers_only',
 } as const;
 
-export type ProfileVisibilityType = (typeof ProfileVisibility)[keyof typeof ProfileVisibility];
-
 /**
  * Minimal interface for the OxyServices methods we need. Return types are
  * deliberately `unknown` because the Oxy privacy/follow endpoints have several
@@ -448,7 +446,7 @@ export function extractFollowingIds(followingRes: unknown): string[] {
  * Extract user IDs from Oxy followers response
  * Handles various response formats from Oxy API
  */
-export function extractFollowersIds(followersRes: unknown): string[] {
+function extractFollowersIds(followersRes: unknown): string[] {
   const followers = readProp(followersRes, 'followers');
   const followersList: unknown[] = Array.isArray(followers)
     ? followers

@@ -48,7 +48,7 @@ const LAST_PUSHED_HASH = 'interest:lastPushed:v1';
  * the cadence less {@link LAST_RUN_SLACK_MS}, so it has always expired by the
  * next scheduled tick.
  */
-export const LAST_RUN_KEY = 'interest:lastRun:v1';
+const LAST_RUN_KEY = 'interest:lastRun:v1';
 
 /** How much earlier than the cadence the freshness key expires. */
 const LAST_RUN_SLACK_MS = 10 * 60 * 1000;
@@ -283,4 +283,3 @@ export class InterestScoreService {
 }
 
 export const interestScoreService = new InterestScoreService();
-export default interestScoreService;

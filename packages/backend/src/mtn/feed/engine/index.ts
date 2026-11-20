@@ -17,6 +17,4 @@ export function registerAllModules(registry: FeedModuleRegistry = feedModuleRegi
   registerSignalModules(registry);
   registerFilterModules(registry);
 }
-
-export { feedEngine, FeedEngine } from './FeedEngine';
 export { feedModuleRegistry, FeedModuleRegistry } from './FeedModuleRegistry';

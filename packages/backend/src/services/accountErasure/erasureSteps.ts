@@ -101,7 +101,7 @@ import { ERASED_ACCOUNT_SENTINEL, type ErasurePhase } from './erasureMap';
 import { ERASURE_DELETE_BATCH } from './erasureLimits';
 
 /** What every step is pointed at. */
-export interface ErasureContext {
+interface ErasureContext {
   readonly oxyUserId: string;
 }
 
@@ -125,7 +125,7 @@ async function countRows(table: PgTable, where: SQL): Promise<number> {
  * the primary key through a subquery, so each statement is bounded however many
  * rows match. Converges: it loops until a batch comes back short.
  */
-export async function deleteInBatches(table: PgTable, pk: PgColumn, where: SQL): Promise<number> {
+async function deleteInBatches(table: PgTable, pk: PgColumn, where: SQL): Promise<number> {
   const db = getDb();
   let total = 0;
   for (;;) {

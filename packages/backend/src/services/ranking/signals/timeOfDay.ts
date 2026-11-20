@@ -11,7 +11,7 @@ import type { RankingSignal } from './types';
  * Calculate time-of-day relevance score.
  * Boosts posts created during user's active hours.
  */
-export function timeOfDayScore(
+function timeOfDayScore(
   post: RankablePost,
   userBehavior: RankingUserBehavior | undefined,
   activeHourSet?: ReadonlySet<number>,

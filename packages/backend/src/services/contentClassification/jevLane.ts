@@ -8,7 +8,7 @@ import type { ShadowEvaluation, ShadowRelease, ShadowTopic } from './jevShadow';
  * Bump {@link JEV_EVALUATION_VERSION} when the questions, languages or
  * instructions change: a post is evaluated once per version and revision.
  */
-export const JEV_EVALUATION_VERSION = 'mention-jev-shadow/2026-10-19.1';
+const JEV_EVALUATION_VERSION = 'mention-jev-shadow/2026-10-19.1';
 
 /**
  * Paid calls per UTC day, counted from today's claims. Below the 2000/day cap

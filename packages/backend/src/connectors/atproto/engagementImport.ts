@@ -97,7 +97,7 @@ async function knownAccountsByDid(dids: readonly string[]): Promise<Map<string, 
 }
 
 /** A stable id for a repost seen on `getRepostedBy`, which does not name the record. */
-export function repostSightingId(boosterDid: string, postUri: string): string {
+function repostSightingId(boosterDid: string, postUri: string): string {
   return `urn:mention:atproto-repost:${boosterDid}:${postUri}`;
 }
 

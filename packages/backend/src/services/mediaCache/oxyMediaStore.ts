@@ -66,7 +66,7 @@ const HTTP_NOT_FOUND = 404;
  * upload of bytes someone already held came back as THAT durable file's id, and
  * the cache row recorded it. PERMANENT: the file is not the cache's to delete.
  */
-export class OxyMediaNotCacheObjectError extends OxyMediaStoreRequestError {
+class OxyMediaNotCacheObjectError extends OxyMediaStoreRequestError {
   constructor(detail: string) {
     super('delete', HTTP_FORBIDDEN, detail);
     this.name = 'OxyMediaNotCacheObjectError';

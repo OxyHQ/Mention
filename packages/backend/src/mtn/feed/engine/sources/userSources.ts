@@ -303,7 +303,7 @@ export const trendTermsSource: SourceModule = {
 };
 
 /** `accounts`: posts from an explicit author-id list (custom feeds). */
-export const accountsSource: SourceModule = {
+const accountsSource: SourceModule = {
   id: 'accounts',
   kind: 'source',
   userComposable: true,

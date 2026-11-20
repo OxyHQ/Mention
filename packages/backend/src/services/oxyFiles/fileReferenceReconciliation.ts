@@ -93,7 +93,7 @@ export async function* pacedInventory(
   }
 }
 
-export interface ReconciledEntityType {
+interface ReconciledEntityType {
   oxyEntityType: string;
   ok: boolean;
   items?: number;
@@ -232,7 +232,7 @@ export async function runFileReferenceReconciliation(
 }
 
 /** When the latest reconciliation started, or null. */
-export async function latestReconciliationStartedAt(): Promise<Date | null> {
+async function latestReconciliationStartedAt(): Promise<Date | null> {
   const [row] = await getDb()
     .select({ startedAt: oxyFileReferenceReconciliations.startedAt })
     .from(oxyFileReferenceReconciliations)
@@ -244,10 +244,10 @@ export async function latestReconciliationStartedAt(): Promise<Date | null> {
 /** How often the scheduler asks whether a run is due. */
 const DUE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 /** A run is due when none started in this long — under a day, so it holds its night. */
-export const RECONCILE_MIN_GAP_MS = 20 * 60 * 60 * 1000;
+const RECONCILE_MIN_GAP_MS = 20 * 60 * 60 * 1000;
 /** The night: runs start between these UTC hours (inclusive start, exclusive end). */
-export const RECONCILE_WINDOW_START_HOUR_UTC = 2;
-export const RECONCILE_WINDOW_END_HOUR_UTC = 6;
+const RECONCILE_WINDOW_START_HOUR_UTC = 2;
+const RECONCILE_WINDOW_END_HOUR_UTC = 6;
 
 /** Whether a run is due at `now`, given when the last one started. Exported for tests. */
 export function isReconciliationDue(now: Date, latestStartedAt: Date | null): boolean {

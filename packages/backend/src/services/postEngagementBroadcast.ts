@@ -18,7 +18,7 @@ import { logger } from '../utils/logger';
  * changed belong here; a counter the write did not touch is left for the
  * client's own copy.
  */
-export type PostEngagementCounts = EngagementCounts;
+type PostEngagementCounts = EngagementCounts;
 
 export interface BroadcastPostEngagementInput {
   event: PostEngagementEvent;

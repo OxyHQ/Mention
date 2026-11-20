@@ -158,7 +158,7 @@ function summarizeZodError(error: z.ZodError): string {
  * OutboxSyncService (boost import), the shared low-level helpers, and the registered
  * PostCreator. None of those import this module, so the direct imports are cycle-free.
  */
-export class InboxProcessingService {
+class InboxProcessingService {
   /**
    * Process one already-actor-verified inbound activity by delegating to the shared
    * engine dispatcher. Kept as an instance method so the BullMQ worker + the
@@ -1269,7 +1269,6 @@ export class InboxProcessingService {
 }
 
 export const inboxProcessingService = new InboxProcessingService();
-export default inboxProcessingService;
 
 /**
  * The shared inbound dispatcher. The engine validates the untrusted activity, owns

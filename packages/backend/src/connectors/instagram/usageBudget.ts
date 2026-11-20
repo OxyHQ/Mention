@@ -142,7 +142,7 @@ function floorFor(kind: GraphCallKind): number {
 }
 
 /** Local token take — exported for tests. */
-export function takeLocalToken(kind: GraphCallKind, now = Date.now()): boolean {
+function takeLocalToken(kind: GraphCallKind, now = Date.now()): boolean {
   const tokens = Math.min(
     GRAPH_CALL_BUCKET_CAPACITY,
     local.tokens + Math.max(0, now - local.tokensAt) * REFILL_PER_MS,

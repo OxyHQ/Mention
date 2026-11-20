@@ -173,7 +173,7 @@ const CLARITY_MAX_URL_LENGTH = 2_048;
  * permanent — it could never produce a card itself. Such a URL is skipped here:
  * not pending, because asking again cannot help.
  */
-export function isResolvableByClarity(value: string): boolean {
+function isResolvableByClarity(value: string): boolean {
   try {
     const url = new URL(value);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;

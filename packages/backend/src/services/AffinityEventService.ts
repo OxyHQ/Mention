@@ -203,4 +203,3 @@ export class AffinityEventService {
 }
 
 export const affinityEventService = new AffinityEventService();
-export default affinityEventService;

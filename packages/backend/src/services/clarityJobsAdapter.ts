@@ -128,7 +128,7 @@ export function buildJobPostingJsonLd(
 }
 
 /** The employer's name, profile URL and avatar, from the cached Oxy summary. Never throws. */
-export async function resolveHiringOrganization(
+async function resolveHiringOrganization(
   employerOxyUserId: string,
 ): Promise<ClarityHiringOrganization> {
   const summary = await resolveUserSummaries([employerOxyUserId])

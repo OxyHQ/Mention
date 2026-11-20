@@ -94,7 +94,7 @@ function nextAttemptAt(attempts: number, now: Date): Date {
  * database error — is treated as retryable, because assuming a defect is permanent
  * is how a recoverable outage becomes lost moderation work.
  */
-export function isRetryableDeliveryError(error: unknown): boolean {
+function isRetryableDeliveryError(error: unknown): boolean {
   if (typeof error === 'object' && error !== null && 'retryable' in error) {
     const retryable: unknown = (error as { retryable: unknown }).retryable;
     if (typeof retryable === 'boolean') return retryable;
@@ -102,7 +102,7 @@ export function isRetryableDeliveryError(error: unknown): boolean {
   return true;
 }
 
-export interface ModerationOutboxFailure {
+interface ModerationOutboxFailure {
   released: boolean;
   deadLettered: boolean;
 }
@@ -116,7 +116,7 @@ export interface ModerationOutboxFailure {
  * the payload to change, so they become `dead_letter` immediately and stay
  * visible with their error rather than accumulating attempts nobody reads.
  */
-export async function failModerationOutboxEvent(
+async function failModerationOutboxEvent(
   event: Pick<ModerationOutboxEvent, '_id' | 'attempts'>,
   leaseOwner: string,
   error: unknown,

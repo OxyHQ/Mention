@@ -77,7 +77,7 @@ export interface CacheConfig {
 }
 
 /** Per-write TTL override; omitted ⇒ {@link CacheConfig.ttlSeconds}. */
-export interface CacheWriteOptions {
+interface CacheWriteOptions {
   ttlSeconds?: number;
 }
 
@@ -141,7 +141,7 @@ export interface Cache {
 }
 
 /** One key of a {@link Cache.getOrComputeEach} batch. */
-export interface CacheComputeRequest<T> {
+interface CacheComputeRequest<T> {
   key: string;
   compute: () => Promise<T>;
   options?: CacheComputeOptions<T>;

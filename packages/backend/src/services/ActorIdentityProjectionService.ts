@@ -41,7 +41,7 @@ export interface ActorIdentityProjectionResult {
   refusal?: 'actor_not_cached';
 }
 
-export interface ActorProjectionCacheInvalidation {
+interface ActorProjectionCacheInvalidation {
   record(userIds: readonly string[]): void;
 }
 

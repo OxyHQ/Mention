@@ -86,7 +86,7 @@ const WINDOW_DAYS = 30;
 const WINDOW_MS = WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
 /** Default cap on returned candidate authors. */
-export const DEFAULT_CONTENT_CANDIDATE_LIMIT = 30;
+const DEFAULT_CONTENT_CANDIDATE_LIMIT = 30;
 
 /** Hard cap regardless of caller-requested limit. */
 const MAX_CONTENT_CANDIDATE_LIMIT = 50;
@@ -884,4 +884,3 @@ export class ContentAffinityService {
 }
 
 export const contentAffinityService = new ContentAffinityService();
-export default contentAffinityService;
