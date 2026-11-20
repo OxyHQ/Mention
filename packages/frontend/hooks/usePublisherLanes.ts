@@ -15,7 +15,11 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * caller already holds, so it costs no extra request, and asking the wrong
  * endpoint would answer 403 rather than an empty list.
  */
-export function usePublisherLanes(publishAs?: AccountNode | null) {
+export function usePublisherLanes(
+  publishAs?: AccountNode | null,
+  /** False reads nothing (a menu that does not offer the lanes). */
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const { user, canUsePrivateApi } = useAuth();
   const managesPublisher =
     publishAs != null &&
@@ -33,7 +37,7 @@ export function usePublisherLanes(publishAs?: AccountNode | null) {
         ? lanesService.listMine(publishAs.accountId)
         : lanesService.listForOwner(publishAs.accountId);
     },
-    enabled: canUsePrivateApi,
+    enabled: canUsePrivateApi && enabled,
   });
 
   return { lanes, isLoading };

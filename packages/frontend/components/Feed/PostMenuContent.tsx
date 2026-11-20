@@ -24,7 +24,7 @@ import { useRouter } from '@/lib/navigation/router';
 import { buildPostMenuActions, type PostMenuEntry } from './postMenuActions';
 import { currentPost, usePostInteractions } from './postInteractions';
 
-interface PostMenuContentProps {
+export interface PostMenuContentProps {
   post: HydratedPost;
   /** The focused post on `/p/<id>`: deleting it also leaves the screen. */
   isPostDetail: boolean;
@@ -37,19 +37,19 @@ interface PostMenuContentProps {
 }
 
 /**
- * The rows of a post's ⋯ menu. Mounted only while the menu is OPEN (the header
- * renders it inside Bloom's `DropdownMenu`), so the services it reads — theme,
- * viewer, router, sheets, the account graph — are resolved once per open, not
- * once per row of a feed (issue #1103). The post is read as the store holds it
- * NOW, falling back to the copy the row rendered.
+ * The groups of a post's ⋯ menu. Called only while the menu is OPEN (by the
+ * JSX row's `PostMenuContent`, or by the language row's `menu()` body), so the
+ * services it reads — theme, viewer, router, sheets, the account graph — are
+ * resolved once per open, not once per row of a feed (issue #1103). The post
+ * is read as the store holds it NOW, falling back to the copy the row rendered.
  */
-export function PostMenuContent({
+export function usePostMenuGroups({
   post: rowPost,
   isPostDetail,
   source,
   onOpenArticle,
   onInsights,
-}: PostMenuContentProps) {
+}: PostMenuContentProps): PostMenuEntry[][] {
   const theme = useTheme();
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
@@ -127,6 +127,13 @@ export function PostMenuContent({
     actions.copyLinkAction,
   ].filter((group) => group.length > 0);
 
+  return groups;
+}
+
+/** The rows of a post's ⋯ menu, as Bloom's `DropdownMenu` content. */
+export function PostMenuContent(props: PostMenuContentProps) {
+  const { t } = useTranslation();
+  const groups = usePostMenuGroups(props);
   return (
     <DropdownMenuContent label={t('postActions.title', { defaultValue: 'Post options' })}>
       {groups.map((group, index) => (

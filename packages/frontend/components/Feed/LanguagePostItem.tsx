@@ -1,7 +1,7 @@
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
-import React, { useCallback, useMemo, useState, lazy, Suspense, type ReactNode } from 'react';
+import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react';
 import { View, Text as RNText, TouchableOpacity, type GestureResponderEvent } from 'react-native';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type { TFunction } from 'i18next';
@@ -25,6 +25,7 @@ import {
   Embed,
   HStack,
   Icon,
+  Menu,
   Spacer,
   Text,
   VStack,
@@ -33,10 +34,10 @@ import {
   view,
   type Child,
   type IconComponent,
+  type MenuContentView,
 } from '@oxy.so/bloom-language';
 import { tokens } from '@oxy.so/bloom/styles';
 import { toast } from '@oxy.so/bloom/toast';
-import { DropdownMenu, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
@@ -82,6 +83,7 @@ import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
+import { PostMenu } from './LanguagePostMenu';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { useTimeAgo } from '@/hooks/useTimeAgo';
@@ -129,9 +131,6 @@ import { postItemPropsEqual, type PostItemProps } from './postItemProps';
  */
 
 // Lazy, as in `PostItem`: none of these is drawn until a reader opens it.
-const PostMenuContent = lazy(() =>
-  import('./PostMenuContent').then((m) => ({ default: m.PostMenuContent })),
-);
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 const EngagementList = lazy(() => import('@/components/Post/EngagementList'));
 const CollaboratorsList = lazy(() => import('@/components/Post/CollaboratorsList'));
@@ -156,6 +155,13 @@ const row = defineTokens({
   /** The identity line's leading (`leading-tight` in the class vocabulary). */
   leading: { tight: 1.25 },
 });
+
+/** The ⋯ glyph, with the touch room around it. */
+const MENU_GLYPH = Icon(RiMoreFill)
+  .size(row.iconSize.menu)
+  .foreground('muted')
+  .padding('horizontal', 'sm')
+  .hitSlop('md');
 
 const NAME_STYLE = { container: { flexShrink: 1, minWidth: 0 } } as const;
 const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
@@ -226,26 +232,16 @@ const TimeLabel = view(function TimeLabel(props: {
   ));
 });
 
-/** The ⋯ button. Its own view: opening the menu re-renders the button, not the row. */
+/**
+ * The ⋯ button and its menu, presented natively on each platform (the lens
+ * menu on Android). Its own view: opening the menu re-renders the button, not
+ * the row; the menu's rows are built only while it is open (`PostMenu`).
+ */
 const PostMenuButton = view(function PostMenuButton(props: {
-  compact: boolean;
   label: string;
-  menu: ReactNode;
+  content: MenuContentView;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  return Embed((render) => (
-    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-      <DropdownMenuTrigger asChild label={props.label}>
-        <TouchableOpacity
-          hitSlop={tokens.hitSlop.md}
-          className={props.compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
-        >
-          {render(Icon(RiMoreFill).size(row.iconSize.menu).foreground('muted'))}
-        </TouchableOpacity>
-      </DropdownMenuTrigger>
-      {menuOpen ? props.menu : null}
-    </DropdownMenu>
-  ));
+  return Menu(MENU_GLYPH, props.content).label(props.label);
 });
 
 interface PostActionsProps {
@@ -1411,19 +1407,14 @@ function PostRow(props: PostItemProps): Child {
         );
 
   const menuButton = PostMenuButton({
-    compact,
     label: t('postActions.title', { defaultValue: 'Post options' }),
-    menu: (
-      <Suspense fallback={null}>
-        <PostMenuContent
-          post={viewPost}
-          isPostDetail={isDetailMain}
-          source={feedDescriptor}
-          onOpenArticle={openArticleSheet}
-          onInsights={handleInsightsPress}
-        />
-      </Suspense>
-    ),
+    content: PostMenu({
+      post: viewPost,
+      isPostDetail: isDetailMain,
+      source: feedDescriptor,
+      onOpenArticle: openArticleSheet,
+      onInsights: handleInsightsPress,
+    }),
   });
 
   const identityName = Embed(
@@ -1559,6 +1550,7 @@ function PostRow(props: PostItemProps): Child {
           .role('image')
           .label('Reposted')
       : null,
+    compact ? Spacer() : null,
     compact ? menuButton : null,
   )
     .align(compact ? 'center' : 'end')

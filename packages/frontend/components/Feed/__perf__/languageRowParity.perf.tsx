@@ -252,9 +252,41 @@ function avatarGapAsContentPadding(tree: Flat[]): Flat[] {
   });
 }
 
-function rowTree(Row: React.ComponentType<PostItemProps>, props: PostItemProps): Flat[] {
+/**
+ * The ⋯ trigger: the JSX row's `TouchableOpacity` (an `opacity: 1` View with
+ * no child here, as this harness draws no icon, out of the native focus order,
+ * its 8pt sides in a `px-2` this harness does not resolve) is the language
+ * `Menu`'s pressable glyph, with the same 8pt sides as padding and in the
+ * focus order. Applied to the JSX tree, and asserted to have applied.
+ */
+function menuTriggerAsPressable(tree: Flat[]): Flat[] {
+  const isTrigger = (node: Flat, i: number) =>
+    node.type === 'View' &&
+    node.pressable &&
+    node.props.focusable === false &&
+    node.style.opacity === 1 &&
+    Object.keys(node.style).every((key) => key === 'opacity' || key === 'marginTop') &&
+    !tree[i + 1]?.path.startsWith(`${node.path}0/`);
+  // One per row drawn: a quoted post is a row of its own, with its own ⋯.
+  expect(tree.filter(isTrigger).length).toBeGreaterThan(0);
+  return tree.map((node, i) => {
+    if (!isTrigger(node, i)) return node;
+    const { opacity: _fade, ...style } = node.style;
+    return {
+      ...node,
+      props: { ...node.props, focusable: true },
+      style: { ...style, paddingLeft: 8, paddingRight: 8 },
+    };
+  });
+}
+
+function rowTree(
+  Row: React.ComponentType<PostItemProps>,
+  props: PostItemProps,
+  rewrite: (tree: Flat[]) => Flat[] = (tree) => tree,
+): Flat[] {
   const renderer = mount(<Row {...props} />);
-  const tree = flatten(renderer.toJSON());
+  const tree = rewrite(flatten(renderer.toJSON()));
   act(() => renderer.unmount());
   return tree.map(({ path: _path, ...rest }) => rest as Flat);
 }
@@ -264,7 +296,8 @@ beforeAll(async () => {
 });
 
 /**
- * Both rows, compared after the named re-spellings: the avatar gap (above);
+ * Both rows, compared after the named re-spellings: the avatar gap and the ⋯
+ * trigger (above);
  * the context-row offset, which the JSX row writes as `marginTop: 22 × rows`
  * on the avatar and the ⋯ button and the language row as a column per side
  * under one 18-high spacer per row (4 apart); and the context glyph's 3px,
@@ -275,7 +308,9 @@ function compareRows(
   props: PostItemProps,
   jsxProps: Partial<PostItemProps> & { style?: object } = {},
 ): { rows: number; language: Flat[] } {
-  const jsx = avatarGapAsContentPadding(rowTree(PostItem, { ...props, ...jsxProps }));
+  const jsx = avatarGapAsContentPadding(
+    rowTree(PostItem, { ...props, ...jsxProps }, menuTriggerAsPressable),
+  );
   const language = rowTree(LanguagePostItem, props);
   const offset = jsx.find(
     (node) =>
@@ -299,7 +334,17 @@ function compareRows(
     }
     return node;
   });
-  expect(language.filter((node) => !isColumn(node) && !isSpacer(node))).toEqual(rewritten);
+  // A compact row's ⋯ sits at the far edge: `ml-auto` in JSX (a class this
+  // harness does not resolve), a Spacer before it in the language.
+  const isMenuPush = (node: Flat, i: number) =>
+    Object.keys(node.style).join() === 'flex' &&
+    node.style.flex === 1 &&
+    language[i + 1]?.pressable === true &&
+    language[i + 1]?.style.paddingLeft === 8 &&
+    language[i + 1]?.style.paddingRight === 8;
+  expect(
+    language.filter((node, i) => !isColumn(node) && !isSpacer(node) && !isMenuPush(node, i)),
+  ).toEqual(rewritten);
   return { rows, language };
 }
 

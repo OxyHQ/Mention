@@ -13,7 +13,7 @@ import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
 import { presentSheet } from '@/utils/sheet';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import type { HydratedPost } from '@mention/shared-types';
+import type { HydratedPost, PostSourceLink } from '@mention/shared-types';
 import type { FeedItem } from '@/db';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
@@ -112,12 +112,20 @@ export interface PostMenuParams {
   onInsights: () => void;
 }
 
+/** What a submenu holds, as data: a menu that draws its own rows reads it. */
+export type PostMenuSubmenuRows =
+  | { kind: 'lane'; post: HydratedPost }
+  | { kind: 'replySettings'; post: HydratedPost }
+  | { kind: 'sources'; sources: PostSourceLink[] };
+
 /** A row that opens a submenu of its own rows instead of acting. */
 export interface PostMenuSubmenu {
   icon: ReactNode;
   label: string;
   /** Bloom menu rows: a flyout on web, an inline disclosure on native. */
   submenu: ReactNode;
+  /** The same rows, as data. */
+  rows: PostMenuSubmenuRows;
 }
 
 export type PostMenuEntry = ActionMenuAction | PostMenuSubmenu;
@@ -292,6 +300,7 @@ export function buildPostMenuActions(
         icon: <RiNodeTree width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('lanes.postActions.moveToLane'),
         submenu: <PostLaneSubmenu post={viewPost} />,
+        rows: { kind: 'lane', post: viewPost },
       });
     }
 
@@ -315,6 +324,7 @@ export function buildPostMenuActions(
         icon: <RiChat3Line width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.replyOptions'),
         submenu: <PostReplySettingsSubmenu post={viewPost} />,
+        rows: { kind: 'replySettings', post: viewPost },
       });
     }
 
@@ -389,6 +399,7 @@ export function buildPostMenuActions(
               icon: <RiLinksLine width={20} height={20} fill={theme.colors.textSecondary} />,
               label: t('post.sources'),
               submenu: <PostSourcesSubmenu sources={sources} />,
+              rows: { kind: 'sources', sources },
             },
           ]
         : [];

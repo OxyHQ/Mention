@@ -111,3 +111,10 @@ export const MENTION_PLUS_UI_PREVIEW =
  * one source tree builds either for an A/B measurement.
  */
 export const USE_LANGUAGE_ROW = process.env.EXPO_PUBLIC_BLOOM_LANGUAGE_ROW === '1';
+
+/**
+ * Whether the app's chrome (the bottom bar and its compose FAB, the
+ * notifications header) is written in the Bloom language, each drawn by its
+ * platform's own component. Build-time, like `USE_LANGUAGE_ROW`.
+ */
+export const USE_LANGUAGE_CHROME = process.env.EXPO_PUBLIC_BLOOM_LANGUAGE_CHROME === '1';

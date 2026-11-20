@@ -6,6 +6,14 @@ import { useRouter } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import {
+  Button as LanguageButton,
+  Header,
+  Icon,
+  toElement,
+  type IconComponent,
+} from '@oxy.so/bloom-language';
+import { USE_LANGUAGE_CHROME } from '@/config';
 import { Screen } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
@@ -112,6 +120,12 @@ const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
 
 /** Per-tab unread tallies. The `all` tab uses the authoritative server total. */
 type TabUnreadCounts = Record<FilterableTab, number>;
+
+// The header in the Bloom language, only when the build chooses it (see config.ts), so
+// the default build and its tests never evaluate the language.
+const languageChrome = USE_LANGUAGE_CHROME
+  ? (require('@/components/notifications/LanguageNotificationsHeader') as typeof import('@/components/notifications/LanguageNotificationsHeader'))
+  : null;
 
 const NotificationsScreen: React.FC = () => {
   const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
@@ -802,57 +816,87 @@ const NotificationsScreen: React.FC = () => {
         reselect={{ refresh: handleRefresh }}
         scroll="auto"
         header={
-          <PageHeader
-            title={t('notifications.title')}
-            presentation="floating"
-            actions={
-              <>
-                {unreadCount > 0 ? (
+          languageChrome ? (
+            languageChrome.notificationsHeader({
+              title: t('notifications.title'),
+              markAllRead:
+                unreadCount > 0
+                  ? {
+                      label: t('notification.mark_all_read'),
+                      busy: markAllAsReadMutation.isPending,
+                      onPress: handleMarkAllAsRead,
+                    }
+                  : undefined,
+              privateMentions: canUsePrivateApi
+                ? {
+                    label: t('privateMentions.title', { defaultValue: 'Private mentions' }),
+                    onPress: () => router.push('/notifications/private-mentions'),
+                  }
+                : undefined,
+              subscriptions: {
+                label: t('subscription.list.title', { defaultValue: 'Activity notifications' }),
+                onPress: () => requestSettings('/settings/notifications/subscriptions'),
+              },
+              settings: {
+                label: t('notification.settings', { defaultValue: 'Notification settings' }),
+                onPress: () => requestSettings('/settings/notifications'),
+              },
+            })
+          ) : (
+            <PageHeader
+              title={t('notifications.title')}
+              presentation="floating"
+              actions={
+                <>
+                  {unreadCount > 0 ? (
+                    <Button
+                      appearance="subtle"
+                      tone="neutral"
+                      iconOnly
+                      icon={
+                        <RiCheckDoubleLine width={20} height={20} fill={theme.colors.primary} />
+                      }
+                      onPress={handleMarkAllAsRead}
+                      disabled={markAllAsReadMutation.isPending}
+                      accessibilityLabel={t('notification.mark_all_read')}
+                    />
+                  ) : null}
+                  {canUsePrivateApi ? (
+                    <Button
+                      appearance="subtle"
+                      tone="neutral"
+                      iconOnly
+                      icon={<RiLockLine width={20} height={20} fill={theme.colors.text} />}
+                      onPress={() => router.push('/notifications/private-mentions')}
+                      accessibilityLabel={t('privateMentions.title', {
+                        defaultValue: 'Private mentions',
+                      })}
+                    />
+                  ) : null}
                   <Button
                     appearance="subtle"
                     tone="neutral"
                     iconOnly
-                    icon={<RiCheckDoubleLine width={20} height={20} fill={theme.colors.primary} />}
-                    onPress={handleMarkAllAsRead}
-                    disabled={markAllAsReadMutation.isPending}
-                    accessibilityLabel={t('notification.mark_all_read')}
-                  />
-                ) : null}
-                {canUsePrivateApi ? (
-                  <Button
-                    appearance="subtle"
-                    tone="neutral"
-                    iconOnly
-                    icon={<RiLockLine width={20} height={20} fill={theme.colors.text} />}
-                    onPress={() => router.push('/notifications/private-mentions')}
-                    accessibilityLabel={t('privateMentions.title', {
-                      defaultValue: 'Private mentions',
+                    icon={<RiNotification3Fill width={20} height={20} fill={theme.colors.text} />}
+                    onPress={() => requestSettings('/settings/notifications/subscriptions')}
+                    accessibilityLabel={t('subscription.list.title', {
+                      defaultValue: 'Activity notifications',
                     })}
                   />
-                ) : null}
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  iconOnly
-                  icon={<RiNotification3Fill width={20} height={20} fill={theme.colors.text} />}
-                  onPress={() => requestSettings('/settings/notifications/subscriptions')}
-                  accessibilityLabel={t('subscription.list.title', {
-                    defaultValue: 'Activity notifications',
-                  })}
-                />
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  iconOnly
-                  icon={<RiSettings3Line width={20} height={20} fill={theme.colors.text} />}
-                  onPress={() => requestSettings('/settings/notifications')}
-                  accessibilityLabel={t('notification.settings', {
-                    defaultValue: 'Notification settings',
-                  })}
-                />
-              </>
-            }
-          />
+                  <Button
+                    appearance="subtle"
+                    tone="neutral"
+                    iconOnly
+                    icon={<RiSettings3Line width={20} height={20} fill={theme.colors.text} />}
+                    onPress={() => requestSettings('/settings/notifications')}
+                    accessibilityLabel={t('notification.settings', {
+                      defaultValue: 'Notification settings',
+                    })}
+                  />
+                </>
+              }
+            />
+          )
         }
       >
         {canUsePrivateApi && (

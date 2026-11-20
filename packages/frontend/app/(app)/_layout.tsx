@@ -22,6 +22,7 @@ import { DeckColumn, DeckColumnHeaderActions } from '@/components/deck/DeckColum
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
+import { USE_LANGUAGE_CHROME } from '@/config';
 
 import { stackSceneLayout } from '@oxy.so/bloom/panel-routing/expo-router';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
@@ -42,6 +43,12 @@ import { postEngagementGroup } from '@/components/Post/postEngagementGroup';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 const IS_WEB = Platform.OS === 'web';
+
+// The bottom bar in the Bloom language, only when the build chooses it (see config.ts),
+// so the default build and its tests never evaluate the language.
+const languageChrome = USE_LANGUAGE_CHROME
+  ? (require('@/components/shell/LanguageBottomBar') as typeof import('@/components/shell/LanguageBottomBar'))
+  : null;
 
 function KeyboardShortcutsHost() {
   const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
@@ -218,7 +225,16 @@ export default function AppLayout() {
           }}
           header={null}
           gutter={8}
-          bottomBar={bottomContent === 'tabs' && !ownsMainReplyNavigation ? undefined : null}
+          bottomBar={
+            bottomContent === 'tabs' && !ownsMainReplyNavigation
+              ? languageChrome
+                ? languageChrome.languageBottomBar({
+                    composeLabel: t('sidebar.compose'),
+                    onCompose: () => selectTab('write'),
+                  })
+                : undefined
+              : null
+          }
           bottomBarVisibility="compact"
           // Native content scrolls under the floating bar (Bloom's scrollers pad
           // their end clear of it); the web document reserves it, except under
