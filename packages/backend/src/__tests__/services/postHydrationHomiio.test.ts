@@ -51,3 +51,21 @@ describe('Homiio hydration has no provider dependency', () => {
     expect(bundle.homiioCase).toEqual({ caseId: 'old-case' });
   });
 });
+
+describe('Vibbr hydration carries only the event id', () => {
+  const eventId = `evt_${'a'.repeat(24)}`;
+  it('emits only the id even if the input carries event facts', () => {
+    const untrusted = { eventId, title: 'not ours', venue: 'private venue' };
+    const bundle = buildBundle(new PostHydrationService(), { vibbrEvent: untrusted });
+    expect(bundle.vibbrEvent).toEqual({ eventId });
+    expect(JSON.stringify(bundle)).not.toContain('private venue');
+  });
+  it('finds the event in a pasted canonical link and ignores a look-alike host', () => {
+    const link = (text: string) =>
+      buildBundle(new PostHydrationService(), {
+        variants: [{ tag: 'en', source: 'author', text }],
+      }).vibbrEvent;
+    expect(link(`Tickets https://vibbr.co/e/${eventId}`)).toEqual({ eventId });
+    expect(link(`https://vibbr.co.evil.test/e/${eventId}`)).toBeUndefined();
+  });
+});
