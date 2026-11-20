@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export interface ColdSource {
+interface ColdSource {
   actorUri: string;
   canonicalAcct: string;
   transportAcct: string;

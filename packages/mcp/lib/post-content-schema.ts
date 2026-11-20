@@ -16,21 +16,21 @@ export const sourceLinkSchema = z.object({
   title: z.string().optional().describe('Optional display title'),
 });
 
-export const mediaByFileIdSchema = z.object({
+const mediaByFileIdSchema = z.object({
   kind: z.literal('fileId'),
   fileId: z.string().describe('Oxy file id from upload-media or Mention compose'),
   type: z.enum(['image', 'video', 'gif']).optional().describe('Media type hint'),
   alt: z.string().max(2000).optional().describe('Accessibility alt text'),
 });
 
-export const mediaByUrlSchema = z.object({
+const mediaByUrlSchema = z.object({
   kind: z.literal('url'),
   url: z.string().url().describe('Remote image/video URL — fetched server-side before attach'),
   type: z.enum(['image', 'video', 'gif']).optional(),
   alt: z.string().max(2000).optional(),
 });
 
-export const mediaByBase64Schema = z.object({
+const mediaByBase64Schema = z.object({
   kind: z.literal('base64'),
   base64: z.string().describe('Base64-encoded image/video bytes or data: URL'),
   mimeType: z.string().describe('MIME type, e.g. image/jpeg or video/mp4'),
@@ -93,7 +93,7 @@ export const attachmentDescriptorSchema = z.object({
  * One author-written rendition of the post in a named language. The server
  * validates the tag (BCP-47) and the length exactly as it does for the composer.
  */
-export const languageVariantSchema = z.object({
+const languageVariantSchema = z.object({
   tag: z.string().min(2).max(35).describe('BCP-47 language tag, e.g. "en" or "es-ES"'),
   text: z.string().describe('The post body in this language'),
   alt: z
@@ -150,6 +150,5 @@ export const threadPostSchema = z.object({
   metadata: postMetadataSchema.optional(),
 });
 
-export type LanguageVariantInput = z.infer<typeof languageVariantSchema>;
 export type MediaInput = z.infer<typeof mediaInputSchema>;
 export type PostContentInput = z.infer<typeof postContentSchema>;
