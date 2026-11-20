@@ -14,7 +14,7 @@ import type { Locator, Page } from '@playwright/test';
  * frames is the observable "nothing will scroll under the pointer any more"
  * condition.
  */
-export async function scrollSettled(page: Page): Promise<void> {
+async function scrollSettled(page: Page): Promise<void> {
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {

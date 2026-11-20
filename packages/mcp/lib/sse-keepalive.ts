@@ -9,7 +9,7 @@
  * (`: …`) is ignored by every EventSource parser, and the transport writes each
  * event in one `write` call, so a comment can never land inside an event.
  */
-export const SSE_KEEP_ALIVE_INTERVAL_MS = 25_000;
+const SSE_KEEP_ALIVE_INTERVAL_MS = 25_000;
 
 export interface SseKeepAliveTarget {
   readonly writableEnded: boolean;
