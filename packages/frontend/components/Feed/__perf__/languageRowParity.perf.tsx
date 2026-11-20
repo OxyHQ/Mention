@@ -268,9 +268,16 @@ beforeAll(async () => {
  * the context-row offset, which the JSX row writes as `marginTop: 22 × rows`
  * on the avatar and the ⋯ button and the language row as a column per side
  * under one 18-high spacer per row (4 apart); and the context glyph's 3px,
- * margin in JSX, padding in the language. Returns how many context rows
- * offset the header, so a case can assert it exercised them.
+ * margin in JSX, padding in the language; and the face: every language text
+ * names Bloom's (Inter here), as Bloom's Text does, where a className Text in
+ * the JSX row names none and so draws the system font (Bloom's FontLoader made
+ * Inter the default through `Text.defaultProps`, which React 19 no longer
+ * applies to function components). Returns how many context rows offset the
+ * header, so a case can assert it exercised them.
  */
+/** Bloom Text's face for everything but the title families (none of which the row uses). */
+const BLOOM_FACE = 'Inter';
+
 function compareRows(
   props: PostItemProps,
   jsxProps: Partial<PostItemProps> & { style?: object } = {},
@@ -288,7 +295,22 @@ function compareRows(
   const isSpacer = (node: Flat) => node.style.flex === 1 && node.style.height === 18;
   expect(language.filter(isColumn)).toHaveLength(rows > 0 ? 2 : 0);
   expect(language.filter(isSpacer)).toHaveLength(rows * 2);
-  const rewritten = jsx.map((node) => {
+  const drawn = language.filter((node) => !isColumn(node) && !isSpacer(node));
+  // Every text the language draws names Bloom's face; a text with no family is
+  // the app's own JSX, embedded in the row as it is in the JSX row.
+  const faces = new Set(
+    drawn.filter((node) => node.type === 'Text').map((node) => node.style.fontFamily),
+  );
+  expect(faces).toEqual(new Set([BLOOM_FACE, undefined]));
+  const rewritten = jsx.map((node, i) => {
+    if (
+      node.type === 'Text' &&
+      node.style.fontFamily === undefined &&
+      drawn[i]?.type === 'Text' &&
+      drawn[i]?.style.fontFamily === BLOOM_FACE
+    ) {
+      return { ...node, style: { ...node.style, fontFamily: BLOOM_FACE } };
+    }
     if (node.style.marginLeft === -16 && node.style.marginRight === 3) {
       const { marginRight: _gap, ...style } = node.style;
       return { ...node, style: { ...style, paddingRight: 3 } };
@@ -299,7 +321,7 @@ function compareRows(
     }
     return node;
   });
-  expect(language.filter((node) => !isColumn(node) && !isSpacer(node))).toEqual(rewritten);
+  expect(drawn).toEqual(rewritten);
   return { rows, language };
 }
 
