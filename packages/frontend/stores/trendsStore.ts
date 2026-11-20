@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '@/utils/api';
 import type { Trend } from '@/interfaces/Trend';
+import { syncTrendsWidget } from '@/modules/mention-widgets/trendsWidgetSync';
 
 /**
  * Slow safety-net poll. Realtime freshness is driven by the `trends:updated`
@@ -197,6 +198,9 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
         return;
       const items: TrendApiItem[] = response.data.trending || [];
       const recId = response.data.recId;
+      // A rotated batch tells the home-screen trends widget to fetch now rather
+      // than at the end of its own schedule; the helper rate-limits the nudge.
+      syncTrendsWidget(recId);
       const next = items.map((item) => {
         const series = parseSeries(item.series);
         const type = item.type || 'hashtag';
