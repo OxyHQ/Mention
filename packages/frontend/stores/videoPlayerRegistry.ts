@@ -360,6 +360,27 @@ function notePictureTaken(player: VideoPlayer, presenter: object): void {
 }
 
 /**
+ * The presenters asking their player to play right now, wherever they are. A
+ * video that only prepares (a preloaded row, the reel's first slide behind
+ * Home) waits while one is, so it never takes that video's bandwidth.
+ */
+const askingPresenters = new Set<object>();
+const isAnyVideoAsked = () => askingPresenters.size > 0;
+
+function setAsking(presenter: object, asking: boolean): void {
+  const changed = asking ? !askingPresenters.has(presenter) : askingPresenters.has(presenter);
+  if (!changed) return;
+  if (asking) askingPresenters.add(presenter);
+  else askingPresenters.delete(presenter);
+  for (const listener of pictureListeners) listener();
+}
+
+/** Whether any video in the app is being asked to play. */
+export function useAnyVideoPlaying(): boolean {
+  return useSyncExternalStore(subscribePictures, isAnyVideoAsked);
+}
+
+/**
  * The React key for the view `presenter` paints `player` in. It changes when the
  * presenter starts asking to play (`watched`) while another view holds the
  * player, and every mount of that view is recorded as taking it.
@@ -381,6 +402,11 @@ export function usePictureView(
   useEffect(() => {
     if (player) notePictureTaken(player, presenter);
   }, [player, presenter, view.key]);
+  useEffect(() => {
+    if (!watched || !player) return;
+    setAsking(presenter, true);
+    return () => setAsking(presenter, false);
+  }, [watched, player, presenter]);
   return view.key;
 }
 

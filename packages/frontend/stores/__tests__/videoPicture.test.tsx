@@ -15,7 +15,7 @@ jest.mock('@oxy.so/bloom/video-playback', () => ({ setVideoHasRenderedFrame: jes
 jest.mock('@/lib/hlsPlayback', () => ({ needsJsHlsDecoder: () => false }));
 jest.mock('@oxy.so/core/logger', () => ({ createLogger: () => ({ error: jest.fn() }) }));
 
-import { usePictureView } from '../videoPlayerRegistry';
+import { useAnyVideoPlaying, usePictureView } from '../videoPlayerRegistry';
 
 // A fresh player per test: the registry remembers pictures per player.
 let player = {} as VideoPlayer;
@@ -97,4 +97,30 @@ it('two presenters asking at once do not take it from each other in a loop', () 
   // One render each for the update, no remount storm.
   expect(keys.feed.length - counts.feed).toBeLessThanOrEqual(2);
   expect(keys.reel.length - counts.reel).toBeLessThanOrEqual(2);
+});
+
+it('reports whether any presenter is asking its player to play', () => {
+  let playing: boolean[] = [];
+  function Watcher() {
+    playing.push(useAnyVideoPlaying());
+    return null;
+  }
+  const renderer = mount(
+    <>
+      <Watcher />
+      <Screens feed={false} />
+    </>,
+  );
+  expect(playing.at(-1)).toBe(false);
+  act(() =>
+    renderer.update(
+      <>
+        <Watcher />
+        <Screens feed />
+      </>,
+    ),
+  );
+  expect(playing.at(-1)).toBe(true);
+  act(() => renderer.unmount());
+  playing = [];
 });
