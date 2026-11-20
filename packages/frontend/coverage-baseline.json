@@ -183,6 +183,7 @@
     "lib/references/commerceCards.ts": {"statements":[26,26],"branches":[11,12],"functions":[5,5],"lines":[23,23]},
     "lib/references/homiioCases.ts": {"statements":[1,3],"branches":[0,0],"functions":[0,1],"lines":[1,3]},
     "lib/references/syraPodcastCards.ts": {"statements":[0,7],"branches":[0,0],"functions":[0,4],"lines":[0,7]},
+    "lib/references/vibbrEvents.ts": {"statements":[1,7],"branches":[0,0],"functions":[0,3],"lines":[1,5]},
     "lib/seoHandoff.ts": {"statements":[48,48],"branches":[41,41],"functions":[11,11],"lines":[45,45]},
     "lib/shareIntent.native.ts": {"statements":[0,40],"branches":[0,31],"functions":[0,5],"lines":[0,37]},
     "lib/shareIntent.ts": {"statements":[0,1],"branches":[0,0],"functions":[0,1],"lines":[0,1]},
