@@ -38,7 +38,7 @@ builds. Where a big app's number is not public, this says so.
   - Far items must be removed, or memory runs out.
   - Preloading must share the playing video's bandwidth meter and load control, so it never
     starves the video being watched.
-  
+
   Meta also pauses preloading when the device's CPU or I/O is under stress.
   ([Media3 blog part 2](https://developer.android.com/blog/posts/elevating-media-playback-a-deep-dive-into-media3-s-preload-manager-part-2))
 - Instagram's list framework (IGListKit) uses a "working range" measured in screens around
@@ -51,7 +51,7 @@ builds. Where a big app's number is not public, this says so.
   - 50 s minimum and maximum buffer;
   - 1 s before playback starts, 2 s after a rebuffer;
   - about 131 MB for video.
-  
+
   ([DefaultLoadControl](https://developer.android.com/reference/androidx/media3/exoplayer/DefaultLoadControl))
 - Google's short-form sample uses 5 s minimum, 20 s maximum and 0.5 s to start.
 - Meta's tuned values are not public.
@@ -147,13 +147,15 @@ Baseline numbers are in section 4.
 
 The aim is one mechanism per problem, with nothing visibly different.
 
-| Problem | Mechanism | Where |
-| --- | --- | --- |
-| Every mounted row holds a player | The list publishes a **preload window**: the viewable rows, 2 below and 1 above. A row holds a player only while it is in that window. The window survives the 100 ms gap with nothing viewable. A screen in the background keeps only its on-screen rows. | Bloom `ViewableKeysStore.publish(keys, nearKeys)` and `useViewableNear`; Mention `Feed.native.tsx` |
-| Building and destroying ExoPlayers | A **parking pool**. A released player is paused, muted and emptied (`replaceAsync(null)` frees its decoder and buffer), then handed to the next video. At most 2 wait. | `stores/videoPlayerRegistry.ts` |
-| The row's buttons and poster must not change when it gets or loses its player | `VideoSurface` takes `player: null` and draws what it draws before a first frame (poster, mute button, tap area). The same component takes the player later, so nothing remounts. | Bloom `useVideoPlaybackControl(null)`; Mention `VideoPlayer.tsx` and `useVideoPlayerEvent` |
-| A 50 s buffer per player | `VIDEO_BUFFER_OPTIONS`: 10 s ahead, 1 s to start, on every player Mention builds. | `utils/videoSource.ts` |
-| Loops and revisits download again | expo-video's disk cache (`useCaching`) on Android, HLS included. iOS cannot cache HLS; the web uses the browser cache. | `utils/videoSource.ts` |
+| Problem                                                                       | Mechanism                                                                                                                                                                                                                                                                                                                                                                                                                               | Where                                                                                              |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Every mounted row holds a player                                              | The list publishes a **preload window**: the viewable rows, 2 below and 1 above. A row holds a player only while it is in that window. The window survives the 100 ms gap with nothing viewable. A screen in the background keeps only its on-screen rows.                                                                                                                                                                              | Bloom `ViewableKeysStore.publish(keys, nearKeys)` and `useViewableNear`; Mention `Feed.native.tsx` |
+| Building and destroying ExoPlayers                                            | A **parking pool**. A released player is paused, muted and emptied (`replaceAsync(null)` frees its decoder and buffer), then handed to the next video. At most 2 wait.                                                                                                                                                                                                                                                                  | `stores/videoPlayerRegistry.ts`                                                                    |
+| The row's buttons and poster must not change when it gets or loses its player | `VideoSurface` takes `player: null` and draws what it draws before a first frame (poster, mute button, tap area). The same component takes the player later, so nothing remounts.                                                                                                                                                                                                                                                       | Bloom `useVideoPlaybackControl(null)`; Mention `VideoPlayer.tsx` and `useVideoPlayerEvent`         |
+| A 50 s buffer per player                                                      | `VIDEO_BUFFER_OPTIONS`: 10 s ahead, 1 s to start, on every player Mention builds.                                                                                                                                                                                                                                                                                                                                                       | `utils/videoSource.ts`                                                                             |
+| Loops and revisits download again                                             | expo-video's disk cache (`useCaching`) on Android, HLS included. iOS cannot cache HLS; the web uses the browser cache.                                                                                                                                                                                                                                                                                                                  | `utils/videoSource.ts`                                                                             |
+| The reel builds and destroys a player per slide                               | Slides lease from the same registry and parking pool while their surface is mounted: the slide on screen, one ahead and one behind. A swipe parks the player of the slide that left and the slide that entered takes it. Slides lease under a `reel:` key, because a player paints into one view at a time on Android and the home feed under the reel keeps its on-screen rows; the slide a feed video flew into takes the feed's key. | `app/(app)/(tabs)/videos.tsx`                                                                      |
+| Preloading takes the watched video's bandwidth                                | A preloading slide buffers a 3 s slice (`VIDEO_PRELOAD_BUFFER_OPTIONS`) and gets 10 s once watched. The slide ahead attaches once the landed video has 3 s ahead; the slide behind keeps its player.                                                                                                                                                                                                                                    | `hooks/useReelChrome.ts`, `utils/videoSource.ts`                                                   |
 
 Rows in the window but off screen are prepared and paused, so a row scrolling in already shows
 its first frame and starts at once. A row that is flung into view before it was in the window
@@ -177,18 +179,18 @@ The scripts are in the scratchpad (`video-agent/bin`):
 Network bytes are the app's UID totals from `dumpsys netstats`. Decoders are the app's
 entries in `dumpsys media.resource_manager`.
 
-| What | Before | After |
-| --- | --- | --- |
-| Data, sitting 20 s on one reel (median of 8 / 8) | 26 MB (9–133) | 1 MB (0–26) |
-| Data, 3 reel swipes (4 / 4) | 118 MB | 54 MB |
-| Data, the whole Videos-tab scenario, about 45 s (4 / 5) | 416 MB | 204 MB |
-| Reel plays that took over 1 s to start | 10 of 38 (26%) | 4 of 27 (15%) |
-| Reel time to playing, median | 78 ms | 55 ms |
-| Home feed video time to playing, median (12 / 10 plays) | 102 ms | 96 ms |
-| Home scroll janky frames out of about 4,200 (5 / 3 runs) | 88 | 63 |
-| Home scroll frame time, p99 | 24 ms | 20 ms |
-| App memory (PSS) at the end of the Videos tab | 883 MB | 809 MB |
-| Video decoders held in the Videos tab | 5–9 | 8–11 |
+| What                                                     | Before         | After         |
+| -------------------------------------------------------- | -------------- | ------------- |
+| Data, sitting 20 s on one reel (median of 8 / 8)         | 26 MB (9–133)  | 1 MB (0–26)   |
+| Data, 3 reel swipes (4 / 4)                              | 118 MB         | 54 MB         |
+| Data, the whole Videos-tab scenario, about 45 s (4 / 5)  | 416 MB         | 204 MB        |
+| Reel plays that took over 1 s to start                   | 10 of 38 (26%) | 4 of 27 (15%) |
+| Reel time to playing, median                             | 78 ms          | 55 ms         |
+| Home feed video time to playing, median (12 / 10 plays)  | 102 ms         | 96 ms         |
+| Home scroll janky frames out of about 4,200 (5 / 3 runs) | 88             | 63            |
+| Home scroll frame time, p99                              | 24 ms          | 20 ms         |
+| App memory (PSS) at the end of the Videos tab            | 883 MB         | 809 MB        |
+| Video decoders held in the Videos tab                    | 5–9            | 8–11          |
 
 What the numbers say:
 
@@ -208,8 +210,50 @@ What the numbers say:
     row had given back its preloaded player for the 100 ms gap between one viewable row
     leaving and the next being reported. With the fix, every home play started within
     85–116 ms, except one at 380 ms.
-- **Decoders.** The Videos tab still builds one player per slide (up to 6), so its decoder
-  count did not fall. See the proposal "Reels on the pool" below.
+- **Decoders.** The Videos tab still built one player per slide (up to 6), so its decoder
+  count did not fall. "Reels on the pool" below fixed that.
+
+### Reels on the pool
+
+Commits `efd8edcbe` (slides lease from the pool, ±1 window) and `8b348b549` (a preloading
+slide buffers a 3 s slice). "Before" is `d6a8ff1af`; both builds carry the same uncommitted
+probe and packed Bloom. Three runs each of `reels-agent/bin/rmeasure.sh`, interleaved on the
+owner's account: cold start, 30 drags of Home, the Videos tab, 8 swipes forward, 2 back.
+ExoPlayers alive are the app's `ExoPlayer:Playback` threads; decoders and the home feed's
+players are counted with the reel's.
+
+| What                                                  | Before             | Pool only           | Pool + preload slice |
+| ----------------------------------------------------- | ------------------ | ------------------- | -------------------- |
+| ExoPlayers alive in the Videos tab, max               | 6–7                | 3                   | 3                    |
+| Video decoders held, max (Home's included)            | 8–9                | 6                   | 5–6                  |
+| ExoPlayers built in the Videos tab (9 slides)         | 16–18              | 1                   | 1                    |
+| Reel time to playing, median of swipes                | 71 ms              | 29 ms               | 23 ms                |
+| First swipe after opening the tab                     | 3393, 5224, 48 ms  | 2471, 2078, 2652 ms | 13, 20, 4165 ms      |
+| Swipes that took over 1 s to start                    | 4 of 22            | 4 of 23             | 3 of 21              |
+| Opening the tab, time to playing                      | 2.0–2.4 s          | 2.8–3.6 s           | 1.9–3.8 s            |
+| Data per slide, median (range)                        | 10.0 MB (9.3–14.1) | 6.1 MB (5.0–7.9)    | 10.3 MB (8.3–12.4)   |
+| Reel janky frames, median, of about 2,500             | 74                 | 90                  | 50                   |
+| App memory (PSS) at the end of the Videos tab, median | 806 MB             | 857 MB              | 846 MB               |
+| Swiping back, time to playing                         | 22–126 ms          | 13–85 ms            | 25–73 ms             |
+
+What the numbers say:
+
+- **Players.** The reel holds three players (on screen, next, previous) and builds one in
+  the whole session; a swipe hands the parked player of the slide behind to the slide ahead.
+  Before, every slide built its own player, and its view leased a second, unseen one under
+  the feed's key.
+- **First swipe.** With the old 6 s gate the slide ahead was not attached yet when the first
+  swipe came about 1.5 s after the first video started. With a 3 s slice and a 3 s gate, the
+  first swipe started in 13 and 20 ms. The 4165 ms run had a slow network from the open on
+  (the open took 3.8 s and the next two swipes 3.0 and 1.1 s).
+- **Data.** The pool alone used the least, because the slide ahead often never attached. The
+  slice preloads the slide ahead every time, so data per slide is back to about what it was;
+  the watched slide still buffers 10 s.
+- **Opening the tab** is the remaining slow start: about 2–4 s for a cold HLS start on every
+  build. It looks network-bound (master playlist, media playlist, first 2 s segment), but it
+  was not traced.
+- **Memory** did not fall: the medians are within the run-to-run spread. The rows mounted
+  around the slide (poster and overlay) are unchanged.
 
 Not measured: battery (no `batterystats` session), iOS, and the web.
 
@@ -231,6 +275,6 @@ These are not built; each one needs a backend, encoding or dependency decision.
 - **Data saver.** No preloading and no autoplay on cellular, as Instagram, Facebook and X do.
   Bloom's `videoAutoplay` preference exists; a "cellular" mode needs a network-type source
   (`expo-network` or NetInfo) and a settings entry.
-- **Reels on the pool.** The reels screen still builds a player per slide (up to 6 alive).
-  Leasing them from the same registry by media key would reuse players across swipes, and with
-  the feed. This is a larger refactor of `videos.tsx`, kept separate.
+- **Warm the Videos tab.** Opening the tab is the slowest start left (2–4 s). Preparing the
+  reel's first slide while Home is on screen, or fetching its first segment, would start it
+  at once. That costs data for a tab the viewer may not open, so it is a product decision.
