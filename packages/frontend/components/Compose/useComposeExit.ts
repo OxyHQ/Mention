@@ -48,12 +48,12 @@ export function useComposeExit(presentation: ComposePresentation): ComposeExit {
   const { selectTab, leaveTab } = useTabPager();
 
   const dismiss = useCallback(() => {
-    if (presentation === 'tab') selectTab('index');
+    if (presentation === 'tab') selectTab('(home)');
     else back?.();
   }, [presentation, back, selectTab]);
 
   const leaveAfterPublish = useCallback(() => {
-    if (presentation === 'tab') leaveTab('write', 'index');
+    if (presentation === 'tab') leaveTab('write', '(home)');
     else back?.();
   }, [presentation, back, leaveTab]);
 

@@ -28,7 +28,7 @@ export function MentionHomeHeader() {
     <PageHeader
       title={
         <Pressable
-          onPress={() => selectDestination('index')}
+          onPress={() => selectDestination('(home)')}
           accessibilityRole="button"
           accessibilityLabel="Mention"
           hitSlop={8}

@@ -35,7 +35,7 @@ it('leaves the rows to the destinations and sends the logo Home through them', (
   });
   expect(sidebar.items).toBeUndefined();
   act(() => sidebar.logo?.onPress?.());
-  expect(mockSelectDestination).toHaveBeenCalledWith('index');
+  expect(mockSelectDestination).toHaveBeenCalledWith('(home)');
 });
 
 it('closes the drawer before the Oxy shared add-account flow', () => {

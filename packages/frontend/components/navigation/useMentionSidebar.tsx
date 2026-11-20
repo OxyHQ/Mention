@@ -88,7 +88,7 @@ export function useMentionSidebar(): SidebarProps {
     logo: {
       icon: <LogoIcon size={28} color={colors.text} />,
       accessibilityLabel: 'Mention',
-      onPress: () => selectDestination('index'),
+      onPress: () => selectDestination('(home)'),
     },
     modes: deckAvailable
       ? [

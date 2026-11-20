@@ -83,7 +83,7 @@ export default function CameraPage() {
 
   const leaveToFeed = useCallback(() => {
     clearCapture();
-    selectTab('index');
+    selectTab('(home)');
   }, [clearCapture, selectTab]);
 
   const retake = useCallback(() => {

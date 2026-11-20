@@ -73,7 +73,7 @@ export function useMentionDestinations(): AppDestination[] {
     () => [
       { name: 'camera', href: '/camera', page: true },
       {
-        name: 'index',
+        name: '(home)',
         href: '/',
         bar: true,
         preload: true,
@@ -148,7 +148,7 @@ export function useMentionDestinations(): AppDestination[] {
         // A signed-out reader has no profile to go to.
         sidebar: Boolean(user),
         // Second in the sidebar, right after Home; last in the bar, by the FAB.
-        sidebarAfter: 'index',
+        sidebarAfter: '(home)',
         label: t('sidebar.profile'),
         icon: ProfileAvatar,
         onLongPress: openAccounts,

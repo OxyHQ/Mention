@@ -59,6 +59,7 @@ describe('Android predictive-back navigation wiring', () => {
 
     expect(routerStacks).toEqual([]);
     expect(languageStacks.map(({ path }) => path.slice(appRoot.length + 1)).sort()).toEqual([
+      '(app)/(tabs)/(home)/_layout.tsx',
       '(app)/(tabs)/notifications/_layout.tsx',
       '(app)/(tabs)/you/_layout.tsx',
       '(app)/_layout.tsx',

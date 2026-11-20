@@ -51,7 +51,7 @@ describe('useComposeExit after a publish', () => {
   it('leaves the composer tab for Home and takes it out of the tabs history', () => {
     mountExit('tab').leaveAfterPublish();
 
-    expect(mockLeaveTab).toHaveBeenCalledWith('write', 'index');
+    expect(mockLeaveTab).toHaveBeenCalledWith('write', '(home)');
     expect(mockSelectTab).not.toHaveBeenCalled();
   });
 });
@@ -60,7 +60,7 @@ describe('useComposeExit without publishing (the ✕ keeps the draft)', () => {
   it('switches the tab to Home, leaving the composer and its draft in place', () => {
     mountExit('tab').dismiss();
 
-    expect(mockSelectTab).toHaveBeenCalledWith('index');
+    expect(mockSelectTab).toHaveBeenCalledWith('(home)');
     expect(mockLeaveTab).not.toHaveBeenCalled();
   });
 

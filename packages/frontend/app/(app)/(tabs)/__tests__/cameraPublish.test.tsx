@@ -262,7 +262,7 @@ describe('posting a capture', () => {
 
     await pressPublishAndSettle();
 
-    expect(mockSelectTab).toHaveBeenCalledWith('index');
+    expect(mockSelectTab).toHaveBeenCalledWith('(home)');
     expect(capturedProps.publishFailed).toBe(false);
   });
 
