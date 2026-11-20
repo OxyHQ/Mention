@@ -79,20 +79,6 @@ detaches the covered screen, and the top fragment is resolved from the stack
 model. Popping the record (Back, predictive back, a JS pop) re-attaches it.
 Remove when Mention moves to react-native-screens 5.
 
-# @oxy.so/bloom 6.2.0
-
-`SettingsModal` ignored a close requested before its enter frame: `show()`
-mounts, and a double `requestAnimationFrame` later sets it visible, so Escape
-pressed the moment the panel appeared set `visible` to false (it already was)
-and the pending frame then opened it anyway. The release gate
-(`packages/e2e/tests/deferred-chunks.spec.ts`) presses Escape right after the
-lazily loaded settings dialog appears, and the dialog never closed, which
-blocked every web deploy. The patch is the upstream fix, OxyHQ/Bloom#250,
-applied to `src`, `lib/module` and `lib/commonjs`: the modal tracks whether it
-is wanted open, a close cancels the pending enter frame, and a modal closed
-before it was ever shown unmounts at once. Remove it when Mention moves to a
-Bloom release that includes #250.
-
 # @shopify/flash-list 2.3.3
 
 `stickyHeaderConfig.offset` does two things. It sets where a stuck header sits,
