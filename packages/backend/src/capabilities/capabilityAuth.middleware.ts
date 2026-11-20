@@ -16,7 +16,7 @@ import {
 } from './capabilityAuthority.service';
 import { logger } from '../utils/logger';
 
-export interface MentionCapabilityContext {
+interface MentionCapabilityContext {
   ticket: string;
   claims: CapabilityTicketClaims;
 }

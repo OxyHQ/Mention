@@ -20,7 +20,7 @@
 import { isRecord } from '@mention/shared-types';
 
 /** The subscription endpoint's NSID. */
-export const SUBSCRIBE_NSID = 'network.bsky.jetstream.subscribeEvents';
+const SUBSCRIBE_NSID = 'network.bsky.jetstream.subscribeEvents';
 
 const COMMIT_TYPE = `${SUBSCRIBE_NSID}#commit`;
 const INFO_TYPE = `${SUBSCRIBE_NSID}#info`;
@@ -57,7 +57,7 @@ function asString(value: unknown): string | undefined {
  * An RFC 3339 timestamp as unix microseconds. `Date` keeps milliseconds only,
  * so the sub-second digits are read from the string itself.
  */
-export function timestampToMicros(value: string): number | undefined {
+function timestampToMicros(value: string): number | undefined {
   const millis = Date.parse(value);
   if (!Number.isFinite(millis)) return undefined;
   const fraction = /\.(\d+)/.exec(value)?.[1] ?? '';

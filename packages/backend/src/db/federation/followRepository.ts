@@ -30,7 +30,7 @@ type FollowRow = typeof federatedFollows.$inferSelect;
 /** `outbound` (we follow them) | `inbound` (they follow us). */
 export type FollowDirection = FollowRow['direction'];
 /** `pending` | `accepted` | `rejected`. */
-export type FollowStatus = FollowRow['status'];
+type FollowStatus = FollowRow['status'];
 /** `activitypub` | `atproto`. */
 export type FollowNetwork = FollowRow['network'];
 

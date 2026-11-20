@@ -16,7 +16,7 @@ const R = MtnConfig.ranking;
  * @param halfLifeHours - Optional custom half-life (from user settings)
  * @param maxAgeHours - Optional custom max age (from user settings)
  */
-export function recencyScore(
+function recencyScore(
   createdAt: Date | string | undefined,
   halfLifeHours?: number,
   maxAgeHours?: number,

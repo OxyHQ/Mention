@@ -44,15 +44,15 @@ export const ACCOUNT_EVENTS_FEED = 'account-events';
 export const RECONCILIATION_INTERVAL_MS = 5 * 60 * 1000;
 const FIRST_TICK_DELAY_MS = 30 * 1000;
 /** Events per page (Oxy allows 1..200). */
-export const RECONCILIATION_PAGE_SIZE = 100;
+const RECONCILIATION_PAGE_SIZE = 100;
 /** Pages per tick, so a long backlog is read over several ticks rather than one unbounded one. */
-export const RECONCILIATION_MAX_PAGES = 20;
+const RECONCILIATION_MAX_PAGES = 20;
 /** Unfinished erasures retried per tick. */
-export const RECONCILIATION_RETRY_LIMIT = 10;
+const RECONCILIATION_RETRY_LIMIT = 10;
 /** How long a pending/failed row sits untouched before the sweep takes it over from the queue. */
-export const RECONCILIATION_QUIET_MS = 10 * 60 * 1000;
+const RECONCILIATION_QUIET_MS = 10 * 60 * 1000;
 
-export const ACCOUNT_EVENT_REFUSED_METRIC = 'account_event_refused_total';
+const ACCOUNT_EVENT_REFUSED_METRIC = 'account_event_refused_total';
 
 export interface PullResult {
   pages: number;

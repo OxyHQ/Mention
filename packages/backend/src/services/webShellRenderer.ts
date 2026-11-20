@@ -158,7 +158,7 @@ const SCHEMA_ORG_TYPE_BY_ACTOR_TYPE = {
   Group: 'Organization',
 } as const satisfies Record<LocalActorType, 'Person' | 'Organization'>;
 
-export function schemaOrgProfileType(kind: AccountKind | undefined): 'Person' | 'Organization' {
+function schemaOrgProfileType(kind: AccountKind | undefined): 'Person' | 'Organization' {
   return SCHEMA_ORG_TYPE_BY_ACTOR_TYPE[localActorTypeForAccountKind(kind)];
 }
 
@@ -171,7 +171,7 @@ export function schemaOrgProfileType(kind: AccountKind | undefined): 'Person' | 
  * (`/@user%40instance`), one that no link pointed at — and a search engine does
  * not treat a percent-encoded reserved character as the same URL.
  */
-export function handlePathSegment(handle: string): string {
+function handlePathSegment(handle: string): string {
   return encodeURIComponent(handle).replace(/%40/g, '@');
 }
 
@@ -260,7 +260,7 @@ export function injectHeadHtml(shell: string, snippet: string): string {
 }
 
 /** The element id the frontend reads the bootstrap from (`lib/documentBootstrap`). */
-export const SHELL_BOOTSTRAP_ELEMENT_ID = 'mention-bootstrap';
+const SHELL_BOOTSTRAP_ELEMENT_ID = 'mention-bootstrap';
 
 /**
  * Public data this document's route resolved while building it, handed to the

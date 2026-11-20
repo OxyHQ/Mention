@@ -51,7 +51,7 @@ function toAnswer(
   return { question: row.question, answer: row.answer };
 }
 
-export function toMentionJobApplication(
+function toMentionJobApplication(
   row: MentionJobApplicationRow,
   answers: readonly Pick<MentionJobApplicationAnswerRow, 'question' | 'answer'>[] = [],
 ): MentionJobApplication {

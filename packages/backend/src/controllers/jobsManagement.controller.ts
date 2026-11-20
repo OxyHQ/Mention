@@ -70,7 +70,7 @@ export const jobLocationInputSchema = z
   })
   .transform((location) => location as MentionJobLocationInput);
 
-export const jobSalarySchema = z
+const jobSalarySchema = z
   .strictObject({
     min: z
       .number()
@@ -124,7 +124,7 @@ export const createJobSchema = z
     path: ['externalApplyUrl'],
   });
 
-export const updateJobSchema = z
+const updateJobSchema = z
   .object({
     title: z.string().min(1).max(200).optional(),
     description: z.string().min(1).optional(),

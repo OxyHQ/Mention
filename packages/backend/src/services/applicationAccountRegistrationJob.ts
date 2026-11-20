@@ -80,7 +80,7 @@ export async function registerLocalAccountsOnce(): Promise<{
   return { registered, wrapped: false };
 }
 
-export class ApplicationAccountRegistrationJob {
+class ApplicationAccountRegistrationJob {
   private interval: ReturnType<typeof setInterval> | null = null;
   private startTimeout: ReturnType<typeof setTimeout> | null = null;
   private running = false;

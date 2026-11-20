@@ -47,11 +47,11 @@ import { normalizeUsername } from './oxyAccountEvents';
 const LOG_PREFIX = '[AccountErasure]';
 
 /** How long a run's lease lasts before another task may reclaim it. Renewed while running. */
-export const ERASURE_LEASE_MS = 10 * 60 * 1000;
+const ERASURE_LEASE_MS = 10 * 60 * 1000;
 const LEASE_RENEW_MS = 2 * 60 * 1000;
 
-export const ACCOUNT_ERASURE_COMPLETED_METRIC = 'account_erasure_completed_total';
-export const ACCOUNT_ERASURE_FAILED_METRIC = 'account_erasure_failed_total';
+const ACCOUNT_ERASURE_COMPLETED_METRIC = 'account_erasure_completed_total';
+const ACCOUNT_ERASURE_FAILED_METRIC = 'account_erasure_failed_total';
 
 /** Map entries a step performs, in phase order then declaration order. */
 function scheduledSteps(phase: ErasurePhase): Array<{ key: string; step: ErasureStep }> {

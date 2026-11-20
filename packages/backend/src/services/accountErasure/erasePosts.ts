@@ -97,7 +97,7 @@ function targetsOf(rows: readonly CascadedPostRow[]): PostDeletionTarget[] {
  * PUBLISHED post was; a Delete for anything else names an object no remote
  * server has heard of.
  */
-export function wasFederated(post: OwnPostRow): boolean {
+function wasFederated(post: OwnPostRow): boolean {
   return (
     post.federationActorUri === null &&
     post.visibility === PostVisibility.PUBLIC &&

@@ -64,7 +64,7 @@ export const NOTIFICATION_PAGE_ORDER: SQL[] = [
  * reads on every list page and badge poll; past this the count is reported as
  * the cap.
  */
-export const UNREAD_COUNT_CAP = 1000;
+const UNREAD_COUNT_CAP = 1000;
 
 /** The viewer's unread notifications, counted no further than {@link UNREAD_COUNT_CAP}. */
 function countUnread(recipientMatch: SQL) {

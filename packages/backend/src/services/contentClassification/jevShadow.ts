@@ -18,7 +18,7 @@ export interface ShadowTopic {
 }
 
 /** Persisted rendition identity, including the FULL body, before truncation. */
-export interface ShadowRendition {
+interface ShadowRendition {
   readonly id: string;
   readonly position: number;
   readonly tag: string | null;

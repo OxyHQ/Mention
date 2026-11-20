@@ -9,7 +9,7 @@
  * For You ranking — is preserved.
  */
 
-import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
+import type { HydratedPost } from '@mention/shared-types';
 import type { FeedContext } from '../FeedAPI';
 import type { PostRecord } from '../../../db/posts/postRecord';
 import type { OxyClient } from '../../../utils/privacyHelpers';
@@ -357,6 +357,3 @@ export interface FeedDefinition {
   /** Internal engine execution profile (see {@link FeedExecution}). */
   execution?: FeedExecution;
 }
-
-export type FeedEngineResult = SlicedFeedResponse;
-export type { HydratedPost };

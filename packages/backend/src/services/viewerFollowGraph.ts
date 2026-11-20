@@ -30,7 +30,7 @@ import { posts } from '../db/schema/posts';
  * of the partial `post_community_chrono_v1` per followed account, with no
  * identity read.
  */
-export async function communitiesAmong(accountIds: readonly string[]): Promise<string[]> {
+async function communitiesAmong(accountIds: readonly string[]): Promise<string[]> {
   const ids = [...new Set(accountIds.filter(Boolean))];
   if (ids.length === 0) return [];
   const rows = await getDb().execute<{ id: string }>(

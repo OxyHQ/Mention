@@ -3,7 +3,7 @@ import { enrichMediaMetadata } from './mediaMetadataStep';
 import { logger } from '../../utils/logger';
 import type { IngestedPost, PostEnrichmentStep } from './types';
 
-export type { IngestedPost, PostEnrichmentStep } from './types';
+export type { IngestedPost } from './types';
 
 /**
  * THE post-ingest enrichment step: everything a newly-stored post gets, run

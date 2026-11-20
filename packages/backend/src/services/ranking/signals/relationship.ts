@@ -18,7 +18,7 @@ const R = MtnConfig.ranking;
  * @param followingIdsSet - Set of Oxy user IDs that current user follows
  * @param userBehavior - User behavior data from UserBehavior model
  */
-export function authorRelationshipScore(
+function authorRelationshipScore(
   authorId: string,
   userId: string | undefined,
   followingIdsSet: Set<string>,

@@ -1,4 +1,4 @@
-export type RuntimePhase = 'starting' | 'ready' | 'shutting_down';
+type RuntimePhase = 'starting' | 'ready' | 'shutting_down';
 
 interface RuntimeHealthState {
   phase: RuntimePhase;

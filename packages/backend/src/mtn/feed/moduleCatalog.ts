@@ -52,7 +52,7 @@ function schema(properties: Record<string, ModuleParamProperty>): ModuleParamsSc
  * omitted here take no params (EMPTY_SCHEMA). This is the VALIDATION contract;
  * {@link MODULE_METADATA} carries the parallel UI descriptors.
  */
-export const MODULE_PARAMS_SCHEMAS: Record<string, ModuleParamsSchema> = {
+const MODULE_PARAMS_SCHEMAS: Record<string, ModuleParamsSchema> = {
   // Sources
   keywords: schema({ keywords: stringArray(50), hashtags: stringArray(50) }),
   accounts: schema({ authorIds: stringArray(200) }),

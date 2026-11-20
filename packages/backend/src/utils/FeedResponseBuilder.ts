@@ -25,7 +25,7 @@ import { logger } from './logger';
  * it is a `string` now: these rows come from Postgres, where `posts.id` is a
  * `text` column, never an object id instance.
  */
-export interface RawFeedPost {
+interface RawFeedPost {
   _id?: string;
   id?: string;
 }

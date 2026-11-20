@@ -12,7 +12,7 @@ import type { RankingSignal } from './types';
  * Thread roots that sparked conversation are more valuable feed items,
  * especially since they'll be displayed as grouped slices.
  */
-export function threadBoost(post: RankablePost): number {
+function threadBoost(post: RankablePost): number {
   const hasThread = post.threadId && !post.parentPostId;
   const hasReplies = (post.stats?.commentsCount || 0) > 0;
 

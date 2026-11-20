@@ -191,4 +191,3 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
 
 export const instagramGraphConnector = new InstagramGraphConnector();
 export { isInstagramGraphEnabled };
-export default instagramGraphConnector;

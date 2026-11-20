@@ -153,4 +153,3 @@ export class OxySignalsClient {
 }
 
 export const oxySignalsClient = new OxySignalsClient();
-export default oxySignalsClient;

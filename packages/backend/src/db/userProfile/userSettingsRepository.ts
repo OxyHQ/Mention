@@ -56,7 +56,7 @@ type WritableColumn = Exclude<keyof SettingsInsert, 'id' | 'oxyUserId' | 'create
  * purpose — they are whole OBJECTS spanning several columns each, handled by
  * {@link expandObjectPath}.
  */
-export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> = Object.freeze({
+const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> = Object.freeze({
   'appearance.themeMode': 'appearanceThemeMode',
   'appearance.postTextExpand': 'appearancePostTextExpand',
   'appearance.postReadMoreAction': 'appearancePostReadMoreAction',

@@ -537,10 +537,7 @@ export function hasSourceMentionLink(text: string): boolean {
  * resolved mention (hashtag anchors, bare links, an unresolved mention) are left
  * untouched — {@link htmlToPlainText} handles those downstream. Pure.
  */
-export function rewriteMentionAnchors(
-  html: string,
-  anchorMap: ReadonlyMap<string, string>,
-): string {
+function rewriteMentionAnchors(html: string, anchorMap: ReadonlyMap<string, string>): string {
   if (!html || anchorMap.size === 0) return html;
   return html.replace(MENTION_ANCHOR_REGEX, (match, href: string) => {
     const oxyUserId = anchorMap.get(normalizeActorHref(href));
@@ -605,7 +602,7 @@ export interface ApAudience {
  * never recipients; any other collection simply fails to resolve to a user.
  * Bounded by {@link MAX_MENTIONS_PER_POST}, like the mentions it parallels.
  */
-export async function resolveApAudience(
+async function resolveApAudience(
   note: Record<string, unknown>,
   author: { uri: string; followersUrl?: string | null },
   resolveRemote: RemoteMentionResolver = fetchOrCreateRemoteActorOxyId,

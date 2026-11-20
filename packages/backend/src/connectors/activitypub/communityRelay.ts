@@ -52,7 +52,7 @@ export async function resolveLocalCommunityActor(
 }
 
 /** {@link resolveLocalCommunityActor} for several ids, one batched identity read. */
-export async function resolveLocalCommunityActors(
+async function resolveLocalCommunityActors(
   oxyUserIds: ReadonlyArray<string | null | undefined>,
 ): Promise<Map<string, LocalCommunityActor>> {
   const actors = new Map<string, LocalCommunityActor>();
@@ -232,7 +232,7 @@ export function referenceOnlyDelete(
  * removal: a `Delete` whose actor is a moderator rather than the author, with the
  * reason as `summary`), relayed by the community like any member activity.
  */
-export function buildCommunityRemoval(
+function buildCommunityRemoval(
   community: LocalCommunityActor,
   moderatorActorUri: string,
   objectId: string,
@@ -256,7 +256,7 @@ export function buildCommunityRemoval(
  * the `Undo` that lifts it. Ids are derived from the pair, so a re-ban
  * re-delivers the same activity.
  */
-export function buildCommunityBlock(
+function buildCommunityBlock(
   community: LocalCommunityActor,
   bannedActorUri: string,
   reason: string | null,
@@ -273,7 +273,7 @@ export function buildCommunityBlock(
   };
 }
 
-export function buildCommunityUnblock(
+function buildCommunityUnblock(
   community: LocalCommunityActor,
   bannedActorUri: string,
 ): Record<string, unknown> {

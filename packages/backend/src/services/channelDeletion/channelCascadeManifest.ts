@@ -61,7 +61,7 @@
  */
 
 /** What happens to a row that carries the reference. */
-export type CascadeAction =
+type CascadeAction =
   /** The row exists only because of the channel or its post; it dies with it. */
   | 'delete-row'
   /**
@@ -104,7 +104,7 @@ export type CascadeAction =
   | 'retain';
 
 /** Which set of ids the step's filter is built from. */
-export type CascadeScope =
+type CascadeScope =
   /** The channel account's own `oxyUserId`. */
   | 'channel-account'
   /**

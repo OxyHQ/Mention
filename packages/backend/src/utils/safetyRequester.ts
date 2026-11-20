@@ -32,7 +32,7 @@ function actingFor(accountId: string, requesterAccountId: string | undefined): A
  * The account another Oxy service acts for on this request, as the shared
  * middleware verified it with Oxy (`authority: first_party`, ADR 0066).
  */
-export function verifiedServiceActingFor(req: RequestSafetyContext): ActingFor {
+function verifiedServiceActingFor(req: RequestSafetyContext): ActingFor {
   const actingAs = req.serviceActingAs;
   if (
     req.serviceApp?.authority !== 'first_party' ||

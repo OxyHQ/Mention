@@ -53,7 +53,7 @@ export async function resolveTargetConnector(
  * know `actorUri`. Another account the same person holds on another network (a
  * proven cross-network link) is a different account and is not included.
  */
-export async function otherTransportsOf(actorUri: string): Promise<string[]> {
+async function otherTransportsOf(actorUri: string): Promise<string[]> {
   const [identity] = await lookupOxyIdentities([actorUri]);
   return otherTransportsIn(identity, actorUri);
 }

@@ -42,7 +42,7 @@ export async function handleModerationOutboxEvent(event: ModerationOutboxEvent):
   }
 }
 
-export class ModerationOutboxDispatcher {
+class ModerationOutboxDispatcher {
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight: Promise<void> | null = null;
   private abortController: AbortController | null = null;

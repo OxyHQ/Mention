@@ -34,12 +34,12 @@ import {
   type MembershipRow,
 } from './access';
 
-export const communityDto = (row: CommunityRow): MembershipCommunity => ({
+const communityDto = (row: CommunityRow): MembershipCommunity => ({
   ...row,
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
-export const membershipDto = (row: MembershipRow): CommunityMembership => ({
+const membershipDto = (row: MembershipRow): CommunityMembership => ({
   id: row.id,
   communityId: row.communityId,
   tierId: row.tierId,

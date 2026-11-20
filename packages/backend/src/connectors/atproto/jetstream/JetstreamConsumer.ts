@@ -82,7 +82,7 @@ export interface JetstreamTransport {
 }
 
 /** The runtime's WHATWG WebSocket (Bun, Node ≥ 22). */
-export const webSocketTransport: JetstreamTransport = {
+const webSocketTransport: JetstreamTransport = {
   connect(url, events) {
     const socket = new WebSocket(url);
     socket.onopen = () => events.onOpen();

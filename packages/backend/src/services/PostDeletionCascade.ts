@@ -301,7 +301,7 @@ export function allDeletionTargets(targets: PostDeletionTargets): CascadedPostRo
  * Same transaction, because a capture on one snapshot and a delete on another
  * lets a reply created in between survive its parent.
  */
-export async function collectDeletionTargets(
+async function collectDeletionTargets(
   postId: string,
   tx: DatabaseOrTransaction,
 ): Promise<PostDeletionTargets | null> {

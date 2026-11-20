@@ -343,7 +343,7 @@ export const safetyFilter: FilterModule = {
  * request by `loadViewerFeedContext` and set-ified by the engine. Absent for an
  * anonymous reader, who follows nobody and therefore gets the rule in full.
  */
-export const noContentWarningFilter: FilterModule = {
+const noContentWarningFilter: FilterModule = {
   id: 'noContentWarning',
   kind: 'filter',
   userComposable: true,
@@ -362,7 +362,7 @@ export const noContentWarningFilter: FilterModule = {
  * first-class custom-feed filter and the target of the legacy `language`
  * migration, so it must be selectable in the builder.
  */
-export const languagePreferenceFilter: FilterModule = {
+const languagePreferenceFilter: FilterModule = {
   id: 'languagePreference',
   kind: 'filter',
   userComposable: true,
@@ -382,7 +382,7 @@ export const languagePreferenceFilter: FilterModule = {
  * (per-feed account muting in the builder + the target of the legacy owner-exclusion
  * migration). It only ever EXCLUDES authors, so it carries no IDOR surface.
  */
-export const muteBlockFilter: FilterModule = {
+const muteBlockFilter: FilterModule = {
   id: 'muteBlock',
   kind: 'filter',
   userComposable: true,
@@ -395,7 +395,7 @@ export const muteBlockFilter: FilterModule = {
 };
 
 /** `noBoosts`: excludes boost posts (mirror shape surfaced via the original). */
-export const noBoostsFilter: FilterModule = {
+const noBoostsFilter: FilterModule = {
   id: 'noBoosts',
   kind: 'filter',
   userComposable: true,
@@ -409,7 +409,7 @@ export const noBoostsFilter: FilterModule = {
  * `noReplies`: excludes replies (posts with a parent) — locally linked or known
  * only by their federated `inReplyTo` IRI — both are the stored `isReply`.
  */
-export const noRepliesFilter: FilterModule = {
+const noRepliesFilter: FilterModule = {
   id: 'noReplies',
   kind: 'filter',
   userComposable: true,
@@ -417,7 +417,7 @@ export const noRepliesFilter: FilterModule = {
 };
 
 /** `mediaOnly`: keeps only posts carrying media. */
-export const mediaOnlyFilter: FilterModule = {
+const mediaOnlyFilter: FilterModule = {
   id: 'mediaOnly',
   needsTextMedia: true,
   kind: 'filter',
@@ -438,13 +438,13 @@ export const videoOnlyFilter: FilterModule = {
  * `dedupe`: marker filter. De-duplication by `_id` is performed natively by the
  * engine merge; this exists so a definition can declare the intent explicitly.
  */
-export const dedupeFilter: FilterModule = {
+const dedupeFilter: FilterModule = {
   id: 'dedupe',
   kind: 'filter',
 };
 
 /** `recencyWindow`: keeps posts within `params.windowMs` of now. */
-export const recencyWindowFilter: FilterModule = {
+const recencyWindowFilter: FilterModule = {
   id: 'recencyWindow',
   kind: 'filter',
   userComposable: true,
@@ -462,7 +462,7 @@ export const recencyWindowFilter: FilterModule = {
 // ─────────────────────────────────────────────────────────────────────────
 
 /** `excludeFollowing`: drop posts authored by anyone the viewer follows (discovery). */
-export const excludeFollowingFilter: FilterModule = {
+const excludeFollowingFilter: FilterModule = {
   id: 'excludeFollowing',
   kind: 'filter',
   userComposable: true,
@@ -479,7 +479,7 @@ export const hasImageFilter: FilterModule = {
 };
 
 /** `hasGif`: keep only posts carrying a GIF. */
-export const hasGifFilter: FilterModule = {
+const hasGifFilter: FilterModule = {
   id: 'hasGif',
   needsTextMedia: true,
   kind: 'filter',
@@ -488,7 +488,7 @@ export const hasGifFilter: FilterModule = {
 };
 
 /** `hasPoll`: keep only posts carrying a poll. */
-export const hasPollFilter: FilterModule = {
+const hasPollFilter: FilterModule = {
   id: 'hasPoll',
   needsTextMedia: true,
   kind: 'filter',
@@ -517,7 +517,7 @@ export const hasAltTextFilter: FilterModule = {
 };
 
 /** `textOnly`: keep only text posts (no media, no poll). */
-export const textOnlyFilter: FilterModule = {
+const textOnlyFilter: FilterModule = {
   id: 'textOnly',
   needsTextMedia: true,
   kind: 'filter',
@@ -537,7 +537,7 @@ export const excludeQuotesFilter: FilterModule = {
 };
 
 /** `originalOnly`: drop boosts AND quotes (only wholly-original posts). */
-export const originalOnlyFilter: FilterModule = {
+const originalOnlyFilter: FilterModule = {
   id: 'originalOnly',
   kind: 'filter',
   userComposable: true,
@@ -558,7 +558,7 @@ export const originalOnlyFilter: FilterModule = {
  * `onlyReplies`: keep only replies (posts with a parent) — locally linked or
  * known only by their federated `inReplyTo` IRI — both are the stored `isReply`.
  */
-export const onlyRepliesFilter: FilterModule = {
+const onlyRepliesFilter: FilterModule = {
   id: 'onlyReplies',
   kind: 'filter',
   userComposable: true,
@@ -573,7 +573,7 @@ export const onlyRepliesFilter: FilterModule = {
  * the OS share sheet and never reaches the server — so the column is 0 for every
  * row and any positive threshold here would return an empty feed forever.
  */
-export const minEngagementFilter: FilterModule = {
+const minEngagementFilter: FilterModule = {
   id: 'minEngagement',
   kind: 'filter',
   userComposable: true,
@@ -593,7 +593,7 @@ export const minEngagementFilter: FilterModule = {
 };
 
 /** `maxLength`: drop posts whose text exceeds `params.maxLength` characters. */
-export const maxLengthFilter: FilterModule = {
+const maxLengthFilter: FilterModule = {
   id: 'maxLength',
   needsTextMedia: true,
   kind: 'filter',
@@ -628,7 +628,7 @@ export const minLengthFilter: FilterModule = {
 };
 
 /** `domainAllowlist`: keep only posts linking to an allowed domain. */
-export const domainAllowlistFilter: FilterModule = {
+const domainAllowlistFilter: FilterModule = {
   id: 'domainAllowlist',
   needsTextMedia: true,
   needsSources: true,
@@ -645,7 +645,7 @@ export const domainAllowlistFilter: FilterModule = {
 };
 
 /** `domainDenylist`: drop posts linking to a denied domain. */
-export const domainDenylistFilter: FilterModule = {
+const domainDenylistFilter: FilterModule = {
   id: 'domainDenylist',
   needsTextMedia: true,
   needsSources: true,
@@ -685,7 +685,7 @@ export const keywordDenylistFilter: FilterModule = {
 };
 
 /** `languageStrict`: drop posts with no declared classification language. */
-export const languageStrictFilter: FilterModule = {
+const languageStrictFilter: FilterModule = {
   id: 'languageStrict',
   kind: 'filter',
   userComposable: true,
@@ -696,7 +696,7 @@ export const languageStrictFilter: FilterModule = {
 };
 
 /** `localOnly`: keep only local (non-federated) posts. */
-export const localOnlyFilter: FilterModule = {
+const localOnlyFilter: FilterModule = {
   id: 'localOnly',
   kind: 'filter',
   userComposable: true,
@@ -704,7 +704,7 @@ export const localOnlyFilter: FilterModule = {
 };
 
 /** `federatedOnly`: keep only federated posts. */
-export const federatedOnlyFilter: FilterModule = {
+const federatedOnlyFilter: FilterModule = {
   id: 'federatedOnly',
   kind: 'filter',
   userComposable: true,
@@ -712,7 +712,7 @@ export const federatedOnlyFilter: FilterModule = {
 };
 
 /** `instanceAllowlist`: keep local posts + posts from an allowed instance host. */
-export const instanceAllowlistFilter: FilterModule = {
+const instanceAllowlistFilter: FilterModule = {
   id: 'instanceAllowlist',
   kind: 'filter',
   userComposable: true,
@@ -728,7 +728,7 @@ export const instanceAllowlistFilter: FilterModule = {
 };
 
 /** `instanceDenylist`: drop posts from a denied instance host. */
-export const instanceDenylistFilter: FilterModule = {
+const instanceDenylistFilter: FilterModule = {
   id: 'instanceDenylist',
   kind: 'filter',
   userComposable: true,
@@ -743,7 +743,7 @@ export const instanceDenylistFilter: FilterModule = {
 };
 
 /** `topicAllowlist`: keep only posts whose classified topics overlap the allowlist. */
-export const topicAllowlistFilter: FilterModule = {
+const topicAllowlistFilter: FilterModule = {
   id: 'topicAllowlist',
   kind: 'filter',
   userComposable: true,
@@ -758,7 +758,7 @@ export const topicAllowlistFilter: FilterModule = {
 };
 
 /** `topicDenylist`: drop posts whose classified topics overlap the denylist. */
-export const topicDenylistFilter: FilterModule = {
+const topicDenylistFilter: FilterModule = {
   id: 'topicDenylist',
   kind: 'filter',
   userComposable: true,
@@ -772,7 +772,7 @@ export const topicDenylistFilter: FilterModule = {
 };
 
 /** `sentimentFilter`: keep only posts whose classified sentiment is in `params.sentiments`. */
-export const sentimentFilter: FilterModule = {
+const sentimentFilter: FilterModule = {
   id: 'sentimentFilter',
   kind: 'filter',
   userComposable: true,
@@ -790,7 +790,7 @@ export const sentimentFilter: FilterModule = {
 };
 
 /** `onlySensitive`: keep only sensitive posts (e.g. an explicit NSFW feed). */
-export const onlySensitiveFilter: FilterModule = {
+const onlySensitiveFilter: FilterModule = {
   id: 'onlySensitive',
   kind: 'filter',
   userComposable: true,
@@ -798,7 +798,7 @@ export const onlySensitiveFilter: FilterModule = {
 };
 
 /** `excludeSensitive`: drop sensitive posts regardless of the viewer opt-in. */
-export const excludeSensitiveFilter: FilterModule = {
+const excludeSensitiveFilter: FilterModule = {
   id: 'excludeSensitive',
   kind: 'filter',
   userComposable: true,
@@ -831,7 +831,7 @@ export const excludeSensitiveFilter: FilterModule = {
  * empty string is not hypothetical — Oxy records it as a state reaching the
  * column from its own backfill.
  */
-export const authorHasAvatarFilter: FilterModule = {
+const authorHasAvatarFilter: FilterModule = {
   id: 'authorHasAvatar',
   kind: 'filter',
   userComposable: true,
@@ -861,7 +861,7 @@ export const authorHasAvatarFilter: FilterModule = {
  * itself whenever Oxy hiccups is worse than one whose floor occasionally lets a
  * post through.
  */
-export const verifiedOnlyFilter: FilterModule = {
+const verifiedOnlyFilter: FilterModule = {
   id: 'verifiedOnly',
   kind: 'filter',
   userComposable: true,
@@ -878,7 +878,7 @@ export const verifiedOnlyFilter: FilterModule = {
  * the verification half is neutral on an unknown author, like
  * {@link verifiedOnlyFilter}.
  */
-export const verifiedFollowsOnlyFilter: FilterModule = {
+const verifiedFollowsOnlyFilter: FilterModule = {
   id: 'verifiedFollowsOnly',
   kind: 'filter',
   userComposable: true,
@@ -894,7 +894,7 @@ export const verifiedFollowsOnlyFilter: FilterModule = {
  * `minFollowers`: keep only posts by authors with at least `params.minFollowers`
  * followers, read from the resolved account. Neutral on an unknown author.
  */
-export const minFollowersFilter: FilterModule = {
+const minFollowersFilter: FilterModule = {
   id: 'minFollowers',
   kind: 'filter',
   userComposable: true,
@@ -914,7 +914,7 @@ export const minFollowersFilter: FilterModule = {
  * which Oxy has always sent and Mention used to drop during hydration. Neutral on
  * an unknown author.
  */
-export const minAccountAgeFilter: FilterModule = {
+const minAccountAgeFilter: FilterModule = {
   id: 'minAccountAge',
   kind: 'filter',
   userComposable: true,

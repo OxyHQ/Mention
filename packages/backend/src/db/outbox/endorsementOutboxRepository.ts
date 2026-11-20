@@ -56,7 +56,7 @@ const MAX_BACKOFF_MS = BACKOFF_INTERVALS_MS[BACKOFF_INTERVALS_MS.length - 1];
  * interval so an over-attempted row keeps retrying slowly rather than being
  * abandoned — desired-state pushes are cheap and self-healing.
  */
-export function getEndorsementNextAttempt(attempts: number): Date {
+function getEndorsementNextAttempt(attempts: number): Date {
   const index = Math.min(Math.max(attempts - 1, 0), BACKOFF_INTERVALS_MS.length - 1);
   const interval = attempts <= 0 ? 0 : (BACKOFF_INTERVALS_MS[index] ?? MAX_BACKOFF_MS);
   return new Date(Date.now() + interval);

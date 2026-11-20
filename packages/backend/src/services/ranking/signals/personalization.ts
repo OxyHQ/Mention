@@ -20,7 +20,7 @@ const R = MtnConfig.ranking;
 /**
  * Calculate personalization score based on user preferences.
  */
-export function personalizationScore(
+function personalizationScore(
   post: RankablePost,
   userBehavior: RankingUserBehavior | undefined,
   behaviorSets?: BehaviorSets,

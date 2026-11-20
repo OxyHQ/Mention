@@ -16,7 +16,7 @@ import { reconcileModerationReports } from './ModerationReconciliation';
  */
 const RECONCILIATION_INTERVAL_MS = 15 * 60 * 1_000;
 
-export class ModerationReconciliationJob {
+class ModerationReconciliationJob {
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight: Promise<void> | null = null;
   private running = false;

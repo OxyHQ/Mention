@@ -63,14 +63,12 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   trustTierBoost: 'trustTierBoost',
 };
 
-export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(
-  ([id, weightKey]) => ({
-    id,
-    kind: 'signal',
-    weightKey,
-    ...(id === 'activitySubscriptionBoost' ? { userComposable: false } : {}),
-  }),
-);
+const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(([id, weightKey]) => ({
+  id,
+  kind: 'signal',
+  weightKey,
+  ...(id === 'activitySubscriptionBoost' ? { userComposable: false } : {}),
+}));
 
 export function registerSignalModules(registry: FeedModuleRegistry = feedModuleRegistry): void {
   for (const module of signalModules) registry.register(module);

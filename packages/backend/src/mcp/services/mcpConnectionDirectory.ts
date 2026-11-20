@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
 /** One member account of the caller's connection. */
-export interface McpConnectionAccount {
+interface McpConnectionAccount {
   accountId: string;
   /** True for the account whose OAuth tokens the MCP client holds. */
   isOrigin: boolean;

@@ -20,10 +20,7 @@ import { logger } from './logger';
  * bodies carry astral `\u{…}` escapes).
  */
 const HASHTAG_REGEX = new RegExp(`#(${HASHTAG_BODY_SOURCE})`, 'gu');
-export {
-  extractMentionIds,
-  normalizeMentionIds,
-} from '@mention/shared-types/mentions';
+export { normalizeMentionIds } from '@mention/shared-types/mentions';
 
 /**
  * Server-side {@link reconcileMentionIds}: the same reconciliation and the same

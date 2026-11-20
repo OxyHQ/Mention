@@ -16,7 +16,7 @@ const R = MtnConfig.ranking;
  * Calculate trending boost for posts with accelerating engagement.
  * Detects posts that are gaining traction rapidly.
  */
-export function trendingBoost(post: RankablePost, rankingAsOf = Date.now()): number {
+function trendingBoost(post: RankablePost, rankingAsOf = Date.now()): number {
   const stats = post.stats || {};
   const createdAtMs = new Date(post.createdAt ?? NaN).getTime();
   const postAge = isNaN(createdAtMs) ? Infinity : (rankingAsOf - createdAtMs) / (1000 * 60 * 60); // hours

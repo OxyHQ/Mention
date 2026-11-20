@@ -38,10 +38,10 @@ import type { OxyClient } from '../utils/privacyHelpers';
 import { encodeOffsetCursor } from '../utils/offsetCursor';
 
 /** Default page size when the caller omits `limit`. */
-export const DEFAULT_RECOMMENDATION_LIMIT = 20;
+const DEFAULT_RECOMMENDATION_LIMIT = 20;
 
 /** Hard cap on page size regardless of the caller's `limit`. */
-export const MAX_RECOMMENDATION_LIMIT = 50;
+const MAX_RECOMMENDATION_LIMIT = 50;
 
 const RECOMMENDATION_LIMIT_BOUNDS = {
   fallback: DEFAULT_RECOMMENDATION_LIMIT,
@@ -434,4 +434,3 @@ export class RecommendationService {
 }
 
 export const recommendationService = new RecommendationService();
-export default recommendationService;

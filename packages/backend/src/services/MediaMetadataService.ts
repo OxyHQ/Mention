@@ -241,7 +241,7 @@ export interface MediaMetadataEnrichment {
   rejectedHls: ReadonlyMap<string, string>;
 }
 
-export class MediaMetadataService {
+class MediaMetadataService {
   /** Batch-resolve Oxy file ids and copy intrinsic metadata onto media items. */
   async enrichFromOxy(items: MediaItem[]): Promise<MediaItem[]> {
     return (await this.enrichFromOxyWithRejections(items)).items;

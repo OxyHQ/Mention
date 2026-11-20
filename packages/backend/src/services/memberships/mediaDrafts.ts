@@ -3,7 +3,7 @@ import { getDb, type DatabaseOrTransaction } from '../../db/postgres';
 import { membershipMedia } from '../../db/schema/memberships';
 
 /** Upload drafts are session work, not persisted composer drafts or billing grace. */
-export const MEMBERSHIP_UPLOAD_DRAFT_TTL_HOURS = 24;
+const MEMBERSHIP_UPLOAD_DRAFT_TTL_HOURS = 24;
 const EXPIRY_BATCH_SIZE = 500;
 
 /** Release only abandoned references. Oxy owns file trash/collection, including shared copies. */

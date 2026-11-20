@@ -255,7 +255,7 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
  * stripped, handles qualified) all come from Oxy's
  * `/federation/identities/resolve` in `store.upsertActor` (OxyHQ/oxy#1253).
  */
-export const activityPubActorResolverConfig: ActorResolverConfig<
+const activityPubActorResolverConfig: ActorResolverConfig<
   EngineFederatedActorRecord,
   ObservedOxySource
 > = {
@@ -292,5 +292,3 @@ export const activityPubActorResolverConfig: ActorResolverConfig<
 };
 
 export const actorService = createActorResolver(activityPubActorResolverConfig);
-
-export default actorService;

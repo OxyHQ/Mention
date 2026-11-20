@@ -66,7 +66,7 @@ export type TransportCopy = TransportCopyRow;
  * post (`instagram:<shortcode>`) is stored under the kilogram actor it shares
  * with the bridge, and a native atproto post is its at-URI.
  */
-export function transportRank(objectUri: string): 0 | 1 {
+function transportRank(objectUri: string): 0 | 1 {
   return objectUri.startsWith('at://') || objectUri.startsWith('instagram:') ? 0 : 1;
 }
 

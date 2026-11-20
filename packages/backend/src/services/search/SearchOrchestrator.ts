@@ -50,7 +50,7 @@ import { logger } from '../../utils/logger';
 import { isStatementTimeout } from '../../utils/withStatementTimeout';
 
 /** What a lane implementation returns when it succeeds. */
-export interface LaneResult<T = unknown> {
+interface LaneResult<T = unknown> {
   items: T[];
   hasMore: boolean;
   nextCursor?: string;

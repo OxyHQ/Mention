@@ -29,7 +29,7 @@ import { LOG_PREFIX } from './channelCascadeLog';
  * a limit on how much can be deleted — the loop runs until the channel has no
  * posts left — so there is no size at which an operator has to intervene.
  */
-export const POST_BATCH_SIZE = 200;
+const POST_BATCH_SIZE = 200;
 
 /**
  * How far one batch's boost closure may expand before the run is REFUSED.
@@ -41,7 +41,7 @@ export const POST_BATCH_SIZE = 200;
  * exact orphan the capture exists to prevent. An operator hears about it; a
  * silent truncation would not be a smaller version of this, it would be the bug.
  */
-export const MAX_BOOST_CLOSURE_PER_BATCH = 5_000;
+const MAX_BOOST_CLOSURE_PER_BATCH = 5_000;
 
 /** The columns the delegate reads off a post, plus the two only this cascade needs. */
 const CASCADE_ROW_COLUMNS = {
@@ -69,7 +69,7 @@ function postUris(row: Pick<CascadedPostRow, 'federationActivityId' | 'federatio
 }
 
 /** Raised when one batch's boost closure exceeds {@link MAX_BOOST_CLOSURE_PER_BATCH}. */
-export class ChannelBoostClosureTooLargeError extends Error {
+class ChannelBoostClosureTooLargeError extends Error {
   constructor(
     readonly channelOxyUserId: string,
     readonly found: number,
@@ -96,7 +96,7 @@ export interface PostBatch {
   readonly lastId: string;
 }
 
-export interface ChannelPostRow extends CascadedPostRow {
+interface ChannelPostRow extends CascadedPostRow {
   visibility: string;
   status: string;
   boostOf: string | null;

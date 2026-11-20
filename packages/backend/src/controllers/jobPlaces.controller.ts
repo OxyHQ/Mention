@@ -25,7 +25,7 @@ import {
   searchJobPlaces,
 } from '../services/jobPlaces';
 
-export const placeSearchQuerySchema = z.object({
+const placeSearchQuerySchema = z.object({
   q: z
     .string('q is required')
     .trim()

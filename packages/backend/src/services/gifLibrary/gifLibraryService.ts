@@ -134,7 +134,7 @@ function buildSearchTerms(candidate: GifImportCandidate, queryTerm?: string): st
  * preview prefers the small/extra-small mp4 per the design (`sm.mp4` → `xs.mp4`
  * → `md.mp4` → full).
  */
-export function klipyItemToCandidate(item: KlipyGifItem): GifImportCandidate | null {
+function klipyItemToCandidate(item: KlipyGifItem): GifImportCandidate | null {
   const klipyId = String(item.id ?? item.slug ?? '').trim();
   if (!klipyId) return null;
 

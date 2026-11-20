@@ -40,7 +40,7 @@
  */
 
 /** One ceiling, with the argument for it required to sit next to the number. */
-export interface PurgeCeiling {
+interface PurgeCeiling {
   /**
    * Inclusive maximum share of the corpus. `0` means the ceiling is absolute:
    * any count above `alwaysAllowBelow` breaches it whatever the corpus size.
@@ -57,7 +57,7 @@ export interface PurgeCeiling {
 }
 
 /** Which corpus a ceiling is a share OF. */
-export type PurgeCeilingBasis = 'federatedPosts' | 'federatedActors';
+type PurgeCeilingBasis = 'federatedPosts' | 'federatedActors';
 
 export interface PurgeCeilingDefinition extends PurgeCeiling {
   basis: PurgeCeilingBasis;
@@ -130,7 +130,7 @@ export const AUTOMATIC_PURGE_CEILINGS = {
   },
 } as const satisfies Record<string, PurgeCeilingDefinition>;
 
-export type PurgeCeilingName = keyof typeof AUTOMATIC_PURGE_CEILINGS;
+type PurgeCeilingName = keyof typeof AUTOMATIC_PURGE_CEILINGS;
 
 /** The measured blast radius a decision is made from. */
 export interface PurgeMeasurement {

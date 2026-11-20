@@ -51,13 +51,13 @@ const STUCK_METRIC = 'oxy_file_reference_stuck';
 const RETRY_BASE_MS = 60 * 1000;
 const RETRY_MAX_MS = 6 * 60 * 60 * 1000;
 /** Oxy's per-request cap of `POST`/`DELETE /assets/service/references`. */
-export const OXY_REFERENCES_BATCH_MAX = 100;
+const OXY_REFERENCES_BATCH_MAX = 100;
 /** Rows decided per batch; at most 5 Oxy calls per op. */
 const ROWS_PER_BATCH = 500;
 /** Batches per run: ≤ 2,000 pairs every 30 s, far inside Oxy's per-app request budget. */
 const MAX_BATCHES_PER_RUN = 4;
 /** Attempts after which a pending pair counts as STUCK (≈ a day of backoff). */
-export const STUCK_ATTEMPTS = 10;
+const STUCK_ATTEMPTS = 10;
 
 /** Exported for tests. */
 export function fileReferenceBackoffMs(attempts: number): number {
@@ -183,7 +183,7 @@ async function sendOp(
  * Decide and send a set of rows. Never throws on an Oxy failure (rows are
  * backed off); a database failure propagates to the caller.
  */
-export async function syncFileReferenceRows(
+async function syncFileReferenceRows(
   rows: readonly DueFileReference[],
 ): Promise<FileReferenceSyncResult> {
   const result = emptyResult();

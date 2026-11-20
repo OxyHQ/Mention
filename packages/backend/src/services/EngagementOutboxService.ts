@@ -85,7 +85,7 @@ export type EngagementVoteValue = 1 | -1;
  * notification fan-out uses the authorship as it stands at DELIVERY time, not as
  * it stood at emit time, by design.
  */
-export interface EngagementOutboxPayload {
+interface EngagementOutboxPayload {
   actorOxyUserId: string;
   postId: string;
   relationshipId: string;

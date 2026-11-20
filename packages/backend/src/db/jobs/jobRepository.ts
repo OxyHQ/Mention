@@ -13,7 +13,6 @@ import type {
   CurrencyCode,
   MentionJobListFilters,
   MentionJobLocation,
-  MentionJobListPage,
   MentionJobPosting,
   MentionJobStatus,
   UpdateMentionJobRequest,
@@ -237,7 +236,7 @@ export async function setJobStatus(
  * caller, invoked from every job read path, so an overdue job is corrected on
  * its own next fetch rather than by a cron job that does not exist.
  */
-export async function expireDueJobs(ids: readonly string[]): Promise<void> {
+async function expireDueJobs(ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;
   await getDb()
     .update(mentionJobs)
@@ -338,4 +337,3 @@ export async function listFailedClaritySyncs(limit = 50): Promise<MentionJobRow[
 }
 
 export type { MentionJobRow };
-export type { MentionJobListPage };

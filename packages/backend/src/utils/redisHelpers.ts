@@ -128,7 +128,7 @@ export async function withRedisFallback<T>(
  * in `utils/redis.ts`); a batch near that size crowds out every request's
  * commands on the same task. 200 keeps a batch a small share of it.
  */
-export const REDIS_WRITE_BATCH_COMMANDS = 200;
+const REDIS_WRITE_BATCH_COMMANDS = 200;
 
 /**
  * Write independent `SETEX`s in bounded, NON-transactional pipelines.

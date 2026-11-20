@@ -5,7 +5,7 @@
  * Useful for debugging feed quality and future "why am I seeing this?" UI.
  */
 
-export interface RankingFactors {
+interface RankingFactors {
   engagement: number;
   recency: number;
   relationship: number;

@@ -37,34 +37,34 @@ import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { XrpcError } from './xrpcClient';
 
 /** A followed account is re-read once its last import is older than this. */
-export const FOLLOWED_SYNC_DUE_MS = 15 * 60 * 1000;
+const FOLLOWED_SYNC_DUE_MS = 15 * 60 * 1000;
 
 /** Followed accounts read per tick; the rest wait for the next one. */
-export const FOLLOWED_SYNC_BATCH = 100;
+const FOLLOWED_SYNC_BATCH = 100;
 
 /** Followed accounts read at once. */
-export const FOLLOWED_SYNC_CONCURRENCY = 4;
+const FOLLOWED_SYNC_CONCURRENCY = 4;
 
 /** Feed items per followed-account read — the profile-view page size. */
-export const FOLLOWED_SYNC_PAGE_SIZE = 20;
+const FOLLOWED_SYNC_PAGE_SIZE = 20;
 
 /** Feed items per history page (the AppView's maximum). */
-export const HISTORY_PAGE_SIZE = 100;
+const HISTORY_PAGE_SIZE = 100;
 
 /** History pages read per account in all: the per-account cap. */
-export const HISTORY_MAX_PAGES = 10;
+const HISTORY_MAX_PAGES = 10;
 
 /** History pages read per account per run; the cursor carries the rest over. */
 export const HISTORY_PAGES_PER_RUN = 5;
 
 /** Accounts whose history one run advances. */
-export const HISTORY_ACCOUNTS_PER_RUN = 10;
+const HISTORY_ACCOUNTS_PER_RUN = 10;
 
 /**
  * An account nobody follows still has its whole history read when it is this
  * small (two pages) and someone has opened it — cheap enough to do on discovery.
  */
-export const HISTORY_CHEAP_POSTS = 200;
+const HISTORY_CHEAP_POSTS = 200;
 
 /** How long one run holds an account's backfill lease. */
 const HISTORY_LEASE_MS = 10 * 60 * 1000;

@@ -23,7 +23,7 @@ import { logger } from '../../utils/logger';
  */
 
 /** Public path of the GIF media-proxy route (mounted on the public `/media` router). */
-export const GIF_MEDIA_PROXY_PATH = '/media/gif';
+const GIF_MEDIA_PROXY_PATH = '/media/gif';
 
 /** Domain-separation label so the derived signing subkey is purpose-bound (HMAC-KDF). */
 const GIF_MEDIA_KEY_LABEL = 'mention:gif-media-proxy:v1';

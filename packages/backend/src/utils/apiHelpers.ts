@@ -1,17 +1,9 @@
 import type { Response } from 'express';
 
 /**
- * Standard API error response format
- */
-export interface ApiErrorResponse {
-  error: string;
-  message: string;
-}
-
-/**
  * Standard API success response format
  */
-export interface ApiSuccessResponse<T = unknown> {
+interface ApiSuccessResponse<T = unknown> {
   success?: boolean;
   message?: string;
   data?: T;

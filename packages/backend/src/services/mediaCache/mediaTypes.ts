@@ -38,7 +38,7 @@ export const MEDIA_IMAGE_TYPE_PREFIX = 'image/';
 export const MEDIA_VIDEO_TYPE_PREFIX = 'video/';
 
 /** Content-type families this platform is willing to relay/store verbatim. */
-export const MEDIA_ALLOWED_TYPE_PREFIXES = [
+const MEDIA_ALLOWED_TYPE_PREFIXES = [
   MEDIA_IMAGE_TYPE_PREFIX,
   MEDIA_VIDEO_TYPE_PREFIX,
   'audio/',
@@ -57,7 +57,7 @@ export const MEDIA_REJECTED_TYPES: ReadonlySet<string> = new Set(['image/svg+xml
  * `x-` vendor forms, and the `audio/` spellings that Apache/nginx default mime
  * maps still emit for `.m3u`/`.m3u8` are all seen in the wild.
  */
-export const HLS_MANIFEST_TYPES: ReadonlySet<string> = new Set([
+const HLS_MANIFEST_TYPES: ReadonlySet<string> = new Set([
   'application/vnd.apple.mpegurl',
   'application/x-mpegurl',
   'application/mpegurl',

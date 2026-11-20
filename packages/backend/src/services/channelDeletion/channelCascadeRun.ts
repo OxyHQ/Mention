@@ -103,11 +103,11 @@ export class CascadeRun {
   }
 }
 
-export interface ScheduledStep {
+interface ScheduledStep {
   readonly step: CascadeStep;
   readonly binding: LocalStepBinding;
 }
-export type CascadeSchedule = ReadonlyMap<CascadePhase, readonly ScheduledStep[]>;
+type CascadeSchedule = ReadonlyMap<CascadePhase, readonly ScheduledStep[]>;
 
 export interface Schedule {
   readonly phases: CascadeSchedule;

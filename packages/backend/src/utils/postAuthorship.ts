@@ -1,4 +1,4 @@
-import type { PostAuthorshipEntry, PostAuthorRole, PostAuthorStatus } from '@mention/shared-types';
+import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS } from '@mention/shared-types';
 import { and, eq, exists, gte, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
@@ -6,7 +6,7 @@ import { qualified } from '@oxy.so/db';
 import { getDb } from '../db/postgres';
 import { postAuthorships, posts } from '../db/schema';
 
-export type { PostAuthorshipEntry, PostAuthorRole, PostAuthorStatus };
+export type { PostAuthorshipEntry };
 
 export function buildOwnerEntry(oxyUserId: string): PostAuthorshipEntry {
   return { oxyUserId, role: 'owner', status: 'accepted' };

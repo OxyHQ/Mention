@@ -7,17 +7,15 @@ import { getBlockedDomainPolicy, resolveFederationBlocks } from './federationBlo
 import { OXY_IDENTITY_APEX } from './ownDomain';
 
 export const FEDERATION_DOMAIN = config.federation.domain;
-export const ACTOR_DOMAIN = config.federation.actorDomain;
+const ACTOR_DOMAIN = config.federation.actorDomain;
 if (ACTOR_DOMAIN !== FEDERATION_DOMAIN) {
   logger.warn(
     `Federation domains differ: ACTOR_DOMAIN=${ACTOR_DOMAIN} FEDERATION_DOMAIN=${FEDERATION_DOMAIN}`,
   );
 }
-export const OXY_API_URL = config.oxyApiUrl;
 
 export const FEDERATION_ENABLED = config.federation.enabled;
 export const FEDERATION_MAX_CONTENT_LENGTH = config.federation.maxContentLength;
-export const FEDERATION_DELIVERY_RETRIES = config.federation.deliveryRetries;
 /**
  * Every moderation block in force, in the exact form the public transparency
  * page renders — the committed policy file unioned with the
@@ -64,12 +62,9 @@ export function isActivityPubAccept(accept: string | string[] | undefined): bool
  */
 export const federationUrls = createUrlBuilders(FEDERATION_DOMAIN, ACTOR_DOMAIN);
 export const actorUrl = federationUrls.actor;
-export const inboxUrl = federationUrls.inbox;
 export const outboxUrl = federationUrls.outbox;
 export const featuredUrl = federationUrls.featured;
 export const followersUrl = federationUrls.followers;
-export const followingUrl = federationUrls.following;
-export const sharedInboxUrl = federationUrls.sharedInbox;
 
 /**
  * Canonical href for a hashtag — the SINGLE shape shared by the Note's `Hashtag`

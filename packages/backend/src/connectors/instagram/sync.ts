@@ -101,7 +101,7 @@ export function optionsFor(
 }
 
 /** Exported for tests. */
-export function cooldownFor(trigger: InstagramSyncTrigger): number {
+function cooldownFor(trigger: InstagramSyncTrigger): number {
   return trigger === 'profile_view' ? PROFILE_VIEW_SYNC_COOLDOWN_MS : PERIODIC_SYNC_DUE_MS;
 }
 

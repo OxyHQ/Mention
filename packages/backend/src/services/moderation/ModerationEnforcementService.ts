@@ -34,7 +34,7 @@ import { planEnforcement, type PlannedEnforcementAction } from './enforcementPla
  * rather than a log line saying a decision was seen.
  */
 
-export interface EnforcementSubject {
+interface EnforcementSubject {
   /** Mention's own noun (`post`, `comment`, `user`, …). */
   type: string;
   id: string;

@@ -79,7 +79,7 @@ const nodeinfoUsersCache = createCache({
  * Oxy's registered-account total, stale-while-revalidate. A failed refresh keeps
  * the last good value; with none it rejects and the route omits the field.
  */
-export function nodeinfoLocalUsersCached(): Promise<NodeinfoLocalUsers> {
+function nodeinfoLocalUsersCached(): Promise<NodeinfoLocalUsers> {
   return nodeinfoUsersCache.getOrCompute(NODEINFO_USERS_KEY, async () => {
     const snapshot = await getRuntimeOxyClient().applicationAccountTotal();
     return {

@@ -281,4 +281,3 @@ export class OxyRankingClient {
 }
 
 export const oxyRankingClient = new OxyRankingClient();
-export default oxyRankingClient;

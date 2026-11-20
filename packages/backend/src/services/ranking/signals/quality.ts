@@ -55,7 +55,7 @@ function aiQualityMultiplier(post: RankablePost): number | null {
  * trust the AI judgment over the noisy engagement ratio rather than stacking
  * them).
  */
-export function qualityScore(post: RankablePost, rankingAsOf = Date.now()): number {
+function qualityScore(post: RankablePost, rankingAsOf = Date.now()): number {
   const stats = post.stats || {};
   const viewsCount = stats.viewsCount || 0;
 

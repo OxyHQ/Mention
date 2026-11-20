@@ -95,7 +95,7 @@ async function cacheSetJson(key: string, value: unknown): Promise<void> {
  * stays server-owned so a client can never hand us an arbitrary media URL to
  * ingest. `episodeId` is the opaque handle the client sends back.
  */
-export interface PodcastEpisodeListItem {
+interface PodcastEpisodeListItem {
   episodeId: string;
   title: string;
   durationSec?: number;

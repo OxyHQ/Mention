@@ -46,13 +46,11 @@ const APEX_HOST = extractHost(config.web.origin);
  * stripped so it concatenates cleanly with `req.originalUrl` (which starts `/`).
  */
 const FRONTEND_CDN_ORIGIN = config.web.shellOrigin;
-
 /**
  * Header the shell Worker requires before it serves a byte
  * (`packages/frontend/worker/index.js`). Defined beside the shell document cache
  * that also presents it, and re-exported here, where callers import it from.
  */
-export { SHELL_ACCESS_HEADER };
 
 /** Hard timeout for a single upstream proxy fetch. The apex must never hang on a slow CDN. */
 const PROXY_FETCH_TIMEOUT_MS = 8000;

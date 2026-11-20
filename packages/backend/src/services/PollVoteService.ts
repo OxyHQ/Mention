@@ -6,11 +6,7 @@ import { pollOptions, pollVotes, polls } from '../db/schema/polls';
  * Why a vote could not be recorded. Callers map these to their own surface: the
  * HTTP controller to status codes, the ActivityPub inbox to a debug log + drop.
  */
-export type PollVoteFailureReason =
-  | 'poll_not_found'
-  | 'poll_ended'
-  | 'option_not_found'
-  | 'already_voted';
+type PollVoteFailureReason = 'poll_not_found' | 'poll_ended' | 'option_not_found' | 'already_voted';
 
 /** The poll's own columns — everything about it EXCEPT its options and votes. */
 const POLL_HEADER_COLUMNS = {
@@ -39,7 +35,7 @@ export interface PollHeader {
 }
 
 /** One option's tally, with no voter identities attached. */
-export interface PollOptionSummary {
+interface PollOptionSummary {
   id: string;
   text: string;
   voteCount: number;
@@ -55,7 +51,7 @@ export interface PollSummary extends PollHeader {
   viewerSelectedOptionIds: string[];
 }
 
-export type PollVoteResult =
+type PollVoteResult =
   | { ok: true; poll: PollSummary }
   | { ok: false; reason: PollVoteFailureReason };
 
@@ -286,4 +282,3 @@ class PollVoteService {
 }
 
 export const pollVoteService = new PollVoteService();
-export default pollVoteService;

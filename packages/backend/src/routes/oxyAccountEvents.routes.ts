@@ -48,9 +48,9 @@ const TOKEN_CONTENT_TYPE = 'application/secevent+jwt';
 const MAX_TOKEN_BYTES = 16 * 1024;
 const COMPACT_JWS = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
-export const ACCOUNT_EVENT_WEBHOOK_METRIC = 'oxy_account_event_webhook_total';
+const ACCOUNT_EVENT_WEBHOOK_METRIC = 'oxy_account_event_webhook_total';
 
-export const oxyAccountEventsRateLimiter = rateLimit({
+const oxyAccountEventsRateLimiter = rateLimit({
   store: new RedisStore({ prefix: 'rate-limit:oxy-account-events:', windowMs: 60 * 1000 }),
   windowMs: 60 * 1000,
   max: 600,
@@ -70,7 +70,7 @@ function answer(
   res.status(status).json(body);
 }
 
-export async function handleAccountEvent(req: Request, res: Response): Promise<void> {
+async function handleAccountEvent(req: Request, res: Response): Promise<void> {
   if (!req.is(TOKEN_CONTENT_TYPE)) {
     answer(res, 415, 'unsupported_media_type', {
       error: `Content-Type must be ${TOKEN_CONTENT_TYPE}`,

@@ -62,7 +62,7 @@ export const ANDROID_SIGNING_CERT_SHA256 = [
  * `mention.earth` is an app route, the same set the Android `autoVerify` intent
  * filter claims.
  */
-export const APPLE_APP_LINK_COMPONENTS = [
+const APPLE_APP_LINK_COMPONENTS = [
   { '/': '/.well-known/*', exclude: true },
   { '/': '/ap/*', exclude: true },
   { '/': '/ap-bridge/*', exclude: true },
@@ -74,7 +74,7 @@ export const APPLE_APP_LINK_COMPONENTS = [
   { '/': '/*' },
 ] as const;
 
-export function buildAssetLinks(
+function buildAssetLinks(
   additionalFingerprints: readonly string[] = config.appAssociation.androidSigningCertSha256,
 ) {
   return [
@@ -91,9 +91,7 @@ export function buildAssetLinks(
   ];
 }
 
-export function buildAppleAppSiteAssociation(
-  teamId: string | null = config.appAssociation.appleTeamId,
-) {
+function buildAppleAppSiteAssociation(teamId: string | null = config.appAssociation.appleTeamId) {
   if (!teamId) return null;
   return {
     applinks: {

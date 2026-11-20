@@ -19,9 +19,9 @@ import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { likeContains } from '@oxy.so/utils/sql';
 
 /** Upper bound on the raw query we turn into a regex. */
-export const HASHTAG_QUERY_MAX_LENGTH = 64;
+const HASHTAG_QUERY_MAX_LENGTH = 64;
 
-export interface HashtagSearchResult {
+interface HashtagSearchResult {
   tag: string;
   count: number;
 }

@@ -21,9 +21,3 @@ export function registerSourceModules(registry: FeedModuleRegistry = feedModuleR
     registry.register(module);
   }
 }
-
-export { forYouSourceModules } from './forYouSources';
-export { discoverySourceModules } from './discoverySources';
-export { userSourceModules } from './userSources';
-export { socialSourceModules } from './socialSources';
-export { relatedSourceModules } from './relatedSources';
