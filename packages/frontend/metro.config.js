@@ -111,4 +111,14 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
   };
 }
 
-module.exports = config;
+// The Bloom language compiler (`@oxy.so/bloom-language-compiler`): a pre-pass in
+// front of the transform worker above (react-native-css's, which wraps Expo's),
+// so the Babel config stays Expo's default and Noxcturnal and the React Compiler
+// still apply. It hoists static language chains, marks `view()` bodies
+// `"use memo"` and checks chains against the language spec. An optimisation
+// only: the runtime renders the same tree without it. BLOOM_LANGUAGE_COMPILER=1
+// turns it on while the language row is behind its own build switch.
+module.exports =
+  process.env.BLOOM_LANGUAGE_COMPILER === '1'
+    ? require('@oxy.so/bloom-language-compiler/metro').withBloomLanguage(config)
+    : config;

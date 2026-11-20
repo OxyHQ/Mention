@@ -13,22 +13,29 @@ const preset = require('jest-expo/jest-preset');
 
 const [babelJest, babelOptions] = preset.transform['\\.[jt]sx?$'];
 
+const harnessBabel = [
+  babelJest,
+  {
+    ...babelOptions,
+    // The app ships React-Compiler output (app.json `experiments.reactCompiler`),
+    // and babel-preset-expo only applies it when the caller says so — jest-expo's
+    // caller does not. Without this the harness would measure hand-written hooks
+    // the device never runs.
+    caller: { ...babelOptions.caller, supportsReactCompiler: true },
+    plugins: [require.resolve('./test-support/perfDynamicImport')],
+  },
+];
+
 module.exports = {
   ...base,
   transform: {
     ...preset.transform,
-    '\\.[jt]sx?$': [
-      babelJest,
-      {
-        ...babelOptions,
-        // The app ships React-Compiler output (app.json `experiments.reactCompiler`),
-        // and babel-preset-expo only applies it when the caller says so — jest-expo's
-        // caller does not. Without this the harness would measure hand-written hooks
-        // the device never runs.
-        caller: { ...babelOptions.caller, supportsReactCompiler: true },
-        plugins: [require.resolve('./test-support/perfDynamicImport')],
-      },
-    ],
+    // BLOOM_LANGUAGE_COMPILER=1 runs the Bloom language compiler in front of
+    // Babel, as metro.config.js does for the app (`@oxy.so/bloom-language-compiler/jest`).
+    '\\.[jt]sx?$':
+      process.env.BLOOM_LANGUAGE_COMPILER === '1'
+        ? [require.resolve('@oxy.so/bloom-language-compiler/jest'), { upstream: harnessBabel }]
+        : harnessBabel,
   },
   rootDir: '.',
   testMatch: ['<rootDir>/**/__perf__/**/*.perf.tsx'],
