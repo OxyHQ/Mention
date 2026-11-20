@@ -256,8 +256,9 @@ function avatarGapAsContentPadding(tree: Flat[]): Flat[] {
  * The ⋯ trigger: the JSX row's `TouchableOpacity` (an `opacity: 1` View with
  * no child here, as this harness draws no icon, out of the native focus order,
  * its 8pt sides in a `px-2` this harness does not resolve) is the language
- * `Menu`'s pressable glyph, with the same 8pt sides as padding and in the
- * focus order. Applied to the JSX tree, and asserted to have applied.
+ * `Menu`'s pressable glyph, with the same 8pt sides as padding, in the focus
+ * order, and named (the JSX trigger has no name here). Applied to the JSX
+ * tree, and asserted to have applied.
  */
 function menuTriggerAsPressable(tree: Flat[]): Flat[] {
   const isTrigger = (node: Flat, i: number) =>
@@ -274,7 +275,7 @@ function menuTriggerAsPressable(tree: Flat[]): Flat[] {
     const { opacity: _fade, ...style } = node.style;
     return {
       ...node,
-      props: { ...node.props, focusable: true },
+      props: { ...node.props, focusable: true, accessibilityLabel: 'Post options' },
       style: { ...style, paddingLeft: 8, paddingRight: 8 },
     };
   });
