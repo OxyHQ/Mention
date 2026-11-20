@@ -1,5 +1,4 @@
 import { getDb, resetDb, type SQLiteDb } from './database';
-import { memClearAll } from './memoryStore';
 import { createLogger } from '@oxy.so/core/logger';
 
 const VIEWER_OWNER_KEY = 'viewer_id';
@@ -124,7 +123,6 @@ export function claimViewerCache(viewerId: string | null | undefined): ViewerCac
       }
     }
     const reset = previousViewerId !== nextViewerId;
-    if (reset) memClearAll();
     if (browserStorage) {
       try {
         browserStorage.setItem(BROWSER_VIEWER_OWNER_KEY, nextViewerId);
@@ -144,13 +142,11 @@ export function claimViewerCache(viewerId: string | null | undefined): ViewerCac
       return { reset: false, previousViewerId, trusted: true };
     }
 
-    memClearAll();
     replaceViewerOwner(db, nextViewerId);
   } catch (error) {
     // Fail closed if an old/corrupt schema cannot be cleared transactionally:
     // recreate the cache file, write the owner, and only then release renders.
     logger.error('Failed to replace viewer cache transactionally', error);
-    memClearAll();
     resetDb();
     const freshDb = getDb();
     if (freshDb) {
@@ -180,7 +176,6 @@ export function claimViewerCache(viewerId: string | null | undefined): ViewerCac
  * temporarily route reads through memory, and neither cache may survive A → B.
  */
 export function clearAllCachedData(): void {
-  memClearAll();
   resetDb();
 
   // Generic cache resets (corruption recovery, tests, manual refresh) should

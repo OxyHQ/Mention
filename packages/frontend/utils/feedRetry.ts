@@ -15,9 +15,8 @@
  * So the transport's retry is turned OFF for feed reads (`retry: false`) and the
  * policy lives here, in front of the transport, for three reasons:
  *
- * 1. **One policy, one place.** Both feed paths share it — the feed query
- *    (`useFeedQuery`, web and scoped feeds) and the SQLite store (`postsStore`,
- *    native) — because both read through `services/feedService`.
+ * 1. **One policy, one place.** Every feed read goes through
+ *    `services/feedService` (`data/feeds`), so every feed shares it.
  * 2. **It covers the anonymous transport too.** A signed-out reader's feed goes
  *    out over plain axios (`publicClient`), which has no retry of its own; a
  *    policy expressed as transport config would have left them with none.

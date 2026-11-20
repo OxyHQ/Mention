@@ -1,22 +1,13 @@
 /**
- * Feed memory-mode gate.
+ * Whether a feed renders by slice (threads grouped) rather than by item.
  *
- * A tiny, dependency-free module so the gate logic can be unit-tested without
- * pulling in SQLite, Zustand, or network layers.
- *
- * "Memory mode" means feed pages live in the in-memory React Query cache
- * (`hooks/useFeedQuery`) instead of SQLite.
- * It is active when:
- *   1. The feed is scoped/filtered (useScoped is true), OR
- *   2. SQLite is unavailable (web without COOP/COEP — SharedArrayBuffer absent)
- */
-
-/**
- * Resolve whether a feed should use the in-memory path.
+ * Every feed is one list now (`data/feeds`), but the two earlier paths drew
+ * them differently and that look is kept: web and scoped feeds render the
+ * server's slices; native unscoped feeds render items, with their social
+ * context beside them (the SQLite path never stored slices).
  *
  * @param useScoped - true when the feed has filters (postId, parentPostId, etc.)
- * @param dbAvailable - result of isDbAvailable() — true on native, true on web
- *   only when SharedArrayBuffer is present (COOP/COEP headers enabled)
+ * @param dbAvailable - true on native, false on web
  */
 export function resolveUseMemoryFeed(
   useScoped: boolean | undefined,

@@ -71,7 +71,7 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (u: { username?: string } | null) => u?.username ?? null,
 }));
 const mockPrefetchFeed = jest.fn();
-jest.mock('@/hooks/useFeedQuery', () => ({
+jest.mock('@/data/feeds', () => ({
   prefetchFeed: (...args: unknown[]) => mockPrefetchFeed(...args),
 }));
 jest.mock('@/components/Profile/pinnedPostQuery', () => ({
@@ -356,7 +356,7 @@ describe('profile prefetch', () => {
     expect(mockPrefetchQuery).toHaveBeenCalledTimes(1);
     expect(mockPrefetchQuery).toHaveBeenCalledWith({ profileId: 'author-1' });
     expect(mockPrefetchFeed).toHaveBeenCalledTimes(1);
-    expect(mockPrefetchFeed.mock.calls[0][1]).toEqual({
+    expect(mockPrefetchFeed.mock.calls[0][0]).toEqual({
       type: 'posts',
       userId: 'author-1',
       viewerId: undefined,
@@ -382,7 +382,7 @@ describe('profile prefetch', () => {
 
     mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
     bound().prefetchProfile('author-1');
-    expect(mockPrefetchFeed.mock.calls[0][1]).toMatchObject({ viewerId: 'viewer-1' });
+    expect(mockPrefetchFeed.mock.calls[0][0]).toMatchObject({ viewerId: 'viewer-1' });
     mockAuth = { user: { id: 'viewer-1' } };
   });
 });

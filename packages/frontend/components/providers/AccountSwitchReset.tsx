@@ -7,7 +7,8 @@ import { logger } from '@oxy.so/core/logger';
 import { useAppLanguage } from '@/hooks/useAppLanguage';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { usePostsStore } from '@/stores/postsStore';
+import { DataProvider, type Store } from '@oxy.so/bloom-data';
+import { openAccountData } from '@/data/accounts';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { resetReaderState } from '@/stores/readerStateStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
@@ -116,9 +117,10 @@ export function AccountSwitchReset({
     if (viewerId) noteReaderLanguages(viewerId, renditionLanguages);
   }, [viewerId, renditionLanguages]);
   const [readyViewerId, setReadyViewerId] = useState<string | null>(null);
+  const [dataStore, setDataStore] = useState<Store | null>(null);
 
   const clearRuntimeState = useCallback(
-    (previousViewerId: string | null | undefined, clearCachedData: boolean) => {
+    (previousViewerId: string | null | undefined) => {
       // Stop the old identity's event stream before invalidating its state.
       socketService.disconnect();
       resetLocalActions();
@@ -127,7 +129,6 @@ export function AccountSwitchReset({
       // `clear()` destroys active queries/mutations and removes every cache key,
       // including legacy keys that predate the viewer-key factory.
       queryClient.clear();
-      usePostsStore.getState().resetViewerState({ clearCachedData });
       useEntityFollowStore.getState().reset();
       // What the previous viewer translated, opened, revealed or dismissed.
       resetReaderState();
@@ -165,10 +166,7 @@ export function AccountSwitchReset({
       const previousViewerId = prevViewerIdRef.current;
       if (previousViewerId) {
         if (previousViewerId === viewerCacheId(null)) searchService.invalidateSearchHistory();
-        clearRuntimeState(
-          previousViewerId === viewerCacheId(null) ? undefined : previousViewerId,
-          true,
-        );
+        clearRuntimeState(previousViewerId === viewerCacheId(null) ? undefined : previousViewerId);
         prevViewerIdRef.current = null;
       }
       if (readyViewerId !== null) setReadyViewerId(null);
@@ -200,14 +198,22 @@ export function AccountSwitchReset({
           : cacheClaim.previousViewerId && cacheClaim.previousViewerId !== viewerCacheId(null)
             ? cacheClaim.previousViewerId
             : undefined;
-      clearRuntimeState(previousPrivateViewerId, false);
+      clearRuntimeState(previousPrivateViewerId);
     }
 
     prevViewerIdRef.current = viewerId;
+    // Posts and feeds live in this account's own store and file
+    // (`data/accounts`); opening it closes the previous account's.
+    const store = openAccountData(viewerId);
+    if (dataStore !== store) setDataStore(store);
     if (readyViewerId !== viewerId) {
       setReadyViewerId(viewerId);
     }
-  }, [viewerId, readyViewerId, clearRuntimeState]);
+  }, [viewerId, readyViewerId, dataStore, clearRuntimeState]);
 
-  return viewerId && readyViewerId === viewerId ? children : fallback;
+  return viewerId && readyViewerId === viewerId && dataStore ? (
+    <DataProvider store={dataStore}>{children}</DataProvider>
+  ) : (
+    fallback
+  );
 }

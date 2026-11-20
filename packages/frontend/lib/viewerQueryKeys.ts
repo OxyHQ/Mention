@@ -273,8 +273,9 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.communityNotesRoot(viewerId), 'rated'] as const,
   feedsRoot: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'feeds'] as const,
   /**
-   * One `<Feed>`'s loaded pages (`hooks/useFeedQuery`): a feed type, the
-   * profile it belongs to, and its filters.
+   * A feed's identity under a viewer: a feed type, the profile it belongs to,
+   * and its filters. The feeds themselves are lists in the account's store
+   * (`data/feeds`); this key names a feed for scroll restoration.
    *
    * The filters go through the same `normalizeFeedFilters` as
    * `buildFeedScrollKey`, so the two identities of one feed cannot disagree.
@@ -286,21 +287,6 @@ export const viewerQueryKeys = {
       userId ?? null,
       normalizeFeedFilters(filters),
     ] as const,
-  /**
-   * What a {@link viewerQueryKeys.feed} key names, or `null` for any other key.
-   * The local-write paths (`stores/feedQueryCache`) choose which feeds a post
-   * goes into by this, so the key's shape stays known in one place.
-   */
-  feedIdentity: (queryKey: readonly unknown[]): FeedQueryIdentity | null => {
-    if (!viewerQueryKeys.isFamily(queryKey, 'feeds') || typeof queryKey[3] !== 'string')
-      return null;
-    const [, , , type, userId, filters] = queryKey;
-    return {
-      type: type as FeedType,
-      userId: typeof userId === 'string' ? userId : undefined,
-      filters: filters ? (filters as FeedFilters) : undefined,
-    };
-  },
   search: (viewerId: ViewerId, tab: string, query: string, canUsePrivateApi: boolean) =>
     [...viewerQueryKeys.all(viewerId), 'search', tab, query, canUsePrivateApi] as const,
   /**

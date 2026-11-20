@@ -28,8 +28,8 @@ export interface FeedReadIdentity extends FeedQueryIdentity {
  * server serves. Each lives in its own authority module and none can see
  * another's writes, so all five are asked. Ask them HERE rather than at each
  * call site: a caller that consults four of the five still returns a plausible
- * feed, which is why that mistake survives review. Both read paths ask — the feed query
- * (`hooks/useFeedQuery`) and the SQLite store (`hooks/useFeedState`).
+ * feed, which is why that mistake survives review. The feed source asks
+ * (`data/feeds`), for every feed.
  */
 export function isFeedReadStale(feed: FeedReadIdentity, readAt: number): boolean {
   return (

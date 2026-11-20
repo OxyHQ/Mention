@@ -2,9 +2,9 @@
  * Live post-engagement counts, executed end to end rather than asserted about.
  *
  * A real Socket.IO server, two real client connections over a real port, the
- * real `socketService` wiring and the real `postsStore`. The only double is
- * `@/db`, which stands in for SQLite — so every assertion here lands on the
- * post the app would render, not on a spy handed to the code under test.
+ * real `socketService` wiring and the real posts store (`data/posts`, in
+ * memory) — so every assertion here lands on the post the app would render,
+ * not on a spy handed to the code under test.
  *
  * The server side plays the part the backend plays: it keys its room with the
  * SAME `postEngagementRoom` helper the backend uses and sends the SAME
@@ -24,16 +24,7 @@ import {
   postEngagementRoom,
   type PostEngagementCountsPayload,
 } from '@mention/shared-types';
-import type { FeedItem } from '@/db';
-
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  __esModule: true,
-  default: {
-    getItem: () => Promise.resolve(null),
-    setItem: () => Promise.resolve(),
-    removeItem: () => Promise.resolve(),
-  },
-}));
+import type { FeedItem } from '@/db/schema';
 
 // The store reaches the network and SQLite through these; none of them is on
 // the path a broadcast takes, and left real they drag the ESM-only Oxy SDK into
@@ -52,33 +43,9 @@ jest.mock('@/stores/liveRoomsStore', () => ({
   useLiveRoomsStore: { getState: () => ({ refreshObservedLiveRooms: jest.fn() }) },
 }));
 
-const mockPosts = new Map<string, FeedItem>();
-
-jest.mock('@/db', () => ({
-  upsertPost: jest.fn(),
-  upsertPosts: jest.fn(),
-  getPostById: (postId: string) => mockPosts.get(postId) ?? null,
-  updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null | undefined) => {
-    const previous = mockPosts.get(postId);
-    if (!previous) return null;
-    const next = updater(previous);
-    if (!next) return null;
-    mockPosts.set(postId, next);
-    return next;
-  },
-  deletePost: jest.fn(),
-  pruneOldPosts: jest.fn(),
-  setFeedItems: jest.fn(),
-  appendFeedItems: jest.fn(),
-  prependFeedItem: jest.fn(),
-  addFeedItemAtStart: jest.fn(),
-  removeFeedItem: jest.fn(),
-  getFeedMeta: () => null,
-  clearFeed: jest.fn(),
-  clearAllCachedData: jest.fn(),
-  buildFeedKey: (type: string, userId?: string) => (userId ? `user:${userId}:${type}` : type),
-  resolvePostId: (post: FeedItem) => post.id,
-}));
+/** The posts store's modules, loaded with `socketService` (after `jest.resetModules`). */
+let data: typeof import('@/data/posts');
+let bloom: typeof import('@oxy.so/bloom-data');
 
 const VIEWER_ID = 'viewer-a';
 const OTHER_ACTOR_ID = 'actor-b';
@@ -87,7 +54,7 @@ const UNWATCHED_POST = 'post-unwatched';
 
 /** A post as the store holds it, with the counters this suite moves. */
 function seedPost(id: string, engagement: Partial<FeedItem['engagement']> = {}): void {
-  mockPosts.set(id, {
+  data.Post.put({
     id,
     engagement: {
       likes: 10,
@@ -102,13 +69,13 @@ function seedPost(id: string, engagement: Partial<FeedItem['engagement']> = {}):
 }
 
 function storedPost(id: string): FeedItem {
-  const post = mockPosts.get(id);
+  const post = data.getPost(id);
   if (!post) throw new Error(`no post "${id}" in the store`);
   return post;
 }
 
 /**
- * The engagement queue debounces for 200ms before touching the store, so every
+ * Events are applied after the next frame, not as they arrive, so every
  * assertion has to outlast that. Polling rather than sleeping keeps a slow CI
  * machine from being the reason a real convergence looks like a failure.
  */
@@ -159,6 +126,8 @@ describe('live post engagement counts, over a real socket', () => {
     oxy.session.setAccessToken(token);
     jest.resetModules();
     socketService = require('@/services/socketService').socketService;
+    data = require('@/data/posts');
+    bloom = require('@oxy.so/bloom-data');
   });
 
   afterAll(async () => {
@@ -169,7 +138,7 @@ describe('live post engagement counts, over a real socket', () => {
   });
 
   beforeEach(async () => {
-    mockPosts.clear();
+    bloom.setActiveStore(new bloom.Store());
     joinedRooms = [];
     handshakeAuths = [];
     seedPost(WATCHED_POST);
@@ -233,11 +202,7 @@ describe('live post engagement counts, over a real socket', () => {
   it("does not double-count this viewer's own like", async () => {
     // What the app does first: an optimistic +1 and the viewer's own flag. The
     // server's answer names the same total, because it is a total.
-    mockPosts.set(WATCHED_POST, {
-      ...storedPost(WATCHED_POST),
-      engagement: { ...storedPost(WATCHED_POST).engagement, likes: 11 },
-      viewerState: { ...storedPost(WATCHED_POST).viewerState, isLiked: true },
-    } as FeedItem);
+    data.Post.merge(WATCHED_POST, { engagement: { likes: 11 }, viewerState: { isLiked: true } });
 
     broadcast(POST_ENGAGEMENT_EVENTS.LIKED, {
       postId: WATCHED_POST,
@@ -267,10 +232,7 @@ describe('live post engagement counts, over a real socket', () => {
     // The viewer liked (optimistic 11) and immediately unliked (optimistic 10).
     // The LIKE's echo is still in flight and truthfully reports 11 — truthfully,
     // because at the moment the server wrote it that was the total.
-    mockPosts.set(WATCHED_POST, {
-      ...storedPost(WATCHED_POST),
-      engagement: { ...storedPost(WATCHED_POST).engagement, likes: 10 },
-    } as FeedItem);
+    data.Post.merge(WATCHED_POST, { engagement: { likes: 10 } });
 
     broadcast(POST_ENGAGEMENT_EVENTS.LIKED, {
       postId: WATCHED_POST,

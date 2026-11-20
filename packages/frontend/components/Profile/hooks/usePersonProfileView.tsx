@@ -28,7 +28,7 @@ import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
 import { useAskGemie } from '@gemies/sdk/ask';
-import { usePostsStore } from '@/stores/postsStore';
+import { clearFeed } from '@/data/feeds';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -339,10 +339,7 @@ export function usePersonProfileView({
   // Clear cached feed data for private profiles
   useEffect(() => {
     if (isPrivate && !isOwnProfile && profileData?.id) {
-      const { clearUserFeed } = usePostsStore.getState();
-      FEED_TYPES.forEach((type) => {
-        clearUserFeed(profileData.id, type);
-      });
+      for (const type of FEED_TYPES) clearFeed({ type, userId: profileData.id });
     }
   }, [isPrivate, isOwnProfile, profileData?.id]);
 

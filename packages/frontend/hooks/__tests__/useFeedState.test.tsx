@@ -1,13 +1,16 @@
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import TestRenderer, { act } from 'react-test-renderer';
-import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
+import {
+  DataProvider,
+  environment,
+  type Persister,
+  setActiveStore,
+  Store,
+} from '@oxy.so/bloom-data';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import { usePostsStore } from '@/stores/postsStore';
-import { queryClient } from '@/lib/queryClient';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { getPost } from '@/data/posts';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
-import { isDbAvailable } from '@/db';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { noteLaneListsChanged, resetLaneInvalidation } from '@/stores/laneInvalidation';
 import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
@@ -17,43 +20,16 @@ import {
   FED_PENDING_POLL_DELAYS_MS,
   prefetchFeed,
   UNRESOLVED_AUTHOR_REREAD_DELAYS_MS,
-} from '../useFeedQuery';
+} from '@/data/feeds';
 import { __feedPageReadForTests, startBootFeedRead } from '@/services/feedPageRead';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
-
-jest.mock('@/stores/postsStore', () => {
-  const state = {
-    fetchFeed: jest.fn(() => Promise.resolve()),
-    fetchUserFeed: jest.fn(() => Promise.resolve({ pending: false })),
-    refreshFeed: jest.fn(() => Promise.resolve()),
-    loadMoreFeed: jest.fn(() => Promise.resolve()),
-    cachePosts: jest.fn(),
-    clearFeed: jest.fn(),
-    clearUserFeed: jest.fn(),
-    clearError: jest.fn(),
-    feedUI: {},
-  };
-  const usePostsStore = (selector: (value: typeof state) => unknown) => selector(state);
-  usePostsStore.getState = () => state;
-  return {
-    usePostsStore,
-    useFeedSelector: () => undefined,
-    useUserFeedSelector: () => undefined,
-  };
-});
 
 jest.mock('@/services/feedService', () => ({
   feedService: {
     getFeed: jest.fn(),
     getUserFeed: jest.fn(),
   },
-}));
-
-jest.mock('@/db', () => ({
-  buildFeedKey: jest.fn(() => 'feed-key'),
-  hasFeedData: jest.fn(() => false),
-  isDbAvailable: jest.fn(() => false),
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({
@@ -74,6 +50,11 @@ function post(id: string, extra: Partial<HydratedPost> = {}): HydratedPost {
   return {
     id,
     user: { id: `author-${id}`, username: `author-${id}` },
+    content: {},
+    attachments: {},
+    engagement: {},
+    viewerState: {},
+    metadata: {},
     ...extra,
   } as unknown as HydratedPost;
 }
@@ -118,17 +99,19 @@ function Probe({ options }: { options: UseFeedStateOptions }) {
   return null;
 }
 
+/** The signed-in account's store, as `AccountSwitchReset` provides it. */
+let store: Store;
+
 function tree(options: UseFeedStateOptions) {
   return (
-    <QueryClientProvider client={queryClient}>
+    <DataProvider store={store}>
       <Probe options={options} />
-    </QueryClientProvider>
+    </DataProvider>
   );
 }
 
 const getFeedMock = feedService.getFeed as jest.Mock;
 const getUserFeedMock = feedService.getUserFeed as jest.Mock;
-const isDbAvailableMock = isDbAvailable as jest.Mock;
 
 async function flush(): Promise<void> {
   for (let i = 0; i < 3; i += 1) {
@@ -188,7 +171,7 @@ async function loadTwoPages(): Promise<TestRenderer.ReactTestRenderer> {
   return renderer;
 }
 
-describe('useFeedState memory mode: one feed query', () => {
+describe('useFeedState: one feed list per identity', () => {
   beforeAll(() => {
     (
       globalThis as typeof globalThis & {
@@ -201,12 +184,12 @@ describe('useFeedState memory mode: one feed query', () => {
     latest = undefined;
     renders = [];
     jest.clearAllMocks();
-    queryClient.clear();
+    store = new Store();
+    setActiveStore(store);
     resetEngagementInvalidation();
     resetLaneInvalidation();
     resetSafetyInvalidation();
     resetBylineInvalidation();
-    isDbAvailableMock.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -250,13 +233,13 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual(['fresh']);
     });
 
-    it('starts a feed ahead of its mount only when it is a query', async () => {
-      prefetchFeed(queryClient, { type: 'explore', viewerId: 'viewer-a' });
+    it('starts a feed ahead of its mount, and the mount joins that read', async () => {
+      getFeedMock.mockResolvedValueOnce(page(['early']));
+      prefetchFeed({ type: 'explore', viewerId: 'viewer-a' });
       expect(getFeedMock).toHaveBeenCalledTimes(1);
-
-      isDbAvailableMock.mockReturnValue(true);
-      prefetchFeed(queryClient, { type: 'following', viewerId: 'viewer-a' });
+      await mount();
       expect(getFeedMock).toHaveBeenCalledTimes(1);
+      expect(ids()).toEqual(['early']);
     });
 
     it('asks for the first page while it renders, before anything commits', async () => {
@@ -270,16 +253,16 @@ describe('useFeedState memory mode: one feed query', () => {
       let renderer!: TestRenderer.ReactTestRenderer;
       await act(async () => {
         renderer = TestRenderer.create(
-          <QueryClientProvider client={queryClient}>
+          <DataProvider store={store}>
             <RenderPhaseProbe />
-          </QueryClientProvider>,
+          </DataProvider>,
         );
       });
       open.add(renderer);
       await flush();
 
-      // In flight by the end of the first render — not from the observer's
-      // subscription, which only happens after the whole screen commits…
+      // In flight by the end of the first render, not from the list's mount
+      // effect, which only runs after the whole screen commits…
       expect(requestsDuringFirstRender).toBe(1);
       // …and the observer joins that read instead of making its own.
       expect(getFeedMock).toHaveBeenCalledTimes(1);
@@ -399,8 +382,9 @@ describe('useFeedState memory mode: one feed query', () => {
       await mount({ ...explore, filters: { parentPostId: 'root' } });
 
       expect(ids()).toEqual(['answer']);
-      const cachePosts = usePostsStore.getState().cachePosts as jest.Mock;
-      expect(cachePosts.mock.calls[0][0].map((item: HydratedPost) => item.id)).toEqual(['answer']);
+      expect(getPost('answer')).not.toBeNull();
+      expect(getPost('other-thread')).toBeNull();
+      expect(getPost('standalone')).toBeNull();
       expect(
         (precacheActorsFromPosts as jest.Mock).mock.calls[0][0].map(
           (item: HydratedPost) => item.id,
@@ -420,12 +404,9 @@ describe('useFeedState memory mode: one feed query', () => {
       await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
 
       expect(ids()).toEqual(['answer', 'spine-answer', 'nested-answer']);
-      const cachePosts = usePostsStore.getState().cachePosts as jest.Mock;
-      expect(cachePosts.mock.calls[0][0].map((item: HydratedPost) => item.id)).toEqual([
-        'answer',
-        'spine-answer',
-        'nested-answer',
-      ]);
+      for (const id of ['answer', 'spine-answer', 'nested-answer']) {
+        expect(getPost(id)).not.toBeNull();
+      }
       expect(
         (precacheActorsFromPosts as jest.Mock).mock.calls[0][0].map(
           (item: HydratedPost) => item.id,
@@ -439,6 +420,8 @@ describe('useFeedState memory mode: one feed query', () => {
       getFeedMock.mockResolvedValueOnce(page(['for-a']));
       unmount(await mount());
 
+      // The next account reads its own store (`AccountSwitchReset`).
+      store = new Store();
       getFeedMock.mockResolvedValueOnce(page(['for-b']));
       await mount({ ...explore, currentUserId: 'viewer-b' });
 
@@ -772,7 +755,7 @@ describe('useFeedState memory mode: one feed query', () => {
     });
 
     it('reports a query that is waiting for the network as offline, not as an empty feed', async () => {
-      onlineManager.setOnline(false);
+      environment.setOnline(false);
       try {
         await mount();
 
@@ -782,7 +765,7 @@ describe('useFeedState memory mode: one feed query', () => {
         expect(latest?.errorKind).toBe('offline');
         expect(latest?.isLoading).toBe(false);
       } finally {
-        onlineManager.setOnline(true);
+        environment.setOnline(true);
       }
     });
 
@@ -1002,16 +985,87 @@ describe('useFeedState memory mode: one feed query', () => {
     });
   });
 
-  describe('the SQLite path is untouched', () => {
-    it('reads native unscoped feeds through the store and never through a feed query', async () => {
-      isDbAvailableMock.mockReturnValue(true);
-      const fetchFeed = usePostsStore.getState().fetchFeed as jest.Mock;
+  describe('a previous session on disk', () => {
+    /** A durable copy in memory, behind the same asynchronous interface as SQLite. */
+    function diskPersister(): Persister {
+      const records = new Map<string, string>();
+      const lists = new Map<string, { ids: readonly string[]; json: string }>();
+      return {
+        open: async () => undefined,
+        readRecords: async (type, wanted) =>
+          wanted.flatMap((id) => {
+            const json = records.get(`${type}:${id}`);
+            return json ? [{ id, json }] : [];
+          }),
+        readList: async (type, key) => lists.get(`${type}:${key}`) ?? null,
+        write: async (batch) => {
+          for (const record of batch.records) {
+            if (record.json) records.set(`${record.type}:${record.id}`, record.json);
+          }
+          for (const list of batch.lists) {
+            if (list.ids && list.json) lists.set(`${list.type}:${list.key}`, list);
+          }
+        },
+        close: async () => undefined,
+      };
+    }
+
+    it("shows a previous session's rows at once and reads them again in the background", async () => {
+      const disk = diskPersister();
+      store = new Store({ persister: disk });
+      setActiveStore(store);
+      getFeedMock.mockResolvedValueOnce(page(['yesterday']));
+      unmount(await mount({ ...explore, useScoped: false }));
+      await store.close();
+
+      // The next launch: a new store over the same file.
+      store = new Store({ persister: disk });
+      setActiveStore(store);
+      const today = deferred<SlicedFeedResponse>();
+      getFeedMock.mockReturnValueOnce(today.promise);
+      await mount({ ...explore, useScoped: false });
+
+      expect(ids()).toEqual(['yesterday']);
+      expect(latest?.isLoading).toBe(true);
+      expect(getFeedMock).toHaveBeenCalledTimes(2);
+      await act(async () => today.resolve(page(['today'])));
+      await flush();
+      expect(ids()).toEqual(['today']);
+    });
+
+    it('keeps a scoped feed in memory only, as its query did', async () => {
+      const disk = diskPersister();
+      store = new Store({ persister: disk });
+      setActiveStore(store);
+      getFeedMock.mockResolvedValueOnce(page(['scoped']));
+      unmount(await mount({ ...explore, filters: { hashtag: 'news' } }));
+      await store.close();
+      expect(await disk.readList('feed', '["explore",null,{"hashtag":"news"}]')).toBeNull();
+    });
+  });
+
+  describe('native unscoped feeds', () => {
+    it('render by item, with their social context beside the items', async () => {
+      const slice = {
+        _sliceKey: 's1',
+        isIncompleteThread: false,
+        socialContext: { type: 'likedBy', postId: 'p1', actors: [] },
+        items: [
+          {
+            post: post('p1'),
+            isThreadParent: false,
+            isThreadChild: false,
+            isThreadLastChild: false,
+          },
+        ],
+      };
+      getFeedMock.mockResolvedValueOnce({ ...page(['p1']), slices: [slice] });
 
       await mount({ ...explore, useScoped: false });
 
-      expect(fetchFeed).toHaveBeenCalledTimes(1);
-      expect(getFeedMock).not.toHaveBeenCalled();
-      expect(queryClient.getQueryData(viewerQueryKeys.feed('viewer-a', 'explore'))).toBeUndefined();
+      expect(ids()).toEqual(['p1']);
+      expect(latest?.slices).toBeUndefined();
+      expect(latest?.socialContexts).toEqual([slice.socialContext]);
     });
   });
 });

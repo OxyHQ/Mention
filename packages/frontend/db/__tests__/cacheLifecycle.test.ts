@@ -1,5 +1,4 @@
 import { getDb, resetDb } from '../database';
-import { memClearAll } from '../memoryStore';
 import { claimViewerCache, readPersistedViewerOwner } from '../cacheLifecycle';
 
 let mockOwner: string | null = null;
@@ -30,13 +29,8 @@ jest.mock('../database', () => ({
   resetDb: jest.fn(),
 }));
 
-jest.mock('../memoryStore', () => ({
-  memClearAll: jest.fn(),
-}));
-
 const mockGetDb = getDb as jest.Mock;
 const mockResetDb = resetDb as jest.Mock;
-const mockMemClearAll = memClearAll as jest.Mock;
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
 
 describe('viewer-owned cache lifecycle', () => {
@@ -61,8 +55,6 @@ describe('viewer-owned cache lifecycle', () => {
       previousViewerId: 'viewer-a',
       trusted: true,
     });
-
-    expect(mockMemClearAll).not.toHaveBeenCalled();
     expect(mockDb.execSync).not.toHaveBeenCalled();
   });
 
@@ -72,8 +64,6 @@ describe('viewer-owned cache lifecycle', () => {
       previousViewerId: 'viewer-a',
       trusted: true,
     });
-
-    expect(mockMemClearAll).toHaveBeenCalledTimes(1);
     expect(mockDb.execSync).toHaveBeenNthCalledWith(1, 'BEGIN IMMEDIATE');
     expect(mockDb.execSync.mock.calls[1]?.[0]).toContain('DELETE FROM posts');
     expect(mockDb.execSync).toHaveBeenLastCalledWith('COMMIT');
@@ -88,8 +78,6 @@ describe('viewer-owned cache lifecycle', () => {
       previousViewerId: null,
       trusted: true,
     });
-
-    expect(mockMemClearAll).toHaveBeenCalledTimes(1);
     expect(mockOwner).toBe('viewer-a');
   });
 
@@ -125,8 +113,6 @@ describe('viewer-owned cache lifecycle', () => {
       previousViewerId: 'viewer-a',
       trusted: true,
     });
-
-    expect(mockMemClearAll).toHaveBeenCalledTimes(1);
     expect(browserStorage.setItem).toHaveBeenCalledWith(
       'mention.viewer-cache-owner.v1',
       'viewer-b',

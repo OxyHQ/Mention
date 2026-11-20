@@ -1,8 +1,10 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { PostVisibility } from '@mention/shared-types/post';
-import type { FeedItem } from '@/db';
-import { applyServerViewCounts, usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
+import { setActiveStore, Store, useListState } from '@oxy.so/bloom-data';
+import { Feed, feedKey } from '@/data/feeds';
+import type { FeedItem } from '@/db/schema';
+import { applyServerViewCounts, usePostsStore } from '@/stores/postsStore';
 import LiveVideoPosterCell from '../LiveVideoPosterCell';
 
 /**
@@ -21,58 +23,14 @@ import LiveVideoPosterCell from '../LiveVideoPosterCell';
  * subscription and the cell all participate, and the feed snapshot is checked to
  * be untouched so a passing test cannot be crediting a feed-level refresh.
  *
- * Only SQLite and the network-facing services are mocked (neither loads under
- * jest); the store and the component are real.
+ * Only the network-facing services are mocked; the posts store, the feed list
+ * and the component are real.
  */
-
-const mockPosts = new Map<string, FeedItem>();
-const mockFeedIds = new Map<string, string[]>();
-
-jest.mock('@/db', () => ({
-  upsertPost: (post: FeedItem) => {
-    if (post.id) mockPosts.set(post.id, post);
-  },
-  upsertPosts: (posts: FeedItem[]) => {
-    for (const post of posts) if (post.id) mockPosts.set(post.id, post);
-  },
-  getPostById: (postId: string) => mockPosts.get(postId) ?? null,
-  updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null | undefined) => {
-    const previous = mockPosts.get(postId);
-    if (!previous) return null;
-    const next = updater(previous);
-    if (!next) return null;
-    mockPosts.set(postId, next);
-    return next;
-  },
-  deletePost: (postId: string) => mockPosts.delete(postId),
-  pruneOldPosts: jest.fn(),
-  setFeedItems: jest.fn(),
-  appendFeedItems: jest.fn(),
-  getAllFeedItems: (feedKey: string) =>
-    (mockFeedIds.get(feedKey) ?? [])
-      .map((postId) => mockPosts.get(postId))
-      .filter((post): post is FeedItem => Boolean(post)),
-  getFeedMeta: () => null,
-  clearFeed: jest.fn(),
-  addFeedItemAtStart: (feedKey: string, postId: string) => {
-    const current = mockFeedIds.get(feedKey) ?? [];
-    if (!current.includes(postId)) mockFeedIds.set(feedKey, [postId, ...current]);
-  },
-  getFeedKeysForPost: () => [],
-  removePostFromAllFeeds: jest.fn(),
-  removeFeedItem: jest.fn(),
-  buildFeedKey: (type: string, userId?: string) => (userId ? `user:${userId}:${type}` : type),
-  clearAllCachedData: jest.fn(),
-}));
 
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({
   precacheActorsFromPosts: jest.fn(),
-}));
-jest.mock('@/stores/feedQueryCache', () => ({
-  publishNewLocalPost: jest.fn(),
-  publishRemovedLocalPost: jest.fn(),
 }));
 jest.mock('@/stores/engagementInvalidation', () => ({
   invalidateEngagementLists: jest.fn(),
@@ -88,19 +46,33 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 /**
- * Stands in for the grids' own data source (`useProfileMediaFeed` →
- * `useUserFeedSelector`). Present as a CONTROL: it is what the entries are built
- * from, and it must stay non-reactive to an engagement write.
+ * Stands in for the grids' own data source (`useProfileMediaFeed`, the profile's
+ * feed list). Present as a CONTROL: it is what the entries are built from, and
+ * it must stay non-reactive to an engagement write.
  */
 function FeedSnapshotProbe({
   userId,
   onRender,
 }: {
   userId: string;
-  onRender: (items: FeedItem[]) => void;
+  onRender: (ids: readonly string[]) => void;
 }) {
-  onRender(useUserFeedSelector(userId, 'posts').items);
+  onRender(useListState(Feed, feedKey({ type: 'posts', userId }))?.ids ?? []);
   return null;
+}
+
+/** The profile's posts feed, holding `posts`, as a read of it leaves it. */
+function holdProfileFeed(userId: string, posts: FeedItem[]): void {
+  usePostsStore.getState().cachePosts(posts);
+  Feed.set(feedKey({ type: 'posts', userId }), () => ({
+    ids: posts.map((post) => post.id),
+    extra: { pending: false },
+    next: undefined,
+    hasMore: false,
+    visited: [],
+    updatedAt: 1,
+    origin: 'network',
+  }));
 }
 
 const CELL = { posterUri: 'https://cdn.example/poster.jpg', size: 120, placeholderColor: '#888' };
@@ -161,8 +133,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  mockPosts.clear();
-  mockFeedIds.clear();
+  setActiveStore(new Store());
 });
 
 describe('profile grid cells repaint from a server view count', () => {
@@ -183,7 +154,7 @@ describe('profile grid cells repaint from a server view count', () => {
   it('repaints with the authoritative count, without the feed snapshot moving', async () => {
     const post = makePost('watched', 3);
     act(() => {
-      usePostsStore.getState().addPostsToFeed([post], 'posts');
+      holdProfileFeed('author', [post]);
     });
 
     const feedRenders = jest.fn();

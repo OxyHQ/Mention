@@ -1,6 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import type { HydratedPost } from '@mention/shared-types';
-import { publishNewLocalPost } from '@/stores/feedQueryCache';
+import { publishNewLocalPost } from '@/data/feeds';
+import type { FeedItem } from '@/db/schema';
 import { feedReceivesOwnNewPost } from '@/utils/feedUtils';
 import { resetRevealOwnNewPost, useRevealOwnNewPost } from '../useRevealOwnNewPost';
 
@@ -8,12 +8,14 @@ import { resetRevealOwnNewPost, useRevealOwnNewPost } from '../useRevealOwnNewPo
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
+
 function Probe(props: { feedKey: string; enabled: boolean; scrollToTop: () => void }) {
   useRevealOwnNewPost(props);
   return null;
 }
 
-const post = { id: 'new', user: { id: 'viewer' } } as unknown as HydratedPost;
+const post = { id: 'new', user: { id: 'viewer' } } as unknown as FeedItem;
 
 function frame(): void {
   act(() => {
