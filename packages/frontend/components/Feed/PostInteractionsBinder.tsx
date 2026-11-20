@@ -13,6 +13,7 @@ import { useOpenInAllo } from '@/hooks/useOpenInAllo';
 import { postPermalink } from '@/utils/postPermalink';
 import { alloShareLinks } from '@oxy.so/allo-sdk/links';
 import { usePostInteractionsBinding, type BoundPostCommands } from './postInteractions';
+import { usePostMenuServices } from './postMenuServices';
 
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 
@@ -33,6 +34,7 @@ export function PostInteractionsBinder() {
   const noteHandlers = useCommunityNoteHandlerContext();
   const openInAllo = useOpenInAllo();
   const viewerId = user?.id;
+  const menuServices = usePostMenuServices();
 
   const commands = useMemo<BoundPostCommands>(() => {
     const noteSheets = createCommunityNoteSheets({ router, handlers: noteHandlers });
@@ -78,8 +80,10 @@ export function PostInteractionsBinder() {
         ));
       },
       openCommunityNoteAbout: (note) => noteSheets.openAbout(note),
+      menuServices,
     };
   }, [
+    menuServices,
     t,
     viewerId,
     isAuthenticated,

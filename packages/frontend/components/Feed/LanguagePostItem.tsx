@@ -34,7 +34,6 @@ import {
   view,
   type Child,
   type IconComponent,
-  type MenuContentView,
 } from '@oxy.so/bloom-language';
 import { tokens } from '@oxy.so/bloom/styles';
 import { toast } from '@oxy.so/bloom/toast';
@@ -83,7 +82,8 @@ import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
-import { PostMenu } from './LanguagePostMenu';
+import { describePostMenu, PostMenuActions } from './LanguagePostMenu';
+import type { PostMenuContentProps } from './PostMenuContent';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { useTimeAgo } from '@/hooks/useTimeAgo';
@@ -237,11 +237,21 @@ const TimeLabel = view(function TimeLabel(props: {
  * menu on Android). Its own view: opening the menu re-renders the button, not
  * the row; the menu's rows are built only while it is open (`PostMenu`).
  */
-const PostMenuButton = view(function PostMenuButton(props: {
-  label: string;
-  content: MenuContentView;
-}) {
-  return Menu(MENU_GLYPH, props.content).label(props.label);
+/**
+ * The ⋯ menu: its rows are tagged data, described from the app's bound
+ * services (no hook of the menu's own), and `PostMenuActions` resolves a chosen
+ * one where the menu is placed. Before the services are bound, the trigger
+ * alone.
+ */
+const PostMenuButton = view(function PostMenuButton({
+  label,
+  ...menu
+}: PostMenuContentProps & { label: string }) {
+  const services = usePostInteractions().menuServices();
+  const rows = services ? describePostMenu(menu, services) : [];
+  return Menu(MENU_GLYPH, ...rows)
+    .actions(PostMenuActions(menu))
+    .label(label);
 });
 
 interface PostActionsProps {
@@ -1408,13 +1418,11 @@ function PostRow(props: PostItemProps): Child {
 
   const menuButton = PostMenuButton({
     label: t('postActions.title', { defaultValue: 'Post options' }),
-    content: PostMenu({
-      post: viewPost,
-      isPostDetail: isDetailMain,
-      source: feedDescriptor,
-      onOpenArticle: openArticleSheet,
-      onInsights: handleInsightsPress,
-    }),
+    post: viewPost,
+    isPostDetail: isDetailMain,
+    source: feedDescriptor,
+    onOpenArticle: openArticleSheet,
+    onInsights: handleInsightsPress,
   });
 
   const identityName = Embed(

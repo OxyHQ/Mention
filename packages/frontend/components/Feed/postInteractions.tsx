@@ -3,6 +3,7 @@ import { createLogger } from '@oxy.so/core/logger';
 import type { CommunityNoteSummary, HydratedPost } from '@mention/shared-types';
 import { sharePost } from '@/hooks/usePostShare';
 import { usePostsStore } from '@/stores/postsStore';
+import type { PostMenuServices } from './postMenuServices';
 
 const logger = createLogger('postInteractions');
 
@@ -38,6 +39,13 @@ export interface PostInteractions {
   /** Send the post's permalink to someone in Allo (Mention has no chat of its own). */
   sendInAllo: (postId: string) => void;
   openInsights: (postId: string) => void;
+  /**
+   * The app's services a post's ⋯ menu is described with (bound once by
+   * `PostInteractionsBinder`), so a row describes its menu's rows without a
+   * hook of its own; `null` before they are bound. Its handlers are never run
+   * from here: a chosen row resolves them where the menu is placed.
+   */
+  menuServices: () => PostMenuServices | null;
   openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
   /**
    * Start what a profile opened from this row shows first — its pinned post
@@ -56,7 +64,7 @@ export interface PostInteractions {
 export type BoundPostCommands = Pick<
   PostInteractions,
   'requireSession' | 'sendInAllo' | 'openInsights' | 'openCommunityNoteAbout' | 'prefetchProfile'
->;
+> & { menuServices?: PostMenuServices };
 
 /** The canonical copy of a post right now, or the row's copy when the store has none. */
 export function currentPost(post: HydratedPost): HydratedPost {
@@ -96,7 +104,7 @@ interface Controller {
 
 function createController(): Controller {
   let bound: BoundPostCommands | null = null;
-  const whenBound = <K extends keyof BoundPostCommands>(name: K) =>
+  const whenBound = <K extends Exclude<keyof BoundPostCommands, 'menuServices'>>(name: K) =>
     ((...args: Parameters<BoundPostCommands[K]>) => {
       if (!bound) {
         logger.warn(`${name}: no PostInteractionsBinder is mounted`);
@@ -156,6 +164,7 @@ function createController(): Controller {
     openCommunityNoteAbout: whenBound('openCommunityNoteAbout'),
     // A prefetch with nothing bound has nothing to warm; it is not a failure.
     prefetchProfile: (profileId) => bound?.prefetchProfile(profileId),
+    menuServices: () => bound?.menuServices ?? null,
   };
 
   return {

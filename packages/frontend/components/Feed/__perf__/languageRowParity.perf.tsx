@@ -324,7 +324,25 @@ function compareRows(
   const isSpacer = (node: Flat) => node.style.flex === 1 && node.style.height === 18;
   expect(language.filter(isColumn)).toHaveLength(rows > 0 ? 2 : 0);
   expect(language.filter(isSpacer)).toHaveLength(rows * 2);
-  const rewritten = jsx.map((node) => {
+  // The harness renders iOS, where the ⋯ is the system menu (@expo/ui's Host,
+  // Menu and RNHostView around the glyph: native views, four hosts here). The
+  // menu takes the press, so the glyph inside is a plain view with the same
+  // name and sides as the JSX row's pressable trigger.
+  const isSystemMenu = (node: Flat) => node.type === 'ViewManagerAdapter_ExpoUI';
+  const isMenuTrigger = (node: Flat) =>
+    node.pressable && node.props.accessibilityLabel === 'Post options';
+  const triggers = jsx.filter(isMenuTrigger).length;
+  expect(triggers).toBeGreaterThan(0);
+  // Four hosts per ⋯ (a quoted post has its own).
+  expect(language.filter(isSystemMenu)).toHaveLength(4 * triggers);
+  const rewritten = jsx.map((original) => {
+    const node = isMenuTrigger(original)
+      ? {
+          ...original,
+          pressable: false,
+          props: { accessibilityLabel: original.props.accessibilityLabel },
+        }
+      : original;
     if (node.style.marginLeft === -16 && node.style.marginRight === 3) {
       const { marginRight: _gap, ...style } = node.style;
       return { ...node, style: { ...style, paddingRight: 3 } };
@@ -337,14 +355,15 @@ function compareRows(
   });
   // A compact row's ⋯ sits at the far edge: `ml-auto` in JSX (a class this
   // harness does not resolve), a Spacer before it in the language.
+  const drawn = language.filter((node) => !isSystemMenu(node));
   const isMenuPush = (node: Flat, i: number) =>
     Object.keys(node.style).join() === 'flex' &&
     node.style.flex === 1 &&
-    language[i + 1]?.pressable === true &&
-    language[i + 1]?.style.paddingLeft === 8 &&
-    language[i + 1]?.style.paddingRight === 8;
+    drawn[i + 1]?.props.accessibilityLabel === 'Post options' &&
+    drawn[i + 1]?.style.paddingLeft === 8 &&
+    drawn[i + 1]?.style.paddingRight === 8;
   expect(
-    language.filter((node, i) => !isColumn(node) && !isSpacer(node) && !isMenuPush(node, i)),
+    drawn.filter((node, i) => !isColumn(node) && !isSpacer(node) && !isMenuPush(node, i)),
   ).toEqual(rewritten);
   return { rows, language };
 }
