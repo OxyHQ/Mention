@@ -1,8 +1,9 @@
 import { commerceService } from '@/services/commerceService';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
 import { View, Text, Platform } from 'react-native';
-import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Button as LanguageButton, Embed, Icon } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 import { Button } from '@oxy.so/bloom/button';
 import {
   Accordion,
@@ -20,7 +21,7 @@ import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import Feed from '@/components/Feed/Feed';
 import { PostReplyFooter } from './PostReplyFooter';
 import { CompactReplyComposer } from './CompactReplyComposer';
-import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import {
   useThreadPreferences,
   useThreadPreferencesStore,
@@ -98,7 +99,16 @@ function usePrefetchReplies(postId: string) {
   }, [postId, viewerReady, sortLoaded, sortOrder, treeView, viewerId, queryClient]);
 }
 
-export default function PostDetailScreen({ postId: id, onBack }: PostDetailScreenProps) {
+/**
+ * A post and its thread, in the Bloom language: the thread is the screen's
+ * content; its title, Back, thread preferences and the reply prompt floating
+ * over the thread are the screen's chrome (Bloom's PageHeader; on iOS, in the
+ * app's stack, the system navigation bar).
+ */
+const PostDetailScreen = screen(function PostDetailScreen({
+  postId: id,
+  onBack,
+}: PostDetailScreenProps) {
   const openPostEngagement = useOpenPostEngagement();
   // Supervision, the post and its replies load at the same time; only what is
   // SHOWN waits for the access gate (see the returns below).
@@ -211,7 +221,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     // A new reply attaches to the thread tail (or the focused post / boost
     // original), never to the boost record itself.
     if (composeReplyTargetId) router.push(`/compose?replyToPostId=${composeReplyTargetId}`);
-  }, [composeReplyTargetId]);
+  }, [composeReplyTargetId, router.push]);
 
   // Watch this post's engagement counters for as long as it is on screen.
   //
@@ -416,7 +426,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     return () => {
       cancelled = true;
     };
-  }, [id, getPostById, revalidatePostById, viewerId, requiresFreshReads, t]);
+  }, [id, getPostById, revalidatePostById, requiresFreshReads, t]);
 
   const handleBack = () => {
     if (onBack) onBack();
@@ -551,30 +561,30 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     openPostEngagement,
   ]);
 
-  const header = (
-    <PageHeader
-      title={
-        post && 'metadata' in post && post.metadata?.isThread ? 'Thread' : t('screens.post.title')
-      }
-      headingLevel={2}
-      onBack={handleBack}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-      actions={
-        post ? (
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiEqualizerLine}
-            accessibilityLabel={t('settings.threadPreferences.title', {
-              defaultValue: 'Thread preferences',
-            })}
-            onPress={openReplyPreferences}
-          />
-        ) : undefined
-      }
-    />
-  );
+  /** The screen's chrome around one of its bodies. */
+  const chrome = (content: ReactNode) => {
+    const screenNode = Embed(content)
+      .title(
+        post && 'metadata' in post && post.metadata?.isThread ? 'Thread' : t('screens.post.title'),
+      )
+      .headingLevel(2)
+      .onBack(handleBack)
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .toolbar(
+        post
+          ? LanguageButton(Icon(RiEqualizerLine))
+              .style('subtle')
+              .tint('neutral')
+              .shape('circle')
+              .label(t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' }))
+              .onPress(openReplyPreferences)
+          : null,
+      );
+    // The reply prompt floats over the thread, which scrolls under it.
+    return replyFooter
+      ? screenNode.footer(Embed(replyFooter), { placement: 'overlay', keyboard: 'follow' })
+      : screenNode;
+  };
   const replyFooter = user ? (
     <PostReplyFooter>
       {post && access.allowed && postAcceptsReplies(post) ? (
@@ -591,45 +601,20 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     </PostReplyFooter>
   ) : undefined;
   if (access.failed) {
-    return (
-      <Screen
-        scroll="auto"
-        header={header}
-        bottomBar={replyFooter}
-        bottomBarPlacement="overlay"
-        bottomBarKeyboardBehavior="follow"
-      >
-        <EmptyState
-          error={{
-            title: t('safety.contentUnavailable'),
-            message: t('safety.retryDescription'),
-            onRetry: access.retry,
-          }}
-        />
-      </Screen>
+    return chrome(
+      <EmptyState
+        error={{
+          title: t('safety.contentUnavailable'),
+          message: t('safety.retryDescription'),
+          onRetry: access.retry,
+        }}
+      />,
     );
   }
-  if (!access.allowed)
-    return (
-      <Screen
-        scroll="auto"
-        header={header}
-        bottomBar={replyFooter}
-        bottomBarPlacement="overlay"
-        bottomBarKeyboardBehavior="follow"
-      >
-        <FeedSkeleton />
-      </Screen>
-    );
+  if (!access.allowed) return chrome(<FeedSkeleton />);
   if (!loading && (error || !post)) {
-    return (
-      <Screen
-        scroll="auto"
-        header={header}
-        bottomBar={replyFooter}
-        bottomBarPlacement="overlay"
-        bottomBarKeyboardBehavior="follow"
-      >
+    return chrome(
+      <>
         <SEO
           title={t('seo.post.notFound')}
           description={t('seo.post.notFoundDescription')}
@@ -645,19 +630,11 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
             Go Back
           </Button>
         </View>
-      </Screen>
+      </>,
     );
   }
-  return (
-    <Screen
-      scroll="auto"
-      header={header}
-      testID="post-screen"
-      // The reply prompt floats over the thread, which scrolls under it.
-      bottomBarPlacement="overlay"
-      bottomBarKeyboardBehavior="follow"
-      bottomBar={replyFooter}
-    >
+  return chrome(
+    <>
       <SEO
         title={postTitle}
         description={postDescription}
@@ -684,6 +661,8 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
           contentContainerStyle={feedContentStyle}
         />
       )}
-    </Screen>
-  );
-}
+    </>,
+  ).testID('post-screen');
+});
+
+export default PostDetailScreen;
