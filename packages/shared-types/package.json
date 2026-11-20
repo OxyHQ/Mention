@@ -209,7 +209,7 @@
   "devDependencies": {
     "typescript": "catalog:",
     "@types/node": "catalog:",
-    "regexpu-core": "^6.5.3"
+    "regexpu-core": "^6.5.4"
   },
   "files": [
     "dist/**/*"
