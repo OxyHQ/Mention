@@ -116,6 +116,7 @@
     "@gemies/sdk": "catalog:",
     "@clarity.surf/sdk": "0.12.0",
     "@expo/app-integrity": "~58.0.2",
+    "@expo/ui": "58.0.28",
     "@expo/vector-icons": "^15.1.1",
     "@livekit/react-native": "^3.1.0",
     "@livekit/react-native-expo-plugin": "^1.1.0",
@@ -247,6 +248,9 @@
       "android": {
         "buildFromSource": [
           "expo-video"
+        ],
+        "exclude": [
+          "@expo/ui"
         ]
       }
     },
