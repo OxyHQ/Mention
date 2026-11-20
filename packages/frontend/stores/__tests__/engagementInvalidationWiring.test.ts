@@ -1,4 +1,6 @@
-import type { FeedItem } from '@/db';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { Post } from '@/data/posts';
+import type { FeedItem } from '@/db/schema';
 import { publishPostWithRepost } from '@/components/Compose/publishPost';
 import { usePostsStore } from '../postsStore';
 
@@ -12,8 +14,6 @@ import { usePostsStore } from '../postsStore';
  * (`components/Feed/postInteractions.tsx`) and the videos screen both funnel
  * through it — so asserting it here covers every call site at once.
  */
-
-const mockPosts = new Map<string, FeedItem>();
 
 const mockInvalidate = jest.fn();
 const mockLocalError = jest.fn();
@@ -53,43 +53,11 @@ jest.mock('@/services/feedService', () => ({
   },
 }));
 
-jest.mock('@/db', () => ({
-  upsertPost: (post: FeedItem) => mockPosts.set(post.id, post),
-  upsertPosts: (posts: FeedItem[]) => {
-    for (const post of posts) mockPosts.set(post.id, post);
-  },
-  getPostById: (postId: string) => mockPosts.get(postId) ?? null,
-  updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null) => {
-    const previous = mockPosts.get(postId);
-    if (!previous) return null;
-    const next = updater(previous);
-    if (!next) return null;
-    mockPosts.set(postId, next);
-    return next;
-  },
-  deletePost: (postId: string) => mockPosts.delete(postId),
-  pruneOldPosts: jest.fn(),
-  setFeedItems: jest.fn(),
-  appendFeedItems: jest.fn(),
-  getAllFeedItems: () => [],
-  getFeedMeta: () => null,
-  clearFeed: jest.fn(),
-  addFeedItemAtStart: jest.fn(),
-  getFeedKeysForPost: () => [],
-  removePostFromAllFeeds: jest.fn(),
-  removeFeedItem: jest.fn(),
-  buildFeedKey: (type: string, userId?: string) => (userId ? `user:${userId}:${type}` : type),
-  getDb: () => null,
-  rowToFeedItem: (row: FeedItem) => row,
-  clearAllCachedData: jest.fn(),
-}));
-
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
-jest.mock('@/stores/feedQueryCache', () => ({
+jest.mock('@/data/feeds', () => ({
   publishNewLocalPost: jest.fn(),
   publishNewLocalReply: jest.fn(),
-  publishRemovedLocalPost: jest.fn(),
 }));
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
@@ -103,11 +71,24 @@ jest.mock('@oxy.so/core/logger', () => ({
 
 const POST_ID = 'post-1';
 
+/** The signed-in account's posts store. */
+let store: Store;
+
+/** Opens the next account's store, as `AccountSwitchReset` does on a switch. */
+function switchAccount(): void {
+  void store.close();
+  store = new Store();
+  setActiveStore(store);
+}
+
 function seedPost(): void {
-  mockPosts.set(POST_ID, {
+  Post.put({
     id: POST_ID,
     engagement: { likes: 0, replies: 0, boosts: 0, saves: 0, downvotes: 0 },
     viewerState: { isLiked: false, isBoosted: false, isSaved: false, isDownvoted: false },
+    content: {},
+    attachments: {},
+    metadata: {},
   } as unknown as FeedItem);
 }
 
@@ -117,7 +98,8 @@ const refused = { success: false, data: {} };
 describe('postsStore reports every engagement it lands', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPosts.clear();
+    store = new Store();
+    setActiveStore(store);
     seedPost();
   });
 
@@ -204,7 +186,8 @@ describe('postsStore refreshes the profile counters a write changes', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPosts.clear();
+    store = new Store();
+    setActiveStore(store);
     seedPost();
   });
 
@@ -251,7 +234,8 @@ describe('postsStore refreshes the profile counters a write changes', () => {
 describe('publish outcomes after a viewer change', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPosts.clear();
+    store = new Store();
+    setActiveStore(store);
   });
 
   it.each(['createPost', 'createThread', 'createReply'] as const)(
@@ -271,14 +255,12 @@ describe('publish outcomes after a viewer change', () => {
             ? { posts: [{}] }
             : { postId: 'parent', content: { text: 'A' } };
       const operation = usePostsStore.getState()[method](request as never);
-      usePostsStore.getState().resetViewerState({ clearCachedData: true });
-      usePostsStore.setState({ error: 'B state', isLoading: true });
+      switchAccount();
       complete({ success: true, post: { id: 'a' }, posts: [{ id: 'a' }], reply: { id: 'a' } });
       await expect(operation).resolves.toEqual(
         method === 'createPost' ? { id: 'a' } : method === 'createThread' ? [] : null,
       );
-      expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
-      expect(mockPosts.size).toBe(0);
+      expect(Post.ids()).toEqual([]);
     },
   );
 
@@ -300,12 +282,10 @@ describe('publish outcomes after a viewer change', () => {
             : { postId: 'parent', content: { text: 'A' } };
       const operation = usePostsStore.getState()[method](request as never);
       const expected = expect(operation).rejects.toThrow('HTTP 500');
-      usePostsStore.getState().resetViewerState({ clearCachedData: true });
-      usePostsStore.setState({ error: 'B state', isLoading: true });
+      switchAccount();
       reject(new Error('HTTP 500'));
       await expected;
-      expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
-      expect(mockPosts.size).toBe(0);
+      expect(Post.ids()).toEqual([]);
     },
   );
 
@@ -327,12 +307,10 @@ describe('publish outcomes after a viewer change', () => {
             : { postId: 'parent', content: { text: 'A' } };
       const operation = usePostsStore.getState()[method](request as never);
       const expected = expect(operation).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
-      usePostsStore.getState().resetViewerState({ clearCachedData: true });
-      usePostsStore.setState({ error: 'B state', isLoading: true });
+      switchAccount();
       reject(Object.assign(new Error('Outcome unknown'), { code: 'AUTH_SESSION_CHANGED' }));
       await expected;
-      expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
-      expect(mockPosts.size).toBe(0);
+      expect(Post.ids()).toEqual([]);
     },
   );
 
@@ -371,12 +349,13 @@ it.each(['createPost', 'createThread', 'createReply'] as const)(
       permissions: {},
       metadata: { createdAt: '2026-09-25T10:00:00.000Z', status: 'published' },
     };
-    const cache = jest.requireMock('@/stores/feedQueryCache');
+    store = new Store();
+    setActiveStore(store);
+    const cache = jest.requireMock('@/data/feeds');
     const update =
       method === 'createReply' ? cache.publishNewLocalReply : cache.publishNewLocalPost;
     update.mockImplementationOnce(() => {
-      usePostsStore.getState().resetViewerState({ clearCachedData: true });
-      usePostsStore.setState({ error: 'B state', isLoading: true });
+      switchAccount();
       throw new Error('local cache failed');
     });
     mockFeedService[method].mockResolvedValueOnce({
@@ -396,7 +375,6 @@ it.each(['createPost', 'createThread', 'createReply'] as const)(
       expect.stringContaining('local cache update failed'),
       expect.any(Error),
     );
-    expect(usePostsStore.getState()).toMatchObject({ error: 'B state', isLoading: true });
   },
 );
 

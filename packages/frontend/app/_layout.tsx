@@ -4,6 +4,7 @@ import { enableFreeze } from 'react-native-screens';
 import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
+import { environment as dataEnvironment } from '@oxy.so/bloom-data';
 import { preventNativeSplashAutoHide } from '@oxy.so/expo-splash';
 import { useEffect, useState } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
@@ -111,12 +112,15 @@ export default function RootLayout() {
     // who-to-follow stay on skeletons forever while Mention's own API is
     // perfectly reachable. A request that really cannot get through fails and
     // retries on its own. `null` (not yet known) counts as connected.
+    // The posts store (`@oxy.so/bloom-data`) hears the same two signals.
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
       onlineManager.setOnline(state.isConnected !== false);
+      dataEnvironment.setOnline(state.isConnected !== false);
     });
 
     const onAppStateChange = (status: AppStateStatus) => {
       focusManager.setFocused(status === 'active');
+      dataEnvironment.setFocused(status === 'active');
     };
     const appStateSub = AppState.addEventListener('change', onAppStateChange);
 

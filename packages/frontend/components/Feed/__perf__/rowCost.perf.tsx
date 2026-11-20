@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 
 import { appI18n, initializeI18n } from '@/lib/i18n';
 import { usePostsStore } from '@/stores/postsStore';
+import { Feed } from '@/data/feeds';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { VideoPlaybackProvider, VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { renderFeedRow, type PostFeedRow } from '../feedRows';
@@ -416,9 +417,16 @@ describe('feed row cost', () => {
 
     renders.clear();
     act(() => {
-      usePostsStore.setState({ isLoading: true, error: null, lastRefresh: Date.now() });
-      usePostsStore.setState((s) => ({
-        feedUI: { ...s.feedUI, perf: { isLoading: true, error: null, lastUpdated: 1 } },
+      // A post no row shows, and a feed list no row reads.
+      usePostsStore.getState().cachePosts([makeRow('text', 'iso-unrelated')]);
+      Feed.set('perf', () => ({
+        ids: ['iso-unrelated'],
+        extra: { pending: false },
+        next: undefined,
+        hasMore: false,
+        visited: [],
+        updatedAt: 1,
+        origin: 'local',
       }));
     });
     const unrelatedStoreWrite = [...renders.values()].reduce((a, b) => a + b, 0);

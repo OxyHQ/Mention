@@ -1,13 +1,15 @@
 import { PostVisibility } from '@mention/shared-types/post';
-import type { FeedItem } from '@/db';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { Post } from '@/data/posts';
+import type { FeedItem } from '@/db/schema';
 import { usePostsStore } from '../postsStore';
 
 /**
  * A single-post READ is shared, not aborted.
  *
- * `getPostById` and `revalidatePostById` both key `pendingRequests` on
- * `post:<id>` and both abort whatever they find there. For a revalidation that
- * is right — it is a deliberate cache-buster. For two plain reads it is not:
+ * `getPostById` joins a read of the same post in flight; `revalidatePostById`
+ * supersedes it. For a revalidation that is right — it is a deliberate
+ * cache-buster. For two plain reads it is not:
  * they are the same question asked twice moments apart (the press-in prefetch,
  * then the detail screen's own mount), and the second used to cancel the first,
  * so the prefetch bought a cancelled request and no saved latency at all.
@@ -16,49 +18,8 @@ import { usePostsStore } from '../postsStore';
  * request" is also what a map that collapsed EVERY read into one would report.
  */
 
-const mockPosts = new Map<string, FeedItem>();
 const mockGetPostById = jest.fn<Promise<FeedItem>, [string, AbortSignal | undefined]>();
 const mockGetPostsByIds = jest.fn<Promise<FeedItem[]>, [readonly string[]]>();
-
-jest.mock('@/db', () => ({
-  upsertPost: (post: FeedItem) => {
-    if (post.id) mockPosts.set(post.id, post);
-  },
-  upsertPosts: (posts: FeedItem[]) => {
-    for (const post of posts) if (post.id) mockPosts.set(post.id, post);
-  },
-  getPostById: (postId: string) => mockPosts.get(postId) ?? null,
-  getPostsByIds: (ids: string[]) =>
-    Object.fromEntries(ids.flatMap((id) => (mockPosts.has(id) ? [[id, mockPosts.get(id)]] : []))),
-  getPostIdsReferencing: (ids: string[]) =>
-    [...mockPosts.values()]
-      .filter((post) =>
-        [post.originalPost?.id, post.quotedPost?.id, post.boost?.originalPost?.id].some(
-          (id) => id && ids.includes(id),
-        ),
-      )
-      .map((post) => post.id),
-  updatePost: () => null,
-  deletePost: (postId: string) => {
-    mockPosts.delete(postId);
-  },
-  pruneOldPosts: jest.fn(),
-  setFeedItems: jest.fn(),
-  appendFeedItems: jest.fn(),
-  getAllFeedItems: () => [],
-  getFeedMeta: () => null,
-  clearFeed: jest.fn(),
-  addFeedItemAtStart: jest.fn(),
-  getFeedKeysForPost: () => [],
-  removePostFromAllFeeds: jest.fn(),
-  removeFeedItem: jest.fn(),
-  buildFeedKey: (type: string, userId?: string) => (userId ? `user:${userId}:${type}` : type),
-  getDb: () => null,
-  rowToFeedItem: (row: FeedItem) => row,
-  clearAllCachedData: () => {
-    mockPosts.clear();
-  },
-}));
 
 jest.mock('@/services/feedService', () => ({
   feedService: {
@@ -69,10 +30,6 @@ jest.mock('@/services/feedService', () => ({
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/stores/engagementInvalidation', () => ({ invalidateEngagementLists: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
-jest.mock('@/stores/feedQueryCache', () => ({
-  publishNewLocalPost: jest.fn(),
-  publishRemovedLocalPost: jest.fn(),
-}));
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }),
@@ -112,41 +69,48 @@ function deferred(id: string) {
   return { promise, release, fail };
 }
 
+/** Opens the next account's store, as `AccountSwitchReset` does on a switch. */
+function switchAccount(): void {
+  void store.close();
+  store = new Store();
+  setActiveStore(store);
+}
+let store = new Store();
+
 describe('postsStore single-post reads', () => {
   beforeEach(() => {
-    mockPosts.clear();
     mockGetPostById.mockReset();
-    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    switchAccount();
   });
 
   it.each([403, 404])('evicts every embedded copy when revalidation returns %s', async (status) => {
     const privatePost = makePost('private');
     const quote = { ...makePost('quote'), quotedPost: privatePost };
     const boost = { ...makePost('boost'), originalPost: quote };
-    for (const post of [privatePost, quote, boost]) mockPosts.set(post.id, post);
+    Post.put([privatePost, quote, boost]);
     mockGetPostById.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { status }));
     expect(await usePostsStore.getState().revalidatePostById('private')).toBeNull();
-    expect([...mockPosts.keys()]).toEqual([]);
+    expect(Post.ids()).toEqual([]);
   });
 
   it('preserves the cache on transport failures for callers with known adult access', async () => {
-    mockPosts.set('cached', makePost('cached'));
+    Post.put(makePost('cached'));
     mockGetPostById.mockRejectedValueOnce(
       Object.assign(new Error('authority unavailable'), { status: 503 }),
     );
     expect(await usePostsStore.getState().revalidatePostById('cached')).toBeNull();
-    expect(mockPosts.has('cached')).toBe(true);
+    expect(Post.has('cached')).toBe(true);
   });
 
   it('does not evict the new viewer cache when the previous viewer receives a denial', async () => {
     const request = deferred('cached');
     mockGetPostById.mockReturnValueOnce(request.promise);
     const beforeSwitch = usePostsStore.getState().revalidatePostById('cached');
-    usePostsStore.getState().resetViewerState({ clearCachedData: true });
-    mockPosts.set('cached', makePost('cached'));
+    switchAccount();
+    Post.put(makePost('cached'));
     request.fail(Object.assign(new Error('revoked'), { status: 403 }));
     await beforeSwitch;
-    expect(mockPosts.has('cached')).toBe(true);
+    expect(Post.has('cached')).toBe(true);
   });
 
   it('issues one request when the same post is read twice while in flight', async () => {
@@ -192,7 +156,7 @@ describe('postsStore single-post reads', () => {
     await usePostsStore.getState().getPostById('post-1');
 
     // Evict it so the next call cannot be answered from the cache instead.
-    mockPosts.clear();
+    Post.remove('post-1');
     const again = deferred('post-1');
     mockGetPostById.mockReturnValue(again.promise);
     again.release();
@@ -225,10 +189,13 @@ describe('postsStore single-post reads', () => {
     const request = deferred('post-1');
     mockGetPostById.mockReturnValue(request.promise);
     const beforeSwitch = usePostsStore.getState().getPostById('post-1');
+    // The disk copy is asked first; then the read is on the wire.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockGetPostById).toHaveBeenCalledTimes(1);
 
-    // The in-flight read is epoch-guarded to resolve `null`, so a joiner after
-    // the switch would read "post not found" rather than read it fresh.
-    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    // The in-flight read belongs to the previous account's (closed) store, so
+    // it resolves `null`; the next account reads the post fresh.
+    switchAccount();
 
     const afterSwitch = deferred('post-1');
     mockGetPostById.mockReturnValue(afterSwitch.promise);
@@ -245,13 +212,12 @@ describe('postsStore single-post reads', () => {
 
 describe('postsStore batch reads', () => {
   beforeEach(() => {
-    mockPosts.clear();
     mockGetPostsByIds.mockReset();
-    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    switchAccount();
   });
 
   it('reads only the uncached posts, in one request, and keeps the order asked for', async () => {
-    mockPosts.set('cached', makePost('cached'));
+    Post.put(makePost('cached'));
     // `hidden` is refused by the server, so it is simply absent.
     mockGetPostsByIds.mockResolvedValue([makePost('fresh')]);
 
@@ -260,11 +226,11 @@ describe('postsStore batch reads', () => {
     expect(mockGetPostsByIds).toHaveBeenCalledTimes(1);
     expect(mockGetPostsByIds).toHaveBeenCalledWith(['fresh', 'hidden']);
     expect(posts.map((post) => post.id)).toEqual(['fresh', 'cached']);
-    expect(mockPosts.has('fresh')).toBe(true);
+    expect(Post.has('fresh')).toBe(true);
   });
 
   it('asks nothing when every post is cached', async () => {
-    mockPosts.set('a', makePost('a'));
+    Post.put(makePost('a'));
     expect((await usePostsStore.getState().getPostsByIds(['a'])).map((post) => post.id)).toEqual([
       'a',
     ]);

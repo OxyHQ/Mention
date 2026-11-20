@@ -19,8 +19,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  *   * The saved screen (`app/(app)/saved.tsx`) is an ordinary React Query list,
  *     invalidated like one.
  *   * Every `<Feed>` surface, including the profile likes and boosts tabs, is a
- *     feed cache — a feed query (`hooks/useFeedQuery`) on web and for scoped
- *     feeds, SQLite on native — that warm-starts a remount from the pages it
+ *     feed list (`data/feeds`) that warm-starts a remount from the pages it
  *     holds. Neither kind is ever invalidated wholesale: each judges its held
  *     read against the write times recorded here (`stores/feedStaleness`) and
  *     reads page 1 again only when a write postdates it.

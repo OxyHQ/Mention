@@ -1,5 +1,4 @@
 import { feedService, type ExtendedFeedRequest } from '@/services/feedService';
-import type { FeedPageParam } from '@/stores/feedQueryCache';
 import type { FeedReadIdentity } from '@/stores/feedStaleness';
 
 export const FEED_PAGE_SIZE = 20;
@@ -12,12 +11,13 @@ export type FeedPageResponse = Awaited<ReturnType<typeof feedService.getFeed>>;
  */
 export function requestFeedPage(
   feed: FeedReadIdentity,
-  cursor: FeedPageParam,
+  cursor: string | undefined,
   signal?: AbortSignal,
+  limit: number = FEED_PAGE_SIZE,
 ): Promise<FeedPageResponse> {
   const request: ExtendedFeedRequest = {
     type: feed.type,
-    limit: FEED_PAGE_SIZE,
+    limit,
     cursor,
     filters: feed.filters,
   };
@@ -56,7 +56,7 @@ export function startBootFeedRead(viewerId: string | null): void {
  */
 export function takeBootFeedRead(
   feed: FeedReadIdentity,
-  cursor: FeedPageParam,
+  cursor: string | undefined,
 ): Promise<FeedPageResponse | null> | null {
   const read = bootRead;
   if (cursor !== undefined || feed.type !== BOOT_FEED.type || feed.userId) return null;

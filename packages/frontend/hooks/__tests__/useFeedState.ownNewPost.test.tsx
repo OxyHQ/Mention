@@ -1,9 +1,11 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { Platform } from 'react-native';
+import { DataProvider, setActiveStore, Store } from '@oxy.so/bloom-data';
+import { canonicalPost } from '@/test-support/canonicalPost';
 import type { FeedPostSlice, HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import { queryClient } from '@/lib/queryClient';
-import { publishNewLocalPost } from '@/stores/feedQueryCache';
+import { publishNewLocalPost } from '@/data/feeds';
+import type { FeedItem } from '@/db/schema';
 import { getLocalPostRevision } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
@@ -11,38 +13,11 @@ import { useFeedState, type UseFeedStateOptions, type UseFeedStateReturn } from 
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-jest.mock('@/stores/postsStore', () => {
-  const state = {
-    fetchFeed: jest.fn(() => Promise.resolve()),
-    fetchUserFeed: jest.fn(() => Promise.resolve({ pending: false })),
-    refreshFeed: jest.fn(() => Promise.resolve()),
-    loadMoreFeed: jest.fn(() => Promise.resolve()),
-    cachePosts: jest.fn(),
-    clearFeed: jest.fn(),
-    clearUserFeed: jest.fn(),
-    clearError: jest.fn(),
-    feedUI: {},
-  };
-  const usePostsStore = (selector: (value: typeof state) => unknown) => selector(state);
-  usePostsStore.getState = () => state;
-  return {
-    usePostsStore,
-    useFeedSelector: () => undefined,
-    useUserFeedSelector: () => undefined,
-  };
-});
-
 jest.mock('@/services/feedService', () => ({
   feedService: {
     getFeed: jest.fn(),
     getUserFeed: jest.fn(),
   },
-}));
-
-jest.mock('@/db', () => ({
-  buildFeedKey: jest.fn(() => 'feed-key'),
-  hasFeedData: jest.fn(() => false),
-  isDbAvailable: jest.fn(() => false),
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({
@@ -60,7 +35,12 @@ jest.mock('@/lib/precacheActorsFromPosts', () => ({
 
 /** A post by `author`; the viewer's own new posts are by `viewer-a`. */
 function post(id: string, author: string = `author-${id}`): HydratedPost {
-  return { id, user: { id: author } } as unknown as HydratedPost;
+  return canonicalPost({ id, user: { id: author } } as HydratedPost);
+}
+
+/** A post the viewer published, as `postsStore.createPost` hands it to the feeds. */
+function mine(id: string, author?: string): FeedItem {
+  return post(id, author) as unknown as FeedItem;
 }
 
 function slice(id: string): FeedPostSlice {
@@ -76,6 +56,9 @@ function slice(id: string): FeedPostSlice {
 function page(items: HydratedPost[], slices: FeedPostSlice[] = []): SlicedFeedResponse {
   return { items, slices, interstitials: [], hasMore: false, totalCount: items.length };
 }
+
+/** The account's store, as `AccountSwitchReset` provides it. */
+let store: Store;
 
 let latest: UseFeedStateReturn | undefined;
 
@@ -127,7 +110,8 @@ describe("useFeedState: the viewer's own new post", () => {
   beforeEach(() => {
     latest = undefined;
     jest.clearAllMocks();
-    queryClient.clear();
+    store = new Store();
+    setActiveStore(store);
     resetEngagementInvalidation();
     resetSafetyInvalidation();
   });
@@ -136,9 +120,9 @@ describe("useFeedState: the viewer's own new post", () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <QueryClientProvider client={queryClient}>
+        <DataProvider store={store}>
           <Probe options={options} />
-        </QueryClientProvider>,
+        </DataProvider>,
       );
     });
     await flush();
@@ -156,7 +140,7 @@ describe("useFeedState: the viewer's own new post", () => {
     await visit(home);
 
     // The viewer is on the composer: the home feed is not mounted.
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
 
     const back = await mount(home);
     expect(ids()).toEqual(['mine', 'p1', 'p2']);
@@ -166,22 +150,24 @@ describe("useFeedState: the viewer's own new post", () => {
   });
 
   it('is the first slice of a feed that renders by slice (the web home feed)', async () => {
+    const web = jest.replaceProperty(Platform, 'OS', 'web');
     getFeedMock.mockResolvedValueOnce(page([post('p1')], [slice('p1')]));
     await visit(home);
 
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
 
     const back = await mount(home);
     expect(latest?.slices?.map((s) => s.items.map((si) => si.post.id))).toEqual([['mine'], ['p1']]);
     act(() => back.unmount());
+    web.restore();
   });
 
   it('is at the top of a mounted home feed exactly once', async () => {
     getFeedMock.mockResolvedValueOnce(page([post('p1')]));
     const mounted = await mount(home);
 
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
     await flush();
     expect(ids()).toEqual(['mine', 'p1']);
 
@@ -202,8 +188,8 @@ describe("useFeedState: the viewer's own new post", () => {
     await visit(ownLikes);
     await visit(otherProfile);
 
-    act(() => publishNewLocalPost(post('elsewhere', 'someone-else-entirely')));
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('elsewhere', 'someone-else-entirely')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
 
     const profile = await mount(ownProfile);
     expect(ids()).toEqual(['mine', 'viewer-a-posts']);
@@ -230,7 +216,7 @@ describe("useFeedState: the viewer's own new post", () => {
     getFeedMock.mockResolvedValueOnce(page([post('tagged')]));
     const mounted = await mount(hashtag);
 
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
     await flush();
 
     expect(ids()).toEqual(['tagged']);
@@ -245,7 +231,7 @@ describe("useFeedState: the viewer's own new post", () => {
     // Publish strictly AFTER the rule change: stamped with its own time, the
     // write would then look newer than the change and hide it.
     await new Promise((resolve) => setTimeout(resolve, 5));
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
 
     // The post went in, but the read under it still predates the rule
     // change, so the warm start reads page 1 again.
@@ -258,7 +244,7 @@ describe("useFeedState: the viewer's own new post", () => {
 
   it('advances the revision the feed brings it into view by', () => {
     const before = getLocalPostRevision();
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
     expect(getLocalPostRevision()).toBe(before + 1);
   });
 
@@ -266,9 +252,10 @@ describe("useFeedState: the viewer's own new post", () => {
     getFeedMock.mockResolvedValueOnce(page([post('p1')]));
     await visit(home);
 
-    // Account switch: `AccountSwitchReset` clears the whole client.
-    queryClient.clear();
-    act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+    // Account switch: `AccountSwitchReset` opens the next account's store.
+    store = new Store();
+    setActiveStore(store);
+    act(() => publishNewLocalPost(mine('mine', 'viewer-a')));
 
     getFeedMock.mockResolvedValueOnce(page([post('for-b')]));
     const next = await mount({ ...home, currentUserId: 'viewer-b' });

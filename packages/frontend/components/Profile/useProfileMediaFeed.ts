@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { skip, useList, useListState, useStore, withStore } from '@oxy.so/bloom-data';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
-import type { FeedItem } from '@/db';
+import type { FeedItem } from '@/db/schema';
+import { Feed, type FeedIdentity, feedKey, feedPosts, feedSource } from '@/data/feeds';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const PROFILE_MEDIA_FEED_LIMIT = 50;
@@ -22,10 +23,10 @@ interface ProfileMediaFeedArgs {
 
 /**
  * Shared data source for the profile Media and Videos grids. Loads the user's
- * primary feed for the requested `filter`, transparently falling back to the
- * `posts` feed for media extraction when that feed resolves empty, and returns
- * the flattened item list both grids iterate. The two grids differ only in how
- * they turn these items into cells, so the feed plumbing lives here once.
+ * primary feed for the requested `filter`, falling back to the held `posts`
+ * feed for media extraction while that feed is empty, and returns the flattened
+ * item list both grids iterate. The two grids differ only in how they turn
+ * these items into cells, so the feed plumbing lives here once.
  */
 export function useProfileMediaFeed({
   userId,
@@ -35,70 +36,47 @@ export function useProfileMediaFeed({
 }: ProfileMediaFeedArgs) {
   const { user } = useAuth();
   const viewerId = user?.id;
-  const fetchUserFeed = usePostsStore((s) => s.fetchUserFeed);
-  const primaryFeed = useUserFeedSelector(userId || '', filter);
-  const postsFeed = useUserFeedSelector(userId || '', 'posts');
+  const readable = Boolean(userId) && (!isPrivate || Boolean(isOwnProfile));
 
-  useEffect(() => {
-    if (!userId || (isPrivate && !isOwnProfile)) return;
+  // The viewer is part of the read: visibility of follower- or owner-gated
+  // media depends on who is asking, and an account switch opens another store.
+  const primary: FeedIdentity = { type: filter, userId, viewerId, limit: PROFILE_MEDIA_FEED_LIMIT };
+  const primaryView = useList(feedSource, ...(readable ? ([primary] as [FeedIdentity]) : [skip]));
 
-    fetchUserFeed(userId, { type: filter, limit: PROFILE_MEDIA_FEED_LIMIT });
-    // `viewerId` is in the deps so the feed refetches when the viewer's auth
-    // session resolves on cold boot — visibility of follower/owner-gated
-    // media depends on who is asking, and the request would otherwise run
-    // once while anonymous and never refresh.
-  }, [userId, viewerId, fetchUserFeed, filter, isPrivate, isOwnProfile]);
+  // Fallback: the profile's posts feed, when another screen holds it (the Posts
+  // tab), so media can still be extracted from regular posts while the
+  // filtered feed is empty. Read as held; nothing reads it for the grid.
+  const postsList = useListState(Feed, userId ? feedKey({ type: 'posts', userId }) : null);
 
-  // Fallback: if the primary feed finished and is empty, load the posts feed so
-  // media can still be extracted from regular posts. Deliberately UNFILTERED —
-  // it is the shared escape hatch for a profile whose media never made it into
-  // a filtered feed, so narrowing it to `videos` would defeat its purpose.
-  useEffect(() => {
-    if (!userId || (isPrivate && !isOwnProfile)) return;
-
-    const isLoaded = !!primaryFeed && !primaryFeed.isLoading;
-    const isEmpty = (primaryFeed?.items?.length || 0) === 0;
-    const postsLoaded = !!postsFeed;
-
-    if (isLoaded && isEmpty && !postsLoaded) {
-      fetchUserFeed(userId, { type: 'posts', limit: PROFILE_POSTS_FEED_LIMIT });
-    }
-  }, [
-    userId,
-    viewerId,
-    primaryFeed,
-    primaryFeed?.isLoading,
-    primaryFeed?.items?.length,
-    postsFeed,
-    fetchUserFeed,
-    isPrivate,
-    isOwnProfile,
-  ]);
-
+  const store = useStore();
+  const primaryItems = useMemo(
+    () => withStore(store, () => feedPosts(primaryView.list)),
+    [store, primaryView.list],
+  );
+  const postsItems = useMemo(
+    () => withStore(store, () => feedPosts(postsList)),
+    [store, postsList],
+  );
   const items = useMemo<FeedItem[]>(
-    () => (primaryFeed?.items?.length ? primaryFeed.items : postsFeed?.items || []),
-    [primaryFeed?.items, postsFeed?.items],
+    () => (primaryItems.length > 0 ? primaryItems : postsItems),
+    [primaryItems, postsItems],
   );
 
+  const usingPrimary = primaryItems.length > 0 || postsItems.length === 0;
+  const { more: morePrimary } = primaryView;
   const loadMore = useCallback(() => {
-    if (!userId || (isPrivate && !isOwnProfile)) return;
-
-    const usingPrimaryFeed = (primaryFeed?.items?.length ?? 0) > 0 || !postsFeed;
-    const activeFeed = usingPrimaryFeed ? primaryFeed : postsFeed;
-    const type = usingPrimaryFeed ? filter : 'posts';
-    if (!activeFeed || activeFeed.isLoading || !activeFeed.hasMore || !activeFeed.nextCursor)
-      return;
-
-    void fetchUserFeed(userId, {
-      type,
-      cursor: activeFeed.nextCursor,
-      limit: type === 'posts' ? PROFILE_POSTS_FEED_LIMIT : PROFILE_MEDIA_FEED_LIMIT,
-    });
-  }, [fetchUserFeed, filter, isOwnProfile, isPrivate, primaryFeed, postsFeed, userId]);
+    if (!readable || !userId) return;
+    if (usingPrimary) void morePrimary();
+    else void feedSource.more({ type: 'posts', userId, viewerId, limit: PROFILE_POSTS_FEED_LIMIT });
+  }, [readable, usingPrimary, morePrimary, userId, viewerId]);
 
   return {
-    primaryFeed,
-    postsFeed,
+    primaryFeed: {
+      items: primaryItems,
+      isLoading: primaryView.isFetching,
+      hasMore: primaryView.hasMore,
+    },
+    postsFeed: { items: postsItems, isLoading: false, hasMore: postsList?.hasMore ?? false },
     items,
     loadMore,
     restorationKey: JSON.stringify(viewerQueryKeys.feed(viewerId, filter, userId)),

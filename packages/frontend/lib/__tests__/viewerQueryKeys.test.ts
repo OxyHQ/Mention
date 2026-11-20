@@ -263,19 +263,6 @@ describe('viewer-scoped private cache', () => {
     );
   });
 
-  it('reads back the feed a feed key names, and nothing else', () => {
-    expect(
-      viewerQueryKeys.feedIdentity(
-        viewerQueryKeys.feed('viewer-a', 'replies', undefined, { postId: 'p1' }),
-      ),
-    ).toEqual({ type: 'replies', userId: undefined, filters: { postId: 'p1' } });
-    expect(
-      viewerQueryKeys.feedIdentity(viewerQueryKeys.feed(undefined, 'posts', 'author-1')),
-    ).toEqual({ type: 'posts', userId: 'author-1', filters: undefined });
-    expect(viewerQueryKeys.feedIdentity(viewerQueryKeys.feedsRoot('viewer-a'))).toBeNull();
-    expect(viewerQueryKeys.feedIdentity(viewerQueryKeys.notifications('viewer-a'))).toBeNull();
-  });
-
   it('matches the operated-accounts list without matching its channel-settings sibling', () => {
     // An identity write invalidates the accounts LIST (the composer's publish-as
     // picker reads it) and must leave the Mention-owned per-channel settings row

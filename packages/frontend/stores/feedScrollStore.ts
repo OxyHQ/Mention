@@ -11,9 +11,8 @@
  * The viewer's local-post revision, which `hooks/useRevealOwnNewPost` answers by
  * scrolling the feed their new post landed in to the top.
  *
- * A feed's loaded pages are not here: on web, and for every scoped feed on
- * native, they live in the React Query cache (`hooks/useFeedQuery`), which is
- * also what a remount warm-starts from.
+ * A feed's loaded pages are not here: they are lists in the account's store
+ * (`data/feeds`), which is also what a remount warm-starts from.
  */
 
 const nativeFeedScrollOffsets = new Map<string, number>();
@@ -35,9 +34,8 @@ export function clearFeedScrollOffsets(): void {
 
 // How many posts the viewer has published this session, as a revision a feed
 // can compare against to know it has a new post of theirs at its top to bring
-// into view (`hooks/useRevealOwnNewPost`). Counted for BOTH storage paths, so
-// it is advanced by `stores/feedQueryCache.publishNewLocalPost`, which every
-// create calls whichever path the feeds read from.
+// into view (`hooks/useRevealOwnNewPost`). Advanced by
+// `data/feeds.publishNewLocalPost`, which every create calls.
 let localPostRevision = 0;
 const localPostRevisionListeners = new Set<() => void>();
 

@@ -26,8 +26,8 @@ import {
   useThreadPreferencesStore,
   SORT_TO_API,
 } from '@/hooks/useThreadPreferences';
-import { prefetchFeed } from '@/hooks/useFeedQuery';
-import { useQueryClient } from '@tanstack/react-query';
+import { prefetchFeed } from '@/data/feeds';
+import { Post } from '@/data/posts';
 import {
   applyServerViewCounts,
   getCachedAncestorChain,
@@ -70,7 +70,6 @@ interface PostDetailScreenProps {
  * gate allows it, and the server re-checks the viewer on every read.
  */
 function usePrefetchReplies(postId: string) {
-  const queryClient = useQueryClient();
   const { user, isAuthenticated, isAuthResolved, canUsePrivateApi } = useAuth();
   const sortOrder = useThreadPreferencesStore((state) => state.sortOrder);
   const treeView = useThreadPreferencesStore((state) => state.treeView);
@@ -85,7 +84,7 @@ function usePrefetchReplies(postId: string) {
     // A boost's replies are its original's; a cached boost names it.
     const boosted = usePostsStore.getState().getPostFromDb(postId)?.boost?.originalPost?.id;
     const target = boosted ? String(boosted) : postId;
-    prefetchFeed(queryClient, {
+    prefetchFeed({
       type: 'replies' as FeedType,
       filters: {
         postId: target,
@@ -95,7 +94,7 @@ function usePrefetchReplies(postId: string) {
       },
       viewerId,
     });
-  }, [postId, viewerReady, sortLoaded, sortOrder, treeView, viewerId, queryClient]);
+  }, [postId, viewerReady, sortLoaded, sortOrder, treeView, viewerId]);
 }
 
 export default function PostDetailScreen({ postId: id, onBack }: PostDetailScreenProps) {
@@ -265,7 +264,6 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
 
     let cancelled = false;
     const postId = String(id);
-    const hadCache = !!usePostsStore.getState().getPostFromDb(postId);
 
     // Drop any ancestor chain belonging to a previously-viewed post so the new
     // focused post never momentarily renders under stale parents on navigation.
@@ -331,6 +329,11 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     const run = async () => {
       setError(null);
 
+      // A post not held in memory may be on disk from an earlier session: read
+      // it now, when the screen opens, and paint it while it is read again.
+      await Post.load([postId]);
+      if (cancelled) return;
+      const hadCache = !!usePostsStore.getState().getPostFromDb(postId);
       if (hadCache) {
         // Instant paint already happened from `cachedPost`. Revalidate in
         // the background so engagement/viewer state is fresh; the reactive

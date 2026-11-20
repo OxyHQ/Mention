@@ -1,7 +1,9 @@
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
-import type { FeedItem } from '@/db';
-import { postToRow, rowToFeedItem } from '@/db/schema';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { feedSource } from '@/data/feeds';
+import { storePosts } from '@/data/posts';
+import type { FeedItem } from '@/db/schema';
 import { usePostsStore } from '../postsStore';
 
 /**
@@ -12,8 +14,8 @@ import { usePostsStore } from '../postsStore';
  * says "now" for a date it cannot parse, and a row reads the SHARED cache over
  * the feed's own copy, so a write that dropped the date would produce exactly
  * that. This replays every write that session put through the store, with the
- * production payloads, and checks the date after each one — on the in-memory
- * store the tests run against AND through the SQLite row the device keeps.
+ * production payloads, and checks the date after each one — on the record in
+ * memory AND through the JSON the device's SQLite copy keeps.
  *
  * None of them drops it. The "now" was a label computed when the row first
  * rendered, seconds after publishing, and never recomputed (item 15; fixed by
@@ -33,18 +35,11 @@ jest.mock('@/services/feedService', () => ({
     getUserFeed: (...args: unknown[]) => mockFeedService.getUserFeed(...args),
   },
 }));
-// The in-memory tables stand in for SQLite (jest-expo resolves the native
-// database, which has no engine here); `expectDatesKept` covers the SQLite row.
-jest.mock('@/db/database', () => jest.requireActual('@/db/database.web'));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/stores/engagementInvalidation', () => ({ invalidateEngagementLists: jest.fn() }));
 jest.mock('@/stores/profileCountsInvalidation', () => ({ invalidateProfileCounts: jest.fn() }));
 jest.mock('@/lib/queryClient', () => ({ queryClient: {} }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
-jest.mock('@/stores/feedQueryCache', () => ({
-  publishNewLocalPost: jest.fn(),
-  publishRemovedLocalPost: jest.fn(),
-}));
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }),
@@ -153,7 +148,7 @@ function expectDatesKept(step: string) {
     const cached = store.getPostFromDb(id);
     if (!cached) continue;
     expect({ step, id, createdAt: cached.metadata.createdAt }).toEqual({ step, id, createdAt });
-    const fromRow = rowToFeedItem(postToRow(cached)) as FeedItem;
+    const fromRow = JSON.parse(JSON.stringify(cached)) as FeedItem;
     expect({ step, id, createdAt: fromRow.metadata.createdAt }).toEqual({ step, id, createdAt });
   }
 }
@@ -161,7 +156,7 @@ function expectDatesKept(step: string) {
 describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    setActiveStore(new Store());
   });
 
   it('through publish, the realtime echo, a boost, counters, and the profile feed', async () => {
@@ -176,7 +171,7 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
     expectDatesKept('create');
 
     // 2. The realtime broadcast of the same post, hydrated for no viewer.
-    store().addPostsToFeed([original(strangerView) as FeedItem], 'for_you');
+    storePosts([original(strangerView) as FeedItem], { anonymous: true });
     expectDatesKept('feed:updated original');
 
     // 3. Boost it: the optimistic write, then the server's answer.
@@ -185,10 +180,9 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
     expectDatesKept('boost');
 
     // 4. The boost's own broadcast, embedding the original.
-    store().addPostsToFeed(
-      [boost(strangerView, original(strangerView, { boosts: 1 })) as FeedItem],
-      'following',
-    );
+    storePosts([boost(strangerView, original(strangerView, { boosts: 1 })) as FeedItem], {
+      anonymous: true,
+    });
     expectDatesKept('feed:updated boost');
 
     // 5. A room's counter event (what `socketService` applies).
@@ -208,7 +202,7 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
       items: [boost(strangerView, later), later],
       hasMore: false,
     });
-    await store().fetchUserFeed(AUTHOR_ID, { type: 'posts' } as never);
+    await feedSource.fetch({ type: 'posts', userId: AUTHOR_ID });
     expectDatesKept('profile feed');
 
     // 7. The memory-mode feed caching the same page.

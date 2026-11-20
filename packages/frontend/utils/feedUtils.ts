@@ -245,11 +245,10 @@ const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>([
 ]);
 
 /**
- * Whether a viewer's new post goes at the top of this feed — the same selection
- * `postsStore.createPost` inserts into on the SQLite path: the home feeds, and
- * the viewer's own profile posts. A scoped (filtered) feed and anybody else's
- * profile never receive it, so they never jump. `stores/feedQueryCache` applies
- * the same rule to the feed queries, with the post's author as the viewer.
+ * Whether a viewer's new post goes at the top of this feed: the home feeds,
+ * and the viewer's own profile posts. A scoped (filtered) feed and anybody
+ * else's profile never receive it, so they never jump. `data/feeds` applies it
+ * to every held feed, with the post's author as the viewer.
  */
 export function feedReceivesOwnNewPost(params: {
   type: FeedType;

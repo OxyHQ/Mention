@@ -1,9 +1,8 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, setActiveStore, Store } from '@oxy.so/bloom-data';
+import { canonicalPost } from '@/test-support/canonicalPost';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import { queryClient } from '@/lib/queryClient';
-import { usePostsStore } from '@/stores/postsStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { useFeedState, type UseFeedStateReturn } from '../useFeedState';
@@ -30,39 +29,8 @@ import { useFeedState, type UseFeedStateReturn } from '../useFeedState';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-jest.mock('@/stores/postsStore', () => {
-  const state = {
-    fetchFeed: jest.fn(() => Promise.resolve()),
-    fetchUserFeed: jest.fn(() => Promise.resolve({ pending: false })),
-    refreshFeed: jest.fn(() => Promise.resolve()),
-    loadMoreFeed: jest.fn(() => Promise.resolve()),
-    cachePosts: jest.fn(),
-    clearFeed: jest.fn(),
-    clearUserFeed: jest.fn(),
-    clearError: jest.fn(),
-    feedUI: {},
-  };
-  const usePostsStore = (selector: (value: typeof state) => unknown) => selector(state);
-  usePostsStore.getState = () => state;
-  return {
-    usePostsStore,
-    useFeedSelector: () => undefined,
-    useUserFeedSelector: () => undefined,
-  };
-});
-
 jest.mock('@/services/feedService', () => ({
   feedService: { getFeed: jest.fn(), getUserFeed: jest.fn() },
-}));
-
-// Web has no SQLite and runs the memory path; native has it and reads through
-// the store instead. Both branches carry the fix, so both are switched on here.
-let mockDbAvailable = false;
-
-jest.mock('@/db', () => ({
-  buildFeedKey: jest.fn(() => FEED_KEY),
-  hasFeedData: jest.fn(() => mockDbAvailable),
-  isDbAvailable: jest.fn(() => mockDbAvailable),
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({
@@ -75,7 +43,6 @@ jest.mock('@/lib/precacheActorsFromPosts', () => ({
 }));
 
 const VIEWER_ID = 'viewer-a';
-const FEED_KEY = 'feed-key';
 
 /** One post as the server holds it, before any viewer rule is applied. */
 interface ServerPost {
@@ -102,8 +69,8 @@ function visiblePosts(): ServerPost[] {
 
 function page(posts: ServerPost[]): SlicedFeedResponse {
   return {
-    items: posts.map(
-      (post) => ({ id: post.id, user: { id: `author-${post.id}` } }) as unknown as HydratedPost,
+    items: posts.map((post) =>
+      canonicalPost({ id: post.id, user: { id: `author-${post.id}` } } as HydratedPost),
     ),
     slices: [],
     interstitials: [],
@@ -111,6 +78,9 @@ function page(posts: ServerPost[]): SlicedFeedResponse {
     totalCount: posts.length,
   };
 }
+
+/** The account's store, as `AccountSwitchReset` provides it. */
+let store: Store;
 
 let latest: UseFeedStateReturn | undefined;
 
@@ -145,9 +115,9 @@ async function openFeed(): Promise<TestRenderer.ReactTestRenderer> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={queryClient}>
+      <DataProvider store={store}>
         <HomeFeed />
-      </QueryClientProvider>,
+      </DataProvider>,
     );
   });
   await flush();
@@ -187,14 +157,13 @@ describe('safety rules converge on the feeds the viewer is looking at', () => {
   beforeEach(() => {
     latest = undefined;
     jest.clearAllMocks();
-    queryClient.clear();
+    store = new Store();
+    setActiveStore(store);
     resetEngagementInvalidation();
     resetSafetyInvalidation();
     serverPosts = [];
     mutedWords = [];
     showSensitiveContent = false;
-    mockDbAvailable = false;
-    usePostsStore.getState().feedUI = {};
     getFeedMock.mockImplementation(() => Promise.resolve(page(visiblePosts())));
   });
 
@@ -303,49 +272,5 @@ describe('safety rules converge on the feeds the viewer is looking at', () => {
       invalidateSafetyFilters();
     });
     expect(getFeedMock).toHaveBeenCalledTimes(1);
-  });
-
-  /**
-   * Native reads its feed out of SQLite rather than a feed query, so the same
-   * question is asked in a different place: `fetchInitial` skips the fetch
-   * entirely when the store says this feed was already loaded. That skip has to
-   * notice a safety rule changed since, or the rows SQLite is holding — which
-   * survive an app restart — keep being served.
-   */
-  describe('on the SQLite path', () => {
-    /** Put the store in the state a previously-loaded native feed leaves behind. */
-    function seedLoadedSqliteFeed(): void {
-      mockDbAvailable = true;
-      usePostsStore.getState().feedUI = {
-        [FEED_KEY]: { isLoading: false, error: null, lastUpdated: Date.now() },
-      };
-    }
-
-    it('refetches on the next mount when a rule changed since the cache was written', async () => {
-      seedLoadedSqliteFeed();
-      const fetchFeed = usePostsStore.getState().fetchFeed as jest.Mock;
-
-      const firstVisit = await openFeed();
-      expect(fetchFeed).not.toHaveBeenCalled();
-      closeFeed(firstVisit);
-
-      invalidateSafetyFilters();
-
-      const secondVisit = await openFeed();
-      expect(fetchFeed).toHaveBeenCalledTimes(1);
-      closeFeed(secondVisit);
-    });
-
-    it('still serves the SQLite cache without a request when no rule changed', async () => {
-      seedLoadedSqliteFeed();
-      const fetchFeed = usePostsStore.getState().fetchFeed as jest.Mock;
-
-      const firstVisit = await openFeed();
-      closeFeed(firstVisit);
-
-      const secondVisit = await openFeed();
-      expect(fetchFeed).not.toHaveBeenCalled();
-      closeFeed(secondVisit);
-    });
   });
 });

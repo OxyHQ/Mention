@@ -1,19 +1,13 @@
 import { feedService } from './feedService';
-import { toFeedItem } from '@/db/feedItem';
 import { API_URL, API_URL_SOCKET } from '@/config';
 import type { OxyServices } from '@oxy.so/core';
 import { createMentionSocketSession } from '@/lib/mentionSocketSession';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import type {
-  FeedType,
-  PostEngagementCountsPayload,
-  PostEngagementEvent,
-} from '@mention/shared-types';
-import { POST_ENGAGEMENT_EVENTS, SOCKET_FEED_TYPES } from '@mention/shared-types/realtime';
+import type { FeedType } from '@mention/shared-types';
+import { SOCKET_FEED_TYPES } from '@mention/shared-types/realtime';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
-import { usePostsStore } from '../stores/postsStore';
-import type { FeedItem } from '@/db';
+import { Feed, feedKey, prependBroadcastPosts } from '@/data/feeds';
+import { postEngagementRealtime } from '@/data/realtime';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import {
   SOCKET_EVENT_ROOMS_LIVE_UPDATED,
@@ -21,61 +15,12 @@ import {
 } from '@/constants/realtimeEvents';
 import { createLogger } from '@oxy.so/core/logger';
 import { resetLocalActions, wasRecent, type EchoAction } from './echoGuard';
-import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
-import {
-  engagementQueueStorageKey,
-  parseEngagementQueue,
-  serializeEngagementQueue,
-} from './engagementQueuePersistence';
 
 const logger = createLogger('SocketService');
 
 // Valid feed types for validation — the room contract `joinFeed`/`leaveFeed`
 // accept, shared with the backend so the two cannot drift apart.
 const VALID_FEED_TYPES: readonly string[] = SOCKET_FEED_TYPES;
-
-/**
- * The counters a post-engagement event carried, keyed the way the store keys
- * them. A counter the author hides never arrives, which is why every field is
- * optional and an absent one means "leave the rendered value alone" rather than
- * zero.
- */
-type EngagementCounts = Partial<
-  Record<'likes' | 'downvotes' | 'boosts' | 'replies' | 'saves', number>
->;
-
-const COUNT_FIELDS: ReadonlyArray<keyof EngagementCounts> = [
-  'likes',
-  'downvotes',
-  'boosts',
-  'replies',
-  'saves',
-];
-
-/**
- * Each engagement event and the local action it echoes. The action is only ever
- * used to ask the echo guard "did this device just do that?" — the counters in
- * the payload are what actually gets applied.
- */
-const ENGAGEMENT_EVENT_ACTIONS: ReadonlyArray<[PostEngagementEvent, EchoAction]> = [
-  [POST_ENGAGEMENT_EVENTS.LIKED, 'like'],
-  [POST_ENGAGEMENT_EVENTS.UNLIKED, 'unlike'],
-  [POST_ENGAGEMENT_EVENTS.BOOSTED, 'boost'],
-  [POST_ENGAGEMENT_EVENTS.UNBOOSTED, 'unboost'],
-  [POST_ENGAGEMENT_EVENTS.SAVED, 'save'],
-  [POST_ENGAGEMENT_EVENTS.UNSAVED, 'unsave'],
-  [POST_ENGAGEMENT_EVENTS.REPLIED, 'reply'],
-];
-
-function readEngagementCounts(data: PostEngagementCountsPayload): EngagementCounts {
-  const counts: EngagementCounts = {};
-  if (typeof data.likesCount === 'number') counts.likes = data.likesCount;
-  if (typeof data.downvotesCount === 'number') counts.downvotes = data.downvotesCount;
-  if (typeof data.boostsCount === 'number') counts.boosts = data.boostsCount;
-  if (typeof data.repliesCount === 'number') counts.replies = data.repliesCount;
-  if (typeof data.savesCount === 'number') counts.saves = data.savesCount;
-  return counts;
-}
 
 interface FeedUpdateData {
   type?: string;
@@ -84,39 +29,6 @@ interface FeedUpdateData {
 interface PresenceUpdateData {
   userId: string;
   online: boolean;
-}
-
-interface EngagementUpdate {
-  counts: EngagementCounts;
-  timestamp: number;
-}
-
-interface EngagementReplay {
-  observed: Map<string, Set<keyof EngagementCounts>>;
-  discardStored: boolean;
-}
-
-interface EngagementWriter {
-  generation: number;
-  pending?: { updates: Record<string, EngagementUpdate[]> | null };
-}
-
-const MAX_REPLAY_TRACKED_POSTS = 1000;
-
-function noteLiveEngagement(
-  replay: EngagementReplay,
-  postId: string,
-  counts: EngagementCounts,
-): void {
-  if (replay.discardStored) return;
-  if (!replay.observed.has(postId) && replay.observed.size >= MAX_REPLAY_TRACKED_POSTS) {
-    replay.observed.clear();
-    replay.discardStored = true;
-    return;
-  }
-  const seen = replay.observed.get(postId) ?? new Set<keyof EngagementCounts>();
-  for (const field of COUNT_FIELDS) if (counts[field] !== undefined) seen.add(field);
-  replay.observed.set(postId, seen);
 }
 
 class SocketService {
@@ -157,32 +69,17 @@ class SocketService {
   private invalidatedFeeds = new Set<FeedType>();
   private feedAccessEpoch = 0;
   private feedRefreshes = new Set<FeedType>();
-  private feedUpdateQueue: Map<string, FeedItem[]> = new Map(); // Queue for batched feed updates
   private feedInvalidationTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly FEED_UPDATE_DEBOUNCE_MS = 500; // Batch updates every 500ms
   private readonly MAX_BATCH_SIZE = 50; // Maximum items per batch
-  // Subscription to flush queued feed updates when loading completes
-  private feedLoadingUnsubscribe: (() => void) | null = null;
-  // Queue for engagement updates to batch rapid changes
-  private engagementUpdateQueue: Map<string, EngagementUpdate[]> = new Map();
-  private engagementUpdateTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly ENGAGEMENT_UPDATE_DEBOUNCE_MS = 200; // Batch engagement updates every 200ms
-  private readonly MAX_ENGAGEMENT_BATCH_SIZE = 100; // Maximum engagement updates per post
-  private engagementPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  // The live engagement counters' subscription on the current socket.
+  private stopEngagementRealtime: (() => void) | null = null;
   private socketGeneration = 0;
-  private enqueueEngagementStorage = createKeyedAsyncQueue();
-  private pendingEngagementCleanup = new Map<string, number>();
-  private activeEngagementCleanup = new Set<string>();
-  private activeEngagementReplays = new Set<EngagementReplay>();
-  private activeEngagementLoad?: { viewerId: string; generation: number; promise: Promise<void> };
-  private engagementWriters = new Map<string, EngagementWriter>();
   private managerListeners?: {
     attempt: (attempt: number) => void;
     reconnect: () => void;
     failed: () => void;
   };
-  private readonly LEGACY_ENGAGEMENT_PERSIST_KEY = 'mention-engagement-queue';
-  private readonly ENGAGEMENT_PERSIST_DEBOUNCE_MS = 50;
   // Debounce timer for coalescing live-rooms update signals (participant churn)
   private liveRoomsRefetchTimer: ReturnType<typeof setTimeout> | null = null;
   // Post rooms the mounted screens have asked for; replayed on every connect.
@@ -294,7 +191,6 @@ class SocketService {
       });
 
       this.setupSocketEventListeners();
-      this.setupFeedLoadingWatcher();
       this.socketSession.bind(() => this.disconnect());
       this.socket?.connect();
     } catch (error) {
@@ -322,44 +218,9 @@ class SocketService {
   }
 
   /**
-   * Watch for feed loading state transitions (loading -> loaded)
-   * and flush queued socket updates that were suppressed during loading
-   */
-  private setupFeedLoadingWatcher(): void {
-    if (this.feedLoadingUnsubscribe) {
-      this.feedLoadingUnsubscribe();
-    }
-
-    let previouslyLoading = new Set<string>();
-
-    this.feedLoadingUnsubscribe = usePostsStore.subscribe((state) => {
-      const currentlyLoading = new Set<string>();
-      let hasJustFinished = false;
-
-      for (const feedType of VALID_FEED_TYPES) {
-        const feedKey = feedType as string;
-        const feedUI = state.feedUI[feedKey];
-        if (feedUI?.isLoading) {
-          currentlyLoading.add(feedType);
-        } else if (previouslyLoading.has(feedType) && this.feedUpdateQueue.has(feedType)) {
-          hasJustFinished = true;
-        }
-      }
-
-      previouslyLoading = currentlyLoading;
-
-      if (hasJustFinished) {
-        // Process immediately when loading completes to avoid losing queued updates
-        this.processFeedUpdateQueue();
-      }
-    });
-  }
-
-  /**
    * Disconnect from the socket server
    */
   disconnect() {
-    const previousViewerId = this.currentUserId;
     this.socketGeneration += 1;
     this.socketSession?.dispose();
     this.socketSession = undefined;
@@ -374,38 +235,15 @@ class SocketService {
       clearTimeout(this.feedInvalidationTimer);
       this.feedInvalidationTimer = null;
     }
-    // Process any pending engagement updates before disconnecting
-    if (this.engagementUpdateTimer) {
-      clearTimeout(this.engagementUpdateTimer);
-      this.processEngagementQueue();
-      this.engagementUpdateTimer = null;
-    }
-    if (this.engagementPersistTimer) {
-      clearTimeout(this.engagementPersistTimer);
-      this.engagementPersistTimer = null;
-    }
     // Clear pending live-rooms refetch debounce
     if (this.liveRoomsRefetchTimer) {
       clearTimeout(this.liveRoomsRefetchTimer);
       this.liveRoomsRefetchTimer = null;
     }
-    // Clean up feed loading watcher
-    if (this.feedLoadingUnsubscribe) {
-      this.feedLoadingUnsubscribe();
-      this.feedLoadingUnsubscribe = null;
-    }
     // Clear queues
     this.feedAccessEpoch += 1;
     this.invalidatedFeeds.clear();
     this.feedRefreshes.clear();
-    this.feedUpdateQueue.clear();
-    this.engagementUpdateQueue.clear();
-    this.activeEngagementReplays.clear();
-    if (previousViewerId) {
-      const key = engagementQueueStorageKey(previousViewerId);
-      this.pendingEngagementCleanup.set(key, this.socketGeneration);
-      this.scheduleEngagementCleanup(key);
-    }
     // A full teardown ends every subscription: `disconnect()` runs on sign-out
     // and on a credential change, and replaying one viewer's rooms onto the
     // next viewer's socket would be a subscription they never asked for.
@@ -482,8 +320,6 @@ class SocketService {
   leaveFeed(feedType: string): void {
     if (!this.socket?.connected) return;
     this.socket.emit('leaveFeed', { feedType, userId: this.currentUserId });
-    // Clean up queued updates for this feed
-    this.feedUpdateQueue.delete(feedType);
   }
 
   /**
@@ -521,9 +357,8 @@ class SocketService {
     this.socket.off('disconnect');
     this.socket.off('connect_error');
     this.socket.off('feed:updated');
-    for (const [event] of ENGAGEMENT_EVENT_ACTIONS) {
-      this.socket.off(event);
-    }
+    this.stopEngagementRealtime?.();
+    this.stopEngagementRealtime = null;
     this.socket.off('user:presence');
     this.socket.off('user:presenceBulk');
     this.socket.off(SOCKET_EVENT_ROOMS_LIVE_UPDATED);
@@ -546,7 +381,6 @@ class SocketService {
       if (generation !== this.socketGeneration) return;
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      this.loadPersistedEngagementQueue();
 
       // Join feed rooms for real-time updates
       if (this.currentUserId && this.socket) {
@@ -597,13 +431,13 @@ class SocketService {
       this.handleFeedUpdate(data);
     });
 
-    // Post engagement events, from the `post:<id>` rooms this client joined.
-    for (const [event, action] of ENGAGEMENT_EVENT_ACTIONS) {
-      this.socket.on(event, (data: PostEngagementCountsPayload) => {
-        if (generation !== this.socketGeneration) return;
-        this.handleEngagementEvent(action, data);
-      });
-    }
+    // Post engagement events, from the `post:<id>` rooms this client joined,
+    // written into the shared posts after the frame (`data/realtime`).
+    this.stopEngagementRealtime = postEngagementRealtime(
+      this.socket,
+      (postId, action, actorId) =>
+        generation !== this.socketGeneration || this.shouldIgnoreEcho(postId, action, actorId),
+    );
 
     // Presence events
     this.socket.on('user:presence', (data) => {
@@ -691,7 +525,7 @@ class SocketService {
     this.invalidatedFeeds.clear();
     await Promise.all(
       feeds.map(async (type) => {
-        if (!usePostsStore.getState().feedUI[type]) return;
+        if (!Feed.get(feedKey({ type }))) return;
         if (this.feedRefreshes.has(type)) {
           this.invalidatedFeeds.add(type);
           return;
@@ -700,10 +534,7 @@ class SocketService {
         try {
           const response = await feedService.getFeed({ type, limit: this.MAX_BATCH_SIZE });
           if (epoch !== this.feedAccessEpoch) return;
-          this.feedUpdateQueue.set(
-            type,
-            (response.items ?? []).map((post) => toFeedItem(post)),
-          );
+          prependBroadcastPosts(type, response.items ?? []);
         } catch (error) {
           logger.warn('Could not refresh invalidated feed', { type, error });
         } finally {
@@ -714,329 +545,6 @@ class SocketService {
         }
       }),
     );
-    if (epoch === this.feedAccessEpoch) this.processFeedUpdateQueue();
-  }
-
-  /**
-   * Process queued feed updates in batches
-   */
-  private processFeedUpdateQueue() {
-    if (this.feedUpdateQueue.size === 0) return;
-
-    const store = usePostsStore.getState();
-
-    // Process each feed type's queued posts
-    this.feedUpdateQueue.forEach((posts, feedType) => {
-      if (posts.length === 0) {
-        this.feedUpdateQueue.delete(feedType);
-        return;
-      }
-
-      const feedKey = feedType as string;
-      const feedUI = store.feedUI[feedKey];
-      if (!feedUI) {
-        // Feed UI doesn't exist, remove queue entry entirely
-        this.feedUpdateQueue.delete(feedType);
-        return;
-      }
-
-      // Suppress socket updates during loading to prevent race conditions with fetch requests
-      // When a feed is loading, the fetch response will include the posts, so we don't need
-      // socket updates to add them again (which would cause duplicates)
-      if (feedUI.isLoading) {
-        // Keep posts in queue - they'll be processed after loading completes.
-        // `posts` is this feed type's queued array (the forEach value), so it is
-        // the current queue — cap its size to prevent memory issues.
-        if (posts.length > this.MAX_BATCH_SIZE * 2) {
-          this.feedUpdateQueue.set(feedType, posts.slice(-this.MAX_BATCH_SIZE)); // Keep last MAX_BATCH_SIZE items
-        }
-        return;
-      }
-
-      // Deduplicate posts in queue before adding
-      const seen = new Map<string, FeedItem>();
-      const uniquePosts: FeedItem[] = [];
-      for (const p of posts) {
-        const id = this.normalizePostId(p);
-
-        if (id && id !== 'undefined' && id !== 'null' && id !== '') {
-          if (!seen.has(id)) {
-            seen.set(id, p);
-            uniquePosts.push(p);
-          }
-        }
-      }
-
-      if (uniquePosts.length > 0) {
-        // Batch add all posts at once
-        store.addPostsToFeed(uniquePosts, feedType as FeedType);
-      }
-
-      // Clear queue for this feed type
-      this.feedUpdateQueue.delete(feedType);
-    });
-  }
-
-  /**
-   * A post's counters moved. One entry point for all six engagement events,
-   * because what a client does with them no longer depends on which one it was:
-   * the name told the echo guard what to compare against, and the payload
-   * carries the numbers.
-   */
-  private handleEngagementEvent(action: EchoAction, data: PostEngagementCountsPayload) {
-    const postId = data?.postId;
-    if (!postId) return;
-    if (this.shouldIgnoreEcho(postId, action, data.actorId)) return;
-
-    const counts = readEngagementCounts(data);
-    // Every counter this post's author exposes was hidden, so there is nothing
-    // to apply and nothing to queue.
-    if (COUNT_FIELDS.every((field) => counts[field] === undefined)) return;
-
-    this.queueEngagementUpdate(postId, counts);
-  }
-
-  /**
-   * Queue engagement update for batching
-   */
-  private queueEngagementUpdate(postId: string, counts: EngagementCounts) {
-    for (const replay of this.activeEngagementReplays) {
-      noteLiveEngagement(replay, postId, counts);
-    }
-    let queue = this.engagementUpdateQueue.get(postId) ?? [];
-
-    // Limit queue size to prevent memory issues
-    if (queue.length >= this.MAX_ENGAGEMENT_BATCH_SIZE) {
-      // Keep only the most recent updates
-      queue = queue.slice(-50);
-    }
-
-    queue.push({ counts, timestamp: Date.now() });
-    this.engagementUpdateQueue.set(postId, queue);
-
-    // Clear existing timer
-    if (this.engagementUpdateTimer) {
-      clearTimeout(this.engagementUpdateTimer);
-    }
-
-    // Process queue after short delay
-    this.engagementUpdateTimer = setTimeout(() => {
-      this.processEngagementQueue();
-    }, this.ENGAGEMENT_UPDATE_DEBOUNCE_MS);
-
-    this.persistEngagementQueue();
-  }
-
-  private persistEngagementQueue(): void {
-    const viewerId = this.currentUserId;
-    if (!viewerId) return;
-    const generation = this.socketGeneration;
-
-    if (this.engagementPersistTimer) clearTimeout(this.engagementPersistTimer);
-    this.engagementPersistTimer = setTimeout(() => {
-      this.engagementPersistTimer = null;
-      if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
-
-      const serializable: Record<string, EngagementUpdate[]> = {};
-      for (const [key, value] of this.engagementUpdateQueue) {
-        serializable[key] = [...value];
-      }
-      this.scheduleEngagementWrite(viewerId, generation, serializable);
-    }, this.ENGAGEMENT_PERSIST_DEBOUNCE_MS);
-  }
-
-  /** Keep one writer and one replaceable snapshot per viewer/session. */
-  private scheduleEngagementWrite(
-    viewerId: string,
-    generation: number,
-    updates: Record<string, EngagementUpdate[]> | null,
-  ): void {
-    const key = engagementQueueStorageKey(viewerId);
-    const existing = this.engagementWriters.get(key);
-    if (existing?.generation === generation) {
-      existing.pending = { updates };
-      return;
-    }
-
-    const writer: EngagementWriter = { generation, pending: { updates } };
-    this.engagementWriters.set(key, writer);
-    void this.enqueueEngagementStorage(key, async () => {
-      try {
-        while (writer.pending) {
-          const next = writer.pending.updates;
-          writer.pending = undefined;
-          if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
-          await this.ensureEngagementCleanup(key);
-          if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
-          if (!next || Object.keys(next).length === 0) await AsyncStorage.removeItem(key);
-          else await AsyncStorage.setItem(key, serializeEngagementQueue(viewerId, next));
-        }
-      } finally {
-        if (this.engagementWriters.get(key) === writer) this.engagementWriters.delete(key);
-      }
-    }).catch((error) => {
-      logger.debug('Failed to persist engagement queue', { error });
-    });
-  }
-
-  private loadPersistedEngagementQueue(): Promise<void> {
-    const viewerId = this.currentUserId;
-    if (!viewerId) return Promise.resolve();
-    const generation = this.socketGeneration;
-    if (
-      this.activeEngagementLoad?.viewerId === viewerId &&
-      this.activeEngagementLoad.generation === generation
-    )
-      return this.activeEngagementLoad.promise;
-
-    const promise = this.replayPersistedEngagementQueue(viewerId, generation);
-    this.activeEngagementLoad = { viewerId, generation, promise };
-    const release = () => {
-      if (this.activeEngagementLoad?.promise === promise) this.activeEngagementLoad = undefined;
-    };
-    void promise.then(release, release);
-    return promise;
-  }
-
-  private async replayPersistedEngagementQueue(
-    viewerId: string,
-    generation: number,
-  ): Promise<void> {
-    const storageKey = engagementQueueStorageKey(viewerId);
-    const liveDuringReplay: EngagementReplay = { observed: new Map(), discardStored: false };
-    for (const [postId, updates] of this.engagementUpdateQueue) {
-      for (const update of updates) noteLiveEngagement(liveDuringReplay, postId, update.counts);
-    }
-    this.activeEngagementReplays.add(liveDuringReplay);
-
-    try {
-      // v1 had no owner metadata. It is unsafe to replay under any identity.
-      void AsyncStorage.removeItem(this.LEGACY_ENGAGEMENT_PERSIST_KEY).catch(() => {});
-
-      await this.enqueueEngagementStorage(storageKey, async () => {
-        if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
-        await this.ensureEngagementCleanup(storageKey);
-        if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
-        const raw = await AsyncStorage.getItem(storageKey);
-        if (this.currentUserId !== viewerId || generation !== this.socketGeneration) return;
-        if (!raw) return;
-
-        const parsed = parseEngagementQueue<EngagementUpdate>(raw, viewerId);
-        if (parsed && !liveDuringReplay.discardStored) {
-          for (const [postId, updates] of Object.entries(parsed)) {
-            const superseded = liveDuringReplay.observed.get(postId);
-            const retained = updates.flatMap((update) => {
-              const counts = { ...update.counts };
-              for (const field of superseded ?? []) delete counts[field];
-              return COUNT_FIELDS.some((field) => counts[field] !== undefined)
-                ? [{ ...update, counts }]
-                : [];
-            });
-            if (retained.length > 0) {
-              this.engagementUpdateQueue.set(postId, [
-                ...retained,
-                ...(this.engagementUpdateQueue.get(postId) ?? []),
-              ]);
-            }
-          }
-          this.processEngagementQueue();
-        }
-        await AsyncStorage.removeItem(storageKey);
-      });
-    } catch (e) {
-      logger.debug('Failed to load persisted engagement queue', { error: e });
-    } finally {
-      this.activeEngagementReplays.delete(liveDuringReplay);
-    }
-  }
-
-  /** A failed teardown must not make an old queue eligible for replay. */
-  private scheduleEngagementCleanup(storageKey: string): void {
-    if (this.activeEngagementCleanup.has(storageKey)) return;
-    this.activeEngagementCleanup.add(storageKey);
-    void this.enqueueEngagementStorage(storageKey, async () => {
-      try {
-        while (this.pendingEngagementCleanup.has(storageKey)) {
-          await this.ensureEngagementCleanup(storageKey);
-        }
-      } finally {
-        this.activeEngagementCleanup.delete(storageKey);
-      }
-    }).catch((error) => logger.debug('Failed to clear previous engagement queue', { error }));
-  }
-
-  private async ensureEngagementCleanup(storageKey: string): Promise<void> {
-    const cleanupGeneration = this.pendingEngagementCleanup.get(storageKey);
-    if (cleanupGeneration === undefined) return;
-    await AsyncStorage.removeItem(storageKey);
-    if (this.pendingEngagementCleanup.get(storageKey) === cleanupGeneration) {
-      this.pendingEngagementCleanup.delete(storageKey);
-    }
-  }
-
-  /**
-   * Process queued engagement updates in batches
-   */
-  private processEngagementQueue() {
-    if (this.engagementUpdateQueue.size === 0) return;
-
-    const viewerId = this.currentUserId;
-    if (!viewerId) {
-      this.engagementUpdateQueue.clear();
-      return;
-    }
-    const store = usePostsStore.getState();
-
-    // Process each post's queued updates
-    this.engagementUpdateQueue.forEach((updates, postId) => {
-      if (updates.length === 0) {
-        this.engagementUpdateQueue.delete(postId);
-        return;
-      }
-
-      // Fold the batch PER COUNTER, newest wins. Not per event type: a like and
-      // a boost move different numbers, so keeping one winner overall would drop
-      // whichever counter the loser carried. And not by applying each event in
-      // turn, which is what the counts being authoritative makes pointless —
-      // only the last value for each counter can survive, so compute it once and
-      // touch the store once.
-      //
-      // Equal timestamps resolve to arrival order (`>=` would flip that): two
-      // events stamped in the same millisecond arrived in the order they were
-      // queued, and that is the better guess at which the server wrote last.
-      const winning: EngagementCounts = {};
-      const winningAt: Partial<Record<keyof EngagementCounts, number>> = {};
-      for (const update of updates) {
-        for (const field of COUNT_FIELDS) {
-          const value = update.counts[field];
-          if (value === undefined) continue;
-          const previousAt = winningAt[field];
-          if (previousAt !== undefined && update.timestamp < previousAt) continue;
-          winning[field] = value;
-          winningAt[field] = update.timestamp;
-        }
-      }
-
-      // `viewerState` is deliberately untouched. Whether THIS viewer liked,
-      // boosted or saved the post is theirs alone; a room event describes what
-      // somebody else did, and the one time it describes this viewer it is an
-      // echo of a state they already set optimistically.
-      store.updatePostEverywhere(postId, (prev) => ({
-        ...prev,
-        engagement: { ...prev.engagement, ...winning },
-      }));
-
-      // Clear queue for this post
-      this.engagementUpdateQueue.delete(postId);
-    });
-
-    // Clear timer
-    this.engagementUpdateTimer = null;
-    if (this.engagementPersistTimer) {
-      clearTimeout(this.engagementPersistTimer);
-      this.engagementPersistTimer = null;
-    }
-    this.scheduleEngagementWrite(viewerId, this.socketGeneration, null);
   }
 
   // Presence event listeners

@@ -1,8 +1,8 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, setActiveStore, Store } from '@oxy.so/bloom-data';
+import { canonicalPost } from '@/test-support/canonicalPost';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import { queryClient } from '@/lib/queryClient';
 import {
   invalidateEngagementLists,
   resetEngagementInvalidation,
@@ -30,37 +30,8 @@ import { useFeedState, type UseFeedStateReturn } from '../useFeedState';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-jest.mock('@/stores/postsStore', () => {
-  const state = {
-    fetchFeed: jest.fn(() => Promise.resolve()),
-    fetchUserFeed: jest.fn(() => Promise.resolve({ pending: false })),
-    refreshFeed: jest.fn(() => Promise.resolve()),
-    loadMoreFeed: jest.fn(() => Promise.resolve()),
-    cachePosts: jest.fn(),
-    clearFeed: jest.fn(),
-    clearUserFeed: jest.fn(),
-    clearError: jest.fn(),
-    feedUI: {},
-  };
-  const usePostsStore = (selector: (value: typeof state) => unknown) => selector(state);
-  usePostsStore.getState = () => state;
-  return {
-    usePostsStore,
-    useFeedSelector: () => undefined,
-    useUserFeedSelector: () => undefined,
-  };
-});
-
 jest.mock('@/services/feedService', () => ({
   feedService: { getFeed: jest.fn(), getUserFeed: jest.fn() },
-}));
-
-// Web has no SQLite, so every feed runs the memory path — the one the profile
-// likes and boosts tabs actually use where this was reported.
-jest.mock('@/db', () => ({
-  buildFeedKey: jest.fn(() => 'feed-key'),
-  hasFeedData: jest.fn(() => false),
-  isDbAvailable: jest.fn(() => false),
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({
@@ -79,13 +50,16 @@ let serverLists: { likes: string[]; boosts: string[] } = { likes: [], boosts: []
 
 function page(ids: string[]): SlicedFeedResponse {
   return {
-    items: ids.map((id) => ({ id, user: { id: `author-${id}` } }) as unknown as HydratedPost),
+    items: ids.map((id) => canonicalPost({ id, user: { id: `author-${id}` } } as HydratedPost)),
     slices: [],
     interstitials: [],
     hasMore: false,
     totalCount: ids.length,
   };
 }
+
+/** The account's store, as `AccountSwitchReset` provides it. */
+let store: Store;
 
 let latest: UseFeedStateReturn | undefined;
 
@@ -113,9 +87,9 @@ async function openTab(tab: 'likes' | 'boosts'): Promise<TestRenderer.ReactTestR
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={queryClient}>
+      <DataProvider store={store}>
         <ProfileTab tab={tab} />
-      </QueryClientProvider>,
+      </DataProvider>,
     );
   });
   await flush();
@@ -136,7 +110,8 @@ describe('engagement lists revalidate on their next visit', () => {
   beforeEach(() => {
     latest = undefined;
     jest.clearAllMocks();
-    queryClient.clear();
+    store = new Store();
+    setActiveStore(store);
     resetEngagementInvalidation();
     serverLists = { likes: [], boosts: [] };
     getUserFeedMock.mockImplementation((_userId: string, request: { type: string }) =>
@@ -227,9 +202,9 @@ describe('engagement lists revalidate on their next visit', () => {
     let firstVisit!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       firstVisit = TestRenderer.create(
-        <QueryClientProvider client={queryClient}>
+        <DataProvider store={store}>
           <OtherProfileLikes />
-        </QueryClientProvider>,
+        </DataProvider>,
       );
     });
     await flush();
@@ -242,9 +217,9 @@ describe('engagement lists revalidate on their next visit', () => {
     let secondVisit!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       secondVisit = TestRenderer.create(
-        <QueryClientProvider client={queryClient}>
+        <DataProvider store={store}>
           <OtherProfileLikes />
-        </QueryClientProvider>,
+        </DataProvider>,
       );
     });
     await flush();

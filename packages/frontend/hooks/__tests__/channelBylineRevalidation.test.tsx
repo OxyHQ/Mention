@@ -1,9 +1,8 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, setActiveStore, Store } from '@oxy.so/bloom-data';
+import { canonicalPost } from '@/test-support/canonicalPost';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import { queryClient } from '@/lib/queryClient';
-import { usePostsStore } from '@/stores/postsStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { noteChannelBylineChanged, resetBylineInvalidation } from '@/stores/bylineInvalidation';
@@ -29,45 +28,14 @@ import { useFeedState, type UseFeedStateReturn } from '../useFeedState';
  * reporting is invisible from here. The read side is `useFeedState`, in two
  * halves: a live subscription for the channel page still mounted under the
  * settings screen, and a warm-start staleness check for feeds that were unmounted
- * when the toggle was flipped. Both halves are exercised here, on both paths
- * (memory-mode web and SQLite native).
+ * when the toggle was flipped. Both halves are exercised here; native and web
+ * read feeds the same way (`data/feeds`).
  */
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-jest.mock('@/stores/postsStore', () => {
-  const state = {
-    fetchFeed: jest.fn(() => Promise.resolve()),
-    fetchUserFeed: jest.fn(() => Promise.resolve({ pending: false })),
-    refreshFeed: jest.fn(() => Promise.resolve()),
-    loadMoreFeed: jest.fn(() => Promise.resolve()),
-    cachePosts: jest.fn(),
-    clearFeed: jest.fn(),
-    clearUserFeed: jest.fn(),
-    clearError: jest.fn(),
-    feedUI: {},
-  };
-  const usePostsStore = (selector: (value: typeof state) => unknown) => selector(state);
-  usePostsStore.getState = () => state;
-  return {
-    usePostsStore,
-    useFeedSelector: () => undefined,
-    useUserFeedSelector: () => undefined,
-  };
-});
-
 jest.mock('@/services/feedService', () => ({
   feedService: { getFeed: jest.fn(), getUserFeed: jest.fn() },
-}));
-
-// Web has no SQLite and runs the memory path; native has it and reads through the
-// store instead. Both branches carry the fix, so both are switched on here.
-let mockDbAvailable = false;
-
-jest.mock('@/db', () => ({
-  buildFeedKey: jest.fn(() => FEED_KEY),
-  hasFeedData: jest.fn(() => mockDbAvailable),
-  isDbAvailable: jest.fn(() => mockDbAvailable),
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({
@@ -82,7 +50,6 @@ jest.mock('@/lib/precacheActorsFromPosts', () => ({
 const VIEWER_ID = 'operator-a';
 const CHANNEL_ID = 'channel-1';
 const WRITER_ID = 'writer-1';
-const FEED_KEY = 'feed-key';
 
 /** One post as the server holds it, including who wrote it for the channel. */
 interface ServerPost {
@@ -110,11 +77,11 @@ function page(): SlicedFeedResponse {
       if (post.writerId && channelDiscloses) {
         authors.push({ id: post.writerId, role: 'writer' });
       }
-      return {
+      return canonicalPost({
         id: post.id,
         user: { id: post.authorId },
         authors,
-      } as unknown as HydratedPost;
+      } as unknown as HydratedPost);
     }),
     slices: [],
     interstitials: [],
@@ -122,6 +89,9 @@ function page(): SlicedFeedResponse {
     totalCount: serverPosts.length,
   };
 }
+
+/** The account's store, as `AccountSwitchReset` provides it. */
+let store: Store;
 
 let latest: UseFeedStateReturn | undefined;
 
@@ -158,9 +128,9 @@ async function openFeed(): Promise<TestRenderer.ReactTestRenderer> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={queryClient}>
+      <DataProvider store={store}>
         <ChannelFeed />
-      </QueryClientProvider>,
+      </DataProvider>,
     );
   });
   await flush();
@@ -202,7 +172,8 @@ describe('a channel byline converges on the feeds the operator is looking at', (
   beforeEach(() => {
     latest = undefined;
     jest.clearAllMocks();
-    queryClient.clear();
+    store = new Store();
+    setActiveStore(store);
     resetEngagementInvalidation();
     resetSafetyInvalidation();
     resetBylineInvalidation();
@@ -211,8 +182,6 @@ describe('a channel byline converges on the feeds the operator is looking at', (
       { id: 'post-2', authorId: CHANNEL_ID, writerId: WRITER_ID },
     ];
     channelDiscloses = false;
-    mockDbAvailable = false;
-    usePostsStore.getState().feedUI = {};
     getUserFeedMock.mockImplementation(() => Promise.resolve(page()));
   });
 
@@ -299,49 +268,5 @@ describe('a channel byline converges on the feeds the operator is looking at', (
       noteChannelBylineChanged(CHANNEL_ID);
     });
     expect(getUserFeedMock).toHaveBeenCalledTimes(1);
-  });
-
-  /**
-   * Native reads its feed out of SQLite rather than a feed query, so the same
-   * question is asked in a different place: `fetchInitial` skips the fetch
-   * entirely when the store says this feed was already loaded. That skip has to
-   * notice a byline changed since, or the rows SQLite is holding — which survive
-   * an app restart — keep naming (or not naming) the writer forever.
-   */
-  describe('on the SQLite path', () => {
-    /** Put the store in the state a previously-loaded native feed leaves behind. */
-    function seedLoadedSqliteFeed(): void {
-      mockDbAvailable = true;
-      usePostsStore.getState().feedUI = {
-        [FEED_KEY]: { isLoading: false, error: null, lastUpdated: Date.now() },
-      };
-    }
-
-    it('refetches on the next mount when the byline changed since the cache was written', async () => {
-      seedLoadedSqliteFeed();
-      const fetchUserFeed = usePostsStore.getState().fetchUserFeed as jest.Mock;
-
-      const firstVisit = await openFeed();
-      expect(fetchUserFeed).not.toHaveBeenCalled();
-      closeFeed(firstVisit);
-
-      noteChannelBylineChanged(CHANNEL_ID);
-
-      const secondVisit = await openFeed();
-      expect(fetchUserFeed).toHaveBeenCalledTimes(1);
-      closeFeed(secondVisit);
-    });
-
-    it('still serves the SQLite cache without a request when no byline changed', async () => {
-      seedLoadedSqliteFeed();
-      const fetchUserFeed = usePostsStore.getState().fetchUserFeed as jest.Mock;
-
-      const firstVisit = await openFeed();
-      closeFeed(firstVisit);
-
-      const secondVisit = await openFeed();
-      expect(fetchUserFeed).not.toHaveBeenCalled();
-      closeFeed(secondVisit);
-    });
   });
 });

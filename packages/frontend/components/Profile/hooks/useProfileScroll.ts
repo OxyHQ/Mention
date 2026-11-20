@@ -1,8 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { useFrontScroller } from '@oxy.so/bloom/screen';
-import { usePostsStore } from '@/stores/postsStore';
-import { getFeedMeta } from '@/db/feedQueries';
+import { feedSource } from '@/data/feeds';
 import { isAuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
 import { isVirtualizedProfileGridTab, LAYOUT, type ProfileTab } from '../types';
 import { useProfileDocumentPaging } from './useProfileDocumentPaging';
@@ -39,17 +38,10 @@ export function useProfileScroll({
     // grids, from their own list. The web grids follow the document.
     if (!isAuthorFeedFilter(currentTab) || currentLaneId) return;
     if (isVirtualizedProfileGridTab(currentTab) !== (Platform.OS === 'web')) return;
-    const feedKey = `user:${profileId}:${currentTab}`;
-    const meta = getFeedMeta(feedKey);
-    const store = usePostsStore.getState();
-    if (!(meta?.hasMore ?? true) || !meta?.nextCursor || store.feedUI[feedKey]?.isLoading) return;
     loadingMoreRef.current = true;
-    void store
-      .fetchUserFeed(profileId, {
-        type: currentTab,
-        cursor: meta.nextCursor,
-        limit: LAYOUT.FEED_LIMIT,
-      })
+    // The next page, if there is one; joins a read of the feed in flight.
+    void feedSource
+      .more({ type: currentTab, userId: profileId, limit: LAYOUT.FEED_LIMIT })
       .finally(() => {
         loadingMoreRef.current = false;
       });

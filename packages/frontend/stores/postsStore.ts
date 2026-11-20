@@ -1,2064 +1,408 @@
+import { action, currentStore, source, type Store, withStore } from '@oxy.so/bloom-data';
 import { create } from 'zustand';
-import { subscribeWithSelector } from 'zustand/middleware';
-import { useCallback, useSyncExternalStore } from 'react';
 import type {
-  FeedRequest,
-  CreateReplyRequest,
   CreateBoostRequest,
   CreatePostRequest,
+  CreateReplyRequest,
   CreateThreadRequest,
-  LikeRequest,
-  UnlikeRequest,
-  FeedType,
+  FeedPostViewCounts,
   HydratedPost,
   HydratedPostSummary,
-  FeedInterstitialSlot,
-  FeedPostSlice,
-  FeedPostViewCounts,
+  LikeRequest,
+  UnlikeRequest,
 } from '@mention/shared-types';
 import { MAX_POST_ANCESTORS, MAX_POST_BATCH } from '@mention/shared-types/post';
 import { createLogger } from '@oxy.so/core/logger';
-import { feedService, type ExtendedFeedRequest } from '../services/feedService';
-import { markLocalAction } from '../services/echoGuard';
+import type { FeedItem } from '@/db/schema';
+import { toFeedItem } from '@/db/feedItem';
 import {
-  publishNewLocalPost,
-  publishNewLocalReply,
-  publishRemovedLocalPost,
-} from '@/stores/feedQueryCache';
-import { invalidateEngagementLists } from '@/stores/engagementInvalidation';
-import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
+  boostPost,
+  downvotePost,
+  likePost,
+  savePost,
+  unboostPost,
+  unlikePost,
+  unsavePost,
+} from '@/data/engagement';
+import { publishNewLocalPost, publishNewLocalReply } from '@/data/feeds';
+import {
+  getPost,
+  isValidPostId,
+  Post,
+  PostViews,
+  storePosts,
+  usePost,
+  useViewCount,
+} from '@/data/posts';
 import { queryClient } from '@/lib/queryClient';
+import { markLocalAction } from '@/services/echoGuard';
+import { feedService } from '@/services/feedService';
+import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { normalizeApiError } from '@/utils/apiError';
 
-// ── Database imports ─────────────────────────────────────────────
-import {
-  upsertPost as dbUpsertPost,
-  upsertPosts as dbUpsertPosts,
-  getPostById as dbGetPostById,
-  getPostsByIds as dbGetPostsByIds,
-  getPostIdsReferencing as dbGetPostIdsReferencing,
-  updatePost as dbUpdatePost,
-  deletePost as dbDeletePost,
-  pruneOldPosts as dbPruneOldPosts,
-  setFeedItems as dbSetFeedItems,
-  appendFeedItems as dbAppendFeedItems,
-  getAllFeedItems as dbGetAllFeedItems,
-  getFeedMeta as dbGetFeedMeta,
-  clearFeed as dbClearFeed,
-  addFeedItemAtStart as dbAddFeedItemAtStart,
-  getFeedKeysForPost as dbGetFeedKeysForPost,
-  removePostFromAllFeeds as dbRemovePostFromAllFeeds,
-  removeFeedItem as dbRemoveFeedItem,
-  buildFeedKey,
-  clearAllCachedData as dbClearAllCachedData,
-} from '@/db';
-import type { FeedItem, FeedMetaData } from '@/db';
-import { toFeedItem } from '@/db/feedItem';
-import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
-import type { FeedFilters } from '@/utils/feedUtils';
-import { classifyFeedFailure, isFeedCursorExpired, type FeedFailureKind } from '@/utils/feedRetry';
+/**
+ * The posts API the app's flows call, over the one posts store
+ * (`data/posts`, `@oxy.so/bloom-data`).
+ *
+ * Feeds, the post screen, engagement and realtime read and write `Post`
+ * directly. The flows not moved yet (compose, the post menu, insights,
+ * notifications…) keep calling these methods while they move; every one of
+ * them now writes the same records, so there is one copy of each post and no
+ * second path to keep in step. What is left here goes when those flows call
+ * `data/` themselves.
+ */
 
 const logger = createLogger('PostsStore');
 
-// ── Shared helpers ───────────────────────────────────────────────
+/** A post the server reads for this viewer, by id: one read per id at a time. */
+const postSource = source(Post, {
+  key: (postId: string) => postId,
+  load: async ({ signal }, postId: string) =>
+    toFeedItem(await feedService.getPostById(postId, signal)),
+  // One retry policy, owned by `feedService`.
+  retry: 0,
+  gcTime: Number.POSITIVE_INFINITY,
+  refetchOnFocus: false,
+  refetchOnReconnect: false,
+});
 
-const isValidId = (id: string): boolean => id !== '' && id !== 'undefined' && id !== 'null';
-
-/**
- * Whether a post is a "blank boost" risk-free to cache: it is renderable on its
- * own. A `type:'boost'` post carries an intentionally empty body and is only
- * renderable through its embedded `boost.originalPost`.
- * Any post that is NOT a boost is always renderable here (its own body/media is
- * its content). Used by `cachePosts` so an under-hydrated boost (original lost)
- * can never overwrite an already-hydrated cached boost.
- */
-const isRenderableBoost = (item: FeedItem): boolean => {
-  if (!item.boost) return true;
-  return Boolean(item.boost.originalPost?.id);
-};
-
-/**
- * The copy of a post to write when the incoming DTO was hydrated for NO viewer.
- *
- * The realtime `feed:updated` broadcast goes to every socket, so the server
- * hydrates it anonymously: `viewerState.isOwner` is false, nothing is liked or
- * saved, and `permissions` are a stranger's. Upserting that over the copy the
- * viewer already holds (their own post, cached from the create response a
- * moment earlier) silently demoted it: the ⋯ menu lost Delete/Edit/Pin and
- * offered Report and Mute on the viewer's own post, and the Insights action
- * vanished from the row (#1140). The post's CONTENT from the broadcast is kept;
- * only the viewer-relative fields come from the cached copy, when there is one.
- */
-export function keepViewerFields(
-  incoming: FeedItem,
-  cached: FeedItem | null | undefined,
-): FeedItem {
-  if (!cached) return incoming;
-  return {
-    ...incoming,
-    viewerState: cached.viewerState ?? incoming.viewerState,
-    permissions: cached.permissions ?? incoming.permissions,
-  };
+/** The read's error, if the last read of `postId` failed. */
+function readError(postId: string): unknown {
+  const state = postSource.state(postId);
+  return state.status === 'error' && state.fetchStatus === 'idle' ? state.error : undefined;
 }
 
 /**
- * Return each canonical embedded relation once. Hydration intentionally exposes
- * `originalPost` alongside the more specific quote/boost relation, so an id map
- * prevents duplicate cache writes while retaining the explicit public fields.
+ * Drop a post the server refused this viewer (403/404) from every surface,
+ * with every held boost or quote that embeds it, transitively.
  */
-const getRelatedPosts = (item: FeedItem): FeedItem[] => {
-  const relatedById = new Map<string, FeedItem>();
-  const add = (related: FeedItem | null | undefined) => {
-    if (related?.id && isValidId(related.id)) {
-      relatedById.set(related.id, related);
-    }
-  };
-
-  add(item.boost?.originalPost);
-  add(item.quotedPost);
-  add(item.originalPost);
-  return [...relatedById.values()];
-};
-
-const persistRelatedPosts = (items: readonly FeedItem[]): void => {
-  for (const item of items) {
-    for (const related of getRelatedPosts(item)) {
-      dbUpsertPost(related);
-    }
-  }
-};
-
-/**
- * Write posts a read just returned into the shared cache — with the posts they
- * embed — and wake the selectors watching any of them.
- */
-const writeFetchedPosts = (items: readonly FeedItem[]): void => {
-  if (items.length === 0) return;
-  dbUpsertPosts([...items]);
-  persistRelatedPosts(items);
-  notifyPostChanges(collectWrittenPostIds([...items]));
-};
-
-// ── Request tracking ─────────────────────────────────────────────
-
-const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
-/**
- * Plain single-post READS in flight, by post id — shared, not aborted.
- *
- * `getPostById` and `revalidatePostById` both key `pendingRequests` on
- * `post:<id>` and both abort whatever they find there, so two reads of the same
- * post cancel each other. That is right for a revalidation (a deliberate
- * cache-buster: the newer answer wins) and wrong for two plain reads, which are
- * the same question asked twice moments apart — the press-in prefetch and the
- * detail screen's own mount. Without this map the second read aborts the first
- * and the prefetch buys a cancelled request and nothing else.
- *
- * Only `getPostById` shares through here. `revalidatePostById` keeps its
- * abort-and-refetch semantics untouched.
- */
-const recoveredFeedCursors = new Map<string, string>();
-const inFlightPostReads = new Map<string, Promise<FeedItem | null>>();
-const inFlightEngagements = new Map<string, string>();
-const getEngagementKey = (postId: string, action: string) =>
-  `${postId}:${action.replace('un', '')}`;
-let viewerStateEpoch = 0;
-
-const captureViewerStateEpoch = () => viewerStateEpoch;
-const isCurrentViewerStateEpoch = (epoch: number) => epoch === viewerStateEpoch;
-
-/**
- * Drop a post the server refused this viewer (403/404) from every surface, with
- * every cached boost or quote that embeds it, transitively.
- */
-const removeRevokedPost = (get: () => PostsStoreState, postId: string): void => {
+function removeRevokedPost(postId: string): void {
   const revoked = new Set([postId]);
   let cohort = [postId];
   while (cohort.length > 0) {
-    const references = dbGetPostIdsReferencing(cohort).filter((id) => !revoked.has(id));
+    const references = cohort
+      .flatMap((id) => Post.referencing(Post, id))
+      .filter((id) => !revoked.has(id));
     for (const id of references) revoked.add(id);
     cohort = references;
   }
-  for (const id of revoked) get().removePostEverywhere(id);
-};
-
-// ── Sync vote state from server ──────────────────────────────────
-
-const syncVoteStateFromServer = (
-  get: () => PostsStoreState,
-  postId: string,
-  responseData: unknown,
-) => {
-  const data = responseData as Record<string, unknown> | undefined;
-  const serverLikesCount = data?.likesCount as number | undefined;
-  const serverDownvotesCount = data?.downvotesCount as number | undefined;
-  const serverLiked = data?.liked === true;
-  const serverDownvoted = data?.downvoted === true;
-
-  if (serverLikesCount !== undefined) {
-    get().updatePostEverywhere(postId, (prev) => ({
-      ...prev,
-      viewerState: { ...prev.viewerState, isLiked: serverLiked, isDownvoted: serverDownvoted },
-      engagement: {
-        ...prev.engagement,
-        likes: serverLikesCount,
-        downvotes: serverDownvotesCount ?? prev.engagement.downvotes,
-      },
-    }));
-  }
-};
-
-/**
- * The save/unsave counterpart of {@link syncVoteStateFromServer}: replace the
- * optimistic ±1 with the count the server actually holds.
- *
- * A ±1 applied to a stale base stays wrong forever — it moves by the right
- * amount from the wrong number, so nothing about it ever looks like an error and
- * no later save corrects it. The count is authoritative on the server (it is the
- * number of Bookmark rows) and both `POST` and `DELETE /posts/:id/save` return
- * it, so the reconcile is a straight assignment. It also repairs a post whose
- * cached `saves` was never a number at all, which the optimistic branch
- * deliberately skips.
- *
- * `isSaved` comes from the CALL, not the body: a 200 means the post is in the
- * requested state whether or not this request is what changed it (an idempotent
- * retry answers "Post already saved"), and the response carries no saved flag.
- */
-const syncSaveStateFromServer = (
-  get: () => PostsStoreState,
-  postId: string,
-  responseData: unknown,
-  isSaved: boolean,
-) => {
-  const data = responseData as Record<string, unknown> | undefined;
-  const serverSavesCount = data?.savesCount;
-  if (typeof serverSavesCount !== 'number') return;
-
-  get().updatePostEverywhere(postId, (prev) => ({
-    ...prev,
-    viewerState: { ...prev.viewerState, isSaved },
-    engagement: { ...prev.engagement, saves: serverSavesCount },
-  }));
-};
-
-// ── Store types ──────────────────────────────────────────────────
-
-interface FeedSliceUI {
-  isLoading: boolean;
-  error: string | null;
-  /**
-   * What KIND of failure `error` was, classified once from the status the error
-   * carried (never from its message). Meaningless while `error` is null, and
-   * read only through the feed selectors below — it exists so the SQLite feed
-   * path can tell an offline device from a backend hiccup exactly as the
-   * feed query does in `useFeedQuery`.
-   */
-  errorKind?: FeedFailureKind;
-  lastUpdated: number;
-  filters?: FeedFilters;
-  /**
-   * Recommendation-card placements accumulated across the loaded pages (replaced
-   * on fetch/refresh, appended on load-more — mirroring how the feed query's
-   * pages accumulate them). They live in this in-memory UI slice rather than SQLite:
-   * they are per-response placement metadata, valid only for the viewer and the
-   * page set currently loaded, and must never outlive the session.
-   */
-  interstitials?: FeedInterstitialSlot[];
-  /** Per-viewer response evidence; cleared with feedUI on account changes. */
-  socialContexts?: NonNullable<FeedPostSlice['socialContext']>[];
+  for (const id of revoked) Post.remove(id);
 }
 
+const NEW_POST_ENGAGEMENT: FeedItem['engagement'] = {
+  replies: 0,
+  boosts: 0,
+  likes: 0,
+  downvotes: 0,
+  saves: 0,
+  views: null,
+  impressions: null,
+};
+
+/** The reply count of the post answered, raised while the reply is sent. */
+const sendReply = action({
+  optimistic: (request: CreateReplyRequest) => {
+    markLocalAction(request.postId, 'reply');
+    Post.patch(request.postId, (post) => ({
+      engagement: { replies: (post.engagement.replies || 0) + 1 },
+    }));
+  },
+  run: async (request) => {
+    const response = await feedService.createReply(request);
+    if (!response.success || !response.reply) {
+      throw new Error('Publication result could not be confirmed');
+    }
+    return response;
+  },
+});
+
+/** The boost count of the post quoted, raised while the boost is sent. */
+const sendBoost = action({
+  optimistic: (request: CreateBoostRequest) =>
+    Post.patch(request.originalPostId, (post) => ({
+      engagement: { boosts: (post.engagement.boosts || 0) + 1 },
+    })),
+  run: async (request) => {
+    const response = await feedService.createBoost(request);
+    if (!response.success) throw new Error('Failed to create boost');
+    return response;
+  },
+});
+
 interface PostsStoreState {
-  // UI state per feed key (loading/error only — data lives in SQLite)
-  feedUI: Record<string, FeedSliceUI>;
-
-  // Global UI state
-  isLoading: boolean;
-  error: string | null;
-  lastRefresh: number;
-
-  // Feed operations
-  fetchFeed: (request: ExtendedFeedRequest) => Promise<void>;
-  fetchUserFeed: (userId: string, request: FeedRequest) => Promise<{ pending: boolean }>;
-  fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
-  refreshFeed: (type: FeedType, filters?: FeedFilters, supersedePending?: boolean) => Promise<void>;
-  loadMoreFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
-
-  // A resolved create is confirmed by the server. Its ID is retained even if
-  // the viewer changed or local cache work failed after confirmation.
-  // An unconfirmed transport outcome rejects; callers must not assume failure.
   createPost: (request: CreatePostRequest) => Promise<{ id: string }>;
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<FeedItem | null>;
   createBoost: (request: CreateBoostRequest) => Promise<void>;
-  // `source` (optional) is the originating feed descriptor for surface-aware
-  // engagement attribution. Threaded only through the POSITIVE actions (boost,
-  // like, save) — the undo actions carry no interest signal.
+
   boostPost: (request: { postId: string }, source?: string) => Promise<void>;
   unboostPost: (request: { postId: string }) => Promise<void>;
-
-  // Engagement
   likePost: (request: LikeRequest, source?: string) => Promise<void>;
   unlikePost: (request: UnlikeRequest) => Promise<void>;
   downvotePost: (request: { postId: string; type: string }) => Promise<void>;
   savePost: (request: { postId: string }, source?: string) => Promise<void>;
   unsavePost: (request: { postId: string }) => Promise<void>;
+
+  /** The held copy, else the disk copy, else one read; joins a read in flight. */
   getPostById: (postId: string) => Promise<FeedItem | null>;
-  // Always fetch a single post from the network and upsert it into the shared
-  // cache (stale-while-revalidate). Unlike `getPostById`, this does NOT short-
-  // circuit on a cache hit — it refreshes engagement/viewer state for an
-  // already-cached post (e.g. when the post-detail screen opens from the feed).
+  /** Reads the post again, superseding a read in flight; drops it on 403/404. */
   revalidatePostById: (postId: string) => Promise<FeedItem | null>;
-  // Several posts at once: cached ones from the shared cache, the rest in ONE
-  // batch read. Posts the viewer may not read are absent; order is kept.
+  /** Held and disk copies, then one batched read of the rest. In request order. */
   getPostsByIds: (postIds: readonly string[]) => Promise<FeedItem[]>;
-  // The reply chain above `postId` (whose parent is `startParentId`), root
-  // first, in at most ONE read. `fresh` skips the cache (a supervised reader
-  // must not be shown what an earlier authority cached) and drops the ancestor
-  // the chain stopped at, as `revalidatePostById` drops a post it is refused.
+  /** The chain above a post, root first: held copies, then one read for the rest. */
   loadPostAncestors: (
     postId: string,
     startParentId: string | null | undefined,
     options?: { fresh?: boolean },
   ) => Promise<FeedItem[]>;
-  // Upsert post objects into the shared cache WITHOUT touching feed ordering.
-  // Used by the feed query path (web without SQLite, and scoped feeds), which
-  // owns its own ordering in the React Query cache but must still seed the
-  // shared post cache so the post-detail screen can render instantly from
-  // `getPostFromDb(id)` instead of issuing a cold blocking fetch on open.
-  cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => void;
 
-  // Local state updates
-  updatePostLocally: (postId: string, updates: Partial<FeedItem>) => void;
+  cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => void;
   updatePostEverywhere: (
     postId: string,
     updater: (prev: FeedItem) => FeedItem | null | undefined,
   ) => void;
   removePostEverywhere: (postId: string) => void;
-  // Rollback counterpart of `removePostEverywhere` — re-adds a post after a
-  // failed optimistic delete (SQLite feeds + the feed query cache).
+  /** Rollback of `removePostEverywhere`: back at the top of the feeds it belongs in. */
   reinsertPost: (post: FeedItem) => void;
-  removePostLocally: (postId: string, feedType: FeedType) => void;
-  addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
-  addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => void;
-
-  // Utility
-  clearError: () => void;
-  clearFeed: (type: FeedType) => void;
-  clearUserFeed: (userId: string, type: FeedType) => void;
-  prunePostsCache: () => void;
-  /** Abort stale work and remove every viewer-dependent post/feed cache. */
-  resetViewerState: (options?: { clearCachedData?: boolean }) => void;
-
-  // SQLite data accessors (synchronous reads)
-  getFeedItemsFromDb: (feedKey: string) => FeedItem[];
-  getFeedMetaFromDb: (feedKey: string) => FeedMetaData | null;
   getPostFromDb: (postId: string) => FeedItem | null;
 }
 
-// ── Keyed SQLite snapshot invalidation ──────────────────────────
+/** Waits for an action; its result is in the store, and a failure still rejects. */
+const settled = async (call: Promise<unknown>): Promise<void> => {
+  await call;
+};
 
-interface FeedSnapshot {
-  items: FeedItem[];
-  meta: FeedMetaData | null;
+/**
+ * Runs `write` in the store the call started in. An answer that lands after
+ * its account was left is dropped (`undefined`), never written to the next one.
+ */
+function inStore<T>(store: Store, write: () => T): T | undefined {
+  return store.closed ? undefined : withStore(store, write);
 }
 
-type SnapshotListener = () => void;
-
-/**
- * SQLite remains the persistence authority. These small keyed maps are only
- * React's notification boundary: a post engagement update wakes that post's
- * subscribers, while an ordering/meta change wakes only that feed.
- */
-const feedSnapshotCache = new Map<string, FeedSnapshot>();
-const postSnapshotCache = new Map<string, FeedItem | null>();
-const feedSnapshotListeners = new Map<string, Set<SnapshotListener>>();
-const postSnapshotListeners = new Map<string, Set<SnapshotListener>>();
-const feedSnapshotRevisions = new Map<string, number>();
-const postSnapshotRevisions = new Map<string, number>();
-
-/**
- * A THIRD channel, for the one number that moves while the reader is reading:
- * how many people have watched a post.
- *
- * It is separate because of who listens. A post's subscriber is a whole
- * `PostItem` — header, body, media, action bar — and the server answers the
- * impression report with a fresh total for EVERY post the reader just scrolled
- * past. On the post channel that is a full row re-render each, measured at
- * ~40ms of JS per row on a Pixel 10 Pro (dev build, `React.Profiler` around the
- * feed list): during a fling the whole viewport re-rendered a second time, for a
- * count no feed row draws. The only surface that draws a live count is a grid
- * cell (`LiveVideoPosterCell`), which subscribes here and repaints one number.
- *
- * `undefined` in the cache means "no row for this post", which is not the same
- * as a row whose count is `null` (hidden, or never returned) — a grid cell keeps
- * its fetch-time number for the first and must not for the second.
- */
-const viewCountCache = new Map<string, number | null | undefined>();
-const viewCountListeners = new Map<string, Set<SnapshotListener>>();
-const viewCountRevisions = new Map<string, number>();
-
-// Bound session-long navigation caches; SQLite remains the durable cache.
-const MAX_FEED_SNAPSHOTS = 100;
-const MAX_POST_SNAPSHOTS = 1_000;
-
-const setBoundedSnapshot = <K, V>(cache: Map<K, V>, key: K, value: V, maxEntries: number) => {
-  cache.delete(key);
-  cache.set(key, value);
-  if (cache.size > maxEntries) {
-    const oldestKey = cache.keys().next().value as K | undefined;
-    if (oldestKey !== undefined) cache.delete(oldestKey);
-  }
-};
-
-const subscribeToSnapshotKey = (
-  listenersByKey: Map<string, Set<SnapshotListener>>,
-  revisionsByKey: Map<string, number>,
-  key: string,
-  listener: SnapshotListener,
-) => {
-  let listeners = listenersByKey.get(key);
-  if (!listeners) {
-    listeners = new Set();
-    listenersByKey.set(key, listeners);
-  }
-  listeners.add(listener);
-  return () => {
-    listeners?.delete(listener);
-    if (listeners?.size === 0) {
-      listenersByKey.delete(key);
-      revisionsByKey.delete(key);
+export const usePostsStore = create<PostsStoreState>()(() => ({
+  createPost: async (request) => {
+    const store = currentStore();
+    const response = await feedService.createPost(request);
+    if (!response.success || !response.post) {
+      throw new Error('Publication result could not be confirmed');
     }
-  };
-};
-
-const notifySnapshotKeys = <T>(
-  cache: Map<string, T>,
-  listenersByKey: Map<string, Set<SnapshotListener>>,
-  revisionsByKey: Map<string, number>,
-  keys: Iterable<string>,
-) => {
-  for (const key of new Set(keys)) {
-    if (!key) continue;
-    cache.delete(key);
-    wakeSnapshotKey(listenersByKey, revisionsByKey, key);
-  }
-};
-
-/** Moves `key`'s revision and runs its listeners; a key nobody watches forgets its revision. */
-const wakeSnapshotKey = (
-  listenersByKey: Map<string, Set<SnapshotListener>>,
-  revisionsByKey: Map<string, number>,
-  key: string,
-) => {
-  const listeners = listenersByKey.get(key);
-  if (!listeners?.size) {
-    revisionsByKey.delete(key);
-    return;
-  }
-  revisionsByKey.set(key, (revisionsByKey.get(key) ?? 0) + 1);
-  for (const listener of listeners) listener();
-};
-
-const notifyViewCountChanges = (postIds: Iterable<string>) =>
-  notifySnapshotKeys(viewCountCache, viewCountListeners, viewCountRevisions, postIds);
-
-const notifyPostChanges = (postIds: Iterable<string>) => {
-  notifySnapshotKeys(postSnapshotCache, postSnapshotListeners, postSnapshotRevisions, postIds);
-  // A post rewrite carries the server's view count in with it (a feed page, a
-  // detail read, a cache seed), so the view channel is woken by every write to
-  // the post — only the reverse is one-way.
-  notifyViewCountChanges(postIds);
-};
-
-const notifyFeedChanges = (feedKeys: Iterable<string>) =>
-  notifySnapshotKeys(feedSnapshotCache, feedSnapshotListeners, feedSnapshotRevisions, feedKeys);
-
-/**
- * A page appended to a feed: the held snapshot is EXTENDED by the rows that
- * joined it instead of evicted, so the next read does not walk the whole feed
- * back out of SQLite — every page used to re-read every row the feed had ever
- * loaded. `appended` is what the writer reports it inserted; `null` (unknown)
- * falls back to reading the feed again.
- */
-const notifyFeedAppended = (feedKey: string, appended: FeedItem[] | null | undefined) => {
-  const held = feedSnapshotCache.get(feedKey);
-  if (!held || !appended) {
-    notifyFeedChanges([feedKey]);
-    return;
-  }
-  for (const item of appended) {
-    if (item.id && !postSnapshotCache.has(item.id)) {
-      setBoundedSnapshot(postSnapshotCache, item.id, item, MAX_POST_SNAPSHOTS);
-    }
-  }
-  const items = appended.length > 0 ? [...held.items, ...appended] : held.items;
-  setBoundedSnapshot(
-    feedSnapshotCache,
-    feedKey,
-    { items, meta: dbGetFeedMeta(feedKey) },
-    MAX_FEED_SNAPSHOTS,
-  );
-  wakeSnapshotKey(feedSnapshotListeners, feedSnapshotRevisions, feedKey);
-};
-
-const invalidateAllSnapshots = () => {
-  const feedKeys = new Set([
-    ...feedSnapshotCache.keys(),
-    ...feedSnapshotListeners.keys(),
-    ...feedSnapshotRevisions.keys(),
-  ]);
-  const postIds = new Set([
-    ...postSnapshotCache.keys(),
-    ...postSnapshotListeners.keys(),
-    ...postSnapshotRevisions.keys(),
-    ...viewCountCache.keys(),
-    ...viewCountListeners.keys(),
-    ...viewCountRevisions.keys(),
-  ]);
-  notifyFeedChanges(feedKeys);
-  notifyPostChanges(postIds);
-};
-
-const collectWrittenPostIds = (items: FeedItem[]): string[] => {
-  const ids: string[] = [];
-  for (const item of items) {
-    if (isValidId(item.id)) ids.push(item.id);
-    for (const related of getRelatedPosts(item)) ids.push(related.id);
-  }
-  return ids;
-};
-
-// ── Default feed UI state ────────────────────────────────────────
-
-const defaultFeedUI = (): FeedSliceUI => ({
-  isLoading: false,
-  error: null,
-  lastUpdated: 0,
-});
-
-/**
- * The failure fields a feed's UI slice records: a message for diagnostics, plus
- * the kind classified from the HTTP status the error carries. One helper so all
- * five feed operations record a failure identically.
- */
-const feedFailure = (
-  error: unknown,
-  fallbackMessage: string,
-): Pick<FeedSliceUI, 'error' | 'errorKind'> => ({
-  error: error instanceof Error ? error.message : fallbackMessage,
-  errorKind: classifyFeedFailure(error).kind,
-});
-
-// ── Store ────────────────────────────────────────────────────────
-
-export const usePostsStore = create<PostsStoreState>()(
-  subscribeWithSelector((set, get) => ({
-    feedUI: {},
-    isLoading: false,
-    error: null,
-    lastRefresh: Date.now(),
-
-    // ── SQLite data accessors ────────────────────────────────
-    getFeedItemsFromDb: (feedKey: string) => dbGetAllFeedItems(feedKey),
-    getFeedMetaFromDb: (feedKey: string) => dbGetFeedMeta(feedKey),
-    getPostFromDb: (postId: string) => dbGetPostById(postId),
-
-    // ── fetchFeed ────────────────────────────────────────────
-    fetchFeed: async (request: ExtendedFeedRequest) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const { type = 'mixed' } = request;
-      const feedKey = buildFeedKey(type);
-      const requestKey = `${type}:${request.cursor || 'initial'}`;
-      const now = Date.now();
-
-      // Debounce: collapse a rapid repeat of the same request (e.g. an effect
-      // firing twice in quick succession) into the in-flight one.
-      const pending = pendingRequests.get(requestKey);
-      if (pending && now - pending.timestamp < 300) return;
-
-      // A later request for the same key supersedes the in-flight one (e.g. the
-      // feed hook remounted mid-load and re-issued the initial fetch). Abort the
-      // prior request AND mark that we superseded it, so the concurrent guard
-      // below does not then refuse to start the replacement — otherwise we'd
-      // cancel the only running request and never issue a new one, stranding the
-      // feed empty.
-      const supersededPrior = !!pending?.abortController;
-      if (pending?.abortController) pending.abortController.abort();
-
-      // Prevent two independent concurrent loads of the same feed. Skipped when
-      // we just superseded the prior request: that request is now aborted, so we
-      // are the sole legitimate load and must proceed (its stale `isLoading`
-      // flag would otherwise block us).
-      const ui = get().feedUI[feedKey];
-      if (ui?.isLoading && !request.cursor && !supersededPrior) return;
-
-      const abortController = new AbortController();
-      pendingRequests.set(requestKey, { timestamp: now, abortController });
-
-      set((s) => ({
-        feedUI: {
-          ...s.feedUI,
-          [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null },
-        },
-      }));
-
-      try {
-        const response = await feedService.getFeed(request, { signal: abortController.signal });
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-
-        // Verify still latest request
-        const latest = pendingRequests.get(requestKey);
-        if (!latest || latest.abortController !== abortController) return;
-
-        // Transform items
-        const items = response.items?.map((item) => toFeedItem(item)) || [];
-
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
-
-        // Write to SQLite — this replaces the entire feed
-        dbSetFeedItems(feedKey, items, {
-          hasMore: response.hasMore || false,
-          nextCursor: response.nextCursor,
-          totalCount: items.length,
-          lastUpdated: Date.now(),
-          filters: request.filters,
-        });
-
-        persistRelatedPosts(items);
-
-        notifyPostChanges(collectWrittenPostIds(items));
-        notifyFeedChanges([feedKey]);
-
-        // Publish the feed-specific data change + update its UI state.
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: {
-              isLoading: false,
-              error: null,
-              lastUpdated: Date.now(),
-              filters: request.filters,
-              // Fresh page 1 → the previous page's placements no longer apply.
-              interstitials: response.interstitials,
-              socialContexts: response.slices?.flatMap((slice) =>
-                slice.socialContext ? [slice.socialContext] : [],
-              ),
-            },
-          },
-          lastRefresh: Date.now(),
-        }));
-
-        // Background prune
-        dbPruneOldPosts();
-      } catch (error) {
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-        const failure = feedFailure(error, 'Failed to fetch feed');
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: { ...s.feedUI[feedKey], isLoading: false, ...failure },
-          },
-          error: failure.error,
-        }));
-      } finally {
-        const current = pendingRequests.get(requestKey);
-        if (current?.abortController === abortController) {
-          pendingRequests.delete(requestKey);
-        }
-      }
-    },
-
-    // ── fetchUserFeed ────────────────────────────────────────
-    // Returns `{ pending }` so callers can drive a bounded refetch while a
-    // federated user's outbox is still syncing in the background.
-    fetchUserFeed: async (userId: string, request: FeedRequest) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const { type = 'posts' } = request;
-      const feedKey = buildFeedKey(type, userId);
-      const requestKey = `user-feed:${feedKey}:${request.cursor || 'initial'}`;
-      const previousRequest = pendingRequests.get(requestKey);
-      previousRequest?.abortController?.abort();
-      const abortController = new AbortController();
-      const timestamp = Date.now();
-      pendingRequests.set(requestKey, { timestamp, abortController });
-
-      set((s) => ({
-        feedUI: {
-          ...s.feedUI,
-          [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null },
-        },
-      }));
-
-      try {
-        const response = await feedService.getUserFeed(userId, request, {
-          signal: abortController.signal,
-        });
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) {
-          return { pending: false };
-        }
-        const items = response.items?.map((item) => toFeedItem(item)) || [];
-        const isPendingEmptyInitialLoad =
-          !request.cursor && response.pending === true && items.length === 0;
-
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
-
-        // While a federated profile's outbox is still syncing, each poll returns
-        // `pending` with no posts. Those polls must not wipe what is on screen.
-        const keepCachedFeed =
-          isPendingEmptyInitialLoad && Boolean(dbGetFeedMeta(feedKey)?.lastUpdated);
-
-        let appended: FeedItem[] | null | undefined = null;
-        if (request.cursor) {
-          // Append mode
-          appended = dbAppendFeedItems(feedKey, items, {
-            hasMore: response.hasMore || false,
-            nextCursor: response.nextCursor,
-            totalCount: items.length,
-          });
-        } else if (keepCachedFeed) {
-          // Keep the visible cached profile feed while the backend finishes
-          // federated outbox sync. Replacing it with [] causes cold-boot profile
-          // feeds to appear wiped until the next successful poll.
-        } else {
-          // Replace mode
-          dbSetFeedItems(feedKey, items, {
-            hasMore: response.hasMore || false,
-            nextCursor: response.nextCursor,
-            totalCount: items.length,
-            lastUpdated: Date.now(),
-          });
-        }
-
-        if (!keepCachedFeed && (!request.cursor || items.length > 0)) {
-          notifyPostChanges(collectWrittenPostIds(items));
-          if (request.cursor) notifyFeedAppended(feedKey, appended);
-          else notifyFeedChanges([feedKey]);
-        }
-
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: {
-              isLoading: false,
-              error: null,
-              lastUpdated: Date.now(),
-              // The poll that keeps the cached POSTS must keep the cached CARDS
-              // too: an empty pending response carries no slots, so overwriting
-              // here made the profile's suggestion card blink out from under the
-              // posts that deliberately stayed.
-              interstitials: request.cursor
-                ? [...(s.feedUI[feedKey]?.interstitials ?? []), ...(response.interstitials ?? [])]
-                : keepCachedFeed
-                  ? s.feedUI[feedKey]?.interstitials
-                  : response.interstitials,
-            },
-          },
-        }));
-
-        return { pending: response.pending === true && items.length === 0 };
-      } catch (error) {
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) {
-          return { pending: false };
-        }
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: {
-              ...s.feedUI[feedKey],
-              isLoading: false,
-              ...feedFailure(error, 'Failed to fetch user feed'),
-            },
-          },
-        }));
-        return { pending: false };
-      } finally {
-        const current = pendingRequests.get(requestKey);
-        if (current?.abortController === abortController) {
-          pendingRequests.delete(requestKey);
-        }
-      }
-    },
-
-    // ── fetchSavedPosts ──────────────────────────────────────
-    fetchSavedPosts: async (request = {}) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const feedKey = buildFeedKey('saved');
-      const requestKey = `saved:${request.page ?? 1}:${request.limit ?? 20}`;
-      const previousRequest = pendingRequests.get(requestKey);
-      previousRequest?.abortController?.abort();
-      const abortController = new AbortController();
-      const timestamp = Date.now();
-      pendingRequests.set(requestKey, { timestamp, abortController });
-
-      set((s) => ({
-        feedUI: {
-          ...s.feedUI,
-          [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null },
-        },
-      }));
-
-      try {
-        const response = await feedService.getSavedPosts({
-          ...request,
-          signal: abortController.signal,
-        });
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-        const processedPosts = response.data.posts?.map((post) => toFeedItem(post)) || [];
-
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(processedPosts);
-
-        dbSetFeedItems(feedKey, processedPosts, {
-          hasMore: response.data.hasMore || false,
-          totalCount: processedPosts.length,
-          lastUpdated: Date.now(),
-        });
-
-        notifyPostChanges(collectWrittenPostIds(processedPosts));
-        notifyFeedChanges([feedKey]);
-
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now() },
-          },
-          lastRefresh: Date.now(),
-        }));
-      } catch (error) {
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-        const failure = feedFailure(error, 'Failed to fetch saved posts');
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: { ...s.feedUI[feedKey], isLoading: false, ...failure },
-          },
-          error: failure.error,
-        }));
-      } finally {
-        const current = pendingRequests.get(requestKey);
-        if (current?.abortController === abortController) {
-          pendingRequests.delete(requestKey);
-        }
-      }
-    },
-
-    // ── refreshFeed ──────────────────────────────────────────
-    refreshFeed: async (type: FeedType, filters?: FeedFilters, supersedePending = false) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const feedKey = buildFeedKey(type);
-      const ui = get().feedUI[feedKey];
-      if (ui?.isLoading && !supersedePending) return;
-      const requestKey = `refresh:${feedKey}`;
-      if (supersedePending) {
-        // A changed rule outranks an initial read or continuation already in
-        // flight. Their own abort checks prevent old rows/evidence landing later.
-        for (const [key, pending] of pendingRequests) {
-          if (key === requestKey || key.startsWith(`${type}:`)) pending.abortController?.abort();
-        }
-      }
-      const previousRequest = pendingRequests.get(requestKey);
-      previousRequest?.abortController?.abort();
-      const abortController = new AbortController();
-      const timestamp = Date.now();
-      pendingRequests.set(requestKey, { timestamp, abortController });
-
-      set((s) => ({
-        feedUI: {
-          ...s.feedUI,
-          [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null },
-        },
-      }));
-
-      try {
-        const response = await feedService.getFeed(
-          { type, limit: 20, filters },
-          { signal: abortController.signal },
-        );
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-        const items = response.items?.map((item) => toFeedItem(item)) || [];
-
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
-
-        dbSetFeedItems(feedKey, items, {
-          hasMore: response.hasMore || false,
-          nextCursor: response.nextCursor,
-          totalCount: items.length,
-          lastUpdated: Date.now(),
-        });
-
-        persistRelatedPosts(items);
-
-        notifyPostChanges(collectWrittenPostIds(items));
-        notifyFeedChanges([feedKey]);
-
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: {
-              isLoading: false,
-              error: null,
-              lastUpdated: Date.now(),
-              // A refresh rebuilds the feed from page 1 → replace the placements.
-              interstitials: response.interstitials,
-              socialContexts: response.slices?.flatMap((slice) =>
-                slice.socialContext ? [slice.socialContext] : [],
-              ),
-            },
-          },
-          lastRefresh: Date.now(),
-        }));
-      } catch (error) {
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: {
-              ...s.feedUI[feedKey],
-              isLoading: false,
-              ...feedFailure(error, 'Failed to refresh feed'),
-            },
-          },
-        }));
-      } finally {
-        const current = pendingRequests.get(requestKey);
-        if (current?.abortController === abortController) {
-          pendingRequests.delete(requestKey);
-        }
-      }
-    },
-
-    // ── loadMoreFeed ─────────────────────────────────────────
-    loadMoreFeed: async (type: FeedType, filters?: FeedFilters) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const feedKey = buildFeedKey(type);
-      const ui = get().feedUI[feedKey];
-      const meta = dbGetFeedMeta(feedKey);
-
-      if (ui?.isLoading || !meta?.hasMore) return;
-      if (!meta?.nextCursor) return;
-      if (recoveredFeedCursors.get(feedKey) === meta.nextCursor) return;
-
-      const requestKey = `${type}:loadMore:${meta.nextCursor}`;
-      const now = Date.now();
-
-      const pending = pendingRequests.get(requestKey);
-      if (pending && now - pending.timestamp < 500) return;
-      if (pending?.abortController) pending.abortController.abort();
-
-      const abortController = new AbortController();
-      pendingRequests.set(requestKey, { timestamp: now, abortController });
-
-      set((s) => ({
-        feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: true } },
-      }));
-
-      try {
-        const cursorAtRequestTime = meta.nextCursor;
-        const response = await feedService.getFeed(
-          { type, cursor: cursorAtRequestTime, limit: 20, filters },
-          { signal: abortController.signal },
-        );
-
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-
-        const items = response.items?.map((item) => toFeedItem(item)) || [];
-
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
-
-        // Append to SQLite — dedup handled by PRIMARY KEY
-        const appended = dbAppendFeedItems(feedKey, items, {
-          hasMore: response.hasMore || false,
-          nextCursor: response.nextCursor,
-          totalCount: items.length,
-        });
-
-        persistRelatedPosts(items);
-
-        notifyPostChanges(collectWrittenPostIds(items));
-        notifyFeedAppended(feedKey, appended);
-
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: {
-              ...s.feedUI[feedKey],
-              isLoading: false,
-              lastUpdated: Date.now(),
-              // Each page's slots anchor to slices of THAT page, so appending keeps
-              // every card at its position in the accumulated feed.
-              socialContexts: [
-                ...(s.feedUI[feedKey]?.socialContexts ?? []),
-                ...(response.slices?.flatMap((slice) =>
-                  slice.socialContext ? [slice.socialContext] : [],
-                ) ?? []),
-              ],
-              interstitials: [
-                ...(s.feedUI[feedKey]?.interstitials ?? []),
-                ...(response.interstitials ?? []),
-              ],
-            },
-          },
-        }));
-      } catch (error) {
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (isFeedCursorExpired(error) && recoveredFeedCursors.get(feedKey) !== meta.nextCursor) {
-          recoveredFeedCursors.set(feedKey, meta.nextCursor);
-          // Release the in-flight flag before refreshFeed's concurrency guard.
-          // Refresh owns its own failure and never recursively retries a 410.
-          set((s) => ({
-            feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false } },
-          }));
-          await get().refreshFeed(type, filters);
-          return;
-        }
-        set((s) => ({
-          feedUI: {
-            ...s.feedUI,
-            [feedKey]: {
-              ...s.feedUI[feedKey],
-              isLoading: false,
-              ...feedFailure(error, 'Failed to load more feed'),
-            },
-          },
-        }));
-      } finally {
-        const current = pendingRequests.get(requestKey);
-        if (current?.abortController === abortController) {
-          pendingRequests.delete(requestKey);
-        }
-      }
-    },
-
-    // ── createPost ───────────────────────────────────────────
-    createPost: async (request: CreatePostRequest) => {
-      const operationEpoch = captureViewerStateEpoch();
-      let confirmedId: string | null = null;
-      set({ isLoading: true, error: null });
-
-      try {
-        const response = await feedService.createPost(request);
-        if (!response.success || !response.post) {
-          throw new Error('Publication result could not be confirmed');
-        }
-        confirmedId = response.post.id;
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return { id: confirmedId };
-        const rawPost = response.post;
-        if (rawPost.metadata.status === 'scheduled') {
-          set({ isLoading: false });
-          return { id: confirmedId };
-        }
-
-        const newPost: FeedItem = {
-          ...toFeedItem(rawPost),
-          engagement: {
-            replies: 0,
-            boosts: 0,
-            likes: 0,
-            downvotes: 0,
-            saves: 0,
-            views: null,
-            impressions: null,
-          },
-          isLocalNew: true,
-        };
-
-        // Write to SQLite
-        dbUpsertPost(newPost);
-
-        // Add to relevant feeds at position 0
-        const feedKeys = ['posts', 'mixed', 'for_you', 'following'];
-        for (const key of feedKeys) {
-          dbAddFeedItemAtStart(key, newPost.id);
-        }
-
-        // Add to user feed if loaded
-        const userId = newPost.user?.id;
-        if (userId) {
-          const userFeedKey = buildFeedKey('posts', userId);
-          dbAddFeedItemAtStart(userFeedKey, newPost.id);
-          feedKeys.push(userFeedKey);
-        }
-
-        // The feed queries (web without SQLite, scoped feeds) don't read SQLite —
-        // put the new post at the top of the home/profile ones, mounted or not.
-        publishNewLocalPost(newPost);
-
-        notifyPostChanges([newPost.id]);
-        notifyFeedChanges(feedKeys);
-        invalidateProfileCounts(queryClient, newPost.user?.id);
-        set({ isLoading: false, lastRefresh: Date.now() });
-        return { id: confirmedId };
-      } catch (error) {
-        if (confirmedId !== null) {
-          logger.error('Post published, but the local cache update failed', error);
-          if (isCurrentViewerStateEpoch(operationEpoch)) set({ isLoading: false });
-          return { id: confirmedId };
-        }
-        if (!isCurrentViewerStateEpoch(operationEpoch)) throw error;
-        const errorMessage = error instanceof Error ? error.message : 'Failed to create post';
-        set({ isLoading: false, error: errorMessage });
-        throw error;
-      }
-    },
-
-    // ── createThread ─────────────────────────────────────────
-    createThread: async (request: CreateThreadRequest) => {
-      const operationEpoch = captureViewerStateEpoch();
-      let confirmed = false;
-      let confirmedPosts: FeedItem[] = [];
-      set({ isLoading: true, error: null });
-
-      try {
-        const response = await feedService.createThread(request);
-        if (
-          !response.success ||
-          response.posts.length !== request.posts.length ||
-          !response.posts.length
-        ) {
-          throw new Error('Publication result could not be confirmed');
-        }
-        confirmed = true;
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
-        const newPosts: FeedItem[] = response.posts.map((post) => ({
-          ...toFeedItem(post),
-          engagement: {
-            replies: 0,
-            boosts: 0,
-            likes: 0,
-            downvotes: 0,
-            saves: 0,
-            views: null,
-            impressions: null,
-          },
-          isLocalNew: true,
-        }));
-        confirmedPosts = newPosts;
-
-        // Write to SQLite
-        dbUpsertPosts(newPosts);
-
-        // Add to feeds
-        const feedKeys = ['posts', 'mixed', 'for_you', 'following'];
-        for (const post of newPosts) {
-          for (const key of feedKeys) {
-            dbAddFeedItemAtStart(key, post.id);
-          }
-        }
-
-        const userId = newPosts[0]?.user?.id;
-        if (userId) {
-          const userFeedKey = buildFeedKey('posts', userId);
-          for (const post of newPosts) {
-            dbAddFeedItemAtStart(userFeedKey, post.id);
-          }
-          feedKeys.push(userFeedKey);
-        }
-
-        // The feed queries (web without SQLite, scoped feeds) don't read SQLite —
-        // put the thread's lead post at the top of the home/profile ones, mounted
-        // or not. The thread renders as one slice headed by the first post.
-        if (newPosts[0]) {
-          publishNewLocalPost(newPosts[0]);
-        }
-
-        notifyPostChanges(collectWrittenPostIds(newPosts));
-        notifyFeedChanges(feedKeys);
-        invalidateProfileCounts(queryClient, newPosts[0]?.user?.id);
-        set({ isLoading: false, lastRefresh: Date.now() });
-        return newPosts;
-      } catch (error) {
-        if (confirmed) {
-          logger.error('Thread published, but the local cache update failed', error);
-          if (isCurrentViewerStateEpoch(operationEpoch)) set({ isLoading: false });
-          return confirmedPosts;
-        }
-        if (!isCurrentViewerStateEpoch(operationEpoch)) throw error;
-        const errorMessage = error instanceof Error ? error.message : 'Failed to create thread';
-        set({ isLoading: false, error: errorMessage });
-        throw error;
-      }
-    },
-
-    // ── createReply ──────────────────────────────────────────
-    createReply: async (request: CreateReplyRequest) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      let previousPost: FeedItem | null = null;
-      let confirmed = false;
-      let confirmedReply: FeedItem | null = null;
-
-      set({ isLoading: true, error: null });
-
-      try {
-        markLocalAction(postId, 'reply');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({
-            ...prev,
-            engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 },
-          }));
-        }
-
-        const response = await feedService.createReply(request);
-        if (!response.success || !response.reply) {
-          throw new Error('Publication result could not be confirmed');
-        }
-        confirmed = true;
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
-
-        // The reply itself, hydrated by the server for this viewer: cache it
-        // like any other post, and hand it to the thread's replies feed, which
-        // would otherwise not show it until a pull-to-refresh.
-        let reply: FeedItem | null = null;
-        if (response.reply) {
-          reply = { ...toFeedItem(response.reply), isLocalNew: true };
-          confirmedReply = reply;
-          dbUpsertPost(reply);
-          notifyPostChanges([reply.id]);
-          publishNewLocalReply(reply);
-        }
-        set({ isLoading: false });
-        return reply;
-      } catch (error) {
-        if (confirmed) {
-          logger.error('Reply published, but the local cache update failed', error);
-          if (isCurrentViewerStateEpoch(operationEpoch)) set({ isLoading: false });
-          return confirmedReply;
-        }
-        if (!isCurrentViewerStateEpoch(operationEpoch)) throw error;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to create reply';
-        set({ isLoading: false, error: errorMessage });
-        throw error;
-      }
-    },
-
-    // ── createBoost ──────────────────────────────────────────
-    createBoost: async (request: CreateBoostRequest) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.originalPostId;
-      let previousPost: FeedItem | null = null;
-
-      set({ isLoading: true, error: null });
-
-      try {
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({
-            ...prev,
-            engagement: { ...prev.engagement, boosts: (prev.engagement.boosts || 0) + 1 },
-          }));
-        }
-
-        const response = await feedService.createBoost(request);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to create boost');
-        }
-        set({ isLoading: false });
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to create boost';
-        set({ isLoading: false, error: errorMessage });
-        throw error;
-      }
-    },
-
-    // ── boostPost ────────────────────────────────────────────
-    boostPost: async (request: { postId: string }, source?: string) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      let previousPost: FeedItem | null = null;
-
-      try {
-        markLocalAction(postId, 'boost');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({
-            ...prev,
-            viewerState: { ...prev.viewerState, isBoosted: true },
-            engagement: { ...prev.engagement, boosts: (prev.engagement.boosts ?? 0) + 1 },
-          }));
-        }
-
-        const response = await feedService.createBoost(
-          { originalPostId: postId, mentions: [], hashtags: [] },
-          source,
-        );
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to boost');
-        }
-        invalidateEngagementLists('boost');
-        invalidateProfileCounts(queryClient);
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to boost';
-        set({ error: errorMessage });
-        throw error;
-      }
-    },
-
-    // ── unboostPost ──────────────────────────────────────────
-    unboostPost: async (request: { postId: string }) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      let previousPost: FeedItem | null = null;
-
-      try {
-        markLocalAction(postId, 'unboost');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({
-            ...prev,
-            viewerState: { ...prev.viewerState, isBoosted: false },
-            engagement: {
-              ...prev.engagement,
-              boosts: Math.max(0, (prev.engagement.boosts ?? 0) - 1),
-            },
-          }));
-        }
-
-        const response = await feedService.unboostItem(request);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to unboost');
-        }
-        invalidateEngagementLists('boost');
-        invalidateProfileCounts(queryClient);
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to unboost';
-        set({ error: errorMessage });
-        throw error;
-      }
-    },
-
-    // ── likePost ─────────────────────────────────────────────
-    likePost: async (request: LikeRequest, source?: string) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      const engagementKey = getEngagementKey(postId, 'like');
-      let previousPost: FeedItem | null = null;
-
-      if (inFlightEngagements.has(engagementKey)) return;
-      inFlightEngagements.set(engagementKey, 'like');
-
-      try {
-        markLocalAction(postId, 'like');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          if (!currentPost.viewerState.isLiked) {
-            get().updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              viewerState: { ...prev.viewerState, isLiked: true },
-              engagement: { ...prev.engagement, likes: (prev.engagement.likes ?? 0) + 1 },
-            }));
-          }
-        }
-
-        const response = await feedService.voteItem(postId, 1, source);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to like');
-        }
-        syncVoteStateFromServer(get, postId, response.data);
-        invalidateEngagementLists('like');
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to like';
-        set({ error: errorMessage });
-        throw error;
-      } finally {
-        if (isCurrentViewerStateEpoch(operationEpoch)) {
-          inFlightEngagements.delete(engagementKey);
-        }
-      }
-    },
-
-    // ── unlikePost ───────────────────────────────────────────
-    unlikePost: async (request: UnlikeRequest) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      const engagementKey = getEngagementKey(postId, 'unlike');
-      let previousPost: FeedItem | null = null;
-
-      if (inFlightEngagements.has(engagementKey)) return;
-      inFlightEngagements.set(engagementKey, 'unlike');
-
-      try {
-        markLocalAction(postId, 'unlike');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          if (currentPost.viewerState.isLiked) {
-            get().updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              viewerState: { ...prev.viewerState, isLiked: false },
-              engagement: {
-                ...prev.engagement,
-                likes: Math.max(0, (prev.engagement.likes ?? 0) - 1),
-              },
-            }));
-          }
-        }
-
-        const response = await feedService.removeVote(postId);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to unlike');
-        }
-        syncVoteStateFromServer(get, postId, response.data);
-        invalidateEngagementLists('like');
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to unlike';
-        set({ error: errorMessage });
-        throw error;
-      } finally {
-        if (isCurrentViewerStateEpoch(operationEpoch)) {
-          inFlightEngagements.delete(engagementKey);
-        }
-      }
-    },
-
-    // ── downvotePost ─────────────────────────────────────────
-    downvotePost: async (request: { postId: string; type: string }) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      const engagementKey = getEngagementKey(postId, 'downvote');
-      let previousPost: FeedItem | null = null;
-
-      if (inFlightEngagements.has(engagementKey)) return;
-      inFlightEngagements.set(engagementKey, 'downvote');
-
-      try {
-        markLocalAction(postId, 'downvote');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          if (!currentPost.viewerState.isDownvoted) {
-            const wasLiked = currentPost.viewerState.isLiked;
-            get().updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              viewerState: { ...prev.viewerState, isLiked: false, isDownvoted: true },
-              engagement: {
-                ...prev.engagement,
-                likes: wasLiked
-                  ? Math.max(0, (prev.engagement.likes ?? 0) - 1)
-                  : prev.engagement.likes,
-                downvotes: (prev.engagement.downvotes ?? 0) + 1,
-              },
-            }));
-          }
-        }
-
-        const response = await feedService.voteItem(postId, -1);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to downvote');
-        }
-        syncVoteStateFromServer(get, postId, response.data);
-        // A downvote clears any like the viewer had on this post, so it changes
-        // the likes list exactly as an unlike does.
-        invalidateEngagementLists('like');
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to downvote';
-        set({ error: errorMessage });
-        throw error;
-      } finally {
-        if (isCurrentViewerStateEpoch(operationEpoch)) {
-          inFlightEngagements.delete(engagementKey);
-        }
-      }
-    },
-
-    // ── savePost ─────────────────────────────────────────────
-    savePost: async (request: { postId: string }, source?: string) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      const engagementKey = getEngagementKey(postId, 'save');
-      let previousPost: FeedItem | null = null;
-
-      if (inFlightEngagements.has(engagementKey)) return;
-      inFlightEngagements.set(engagementKey, 'save');
-
-      try {
-        markLocalAction(postId, 'save');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          if (!currentPost.viewerState.isSaved) {
-            get().updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              viewerState: { ...prev.viewerState, isSaved: true },
-              engagement: {
-                ...prev.engagement,
-                ...(typeof prev.engagement.saves === 'number'
-                  ? { saves: prev.engagement.saves + 1 }
-                  : {}),
-              },
-            }));
-          }
-        }
-
-        const response = await feedService.saveItem(request, source);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to save');
-        }
-        syncSaveStateFromServer(get, postId, response.data, true);
-        invalidateEngagementLists('save');
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to save';
-        set({ error: errorMessage });
-        throw error;
-      } finally {
-        if (isCurrentViewerStateEpoch(operationEpoch)) {
-          inFlightEngagements.delete(engagementKey);
-        }
-      }
-    },
-
-    // ── unsavePost ───────────────────────────────────────────
-    unsavePost: async (request: { postId: string }) => {
-      const operationEpoch = captureViewerStateEpoch();
-      const postId = request.postId;
-      const engagementKey = getEngagementKey(postId, 'unsave');
-      let previousPost: FeedItem | null = null;
-
-      if (inFlightEngagements.has(engagementKey)) return;
-      inFlightEngagements.set(engagementKey, 'unsave');
-
-      try {
-        markLocalAction(postId, 'unsave');
-        const currentPost = dbGetPostById(postId);
-        if (currentPost) {
-          previousPost = { ...currentPost };
-          if (currentPost.viewerState.isSaved) {
-            get().updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              viewerState: { ...prev.viewerState, isSaved: false },
-              engagement: {
-                ...prev.engagement,
-                ...(typeof prev.engagement.saves === 'number'
-                  ? { saves: Math.max(0, prev.engagement.saves - 1) }
-                  : {}),
-              },
-            }));
-          }
-        }
-
-        const response = await feedService.unsaveItem(request);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (!response.success) {
-          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to unsave');
-        }
-        syncSaveStateFromServer(get, postId, response.data, false);
-        invalidateEngagementLists('save');
-      } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
-        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to unsave';
-        set({ error: errorMessage });
-        throw error;
-      } finally {
-        if (isCurrentViewerStateEpoch(operationEpoch)) {
-          inFlightEngagements.delete(engagementKey);
-        }
-      }
-    },
-
-    // ── getPostById ──────────────────────────────────────────
-    getPostById: async (postId: string) => {
-      // Check SQLite first — a hit costs no request, so it never reaches the
-      // in-flight map.
-      const cached = dbGetPostById(postId);
-      if (cached) return cached;
-
-      // Same question already on the wire (see `inFlightPostReads`): join it.
-      const alreadyReading = inFlightPostReads.get(postId);
-      if (alreadyReading) return alreadyReading;
-
-      const read = (async (): Promise<FeedItem | null> => {
-        const operationEpoch = captureViewerStateEpoch();
-        let requestKey: string | null = null;
-        let timestamp = 0;
-        let abortController: AbortController | null = null;
-        try {
-          // Fetch from API
-          requestKey = `post:${postId}`;
-          pendingRequests.get(requestKey)?.abortController?.abort();
-          abortController = new AbortController();
-          timestamp = Date.now();
-          pendingRequests.set(requestKey, { timestamp, abortController });
-          const response = await feedService.getPostById(postId, abortController.signal);
-          if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch))
-            return null;
-          const item = toFeedItem(response);
-          dbUpsertPost(item);
-          persistRelatedPosts([item]);
-          notifyPostChanges(collectWrittenPostIds([item]));
-          return item;
-        } catch (error) {
-          if (abortController?.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch))
-            return null;
-          const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
-          set({ error: errorMessage });
-          throw error;
-        } finally {
-          if (requestKey) {
-            const current = pendingRequests.get(requestKey);
-            if (current?.abortController === abortController) {
-              pendingRequests.delete(requestKey);
-            }
-          }
-        }
-      })();
-
-      inFlightPostReads.set(postId, read);
-      try {
-        return await read;
-      } finally {
-        // Only the entry this call created — `resetViewerState` may have cleared
-        // the map and a later read may already own the id.
-        if (inFlightPostReads.get(postId) === read) {
-          inFlightPostReads.delete(postId);
-        }
-      }
-    },
-
-    // ── revalidatePostById ───────────────────────────────────
-    revalidatePostById: async (postId: string) => {
-      const operationEpoch = captureViewerStateEpoch();
-      if (!postId) return null;
-      const requestKey = `post:${postId}`;
-      pendingRequests.get(requestKey)?.abortController?.abort();
-      const abortController = new AbortController();
-      const timestamp = Date.now();
-      pendingRequests.set(requestKey, { timestamp, abortController });
-      try {
-        const response = await feedService.getPostById(postId, abortController.signal);
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch))
-          return null;
-        const item = toFeedItem(response);
-        if (!isValidId(item.id)) return null;
-        dbUpsertPost(item);
-        persistRelatedPosts([item]);
-        notifyPostChanges(collectWrittenPostIds([item]));
-        return item;
-      } catch (error) {
-        if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch))
-          return null;
-        const { status } = normalizeApiError(error);
-        if (status === 403 || status === 404) removeRevokedPost(get, postId);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to revalidate post';
-        logger.debug('revalidatePostById failed', { postId, error: errorMessage });
-        return null;
-      } finally {
-        const current = pendingRequests.get(requestKey);
-        if (current?.abortController === abortController) {
-          pendingRequests.delete(requestKey);
-        }
-      }
-    },
-
-    // ── getPostsByIds ────────────────────────────────────────
-    getPostsByIds: async (postIds: readonly string[]) => {
-      const ids = [...new Set(postIds.filter(isValidId))];
-      if (ids.length === 0) return [];
-      const cached = dbGetPostsByIds(ids);
-      const misses = ids.filter((id) => !cached[id]);
-      const fetched = new Map<string, FeedItem>();
-      if (misses.length > 0) {
-        const operationEpoch = captureViewerStateEpoch();
-        const chunks: string[][] = [];
-        for (let offset = 0; offset < misses.length; offset += MAX_POST_BATCH) {
-          chunks.push(misses.slice(offset, offset + MAX_POST_BATCH));
-        }
-        const pages = await Promise.all(chunks.map((chunk) => feedService.getPostsByIds(chunk)));
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
-        const items = pages
-          .flat()
-          .map((post) => toFeedItem(post))
-          .filter((item) => isValidId(item.id));
-        writeFetchedPosts(items);
-        for (const item of items) fetched.set(String(item.id), item);
-      }
-      return ids.flatMap((id) => {
-        const post = cached[id] ?? fetched.get(id);
-        return post ? [post] : [];
+    const published = response.post;
+    // Confirmed from here on: a local failure is logged, never reported as a
+    // failed publication.
+    try {
+      if (published.metadata.status === 'scheduled') return { id: published.id };
+      inStore(store, () => {
+        const [post] = storePosts([published]);
+        if (!post) return;
+        Post.merge(post.id, { engagement: NEW_POST_ENGAGEMENT, isLocalNew: true });
+        const stored = getPost(post.id);
+        if (stored) publishNewLocalPost(stored);
+        invalidateProfileCounts(queryClient, published.user?.id);
       });
-    },
+    } catch (error) {
+      logger.error('Post published, but the local cache update failed', error);
+    }
+    return { id: published.id };
+  },
 
-    // ── loadPostAncestors ────────────────────────────────────
-    loadPostAncestors: async (postId, startParentId, options) => {
-      const fresh = options?.fresh === true;
-      if (!postId || !startParentId) return [];
-      const cached = fresh ? [] : getCachedAncestorChain(postId, startParentId);
-      const top = cached[0];
-      // A cached chain that reaches the root (or the ceiling) needs no read.
-      if (top && (!top.parentPostId || cached.length >= MAX_POST_ANCESTORS)) return cached;
-
-      const operationEpoch = captureViewerStateEpoch();
-      let fetched: FeedItem[];
-      try {
-        const response = await feedService.getPostAncestors(top ? String(top.id) : postId);
-        fetched = response.map((post) => toFeedItem(post)).filter((item) => isValidId(item.id));
-      } catch (error) {
-        // Unreadable, missing or offline: keep what the cache already showed.
-        logger.debug('loadPostAncestors failed', { postId, ...normalizeApiError(error) });
-        return isCurrentViewerStateEpoch(operationEpoch) ? cached : [];
-      }
-      if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
-      writeFetchedPosts(fetched);
-
-      // The chain stopped below a parent the server would not return: the same
-      // answer a per-ancestor revalidation got as a 403/404.
-      const stoppedAt = fetched.length > 0 ? fetched[0].parentPostId : startParentId;
-      if (fresh && stoppedAt && fetched.length < MAX_POST_ANCESTORS) {
-        removeRevokedPost(get, String(stoppedAt));
-      }
-      return [...fetched, ...cached].slice(-MAX_POST_ANCESTORS);
-    },
-
-    // ── cachePosts ───────────────────────────────────────────
-    // Seed the shared post cache from the feed query path. Transforms raw feed
-    // items into the canonical UI shape (so the detail screen reads the same
-    // shape the SQLite path produces) and upserts them — plus any embedded
-    // related posts — without writing feed_items, so the query's own ordering
-    // in its cached pages is untouched.
-    cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => {
-      if (!posts || posts.length === 0) return;
-
-      const transformed = posts
-        .map((p) => toFeedItem(p))
-        .filter((p) => isValidId(p.id))
-        // Defense-in-depth: a `type:'boost'` post has an empty body and is only
-        // renderable via its embedded original. If an incoming copy lost that
-        // original (an under-hydrated response from some endpoint) but the cached
-        // copy still HAS it, keep the cached one — never let a blank boost
-        // clobber a hydrated boost in the shared cache. The backend now always
-        // embeds the boost original (PostHydrationService), so this is a guard
-        // against future regressions, not the primary fix.
-        .filter((item) => {
-          if (isRenderableBoost(item)) return true;
-          const cached = dbGetPostById(item.id);
-          // Drop the under-hydrated incoming copy only when the cached copy is a
-          // strictly-better (renderable) boost; otherwise let it through.
-          return !(cached && isRenderableBoost(cached));
-        });
-      if (transformed.length === 0) return;
-
-      dbUpsertPosts(transformed);
-      persistRelatedPosts(transformed);
-      notifyPostChanges(collectWrittenPostIds(transformed));
-    },
-
-    // ── updatePostLocally ────────────────────────────────────
-    updatePostLocally: (postId: string, updates: Partial<FeedItem>) => {
-      const result = dbUpdatePost(postId, (prev) => ({ ...prev, ...updates }));
-      if (result) notifyPostChanges([postId]);
-    },
-
-    // ── updatePostEverywhere ─────────────────────────────────
-    // Now O(1) — single SQLite UPDATE instead of scanning all feeds
-    updatePostEverywhere: (
-      postId: string,
-      updater: (prev: FeedItem) => FeedItem | null | undefined,
-    ) => {
-      const result = dbUpdatePost(postId, updater);
-      if (result) {
-        notifyPostChanges([postId]);
-      }
-    },
-
-    // ── removePostEverywhere ─────────────────────────────────
-    // Single removal authority. On the SQLite path this drops the post from every
-    // feed + the post cache and notifies only selectors for feeds that contained
-    // it, so the post vanishes reactively. The feed queries (web without SQLite,
-    // scoped feeds) never read SQLite, so the removal is also written into every
-    // one of them (mirror of `createPost` → `publishNewLocalPost`) — without this
-    // the post would linger in their cached pages until a manual refresh.
-    removePostEverywhere: (postId: string) => {
-      const affectedFeedKeys = dbGetFeedKeysForPost(postId);
-      dbRemovePostFromAllFeeds(postId);
-      dbDeletePost(postId);
-      publishRemovedLocalPost(postId);
-      notifyPostChanges([postId]);
-      notifyFeedChanges(affectedFeedKeys);
-    },
-
-    // ── reinsertPost ─────────────────────────────────────────
-    // Rollback counterpart of `removePostEverywhere`: re-add a previously-removed
-    // post after a failed optimistic delete. Mirrors `createPost`'s insertion
-    // (SQLite home/profile feeds at top + the feed query cache) so the post
-    // reappears on both platforms. Position is restored to the top of the feed
-    // (the same semantics a freshly created own-post uses), which is acceptable on
-    // the rare delete-failure path.
-    reinsertPost: (post: FeedItem) => {
-      if (!post?.id || !isValidId(String(post.id))) return;
-      dbUpsertPost(post);
-      const feedKeys = ['posts', 'mixed', 'for_you', 'following'];
-      for (const key of feedKeys) {
-        dbAddFeedItemAtStart(key, post.id);
-      }
-      const userId = post.user?.id;
-      if (userId) {
-        const userFeedKey = buildFeedKey('posts', userId);
-        dbAddFeedItemAtStart(userFeedKey, post.id);
-        feedKeys.push(userFeedKey);
-      }
-      publishNewLocalPost(post);
-      notifyPostChanges([post.id]);
-      notifyFeedChanges(feedKeys);
-    },
-
-    // ── removePostLocally ────────────────────────────────────
-    removePostLocally: (postId: string, feedType: FeedType) => {
-      const feedKey = buildFeedKey(feedType);
-      dbRemoveFeedItem(feedKey, postId);
-      notifyFeedChanges([feedKey]);
-    },
-
-    // ── addPostToFeed ────────────────────────────────────────
-    addPostToFeed: (post: FeedItem, feedType: FeedType) => {
-      get().addPostsToFeed([post], feedType);
-    },
-
-    // ── addPostsToFeed ───────────────────────────────────────
-    // The realtime path: `socketService` hands it posts the server hydrated for
-    // no viewer, so the viewer's own state on a cached copy is kept.
-    addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => {
-      if (!posts || posts.length === 0) return;
-
-      const feedKey = buildFeedKey(feedType);
-      const transformed = posts.map((p) =>
-        keepViewerFields(toFeedItem(p), get().getPostFromDb(p.id)),
+  createThread: async (request) => {
+    const store = currentStore();
+    const response = await feedService.createThread(request);
+    if (
+      !response.success ||
+      response.posts.length !== request.posts.length ||
+      !response.posts.length
+    ) {
+      throw new Error('Publication result could not be confirmed');
+    }
+    try {
+      return (
+        inStore(store, () => {
+          const posts = storePosts(response.posts);
+          for (const post of posts) {
+            Post.merge(post.id, { engagement: NEW_POST_ENGAGEMENT, isLocalNew: true });
+          }
+          // The thread renders as one slice headed by its first post.
+          const lead = getPost(posts[0]?.id);
+          if (lead) publishNewLocalPost(lead);
+          invalidateProfileCounts(queryClient, posts[0]?.user?.id);
+          return posts.map((post) => getPost(post.id) ?? post);
+        }) ?? []
       );
-      dbUpsertPosts(transformed);
+    } catch (error) {
+      logger.error('Thread published, but the local cache update failed', error);
+      return [];
+    }
+  },
 
-      for (const post of transformed) {
-        dbAddFeedItemAtStart(feedKey, post.id);
-      }
+  createReply: async (request) => {
+    const store = currentStore();
+    const response = await sendReply(request);
+    const answer = response?.reply;
+    if (!answer) return null;
+    // The reply as stored, once it is: what a failure after that still returns.
+    let confirmed: FeedItem | null = null;
+    try {
+      return (
+        inStore(store, () => {
+          const [reply] = storePosts([answer]);
+          if (!reply) return null;
+          Post.merge(reply.id, { isLocalNew: true });
+          confirmed = getPost(reply.id) ?? reply;
+          publishNewLocalReply(confirmed);
+          return confirmed;
+        }) ?? null
+      );
+    } catch (error) {
+      logger.error('Reply published, but the local cache update failed', error);
+      return confirmed;
+    }
+  },
 
-      precacheActorsFromPosts(transformed);
-      notifyPostChanges(collectWrittenPostIds(transformed));
-      notifyFeedChanges([feedKey]);
-    },
+  createBoost: async (request) => {
+    await sendBoost(request);
+  },
 
-    // ── Utility ──────────────────────────────────────────────
-    clearError: () => set({ error: null }),
+  boostPost: (request, from) => settled(boostPost(request.postId, from)),
+  unboostPost: (request) => settled(unboostPost(request.postId)),
+  likePost: (request, from) => settled(likePost(request.postId, from)),
+  unlikePost: (request) => settled(unlikePost(request.postId)),
+  downvotePost: (request) => settled(downvotePost(request.postId)),
+  savePost: (request, from) => settled(savePost(request.postId, from)),
+  unsavePost: (request) => settled(unsavePost(request.postId)),
 
-    clearFeed: (type: FeedType) => {
-      const feedKey = buildFeedKey(type);
-      dbClearFeed(feedKey);
-      set((s) => ({
-        feedUI: { ...s.feedUI, [feedKey]: defaultFeedUI() },
-      }));
-      notifyFeedChanges([feedKey]);
-    },
+  getPostById: async (postId) => {
+    const held = getPost(postId);
+    if (held) return held;
+    const store = currentStore();
+    await Post.load([postId]);
+    const restored = inStore(store, () => getPost(postId));
+    if (restored) return restored;
+    await inStore(store, () => postSource.fetch(postId));
+    return (
+      inStore(store, () => {
+        const error = readError(postId);
+        if (error) throw error;
+        return getPost(postId);
+      }) ?? null
+    );
+  },
 
-    clearUserFeed: (userId: string, type: FeedType) => {
-      const feedKey = buildFeedKey(type, userId);
-      dbClearFeed(feedKey);
-      set((s) => ({
-        feedUI: { ...s.feedUI, [feedKey]: defaultFeedUI() },
-      }));
-      notifyFeedChanges([feedKey]);
-    },
+  revalidatePostById: async (postId) => {
+    if (!postId) return null;
+    const store = currentStore();
+    await postSource.refresh(postId);
+    return (
+      inStore(store, () => {
+        const error = readError(postId);
+        if (!error) return getPost(postId);
+        const { status } = normalizeApiError(error);
+        if (status === 403 || status === 404) removeRevokedPost(postId);
+        logger.debug('revalidatePostById failed', { postId, status });
+        return null;
+      }) ?? null
+    );
+  },
 
-    prunePostsCache: () => {
-      dbPruneOldPosts();
-    },
+  getPostsByIds: async (postIds) => {
+    const ids = [...new Set(postIds.filter(isValidPostId))];
+    if (ids.length === 0) return [];
+    const store = currentStore();
+    await Post.load(ids.filter((id) => !Post.has(id)));
+    const misses = inStore(store, () => ids.filter((id) => !Post.has(id))) ?? [];
+    const chunks: string[][] = [];
+    for (let offset = 0; offset < misses.length; offset += MAX_POST_BATCH) {
+      chunks.push(misses.slice(offset, offset + MAX_POST_BATCH));
+    }
+    const pages = await Promise.all(chunks.map((chunk) => feedService.getPostsByIds(chunk)));
+    return (
+      inStore(store, () => {
+        storePosts(pages.flat());
+        return ids.flatMap((id) => {
+          const post = getPost(id);
+          return post ? [post] : [];
+        });
+      }) ?? []
+    );
+  },
 
-    resetViewerState: (options) => {
-      viewerStateEpoch += 1;
-      for (const pending of pendingRequests.values()) {
-        pending.abortController?.abort();
-      }
-      pendingRequests.clear();
-      recoveredFeedCursors.clear();
-      // A read that started for the previous viewer must not be handed to the
-      // new one: its promise is already epoch-guarded to resolve `null`, so a
-      // joiner would get "post not found" instead of reading it fresh.
-      inFlightPostReads.clear();
-      inFlightEngagements.clear();
+  loadPostAncestors: async (postId, startParentId, options) => {
+    const fresh = options?.fresh === true;
+    if (!postId || !startParentId) return [];
+    const cached = fresh ? [] : getCachedAncestorChain(postId, startParentId);
+    const top = cached[0];
+    // A held chain that reaches the root (or the ceiling) needs no read.
+    if (top && (!top.parentPostId || cached.length >= MAX_POST_ANCESTORS)) return cached;
 
-      if (options?.clearCachedData !== false) {
-        dbClearAllCachedData();
-      }
-      invalidateAllSnapshots();
-      set({
-        feedUI: {},
-        isLoading: false,
-        error: null,
-        lastRefresh: 0,
-      });
-    },
-  })),
-);
+    const store = currentStore();
+    let response: HydratedPost[];
+    try {
+      response = await feedService.getPostAncestors(top ? String(top.id) : postId);
+    } catch (error) {
+      // Unreadable, missing or offline: keep what the cache already showed.
+      logger.debug('loadPostAncestors failed', { postId, ...normalizeApiError(error) });
+      return store.closed ? [] : cached;
+    }
+    return (
+      inStore(store, () => {
+        const fetched = storePosts(response);
+        // The chain stopped below a parent the server would not return: the
+        // same answer a per-ancestor revalidation got as a 403/404.
+        const stoppedAt = fetched.length > 0 ? fetched[0]?.parentPostId : startParentId;
+        if (fresh && stoppedAt && fetched.length < MAX_POST_ANCESTORS) {
+          removeRevokedPost(String(stoppedAt));
+        }
+        return [...fetched.map((post) => getPost(post.id) ?? post), ...cached].slice(
+          -MAX_POST_ANCESTORS,
+        );
+      }) ?? []
+    );
+  },
 
-// ── Server-authoritative view counts ─────────────────────────────
+  cachePosts: (posts) => {
+    if (posts && posts.length > 0) storePosts(posts);
+  },
+
+  updatePostEverywhere: (postId, updater) => {
+    Post.update(postId, updater);
+  },
+
+  removePostEverywhere: (postId) => {
+    // A boost or quote of a removed post goes with it, as its feed rows did.
+    const removed = [postId, ...Post.referencing(Post, postId)];
+    for (const id of removed) Post.remove(id);
+  },
+
+  reinsertPost: (post) => {
+    if (!post?.id || !isValidPostId(String(post.id))) return;
+    storePosts([post]);
+    publishNewLocalPost(getPost(post.id) ?? post);
+  },
+
+  getPostFromDb: (postId) => getPost(postId),
+}));
 
 /**
- * Write the server's view totals into the shared post cache.
- *
- * View counting is decided ENTIRELY server-side — a 24h per-viewer dedupe
- * window, the self-view guard, the public+published eligibility filter — so the
- * client cannot know whether a view it reported was counted. An optimistic +1
- * would therefore be wrong in exactly the cases the server declined, and a wrong
- * count never converges, while a late one does. Every caller passes numbers the
- * server actually wrote (`POST /feed/mtn/interactions` → `viewCounts`, and the
- * post-detail view ack), never one it derived.
- *
- * Goes through `updatePostEverywhere`, the single client write authority, so one
- * call reaches Zustand, SQLite, the web memory store and that post's subscribers
- * together. Returning `undefined` from the updater when the value already
- * matches makes the write a no-op rather than a re-render nothing would see.
+ * Write the server's view totals. View counting is decided entirely
+ * server-side, so these are only ever numbers the server wrote. They go to the
+ * view-count records alone (`PostViews`): the impression report answers for
+ * every post on screen at once, and a feed row does not redraw for it.
  */
 export const applyServerViewCounts = (viewCounts: FeedPostViewCounts): void => {
-  const changed: string[] = [];
-  for (const [postId, views] of Object.entries(viewCounts)) {
-    // These arrive as parsed JSON, so the declared type is a claim about the
-    // wire, not a guarantee about the value: a malformed payload would otherwise
-    // render as "NaN views" with nothing to trace it back to.
-    if (!isValidId(postId) || !Number.isFinite(views)) continue;
-    // Deliberately NOT `updatePostEverywhere`: the write is the same, but that
-    // path wakes the POST's subscribers, and this is the one write in the store
-    // that arrives for every post on screen at once (the impression report's
-    // answer, on every scroll). See `viewCountCache` for what that cost.
-    const written = dbUpdatePost(postId, (prev) =>
-      prev.engagement.views === views
-        ? undefined
-        : { ...prev, engagement: { ...prev.engagement, views } },
-    );
-    if (written) changed.push(postId);
-  }
-  if (changed.length > 0) notifyViewCountChanges(changed);
-};
-
-// ── Reactive SQLite selectors ────────────────────────────────────
-// SQLite is EXTERNAL MUTABLE state, so all render-time reads of it go through
-// `useSyncExternalStore` — React's contract for external stores — subscribed to
-// a channel for the exact post/feed key being read.
-//
-// Why not `useMemo(() => dbGetAllFeedItems(feedKey), [feedKey, revision])`:
-// the React Compiler (`reactCompiler: true`) infers memo dependencies from the
-// callback's actual data flow, not from the manual deps array. A revision is
-// never referenced INSIDE the callback — it is a proxy counter — so the compiler
-// drops it and memoizes the read on `feedKey` alone, permanently serving the
-// first render's value. On a FIRST launch (empty DB cold start) that first value
-// is the empty feed; the fetch then writes rows out-of-band, but the compiled
-// memo never re-read → the feed stayed on
-// "No posts yet" (verified on-device: direct DB read returned 20 rows while the
-// memoized selector returned 0). `useSyncExternalStore` fixes this at the root:
-// React itself re-runs `getSnapshot` when the subscription fires, so the compiler
-// can stay enabled with no opt-outs.
-//
-// `getSnapshot` MUST return a referentially-stable value until the data actually
-// changes (a fresh array per call → infinite render loop), so snapshots are
-// cached per key and only the changed key is evicted before its listeners run.
-
-const getViewCountSnapshot = (postId: string, _revision: number): number | null | undefined => {
-  if (viewCountCache.has(postId)) return viewCountCache.get(postId);
-  const post = dbGetPostById(postId);
-  const views = post ? (post.engagement.views ?? null) : undefined;
-  setBoundedSnapshot(viewCountCache, postId, views, MAX_POST_SNAPSHOTS);
-  return views;
-};
-
-// The post cache is evicted on every write to a post (`notifyPostChanges`), so
-// an entry here is as fresh as a SQLite read — the feed read only parses posts
-// it does not already hold.
-const reuseCachedPost = (postId: string): FeedItem | null | undefined =>
-  postSnapshotCache.get(postId) ?? undefined;
-
-const getFeedSnapshot = (feedKey: string, _revision: number): FeedSnapshot => {
-  let snapshot = feedSnapshotCache.get(feedKey);
-  if (!snapshot) {
-    const items = dbGetAllFeedItems(feedKey, reuseCachedPost);
-    // Seed the per-post cache with what the feed just parsed, so each row's
-    // `usePostSelector` finds its post instead of issuing its own SELECT and
-    // JSON.parse during its first render.
-    for (const item of items) {
-      if (item.id && !postSnapshotCache.has(item.id)) {
-        setBoundedSnapshot(postSnapshotCache, item.id, item, MAX_POST_SNAPSHOTS);
-      }
-    }
-    snapshot = { items, meta: dbGetFeedMeta(feedKey) };
-    setBoundedSnapshot(feedSnapshotCache, feedKey, snapshot, MAX_FEED_SNAPSHOTS);
-  }
-  return snapshot;
-};
-
-const getPostSnapshot = (postId: string, _revision: number): FeedItem | null => {
-  const cached = postSnapshotCache.get(postId);
-  if (cached !== undefined) return cached;
-  const post = dbGetPostById(postId);
-  setBoundedSnapshot(postSnapshotCache, postId, post, MAX_POST_SNAPSHOTS);
-  return post;
-};
-
-const EMPTY_FEED_SNAPSHOT: FeedSnapshot = { items: [], meta: null };
-
-/** `feedKey` null: a reader this feed does not serve, subscribed to nothing. */
-const useFeedSnapshot = (feedKey: string | null): FeedSnapshot => {
-  const subscribe = useCallback(
-    (listener: SnapshotListener) =>
-      feedKey
-        ? subscribeToSnapshotKey(feedSnapshotListeners, feedSnapshotRevisions, feedKey, listener)
-        : () => undefined,
-    [feedKey],
+  const counts = Object.entries(viewCounts).flatMap(([id, views]) =>
+    // Parsed JSON: a malformed payload would otherwise render as "NaN views".
+    // A post never held gets no count of its own: its cell keeps the number it
+    // was read with.
+    isValidPostId(id) && Number.isFinite(views) && Post.has(id) ? [{ id, views }] : [],
   );
-  const getRevision = useCallback(
-    () => (feedKey ? (feedSnapshotRevisions.get(feedKey) ?? 0) : 0),
-    [feedKey],
-  );
-  const revision = useSyncExternalStore(subscribe, getRevision, getRevision);
-  return feedKey ? getFeedSnapshot(feedKey, revision) : EMPTY_FEED_SNAPSHOT;
+  if (counts.length > 0) PostViews.put(counts);
 };
 
 /**
- * The part of a post's ancestor chain the cache can answer with NO network,
- * ordered root first — the same order `loadPostAncestors`
- * produces.
- *
- * Exists so the chain is on screen in the FIRST commit. The ancestor read sets
- * state from an effect, i.e. after the browser has already painted, so a fully
- * cached thread showed the focused post alone for a frame and then pushed it
- * down as its parents appeared. Opening a post from a feed is exactly the case
- * where every ancestor is already cached — the common case was the janky one.
- *
- * Stops at the first UNCACHED hop rather than skipping it: a chain with a hole
- * in it would render parents out of order. `loadPostAncestors` then reads the
- * rest of the chain in one request and appends it above.
+ * The part of a post's ancestor chain held in memory, root first, so a cached
+ * thread is on screen in the first commit. Stops at the first missing hop: a
+ * chain with a hole would render parents out of order.
  */
 export const getCachedAncestorChain = (
   postId: string,
@@ -2068,112 +412,19 @@ export const getCachedAncestorChain = (
   const chain: FeedItem[] = [];
   const visited = new Set<string>([postId]);
   let nextId: string | undefined = startParentId;
-
   while (nextId && chain.length < MAX_POST_ANCESTORS) {
     if (visited.has(nextId)) break;
     visited.add(nextId);
-    const ancestor = dbGetPostById(nextId);
+    const ancestor = getPost(nextId);
     if (!ancestor) break;
     chain.push(ancestor);
     nextId = ancestor.parentPostId ? String(ancestor.parentPostId) : undefined;
   }
-
   return chain.reverse();
 };
 
-/**
- * Reactive read of a single cached post. Re-renders whenever the shared post
- * cache mutates (optimistic like/boost, background revalidation, delete, …).
- * The compiler-safe replacement for a memoized out-of-band SQLite read.
- */
-export const usePostSelector = (postId: string | undefined): FeedItem | null => {
-  const subscribe = useCallback(
-    (listener: SnapshotListener) =>
-      postId
-        ? subscribeToSnapshotKey(postSnapshotListeners, postSnapshotRevisions, postId, listener)
-        : () => undefined,
-    [postId],
-  );
-  const getRevision = useCallback(
-    () => (postId ? (postSnapshotRevisions.get(postId) ?? 0) : 0),
-    [postId],
-  );
-  const revision = useSyncExternalStore(subscribe, getRevision, getRevision);
-  return postId ? getPostSnapshot(postId, revision) : null;
-};
+/** One post, with field-level subscriptions (`data/posts` `usePost`). */
+export const usePostSelector = (postId: string | undefined): FeedItem | null => usePost(postId);
 
-/**
- * Reactive read of a post's view count, and NOTHING else about the post.
- *
- * The counterpart of `applyServerViewCounts`: a viewer's own scroll is what
- * moves this number, so it moves constantly, and a subscriber that re-rendered a
- * whole post for it would pay the feed's worst frame for a label the feed does
- * not even draw. A consumer of this hook re-renders when the count changes and
- * at no other time.
- *
- * `undefined` means the shared cache has no row for the post — the caller's own
- * fetch-time number is then the only one there is. `null` means the row exists
- * and its count is absent, which is a real answer and outranks a stale number.
- */
-export const useViewCountSelector = (postId: string | undefined): number | null | undefined => {
-  const subscribe = useCallback(
-    (listener: SnapshotListener) =>
-      postId
-        ? subscribeToSnapshotKey(viewCountListeners, viewCountRevisions, postId, listener)
-        : () => undefined,
-    [postId],
-  );
-  const getRevision = useCallback(
-    () => (postId ? (viewCountRevisions.get(postId) ?? 0) : 0),
-    [postId],
-  );
-  const revision = useSyncExternalStore(subscribe, getRevision, getRevision);
-  return postId ? getViewCountSnapshot(postId, revision) : undefined;
-};
-
-/**
- * A feed's rows and state from SQLite. `enabled: false` (a feed this hook
- * instance does not serve) subscribes to nothing, so no write to the feed wakes
- * it.
- */
-export const useFeedSelector = (type: FeedType, enabled = true) => {
-  const feedKey = buildFeedKey(type);
-  const ui = usePostsStore((s) => (enabled ? s.feedUI[feedKey] : undefined));
-  const { items, meta } = useFeedSnapshot(enabled ? feedKey : null);
-
-  return {
-    items,
-    slices: undefined as FeedPostSlice[] | undefined,
-    interstitials: ui?.interstitials,
-    socialContexts: ui?.socialContexts,
-    hasMore: meta?.hasMore ?? true,
-    nextCursor: meta?.nextCursor,
-    totalCount: meta?.totalCount ?? 0,
-    isLoading: ui?.isLoading ?? false,
-    error: ui?.error ?? null,
-    errorKind: ui?.errorKind,
-    lastUpdated: ui?.lastUpdated ?? 0,
-    filters: ui?.filters,
-  };
-};
-
-/** {@link useFeedSelector} for a profile's feed. */
-export const useUserFeedSelector = (userId: string, type: FeedType, enabled = true) => {
-  const feedKey = buildFeedKey(type, userId);
-  const ui = usePostsStore((s) => (enabled ? s.feedUI[feedKey] : undefined));
-  const { items, meta } = useFeedSnapshot(enabled ? feedKey : null);
-
-  return {
-    items,
-    slices: undefined as FeedPostSlice[] | undefined,
-    interstitials: ui?.interstitials,
-    socialContexts: ui?.socialContexts,
-    hasMore: meta?.hasMore ?? true,
-    nextCursor: meta?.nextCursor,
-    totalCount: meta?.totalCount ?? 0,
-    isLoading: ui?.isLoading ?? false,
-    error: ui?.error ?? null,
-    errorKind: ui?.errorKind,
-    lastUpdated: ui?.lastUpdated ?? 0,
-  };
-};
+/** A post's view count and nothing else (`data/posts` `useViewCount`). */
+export const useViewCountSelector = useViewCount;

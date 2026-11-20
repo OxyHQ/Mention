@@ -31,33 +31,6 @@ export {
   buildFeedKey,
 } from './schema';
 
-// Post queries
-export {
-  upsertPost,
-  upsertPosts,
-  getPostById,
-  getPostsByIds,
-  getPostIdsReferencing,
-  updatePost,
-  deletePost,
-  pruneOldPosts,
-} from './postQueries';
-
-// Feed queries
-export type { FeedMetaData } from './feedQueries';
-export {
-  setFeedItems,
-  appendFeedItems,
-  getAllFeedItems,
-  getFeedMeta,
-  hasFeedData,
-  removeFeedItem,
-  addFeedItemAtStart,
-  getFeedKeysForPost,
-  removePostFromAllFeeds,
-  clearFeed,
-} from './feedQueries';
-
 // Link queries
 export {
   upsertLink,

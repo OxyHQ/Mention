@@ -1,4 +1,6 @@
-import type { FeedItem } from '@/db';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { Post } from '@/data/posts';
+import type { FeedItem } from '@/db/schema';
 import { getCachedAncestorChain, usePostsStore } from '../postsStore';
 
 /**
@@ -16,32 +18,7 @@ import { getCachedAncestorChain, usePostsStore } from '../postsStore';
  * it replaced, and invisible until someone opened a partially cached thread.
  */
 
-const mockCache = new Map<string, FeedItem>();
 const mockGetPostAncestors = jest.fn();
-const mockDeletePost = jest.fn();
-
-jest.mock('@/db', () => ({
-  getPostById: (postId: string) => mockCache.get(postId) ?? null,
-  getPostIdsReferencing: () => [],
-  upsertPost: jest.fn(),
-  upsertPosts: jest.fn(),
-  updatePost: () => null,
-  deletePost: (postId: string) => mockDeletePost(postId),
-  pruneOldPosts: jest.fn(),
-  setFeedItems: jest.fn(),
-  appendFeedItems: jest.fn(),
-  getAllFeedItems: () => [],
-  getFeedMeta: () => null,
-  clearFeed: jest.fn(),
-  addFeedItemAtStart: jest.fn(),
-  getFeedKeysForPost: () => [],
-  removePostFromAllFeeds: jest.fn(),
-  removeFeedItem: jest.fn(),
-  buildFeedKey: (type: string, userId?: string) => (userId ? `user:${userId}:${type}` : type),
-  getDb: () => null,
-  rowToFeedItem: (row: FeedItem) => row,
-  clearAllCachedData: () => mockCache.clear(),
-}));
 
 jest.mock('@/services/feedService', () => ({
   feedService: { getPostAncestors: (postId: string) => mockGetPostAncestors(postId) },
@@ -51,10 +28,6 @@ jest.mock('@/db/feedItem', () => ({ toFeedItem: (post: FeedItem) => post }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/stores/engagementInvalidation', () => ({ invalidateEngagementLists: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
-jest.mock('@/stores/feedQueryCache', () => ({
-  publishNewLocalPost: jest.fn(),
-  publishRemovedLocalPost: jest.fn(),
-}));
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }),
@@ -66,13 +39,13 @@ jest.mock('@oxy.so/core/logger', () => ({
  * depends on fields it never touches.
  */
 function seed(id: string, parentPostId?: string): void {
-  mockCache.set(id, { id, parentPostId } as FeedItem);
+  Post.put({ id, parentPostId } as FeedItem);
 }
 
 const ids = (chain: FeedItem[]): string[] => chain.map((post) => post.id);
 
 beforeEach(() => {
-  mockCache.clear();
+  setActiveStore(new Store());
   jest.clearAllMocks();
 });
 
@@ -99,7 +72,7 @@ describe('getCachedAncestorChain', () => {
     seed('leaf');
     expect(getCachedAncestorChain('leaf', undefined)).toEqual([]);
 
-    mockCache.clear();
+    setActiveStore(new Store());
     expect(getCachedAncestorChain('leaf', 'mid')).toEqual([]);
   });
 
@@ -164,6 +137,6 @@ describe('loadPostAncestors', () => {
 
     expect(ids(await load('leaf', 'mid', true))).toEqual(['mid']);
     expect(mockGetPostAncestors).toHaveBeenCalledWith('leaf');
-    expect(mockDeletePost).toHaveBeenCalledWith('hidden');
+    expect(Post.has('hidden')).toBe(false);
   });
 });

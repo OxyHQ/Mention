@@ -7,7 +7,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { presentSheet } from '@/utils/sheet';
 import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
-import { prefetchFeed } from '@/hooks/useFeedQuery';
+import { prefetchFeed } from '@/data/feeds';
 import { pinnedPostQueryOptions } from '@/components/Profile/pinnedPostQuery';
 import { useOpenInAllo } from '@/hooks/useOpenInAllo';
 import { postPermalink } from '@/utils/postPermalink';
@@ -64,7 +64,7 @@ export function PostInteractionsBinder() {
         // still landing would be cached under the wrong viewer's key.
         if (!profileId || (isAuthenticated && (!viewerId || !canUsePrivateApi))) return;
         void queryClient.prefetchQuery(pinnedPostQueryOptions(viewerId, profileId));
-        prefetchFeed(queryClient, {
+        prefetchFeed({
           type: 'posts',
           userId: profileId,
           viewerId: isAuthenticated ? viewerId : undefined,
