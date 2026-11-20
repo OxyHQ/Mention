@@ -14,7 +14,6 @@ import { ReplySettingsMenuItems } from '@/components/Compose/ReplySettingsMenuIt
 import { usePublisherLanes } from '@/hooks/usePublisherLanes';
 import { useRouter } from '@/lib/navigation/router';
 import { lanesService } from '@/services/lanesService';
-import { openExternalLink } from '@/utils/openExternalLink';
 import { savePostSettings, type PostSettingsPatch } from './postSettings';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { usePostsStore } from '@/stores/postsStore';

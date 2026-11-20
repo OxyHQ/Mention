@@ -426,5 +426,3 @@ const styles = StyleSheet.create({
 });
 
 export default MentionTextInput;
-export type { MentionTextInputProps };
-export type { MentionData, MentionTextValue } from '@/utils/mentions';

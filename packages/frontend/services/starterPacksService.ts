@@ -2,7 +2,7 @@ import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { authenticatedClient } from '@/utils/api';
 
 /** Resolved owner summary embedded on a starter pack list/detail item. */
-export interface StarterPackCreator {
+interface StarterPackCreator {
   id?: string;
   username: string;
   displayName?: string;
@@ -14,7 +14,7 @@ export interface StarterPackCreator {
  * server-side (identity + fully-resolved avatar URL) because the bulk user
  * lookup requires a service credential the browser does not have.
  */
-export interface StarterPackMember {
+interface StarterPackMember {
   id: string;
   username: string;
   displayName?: string;

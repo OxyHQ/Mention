@@ -24,7 +24,7 @@ export type SearchUserResult = User & {
   federation?: { domain?: string };
 };
 
-export interface SearchOwnerResult {
+interface SearchOwnerResult {
   kind?: AvatarIdentitySummary['kind'];
   character?: AvatarIdentitySummary['character'];
   color?: AvatarIdentitySummary['color'];
@@ -91,14 +91,7 @@ export interface SearchResults {
 }
 
 /** Page size for the paginated single-category search tabs. */
-export const SEARCH_PAGE_LIMIT = 20;
-
-/**
- * Hashtag rows shown in the compact "All" overview (the multi-section fan-out),
- * kept small so it stays a preview. The dedicated Hashtags tab pages at
- * {@link SEARCH_PAGE_LIMIT} instead.
- */
-const SEARCH_OVERVIEW_HASHTAG_LIMIT = 5;
+const SEARCH_PAGE_LIMIT = 20;
 
 /** The offset-window echo every paginated Mention search endpoint returns. */
 interface SearchOffsetPagination {
@@ -108,21 +101,21 @@ interface SearchOffsetPagination {
 }
 
 /** A page of post results plus the opaque cursor to request the next page. */
-export interface SearchPostsPage {
+interface SearchPostsPage {
   posts: SearchPostResult[];
   hasMore: boolean;
   nextCursor?: string;
 }
 
 /** A page of user results plus the offset to request the next page. */
-export interface SearchUsersPage {
+interface SearchUsersPage {
   users: SearchUserResult[];
   hasMore: boolean;
   nextOffset: number;
 }
 
 /** A page of saved-post results plus the page number to request next. */
-export interface SearchSavedPage {
+interface SearchSavedPage {
   posts: SearchPostResult[];
   hasMore: boolean;
   /** The next page's cursor; present exactly when `hasMore`. */
@@ -130,28 +123,28 @@ export interface SearchSavedPage {
 }
 
 /** A page of feed results plus the offset to request the next page. */
-export interface SearchFeedsPage {
+interface SearchFeedsPage {
   feeds: SearchFeedResult[];
   hasMore: boolean;
   nextOffset: number;
 }
 
 /** A page of hashtag results plus the offset to request the next page. */
-export interface SearchHashtagsPage {
+interface SearchHashtagsPage {
   hashtags: SearchHashtagResult[];
   hasMore: boolean;
   nextOffset: number;
 }
 
 /** A page of list results plus the offset to request the next page. */
-export interface SearchListsPage {
+interface SearchListsPage {
   lists: SearchListResult[];
   hasMore: boolean;
   nextOffset: number;
 }
 
 /** A page of starter-pack results plus the page number to request next. */
-export interface SearchStarterPacksPage {
+interface SearchStarterPacksPage {
   starterPacks: SearchStarterPackResult[];
   hasMore: boolean;
   nextPage: number;

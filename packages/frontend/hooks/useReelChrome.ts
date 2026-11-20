@@ -192,7 +192,7 @@ export interface ReelChromeParams {
  * would name React Native 0.88's internal `GestureResponderHandlerMethods`,
  * which a composite project cannot emit (TS2883).
  */
-export interface ReelScrubResponder extends PanResponderInstance {}
+interface ReelScrubResponder extends PanResponderInstance {}
 
 export function useReelChrome({
   player,

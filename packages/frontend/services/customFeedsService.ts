@@ -74,7 +74,7 @@ type MarketplaceParams = {
  * canonical Oxy user (display name at `name.displayName`), resolved server-side
  * through the same batched summary cache post hydration uses.
  */
-export interface CustomFeedReview {
+interface CustomFeedReview {
   id: string;
   _id?: string;
   rating: number;
@@ -83,7 +83,7 @@ export interface CustomFeedReview {
   reviewer?: PostUser;
 }
 
-export interface FeedReviewsResponse {
+interface FeedReviewsResponse {
   reviews: CustomFeedReview[];
   total: number;
   page: number;
@@ -91,7 +91,7 @@ export interface FeedReviewsResponse {
 }
 
 /** One marketplace category and how many public feeds sit in it. */
-export interface FeedCategoryCount {
+interface FeedCategoryCount {
   category: string;
   count: number;
 }
@@ -103,7 +103,7 @@ export interface FeedCategoryCount {
  * NOT the CustomFeed detail screen, and imports the remote algorithm's output as
  * native posts. Read-only + owned upstream.
  */
-export interface FeedGeneratorItem {
+interface FeedGeneratorItem {
   id: string;
   uri: string;
   /** The MTN feed descriptor that opens this generator: `feedgen|<uri>`. */
@@ -115,7 +115,7 @@ export interface FeedGeneratorItem {
   owner?: PostUser | null;
 }
 
-export interface FeedGeneratorListResponse {
+interface FeedGeneratorListResponse {
   items: FeedGeneratorItem[];
   total: number;
 }

@@ -40,7 +40,7 @@ const HANDLE_RE = /(^|[\s([{"'])@[a-z0-9](?:[a-z0-9._-]{0,62})(?:@[a-z0-9.-]+)?\
 const OMIT = Symbol('omit');
 
 /** JSON-safe value a sanitized log field is reduced to. */
-export type Serializable =
+type Serializable =
   | string
   | number
   | boolean
@@ -67,7 +67,7 @@ function truncate(value: string, maxLength = MAX_STRING_LENGTH): string {
  * Scrub secrets and common personal identifiers that may be interpolated into
  * otherwise useful operational messages.
  */
-export function sanitizeLogString(value: string): string {
+function sanitizeLogString(value: string): string {
   const scrubbed = value
     .replace(BEARER_RE, REDACTED)
     .replace(CREDENTIAL_ASSIGNMENT_RE, (_match, label: string) => `${label}=${REDACTED}`)
@@ -204,7 +204,7 @@ function freshState(): SanitizeState {
  * Errors collapse to `{name, message, stack}`; everything else is reduced to
  * bounded JSON-safe data.
  */
-export function sanitizeLogValue(value: unknown): Serializable {
+function sanitizeLogValue(value: unknown): Serializable {
   const sanitized = sanitizeValue(value, 0, freshState());
   return sanitized === OMIT ? undefined : sanitized;
 }

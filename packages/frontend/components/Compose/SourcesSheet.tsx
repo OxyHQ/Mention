@@ -16,7 +16,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 type SourceField = 'title' | 'url';
 
-export interface SourceItem {
+interface SourceItem {
   id: string;
   title: string;
   url: string;

@@ -22,7 +22,7 @@ import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types
  */
 
 /** A term that shares posts with this one but was not merged into it. */
-export interface TrendTreeRelation {
+interface TrendTreeRelation {
   term: string;
   displayName?: string;
   /** Posts containing both. */

@@ -108,7 +108,7 @@ const DEFAULT_FEED_PROPS: Required<Pick<FeedProps, DefaultedFeedProp>> = {
   scrollEnabled: true,
 };
 
-export type ResolvedFeedProps = FeedProps & Required<Pick<FeedProps, DefaultedFeedProp>>;
+type ResolvedFeedProps = FeedProps & Required<Pick<FeedProps, DefaultedFeedProp>>;
 
 export function useFeedCore(props: FeedProps) {
   const merged: ResolvedFeedProps = { ...DEFAULT_FEED_PROPS, ...props };

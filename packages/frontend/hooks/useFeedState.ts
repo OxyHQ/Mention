@@ -22,8 +22,6 @@ import { useDeepCompareMemo } from './useDeepCompare';
 import { useFeedRankingStaleness } from './useFeedRankingStaleness';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
 
-export { FED_PENDING_POLL_DELAYS_MS, UNRESOLVED_AUTHOR_REREAD_DELAYS_MS } from '@/data/feeds';
-
 const logger = createLogger('useFeedState');
 
 /** Backoff per reason a feed's first page is read again. */

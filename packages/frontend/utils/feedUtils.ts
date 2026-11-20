@@ -68,7 +68,7 @@ function readEntityId(value: FeedEntityId | undefined): string {
  * Normalize item ID for consistent deduplication
  * Handles various ID formats: id, _id, _id_str, postId, post.id, post._id
  */
-export function normalizeItemId(item: unknown): string {
+function normalizeItemId(item: unknown): string {
   if (item === null || typeof item !== 'object') return '';
   const entity = item as KeyableFeedEntity;
 

@@ -1,6 +1,6 @@
 import type { Experience } from '@clarity.surf/sdk/experience';
 
-export function monthIndex(month: string): number {
+function monthIndex(month: string): number {
   const [year, value] = month.split('-').map(Number);
   return year * 12 + value - 1;
 }

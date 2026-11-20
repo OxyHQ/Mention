@@ -15,13 +15,6 @@ export interface InitializationResult {
   error?: Error;
 }
 
-export interface AppInitializationState {
-  fontsLoaded: boolean;
-  i18nInitialized: boolean;
-  notificationsSetup: boolean;
-  videoMuteLoaded: boolean;
-}
-
 /**
  * Sets up notifications for native platforms
  */
@@ -53,14 +46,14 @@ async function loadVideoMuteState(): Promise<void> {
  * "Auto-translate posts" preference was removed: hydration picks a post's
  * rendition, and only an explicit reader action translates.
  */
-export const OBSOLETE_STORAGE_KEYS = ['auto-translate-preference'] as const;
+const OBSOLETE_STORAGE_KEYS = ['auto-translate-preference'] as const;
 
 /**
  * Per-viewer namespaces (`<prefix><viewer>`) a retired feature persisted. The
  * privacy-settings cache was written by the settings pages and read by nothing;
  * the viewer's settings are one React Query read now (`lib/viewerSettings`).
  */
-export const OBSOLETE_STORAGE_PREFIXES = ['@mention_privacy_settings'] as const;
+const OBSOLETE_STORAGE_PREFIXES = ['@mention_privacy_settings'] as const;
 
 async function removeObsoleteStorage(): Promise<void> {
   try {

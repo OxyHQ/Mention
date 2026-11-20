@@ -119,7 +119,7 @@ export type PostMenuSubmenuRows =
   | { kind: 'sources'; sources: PostSourceLink[] };
 
 /** A row that opens a submenu of its own rows instead of acting. */
-export interface PostMenuSubmenu {
+interface PostMenuSubmenu {
   icon: ReactNode;
   label: string;
   /** Bloom menu rows: a flyout on web, an inline disclosure on native. */

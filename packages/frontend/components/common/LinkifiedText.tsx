@@ -170,8 +170,6 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
   );
 };
 
-export default LinkifiedText;
-
 /** Shared identity navigation for plain and formatted post bodies. */
 export function MentionTextLink({
   destination,

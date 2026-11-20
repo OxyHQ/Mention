@@ -21,7 +21,7 @@ import DraftPreview from './DraftPreview';
 
 const logger = createLogger('UnpublishedSheet');
 
-export type UnpublishedTab = 'drafts' | 'scheduled';
+type UnpublishedTab = 'drafts' | 'scheduled';
 
 interface UnpublishedSheetProps {
   onClose: () => void;

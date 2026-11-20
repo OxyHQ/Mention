@@ -10,7 +10,7 @@ export interface PokeUser {
   bio?: string;
 }
 
-export interface ReceivedPoke {
+interface ReceivedPoke {
   id: string;
   user: PokeUser;
   pokeCount: number;
@@ -18,13 +18,13 @@ export interface ReceivedPoke {
   createdAt: string;
 }
 
-export interface SentPoke {
+interface SentPoke {
   id: string;
   user: PokeUser;
   createdAt: string;
 }
 
-export interface SuggestedPoke {
+interface SuggestedPoke {
   user: PokeUser;
 }
 

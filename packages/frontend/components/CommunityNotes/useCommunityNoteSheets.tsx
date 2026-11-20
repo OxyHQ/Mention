@@ -31,9 +31,9 @@ const AboutNoteSheet = lazy(() =>
 );
 
 /** Where "Learn more" goes: the public explainer for how notes work. */
-export const COMMUNITY_NOTES_HELP_URL = 'https://mention.earth/help/community-notes';
+const COMMUNITY_NOTES_HELP_URL = 'https://mention.earth/help/community-notes';
 /** The notes hub: rate notes, your ratings, your notes. */
-export const COMMUNITY_NOTES_ROUTE = '/community-notes';
+const COMMUNITY_NOTES_ROUTE = '/community-notes';
 
 export interface CommunityNoteWriteHandlers {
   /** Sends the note (to CrowdSource, through Mention). Resolves once accepted. */

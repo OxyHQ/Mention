@@ -8,7 +8,7 @@ export class DraftReadError extends Error {
   }
 }
 
-export function sameDraftContent(a: ComposeDraftRefs, b: ComposeDraftRefs): boolean {
+function sameDraftContent(a: ComposeDraftRefs, b: ComposeDraftRefs): boolean {
   return (Object.keys(a) as (keyof ComposeDraftRefs)[]).every(
     (key) => key === 'currentDraftId' || Object.is(a[key], b[key]),
   );

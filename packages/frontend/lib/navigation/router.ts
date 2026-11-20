@@ -7,7 +7,6 @@ export {
   useRouter,
   usePathname,
   useLocalSearchParams,
-  useGlobalSearchParams,
   useIsFocused,
   useFocusEffect,
 } from 'expo-router';

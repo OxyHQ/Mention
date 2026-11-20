@@ -12,7 +12,7 @@ import type { Draft } from '@/hooks/useDrafts';
 import { draftToPreviewPost } from '@/utils/draftPreview';
 import PostPreviewSurface from './PostPreviewSurface';
 
-export interface DraftPreviewProps {
+interface DraftPreviewProps {
   draft: Draft;
   onBack: () => void;
   /** Open this draft in the composer. */

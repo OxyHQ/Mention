@@ -105,7 +105,7 @@ export interface InterstitialFeedRow {
 // The unit both list implementations render.
 export type FeedRow = PostFeedRow | InterstitialFeedRow;
 
-export const MAX_THREAD_NESTING_DEPTH = 3;
+const MAX_THREAD_NESTING_DEPTH = 3;
 
 export { boundFeedRows, canLoadMoreFeed } from './feedPaging';
 
@@ -181,7 +181,7 @@ function spliceInterstitials(
  * make every post/slot unique, but this guarantees React/FlashList never receive
  * duplicate row keys if a legacy cache or malformed response bypasses it.
  */
-export function ensureUniqueFeedRows(rows: FeedRow[]): FeedRow[] {
+function ensureUniqueFeedRows(rows: FeedRow[]): FeedRow[] {
   const seen = new Set<string>();
   return rows.filter((row) => {
     const key = feedRowKey(row);
@@ -195,7 +195,7 @@ export function ensureUniqueFeedRows(rows: FeedRow[]): FeedRow[] {
  * The post a row actually DRAWS: a boost row renders its original (see
  * `renderPostRow`), every other row renders itself.
  */
-export function displayedPostId(item: FeedItem): string {
+function displayedPostId(item: FeedItem): string {
   const original = (item as { boost?: { originalPost?: { id?: string } | null } }).boost
     ?.originalPost;
   return original?.id ? String(original.id) : getItemKey(item);

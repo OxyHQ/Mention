@@ -12,7 +12,7 @@ import { authenticatedClient } from '@/utils/api';
  */
 export type EntityFollowType = 'hashtag' | 'list';
 
-export interface EntityFollowSummary {
+interface EntityFollowSummary {
   entityType: EntityFollowType;
   entityId: string;
   createdAt: string;
@@ -26,7 +26,7 @@ interface EntityFollowListBody {
 }
 
 /** What callers consume. */
-export interface EntityFollowListResponse {
+interface EntityFollowListResponse {
   items: EntityFollowSummary[];
   nextCursor?: string;
   hasMore: boolean;

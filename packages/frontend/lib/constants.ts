@@ -30,7 +30,3 @@ export const SUPPORTED_LANGUAGES = [
   'id-ID',
   'tr-TR',
 ] as const;
-
-export const INITIALIZATION_TIMEOUT = {
-  AUTH: 1000, // Fast timeout for cached token check
-} as const;

@@ -23,8 +23,3 @@ import { useWindowDimensions } from 'react-native';
 export function useIsScreenNotMobile(): boolean {
   return useWindowDimensions().width >= 500;
 }
-
-/** >= 990px: wide enough to show the right rail (widgets / video replies). */
-export function useIsRightBarVisible(): boolean {
-  return useWindowDimensions().width >= 990;
-}

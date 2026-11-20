@@ -261,7 +261,7 @@ interface ProfileCardSkeletonProps {
  * Bloom's skeleton primitives take `style` (not `className`), so the shimmer
  * geometry stays as plain style objects while the row chrome stays NativeWind.
  */
-export function ProfileCardSkeleton({
+function ProfileCardSkeleton({
   showFollowButton = false,
   showDivider = true,
   size = 'md',

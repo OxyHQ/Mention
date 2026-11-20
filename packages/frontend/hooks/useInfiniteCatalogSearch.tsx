@@ -17,7 +17,7 @@ export type CatalogSearchType = 'song' | 'podcast';
  * advances by the page size (`limit`), not by `rows.length`: the SDK can return a
  * short page while more results remain.
  */
-export interface SearchResultPage<T> {
+interface SearchResultPage<T> {
   rows: T[];
   hasMore: boolean;
   nextOffset: number;
@@ -29,7 +29,7 @@ export interface SearchResultPage<T> {
  * key suppresses the `{ data }` unwrap), so the rows live at `res.data.data` and
  * the page metadata at `res.data.pagination`.
  */
-export interface PaginatedSearchEnvelope<T> {
+interface PaginatedSearchEnvelope<T> {
   data: T[];
   pagination: { hasMore: boolean; offset: number; limit: number };
 }

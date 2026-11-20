@@ -6,7 +6,7 @@ import type { HydratedPost } from '@mention/shared-types';
 
 import { postPermalink } from '@/utils/postPermalink';
 
-export interface QuoteManagerState {
+interface QuoteManagerState {
   /** The hydrated quoted post (when fetch succeeded). */
   post: HydratedPost | null;
   /** Whether a fetch is currently in flight. */

@@ -30,7 +30,7 @@ function anonSavedFeeds(): SavedFeed[] {
 const NO_TITLES: Readonly<Record<string, string>> = {};
 
 /** A feed the caller can pin — either a preset (already saved) or a custom feed. */
-export interface PinnableFeed {
+interface PinnableFeed {
   key: string;
   descriptor: FeedDescriptor;
 }

@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -68,8 +67,4 @@ export async function sharePost(post: SharePost | null | undefined): Promise<voi
     logger.error('Error sharing post', error);
     toast(i18n.t('widgetMenu.shareFailed'), { type: 'error' });
   }
-}
-
-export function usePostShare(post: SharePost | null | undefined) {
-  return useCallback(() => sharePost(post), [post]);
 }

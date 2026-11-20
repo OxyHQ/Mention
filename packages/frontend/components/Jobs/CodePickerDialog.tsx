@@ -5,7 +5,7 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
 import { Search } from '@oxy.so/bloom/search';
 
-export interface CodePickerOption<Code extends string> {
+interface CodePickerOption<Code extends string> {
   code: Code;
   /** The localized name, when the platform has one (see `utils/jobVocabulary.ts`). */
   name?: string;

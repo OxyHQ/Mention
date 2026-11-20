@@ -64,7 +64,7 @@ const emptyCache = (): DeckCache => ({
   revision: 0,
   dirty: false,
 });
-export type DeckSyncStatus = 'local' | 'loading' | 'saving' | 'saved' | 'error';
+type DeckSyncStatus = 'local' | 'loading' | 'saving' | 'saved' | 'error';
 interface DeckSettingsState extends DeckSnapshot {
   /** Device-local mode, kept per account and independent of synchronized columns. */
   deckEnabled: boolean;

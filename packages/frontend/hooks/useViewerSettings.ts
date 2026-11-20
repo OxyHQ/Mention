@@ -10,7 +10,7 @@ import {
 } from '@/lib/viewerSettings';
 
 /** The viewer's settings, read once the private API is usable. */
-export function useViewerSettings() {
+function useViewerSettings() {
   const { user, canUsePrivateApi } = useAuth();
   return useQuery({ ...viewerSettingsQuery(user?.id), enabled: canUsePrivateApi });
 }

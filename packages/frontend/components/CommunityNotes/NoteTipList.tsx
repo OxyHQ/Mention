@@ -2,7 +2,7 @@ import type React from 'react';
 import { Text, View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 
-export type NoteTipIcon = React.ComponentType<{ width?: number; height?: number; fill?: string }>;
+type NoteTipIcon = React.ComponentType<{ width?: number; height?: number; fill?: string }>;
 
 export interface NoteTip {
   icon: NoteTipIcon;

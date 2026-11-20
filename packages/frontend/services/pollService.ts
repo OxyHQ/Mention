@@ -5,7 +5,6 @@ export type {
   PollDetail,
   PollDetailOption,
   PollResults,
-  PollResultOption,
 } from '@mention/shared-types';
 
 export interface CreatePollRequest {

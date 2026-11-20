@@ -11,7 +11,7 @@ import {
 } from './use-account-avatar-motion';
 
 /** A facepile member with its account's colour (`User.color`), which paints a bot's character. */
-export interface AccountAvatarGroupItem extends AvatarGroupItem {
+interface AccountAvatarGroupItem extends AvatarGroupItem {
   color?: string | null;
 }
 

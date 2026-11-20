@@ -8,7 +8,7 @@ import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 
-export interface RoomCardData {
+interface RoomCardData {
   _id: string;
   title: string;
   status: 'scheduled' | 'live' | 'ended';

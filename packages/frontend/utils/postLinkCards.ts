@@ -19,7 +19,7 @@ import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 
 /** A card's identity: a document preview is shared by anchors within the page. */
-export function normalizedLinkUrl(url: string): string {
+function normalizedLinkUrl(url: string): string {
   try {
     const parsed = new URL(url);
     parsed.hash = '';

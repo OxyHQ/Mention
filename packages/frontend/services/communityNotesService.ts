@@ -32,7 +32,7 @@ interface EntriesResponse {
 
 export type CommunityNoteReason = CommunityNoteHelpfulReason | CommunityNoteNotHelpfulReason;
 
-export interface WriteCommunityNoteInput {
+interface WriteCommunityNoteInput {
   postId: string;
   text: string;
   sourceUrls: string[];

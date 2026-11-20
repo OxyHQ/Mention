@@ -100,13 +100,11 @@ export interface SavedPostsPage {
   limit: number;
 }
 
-export type { SavedPostsRequest } from './savedPostsRequest';
-
-export interface BookmarkFoldersResponse {
+interface BookmarkFoldersResponse {
   folders: string[];
 }
 
-export interface CreateBookmarkFolderResponse {
+interface CreateBookmarkFolderResponse {
   folder: string;
 }
 
@@ -213,7 +211,7 @@ interface PostEngagementUsersResponse {
  * from {@link PostEngagementUsersResponse}, which is the cursor-paginated list
  * of everybody who liked the post.
  */
-export interface PostKnownLikersResponse {
+interface PostKnownLikersResponse {
   /** Canonical Oxy `PostUser` per liker, same shape as `post.user`. */
   likers: PostUser[];
   /** Every liker the viewer follows, not just the sampled ones. */
@@ -341,7 +339,7 @@ function getDedupeKey(request: ExtendedFeedRequest): string {
 }
 
 /** A request may have committed even when its response cannot confirm it. */
-export class PublicationUnconfirmedError extends Error {
+class PublicationUnconfirmedError extends Error {
   constructor() {
     super('The publication result could not be confirmed');
     this.name = 'PublicationUnconfirmedError';

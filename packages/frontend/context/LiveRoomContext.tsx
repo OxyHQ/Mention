@@ -1,12 +1,12 @@
 import { createContext, use, useMemo, useSyncExternalStore, type PropsWithChildren } from 'react';
 
-export interface LiveRoomRuntimeBridge {
+interface LiveRoomRuntimeBridge {
   activeRoomId: string | null;
   joinLiveRoom: (roomId: string) => void;
   leaveLiveRoom: () => void;
 }
 
-export interface LiveRoomSnapshot {
+interface LiveRoomSnapshot {
   activeRoomId: string | null;
   runtimeRequested: boolean;
 }

@@ -15,7 +15,7 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
 
 /** A Bloom theme color token — resolved at render time as `theme.colors[token]`. */
-export type ColorToken = keyof Theme['colors'];
+type ColorToken = keyof Theme['colors'];
 
 /** The i18next `t` signature used to build localized notification strings. */
 export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
