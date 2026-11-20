@@ -59,6 +59,7 @@ jest.mock('@oxy.so/bloom/video-playback', () => ({
 jest.mock('@/hooks/usePipAspectRatio', () => ({ usePipAspectRatio: () => undefined }));
 
 import { REEL_TIME_UPDATE_INTERVAL_S, useReelChrome } from '../useReelChrome';
+import { VIDEO_BUFFER_OPTIONS, VIDEO_PRELOAD_BUFFER_OPTIONS } from '@/utils/videoSource';
 
 function fakePlayer(duration: number) {
   return {
@@ -85,10 +86,12 @@ function Harness({
   player,
   onBufferAhead,
   initialDurationSec,
+  isActive = true,
 }: {
   player: object;
   onBufferAhead?: (seconds: number) => void;
   initialDurationSec?: number;
+  isActive?: boolean;
 }) {
   latest = useReelChrome({
     player,
@@ -97,7 +100,7 @@ function Harness({
     videoUrl: 'https://example.test/clip.mp4',
     posterUrl: undefined,
     initialDurationSec,
-    isActive: true,
+    isActive,
     onBufferAhead,
     screenFocused: true,
     windowHeight: 800,
@@ -141,6 +144,20 @@ describe('the reel playhead', () => {
     const player = fakePlayer(20);
     mount({ player });
     expect(player.timeUpdateEventInterval).toBe(REEL_TIME_UPDATE_INTERVAL_S);
+  });
+
+  it('presents a pooled player as a reel: looping, a slice of buffer until it is watched', () => {
+    // The registry hands players out reset (parked: `loop: false`, full buffer).
+    const player = { ...fakePlayer(20), loop: false, bufferOptions: VIDEO_BUFFER_OPTIONS };
+    const renderer = mount({ player, isActive: false });
+    expect(player.loop).toBe(true);
+    expect(player.bufferOptions).toBe(VIDEO_PRELOAD_BUFFER_OPTIONS);
+
+    act(() => renderer.update(<Harness player={player} isActive />));
+    expect(player.bufferOptions).toBe(VIDEO_BUFFER_OPTIONS);
+
+    act(() => renderer.update(<Harness player={player} isActive={false} />));
+    expect(player.bufferOptions).toBe(VIDEO_PRELOAD_BUFFER_OPTIONS);
   });
 
   it('measures progress against the known duration', () => {

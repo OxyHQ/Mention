@@ -23,6 +23,19 @@ export const VIDEO_BUFFER_OPTIONS: BufferOptions = {
 };
 
 /**
+ * How far ahead a reel slide that is preloading, not being watched, may buffer:
+ * a short slice of the start, which is all a swipe needs to land on a playing
+ * video. Media3's preloading examples keep 3-5 s of the next item, and Meta's
+ * rule is that preloading must never take the bandwidth of the video being
+ * watched; a 3 s slice of the top rung is about 750 KB. The slide gets
+ * {@link VIDEO_BUFFER_OPTIONS} back the moment it is watched.
+ */
+export const VIDEO_PRELOAD_BUFFER_OPTIONS: BufferOptions = {
+  preferredForwardBufferDuration: 3,
+  minBufferForPlayback: 1,
+};
+
+/**
  * Disk-cache video bytes on Android, so a looping feed video, a scroll back
  * and the same clip opened in the reel read what was already downloaded
  * instead of fetching it again (expo-video's LRU cache, HLS included). Not on

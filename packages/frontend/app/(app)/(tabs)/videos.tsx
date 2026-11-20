@@ -158,22 +158,21 @@ function isSlideNear(
 
 /**
  * How much media the landed video must have ahead of the playhead before the
- * neighbouring players are allowed to exist.
+ * slide ahead may take a player and start preloading.
  *
- * Five live decoders fetch at once, and on a cold connection they take the
- * bandwidth from the video the viewer is actually watching: measured over eight
- * cold pairs, the handover froze for a median of 457ms with the neighbours
- * mounted and 8ms without, and above 150ms in four runs of eight against one.
- * The picture stops while `paused` stays false — starved, not paused.
+ * Neighbours fetching at once take the bandwidth from the video the viewer is
+ * actually watching: with five neighbours each buffering 50 s, the handover
+ * froze for a median of 457ms over eight cold pairs (8ms without them), and the
+ * runs that starved had 3.0-3.9 s ahead of the landed video. Six seconds held
+ * them off then.
  *
- * The number comes from both populations rather than from the broken one. In the
- * runs that starved, the landed video had 3.0-3.9s ahead of it; in the runs that
- * did not, 8.5-45s. Six sits between them with room either side. Its limit,
- * because it is real: those readings were taken after landing rather than at the
- * instant the neighbours would start, so this is a threshold that separates the
- * two populations, not one derived from the moment of decision.
+ * Now one slide preloads, and only a 3 s slice of its start
+ * (`VIDEO_PRELOAD_BUFFER_OPTIONS`), so the landed video needs to be ahead by
+ * that slice, not by the old margin. Waiting for six held the next slide back
+ * past the first swipe of a cold open: on the Pixel 8a that swipe landed on a
+ * poster and took 2.5 s to play.
  */
-const PRELOAD_BUFFER_SECONDS = 6;
+const PRELOAD_BUFFER_SECONDS = 3;
 // Poster images are tiny (the `thumb` variant, already cached memory-disk) —
 // prefetch a wider window than the live-player radius so the very first frame
 // the viewer sees on a fast multi-swipe is already in cache, even before that

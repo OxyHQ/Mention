@@ -572,6 +572,16 @@ describe('the parking pool', () => {
     expect(leases.map((lease) => fake(lease).destroyed)).toEqual([false, false, true]);
   });
 
+  it('gives a parked player back the full forward buffer a preloading reel slide shortened', () => {
+    const first = acquire(keys[0], SOURCE);
+    fake(first).bufferOptions = { preferredForwardBufferDuration: 3, minBufferForPlayback: 1 };
+    first.release();
+    expect(fake(first).bufferOptions).toEqual({
+      preferredForwardBufferDuration: 10,
+      minBufferForPlayback: 1,
+    });
+  });
+
   it('builds every new player with the bounded forward buffer', () => {
     expect(fake(acquire(keys[0], SOURCE)).bufferOptions).toEqual({
       preferredForwardBufferDuration: 10,

@@ -12,6 +12,7 @@ import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { createLogger } from '@oxy.so/core/logger';
 import type { MediaPixelSize } from '@/utils/mediaTypes';
+import { VIDEO_BUFFER_OPTIONS, VIDEO_PRELOAD_BUFFER_OPTIONS } from '@/utils/videoSource';
 import { useVideoPlayback, useVideoPlaybackControl } from '@oxy.so/bloom/video-playback';
 import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
 
@@ -54,6 +55,13 @@ export const REEL_TIME_UPDATE_INTERVAL_S = 0.25;
  */
 function presentAsReel(target: VideoPlayer): void {
   Object.assign(target, { loop: true, timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
+}
+
+/** How far ahead the player buffers: the full lead while watched, a slice while preloading. */
+function bufferFor(target: VideoPlayer, watched: boolean): void {
+  Object.assign(target, {
+    bufferOptions: watched ? VIDEO_BUFFER_OPTIONS : VIDEO_PRELOAD_BUFFER_OPTIONS,
+  });
 }
 
 // Namespace for this screen's playback ids in the app-wide video authority. A
@@ -369,6 +377,12 @@ export function useReelChrome({
   // second after it opened). The pager is not an authority on what the OS is
   // showing while the OS is the one showing it.
   const isWatched = ownsSession || (!sessionActive && isActive && screenFocused);
+
+  // A slide that is preloading fetches only the start of its video, so the one
+  // being watched keeps the bandwidth (`VIDEO_PRELOAD_BUFFER_OPTIONS`).
+  useEffect(() => {
+    bufferFor(player, isWatched);
+  }, [player, isWatched]);
 
   // Android delivers `onPictureInPictureModeChanged` to the ACTIVITY, so
   // expo-video forwards `onPictureInPictureStart` to EVERY mounted `VideoView` —

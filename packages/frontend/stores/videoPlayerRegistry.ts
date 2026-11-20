@@ -353,7 +353,8 @@ function takePlayer(source: string): VideoPlayer {
  * decoder and the buffer; the playback control forgets the frame it painted,
  * so the next row shows its poster until its own video paints. Presentation
  * goes back to where a new player starts, because the next holder may not set
- * all of it (`timeUpdateEventInterval` is only ever raised by a surface).
+ * all of it (`timeUpdateEventInterval` is only ever raised by a surface, and
+ * a preloading reel slide shortens `bufferOptions`).
  */
 function parkPlayer(player: VideoPlayer, key: VideoPlayerKey): void {
   if (parkedPlayers.length >= MAX_PARKED_PLAYERS) {
@@ -362,7 +363,12 @@ function parkPlayer(player: VideoPlayer, key: VideoPlayerKey): void {
   }
   try {
     player.pause();
-    Object.assign(player, { loop: false, muted: true, timeUpdateEventInterval: 0 });
+    Object.assign(player, {
+      loop: false,
+      muted: true,
+      timeUpdateEventInterval: 0,
+      bufferOptions: VIDEO_BUFFER_OPTIONS,
+    });
     setVideoHasRenderedFrame(player, false);
     player.replaceAsync(null).catch((error: unknown) => {
       logger.error('Emptying a parked video player failed', error, { key });
