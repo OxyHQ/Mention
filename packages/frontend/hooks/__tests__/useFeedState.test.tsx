@@ -997,7 +997,15 @@ describe('useFeedState: one feed list per identity', () => {
             const json = records.get(`${type}:${id}`);
             return json ? [{ id, json }] : [];
           }),
-        readList: async (type, key) => lists.get(`${type}:${key}`) ?? null,
+        readList: async (type, key, recordType) => {
+          const list = lists.get(`${type}:${key}`);
+          if (!list) return null;
+          const held = list.ids.flatMap((id) => {
+            const json = records.get(`${recordType}:${id}`);
+            return json ? [{ id, json }] : [];
+          });
+          return { ...list, records: held };
+        },
         write: async (batch) => {
           for (const record of batch.records) {
             if (record.json) records.set(`${record.type}:${record.id}`, record.json);
