@@ -85,6 +85,16 @@ export function startSchedulers(): void {
     logger.warn('Failed to start expiry sweep job', error);
   }
 
+  // Clarity job-sync retry (leader-gated): re-ingests jobs whose last sync to
+  // Clarity failed, with a backoff and an attempt cap, so a job nobody opens
+  // still reaches Clarity's index.
+  try {
+    const { claritySyncRetryJob } = require('../services/ClaritySyncRetryJob');
+    claritySyncRetryJob.start();
+  } catch (error) {
+    logger.warn('Failed to start Clarity sync retry job', error);
+  }
+
   // SEO sitemaps are NOT built here: the build streams every eligible post and
   // gzips 64 shards, which is work a task serving requests should not share its
   // event loop with. It runs as its own scheduled one-shot task
@@ -229,6 +239,13 @@ export async function stopSchedulers(): Promise<void> {
     expirySweepJob.stop();
   } catch (error) {
     logger.warn('Failed to stop expiry sweep job', error);
+  }
+
+  try {
+    const { claritySyncRetryJob } = require('../services/ClaritySyncRetryJob');
+    claritySyncRetryJob.stop();
+  } catch (error) {
+    logger.warn('Failed to stop Clarity sync retry job', error);
   }
 
   try {

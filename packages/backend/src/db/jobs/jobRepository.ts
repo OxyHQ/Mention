@@ -5,7 +5,7 @@
  * directly, so the two cannot drift.
  */
 
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, lte, or, sql } from 'drizzle-orm';
 import { isUniqueViolation } from '@oxy.so/db';
 import type {
   CountryCode,
@@ -326,13 +326,35 @@ export async function recordClaritySync(jobId: string, result: ClaritySyncResult
   await db.update(mentionJobs).set(values).where(eq(mentionJobs.id, jobId));
 }
 
-/** Jobs whose Clarity sync failed and are due a retry — the retry queue's work source. */
+/** Failed attempts after which the scheduled retry stops; a read of the job still retries it. */
+export const MAX_CLARITY_SYNC_ATTEMPTS = 8;
+
+/**
+ * Wait after the first failure; it doubles with each further one, so the last
+ * scheduled retry waits 640 minutes and the eight attempts span about 21 hours.
+ */
+const CLARITY_SYNC_RETRY_BASE_MINUTES = 10;
+
+/**
+ * Jobs whose Clarity sync failed and are due a retry, longest-waiting first.
+ *
+ * A failure writes the row (`recordClaritySync`), so `updated_at` is the time of
+ * the last attempt; the job is due once the backoff for its attempt count has
+ * passed since then.
+ */
 export async function listFailedClaritySyncs(limit = 50): Promise<MentionJobRow[]> {
+  const backoffMinutes = sql`${CLARITY_SYNC_RETRY_BASE_MINUTES} * power(2, greatest(${mentionJobs.claritySyncAttempts} - 1, 0))`;
   return getDb()
     .select()
     .from(mentionJobs)
-    .where(eq(mentionJobs.claritySyncStatus, 'failed'))
-    .orderBy(desc(mentionJobs.updatedAt))
+    .where(
+      and(
+        eq(mentionJobs.claritySyncStatus, 'failed'),
+        lt(mentionJobs.claritySyncAttempts, MAX_CLARITY_SYNC_ATTEMPTS),
+        lte(mentionJobs.updatedAt, sql`now() - make_interval(mins => (${backoffMinutes})::int)`),
+      ),
+    )
+    .orderBy(asc(mentionJobs.updatedAt))
     .limit(limit);
 }
 

@@ -12,13 +12,13 @@
  * existing `postEnrichment/clarityDocumentStep.ts` best-effort pattern for
  * link-preview warms.
  *
- * RETRY. There is no separate queue: `retryFailedClarityJobSyncs` re-attempts
- * every job whose last sync failed, and the job read paths
- * (`controllers/jobs.controller.ts`) call it lazily, fire-and-forget, whenever
- * they serve a job still carrying `claritySyncStatus: 'failed'` — the same
- * "best effort on the next natural touch" shape `warmClarityDocumentForText`
- * already uses for post link previews, so a stuck sync heals itself the next
- * time anyone looks at the job rather than needing dedicated scheduler infra.
+ * RETRY. There is no separate queue; a failed sync is retried two ways. The
+ * job read paths (`controllers/jobs.controller.ts`) re-sync a job they serve
+ * while it still carries `claritySyncStatus: 'failed'`, fire-and-forget — the
+ * same "best effort on the next natural touch" shape `warmClarityDocumentForText`
+ * uses for post link previews. A job nobody opens is caught by
+ * `retryFailedClarityJobSyncs`, which `ClaritySyncRetryJob` runs on the leader
+ * with a backoff and an attempt cap (`listFailedClaritySyncs`).
  */
 
 import type { MentionJobEmploymentType, MentionJobPosting } from '@mention/shared-types';
@@ -213,14 +213,16 @@ export function syncJobToClarityInBackground(row: MentionJobRow): void {
 }
 
 /**
- * Re-attempt every job whose last Clarity sync failed. Best-effort and
- * idempotent (`jobs.ingest` is keyed by the job's canonical URL, so a repeat
- * ingest of unchanged content is a no-op on Clarity's side); errors for one job
- * never stop the batch.
+ * Re-attempt the failed Clarity syncs that are due (see `listFailedClaritySyncs`)
+ * and return how many were attempted. Best-effort and idempotent (`jobs.ingest`
+ * is keyed by the job's canonical URL, so a repeat ingest of unchanged content
+ * is a no-op on Clarity's side); `syncJobToClarity` never throws, so one job's
+ * failure never stops the batch.
  */
-export async function retryFailedClarityJobSyncs(limit = 50): Promise<void> {
+export async function retryFailedClarityJobSyncs(limit = 50): Promise<number> {
   const rows = await listFailedClaritySyncs(limit);
   for (const row of rows) {
     await syncJobToClarity(row);
   }
+  return rows.length;
 }
