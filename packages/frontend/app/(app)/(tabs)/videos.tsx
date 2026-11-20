@@ -538,6 +538,7 @@ const ReelSurface: React.FC<
         fullscreenOptions={{ enable: false }}
         allowsPictureInPicture={isWatched}
         startsPictureInPictureAutomatically={isWatched}
+        watched={isWatched}
         onPictureInPictureStart={handlePictureInPictureStart}
         onPictureInPictureStop={handlePictureInPictureStop}
         onFirstFrameRender={onFirstFrameRender}

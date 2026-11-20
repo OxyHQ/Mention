@@ -4,7 +4,11 @@ import { VideoView, type VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { needsJsHlsDecoder, useHlsPlayback } from '@/lib/hlsPlayback';
 import { setVideoHasRenderedFrame } from '@oxy.so/bloom/video-playback';
 
-import { acquireVideoPlayer, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
+import {
+  acquireVideoPlayer,
+  usePictureView,
+  type VideoPlayerKey,
+} from '@/stores/videoPlayerRegistry';
 import { videoSourceFor } from '@/utils/videoSource';
 import { createLogger } from '@oxy.so/core/logger';
 
@@ -16,6 +20,12 @@ interface PlaybackVideoViewProps extends Omit<VideoViewProps, 'player'> {
   registryKey?: VideoPlayerKey;
   fallbackSource?: string;
   detached?: boolean;
+  /**
+   * Whether this presenter is asking the player to play. On Android the view
+   * takes the player's picture back when this turns on while another view holds
+   * it (`usePictureView`).
+   */
+  watched?: boolean;
   onSourceError?: () => void;
 }
 
@@ -32,6 +42,7 @@ export const PlaybackVideoView = forwardRef<VideoViewHandle | null, PlaybackVide
       registryKey,
       fallbackSource,
       detached,
+      watched = false,
       onFirstFrameRender,
       onSourceError,
       ...props
@@ -39,6 +50,9 @@ export const PlaybackVideoView = forwardRef<VideoViewHandle | null, PlaybackVide
     forwardedRef,
   ) {
     const viewRef = useRef<VideoViewHandle | null>(null);
+    const [presenter] = useState(() => ({}));
+    const shownPlayer = detached ? null : player;
+    const viewKey = usePictureView(shownPlayer, presenter, watched);
     // A persistent flight view can outlive both route presenters. Its lease
     // keeps the shared player alive until the actual view has unmounted.
     const initialSource = useRef(source);
@@ -101,8 +115,9 @@ export const PlaybackVideoView = forwardRef<VideoViewHandle | null, PlaybackVide
     );
     return (
       <VideoView
+        key={viewKey}
         {...props}
-        player={detached ? null : player}
+        player={shownPlayer}
         ref={hlsRef}
         onFirstFrameRender={handleFirstFrame}
       />
