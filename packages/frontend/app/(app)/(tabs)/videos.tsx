@@ -34,7 +34,7 @@ import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
-import { useVideoPlayer, type VideoPlayer } from 'expo-video';
+import type { VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
@@ -54,7 +54,6 @@ import PostActions from '@/components/Post/PostActions';
 import { postAcceptsReplies } from '@/utils/postReplies';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
-import { VIDEO_BUFFER_OPTIONS, videoSourceFor } from '@/utils/videoSource';
 import type { HydratedPost } from '@mention/shared-types';
 import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
@@ -70,7 +69,6 @@ import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMed
 import { usePipTransportActions } from '@/hooks/usePipTransportActions';
 import {
   useReelChrome,
-  REEL_TIME_UPDATE_INTERVAL_S,
   type PlayableSource,
   type ReelChromeParams,
   type RegisterTransportSeek,
@@ -82,7 +80,6 @@ import {
   useMediaFlight,
   type MediaFlightHostProps,
 } from '@oxy.so/bloom/media-flight';
-import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
 import { PlaybackVideoView } from '@/components/common/PlaybackVideoView';
 import {
   useVideoPlayerLease,
@@ -97,44 +94,36 @@ import { postPermalink } from '@/utils/postPermalink';
 import { usePostInteractions } from '@/components/Feed/postInteractions';
 
 // ── Tuning constants ─────────────────────────────────────────────
-// One-screen vertical pager: keep the live-player window tight so only the
-// active video and its neighbours hold a decoder.
 const FEED_PAGE_LIMIT = 20;
-// Players are live only for the active index ± this radius.
-// Widened from 1: at radius 2, the video two swipes away already has a live
-// player mounted (buffering, muted, never playing — see the shouldPlay gate
-// below) instead of only a static poster, so its stream has strictly more
-// lead time to buffer before the viewer reaches it. Together with
-// RETAINED_BEHIND_RADIUS that is at most six mounted players (-3..+2), and only
-// while the reel is the focused screen — see `isSlideNear`.
-const ACTIVE_WINDOW_RADIUS = 2;
+// One-screen vertical pager: the slide on screen and one either side hold a
+// player, as Instagram Reels and Media3's short-form sample do. Every player is
+// leased from `stores/videoPlayerRegistry`, so a swipe hands the player of the
+// slide that left the window to the slide that entered it instead of
+// destroying one ExoPlayer and building another.
+/**
+ * How far AHEAD of the reader a slide holds a player: the next slide, prepared
+ * and paused on its first frame, so a swipe lands on a picture that is already
+ * there. Ahead is a GUESS (the reader may never get there), so it also waits
+ * for the landed video's runway — see {@link PRELOAD_BUFFER_SECONDS}.
+ */
+const ACTIVE_WINDOW_RADIUS = 1;
 /**
  * How far BEHIND the reader a slide keeps its player, as opposed to how far
  * ahead ({@link ACTIVE_WINDOW_RADIUS}).
  *
- * The window used to be symmetric, and the two directions are not symmetric at
- * all. Ahead is a GUESS — the reader may never reach that slide — and its only
- * job is buffering lead time. Behind is a MEMORY: the reader has already watched
- * it, and coming back is a deliberate act, so the video is expected to be there,
- * where it was, instantly.
+ * The two directions are not symmetric. Behind is a MEMORY: the reader has
+ * already watched it, coming back is a deliberate act (a swipe that overshot,
+ * a second look), and the video is expected to be there instantly. So the slide
+ * behind keeps its player unconditionally, while the one ahead waits for the
+ * landed video's runway. Reported from the device, before this was held, as
+ * "vuelvo al video anterior y lo vuelve a cargar y tarda".
  *
- * A symmetric window could not deliver that. Leaving the window destroys the
- * surface, and destroying the surface destroys the decoder AND the position, so
- * a reader who swiped forward past the radius and then came back was served a
- * rebuild: black, buffer, restart from zero. Measured on a Pixel 10 Pro — two
- * swipes forward and one back remounted two surfaces that had been torn down
- * seconds earlier. Reported as "vuelvo al video anterior y lo vuelve a cargar y
- * tarda".
- *
- * One extra slide behind covers the ordinary correction (a swipe that overshot,
- * a second look) for the cost of one decoder. It is deliberately NOT large: each
- * retained slide holds a hardware decoder, and Android runs out of them silently
- * — later videos simply refuse to load. The complete answer is to retain the
- * PLAYER without its surface, through `stores/videoPlayerRegistry`, which is
- * built for exactly this and already serves the feed-to-reel flight; that is a
- * bigger change than this one and this is not a substitute for it.
+ * One slide: each retained slide holds a hardware decoder, and Android runs out
+ * of them silently — later videos simply refuse to load. A slide further back
+ * gives its player to the pool; coming back to it reloads from the disk cache
+ * (`utils/videoSource`), behind the same poster.
  */
-const RETAINED_BEHIND_RADIUS = ACTIVE_WINDOW_RADIUS + 1;
+const RETAINED_BEHIND_RADIUS = 1;
 
 /**
  * Whether a slide is close enough to the reader to hold a decoder.
@@ -160,7 +149,7 @@ function isSlideNear(
   // A reel the reader has left (another tab, a pushed profile) keeps the one
   // slide it will come back to and gives every other decoder back: the tabs
   // stay mounted side by side, and the home feed's own players would otherwise
-  // compete with up to five paused neighbours for Android's hardware decoders.
+  // compete with the paused neighbours for Android's hardware decoders.
   if (!screenFocused) return index === activeIndex;
   return index <= activeIndex
     ? activeIndex - index <= RETAINED_BEHIND_RADIUS
@@ -189,23 +178,21 @@ const PRELOAD_BUFFER_SECONDS = 6;
 // prefetch a wider window than the live-player radius so the very first frame
 // the viewer sees on a fast multi-swipe is already in cache, even before that
 // row's video decoder starts buffering.
-const POSTER_PREFETCH_RADIUS = ACTIVE_WINDOW_RADIUS + 2;
+const POSTER_PREFETCH_RADIUS = 4;
 // FlatList must keep the window rows mounted (poster) so they can promote to a
 // live player without a remount; WINDOW_SIZE is in screens (one screen = one row).
 //
 // The floor is the LARGER of the two radii, on both sides: FlatList's window is
-// symmetric, so covering only `ACTIVE_WINDOW_RADIUS` leaves the extra retained
-// slide BEHIND the reader outside the list. That is what shipped — 5 screens
-// (1 + 2 above + 2 below) against a behind-radius of 3 — and it made the third
-// slide back a full remount: black, buffer, restart, while the same distance
-// forward was already mounted. Reported from the device as scrolling up being
-// slower than scrolling down. `isSlideNear` promising a player for a row the
-// list never renders cannot produce one.
+// symmetric, and `isSlideNear` promising a player for a row the list never
+// renders cannot produce one. That shipped once — 5 screens against a
+// behind-radius of 3 — and the third slide back was a full remount while the
+// same distance forward was mounted. The rows past the player window draw only
+// their poster and overlay, so a multi-swipe lands on a painted slide.
 const FLATLIST_CONFIG = {
   INITIAL_NUM_TO_RENDER: 2,
   MAX_TO_RENDER_PER_BATCH: 2,
-  // 1 visible + 3 above + 3 below = 7 rows, covering RETAINED_BEHIND_RADIUS=3
-  // (the larger radius) on the side FlatList makes symmetric.
+  // 1 visible + 3 above + 3 below = 7 rows: the player window (±1) and two
+  // poster-only rows either side.
   WINDOW_SIZE: 7,
   // Raised from 0.4: trigger the next page fetch with more runway left in
   // the current page, so pagination network latency is absorbed before the
@@ -321,10 +308,9 @@ interface VideoItemProps {
 }
 
 // ── Active player surface ────────────────────────────────────────
-// ── Active player surface ────────────────────────────────────────
-// Mounted ONLY when the row is inside the live-player window. Holds the single
-// `useVideoPlayer` instance (auto-released on unmount), so leaving the window
-// tears the decoder down. A poster sits behind the surface until `readyToPlay`.
+// Mounted ONLY when the row is inside the live-player window. Leases its player
+// from the registry while mounted, so leaving the window gives the player back
+// to the pool. A poster sits behind the surface until `readyToPlay`.
 //
 // Every field the chrome needs is declared once, on `ReelChromeParams`; the two
 // below are this component's own, used only by what it renders.
@@ -411,6 +397,8 @@ const reelHostId = (postId: string): string => `reel:${postId}`;
 const ReelSurface: React.FC<
   ActiveVideoSurfaceProps & {
     player: VideoPlayer;
+    /** The registry key `player` is leased under; the view holds a lease of its own on it. */
+    playerKey: VideoPlayerKey;
     /**
      * The id this slide shares with the feed row it came from. Present whenever
      * the media can be identified; a slide without one still paints through a
@@ -456,6 +444,7 @@ const ReelSurface: React.FC<
   onSessionStart,
   onSessionEnd,
   onRegisterTransportSeek,
+  playerKey,
 }) => {
   // Everything layered on top of that player — poster, heart, mute, PiP,
   // scrubber, playback gate, wake lock, transport. It takes the player as an
@@ -514,7 +503,7 @@ const ReelSurface: React.FC<
     ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
       <PlaybackVideoView
         ref={videoViewRef}
-        registryKey={flightId}
+        registryKey={playerKey}
         source={desiredSource}
         fallbackSource={targetFallbackUrl}
         onSourceError={handleSourceError}
@@ -534,8 +523,8 @@ const ReelSurface: React.FC<
         /* ANDROID: a TextureView, not the default SurfaceView.
                    A SurfaceView is its own window punched through the view
                    hierarchy: it does not clip to its React parent and it does
-                   not move with the list mid-scroll. With up to five slides
-                   mounted at once (ACTIVE_WINDOW_RADIUS = 2) that is visible as
+                   not move with the list mid-scroll. With several slides
+                   mounted at once (the live-player window) that is visible as
                    several videos painting simultaneously at stale positions —
                    captured on a Pixel 10 Pro during a fling, one frame showing
                    the outgoing video, the incoming one, and a third in a
@@ -557,7 +546,7 @@ const ReelSurface: React.FC<
     ),
     [
       player,
-      flightId,
+      playerKey,
       videoViewRef,
       desiredSource,
       targetFallbackUrl,
@@ -654,84 +643,73 @@ const ReelSurface: React.FC<
   );
 };
 
-/** The ordinary slide: its own player, released with it, rewound on activation. */
-const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
-  // Built ONCE from this row's own source and never rebuilt: `useVideoPlayer`
-  // releases and recreates its player whenever the source argument changes,
-  // which would tear the OS window's subject out from under it mid-session.
-  // Every later source change goes through `replaceAsync`.
-  // Memoised on the URL: `useVideoPlayer` REBUILDS its player whenever the
-  // source it is handed changes, and a fresh object literal every render is a
-  // change every render — which would rebuild the decoder on each commit.
-  // A playlist this browser cannot decode goes to hls.js instead, which needs
-  // the element to itself: the player is built with no source at all.
-  const [source] = useState(() =>
-    needsJsHlsDecoder(props.videoUrl) ? null : videoSourceFor(props.videoUrl),
-  );
-  const player = useVideoPlayer(source, (p: VideoPlayer) => {
-    p.loop = true;
-    // Drive the scrubber at a smooth-but-cheap cadence.
-    p.timeUpdateEventInterval = REEL_TIME_UPDATE_INTERVAL_S;
-    // Single source of truth for the initial mute: the global store value
-    // captured at mount. Subsequent changes flow through the sync effect.
-    p.muted = props.muted;
-    p.bufferOptions = VIDEO_BUFFER_OPTIONS;
-  });
-  return <ReelSurface {...props} player={player} restartOnActivate />;
-};
+/**
+ * The registry key a slide's own player is leased under: the slide's media, in
+ * the reel's own namespace.
+ *
+ * Not the feed's key for the same media, deliberately. On Android a player
+ * paints into ONE view at a time (expo-video moves it with
+ * `PlayerView.switchTargetView`, and nothing moves it back), and the home feed
+ * stays mounted under the reel with its on-screen rows still holding their
+ * players. A slide sharing the feed's entry would take the picture out of that
+ * row, which comes back black. The pool of parked players is shared all the
+ * same: an emptied player carries no identity, so a swipe here reuses one the
+ * feed gave back, and the other way round. The one slide that does take the
+ * feed's entry is the one a flight carried a playing video into.
+ */
+function reelPlayerKey(postId: string, mediaId: string | undefined, url: string): VideoPlayerKey {
+  return videoPlayerKey(`reel:${postId}`, mediaId ?? url);
+}
 
 /**
- * The slide the feed flew a video into: it takes the SAME player from the
- * registry rather than building one, so there is no second decoder and no seek
- * back to zero.
+ * A slide inside the live-player window: its player, leased from the registry
+ * for as long as it is mounted, and the chrome over it.
  *
- * This slide reports its own first painted frame with `handOff`, which is the
- * documented path for "a destination that renders something other than a Bloom
- * surface" — the reel paints expo-video's `VideoView` directly, so the
- * `flightId`-on-`MediaSurface` shortcut does not apply to it.
+ * The lease is the whole lifetime story. Mounting takes a parked player (handed
+ * this slide's source) or builds one; unmounting gives it back to be emptied and
+ * parked for the next slide or feed row. A video the reader is about to reach
+ * is therefore a player that changed source, not an ExoPlayer, a playback thread
+ * and a MediaSession built from nothing.
  *
- * `handOff` rather than `releaseFlight`: called mid-flight the layer REMEMBERS
- * it and lets the surface finish travelling, where releasing outright would
- * make it vanish somewhere between the two rects. `onFirstFrameRender` may fire
- * again later (expo-video re-emits it when the video track changes), which
- * costs nothing — handing off an id that is no longer in flight is a no-op.
+ * The slide a feed video flew into leases the FEED's entry instead, so there is
+ * no second decoder and no seek back to zero. Decided ONCE, at mount: "was a
+ * flight live for this media when this slide appeared". The answer stops being
+ * true the moment the flight is released, and a slide that swapped player
+ * identity mid-life would restart the video. That slide reports its first
+ * painted frame with `handOff`, the documented path for a destination that
+ * renders something other than a Bloom surface; called mid-flight the layer
+ * lets the surface finish travelling, where releasing outright would make it
+ * vanish between the two rects.
  */
-const AdoptedPlayerSurface: React.FC<ActiveVideoSurfaceProps & { flightId: VideoPlayerKey }> = ({
-  flightId,
-  ...props
-}) => {
-  const player = useVideoPlayerLease(flightId, props.videoUrl);
+const ActiveVideoSurface = memo<
+  ActiveVideoSurfaceProps & { playerKey: VideoPlayerKey; flightId?: VideoPlayerKey }
+>(({ playerKey: ownKey, flightId, ...props }) => {
+  const [adoptedKey] = useState(() =>
+    flightId !== undefined && hasFlight(flightId) ? flightId : null,
+  );
+  const playerKey = adoptedKey ?? ownKey;
+  const player = useVideoPlayerLease(playerKey, props.videoUrl);
+  // A flight that is no longer live when this slide mounts was never going
+  // to be adopted; its bridge would otherwise hold the feed's player.
+  useEffect(() => {
+    if (!adoptedKey && flightId && !hasFlight(flightId)) releaseTransitionHold(flightId);
+  }, [adoptedKey, flightId]);
   const { handOff } = useMediaFlight();
-  const handleFirstFrame = useCallback(() => handOff(flightId), [handOff, flightId]);
+  const handleFirstFrame = useCallback(() => {
+    if (adoptedKey) handOff(adoptedKey);
+  }, [handOff, adoptedKey]);
   return (
     <ReelSurface
       {...props}
       flightId={flightId}
       player={player}
-      restartOnActivate={false}
-      onFirstFrameRender={handleFirstFrame}
+      playerKey={playerKey}
+      // Rewinding the adopted slide would undo the point of carrying it across.
+      restartOnActivate={adoptedKey === null}
+      onFirstFrameRender={adoptedKey ? handleFirstFrame : undefined}
     />
   );
-};
-
-const ActiveVideoSurface = memo<ActiveVideoSurfaceProps & { flightId?: VideoPlayerKey }>(
-  (props) => {
-    const { flightId, ...rest } = props;
-    // Decided ONCE, at mount: "was a flight live for this media when this slide
-    // appeared". Read through a lazy initialiser rather than during every render
-    // — the answer stops being true the moment the flight is released, and a
-    // slide that swapped player identity mid-life would restart the video.
-    const [adopted] = useState(() => flightId !== undefined && hasFlight(flightId));
-    useEffect(() => {
-      if (!adopted && flightId && !hasFlight(flightId)) releaseTransitionHold(flightId);
-    }, [adopted, flightId]);
-    return adopted && flightId ? (
-      <AdoptedPlayerSurface {...rest} flightId={flightId} />
-    ) : (
-      <OwnPlayerSurface {...rest} />
-    );
-  },
-);
+});
 
 ActiveVideoSurface.displayName = 'ActiveVideoSurface';
 
@@ -846,6 +824,7 @@ const VideoItem = memo<VideoItemProps>(
         {canRenderPlayer ? (
           <ActiveVideoSurface
             key={item.mediaId ?? item.videoUrl}
+            playerKey={reelPlayerKey(item.id, item.mediaId, item.videoUrl)}
             flightId={item.mediaId ? videoPlayerKey(item.id, item.mediaId) : undefined}
             postId={item.id}
             videoUrl={item.videoUrl}

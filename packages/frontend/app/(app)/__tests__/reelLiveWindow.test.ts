@@ -14,15 +14,16 @@ import { join } from 'node:path';
  * The two directions are not symmetric. Ahead, the reader may never arrive, and
  * the only thing at stake is buffering lead. Behind, they have already watched
  * it and coming back is deliberate, so the video is expected to be where they
- * left it. A symmetric radius cannot express that, which is why this asserts the
- * ASYMMETRY rather than either number: whoever tunes the radii next should be
- * made to think about which side they are tuning.
+ * left it. So the slide behind keeps its player UNCONDITIONALLY, while the one
+ * ahead waits for the landed video's runway, and the behind radius is never
+ * smaller than the ahead one: whoever tunes the radii next should be made to
+ * think about which side they are tuning.
  *
  * The ceiling matters as much as the floor. Every retained slide holds a
  * hardware decoder and Android exhausts them silently — later videos simply
- * refuse to load, with no error to catch. So the retained side is bounded here
- * too, and the real answer to "keep more" is to retain the PLAYER without its
- * surface via `stores/videoPlayerRegistry`, not to widen this.
+ * refuse to load, with no error to catch. Players are leased from
+ * `stores/videoPlayerRegistry`, so a slide leaving the window hands its player
+ * to the pool rather than destroying it; the window itself stays small.
  */
 
 const SCREEN = join(__dirname, '..', '(tabs)', 'videos.tsx');
@@ -48,8 +49,16 @@ describe('the reel’s live-player window', () => {
     expect(screen).toContain('RETAINED_BEHIND_RADIUS');
   });
 
-  it('keeps a video alive FURTHER BEHIND the reader than ahead', () => {
-    expect(constant('RETAINED_BEHIND_RADIUS')).toBeGreaterThan(ahead);
+  it('keeps a video alive at least as far BEHIND the reader as ahead', () => {
+    expect(constant('RETAINED_BEHIND_RADIUS')).toBeGreaterThanOrEqual(ahead);
+  });
+
+  it('gates only the slides AHEAD on the landed video’s runway', () => {
+    // The behind side is a memory and costs no guess, so it never waits.
+    const body = screen.slice(screen.indexOf('function isSlideNear('));
+    expect(body.slice(0, 900)).toMatch(
+      /activeIndex - index <= RETAINED_BEHIND_RADIUS\s*:\s*index - activeIndex <= aheadRadius/,
+    );
   });
 
   /**
