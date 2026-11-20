@@ -77,7 +77,26 @@ build, scrolling a profile went from 0.9% janky frames (p50 8 ms) to 27% (p50
 software-mansion/react-native-screens#4633 (5.0.0-alpha.4): the push transaction
 detaches the covered screen, and the top fragment is resolved from the stack
 model. Popping the record (Back, predictive back, a JS pop) re-attaches it.
-Remove when Mention moves to react-native-screens 5.
+This hunk can go at react-native-screens 5 (5.0.0-beta.1 has #4633); the others
+cannot, and 5.x moved these files, so the rest would have to be re-made there.
+
+A root replacement pops the stack's only screen. Upstream refuses that
+(`check(stackModel.size > 1)`), because the root was never added to the
+FragmentManager's back stack. The patch allows it only when a push is pending,
+and removes the old root directly (`RemoveOp`) instead of popping a back-stack
+record, so Back cannot reveal the replaced screen. Still upstream's check in
+5.0.0-beta.1.
+
+The rest is the native half of predictive Back ownership
+(software-mansion/react-native-screens#5118, still open): `BackPressInterceptor`,
+`PreventNativeDismissCallback` and a `JavaScriptBackInterceptor` factory that
+`StackScreenFragment` installs. `android/build.gradle` compiles the native
+adapter only when the `rnscreens.nativeBackOwnershipEnabled` Gradle property is
+`true` (Bloom's config plugin writes it for `predictiveBack: true` in
+`app.config.js`) and the inert default otherwise, so a build without the React
+Native ownership API below still compiles. Remove it when #5118 ships. The
+provenance and native gates are in
+`docs/audits/2026-10-31-predictive-back/source-validation.md`.
 
 # @shopify/flash-list 2.3.3
 
@@ -140,7 +159,28 @@ JavaScript). The patch points the probe at
 `lib/module/createAnimatedComponent/AnimatedComponent`, the same build the
 import above loads; the probe's answer is unchanged (Reanimated 4.7.1 has no
 `_refreshComponentRef` in either build). Remove the patch when upstream
-imports Reanimated statically.
+imports Reanimated statically. 3.5.0 still `require()`s Reanimated, and it moved
+the `src` probe to `handlers/gestures/GestureDetector/refreshesAnimatableRef.js`,
+so moving to 3.5.0 means re-making both hunks there.
+
+# react-native 0.88.1
+
+The React Native half of predictive Back ownership, from the draft upstream PR
+react/react-native#59712 (closed unmerged; not in 0.89). `BackHandler` gains a
+public ownership API (`setNativeNavigationEnabled`, with its Flow and TypeScript
+types), backed on Android by `BackNavigationCoordinator` in `ReactActivity` and
+a new `DeviceEventManagerModule` method. That method changes the native ABI,
+which is why `app.config.js` builds React Native from source
+(`buildReactNativeFromSource`). Remove it with the Expo Router and Screens
+ownership backports, when upstream ships an equivalent.
+
+The `hermes-engine/build.gradle.kts` hunk backports react/react-native#59589:
+0.88's Hermes archive extraction assumed an obsolete repository prefix, which
+breaks the from-source build. It is in 0.89 (rc.0 onwards), so it can go when
+Mention moves to 0.89.
+
+Provenance and the native gates:
+`docs/audits/2026-10-31-predictive-back/source-validation.md`.
 
 # react-native-css 3.1.0-rc.0
 
@@ -152,4 +192,12 @@ Tailwind `text-white/50`. On a Pixel 8a camera this painted inactive mode labels
 black. Consume the omitted percentage placeholder and retain the CSS complementary
 weight calculation. The source and both published JS builds carry the same fix;
 installed CJS/ESM regression tests use the real compiler's serialized descriptors.
-Remove the patch when the installed upstream release includes #511.
+
+#511 was closed unmerged. Upstream fixed the same bug in the compiler instead
+(nativewind/react-native-css#579): `parseColorMix` drops the omitted argument,
+so the runtime never receives a `null`. That fix is not in 3.1.0-rc.1, only in
+nightlies so far. Remove the patch at the first release that includes #579.
+
+The root `overrides` pins react-native-css to 3.1.0-rc.0 while
+`packages/frontend/package.json` asks for 3.1.0-rc.1; rc.0 is what installs, and
+this patch is keyed to it.
