@@ -1,42 +1,28 @@
-import { AppState, type AppStateStatus } from 'react-native';
+import { environment } from '@oxy.so/bloom-data';
+import { focusManager, onlineManager } from '@tanstack/react-query';
+import '../queryClient';
 
 /**
- * React Query's device signals are Mention's to wire: the Oxy SDK no longer
- * drives `onlineManager` or `focusManager`, and on a device React Query has no
- * signal of its own. `lib/queryClient` wires both, once, when the client is
- * created.
+ * React Query's device signals come from bloom-data's `environment`, the one
+ * owner of both (the Oxy SDK feeds it on a device, the browser on the web):
+ * `lib/queryClient` follows it, so Mention adds no listener of its own.
  */
 
-let mockNetInfoListener: ((state: { isConnected: boolean | null }) => void) | undefined;
-jest.mock('@react-native-community/netinfo', () => ({
-  __esModule: true,
-  default: {
-    addEventListener: (listener: (state: { isConnected: boolean | null }) => void) => {
-      mockNetInfoListener = listener;
-      return () => undefined;
-    },
-  },
-}));
+afterEach(() => {
+  environment.setOnline(true);
+  environment.setFocused(true);
+});
 
-it('feeds React Query the network and whether the app is in front', () => {
-  let onAppState: ((status: AppStateStatus) => void) | undefined;
-  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
-    onAppState = listener;
-    return { remove: jest.fn() };
-  });
-
-  require('../queryClient');
-  const { focusManager, onlineManager } =
-    jest.requireActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
-
-  mockNetInfoListener?.({ isConnected: false });
+it('follows the environment going offline and back', () => {
+  environment.setOnline(false);
   expect(onlineManager.isOnline()).toBe(false);
-  // Not yet known counts as connected: never NetInfo's reachability probe.
-  mockNetInfoListener?.({ isConnected: null });
+  environment.setOnline(true);
   expect(onlineManager.isOnline()).toBe(true);
+});
 
-  onAppState?.('background');
+it('follows the app leaving the front and coming back', () => {
+  environment.setFocused(false);
   expect(focusManager.isFocused()).toBe(false);
-  onAppState?.('active');
+  environment.setFocused(true);
   expect(focusManager.isFocused()).toBe(true);
 });

@@ -2,11 +2,9 @@
 import 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
 import { registerChunkErrorRecovery } from '@/lib/chunkReload';
-import NetInfo from '@react-native-community/netinfo';
-import { environment as dataEnvironment } from '@oxy.so/bloom-data';
 import { preventNativeSplashAutoHide } from '@oxy.so/expo-splash';
 import { useEffect, useState } from 'react';
-import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { Platform } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { AVATAR_RUNTIME_REVISION } from '@oxy.so/bloom-avatar-native/runtime-revision';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
@@ -100,22 +98,6 @@ export default function RootLayout() {
   useEffect(() => registerSocketBfcacheRelease(), []);
   // Link cards Clarity had not finished when a post was read arrive on their own.
   useEffect(() => registerPendingDocuments(), []);
-
-  // The data store's device signals (`@oxy.so/bloom-data`). React Query's are
-  // wired with its client (`lib/queryClient`). Online means "has a network",
-  // never NetInfo's reachability probe, for the reason given there.
-  useEffect(() => {
-    const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      dataEnvironment.setOnline(state.isConnected !== false);
-    });
-    const appStateSub = AppState.addEventListener('change', (status: AppStateStatus) => {
-      dataEnvironment.setFocused(status === 'active');
-    });
-    return () => {
-      unsubscribeNetInfo();
-      appStateSub.remove();
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

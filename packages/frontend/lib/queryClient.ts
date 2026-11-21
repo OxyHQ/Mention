@@ -7,37 +7,28 @@
  * holds no query client. People are not kept here either: the SDK holds each
  * one once, in its `User` entity (`data/users`).
  *
- * The client's device signals are wired here, once, because nothing else does
- * it: React Query pauses queries while offline and refetches stale ones when
- * the app comes back to the front. On the web its defaults already listen to
- * the browser (`online`/`offline`, `visibilitychange`). On a device it has no
- * signal of its own, so NetInfo and AppState feed it:
- *
- * - Online means "has a network", never NetInfo's reachability probe. That
- *   probe fetches a Google URL; where it is blocked, slow or behind a captive
- *   portal it reports unreachable, and `networkMode: 'online'` would pause
- *   every query (feed modules and who-to-follow stayed on skeletons while
- *   Mention's own API was perfectly reachable). A request that really cannot
- *   get through fails and retries on its own. `null` (not yet known) counts as
- *   connected.
- * - Focused means the app is `active`.
+ * React Query pauses queries while offline and refetches stale ones when the
+ * app comes back to the front, so it needs the device's signals. It reads them
+ * from bloom-data's `environment`, the one owner of both: the Oxy SDK feeds it
+ * on a device (NetInfo's `isConnected`, never the reachability probe, and
+ * AppState) and the browser feeds it on the web. One listener, one rule.
  */
 
-import NetInfo from '@react-native-community/netinfo';
+import { environment } from '@oxy.so/bloom-data';
 import { focusManager, onlineManager, QueryClient } from '@tanstack/react-query';
-import { AppState, Platform } from 'react-native';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 
 export const queryClient = new QueryClient(QUERY_CLIENT_CONFIG);
 
-if (Platform.OS !== 'web') {
-  onlineManager.setEventListener((setOnline) =>
-    NetInfo.addEventListener((state) => setOnline(state.isConnected !== false)),
-  );
-  focusManager.setEventListener((setFocused) => {
-    const subscription = AppState.addEventListener('change', (status) =>
-      setFocused(status === 'active'),
-    );
-    return () => subscription.remove();
+onlineManager.setEventListener((setOnline) => {
+  setOnline(environment.online);
+  return environment.subscribe((event) => {
+    if (event === 'online' || event === 'offline') setOnline(event === 'online');
   });
-}
+});
+focusManager.setEventListener((setFocused) => {
+  setFocused(environment.focused);
+  return environment.subscribe((event) => {
+    if (event === 'focus' || event === 'blur') setFocused(event === 'focus');
+  });
+});
