@@ -30,8 +30,13 @@
       "include": ["lib/**/*.ts", "lib/**/*.tsx"]
     },
     {
+      "id": "data",
+      "why": "The posts and feeds the app shows: one copy of each post, the feed lists and sources, engagement actions, realtime counts and the account's store (`@oxy.so/bloom-data`).",
+      "include": ["data/**/*.ts", "data/**/*.tsx"]
+    },
+    {
       "id": "db",
-      "why": "The on-device feed cache, its schema and its migrations.",
+      "why": "The on-device link-preview cache, its schema and its migrations.",
       "include": ["db/**/*.ts"]
     },
     {
@@ -82,14 +87,16 @@
       "components/providers/AccountSwitchReset.tsx",
       "components/providers/AuthRouter.tsx",
       "stores/identityUpdates.ts",
-      "lib/actorCache.ts"
+      "lib/actorCache.ts",
+      "data/accounts.ts"
     ],
     "composer and post mutations": [
       "components/Feed/postInteractions.tsx",
       "components/Feed/PostInteractionsBinder.tsx",
       "components/Feed/postMenuActions.tsx",
       "stores/postsStore.ts",
-      "utils/postBuilder.ts"
+      "utils/postBuilder.ts",
+      "data/engagement.ts"
     ],
     "react query cache keys and invalidation": [
       "lib/viewerQueryKeys.ts",
@@ -115,12 +122,11 @@
     ],
     "feed pagination and state restoration": [
       "hooks/useFeedState.ts",
-      "hooks/useFeedQuery.ts",
-      "stores/feedQueryCache.ts",
+      "data/feeds.ts",
+      "data/posts.ts",
       "stores/feedStaleness.ts",
       "stores/feedScrollStore.ts",
       "utils/feedUtils.ts",
-      "utils/feedMemoryMode.ts",
       "utils/feedTelemetry.ts",
       "db/cacheLifecycle.ts"
     ]
@@ -135,11 +141,6 @@
     "clearing the bar is reported as a failure until it is deleted."
   ],
   "belowBarExemptions": {
-    "stores/postsStore.ts": {
-      "since": "2026-08-15",
-      "measured": "47.85% statements / 29.93% branches",
-      "reason": "stores/__tests__/postsStoreGranularReactivity.test.tsx is the only test naming it, and it is about selector reactivity. At 29.93% branches, most of the engagement write path this store owns — the authority every post surface reads — is unexercised."
-    },
     "services/channelDeletionService.ts": {
       "since": "2026-08-15",
       "measured": "0%",
@@ -154,11 +155,6 @@
       "since": "2026-08-15",
       "measured": "0%",
       "reason": "No direct test. expo-share-intent's module surface needs a mock nobody has written; utils/composeIntent.ts, at 97%, is the parser it feeds."
-    },
-    "db/cacheLifecycle.ts": {
-      "since": "2026-08-15",
-      "measured": "83.87% statements / 54.54% branches",
-      "reason": "Clears the statement bar, not the branch bar. The file is largely error-recovery: seven catch blocks including a nested recovery path, and a failure path is exactly what a happy-path test never enters."
     }
   },
   "$comment:unenforceable": [
@@ -243,8 +239,8 @@
   ],
   "expectedCounts": {
     "unenforceable": 5,
-    "belowBarExemptions": 5,
-    "criticalPaths": 35,
+    "belowBarExemptions": 3,
+    "criticalPaths": 36,
     "snapshotAssertions": 0
   }
 }

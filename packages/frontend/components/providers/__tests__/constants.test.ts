@@ -15,3 +15,20 @@ describe('QueryClient query defaults', () => {
     expect(QUERY_CLIENT_CONFIG.defaultOptions.queries).not.toHaveProperty('refetchOnMount');
   });
 });
+
+describe('QueryClient retry policy', () => {
+  const { retry, retryDelay } = QUERY_CLIENT_CONFIG.defaultOptions.queries;
+
+  it('never retries a client error, and retries anything else twice', () => {
+    expect(retry(0, { status: 404 })).toBe(false);
+    expect(retry(0, { status: 503 })).toBe(true);
+    expect(retry(1, new Error('offline'))).toBe(true);
+    expect(retry(2, null)).toBe(false);
+  });
+
+  it('backs off exponentially up to 30 s', () => {
+    expect(retryDelay(0)).toBe(1000);
+    expect(retryDelay(3)).toBe(8000);
+    expect(retryDelay(10)).toBe(30000);
+  });
+});
