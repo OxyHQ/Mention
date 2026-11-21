@@ -2,13 +2,12 @@ import { useCallback, useMemo } from 'react';
 import type { Href } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { cacheActors } from '@/lib/actorCache';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { storeUsers, useAuth } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { ProfileCardData } from '@/components/ProfileCard';
 import { SuggestedProfileCardSkeleton } from '@/components/SuggestedProfileCard';
-import { useUserById } from '@/hooks/useCachedUser';
+import { useHeldUser } from '@/data/users';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { PersonSuggestionItem } from './PersonSuggestionItem';
 import { InterstitialShell } from './InterstitialShell';
@@ -59,7 +58,7 @@ export function SimilarAccountsInterstitial({
       if (!subjectId) return [];
       const similar = await oxyServices.users.similar(subjectId);
       if (similar.length > 0) {
-        cacheActors(similar);
+        storeUsers(similar);
         void enrichMissingAvatars(
           similar.map((profile) => ({ ...profile, avatar: profile.avatar ?? undefined })),
           (ids) => oxyServices.users.getMany(ids),
@@ -74,11 +73,11 @@ export function SimilarAccountsInterstitial({
     staleTime: INTERSTITIAL_STALE_TIME_MS,
   });
 
-  // The subject's own handle, for the way out of the band. Read from the shared
-  // actor cache the profile screen already primed, so it is normally a cache hit;
-  // until it resolves the band falls back to the app-wide discovery surface rather
-  // than render a link to `/@undefined`.
-  const subject = useUserById(subjectId);
+  // The subject's own handle, for the way out of the band. Read from the people
+  // the Oxy SDK holds: the profile screen's read and the feed's posts put the
+  // subject there. Until it is held the band falls back to the app-wide
+  // discovery surface rather than render a link to `/@undefined`.
+  const subject = useHeldUser(subjectId);
   const seeMoreHref: Href = profileHrefForUser(subject, 'who-may-know') ?? '/explore/who-to-follow';
 
   // An id-less actor cannot be keyed, followed or opened; and nobody is "similar
@@ -170,5 +169,6 @@ function toCardData(account: User): ProfileCardData {
     kind: account.kind,
     instance: account.instance,
     federation: account.federation,
+    updatedAt: account.updatedAt,
   };
 }

@@ -51,8 +51,8 @@ interface SuggestedProfileCardProps {
  * carousels are its surface; lists of people keep the {@link ProfileCard} row.
  *
  * It resolves its identity exactly as the row does
- * ({@link useResolvedProfileIdentity}), so an edit made in this session and the
- * "Unknown user" fallback reach both the same way.
+ * ({@link useResolvedProfileIdentity}), so the copy the Oxy SDK holds of the
+ * person and the "Unknown user" fallback reach both the same way.
  *
  * The Follow button and the accessory are SIBLINGS of the pressable region, not
  * descendants: on web a real `<button>` would otherwise bubble its click into

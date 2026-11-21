@@ -34,6 +34,7 @@ function toProfileCard(user: PostUser): ProfileCardData {
     kind: user.kind,
     character: user.character,
     color: user.color,
+    updatedAt: user.updatedAt,
   };
 }
 

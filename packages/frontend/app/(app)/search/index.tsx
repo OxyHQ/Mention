@@ -348,6 +348,7 @@ function toProfileCardData(user: SearchUserResult): ProfileCardData | null {
     description: user.bio,
     isFederated: user.isFederated || user.type === 'federated',
     instance: user.instance || user.federation?.domain,
+    updatedAt: user.updatedAt,
   };
 }
 

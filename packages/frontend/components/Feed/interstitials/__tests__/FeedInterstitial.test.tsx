@@ -169,24 +169,10 @@ jest.mock('@oxy.so/services/ui/client', () => {
   return {
     useAuth: () => mockAuth,
     useAuthStore: { getState: () => mockAuth },
-    // The real by-id cache key, ported: the bands' avatar backfill
-    // (`utils/userEnrichment`) reads `queryKeys.users.detail(id)` to skip
-    // already-cached ids, so a stub-less mock would throw the moment a band
-    // prewarms.
-    queryKeys: {
-      users: {
-        detail: (id: string) => ['users', 'detail', id],
-        details: () => ['users', 'detail'],
-      },
-    },
-    // The SDK's canonical merge-upsert — the ONE path the bands seed the actor
-    // cache through (`upsertCachedUsers` for the fetched suggestions,
-    // `upsertCachedUser` inside the avatar backfill). No-ops here: these tests
-    // assert what a band RENDERS and REPORTS, not cache contents (the merge is the
-    // SDK's own contract), but the exports must exist or priming throws the moment
-    // a band fetches suggestions.
-    upsertCachedUser: jest.fn(),
-    upsertCachedUsers: jest.fn(),
+    // The SDK's real `User` and `storeUsers`: the bands store the people they
+    // fetch there, and the avatar backfill (`utils/userEnrichment`) skips the
+    // ones it holds.
+    ...jest.requireActual('@/test-support/oxyUsers'),
     // Faithful to the two modes the real button has, including the one behavior
     // the starter-pack band depends on: in multi-user mode with nobody left to
     // follow it renders NOTHING, so a pack the viewer already followed through
@@ -239,18 +225,10 @@ jest.mock('@/services/feedService', () => ({
   },
 }));
 
-/** The subject of the similar-accounts band, read from the shared actor cache. */
-let mockSubject: User | undefined;
-jest.mock('@/hooks/useCachedUser', () => ({
-  useUserById: () => mockSubject,
-  useCachedUserSnapshot: () => undefined,
-}));
-
 /**
- * The app's singleton actor cache, which the bands prime with the profiles they
- * fetch. Swapped for a throwaway client: priming the REAL one arms its
- * 30-minute garbage-collection timer, which outlives the test run and holds
- * jest's worker open.
+ * The app's singleton query client. Swapped for a throwaway one: writing to the
+ * REAL one arms its 30-minute garbage-collection timer, which outlives the test
+ * run and holds jest's worker open.
  */
 jest.mock('@/lib/queryClient', () => {
   const { QueryClient } =
@@ -823,7 +801,6 @@ beforeEach(() => {
   mockSendInterstitialEvent.mockReset().mockResolvedValue(undefined);
   mockSendFeedInteractions.mockReset().mockResolvedValue(undefined);
   mockSendTrendEvent.mockReset().mockResolvedValue(undefined);
-  mockSubject = undefined;
   mockTrends = [];
   mockHiddenTrendIds = [];
   mockTrendsLoading = false;

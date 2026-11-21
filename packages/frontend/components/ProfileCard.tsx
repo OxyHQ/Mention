@@ -6,7 +6,7 @@ import { FollowButton } from '@/components/FollowButton';
 import { ListItem } from '@oxy.so/bloom/list';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AvatarCharacter } from '@oxy.so/contracts';
-import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
+import { useHeldUser, withHeldUser } from '@/data/users';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Text } from '@oxy.so/bloom/typography';
 import { getNormalizedUserHandle, type AccountKind } from '@oxy.so/core';
@@ -77,6 +77,12 @@ export interface ProfileCardData {
   federation?: {
     domain?: string;
   };
+  /**
+   * When the account's Oxy record last changed (ISO 8601), when the surface's
+   * copy carries it: the copy `User` holds is shown instead only when it is not
+   * older (`data/users`).
+   */
+  updatedAt?: string;
 }
 
 interface ProfileCardProps {
@@ -115,9 +121,9 @@ interface ProfileCardProps {
 }
 
 /**
- * What a person row or tile draws for `profile`: the profile corrected against
- * any identity edit made in this session, its handle, the label its name line
- * shows, and where tapping it goes.
+ * What a person row or tile draws for `profile`: the profile with the copy the
+ * Oxy SDK holds of that person laid over it (`data/users`), its handle, the
+ * label its name line shows, and where tapping it goes.
  *
  * `profile` is a snapshot the surface that fetched it is still holding, and
  * nothing rewrites it. The person row ({@link ProfileCard}) and the feed's
@@ -131,17 +137,14 @@ interface ProfileCardProps {
  * so no separate "globe + instance" line is needed. An unresolved author has no
  * handle at all — it must never fall back to the raw id, so a profile with
  * neither name nor handle degrades to "Unknown user" and is not pressable (no
- * `/@<id>` links). Derived from the CORRECTED profile: a rename changes the
+ * `/@<id>` links). Derived from the RESOLVED profile: a rename changes the
  * handle, and a link that still pointed at the old one would 404 on tap.
  */
 export function useResolvedProfileIdentity(profile: ProfileCardData, onPress?: () => void) {
   const { t } = useTranslation();
   const router = useRouter();
-  const knownIdentities = useKnownIdentitySet([profile.id]);
-  const resolved = useMemo(
-    () => mergeKnownIdentity(profile, knownIdentities.get(profile.id)),
-    [profile, knownIdentities],
-  );
+  const held = useHeldUser(profile.id);
+  const resolved = useMemo(() => withHeldUser(profile, held), [profile, held]);
 
   const handle = getNormalizedUserHandle(resolved) ?? '';
   const displayName = resolved.name?.displayName?.trim();

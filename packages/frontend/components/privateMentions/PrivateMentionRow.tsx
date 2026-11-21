@@ -1,14 +1,12 @@
 import { memo } from 'react';
-import { skipToken, useQueries } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ListItem } from '@oxy.so/bloom/list';
 import type { ChatFace, ChatPreview } from '@oxy.so/bloom/chat-list';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { queryKeys } from '@oxy.so/services/ui/client';
-import type { User } from '@oxy.so/core';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 import { useRouter } from '@/lib/navigation/router';
+import { useHeldUsers } from '@/data/users';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 
@@ -34,9 +32,9 @@ function participantName(participant: Participant | undefined): string {
 /**
  * One private-mention conversation, drawn by Bloom's `ListItem`: who it is
  * with, the newest post's text, when it last moved, and a lock that says only
- * those people can read it. Participants come from the shared Oxy user cache,
- * which `usePrivateMentionConversations` warms in one batch — this row reads it
- * without fetching (and falls back to the latest post's author, which arrives
+ * those people can read it. Participants come from the people the Oxy SDK
+ * holds (`User`), which `usePrivateMentionConversations` fills in one batch —
+ * this row reads them without fetching (and falls back to the latest post's author, which arrives
  * hydrated).
  */
 export const PrivateMentionRow = memo(function PrivateMentionRow({
@@ -52,15 +50,11 @@ export const PrivateMentionRow = memo(function PrivateMentionRow({
   const router = useRouter();
   const { latestPost, participantIds, rootId, lastActivityAt } = conversation;
 
-  const cached = useQueries({
-    queries: participantIds.slice(0, MAX_FACES).map((id) => ({
-      queryKey: queryKeys.users.detail(id),
-      queryFn: skipToken,
-    })),
-  });
+  const shown = participantIds.slice(0, MAX_FACES);
+  const held = useHeldUsers(shown);
 
-  const participants: Participant[] = participantIds.slice(0, MAX_FACES).map((id, index) => {
-    const user = cached[index]?.data as User | undefined;
+  const participants: Participant[] = shown.map((id) => {
+    const user = held.get(id);
     if (user) return user;
     if (latestPost.user?.id === id) return latestPost.user;
     return { id };

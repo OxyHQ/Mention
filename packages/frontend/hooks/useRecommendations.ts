@@ -21,8 +21,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
-import { cacheActors } from '@/lib/actorCache';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { storeUsers, useAuth } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { isAuthError } from '@/utils/authErrors';
@@ -68,8 +67,8 @@ export interface UseRecommendationsOptions {
 }
 
 /**
- * Fetch + normalize ONE recommendations page: drop id-less items, prime the
- * actor cache, background-fill missing avatars, and soft-fail an auth error to an
+ * Fetch + normalize ONE recommendations page: drop id-less items, store the
+ * people in `User`, background-fill missing avatars, and soft-fail an auth error to an
  * empty page (other errors propagate so React Query retries). Shared verbatim by
  * the single-page and infinite hooks so neither duplicates this logic.
  */
@@ -81,7 +80,7 @@ async function loadRecommendationsPage(
     const page = await fetchPage();
     const users = page.recommendations.filter((u) => u.id.length > 0);
     if (users.length > 0) {
-      cacheActors(users);
+      storeUsers(users);
       void enrichMissingAvatars(users, getUsersByIds);
     }
     return { ...page, recommendations: users };

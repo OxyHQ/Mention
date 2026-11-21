@@ -1,12 +1,10 @@
 import { useCallback } from 'react';
-import { queryKeys } from '@oxy.so/services/ui/client';
-import type { User } from '@oxy.so/core';
+import { User } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { toast } from '@oxy.so/bloom/toast';
 import i18n from '@/lib/i18n';
 import { shareLink } from '@/utils/shareLink';
-import { queryClient } from '@/lib/queryClient';
 import { postPermalink } from '@/utils/postPermalink';
 import { toReaderText } from '@mention/shared-types/textEntities';
 
@@ -43,15 +41,7 @@ export async function sharePost(post: SharePost | null | undefined): Promise<voi
     const id = String(user.id ?? user._id ?? '');
     const name = user.name?.displayName || 'Someone';
 
-    let handle = getNormalizedUserHandle(user) || '';
-    if (!handle && id) {
-      try {
-        const cached = queryClient.getQueryData<User>(queryKeys.users.detail(id));
-        handle = cached?.username || '';
-      } catch (lookupError) {
-        logger.debug('User lookup failed during share', { error: lookupError });
-      }
-    }
+    const handle = getNormalizedUserHandle(user) || (id ? User.get(id)?.username : '') || '';
 
     const shareMessage = contentText
       ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`

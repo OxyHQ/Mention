@@ -25,8 +25,9 @@ import TestRenderer, { act } from 'react-test-renderer';
  * subscriptions and both feed interstitials. Each hands it a `profile` snapshot
  * its own fetch produced, and nothing rewrites those — so a picture changed
  * after that fetch stayed wrong on every one of them until a reload, exactly as
- * it did on a post row. Resolving it in the row is what reaches all fifteen; a
- * correction per surface is fifteen chances to forget one.
+ * it did on a post row. Resolving it in the row, from the person the Oxy SDK's
+ * `User` holds, is what reaches all fifteen; a correction per surface is fifteen
+ * chances to forget one.
  *
  * The mocks below exist only to keep untransformed ESM out of the module graph,
  * the same reason `PostDetailStats.test.tsx` mocks its Bloom subpaths. `Avatar`
@@ -77,8 +78,7 @@ jest.mock('@oxy.so/services/ui/client', () => {
   return {
     useAuth: () => ({ user: { id: 'viewer' } }),
     useAuthStore: { getState: () => ({ user: { id: 'viewer' } }) },
-    upsertCachedUser: jest.fn(),
-    upsertCachedUsers: jest.fn(),
+    ...jest.requireActual('@/test-support/oxyUsers'),
     FollowButton: ({
       onFollowChange,
       username,
@@ -119,10 +119,25 @@ jest.mock('@/utils/userPlaceholderColor', () => ({
 
 import { ProfileCard } from '@/components/ProfileCard';
 import { SuggestedProfileCard } from '@/components/SuggestedProfileCard';
-import { noteIdentityChanged } from '@/lib/actorCache';
-import { resetIdentityUpdates } from '@/stores/identityUpdates';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { storeUsers } from '@oxy.so/services/ui/client';
 
 const PERSON_ID = 'person-1';
+/** When the surface fetched its copy, and when the edit landed at Oxy. */
+const FETCHED_AT = '2026-08-01T00:00:00.000Z';
+const EDITED_AT = '2026-08-02T00:00:00.000Z';
+
+/**
+ * An accepted profile write, as the SDK stores Oxy's answer in `User`: with the
+ * `updatedAt` Oxy gave it.
+ */
+function edit(person: { id: string; [field: string]: unknown }, at = EDITED_AT): void {
+  storeUsers({ ...person, updatedAt: at });
+}
+
+beforeEach(() => {
+  setActiveStore(new Store());
+});
 
 let mounted: TestRenderer.ReactTestRenderer | null = null;
 
@@ -135,6 +150,7 @@ function renderRow() {
           username: 'ada',
           name: { displayName: 'Ada' },
           avatar: 'avatar-before',
+          updatedAt: FETCHED_AT,
         }}
       />,
     );
@@ -151,7 +167,6 @@ afterEach(() => {
   const renderer = mounted;
   if (renderer) act(() => renderer.unmount());
   mounted = null;
-  resetIdentityUpdates();
   jest.clearAllMocks();
 });
 
@@ -166,7 +181,7 @@ describe('ProfileCard follows the identity it names', () => {
     const renderer = renderRow();
 
     act(() => {
-      noteIdentityChanged({
+      edit({
         id: PERSON_ID,
         username: 'ada',
         name: { displayName: 'Ada Lovelace' },
@@ -182,7 +197,7 @@ describe('ProfileCard follows the identity it names', () => {
     const renderer = renderRow();
 
     act(() => {
-      noteIdentityChanged({ id: PERSON_ID, username: 'ada-l' });
+      edit({ id: PERSON_ID, username: 'ada-l' });
     });
 
     // Not cosmetic: the handle is what the row navigates to, so a stale one is a
@@ -213,11 +228,30 @@ describe('ProfileCard follows the identity it names', () => {
     expect(mockPush).toHaveBeenCalled();
   });
 
+  it('keeps its own copy when the one held is older', () => {
+    act(() => {
+      edit({ id: PERSON_ID, avatar: 'avatar-older' }, '2026-07-01T00:00:00.000Z');
+    });
+
+    const renderer = renderRow();
+    expect(probe(renderer, 'card-avatar')).toBe('avatar-before');
+  });
+
+  it('never shows the "Unknown user" placeholder over the person it fetched', () => {
+    act(() => {
+      // An Oxy outage hydrates a degraded copy, which carries no `updatedAt`.
+      storeUsers({ id: PERSON_ID, username: '', name: { displayName: 'Unknown user' } });
+    });
+
+    const renderer = renderRow();
+    expect(probe(renderer, 'card-name')).toBe('Ada|ada');
+  });
+
   it('leaves every other person alone', () => {
     const renderer = renderRow();
 
     act(() => {
-      noteIdentityChanged({ id: 'someone-else', avatar: 'avatar-after' });
+      edit({ id: 'someone-else', avatar: 'avatar-after' });
     });
 
     expect(probe(renderer, 'card-avatar')).toBe('avatar-before');
@@ -258,7 +292,7 @@ describe('SuggestedProfileCard resolves its identity the way the row does', () =
     });
 
     act(() => {
-      noteIdentityChanged({ id: PERSON_ID, username: 'ada-l', avatar: 'avatar-after' });
+      edit({ id: PERSON_ID, username: 'ada-l', avatar: 'avatar-after' });
     });
 
     expect(probe(renderer, 'card-avatar')).toBe('avatar-after');

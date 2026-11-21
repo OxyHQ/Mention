@@ -10,7 +10,6 @@ import {
   type ProfileCardData,
 } from '@/components/ProfileCard';
 import { BaseWidget } from './BaseWidget';
-import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
@@ -85,16 +84,14 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
 
 const FollowRowComponent = React.memo(
   ({ profileData, showBorder = true }: { profileData: ProfileData; showBorder?: boolean }) => {
-    const cachedUser = useCachedUserSnapshot(profileData.id);
-
     // The rail row omits the bio — the sidebar has no room for it. Everything else
     // (identity, badges, follow button) is the shared row's.
     const profile: ProfileCardData = {
       id: profileData.id,
-      username: profileData.username || cachedUser?.username || '',
+      username: profileData.username || '',
       name: profileData.name,
-      avatar: profileData.avatar || cachedUser?.avatar,
-      color: profileData.color ?? cachedUser?.color,
+      avatar: profileData.avatar,
+      color: profileData.color,
       verified: profileData.verified,
       isFederated: profileData.isFederated,
       isAgent: profileData.isAgent,

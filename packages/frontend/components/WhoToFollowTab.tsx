@@ -5,7 +5,6 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
-import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { Text } from '@oxy.so/bloom/typography';
@@ -255,14 +254,12 @@ const FollowRow = React.memo(function FollowRow({
   userId: string;
   excludesFollowed: boolean;
 }) {
-  const cachedUser = useCachedUserSnapshot(userId);
-
   const profile: ProfileCardData = {
     id: userId,
-    username: item.username || cachedUser?.username || '',
+    username: item.username || '',
     name: item.name,
-    avatar: item.avatar || cachedUser?.avatar,
-    color: item.color ?? cachedUser?.color,
+    avatar: item.avatar,
+    color: item.color,
     verified: item.verified,
     description: item.bio,
     isFederated: item.isFederated,

@@ -2,6 +2,8 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PrivateMentionConversation } from '@mention/shared-types';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { storeUsers } from '@oxy.so/services/ui/client';
 
 /**
  * The private-mentions inbox screen: each conversation becomes one Bloom
@@ -27,8 +29,8 @@ jest.mock('@/hooks/usePrivateMentionConversations', () => ({
 }));
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@oxy.so/services/ui/client', () => ({
+  ...jest.requireActual('@/test-support/oxyUsers'),
   OxyAuthPrompt: () => null,
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
   useAuth: () => ({
     user: { id: 'viewer' },
     isAuthResolved: true,
@@ -95,11 +97,9 @@ function conversation(
 
 function render() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  client.setQueryData(['users', 'u2'], {
-    id: 'u2',
-    username: 'luis',
-    name: { displayName: 'Luis' },
-  });
+  setActiveStore(new Store());
+  // A participant the screen's batch read stored in `User`.
+  storeUsers({ id: 'u2', username: 'luis', name: { displayName: 'Luis' } });
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(

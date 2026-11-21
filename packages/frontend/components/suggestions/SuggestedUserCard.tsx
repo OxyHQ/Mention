@@ -4,7 +4,6 @@ import { Pressable } from 'react-native';
 
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 
 interface SuggestedUserData {
@@ -37,18 +36,16 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   hideDismiss,
 }: SuggestedUserCardProps) {
   const theme = useTheme();
-  const cachedUser = useCachedUserSnapshot(user.id);
-
   const handleDismiss = useCallback(() => {
     onDismiss(user.id);
   }, [onDismiss, user.id]);
 
   const profile: ProfileCardData = {
     id: user.id,
-    username: user.username || cachedUser?.username || '',
+    username: user.username || '',
     name: user.name,
-    avatar: user.avatar || cachedUser?.avatar,
-    color: user.color ?? cachedUser?.color,
+    avatar: user.avatar,
+    color: user.color,
     verified: user.verified,
     description: user.bio,
     isFederated: user.isFederated,

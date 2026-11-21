@@ -23,8 +23,7 @@ import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-qu
 import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
-import { cacheActors } from '@/lib/actorCache';
-import { useAuth, type CacheableUser } from '@oxy.so/services/ui/client';
+import { storeUsers, useAuth, type CacheableUser } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
@@ -222,14 +221,14 @@ function ConnectionsContent({
         if (isFederatedProfile) {
           const page = await fetchProfileConnections(profileId, kind, pageParam);
           // `PostUser` is an interface, so it is spread into a plain record to cache.
-          cacheActors(page.users.map((item): CacheableUser => ({ ...item })));
+          storeUsers(page.users.map((item): CacheableUser => ({ ...item })));
           return { users: page.users, nextCursor: page.nextCursor };
         }
         const list =
           kind === 'following'
             ? (await oxyServices.follows.following(profileId)).following
             : (await oxyServices.follows.followers(profileId)).followers;
-        cacheActors(list);
+        storeUsers(list);
         return { users: list };
       } catch (err) {
         // The lists are public; an auth error (no usable bearer yet on cold
@@ -311,7 +310,7 @@ function ConnectionsContent({
       try {
         const result = await oxyServices.follows.mutuals(targetId, { limit: 50 });
         const list = result.mutuals;
-        cacheActors(list);
+        storeUsers(list);
         return list;
       } catch (err) {
         // Mutuals require a viewer; on an auth error (no usable bearer yet on

@@ -27,8 +27,10 @@ const mockAuth = {
     safety: { organizations: jest.fn() },
   },
 };
-jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
-jest.mock('@/hooks/useCachedUser', () => ({ useCachedUserSnapshot: () => undefined }));
+jest.mock('@oxy.so/services/ui/client', () => ({
+  ...jest.requireActual('@/test-support/oxyUsers'),
+  useAuth: () => mockAuth,
+}));
 jest.mock('@/utils/userEnrichment', () => ({
   prewarmUsersByIds: jest.fn(() => Promise.resolve([])),
 }));

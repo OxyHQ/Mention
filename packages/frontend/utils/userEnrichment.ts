@@ -1,25 +1,22 @@
-import { queryKeys } from '@oxy.so/services/ui/client';
-import { cacheActor } from '@/lib/actorCache';
-import { queryClient } from '@/lib/queryClient';
-import type { User } from '@oxy.so/core';
+import { storeUsers, User } from '@oxy.so/services/ui/client';
+import type { User as OxyUser } from '@oxy.so/core';
 
 /**
  * For each user missing an avatar, fetch the full profiles in a SINGLE bulk
- * request and merge-upsert them into the React Query cache (the single in-memory
- * actor cache) via `lib/actorCache`. This avoids the classic N+1 —
- * one HTTP request per missing user — by routing the misses through
- * `oxyServices.users.getMany` (chunked 100/req, deduped) instead of looping
- * `getUserById`. The merge-upsert fills the avatar without stripping any field an
- * authoritative profile fetch already stored (viewer `relationship`, `createdAt`,
- * `_count`), and seeds the by-username entry too when a username is present.
+ * request and store them in the Oxy SDK's `User` (`storeUsers`). This avoids the
+ * classic N+1 — one HTTP request per missing user — by routing the misses
+ * through `oxyServices.users.getMany` (chunked 100/req, deduped) instead of
+ * looping `getUserById`. `User` merges what it is given, so the avatar fills in
+ * without stripping any field an authoritative profile read already stored
+ * (viewer `relationship`, `createdAt`, `_count`).
  *
  * Fire-and-forget — callers should NOT await this if they want the UI to render
- * immediately with placeholder avatars. The full profiles fill in reactively as
- * `useUserById` re-reads the primed cache entries.
+ * immediately with placeholder avatars. The full profiles fill in reactively on
+ * every row that reads the person from `User` (`data/users`).
  */
 export function enrichMissingAvatars(
   users: readonly { id: string; avatar?: string; [k: string]: unknown }[],
-  getUsersByIds: (ids: string[]) => Promise<User[]>,
+  getUsersByIds: (ids: string[]) => Promise<OxyUser[]>,
 ): Promise<void> {
   const missingIds = users
     .filter((u) => !u.avatar || !u.avatar.startsWith('http'))
@@ -28,48 +25,31 @@ export function enrichMissingAvatars(
   if (missingIds.length === 0) return Promise.resolve();
 
   return getUsersByIds(missingIds)
-    .then((fetched) => {
-      for (const user of fetched) {
-        if (user?.id) {
-          cacheActor(user);
-        }
-      }
-    })
+    .then((fetched) => storeUsers(fetched))
     .catch(() => {
       // Avatar enrichment is best-effort: placeholders stay in place on failure.
     });
 }
 
 /**
- * Warm the React Query user cache for a set of user ids in a SINGLE bulk request,
- * skipping ids already cached at `queryKeys.users.detail(id)`. Each fetched
- * profile is merge-upserted via `lib/actorCache` so per-row reads
- * (e.g. a list whose rows resolve a user by id) hit the warm cache instead of
- * firing one HTTP request per row — the classic N+1 — without clobbering any
- * field an authoritative fetch already stored. Best-effort: resolves to `[]` on
- * failure so callers degrade to their own per-row resolution.
- *
- * Reads and writes the app's singleton client directly rather than taking one:
- * the write goes through `lib/actorCache`, which is bound to that singleton, so
- * a caller passing a DIFFERENT client would have this skipping ids cached in one
- * cache while priming another.
+ * Fetch the people `ids` names that `User` does not hold yet, in a SINGLE bulk
+ * request, and store them there, so per-row reads (a list whose rows resolve a
+ * person by id) find them instead of firing one HTTP request per row — the
+ * classic N+1. Best-effort: resolves to `[]` on failure so callers degrade to
+ * their own per-row resolution.
  */
 export function prewarmUsersByIds(
   ids: readonly string[],
-  getUsersByIds: (ids: string[]) => Promise<User[]>,
-): Promise<User[]> {
+  getUsersByIds: (ids: string[]) => Promise<OxyUser[]>,
+): Promise<OxyUser[]> {
   const toFetch = Array.from(new Set(ids.filter((id) => id.length > 0))).filter(
-    (id) => !queryClient.getQueryData(queryKeys.users.detail(id)),
+    (id) => !User.has(id),
   );
   if (toFetch.length === 0) return Promise.resolve([]);
 
   return getUsersByIds(toFetch)
     .then((fetched) => {
-      for (const user of fetched) {
-        if (user?.id) {
-          cacheActor(user);
-        }
-      }
+      storeUsers(fetched);
       return fetched;
     })
     .catch(() => []);
