@@ -5,7 +5,7 @@ import { TouchableOpacity, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAuth, useUserById } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 
@@ -14,7 +14,6 @@ import { WidgetItemMenu, type WidgetItemMenuActions } from './WidgetItemMenu';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { Room } from '@/lib/syraApi';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
-import { useUserById } from '@/hooks/useCachedUser';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -27,7 +26,7 @@ function buildRoomUrl(roomId: string): string {
   return `${WEB_BASE_URL}/live-rooms/${roomId}`;
 }
 
-function getDisplayName(profile: ReturnType<typeof useUserById>, userId: string): string {
+function getDisplayName(profile: ReturnType<typeof useUserById>['value'], userId: string): string {
   return profile?.name?.displayName || profile?.username || userId.slice(0, 10);
 }
 
@@ -43,7 +42,7 @@ const RoomRow = React.memo(function RoomRow({
   getMenuActions: (room: Room) => WidgetItemMenuActions;
 }) {
   const theme = useTheme();
-  const hostProfile = useUserById(room.host);
+  const hostProfile = useUserById(room.host).value;
   const hostName = hostProfile?.username
     ? `@${hostProfile.username}`
     : getDisplayName(hostProfile, room.host);

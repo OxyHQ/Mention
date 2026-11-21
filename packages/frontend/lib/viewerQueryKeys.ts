@@ -21,8 +21,8 @@ export function viewerCacheId(viewerId: ViewerId): string {
 
 /**
  * Mention-owned data that is identical for every caller. Canonical Oxy identity
- * objects are intentionally not duplicated here: callers must use
- * `@oxy.so/services`' `queryKeys.users.*` for those public identity records only.
+ * objects are intentionally not duplicated here: the Oxy SDK holds each person
+ * once, in its `User` entity (`data/users`).
  */
 export const publicQueryKeys = {
   commerceProducts: (query: string) => [...PUBLIC_ROOT, 'commerce-products', query] as const,
@@ -587,6 +587,9 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'recommendations', 'infinite', excludeTypesCsv] as const,
   newestUsers: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'newest-users'] as const,
   viewerFollowing: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'following'] as const,
+  /** The profiles of the followed accounts `ids` names (the video tab's faces). */
+  viewerFollowingProfiles: (viewerId: ViewerId, ids: readonly string[]) =>
+    [...viewerQueryKeys.viewerFollowing(viewerId), 'profiles', ids] as const,
   postActivity: (viewerId: ViewerId, userId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'post-activity', userId ?? ''] as const,
   /** Syra podcast shows the viewer is subscribed to (the podcast card's save button). */

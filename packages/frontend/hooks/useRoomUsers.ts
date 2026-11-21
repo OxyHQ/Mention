@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
-import type { OxyServices, User } from '@oxy.so/core';
-import { queryKeys } from '@oxy.so/services/ui/client';
+import type { OxyServices } from '@oxy.so/core';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { queryClient } from '@/lib/queryClient';
+import type { HeldUser } from '@/data/users';
+import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
-type RoomUser = Pick<User, 'id' | 'name' | 'username' | 'avatar'>;
+type RoomUser = Pick<HeldUser, 'id' | 'name' | 'username' | 'avatar'>;
 
 /**
- * Warms the shared Oxy user cache for room participants without importing the
- * LiveKit-backed Syra package. Rendering reads the same cache via useUserById.
+ * Stores a room's people in the Oxy SDK's `User` in one bulk read (the ones it
+ * does not hold yet), without importing the LiveKit-backed Syra package. Rows
+ * read them from there (`data/users`).
  */
 export function useRoomUsers(userIds: string[]) {
   const { oxyServices } = useAuth();
@@ -16,16 +17,7 @@ export function useRoomUsers(userIds: string[]) {
 
   useEffect(() => {
     if (!stableIds || !oxyServices) return;
-    const ids = stableIds.split(',');
-    void Promise.allSettled(
-      ids.map((id) =>
-        queryClient.prefetchQuery({
-          queryKey: queryKeys.users.detail(id),
-          queryFn: () => oxyServices.users.get(id),
-          staleTime: 5 * 60 * 1000,
-        }),
-      ),
-    );
+    void prewarmUsersByIds(stableIds.split(','), (ids) => oxyServices.users.getMany(ids));
   }, [stableIds, oxyServices]);
 }
 

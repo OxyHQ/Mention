@@ -1,7 +1,6 @@
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
-import { queryClient } from '@/lib/queryClient';
 import { refreshPrivacyLists } from '@/services/privacyService';
 import { searchService } from '@/services/searchService';
 import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
@@ -18,8 +17,7 @@ import {
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { User } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
-import { queryKeys } from '@oxy.so/services/ui/client';
-import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, storeUsers, useAuth } from '@oxy.so/services/ui/client';
 
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -96,14 +94,10 @@ export default function BlockedUsersScreen() {
       }
 
       // Single bulk fetch for all blocked profiles (no per-id N+1). The
-      // results are primed into the shared React Query cache so any
-      // `useUserById`/profile read for these ids hits the cache.
+      // results are stored in the Oxy SDK's `User`, so any profile read for
+      // these ids finds them.
       const fetched = await oxyServices.users.getMany(userIds);
-      for (const user of fetched) {
-        if (user?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
-        }
-      }
+      storeUsers(fetched);
       // Preserve the blocked order; drop ids the bulk fetch couldn't resolve.
       const byId = new Map(fetched.map((user) => [user.id, user]));
       const users = userIds.map((id) => byId.get(id)).filter((user): user is User => Boolean(user));

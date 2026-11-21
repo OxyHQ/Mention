@@ -3,9 +3,7 @@ import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import { useQueries } from '@tanstack/react-query';
-import { queryKeys } from '@oxy.so/services/ui/client';
-import type { OxyServices, User } from '@oxy.so/core';
+import type { OxyServices } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -37,7 +35,7 @@ import { SEO } from '@/components/SEO';
 
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
-import { useUserById } from '@/hooks/useCachedUser';
+import { useHeldUser, useHeldUsers } from '@/data/users';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -58,22 +56,16 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 const MAX_PARTICIPANT_AVATARS = 10;
 
 /**
- * The faces for one of the room's avatar piles, read from the same user cache
- * `useRoomUsers` warms (same key, same fetch), for only the ids the pile shows.
+ * The faces for one of the room's avatar piles, read from the people
+ * `useRoomUsers` stores in `User`, for only the ids the pile shows.
  */
 function useRoomAvatarItems(
   userIds: string[],
-  oxyServices: Pick<OxyServices, 'assets' | 'users'>,
+  oxyServices: Pick<OxyServices, 'assets'>,
 ): AvatarGroupItem[] {
-  const results = useQueries({
-    queries: userIds.map((userId) => ({
-      queryKey: queryKeys.users.detail(userId),
-      queryFn: () => oxyServices.users.get(userId),
-      staleTime: 5 * 60 * 1000,
-    })),
-  });
-  return userIds.map((userId, index) => {
-    const profile = results[index]?.data as User | undefined;
+  const people = useHeldUsers(userIds);
+  return userIds.map((userId) => {
+    const profile = people.get(userId);
     return {
       id: userId,
       uri: getAvatarUrl(profile, oxyServices),
@@ -101,7 +93,7 @@ const HostInfo = ({
   hostId: string;
   oxyServices: Pick<OxyServices, 'assets'>;
 }) => {
-  const profile = useUserById(hostId);
+  const profile = useHeldUser(hostId);
   const displayName = getDisplayName(profile, hostId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
 

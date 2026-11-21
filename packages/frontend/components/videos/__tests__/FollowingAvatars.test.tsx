@@ -16,12 +16,11 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     canUsePrivateApi: mockPrivate,
     oxyServices: { follows: { viewerGraph: mockViewerGraph }, users: { getMany: mockGetMany } },
   }),
-  queryKeys: { users: { list: (ids: string[]) => ['users', 'list', ids] } },
 }));
 jest.mock('@tanstack/react-query', () => ({
   useQuery: (options: (typeof mockQueries)[number]) => {
     mockQueries.push(options);
-    return { data: options.queryKey[0] === 'users' ? mockProfiles : mockGraph };
+    return { data: options.queryKey.includes('profiles') ? mockProfiles : mockGraph };
   },
 }));
 jest.mock('@/components/ui/AccountAvatarGroup', () => ({ AccountAvatarGroup: () => null }));

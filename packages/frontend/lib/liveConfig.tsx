@@ -1,11 +1,10 @@
-import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk/live';
+import type { LiveConfig, LiveTheme } from '@syra.fm/sdk/live';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
-import { queryKeys } from '@oxy.so/services/ui/client';
+import { storeUsers, User, useUserById } from '@oxy.so/services/ui/client';
 import { SYRA_SOCKET_URL } from '@/config';
 import { syraLinkedClient } from '@/lib/syraApi';
 import { useTheme as useBloomTheme } from '@oxy.so/bloom/theme';
-import { useUserById } from '@/hooks/useCachedUser';
 import { queryClient } from '@/lib/queryClient';
 import type { OxyServices } from '@oxy.so/core';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -36,18 +35,22 @@ const LiveAvatar: ComponentType<LiveAvatarProps> = ({ shape, ...rest }) => {
 };
 
 /**
- * Cache-first user fetch for live rooms — reads/writes the shared React Query
- * cache. Returns the cached user when fresh, otherwise runs the caller's loader
- * and primes the cache via `fetchQuery`.
+ * A person for live rooms, from the people the Oxy SDK holds (`User`): the held
+ * copy when there is one, otherwise the caller's loader, whose answer is stored
+ * there for every other surface.
  */
-const ensureUserById: LiveConfig['ensureUserById'] = (id, loader) =>
-  queryClient
-    .fetchQuery<UserEntity | null | undefined>({
-      queryKey: queryKeys.users.detail(id),
-      queryFn: () => loader(id),
-      staleTime: 5 * 60 * 1000,
-    })
-    .then((user) => user ?? undefined);
+const ensureUserById: LiveConfig['ensureUserById'] = async (id, loader) => {
+  const held = User.get(id);
+  if (held) {
+    return { id: held.id, username: held.username, name: held.name, avatar: held.avatar };
+  }
+  const user = await loader(id);
+  if (user) storeUsers(user);
+  return user ?? undefined;
+};
+
+/** A person for live rooms, read from `User` and asked of Oxy when it is not held. */
+const useLiveUserById: LiveConfig['useUserById'] = (id) => useUserById(id ?? null).value;
 
 /**
  * Localize the shared live-room UI via Mention's i18n instance. `i18n.t` is
@@ -128,7 +131,7 @@ export const liveConfig: LiveConfig = {
   useTheme: useLiveTheme,
   t: translate,
   getPinnedPodcast,
-  useUserById,
+  useUserById: useLiveUserById,
   ensureUserById,
   getCachedFileDownloadUrl: resolveLiveFileUrlAsync,
   getCachedFileDownloadUrlSync: resolveLiveFileUrl,
