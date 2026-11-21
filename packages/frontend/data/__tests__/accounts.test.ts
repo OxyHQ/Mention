@@ -40,6 +40,18 @@ const post = (id: string, extra: Partial<FeedItem> = {}): FeedItem =>
 
 const HOME = feedKey({ type: 'for_you' });
 
+/** Every store a test opens, closed after it so none outlives the test. */
+const opened: Store[] = [];
+function openStore(account: string): Store {
+  const store = new Store({ persister: mockPersister(account) });
+  opened.push(store);
+  return store;
+}
+
+afterEach(async () => {
+  await Promise.all(opened.splice(0).map((store) => store.close()));
+});
+
 describe('account data', () => {
   it('reads the home feed, its posts and the posts they embed before anything mounts', () => {
     mockCopies.set('alice', {
@@ -60,7 +72,7 @@ describe('account data', () => {
       records: [{ id: 'q', json: JSON.stringify(post('q')) }],
     });
 
-    const alice = new Store({ persister: mockPersister('alice') });
+    const alice = openStore('alice');
     setActiveStore(alice);
     bootAccountData(alice);
 
@@ -70,8 +82,8 @@ describe('account data', () => {
   });
 
   it("reads into the store it is given, never another account's", () => {
-    const bob = new Store({ persister: mockPersister('bob') });
-    const carol = new Store({ persister: mockPersister('carol') });
+    const bob = openStore('bob');
+    const carol = openStore('carol');
     setActiveStore(carol);
     bootAccountData(bob);
     // Bob has no copy yet: nothing is shown until his feed is read.
