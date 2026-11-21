@@ -211,7 +211,6 @@ describe("useFeedState: the viewer's own new post", () => {
       ...home,
       type: 'hashtag',
       filters: { hashtag: 'news' },
-      useScoped: true,
     };
     getFeedMock.mockResolvedValueOnce(page([post('tagged')]));
     const mounted = await mount(hashtag);

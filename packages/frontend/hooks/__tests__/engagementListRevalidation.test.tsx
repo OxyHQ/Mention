@@ -67,7 +67,6 @@ function ProfileTab({ tab }: { tab: 'likes' | 'boosts' }) {
   latest = useFeedState({
     type: tab,
     userId: VIEWER_ID,
-    useScoped: false,
     isAuthenticated: true,
     currentUserId: VIEWER_ID,
   });
@@ -192,7 +191,6 @@ describe('engagement lists revalidate on their next visit', () => {
       latest = useFeedState({
         type: 'likes',
         userId: OTHER_ID,
-        useScoped: false,
         isAuthenticated: true,
         currentUserId: VIEWER_ID,
       });

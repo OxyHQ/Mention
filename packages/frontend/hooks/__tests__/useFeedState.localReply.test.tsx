@@ -60,7 +60,6 @@ function Probe({ options }: { options: UseFeedStateOptions }) {
 const threadOptions = (parent: string): UseFeedStateOptions => ({
   type: 'replies',
   filters: { postId: parent, parentPostId: parent },
-  useScoped: true,
   isAuthenticated: true,
   currentUserId: 'viewer-a',
 });
@@ -154,7 +153,6 @@ describe('useFeedState: the viewer’s own new reply', () => {
     const renderer = await mount({
       type: 'explore',
       filters: { postId: 'root' },
-      useScoped: true,
       isAuthenticated: true,
       currentUserId: 'viewer-a',
     });

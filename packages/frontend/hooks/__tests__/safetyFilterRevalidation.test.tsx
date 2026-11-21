@@ -95,7 +95,6 @@ const openFeeds = new Set<TestRenderer.ReactTestRenderer>();
 function HomeFeed() {
   latest = useFeedState({
     type: 'for_you',
-    useScoped: false,
     isAuthenticated: true,
     currentUserId: VIEWER_ID,
   });

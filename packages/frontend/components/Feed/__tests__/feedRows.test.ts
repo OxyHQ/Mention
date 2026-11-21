@@ -96,7 +96,6 @@ const NO_BLOCKS = new Set<string>();
 function build(params: {
   leadingPostId?: string;
   slices?: FeedPostSlice[];
-  socialContexts?: NonNullable<FeedPostSlice['socialContext']>[];
   items?: HydratedPost[];
   interstitials?: FeedInterstitialSlot[];
   blockedSet?: Set<string>;
@@ -104,7 +103,6 @@ function build(params: {
   return buildFeedRows({
     leadingPostId: params.leadingPostId,
     slices: params.slices,
-    socialContexts: params.socialContexts,
     items: params.items ?? [],
     interstitials: params.interstitials,
     type: 'for_you',
@@ -664,25 +662,11 @@ describe('social recommendation evidence', () => {
     expect(rows[1].sliceReason).toEqual({ type: 'replyContext' });
   });
 
-  it('uses the separate native evidence without attaching it to stored posts', () => {
-    const items = [post('parent'), post('reply')];
-    const rows = build({ items, socialContexts: [socialContext] }).filter(
-      (row) => row.kind === 'post',
-    );
-    expect(rows[0].socialContext).toBeUndefined();
-    expect(rows[1].socialContext).toEqual(socialContext);
-    expect(items[1]).not.toHaveProperty('socialContext');
-  });
-
   it('withholds a stale social label when its named actor is now blocked', () => {
     const blockedSet = new Set([socialContext.actors[0].id]);
     const sliced = { ...slice('reply'), socialContext };
-    for (const rows of [
-      build({ slices: [sliced], blockedSet }),
-      build({ items: [post('reply')], socialContexts: [socialContext], blockedSet }),
-    ]) {
-      expect(rows).toHaveLength(1);
-      expect(rows[0].kind === 'post' && rows[0].socialContext).toBeUndefined();
-    }
+    const rows = build({ slices: [sliced], blockedSet });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind === 'post' && rows[0].socialContext).toBeUndefined();
   });
 });

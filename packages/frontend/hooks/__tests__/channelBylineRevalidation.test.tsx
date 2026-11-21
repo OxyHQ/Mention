@@ -108,7 +108,6 @@ function ChannelFeed() {
   latest = useFeedState({
     type: 'posts',
     userId: CHANNEL_ID,
-    useScoped: false,
     isAuthenticated: true,
     currentUserId: VIEWER_ID,
   });

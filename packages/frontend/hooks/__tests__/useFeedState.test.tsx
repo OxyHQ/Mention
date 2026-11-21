@@ -88,7 +88,6 @@ let renders: UseFeedStateReturn[] = [];
 
 const explore: UseFeedStateOptions = {
   type: 'explore',
-  useScoped: true,
   isAuthenticated: true,
   currentUserId: 'viewer-a',
 };
@@ -1011,7 +1010,8 @@ describe('useFeedState: one feed list per identity', () => {
             if (record.json) records.set(`${record.type}:${record.id}`, record.json);
           }
           for (const list of batch.lists) {
-            if (list.ids && list.json) lists.set(`${list.type}:${list.key}`, list);
+            if (list.ids && list.json)
+              lists.set(`${list.type}:${list.key}`, { ids: list.ids, json: list.json });
           }
         },
         close: async () => undefined,
@@ -1023,7 +1023,7 @@ describe('useFeedState: one feed list per identity', () => {
       store = new Store({ persister: disk });
       setActiveStore(store);
       getFeedMock.mockResolvedValueOnce(page(['yesterday']));
-      unmount(await mount({ ...explore, useScoped: false }));
+      unmount(await mount(explore));
       await store.close();
 
       // The next launch: a new store over the same file.
@@ -1031,7 +1031,7 @@ describe('useFeedState: one feed list per identity', () => {
       setActiveStore(store);
       const today = deferred<SlicedFeedResponse>();
       getFeedMock.mockReturnValueOnce(today.promise);
-      await mount({ ...explore, useScoped: false });
+      await mount(explore);
 
       expect(ids()).toEqual(['yesterday']);
       expect(latest?.isLoading).toBe(true);
@@ -1048,12 +1048,12 @@ describe('useFeedState: one feed list per identity', () => {
       getFeedMock.mockResolvedValueOnce(page(['scoped']));
       unmount(await mount({ ...explore, filters: { hashtag: 'news' } }));
       await store.close();
-      expect(await disk.readList('feed', '["explore",null,{"hashtag":"news"}]')).toBeNull();
+      expect(await disk.readList('feed', '["explore",null,{"hashtag":"news"}]', 'post')).toBeNull();
     });
   });
 
-  describe('native unscoped feeds', () => {
-    it('render by item, with their social context beside the items', async () => {
+  describe('every feed', () => {
+    it('renders by slice, each slice with its social context', async () => {
       const slice = {
         _sliceKey: 's1',
         isIncompleteThread: false,
@@ -1069,11 +1069,10 @@ describe('useFeedState: one feed list per identity', () => {
       };
       getFeedMock.mockResolvedValueOnce({ ...page(['p1']), slices: [slice] });
 
-      await mount({ ...explore, useScoped: false });
+      await mount(explore);
 
       expect(ids()).toEqual(['p1']);
-      expect(latest?.slices).toBeUndefined();
-      expect(latest?.socialContexts).toEqual([slice.socialContext]);
+      expect(latest?.slices?.map((held) => held.socialContext)).toEqual([slice.socialContext]);
     });
   });
 });

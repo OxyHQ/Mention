@@ -115,7 +115,6 @@ export interface BuildFeedRowsParams {
   /** A post already rendered in the leading section. */
   leadingPostId?: string;
   slices?: FeedPostSlice[];
-  socialContexts?: NonNullable<FeedPostSlice['socialContext']>[];
   items: HydratedPost[];
   type: FeedType;
   currentUserId?: string;
@@ -228,7 +227,6 @@ function isRedrawOfShownPost(item: FeedItem, shown: Set<string>): boolean {
  */
 export function buildFeedRows({
   slices,
-  socialContexts,
   items: src,
   type,
   currentUserId,
@@ -399,16 +397,10 @@ export function buildFeedRows({
     }
   }
 
-  const socialContextsByPost = new Map(
-    socialContexts
-      ?.filter((context) => !context.actors.some((actor) => blockedSet.has(actor.id)))
-      .map((context) => [context.postId, context]),
-  );
   const flatRows: PostFeedRow[] = finalItems.map((item) => ({
     kind: 'post',
     item,
     sliceKey: getItemKey(item),
-    socialContext: socialContextsByPost.get(displayedPostId(item)),
     isThreadParent: false,
     isThreadChild: false,
     isThreadLastChild: false,

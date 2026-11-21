@@ -1,20 +1,18 @@
-import { resolveUseMemoryFeed } from '../../utils/feedMemoryMode';
 import { isDbAvailable as isNativeDbAvailable } from '../database.native';
-import { isDbAvailable as isWebDbAvailable } from '../database.web';
+import {
+  getDb as getWebDb,
+  isDbAvailable as isWebDbAvailable,
+  resetDb as resetWebDb,
+} from '../database.web';
 
 describe('SQLite platform availability', () => {
-  it('keeps web in network-only memory mode', () => {
+  it('keeps web network-only', () => {
     expect(isWebDbAvailable()).toBe(false);
-    expect(resolveUseMemoryFeed(false, isWebDbAvailable())).toBe(true);
+    expect(getWebDb()).toBeNull();
+    expect(() => resetWebDb()).not.toThrow();
   });
 
   it('uses SQLite on native builds', () => {
     expect(isNativeDbAvailable()).toBe(true);
-    expect(resolveUseMemoryFeed(false, isNativeDbAvailable())).toBe(false);
-  });
-
-  it('keeps scoped feeds in memory regardless of platform persistence', () => {
-    expect(resolveUseMemoryFeed(true, isNativeDbAvailable())).toBe(true);
-    expect(resolveUseMemoryFeed(true, isWebDbAvailable())).toBe(true);
   });
 });
