@@ -65,7 +65,7 @@ describe('viewer-owned cache lifecycle', () => {
       trusted: true,
     });
     expect(mockDb.execSync).toHaveBeenNthCalledWith(1, 'BEGIN IMMEDIATE');
-    expect(mockDb.execSync.mock.calls[1]?.[0]).toContain('DELETE FROM posts');
+    expect(mockDb.execSync.mock.calls[1]?.[0]).toContain('DELETE FROM link_previews');
     expect(mockDb.execSync).toHaveBeenLastCalledWith('COMMIT');
     expect(mockOwner).toBe('viewer-b');
   });

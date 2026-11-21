@@ -87,11 +87,8 @@ export function getDb(): SQLiteDb | null {
   }
 }
 
-/**
- * Close the database connection.
- * Call on app shutdown or when resetting state.
- */
-export function closeDb(): void {
+/** Close the database connection (before deleting its file). */
+function closeDb(): void {
   if (db) {
     try {
       db.closeSync();

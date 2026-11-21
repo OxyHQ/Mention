@@ -1,7 +1,20 @@
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 import { toFeedItem } from '../feedItem';
-import { postToRow, rowToFeedItem } from '../schema';
+import { Store } from '@oxy.so/bloom-data';
+import { Post } from '@/data/posts';
+import type { FeedItem } from '../schema';
+
+/**
+ * A post through the trip it takes to disk and back: stored (embedded posts
+ * normalised into their own records), serialised as the store writes it, and
+ * read back with its refs resolved.
+ */
+function diskRoundTrip(item: FeedItem): FeedItem | undefined {
+  const store = new Store();
+  store.put(Post.definition, item as never);
+  return JSON.parse(JSON.stringify(store.read(Post.definition, item.id))) as FeedItem;
+}
 
 function makePost(id: string, overrides: Partial<HydratedPost> = {}): HydratedPost {
   return {
@@ -64,7 +77,7 @@ describe('canonical post cache contract', () => {
     const original = makePost('original');
     const quote = makePost('quote', { quotedPost: original });
     const boost = makePost('boost', { boost: { actor: original.user, originalPost: quote } });
-    const restored = rowToFeedItem(postToRow(toFeedItem(boost)));
+    const restored = diskRoundTrip(toFeedItem(boost));
     const restoredQuote: HydratedPost | null | undefined = restored?.boost?.originalPost;
     expect(restoredQuote?.content.text).toBe('post quote');
     expect(restoredQuote?.quotedPost?.content.text).toBe('post original');
@@ -95,7 +108,7 @@ describe('canonical post cache contract', () => {
     expect(item.lane).toEqual(post.lane);
 
     // And it must survive the SQLite round trip, which is what a warm start reads.
-    const restored = rowToFeedItem(postToRow(item));
+    const restored = diskRoundTrip(item);
     expect(restored?.lane).toEqual(post.lane);
   });
 
@@ -116,7 +129,7 @@ describe('canonical post cache contract', () => {
     // And it must survive the SQLite round trip, which is what a warm start
     // reads — otherwise a collapsed cross-post silently loses its provenance on
     // every cold-cached feed while the API response still carries it.
-    const restored = rowToFeedItem(postToRow(item));
+    const restored = diskRoundTrip(item);
     expect(restored?.crosspost).toEqual(post.crosspost);
   });
 
@@ -185,7 +198,7 @@ describe('canonical post cache contract', () => {
    * `FeedItem` extends `HydratedPost`, so a field this function forgets is a
    * runtime-only loss — nothing about it is visible to the type-check.
    */
-  it('carries a channel account author verbatim, through SQLite too', () => {
+  it('carries a channel account author verbatim, through the stored copy too', () => {
     const post = makePost('channel-post', {
       user: {
         id: 'channel-account-1',
@@ -204,38 +217,12 @@ describe('canonical post cache contract', () => {
     const item = toFeedItem(post);
     expect(item.user).toEqual(post.user);
 
-    const restored = rowToFeedItem(postToRow(item));
+    const restored = diskRoundTrip(item);
     expect(restored?.user).toEqual(post.user);
-  });
-
-  it('rehydrates mutable state from columns but rejects legacy raw rows', () => {
-    const row = postToRow(toFeedItem(makePost('stored')));
-    row.is_liked = 1;
-    row.is_saved = 1;
-    row.likes_count = 9;
-
-    const restored = rowToFeedItem(row);
-    expect(restored?.viewerState.isLiked).toBe(true);
-    expect(restored?.viewerState.isSaved).toBe(true);
-    expect(restored?.engagement.likes).toBe(9);
-    expect(restored).not.toHaveProperty('isLiked');
-    expect(restored?.user).not.toHaveProperty('handle');
-
-    row.raw_json = JSON.stringify({
-      ...restored,
-      isLiked: true,
-    });
-    expect(rowToFeedItem(row)).toBeNull();
-
-    row.raw_json = JSON.stringify({
-      ...toFeedItem(makePost('legacy-relation')),
-      original: toFeedItem(makePost('old-original')),
-    });
-    expect(rowToFeedItem(row)).toBeNull();
   });
 });
 
-it('preserves stored agent recipes through canonical feed and SQLite JSON round trips', () => {
+it('preserves stored agent recipes through canonical feed and stored JSON round trips', () => {
   const character = {
     shape: 'rounded_head_two_ears',
     eyes: 'oval',
@@ -250,7 +237,7 @@ it('preserves stored agent recipes through canonical feed and SQLite JSON round 
     user,
     authors: [{ ...user, role: 'owner' as const, status: 'accepted' as const }],
   };
-  const restored = rowToFeedItem(postToRow(toFeedItem(post)));
+  const restored = diskRoundTrip(toFeedItem(post));
   expect(restored?.user.character).toEqual(character);
   expect(restored?.authors?.[0].character).toEqual(character);
 });
