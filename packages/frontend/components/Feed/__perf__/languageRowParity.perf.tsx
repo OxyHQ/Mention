@@ -335,23 +335,29 @@ function compareRows(
   expect(triggers).toBeGreaterThan(0);
   // Four hosts per ⋯ (a quoted post has its own).
   expect(language.filter(isSystemMenu)).toHaveLength(4 * triggers);
-  const rewritten = jsx.map((original) => {
-    const node = isMenuTrigger(original)
-      ? {
+  // The language row's ⋯ is the lens menu's glass trigger: a 56×32 base with the glyph centred,
+  // lifted 4 to centre it on the identity line, where the JSX row pads its icon.
+  const rewritten = jsx.flatMap((original): Flat[] => {
+    if (isMenuTrigger(original))
+      return [
+        { ...MENU_LIFT },
+        {
           ...original,
           pressable: false,
           props: { accessibilityLabel: original.props.accessibilityLabel },
-        }
-      : original;
+          style: MENU_BASE_STYLE,
+        },
+      ];
+    const node = original;
     if (node.style.marginLeft === -16 && node.style.marginRight === 3) {
       const { marginRight: _gap, ...style } = node.style;
       return { ...node, style: { ...style, paddingRight: 3 } };
     }
     if (rows > 0 && node.style.marginTop === rows * 22) {
       const { marginTop: _offset, ...style } = node.style;
-      return { ...node, style };
+      return [{ ...node, style }];
     }
-    return node;
+    return [node];
   });
   // A compact row's ⋯ sits at the far edge: `ml-auto` in JSX (a class this
   // harness does not resolve), a Spacer before it in the language.
@@ -359,14 +365,29 @@ function compareRows(
   const isMenuPush = (node: Flat, i: number) =>
     Object.keys(node.style).join() === 'flex' &&
     node.style.flex === 1 &&
-    drawn[i + 1]?.props.accessibilityLabel === 'Post options' &&
-    drawn[i + 1]?.style.paddingLeft === 8 &&
-    drawn[i + 1]?.style.paddingRight === 8;
+    drawn[i + 2]?.props.accessibilityLabel === 'Post options' &&
+    drawn[i + 2]?.style.width === MENU_BASE_STYLE.width;
   expect(
     drawn.filter((node, i) => !isColumn(node) && !isSpacer(node) && !isMenuPush(node, i)),
   ).toEqual(rewritten);
   return { rows, language };
 }
+
+/** The ⋯'s glass base and the lift that centres it on the identity line (LanguagePostItem). */
+const MENU_BASE_STYLE = {
+  alignItems: 'center',
+  flexDirection: 'row',
+  height: 32,
+  justifyContent: 'center',
+  width: 56,
+};
+const MENU_LIFT: Flat = {
+  pressable: false,
+  props: {},
+  style: { transform: [{ translateY: -4 }] },
+  text: '',
+  type: 'View',
+};
 
 describe('the language row draws what the JSX row draws', () => {
   it.each(ROW_KINDS.filter((kind) => kind !== 'repost'))('%s', (kind) => {

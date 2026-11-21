@@ -150,18 +150,23 @@ const row = defineTokens({
     contextRow: POST_CONTEXT_ROW_HEIGHT,
     /** Between a context row's glyph and its text. */
     contextIconGap: 3,
+    /** The ⋯ menu's glass base: the upstream glass trigger's pill. */
+    menuBaseWidth: 56,
+    menuBaseHeight: 32,
   },
   iconSize: { context: 13, indicator: 14, menu: 18 },
   /** The identity line's leading (`leading-tight` in the class vocabulary). */
   leading: { tight: 1.25 },
 });
 
-/** The ⋯ glyph, with the touch room around it. */
-const MENU_GLYPH = Icon(RiMoreFill)
-  .size(row.iconSize.menu)
-  .foreground('muted')
-  .padding('horizontal', 'sm')
-  .hitSlop('md');
+/**
+ * The ⋯ on its glass base, the lens menu's trigger: a 56×32 pill with the glyph centred. The menu
+ * grows out of that base, as the upstream app's glass trigger does.
+ */
+const MENU_GLYPH = HStack(Icon(RiMoreFill).size(row.iconSize.menu).foreground('muted'))
+  .frame({ width: row.space.menuBaseWidth, height: row.space.menuBaseHeight })
+  .align('center')
+  .justify('center');
 
 const NAME_STYLE = { container: { flexShrink: 1, minWidth: 0 } } as const;
 const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
@@ -249,9 +254,11 @@ const PostMenuButton = view(function PostMenuButton({
 }: PostMenuContentProps & { label: string }) {
   const services = usePostInteractions().menuServices();
   const rows = services ? describePostMenu(menu, services) : [];
+  // The 32-tall base is centred on the 24-tall identity line it sits beside.
   return Menu(MENU_GLYPH, ...rows)
     .actions(PostMenuActions(menu))
-    .label(label);
+    .label(label)
+    .offset({ y: '-xs' });
 });
 
 interface PostActionsProps {
