@@ -156,6 +156,8 @@ The aim is one mechanism per problem, with nothing visibly different.
 | Loops and revisits download again                                             | expo-video's disk cache (`useCaching`) on Android, HLS included. iOS cannot cache HLS; the web uses the browser cache.                                                                                                                                                                                                                                                                                                                  | `utils/videoSource.ts`                                                                             |
 | The reel builds and destroys a player per slide                               | Slides lease from the same registry and parking pool while their surface is mounted: the slide on screen, one ahead and one behind. A swipe parks the player of the slide that left and the slide that entered takes it. Slides lease under a `reel:` key, because a player paints into one view at a time on Android and the home feed under the reel keeps its on-screen rows; the slide a feed video flew into takes the feed's key. | `app/(app)/(tabs)/videos.tsx`                                                                      |
 | Preloading takes the watched video's bandwidth                                | A preloading slide buffers a 3 s slice (`VIDEO_PRELOAD_BUFFER_OPTIONS`) and gets 10 s once watched. The slide ahead attaches once the landed video has 3 s ahead; the slide behind keeps its player.                                                                                                                                                                                                                                    | `hooks/useReelChrome.ts`, `utils/videoSource.ts`                                                   |
+| A feed row opened into the reel comes back frozen                             | On Android a player paints into the last view handed it. The registry records which presenter's view holds each player, and a presenter that starts asking to play while another view holds it mounts a new view (`usePictureView`).                                                                                                                                                                                                    | `stores/videoPlayerRegistry.ts`, `components/common/PlaybackVideoView.tsx`                         |
+| Opening the Videos tab starts cold                                            | The reel, mounted beside Home, keeps its first slide prepared (a 3 s slice) while the prewarm is free: foreground, online and unmetered, no video playing (`useReelPrewarm`). Bloom's AppShell no longer remounts the main panel when its inspector first turns the group horizontal (Bloom `fix/app-shell-panel-remount`), which threw the prepared slide and Home's place away on the first tab switch.                               | `hooks/useReelPrewarm.ts`, `app/(app)/(tabs)/videos.tsx`                                           |
 
 Rows in the window but off screen are prepared and paused, so a row scrolling in already shows
 its first frame and starts at once. A row that is flung into view before it was in the window
@@ -255,6 +257,27 @@ What the numbers say:
 - **Memory** did not fall: the medians are within the run-to-run spread. The rows mounted
   around the slide (poster and overlay) are unchanged.
 
+### The Videos tab's first open
+
+`e389b9e68` (a feed row takes its picture back), `e9dfdc3fa` (the prewarm only when it is
+free) and Bloom `fix/app-shell-panel-remount` (no remount when the main group turns
+horizontal). "Before" is the earlier build on the old Bloom. Six interleaved cold starts
+each (`reels-agent/bin/warm.sh`, `warm3.sh`): three drags of Home, 25 s idle, open Videos.
+
+| What                                                      | Before                              | After               |
+| --------------------------------------------------------- | ----------------------------------- | ------------------- |
+| Poster on screen after the tap (picture still)            | 1.5–3.0 s in 6 of 6                 | 0.2–0.7 s in 4 of 6 |
+| Main panel remounted on the first tab switch (mount logs) | yes (stack, tabs, Home, Videos)     | no                  |
+| Home in a different place after coming back               | 51% of the screen changed in 1 of 3 | 0–5%                |
+
+- The two "after" opens that stayed slow had a Home video playing, so the prewarm held
+  back as designed and the slide loaded cold (1.8 s and a near-static clip).
+- Before, the remount threw the prepared slide away and loaded a different first page; in
+  one run the reel opened on a paused frame that never started within 5 s.
+- Data: what Home plays dominates (13–34 MB in the idle window with a Home video, a few KB
+  without). The prewarm costs one 3 s slice of one video; for the high-bitrate original in
+  one run that was about 4 MB.
+
 Not measured: battery (no `batterystats` session), iOS, and the web.
 
 ## 5. Proposals that need the owner
@@ -275,6 +298,6 @@ These are not built; each one needs a backend, encoding or dependency decision.
 - **Data saver.** No preloading and no autoplay on cellular, as Instagram, Facebook and X do.
   Bloom's `videoAutoplay` preference exists; a "cellular" mode needs a network-type source
   (`expo-network` or NetInfo) and a settings entry.
-- **Warm the Videos tab.** Opening the tab is the slowest start left (2–4 s). Preparing the
-  reel's first slide while Home is on screen, or fetching its first segment, would start it
-  at once. That costs data for a tab the viewer may not open, so it is a product decision.
+- **Under load.** The prewarm waits for the foreground, an unmetered connection and no video
+  playing. A battery-saver or thermal signal would also hold it back; neither is available
+  without a new dependency (`expo-battery` or a native module).
