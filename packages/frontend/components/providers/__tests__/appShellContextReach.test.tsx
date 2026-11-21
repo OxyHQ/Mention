@@ -1,7 +1,6 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClient } from '@tanstack/react-query';
 import type { OxyServices } from '@oxy.so/core';
 
 import { AppProviders } from '../AppProviders';
@@ -203,7 +202,7 @@ function renderApp(children: React.ReactNode): TestRenderer.ReactTestRenderer {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <AppProviders oxyServices={oxyServices} queryClient={new QueryClient()} onAskAlia={() => {}}>
+      <AppProviders oxyServices={oxyServices} onAskAlia={() => {}}>
         {children}
       </AppProviders>,
     );

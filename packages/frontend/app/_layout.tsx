@@ -3,7 +3,6 @@ import 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
 import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
-import { focusManager, onlineManager } from '@tanstack/react-query';
 import { environment as dataEnvironment } from '@oxy.so/bloom-data';
 import { preventNativeSplashAutoHide } from '@oxy.so/expo-splash';
 import { useEffect, useState } from 'react';
@@ -35,7 +34,6 @@ import { useAppLanguage } from '@/hooks/useAppLanguage';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
-import { queryClient } from '@/lib/queryClient';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@oxy.so/core/logger';
@@ -103,27 +101,16 @@ export default function RootLayout() {
   // Link cards Clarity had not finished when a post was read arrive on their own.
   useEffect(() => registerPendingDocuments(), []);
 
-  // React Query managers - setup once on mount
+  // The data store's device signals (`@oxy.so/bloom-data`). React Query's are
+  // wired with its client (`lib/queryClient`). Online means "has a network",
+  // never NetInfo's reachability probe, for the reason given there.
   useEffect(() => {
-    // Online means "has a network", never NetInfo's reachability probe. On
-    // native that probe fetches a Google URL; where it is blocked, slow or
-    // behind a captive portal it reports unreachable, and React Query's
-    // `networkMode: 'online'` would pause every query — feed modules and
-    // who-to-follow stay on skeletons forever while Mention's own API is
-    // perfectly reachable. A request that really cannot get through fails and
-    // retries on its own. `null` (not yet known) counts as connected.
-    // The posts store (`@oxy.so/bloom-data`) hears the same two signals.
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      onlineManager.setOnline(state.isConnected !== false);
       dataEnvironment.setOnline(state.isConnected !== false);
     });
-
-    const onAppStateChange = (status: AppStateStatus) => {
-      focusManager.setFocused(status === 'active');
+    const appStateSub = AppState.addEventListener('change', (status: AppStateStatus) => {
       dataEnvironment.setFocused(status === 'active');
-    };
-    const appStateSub = AppState.addEventListener('change', onAppStateChange);
-
+    });
     return () => {
       unsubscribeNetInfo();
       appStateSub.remove();
@@ -182,7 +169,7 @@ export default function RootLayout() {
         // because the held OS splash is already covering the screen.
         onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}
       >
-        <AppProviders oxyServices={oxyServices} queryClient={queryClient} onAskAlia={openAlia}>
+        <AppProviders oxyServices={oxyServices} onAskAlia={openAlia}>
           {appIsReady ? (
             <>
               {Platform.OS !== 'web' && (
