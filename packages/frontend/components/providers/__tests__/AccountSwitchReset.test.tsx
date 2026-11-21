@@ -31,13 +31,16 @@ let mockPersistedViewerId: string | null = 'viewer-a';
 const mockQueryClientClear = jest.fn();
 const mockResetAppearance = jest.fn();
 const mockResetTheme = jest.fn();
-/** Each account's own posts store, as `data/accounts` opens them. */
+/** Each account's own store, as the Oxy session opens them (one per viewer). */
 const mockAccountStores = new Map<string, unknown>();
-const mockOpenAccountData = jest.fn((account: string) => {
+const mockStoreOf = (account: string) => {
   if (!mockAccountStores.has(account))
     mockAccountStores.set(account, new (jest.requireActual('@oxy.so/bloom-data').Store)());
   return mockAccountStores.get(account);
-});
+};
+/** The account whose store the session has open: the user's id, or `anon` signed out. */
+const mockSessionAccount = () => mockUser?.id ?? 'anon';
+const mockBootAccountData = jest.fn();
 const mockResetEntityFollows = jest.fn();
 const mockResetExternalEmbeds = jest.fn();
 const mockResetLiveRooms = jest.fn();
@@ -77,7 +80,12 @@ jest.mock('@/stores/appearanceStore', () => ({
 jest.mock('@/stores/postsStore', () => ({ usePostsStore: { getState: jest.fn() } }));
 
 jest.mock('@/data/accounts', () => ({
-  openAccountData: (account: string) => mockOpenAccountData(account),
+  bootAccountData: (store: unknown) => mockBootAccountData(store),
+}));
+
+jest.mock('@oxy.so/bloom-data', () => ({
+  ...jest.requireActual('@oxy.so/bloom-data'),
+  useStore: () => mockStoreOf(mockSessionAccount()),
 }));
 
 jest.mock('@/stores/entityFollowStore', () => ({
@@ -330,7 +338,7 @@ describe('AccountSwitchReset identity boundary', () => {
     expect(mockResetLiveRoom).toHaveBeenCalledTimes(1);
     expect(mockQueryClientClear).toHaveBeenCalledTimes(1);
     // The anonymous viewer reads its own posts store, not A's.
-    expect(mockOpenAccountData).toHaveBeenLastCalledWith('anon');
+    expect(mockBootAccountData).toHaveBeenLastCalledWith(mockStoreOf('anon'));
     expect(mockResetEntityFollows).toHaveBeenCalledTimes(1);
     expect(mockResetExternalEmbeds).toHaveBeenCalledWith('viewer-a');
     expect(mockResetLiveRooms).toHaveBeenCalledTimes(1);
@@ -448,7 +456,7 @@ describe('AccountSwitchReset identity boundary', () => {
     });
 
     expect(mockQueryClientClear).toHaveBeenCalledTimes(1);
-    expect(mockOpenAccountData).toHaveBeenLastCalledWith('viewer-b');
+    expect(mockBootAccountData).toHaveBeenLastCalledWith(mockStoreOf('viewer-b'));
     expect(mockAccountStores.get('viewer-b')).not.toBe(mockAccountStores.get('viewer-a'));
     expect(getLiveRoomId('live-host')).toBeUndefined();
     expect(mockSetFeedViewerRequestScope).toHaveBeenLastCalledWith('viewer-b');
@@ -535,8 +543,8 @@ describe('AccountSwitchReset identity boundary', () => {
 
     expect(mockDisconnectSocket).toHaveBeenCalledTimes(1);
     expect(mockQueryClientClear).toHaveBeenCalledTimes(1);
-    // No viewer: no posts store opens until one resolves.
-    expect(mockOpenAccountData).toHaveBeenLastCalledWith('viewer-a');
+    // No viewer: no home feed is read until one resolves.
+    expect(mockBootAccountData).toHaveBeenLastCalledWith(mockStoreOf('viewer-a'));
     expect(mockChildRender).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -554,8 +562,8 @@ describe('AccountSwitchReset identity boundary', () => {
     });
 
     expect(mockQueryClientClear).toHaveBeenCalledTimes(1);
-    expect(mockOpenAccountData).toHaveBeenCalledWith('viewer-b');
-    expect(mockOpenAccountData.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mockBootAccountData).toHaveBeenCalledWith(mockStoreOf('viewer-b'));
+    expect(mockBootAccountData.mock.invocationCallOrder[0]).toBeLessThan(
       mockChildRender.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
     const clearOrder = mockQueryClientClear.mock.invocationCallOrder[0];

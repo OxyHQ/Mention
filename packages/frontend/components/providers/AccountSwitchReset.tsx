@@ -7,8 +7,8 @@ import { logger } from '@oxy.so/core/logger';
 import { useAppLanguage } from '@/hooks/useAppLanguage';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { DataProvider, type Store } from '@oxy.so/bloom-data';
-import { openAccountData } from '@/data/accounts';
+import { type Store, useStore } from '@oxy.so/bloom-data';
+import { bootAccountData } from '@/data/accounts';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { resetReaderState } from '@/stores/readerStateStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
@@ -117,7 +117,11 @@ export function AccountSwitchReset({
     if (viewerId) noteReaderLanguages(viewerId, renditionLanguages);
   }, [viewerId, renditionLanguages]);
   const [readyViewerId, setReadyViewerId] = useState<string | null>(null);
-  const [dataStore, setDataStore] = useState<Store | null>(null);
+  // The account's posts and feeds live in its own store, which the Oxy session
+  // opens (OxyProvider, before a switch wakes anybody). `bootedStore` is the
+  // one whose home feed was read from disk.
+  const store = useStore();
+  const [bootedStore, setBootedStore] = useState<Store | null>(null);
 
   const clearRuntimeState = useCallback(
     (previousViewerId: string | null | undefined) => {
@@ -202,18 +206,14 @@ export function AccountSwitchReset({
     }
 
     prevViewerIdRef.current = viewerId;
-    // Posts and feeds live in this account's own store and file
-    // (`data/accounts`); opening it closes the previous account's.
-    const store = openAccountData(viewerId);
-    if (dataStore !== store) setDataStore(store);
+    if (bootedStore !== store) {
+      bootAccountData(store);
+      setBootedStore(store);
+    }
     if (readyViewerId !== viewerId) {
       setReadyViewerId(viewerId);
     }
-  }, [viewerId, readyViewerId, dataStore, clearRuntimeState]);
+  }, [viewerId, readyViewerId, store, bootedStore, clearRuntimeState]);
 
-  return viewerId && readyViewerId === viewerId && dataStore ? (
-    <DataProvider store={dataStore}>{children}</DataProvider>
-  ) : (
-    fallback
-  );
+  return viewerId && readyViewerId === viewerId && bootedStore === store ? children : fallback;
 }

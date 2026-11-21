@@ -34,6 +34,7 @@ import i18n, { setLanguage } from '@/lib/i18n';
 import { DEFAULT_LANGUAGE, STORAGE_KEYS, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { handleLanguageError } from '@/components/providers/handleLanguageError';
 import { configureLottieWeb } from '@/lib/lottieWeb';
+import { accountPersister } from '@/data/persister';
 
 // Before any sticker renders: the web Lottie renderer loads from this origin.
 configureLottieWeb();
@@ -101,6 +102,7 @@ export const AppProviders = memo(function AppProviders({
           webAuthMode="popup"
           storageKeyPrefix="mention"
           queryClient={queryClient}
+          dataPersister={accountPersister}
           backgroundSession
           campaignAttribution
           language={{

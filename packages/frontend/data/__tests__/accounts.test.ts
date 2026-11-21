@@ -1,8 +1,9 @@
-import type { Persister, StoredList, StoredRecord } from '@oxy.so/bloom-data';
+import { type Persister, Store, type StoredList, type StoredRecord } from '@oxy.so/bloom-data';
 import type { FeedItem } from '@/db/schema';
 
 /**
- * Each account's store, and the one synchronous boot read of the home feed.
+ * The one synchronous boot read of the home feed, into the store the Oxy
+ * session opened for the account.
  */
 
 const mockCopies = new Map<string, { list: StoredList | null; records: StoredRecord[] }>();
@@ -25,14 +26,12 @@ function mockPersister(account: string): Persister {
   };
 }
 
-jest.mock('../persister', () => ({
-  accountPersister: (account: string) => mockPersister(account),
-}));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
 
-import { openAccountData } from '../accounts';
+import { bootAccountData } from '../accounts';
 import { Feed, feedKey } from '../feeds';
 import { getPost } from '../posts';
+import { setActiveStore, withStore } from '@oxy.so/bloom-data';
 
 const post = (id: string, extra: Partial<FeedItem> = {}): FeedItem =>
   ({ id, user: { id: 'u' }, engagement: {}, viewerState: {}, ...extra }) as unknown as FeedItem;
@@ -59,23 +58,24 @@ describe('account data', () => {
       records: [{ id: 'q', json: JSON.stringify(post('q')) }],
     });
 
-    openAccountData('alice');
+    const alice = new Store({ persister: mockPersister('alice') });
+    setActiveStore(alice);
+    bootAccountData(alice);
 
     expect(mockOpened).toEqual(['alice']);
     expect(Feed.get(HOME)).toMatchObject({ ids: ['1', '2'], next: 'c2', origin: 'disk' });
     expect(getPost('1')?.quotedPost?.id).toBe('q');
   });
 
-  it('keeps an open account’s store, and gives another account its own', () => {
-    const alice = openAccountData('alice');
-    expect(openAccountData('alice')).toBe(alice);
-    expect(mockOpened).toEqual(['alice']);
-
-    const bob = openAccountData('bob');
-    expect(bob).not.toBe(alice);
-    expect(alice.closed).toBe(true);
+  it("reads into the store it is given, never another account's", () => {
+    const bob = new Store({ persister: mockPersister('bob') });
+    const carol = new Store({ persister: mockPersister('carol') });
+    setActiveStore(carol);
+    bootAccountData(bob);
     // Bob has no copy yet: nothing is shown until his feed is read.
+    expect(withStore(bob, () => Feed.get(HOME))).toBeUndefined();
     expect(Feed.get(HOME)).toBeUndefined();
-    expect(getPost('1')).toBeNull();
+    expect(mockOpened).toContain('bob');
+    expect(mockOpened).not.toContain('carol');
   });
 });
