@@ -65,9 +65,14 @@ family's mode, flow or navigation gap. Insights sets `expandedPanel: 'main'`, pr
 same outer width; Bloom owns visibility, transitions, scrolling and bottom-bar
 clearance. Do not add another app-specific sidebar breakpoint or width animation.
 
+Mention's pages run edge to edge on native: the shell is the Bloom language's
+`AppLayout`, which draws no safe-area frame whatever `layout` it names. Each
+route's `PageHeader` pads its controls below the status bar while its paint and
+the scrolling content reach behind it; a framed top (a semantic layout's default
+on a bare `AppShell`) painted a band there instead, so do not pass `safeArea: true`.
 Inline content that reads device insets uses Bloom's `useContentSafeAreaInsets`
-from `@oxy.so/bloom/layout`, so the semantic shell and page do not reserve the
-same edge twice. Keep raw device insets for independent portaled/fullscreen
+from `@oxy.so/bloom/layout`, so the shell and the page never reserve the same
+edge twice. Keep raw device insets for independent portaled/fullscreen
 surfaces. Product spacing (such as a profile content offset) remains separate.
 
 Deck uses the same compositor through `layout="deck"`. Its default composition has the current
