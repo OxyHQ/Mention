@@ -1,7 +1,7 @@
-import { type Store, useEntity, useStore } from '@oxy.so/bloom-data';
+import { useEntities, useEntity } from '@oxy.so/bloom-data';
 import type { User as OxyUser } from '@oxy.so/core';
 import { User } from '@oxy.so/services/ui/client';
-import { useMemo, useSyncExternalStore } from 'react';
+import { useMemo } from 'react';
 
 /**
  * People, as the Oxy SDK holds them: once per account, in its `User` entity
@@ -77,47 +77,25 @@ const EMPTY: ReadonlyMap<string, HeldUser> = new Map();
 const ID_SEPARATOR = '\n';
 
 /**
- * One row's read of several people: a subscription to each of their `User`
- * records and a snapshot that keeps its reference until one of them changes.
- */
-function heldUsersReader(store: Store, key: string) {
-  const ids = key === '' ? [] : key.split(ID_SEPARATOR);
-  let held: (HeldUser | undefined)[] = ids.map(() => undefined);
-  let snapshot = EMPTY;
-  return {
-    subscribe(listener: () => void): () => void {
-      const stops = ids.map((id) => store.listen(store.slot(User.definition, id, true), listener));
-      return () => {
-        for (const stop of stops) stop();
-      };
-    },
-    getSnapshot(): ReadonlyMap<string, HeldUser> {
-      const next = ids.map((id) => store.read(User.definition, id) as HeldUser | undefined);
-      if (next.every((user, index) => user === held[index])) return snapshot;
-      held = next;
-      const map = new Map<string, HeldUser>();
-      next.forEach((user, index) => {
-        if (user) map.set(ids[index], user);
-      });
-      snapshot = map.size === 0 ? EMPTY : map;
-      return snapshot;
-    },
-  };
-}
-
-/**
  * The held copies of the people `ids` name, by id, read reactively from the
- * account's store: the row re-renders when one of THEM changes, never for
- * anyone else. One subscription for the whole list, because a hook cannot be
- * called per element (a byline, a notification's actors). `undefined` and
- * repeated ids are ignored; an id nobody holds has no entry. Lay an entry over
- * the row's own copy with {@link withHeldUser}.
+ * account's store (`useEntities`): the row re-renders when one of THEM
+ * changes, never for anyone else. One read for the whole list, because a hook
+ * cannot be called per element (a byline, a notification's actors).
+ * `undefined` and repeated ids are ignored; an id nobody holds has no entry.
+ * Lay an entry over the row's own copy with {@link withHeldUser}.
  */
 export function useHeldUsers(
   ids: readonly (string | null | undefined)[],
 ): ReadonlyMap<string, HeldUser> {
-  const store = useStore();
   const key = [...new Set(ids.filter((id): id is string => Boolean(id)))].join(ID_SEPARATOR);
-  const reader = useMemo(() => heldUsersReader(store, key), [store, key]);
-  return useSyncExternalStore(reader.subscribe, reader.getSnapshot, reader.getSnapshot);
+  const unique = useMemo(() => (key === '' ? [] : key.split(ID_SEPARATOR)), [key]);
+  const held = useEntities(User, unique);
+  return useMemo(() => {
+    const map = new Map<string, HeldUser>();
+    held.forEach((user, index) => {
+      const person = asHeldUser(user);
+      if (person) map.set(unique[index], person);
+    });
+    return map.size === 0 ? EMPTY : map;
+  }, [unique, held]);
 }
