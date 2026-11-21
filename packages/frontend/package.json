@@ -46,6 +46,7 @@
     "setupFiles": [
       "<rootDir>/jest.setup.ts"
     ],
+    "resolver": "react-native-reanimated/jest/resolver",
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1",
       "^@oxy.so/services/ui/client$": "<rootDir>/../../node_modules/@oxy.so/services/lib/commonjs/ui/client.js",
@@ -72,7 +73,8 @@
       "^@oxy.so/bloom/tab-pager/expo-router$": "<rootDir>/test-support/bloomTabPagerRouter.js",
       "^@oxy.so/core$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/index.js",
       "^@oxy.so/protocol/(.*)$": "<rootDir>/../../node_modules/@oxy.so/protocol/dist/cjs/$1.js",
-      "^@oxy.so/protocol$": "<rootDir>/../../node_modules/@oxy.so/protocol/dist/cjs/index.js"
+      "^@oxy.so/protocol$": "<rootDir>/../../node_modules/@oxy.so/protocol/dist/cjs/index.js",
+      "^\\./installUIRuntimeBindings$": "<rootDir>/../../node_modules/react-native-gesture-handler/src/handlers/gestures/installUIRuntimeBindings.web.ts"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",
