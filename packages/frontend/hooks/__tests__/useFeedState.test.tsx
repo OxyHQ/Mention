@@ -1015,6 +1015,7 @@ describe('useFeedState: one feed list per identity', () => {
           }
         },
         close: async () => undefined,
+        destroy: async () => undefined,
       };
     }
 

@@ -5,8 +5,8 @@ import { Feed, feedKey } from './feeds';
  * The data store of the signed-in account is the Oxy session's
  * (`@oxy.so/bloom-data`): OxyProvider opens one store per account, the
  * signed-out viewer (`anon`) included, and opens the next account's on a
- * switch before anything is woken. The store's file is `accountPersister`
- * (`data/persister`), handed to OxyProvider as its `dataPersister`.
+ * switch before anything is woken. The SDK owns the store's durable copy
+ * (`oxy-data-<account>`: a SQLite file on a device, IndexedDB on the web).
  */
 
 /** The feed the app opens on. */
@@ -20,7 +20,8 @@ const HOME_FEED = feedKey({ type: 'for_you' });
  * stalls for hundreds of milliseconds (measured on a Pixel 8a: the first post
  * came after the network page, ~5 s later than the synchronous read it
  * replaces). `AccountSwitchReset` calls it once per store, never during
- * render; web has no copy to read.
+ * render; the web copy has no synchronous read, so there the feed
+ * arrives with the screen's own read.
  */
 export function bootAccountData(store: Store): void {
   withStore(store, () => Feed.loadNow(HOME_FEED));

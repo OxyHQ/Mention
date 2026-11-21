@@ -23,6 +23,7 @@ function mockPersister(account: string): Persister {
     readRecordsNow: (_type, ids) => copy.records.filter((record) => ids.includes(record.id)),
     write: async () => undefined,
     close: async () => undefined,
+    destroy: async () => undefined,
   };
 }
 

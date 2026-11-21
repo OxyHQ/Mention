@@ -3,7 +3,7 @@
  * definition, dropped and recreated on a version change.
  *
  * Posts and feeds are not here: they live in each account's own data store
- * (`data/`, `@oxy.so/bloom-data`, `mention-data-<account>.db`). What is left is
+ * (`data/`, `@oxy.so/bloom-data`, the SDK's `oxy-data-<account>.db`). What is left is
  * the link-preview cache and the record of which viewer it belongs to.
  *
  * There is exactly ONE schema. On a version bump the cache is reset: every
