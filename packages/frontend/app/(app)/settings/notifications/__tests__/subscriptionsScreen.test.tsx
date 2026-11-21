@@ -118,6 +118,7 @@ const mockAuth = {
 jest.mock('@oxy.so/services/ui/client', () => {
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
+    ...jest.requireActual('@/test-support/oxyUsers'),
     useAuth: () => mockAuth,
     useAuthStore: {
       getState: () => mockAuth,

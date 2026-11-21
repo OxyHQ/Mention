@@ -1,4 +1,5 @@
 import { type Entity, entity, useEntity } from '@oxy.so/bloom-data';
+import { User } from '@oxy.so/services/ui/client';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import type { FeedItem } from '@/db/schema';
 import { toFeedItem } from '@/db/feedItem';
@@ -10,6 +11,12 @@ import { notifyPostsStored } from '@/db/postObservers';
  * The one copy every surface reads: a feed row, the detail screen, a quote
  * card, a boosted original. A quoted or boosted post is its own record
  * (`refs`), so a like on the original reaches every boost that embeds it.
+ * Every person a post embeds one or two keys deep (its author, its community,
+ * the booster, the author it replies to) is held once in the Oxy SDK's `User`,
+ * so a profile edit reaches every post that person appears on, and a copy
+ * hydrated before the edit cannot put the old one back (`User` keeps the copy
+ * with the later `updatedAt`). The byline's `authors` is a list, which a ref
+ * cannot name; rows resolve it through `data/users`.
  * Records are written in the background to this account's SQLite file and
  * read back when a screen opens, never while a row renders.
  */
@@ -38,9 +45,10 @@ export const isRenderableBoost = (item: FeedItem): boolean =>
  * `communityNote`; v12 `importedFrom`; v13 `documentsPending` (and evicted
  * cards saved empty); v14 evicted link cards with a site-hosted `imageUrl`;
  * v15 added `community`; v16 retains bounded boosted-quote graphs and the
- * unavailable-quote marker.
+ * unavailable-quote marker; v17 stores the people a post embeds in `User` and
+ * keeps only their ids.
  */
-export const POST_SHAPE_VERSION = 16;
+export const POST_SHAPE_VERSION = 17;
 
 export const Post: Entity<FeedItem> = entity<FeedItem>('post', {
   id: (post) => (isValidPostId(String(post.id)) ? String(post.id) : undefined),
@@ -48,6 +56,10 @@ export const Post: Entity<FeedItem> = entity<FeedItem>('post', {
     originalPost: () => Post,
     quotedPost: () => Post,
     'boost.originalPost': () => Post,
+    user: User,
+    community: User,
+    'boost.actor': User,
+    'replyContext.parentAuthor': User,
   },
   // A broadcast (`feed:updated`) is hydrated for no viewer: it never demotes
   // the viewer's own state or permissions on a post they hold (#1140).

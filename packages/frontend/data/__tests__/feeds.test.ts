@@ -3,7 +3,8 @@ import type { FeedItem } from '@/db/schema';
 import { Feed, feedKey, parseFeedKey, publishNewLocalPost } from '../feeds';
 import { Post } from '../posts';
 
-jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 
 const post = (id: string, author = 'viewer') =>
   ({ id, user: { id: author }, engagement: {}, viewerState: {} }) as unknown as FeedItem;

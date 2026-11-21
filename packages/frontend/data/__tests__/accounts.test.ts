@@ -27,7 +27,8 @@ function mockPersister(account: string): Persister {
   };
 }
 
-jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 
 import { bootAccountData } from '../accounts';
 import { Feed, feedKey } from '../feeds';

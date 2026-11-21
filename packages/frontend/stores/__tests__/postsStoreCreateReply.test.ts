@@ -24,7 +24,8 @@ jest.mock('@/services/feedService', () => ({
 }));
 
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
-jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 jest.mock('@/data/feeds', () => ({
   publishNewLocalPost: jest.fn(),
   publishNewLocalReply: (...args: unknown[]) => mockPublishNewLocalReply(...args),

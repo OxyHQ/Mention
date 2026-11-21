@@ -27,7 +27,8 @@ jest.mock('@/services/feedService', () => ({
 jest.mock('@/db/feedItem', () => ({ toFeedItem: (post: FeedItem) => post }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/stores/engagementInvalidation', () => ({ invalidateEngagementLists: jest.fn() }));
-jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }),

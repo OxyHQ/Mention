@@ -8,7 +8,6 @@ import type {
 import { createLogger } from '@oxy.so/core/logger';
 import type { FeedItem } from '@/db/schema';
 import { toFeedItem } from '@/db/feedItem';
-import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { requestFeedPage, takeBootFeedRead } from '@/services/feedPageRead';
 import { advanceLocalPostRevision } from '@/stores/feedScrollStore';
 import { type FeedReadIdentity, isFeedReadStale } from '@/stores/feedStaleness';
@@ -149,8 +148,8 @@ function storedSlices(slices: readonly FeedPostSlice[] | undefined): StoredSlice
 }
 
 /**
- * Read one page of a feed: a thread's replies narrowed to that thread, the
- * page normalised, and its authors seeded into the actor cache.
+ * Read one page of a feed: a thread's replies narrowed to that thread, and the
+ * page normalised. Its posts' people reach `User` through the posts' refs.
  */
 async function loadFeedPage(
   {
@@ -180,9 +179,6 @@ async function loadFeedPage(
       slices: response.slices,
       interstitials: response.interstitials,
     });
-    // The web feed's only actor source: avatars and names render from it.
-    precacheActorsFromPosts(content.items);
-
     const pending = Boolean(feed.userId) && response.pending === true && content.items.length === 0;
     // A still-syncing outbox answering empty is not the profile emptying: a
     // first page already on screen stays, flagged pending.

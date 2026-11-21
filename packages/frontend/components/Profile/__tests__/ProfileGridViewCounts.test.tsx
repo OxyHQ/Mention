@@ -29,9 +29,8 @@ import LiveVideoPosterCell from '../LiveVideoPosterCell';
 
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
-jest.mock('@/lib/precacheActorsFromPosts', () => ({
-  precacheActorsFromPosts: jest.fn(),
-}));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 jest.mock('@/stores/engagementInvalidation', () => ({
   invalidateEngagementLists: jest.fn(),
 }));

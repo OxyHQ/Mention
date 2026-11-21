@@ -1,7 +1,10 @@
 import type { HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 import { toFeedItem } from '@/db/feedItem';
-import { POST_SHAPE_VERSION } from '../posts';
+import { Post, POST_SHAPE_VERSION } from '../posts';
+
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 
 /**
  * A stored post is the JSON of a `FeedItem` (`data/posts`), and it spreads back
@@ -48,8 +51,24 @@ const PERSISTED_POST_KEYS = [
   'viewerState',
 ] as const;
 
-/** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 16;
+/**
+ * The fields whose embedded record a stored post keeps only the id of, and
+ * where it lives instead: a related post in `post`, a person in the Oxy SDK's
+ * `user`. Moving a field in or out of this set changes what is on disk exactly
+ * as a key does.
+ */
+const STORED_REFS = [
+  'boost.actor:user',
+  'boost.originalPost:post',
+  'community:user',
+  'originalPost:post',
+  'quotedPost:post',
+  'replyContext.parentAuthor:user',
+  'user:user',
+] as const;
+
+/** The version that must ship with the key set and the refs above. */
+const VERSION_FOR_THESE_KEYS = 17;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -136,6 +155,17 @@ describe('the stored post shape is pinned to its version', () => {
     // `POST_SHAPE_VERSION`, or every existing client keeps serving the old shape from
     // disk with no error anywhere.
     expect(keys).toEqual([...PERSISTED_POST_KEYS]);
+  });
+
+  it('stores exactly the refs the pinned version was cut for', () => {
+    const refs = Post.definition
+      .refs()
+      .map((ref) => `${ref.path.join('.')}:${ref.target.type}`)
+      .sort();
+
+    // A diff here means a stored post now keeps (or stops keeping) an embedded
+    // record by id. Update BOTH this list and `POST_SHAPE_VERSION`.
+    expect(refs).toEqual([...STORED_REFS]);
   });
 
   it('ships the shape version that matches that key set', () => {

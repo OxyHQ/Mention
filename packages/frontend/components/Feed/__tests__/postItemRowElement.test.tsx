@@ -28,6 +28,8 @@ import { enterThreadHover, leaveThreadHover, useThreadHoverStore } from '@/store
  *     exists to forbid.
  */
 
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 jest.mock('../../Post/PostHeader', () => ({
   __esModule: true,
   default: () => null,

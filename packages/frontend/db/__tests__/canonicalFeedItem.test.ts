@@ -5,6 +5,9 @@ import { Store } from '@oxy.so/bloom-data';
 import { Post } from '@/data/posts';
 import type { FeedItem } from '../schema';
 
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
+
 /**
  * A post through the trip it takes to disk and back: stored (embedded posts
  * normalised into their own records), serialised as the store writes it, and

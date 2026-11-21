@@ -39,9 +39,8 @@ jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn() }),
 }));
 
-jest.mock('@/lib/precacheActorsFromPosts', () => ({
-  precacheActorsFromPosts: jest.fn(),
-}));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 
 const VIEWER_ID = 'viewer-a';
 

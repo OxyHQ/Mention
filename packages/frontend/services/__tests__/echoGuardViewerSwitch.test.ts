@@ -13,6 +13,8 @@ const mockSocket = {
   connect: jest.fn(),
   io: { on: jest.fn(), off: jest.fn(), reconnection: jest.fn() },
 };
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 jest.mock('socket.io-client', () => ({ io: () => mockSocket }));
 jest.mock('@/data/feeds', () => ({
   Feed: { get: () => undefined },

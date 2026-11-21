@@ -36,9 +36,8 @@ jest.mock('@/services/feedService', () => ({
     getPostById: jest.fn(),
   },
 }));
-jest.mock('@/lib/precacheActorsFromPosts', () => ({
-  precacheActorsFromPosts: jest.fn(),
-}));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 jest.mock('@/stores/liveRoomsStore', () => ({
   useLiveRoomsStore: { getState: () => ({ refreshObservedLiveRooms: jest.fn() }) },
 }));

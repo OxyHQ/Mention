@@ -10,7 +10,6 @@ import {
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { getPost } from '@/data/posts';
-import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { noteLaneListsChanged, resetLaneInvalidation } from '@/stores/laneInvalidation';
 import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
@@ -41,9 +40,8 @@ jest.mock('@oxy.so/core/logger', () => ({
   }),
 }));
 
-jest.mock('@/lib/precacheActorsFromPosts', () => ({
-  precacheActorsFromPosts: jest.fn(),
-}));
+// Posts refer to the Oxy SDK's `User`; the real one, without the SDK's UI barrel.
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 
 function post(id: string, extra: Partial<HydratedPost> = {}): HydratedPost {
   // A resolved author: only the degraded placeholder has no `username`.
@@ -384,11 +382,6 @@ describe('useFeedState: one feed list per identity', () => {
       expect(getPost('answer')).not.toBeNull();
       expect(getPost('other-thread')).toBeNull();
       expect(getPost('standalone')).toBeNull();
-      expect(
-        (precacheActorsFromPosts as jest.Mock).mock.calls[0][0].map(
-          (item: HydratedPost) => item.id,
-        ),
-      ).toEqual(['answer']);
     });
 
     it('preserves server-selected spine and nested replies in the feed and entity caches', async () => {
@@ -406,11 +399,6 @@ describe('useFeedState: one feed list per identity', () => {
       for (const id of ['answer', 'spine-answer', 'nested-answer']) {
         expect(getPost(id)).not.toBeNull();
       }
-      expect(
-        (precacheActorsFromPosts as jest.Mock).mock.calls[0][0].map(
-          (item: HydratedPost) => item.id,
-        ),
-      ).toEqual(['answer', 'spine-answer', 'nested-answer']);
     });
   });
 
