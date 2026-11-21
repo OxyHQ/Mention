@@ -28,10 +28,6 @@ export function getDb(): SQLiteDb | null {
   return null;
 }
 
-export function closeDb(): void {
-  // Network-only on web.
-}
-
 export function resetDb(): void {
   // Network-only on web.
 }

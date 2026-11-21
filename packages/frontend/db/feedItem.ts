@@ -35,7 +35,7 @@ const MAX_RELATED_POST_DEPTH = 2;
  * here AND carried below. That is the whole point; do not widen it to `string`.
  *
  * Removing one is the same class of change and needs the same care: a key that
- * stops being persisted has to move `SCHEMA_VERSION` with it, or every client
+ * stops being persisted has to move `POST_SHAPE_VERSION` with it, or every client
  * keeps answering from disk with a payload that still carries it.
  */
 type HandledPostKey =
@@ -130,7 +130,7 @@ export function toFeedItem(
     // Carried so a collapsed cross-post keeps naming both networks when the row
     // is served from the offline cache.
     //
-    // ADDING a key moves `SCHEMA_VERSION` too, and it is worth saying why, because
+    // ADDING a key moves `POST_SHAPE_VERSION` too, and it is worth saying why, because
     // the intuition runs the other way: a stale row merely LACKS `crosspost`, so
     // it looks harmless. It is not — `PostItem` reads `storePost ?? post`, so the
     // cached copy WINS over the response the API just sent. A row written before
@@ -141,10 +141,10 @@ export function toFeedItem(
     crosspost: post.crosspost,
     // Import provenance (where an imported post first appeared). Not rendered
     // today, but part of the DTO, so the cache carries it for the same reason
-    // as `crosspost` above, with the same `SCHEMA_VERSION` bump (v12).
+    // as `crosspost` above, with the same `POST_SHAPE_VERSION` bump (v12).
     importedFrom: post.importedFrom,
     // The community a federated post was written in — its "in !community" row,
-    // with the same `SCHEMA_VERSION` bump (v15) as every key before it.
+    // with the same `POST_SHAPE_VERSION` bump (v15) as every key before it.
     community: post.community,
     originalPost,
     quotedPost,

@@ -6,30 +6,16 @@
 
 // Core
 export type { SQLiteDb } from './database';
-export { getDb, closeDb, resetDb, isDbAvailable } from './database';
+export { getDb, resetDb, isDbAvailable } from './database';
 export {
   claimViewerCache,
-  clearAllCachedData,
   readPersistedViewerOwner,
   type ViewerCacheClaim,
 } from './cacheLifecycle';
 
 // Schema types & conversions
-export type {
-  PostRow,
-  FeedItemRow,
-  FeedMetaRow,
-  ClarityDocumentRow,
-  FeedItem,
-} from './schema';
-export {
-  TABLE,
-  postToRow,
-  rowToFeedItem,
-  linkMetadataToRow,
-  rowToLinkMetadata,
-  buildFeedKey,
-} from './schema';
+export type { ClarityDocumentRow, FeedItem } from './schema';
+export { linkMetadataToRow, rowToLinkMetadata } from './schema';
 
 // Link queries
 export {

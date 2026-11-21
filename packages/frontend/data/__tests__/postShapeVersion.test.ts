@@ -1,28 +1,22 @@
 import type { HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
-import { toFeedItem } from '../feedItem';
-import { SCHEMA_VERSION } from '../migrations';
+import { toFeedItem } from '@/db/feedItem';
+import { POST_SHAPE_VERSION } from '../posts';
 
 /**
- * The local cache keeps most of a post as a serialized `FeedItem` in `raw_json`,
- * and `rowToFeedItem` spreads whatever it finds there. So the payload's shape
- * drifts independently of every column: changing what `toFeedItem` carries
- * changes what NEW rows hold while every row already on disk keeps answering
- * with the old shape — forever, since nothing evicts it.
+ * A stored post is the JSON of a `FeedItem` (`data/posts`), and it spreads back
+ * as it was written. So the shape drifts independently of the store: changing
+ * what `toFeedItem` carries changes what NEW records hold while every record
+ * already on disk keeps answering with the old shape, until something evicts it.
  *
  * That is not theoretical. `lane` and `channel` were added to the converter
- * without a schema bump, and channel posts rendered as "Unknown user" from cache
- * while the same post fetched fresh rendered correctly. It looks like a render
- * bug and is not one, which is what made it expensive to find.
+ * without a version bump, and channel posts rendered as "Unknown user" from
+ * cache while the same post fetched fresh rendered correctly. Removing a field
+ * is the same hazard from the other side.
  *
- * REMOVING a field is the same hazard from the other side, which is why v8 exists:
- * `channel` is gone from the converter, but a v7 row on disk still carries one
- * beside the degraded `user` the old backend paired it with.
- *
- * `SCHEMA_VERSION` is the only thing that evicts a stale row, and its own
- * docstring used to say "bump when the table definitions change" — which this
- * class of change does not do. So the two are pinned together here: change what
- * the converter persists and this fails until the version moves with it.
+ * `POST_SHAPE_VERSION` is the only thing that evicts a stale record, so the two
+ * are pinned together here: change what the converter persists and this fails
+ * until the version moves with it.
  */
 const PERSISTED_POST_KEYS = [
   'allMediaIds',
@@ -134,17 +128,17 @@ function makeFullyPopulatedPost(): HydratedPost {
   };
 }
 
-describe('persisted post shape is pinned to the cache schema version', () => {
+describe('the stored post shape is pinned to its version', () => {
   it('carries exactly the keys the pinned version was cut for', () => {
     const keys = Object.keys(toFeedItem(makeFullyPopulatedPost())).sort();
 
     // A diff here means the persisted payload changed. Update BOTH this list and
-    // `SCHEMA_VERSION`, or every existing client keeps serving the old shape from
+    // `POST_SHAPE_VERSION`, or every existing client keeps serving the old shape from
     // disk with no error anywhere.
     expect(keys).toEqual([...PERSISTED_POST_KEYS]);
   });
 
-  it('ships the schema version that matches that key set', () => {
-    expect(SCHEMA_VERSION).toBe(VERSION_FOR_THESE_KEYS);
+  it('ships the shape version that matches that key set', () => {
+    expect(POST_SHAPE_VERSION).toBe(VERSION_FOR_THESE_KEYS);
   });
 });

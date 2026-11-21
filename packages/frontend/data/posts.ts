@@ -2,7 +2,6 @@ import { type Entity, entity, useEntity } from '@oxy.so/bloom-data';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import type { FeedItem } from '@/db/schema';
 import { toFeedItem } from '@/db/feedItem';
-import { SCHEMA_VERSION } from '@/db/migrations';
 import { notifyPostsStored } from '@/db/postObservers';
 
 /**
@@ -25,6 +24,24 @@ export const isValidPostId = (id: unknown): id is string =>
 export const isRenderableBoost = (item: FeedItem): boolean =>
   !item.boost || Boolean(item.boost.originalPost?.id);
 
+/**
+ * The stored post's shape. Bump it whenever what `db/feedItem.toFeedItem`
+ * carries changes, or the shape of anything inside it does: a post's stored
+ * JSON spreads back as it was written, so a record from before the change
+ * would keep answering with the old shape, and \`PostItem\` reads the stored
+ * copy over the response beside it. The bump drops this type's rows when the
+ * account's store opens. `data/__tests__/postShapeVersion.test.ts` pins it to
+ * the key set.
+ *
+ * History, from when the shape lived in `mention.db`: v8 removed `channel`
+ * (a channel is an Oxy account, so `post.user` is the channel); v11 added
+ * `communityNote`; v12 `importedFrom`; v13 `documentsPending` (and evicted
+ * cards saved empty); v14 evicted link cards with a site-hosted `imageUrl`;
+ * v15 added `community`; v16 retains bounded boosted-quote graphs and the
+ * unavailable-quote marker.
+ */
+export const POST_SHAPE_VERSION = 16;
+
 export const Post: Entity<FeedItem> = entity<FeedItem>('post', {
   id: (post) => (isValidPostId(String(post.id)) ? String(post.id) : undefined),
   refs: {
@@ -45,8 +62,7 @@ export const Post: Entity<FeedItem> = entity<FeedItem>('post', {
     );
     notifyPostsStored(posts);
   },
-  // Moving the persisted shape moves this number (`db/__tests__/cacheShapeVersion`).
-  persist: { version: SCHEMA_VERSION },
+  persist: { version: POST_SHAPE_VERSION },
 });
 
 /**

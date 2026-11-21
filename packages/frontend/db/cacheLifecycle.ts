@@ -77,9 +77,6 @@ function replaceViewerOwner(db: SQLiteDb, viewerId: string): void {
   db.execSync('BEGIN IMMEDIATE');
   try {
     db.execSync(`
-      DELETE FROM feed_items;
-      DELETE FROM feed_meta;
-      DELETE FROM posts;
       DELETE FROM link_previews;
       DELETE FROM cache_metadata;
     `);
@@ -96,7 +93,7 @@ function replaceViewerOwner(db: SQLiteDb, viewerId: string): void {
 }
 
 /**
- * Claim all post/feed persistence for one resolved auth identity.
+ * Claim `mention.db` (the link-preview cache) for one resolved auth identity.
  *
  * A missing owner is intentionally treated as untrusted. That covers both
  * pre-v5 databases and interrupted/corrupt metadata writes: no legacy row may
@@ -166,25 +163,4 @@ export function claimViewerCache(viewerId: string | null | undefined): ViewerCac
 
   activeViewerId = nextViewerId;
   return { reset: true, previousViewerId, trusted: true };
-}
-
-/**
- * Synchronously clear all post/feed persistence at a viewer identity boundary.
- *
- * Native deletes the SQLite cache and web clears its process-local fallback.
- * Calling both is intentional: a native database initialization failure can
- * temporarily route reads through memory, and neither cache may survive A → B.
- */
-export function clearAllCachedData(): void {
-  resetDb();
-
-  // Generic cache resets (corruption recovery, tests, manual refresh) should
-  // not silently orphan later writes. Preserve the already-established viewer
-  // claim; an identity transition will overwrite it synchronously.
-  if (activeViewerId) {
-    const db = getDb();
-    if (db) {
-      writeViewerOwner(db, activeViewerId);
-    }
-  }
 }
