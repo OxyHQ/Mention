@@ -14,7 +14,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
  *     the body and on the button — and its posts go in `beforeArchive`, which
  *     Oxy runs before the archive and which stops it when it rejects;
  *   * a community is Oxy's archive alone, with nothing of Mention's before it;
- *   * every accepted profile write reaches Mention's own identity caches.
+ *   * every accepted profile write refreshes Mention's operated-accounts list
+ *     (the SDK itself stores the account in `User`, which every post reads).
  */
 
 const mockPreview = jest.fn();
@@ -22,7 +23,6 @@ const mockDeleteContent = jest.fn();
 const mockConfirmDialog = jest.fn();
 const mockListAccounts = jest.fn();
 const mockReplace = jest.fn();
-const mockNoteIdentityChanged = jest.fn();
 const mockAccountSettings = jest.fn();
 
 jest.mock('@/services/channelDeletionService', () => ({
@@ -33,9 +33,6 @@ jest.mock('@/services/channelDeletionService', () => ({
 }));
 jest.mock('@/utils/alerts', () => ({
   confirmDialog: (...args: unknown[]) => mockConfirmDialog(...args),
-}));
-jest.mock('@/lib/actorCache', () => ({
-  noteIdentityChanged: (...args: unknown[]) => mockNoteIdentityChanged(...args),
 }));
 jest.mock('@oxy.so/services/screens', () => ({
   AccountSettings: (props: unknown) => {
@@ -218,13 +215,16 @@ describe('a channel', () => {
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
-  it('tells Mention’s identity caches about every profile write', async () => {
+  it('reads the operated-accounts list again after every profile write', async () => {
     const { onUpdated } = await renderSettings('channel');
-    const account = { id: ACCOUNT_ID, username: 'daily', bio: undefined };
+    const reads = mockListAccounts.mock.calls.length;
 
-    onUpdated(account, { cleared: ['bio'] });
+    await act(async () => {
+      onUpdated({ id: ACCOUNT_ID, username: 'daily' }, { cleared: ['bio'] });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
-    expect(mockNoteIdentityChanged).toHaveBeenCalledWith(account, 'viewer-1', { cleared: ['bio'] });
+    expect(mockListAccounts.mock.calls.length).toBeGreaterThan(reads);
   });
 });
 

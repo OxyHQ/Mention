@@ -2,16 +2,15 @@ import { StorefrontSettings } from '@/components/Commerce/StorefrontSettings';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { AccountSettings, type AccountSettingsProps } from '@oxy.so/services/screens';
+import { AccountSettings } from '@oxy.so/services/screens';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 
 import { EmptyState } from '@/components/common/EmptyState';
-import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { ChannelBylineSettings } from './ChannelBylineSettings';
 import { CommunityModerationSettings } from './CommunityModerationSettings';
@@ -130,17 +129,20 @@ function OperatedAccountSettings({
   accountId: string;
   kind: OperatedAccountKind;
 }) {
-  const { user } = useAuth();
-  const viewerId = user?.id;
+  const queryClient = useQueryClient();
   const archive = useOperatedAccountArchive(kind);
 
-  // The SDK's user cache already holds the write; `noteIdentityChanged` reaches
-  // Mention's own copies — the identity overlay every post row reads, and the
-  // operated-accounts list — which the SDK cannot see.
-  const handleUpdated = useCallback<NonNullable<AccountSettingsProps['onUpdated']>>(
-    (account, { cleared }) => noteIdentityChanged(account, viewerId, { cleared }),
-    [viewerId],
-  );
+  // The SDK stores each accepted profile write in `User`, with the `updatedAt`
+  // Oxy answered: every post and person row reads the account from there, so
+  // the edit shows everywhere at once and a feed answer hydrated before it
+  // cannot put the old one back. What the SDK cannot see is Mention's
+  // operated-accounts list, which embeds each account's profile and feeds the
+  // channels screen, the composer's publish-as picker and this screen.
+  const handleUpdated = useCallback(() => {
+    void queryClient.invalidateQueries({
+      predicate: (query) => viewerQueryKeys.isOperatedAccounts(query.queryKey),
+    });
+  }, [queryClient]);
 
   return (
     <AccountSettings
