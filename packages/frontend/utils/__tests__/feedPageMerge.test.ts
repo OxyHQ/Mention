@@ -1,5 +1,5 @@
 import type { FeedInterstitialSlot, FeedPostSlice, HydratedPost } from '@mention/shared-types';
-import { mergeFeedPageContent } from '../feedUtils';
+import { deduplicateItems, depsShallowEqual, getItemKey, mergeFeedPageContent } from '../feedUtils';
 
 function post(id: string): HydratedPost {
   return { id, user: { id: `author-${id}` } } as unknown as HydratedPost;
@@ -103,5 +103,38 @@ describe('mergeFeedPageContent', () => {
     });
 
     expect(merged.items.map((item) => item.id)).toEqual(['original', 'boost-wrapper']);
+  });
+});
+
+describe('feed identity helpers', () => {
+  it('drops a slice with no key and a repeated slice key, keeping the first', () => {
+    const keyless = { ...slice('', ['x']), _sliceKey: '' };
+    const merged = mergeFeedPageContent(
+      { slices: [slice('s1', ['a'])] },
+      { slices: [keyless, slice('s1', ['b']), slice('s2', ['c'])] },
+    );
+    expect(merged.slices?.map((held) => held._sliceKey)).toEqual(['s1', 's2']);
+    expect(merged.slices?.[0]?.items.map((item) => item.post.id)).toEqual(['a']);
+  });
+
+  it('keys an entry by its own id, its post’s, then its username', () => {
+    expect(getItemKey({ _id: 7 })).toBe('7');
+    expect(getItemKey({ post: { _id: 'p' } })).toBe('p');
+    expect(getItemKey({ id: '', username: 'ada' })).toBe('ada');
+    expect(getItemKey(null)).toBe('null');
+  });
+
+  it('deduplicates by key, first seen wins', () => {
+    expect(deduplicateItems([])).toEqual([]);
+    expect(deduplicateItems([post('a'), post('b'), post('a')]).map((item) => item.id)).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  it('compares a dependency that is a plain object key by key', () => {
+    expect(depsShallowEqual([{ tag: 'x' }], [{ tag: 'x' }])).toBe(true);
+    expect(depsShallowEqual([{ tag: 'x' }], [{ tag: 'x', sort: 'new' }])).toBe(false);
+    expect(depsShallowEqual([{ tag: 'x' }], [{ tag: 'y' }])).toBe(false);
   });
 });
