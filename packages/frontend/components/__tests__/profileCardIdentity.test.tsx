@@ -77,7 +77,6 @@ jest.mock('@oxy.so/services/ui/client', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
     useAuth: () => ({ user: { id: 'viewer' } }),
-    useAuthStore: { getState: () => ({ user: { id: 'viewer' } }) },
     ...jest.requireActual('@/test-support/oxyUsers'),
     FollowButton: ({
       onFollowChange,
@@ -93,6 +92,14 @@ jest.mock('@oxy.so/services/ui/client', () => {
       });
     },
   };
+});
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: { id: 'viewer' } }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
 });
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');

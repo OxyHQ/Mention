@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
-import { useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { useOxyRuntime } from '@oxy.so/services/runtime';
 
 /**
  * Fence UI continuations after a screen or projected session changes.
@@ -9,6 +10,7 @@ import { useAuth, useAuthStore } from '@oxy.so/services/ui/client';
  */
 export function usePublicationContinuation(ownerStillActive?: () => boolean) {
   const { user, oxyServices } = useAuth();
+  const oxyRuntime = useOxyRuntime();
   const viewerId = user?.id ?? null;
   const mounted = useRef(false);
   useLayoutEffect(() => {
@@ -22,16 +24,16 @@ export function usePublicationContinuation(ownerStillActive?: () => boolean) {
     if (
       !mounted.current ||
       !viewerId ||
-      useAuthStore.getState().user?.id !== viewerId ||
+      oxyRuntime.getSnapshot().account?.id !== viewerId ||
       (ownerStillActive && !ownerStillActive())
     )
       return null;
     const epoch = oxyServices.http.getSessionEpoch();
     return () =>
       (ownerStillActive ? ownerStillActive() : mounted.current) &&
-      useAuthStore.getState().user?.id === viewerId &&
+      oxyRuntime.getSnapshot().account?.id === viewerId &&
       oxyServices.http.getSessionEpoch() === epoch;
-  }, [oxyServices, viewerId, ownerStillActive]);
+  }, [oxyServices, oxyRuntime, viewerId, ownerStillActive]);
 
   const isMounted = useCallback(() => mounted.current, []);
   return { capture, isMounted };

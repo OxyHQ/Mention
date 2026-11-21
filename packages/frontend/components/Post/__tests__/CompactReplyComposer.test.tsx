@@ -8,7 +8,6 @@ const mockCreateReply = jest.fn();
 const mockToast = jest.fn();
 const mockOpenMediaPicker = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuthStore: { getState: () => ({ user: mockViewerId ? { id: mockViewerId } : null }) },
   useOxy: () => ({ sessionClient: null, sessionMode: 'account' }),
   useAuth: () => ({
     user: mockViewerId ? { id: mockViewerId } : null,
@@ -19,6 +18,14 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     },
   }),
 }));
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: mockViewerId ? { id: mockViewerId } : null }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
+});
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: { createReply: typeof mockCreateReply }) => unknown) =>
     selector({ createReply: mockCreateReply }),

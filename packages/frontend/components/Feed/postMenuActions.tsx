@@ -32,7 +32,7 @@ import { RiSpamLine } from '@oxy.so/bloom/icons/RiSpamLine';
 import { RiUnpinLine } from '@oxy.so/bloom/icons/RiUnpinLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
-import { muteService } from '@/services/muteService';
+import { muteService, type MuteViewer } from '@/services/muteService';
 import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { reportService } from '@/services/reportService';
@@ -86,6 +86,8 @@ export interface PostMenuDeps {
   /** The app's Back, to leave a post's own page once it is deleted. */
   back: (() => void) | undefined;
   queryClient: QueryClient;
+  /** The Oxy session runtime (`useOxyRuntime()`): who is signed in now. */
+  oxyRuntime: MuteViewer['runtime'];
 }
 
 export interface PostMenuParams {
@@ -149,7 +151,7 @@ export function buildPostMenuActions(
     onOpenArticle,
     onInsights,
   }: PostMenuParams,
-  { theme, t, viewerId, canUsePrivateApi, router, back, queryClient }: PostMenuDeps,
+  { theme, t, viewerId, canUsePrivateApi, router, back, queryClient, oxyRuntime }: PostMenuDeps,
 ): PostMenuActions {
   const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
   {
@@ -413,7 +415,7 @@ export function buildPostMenuActions(
 
       if (!confirmed) return;
 
-      const success = await muteService.muteUser(userId, viewerId);
+      const success = await muteService.muteUser(userId, { viewerId, runtime: oxyRuntime });
       if (success) {
         toast(t('postActions.userMuted', { username }), { type: 'success' });
       } else {

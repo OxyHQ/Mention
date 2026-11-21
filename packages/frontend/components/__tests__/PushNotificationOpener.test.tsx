@@ -10,8 +10,15 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     user: mockUserId ? { id: mockUserId } : null,
     oxyServices: mockOxy,
   }),
-  useAuthStore: { getState: () => ({ user: mockUserId ? { id: mockUserId } : null }) },
 }));
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: mockUserId ? { id: mockUserId } : null }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
+});
 const mockPush = jest.fn();
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 const mockInvalidate = jest.fn();

@@ -127,6 +127,7 @@ const deps = {
   router,
   back,
   queryClient,
+  oxyRuntime: { getSnapshot: () => ({ account: { id: 'viewer-1' } }), subscribe: () => () => {} },
 } as unknown as PostMenuDeps;
 
 const withSources = (post: HydratedPost): HydratedPost => ({
@@ -393,7 +394,10 @@ describe('what the actions do', () => {
 
   it('mutes the author after confirmation', async () => {
     await find(build({ viewPost: makePost() }), 'postActions.muteUser').onPress();
-    expect(mockMute.muteUser).toHaveBeenCalledWith('author-1', 'viewer-1');
+    expect(mockMute.muteUser).toHaveBeenCalledWith('author-1', {
+      viewerId: 'viewer-1',
+      runtime: deps.oxyRuntime,
+    });
     expect(mockToast).toHaveBeenCalledWith('postActions.userMuted', { type: 'success' });
   });
 

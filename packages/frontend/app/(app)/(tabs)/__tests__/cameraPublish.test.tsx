@@ -50,7 +50,6 @@ jest.mock('@/lib/oxyServices', () => ({
 }));
 
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuthStore: { getState: () => ({ user: mockViewerId ? { id: mockViewerId } : null }) },
   useOxy: () => ({ sessionClient: null, sessionMode: 'account' }),
   useAuth: () => ({
     user: mockViewerId ? { id: mockViewerId } : null,
@@ -61,6 +60,14 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     },
   }),
 }));
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: mockViewerId ? { id: mockViewerId } : null }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
+});
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 
 jest.mock('@/stores/postsStore', () => ({

@@ -36,8 +36,15 @@ jest.mock('@oxy.so/core/logger', () => ({ createLogger: () => ({ error: jest.fn(
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ ...mockAuth, user: { id: mockUserId } }),
   OxyAuthPrompt: () => null,
-  useAuthStore: { getState: () => ({ user: { id: mockUserId } }) },
 }));
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: { id: mockUserId } }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
+});
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
     getNotificationsForViewer: (...args: unknown[]) => mockGetNotifications(...args),

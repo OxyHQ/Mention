@@ -8,12 +8,19 @@ let mockProps: Props | undefined;
 const mockNotify = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: mockViewerId ? { id: mockViewerId } : undefined }),
-  useAuthStore: { getState: () => ({ user: { id: mockViewerId } }) },
   FollowButton: (props: Props) => {
     mockProps = props;
     return null;
   },
 }));
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: { id: mockViewerId } }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
+});
 jest.mock('@/stores/feedRankingInvalidation', () => ({
   notifyFeedRankingChanged: (...args: unknown[]) => mockNotify(...args),
 }));

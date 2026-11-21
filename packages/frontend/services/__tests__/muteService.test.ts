@@ -1,4 +1,4 @@
-import { muteService } from '../muteService';
+import { muteService, type MuteViewer } from '../muteService';
 
 const mockPost = jest.fn();
 const mockDelete = jest.fn();
@@ -16,16 +16,17 @@ jest.mock('@/utils/api', () => ({
 jest.mock('@/stores/feedRankingInvalidation', () => ({
   notifyFeedRankingChanged: (...args: unknown[]) => mockNotify(...args),
 }));
-jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuthStore: {
-    getState: () => ({ user: mockViewerId ? { id: mockViewerId } : undefined }),
-    subscribe: (listener: () => void) => {
-      mockListeners.add(listener);
-      return () => mockListeners.delete(listener);
-    },
-  },
-}));
 jest.mock('@oxy.so/core/logger', () => ({ createLogger: () => ({ warn: jest.fn() }) }));
+
+/** The Oxy session runtime: who is signed in now, and a wake-up when that moves. */
+const runtime = {
+  getSnapshot: () => ({ account: mockViewerId ? { id: mockViewerId } : null }),
+  subscribe: (listener: () => void) => {
+    mockListeners.add(listener);
+    return () => mockListeners.delete(listener);
+  },
+} as unknown as MuteViewer['runtime'];
+const viewer = (viewerId: string | undefined): MuteViewer => ({ viewerId, runtime });
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -38,13 +39,13 @@ beforeEach(() => {
 it.each(['muteUser', 'unmuteUser'] as const)(
   '%s notifies only after a successful originating-viewer write',
   async (method) => {
-    expect(await muteService[method]('target', 'viewer-a')).toBe(true);
+    expect(await muteService[method]('target', viewer('viewer-a'))).toBe(true);
     expect(mockNotify).toHaveBeenCalledWith('viewer-a');
     expect(mockListeners.size).toBe(0);
     const request = method === 'muteUser' ? mockPost : mockDelete;
     request.mockRejectedValueOnce(new Error('write rejected'));
     mockNotify.mockClear();
-    expect(await muteService[method]('target', 'viewer-a')).toBe(false);
+    expect(await muteService[method]('target', viewer('viewer-a'))).toBe(false);
     expect(mockNotify).not.toHaveBeenCalled();
     expect(mockListeners.size).toBe(0);
   },
@@ -52,9 +53,9 @@ it.each(['muteUser', 'unmuteUser'] as const)(
 
 it('refuses an old confirmation after account switch, and an anonymous action', async () => {
   mockViewerId = 'viewer-b';
-  expect(await muteService.muteUser('target', 'viewer-a')).toBe(false);
+  expect(await muteService.muteUser('target', viewer('viewer-a'))).toBe(false);
   mockViewerId = undefined;
-  expect(await muteService.muteUser('target', undefined)).toBe(false);
+  expect(await muteService.muteUser('target', viewer(undefined))).toBe(false);
   expect(mockPost).not.toHaveBeenCalled();
   expect(mockNotify).not.toHaveBeenCalled();
   expect(mockListeners.size).toBe(0);
@@ -67,7 +68,7 @@ it('aborts SDK preflight on account change and cannot invalidate the incoming vi
       finish = resolve;
     }),
   );
-  const pending = muteService.muteUser('target', 'viewer-a');
+  const pending = muteService.muteUser('target', viewer('viewer-a'));
   const signal: AbortSignal = mockPost.mock.calls[0][2].signal;
   mockViewerId = 'viewer-b';
   for (const listener of mockListeners) listener();

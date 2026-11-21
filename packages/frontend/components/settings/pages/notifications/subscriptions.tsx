@@ -17,7 +17,8 @@ import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
-import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useOxyRuntime } from '@oxy.so/services/runtime';
 import {
   useInfiniteQuery,
   useMutation,
@@ -50,6 +51,7 @@ export default function ActivitySubscriptionsScreen() {
 
   const queryClient = useQueryClient();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const oxyRuntime = useOxyRuntime();
 
   const subscriptionsKey = viewerQueryKeys.subscriptions(user?.id);
 
@@ -74,9 +76,9 @@ export default function ActivitySubscriptionsScreen() {
       // SDK runtime at dispatch, rather than the render that created this action.
       const controller = new AbortController();
       const cancelIfViewerChanged = () => {
-        if (!viewerId || useAuthStore.getState().user?.id !== viewerId) controller.abort();
+        if (!viewerId || oxyRuntime.getSnapshot().account?.id !== viewerId) controller.abort();
       };
-      const stopWatching = useAuthStore.subscribe(cancelIfViewerChanged);
+      const stopWatching = oxyRuntime.subscribe(cancelIfViewerChanged);
       try {
         cancelIfViewerChanged();
         if (controller.signal.aborted) throw new Error(t('subscription.error'));

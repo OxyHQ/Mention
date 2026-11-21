@@ -3,7 +3,8 @@ import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
-import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useOxyRuntime } from '@oxy.so/services/runtime';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -115,14 +116,15 @@ type TabUnreadCounts = Record<FilterableTab, number>;
 
 const NotificationsScreen: React.FC = () => {
   const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const oxyRuntime = useOxyRuntime();
   const isCurrentIntent = useCallback(
     (intent: NotificationIntent) =>
       canUsePrivateApi &&
       user?.id === intent.viewerId &&
-      useAuthStore.getState().user?.id === intent.viewerId &&
+      oxyRuntime.getSnapshot().account?.id === intent.viewerId &&
       oxyServices.session.isAuthenticated &&
       oxyServices.http.getSessionEpoch() === intent.epoch,
-    [canUsePrivateApi, user?.id, oxyServices],
+    [canUsePrivateApi, user?.id, oxyServices, oxyRuntime],
   );
   const captureIntent = useCallback((): NotificationIntent | null => {
     if (!user?.id) return null;
@@ -131,7 +133,7 @@ const NotificationsScreen: React.FC = () => {
   }, [user?.id, oxyServices, isCurrentIntent]);
   const subscribeSession = useCallback(
     (listener: () => void) => {
-      const unsubscribeUser = useAuthStore.subscribe(listener);
+      const unsubscribeUser = oxyRuntime.subscribe(listener);
       try {
         const unsubscribeToken = oxyServices.session.onChange(listener);
         return () => {
@@ -143,7 +145,7 @@ const NotificationsScreen: React.FC = () => {
         throw error;
       }
     },
-    [oxyServices],
+    [oxyServices, oxyRuntime],
   );
   const ownNotificationSurface = useOwnedNotificationSurfaces(isCurrentIntent, subscribeSession);
   const queryClient = useQueryClient();

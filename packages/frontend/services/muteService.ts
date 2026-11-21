@@ -1,30 +1,40 @@
 import type { MutedUsersResponse, SerializedMute } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient } from '@/utils/api';
-import { useAuthStore } from '@oxy.so/services/ui/client';
+import type { OxyRuntime } from '@oxy.so/services/runtime';
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 
 const logger = createLogger('MuteService');
 
+/**
+ * Who a write is for: the viewer it was started by, and the Oxy session runtime
+ * (`useOxyRuntime()`) that says who is signed in now. The write is cancelled
+ * when that stops being the viewer.
+ */
+export interface MuteViewer {
+  viewerId: string | undefined;
+  runtime: Pick<OxyRuntime, 'getSnapshot' | 'subscribe'>;
+}
+
 class MuteService {
-  muteUser(mutedId: string, viewerId: string | undefined): Promise<boolean> {
-    return this.setMuted(mutedId, viewerId, true);
+  muteUser(mutedId: string, viewer: MuteViewer): Promise<boolean> {
+    return this.setMuted(mutedId, viewer, true);
   }
 
-  unmuteUser(mutedId: string, viewerId: string | undefined): Promise<boolean> {
-    return this.setMuted(mutedId, viewerId, false);
+  unmuteUser(mutedId: string, viewer: MuteViewer): Promise<boolean> {
+    return this.setMuted(mutedId, viewer, false);
   }
 
   private async setMuted(
     mutedId: string,
-    viewerId: string | undefined,
+    { viewerId, runtime }: MuteViewer,
     isMuted: boolean,
   ): Promise<boolean> {
     const controller = new AbortController();
     const cancelIfViewerChanged = () => {
-      if (!viewerId || useAuthStore.getState().user?.id !== viewerId) controller.abort();
+      if (!viewerId || runtime.getSnapshot().account?.id !== viewerId) controller.abort();
     };
-    const stopWatching = useAuthStore.subscribe(cancelIfViewerChanged);
+    const stopWatching = runtime.subscribe(cancelIfViewerChanged);
     try {
       cancelIfViewerChanged();
       if (controller.signal.aborted) return false;

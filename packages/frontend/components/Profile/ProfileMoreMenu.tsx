@@ -3,6 +3,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { useOxyRuntime } from '@oxy.so/services/runtime';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,13 +99,17 @@ export function ProfileMoreMenu({
   const theme = useTheme();
   const { t } = useTranslation();
   const { oxyServices, canUsePrivateApi, user } = useAuth();
+  const oxyRuntime = useOxyRuntime();
 
   if (!profileData || (!canUsePrivateApi && !leadingItems)) return null;
 
   const displayUsername = profileData.username;
 
   const handleMute = async () => {
-    const success = await muteService.muteUser(profileData.id, user?.id);
+    const success = await muteService.muteUser(profileData.id, {
+      viewerId: user?.id,
+      runtime: oxyRuntime,
+    });
     if (success) {
       toast(
         t('profile.muted', {

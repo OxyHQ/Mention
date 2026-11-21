@@ -12,6 +12,11 @@ import { PostMenuContent } from '../PostMenuContent';
  */
 
 const mockPosts = new Map<string, HydratedPost>();
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = { getSnapshot: () => ({ account: null }), subscribe: () => () => undefined };
+  return { useOxyRuntime: () => runtime };
+});
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: {
     getState: () => ({

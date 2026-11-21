@@ -3,6 +3,7 @@ import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { useOxyRuntime } from '@oxy.so/services/runtime';
 import {
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -53,6 +54,7 @@ export function PostMenuContent({
   const theme = useTheme();
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
+  const oxyRuntime = useOxyRuntime();
   const router = useRouter();
   const back = useScreenBack();
   const queryClient = useQueryClient();
@@ -96,6 +98,7 @@ export function PostMenuContent({
       router,
       back,
       queryClient,
+      oxyRuntime,
     },
   );
 

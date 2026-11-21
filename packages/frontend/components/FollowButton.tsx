@@ -1,13 +1,15 @@
 import type { ComponentProps } from 'react';
 import type { BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
-import { FollowButton as OxyFollowButton, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { FollowButton as OxyFollowButton, useAuth } from '@oxy.so/services/ui/client';
+import { useOxyRuntime } from '@oxy.so/services/runtime';
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 
 /** Keep Mention's feed evidence in step with accepted SDK graph mutations. */
 export function FollowButton(props: ComponentProps<typeof OxyFollowButton>) {
   const { user } = useAuth();
   const viewerId = user?.id;
-  const isCurrentViewer = () => !!viewerId && useAuthStore.getState().user?.id === viewerId;
+  const oxyRuntime = useOxyRuntime();
+  const isCurrentViewer = () => !!viewerId && oxyRuntime.getSnapshot().account?.id === viewerId;
   const notify = () => {
     // A late success still invalidates its owner, never the newly selected account.
     if (viewerId) notifyFeedRankingChanged(viewerId);

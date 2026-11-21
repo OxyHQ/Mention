@@ -33,7 +33,8 @@ import { composeStyles as styles } from './ComposeScreen.styles';
 import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { OxyAuthPrompt, useAuth, useAuthStore, useOxy } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
+import { useOxyRuntime } from '@oxy.so/services/runtime';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
 import * as ExpoLocation from 'expo-location';
 import { useQueryClient } from '@tanstack/react-query';
@@ -244,6 +245,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const intentConflictControl = useDialogControl();
   const translateOverwriteControl = useDialogControl();
   const { user, showBottomSheet, oxyServices } = useAuth();
+  const oxyRuntime = useOxyRuntime();
   const { capture: capturePublication, isMounted: isPublicationMounted } =
     usePublicationContinuation();
   const communitiesPreview = useCommunitiesPreview();
@@ -1383,7 +1385,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     void saveDraftNow(snapshot)
       .then(() => {
         incoming.acknowledge({
-          viewerId: useAuthStore.getState().user?.id ?? '',
+          viewerId: oxyRuntime.getSnapshot().account?.id ?? '',
           epoch: oxyServices.http.getSessionEpoch(),
           replyToPostId,
         });
@@ -1399,6 +1401,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     replyToPostId,
     user,
     oxyServices,
+    oxyRuntime,
     saveDraftNow,
     setPostContent,
     setMediaIds,
@@ -1411,7 +1414,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     const epoch = oxyServices.http.getSessionEpoch();
     return () => {
       if (
-        useAuthStore.getState().user?.id !== viewer ||
+        oxyRuntime.getSnapshot().account?.id !== viewer ||
         oxyServices.http.getSessionEpoch() !== epoch
       )
         return;
@@ -1423,7 +1426,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         void autoSaveDraft(snapshot);
       }
     };
-  }, [initialReplyDraftToken, user?.id, oxyServices, autoSaveDraft]);
+  }, [initialReplyDraftToken, user?.id, oxyServices, oxyRuntime, autoSaveDraft]);
 
   const switchingDraftRef = useRef(false);
   const [switchingDraft, setSwitchingDraft] = useState(false);

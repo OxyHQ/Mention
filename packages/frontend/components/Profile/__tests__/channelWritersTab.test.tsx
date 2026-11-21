@@ -71,6 +71,11 @@ function mockTranslate(
 }
 
 // Keep the renderer boundary isolated; the account policy has its own contract tests.
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = { getSnapshot: () => ({ account: null }), subscribe: () => () => undefined };
+  return { useOxyRuntime: () => runtime };
+});
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   parseAvatarCharacter: jest.requireActual(
     require('node:path').join(

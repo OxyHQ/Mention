@@ -120,16 +120,20 @@ jest.mock('@oxy.so/services/ui/client', () => {
   return {
     ...jest.requireActual('@/test-support/oxyUsers'),
     useAuth: () => mockAuth,
-    useAuthStore: {
-      getState: () => mockAuth,
-      subscribe: (listener: () => void) => {
-        mockAuthListeners.add(listener);
-        return () => mockAuthListeners.delete(listener);
-      },
-    },
     OxyAuthPrompt: ({ label }: { label?: string }) => <Text>{label}</Text>,
     FollowButton: () => <View testID="follow-button" />,
   };
+});
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: mockAuth.user }),
+    subscribe: (listener: () => void) => {
+      mockAuthListeners.add(listener);
+      return () => mockAuthListeners.delete(listener);
+    },
+  };
+  return { useOxyRuntime: () => runtime };
 });
 
 interface HandleUser {

@@ -168,7 +168,6 @@ jest.mock('@oxy.so/services/ui/client', () => {
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => mockAuth,
-    useAuthStore: { getState: () => mockAuth },
     // The SDK's real `User` and `storeUsers`: the bands store the people they
     // fetch there, and the avatar backfill (`utils/userEnrichment`) skips the
     // ones it holds.
@@ -208,6 +207,14 @@ jest.mock('@oxy.so/services/ui/client', () => {
       );
     },
   };
+});
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: mockAuth.user }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
 });
 
 /**

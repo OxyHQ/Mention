@@ -14,6 +14,11 @@ import { ProfileMoreMenu, type ProfileMoreMenuProps } from '../ProfileMoreMenu';
  */
 
 let mockAuth = { canUsePrivateApi: true, oxyServices: { blockUser: jest.fn() } };
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = { getSnapshot: () => ({ account: null }), subscribe: () => () => undefined };
+  return { useOxyRuntime: () => runtime };
+});
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));

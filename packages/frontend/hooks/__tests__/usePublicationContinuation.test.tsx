@@ -10,10 +10,15 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     user: mockRenderedUser ? { id: mockRenderedUser } : null,
     oxyServices: mockServices,
   }),
-  useAuthStore: {
-    getState: () => ({ user: mockCurrentUser ? { id: mockCurrentUser } : null }),
-  },
 }));
+// The Oxy session runtime: who is signed in now.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: mockCurrentUser ? { id: mockCurrentUser } : null }),
+    subscribe: () => () => undefined,
+  };
+  return { useOxyRuntime: () => runtime };
+});
 
 beforeEach(() => {
   mockEpoch = 1;
