@@ -1072,6 +1072,15 @@ export interface PostUser {
   isFederated?: boolean;
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
+  /**
+   * When this account's Oxy record last changed (Oxy's `User.updatedAt`, ISO
+   * 8601), passed through unchanged. Oxy bumps it on every write to the account,
+   * a profile edit or a federated actor refresh alike, so of two copies of the
+   * same user the one with the later `updatedAt` is the newer: a client that
+   * merges users by `id` keeps it. Absent on the degraded placeholder and the
+   * synthetic system actor, which therefore never outrank a real copy.
+   */
+  updatedAt?: string;
 }
 
 /** Bounded public identity carried beside legacy URL-only member facepiles. */
@@ -1087,6 +1096,7 @@ export type AvatarIdentitySummary = Pick<
   | 'isFederated'
   | 'instance'
   | 'federation'
+  | 'updatedAt'
 >;
 
 /**

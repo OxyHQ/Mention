@@ -494,6 +494,12 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
     instance: isFederated
       ? userData.instance || federation?.domain
       : userData.instance || undefined,
+    // When Oxy last wrote this account, passed through unchanged: it is what lets
+    // a client that merges users by id keep the newer of two copies.
+    updatedAt:
+      typeof userData.updatedAt === 'string' && userData.updatedAt.length > 0
+        ? userData.updatedAt
+        : undefined,
   };
 
   const followerCount = userData._count?.followers;

@@ -63,6 +63,8 @@ export interface LaneOwner {
   username?: string;
   name?: { displayName?: string };
   avatar?: string;
+  /** When the owner's Oxy record last changed (`PostUser.updatedAt`). */
+  updatedAt?: string;
 }
 
 export interface ListPreview {
@@ -161,6 +163,7 @@ export async function resolveLaneOwners(
       username: user?.username,
       name: user?.name?.displayName ? { displayName: user.name.displayName } : undefined,
       avatar: typeof user?.avatar === 'string' ? user.avatar : undefined,
+      updatedAt: user?.updatedAt,
     });
   }
   return owners;

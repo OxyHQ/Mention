@@ -21,6 +21,7 @@ function toUserSummary(user: PostUser) {
     username: user.username,
     name: user.name,
     avatar: user.avatar,
+    updatedAt: user.updatedAt,
   };
 }
 

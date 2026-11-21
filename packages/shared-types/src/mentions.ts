@@ -83,6 +83,8 @@ export interface ProfileLinkMentionIdentity {
   handle: string;
   /** Display name, falling back to the handle when the account declares none. */
   displayName: string;
+  /** When the account's Oxy record last changed, as `PostUser.updatedAt` (ISO 8601). */
+  updatedAt?: string;
 }
 
 /** One URL's answer. */

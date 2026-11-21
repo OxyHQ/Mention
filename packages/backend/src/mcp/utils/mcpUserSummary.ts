@@ -7,6 +7,8 @@ export interface McpUserSummary {
   username: string;
   handle: string;
   displayName: string;
+  /** When the account's Oxy record last changed; absent when Oxy did not answer. */
+  updatedAt?: string;
 }
 
 function safeVisualValue(value: unknown, rawIds: Set<string>): string {
@@ -31,5 +33,7 @@ export function toMcpUserSummary(oxyUserId: string, user?: User | null): McpUser
     username: username || fallback.username,
     handle,
     displayName,
+    updatedAt:
+      typeof user?.updatedAt === 'string' && user.updatedAt.length > 0 ? user.updatedAt : undefined,
   };
 }
