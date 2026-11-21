@@ -340,7 +340,7 @@ function compareRows(
   const rewritten = jsx.flatMap((original): Flat[] => {
     if (isMenuTrigger(original))
       return [
-        { ...MENU_LIFT },
+        { ...MENU_LIFT, path: original.path },
         {
           ...original,
           pressable: false,
@@ -351,7 +351,7 @@ function compareRows(
     const node = original;
     if (node.style.marginLeft === -16 && node.style.marginRight === 3) {
       const { marginRight: _gap, ...style } = node.style;
-      return { ...node, style: { ...style, paddingRight: 3 } };
+      return [{ ...node, style: { ...style, paddingRight: 3 } }];
     }
     if (rows > 0 && node.style.marginTop === rows * 22) {
       const { marginTop: _offset, ...style } = node.style;
@@ -381,7 +381,7 @@ const MENU_BASE_STYLE = {
   justifyContent: 'center',
   width: 56,
 };
-const MENU_LIFT: Flat = {
+const MENU_LIFT: Omit<Flat, 'path'> = {
   pressable: false,
   props: {},
   style: { transform: [{ translateY: -4 }] },
