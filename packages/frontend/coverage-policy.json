@@ -86,8 +86,7 @@
     "authentication, session and account switching": [
       "components/providers/AccountSwitchReset.tsx",
       "components/providers/AuthRouter.tsx",
-      "stores/identityUpdates.ts",
-      "lib/actorCache.ts",
+      "data/users.ts",
       "data/accounts.ts"
     ],
     "composer and post mutations": [
@@ -240,7 +239,7 @@
   "expectedCounts": {
     "unenforceable": 5,
     "belowBarExemptions": 3,
-    "criticalPaths": 36,
+    "criticalPaths": 35,
     "snapshotAssertions": 0
   }
 }
