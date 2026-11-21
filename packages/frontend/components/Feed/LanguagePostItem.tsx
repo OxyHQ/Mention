@@ -1636,7 +1636,7 @@ function PostRow(props: PostItemProps): Child {
     .spacing('xs');
   const header = HStack(compact ? null : avatarColumn, contentColumn, compact ? null : menuColumn)
     .align('start')
-    .spacing('between')
+    .justify('between')
     .padding('horizontal', 'md');
 
   // ── Below the header ────────────────────────────────────────────
