@@ -49,12 +49,20 @@ const DOUBLE_TAP_WINDOW_MS = 280;
 export const REEL_TIME_UPDATE_INTERVAL_S = 0.25;
 
 /**
- * Presents a player as a reel: looping, at the reel's `timeUpdate` cadence. A
- * function rather than an assignment in the hook: the player IS a mutable native
- * object, and the React Compiler treats a hook argument as immutable.
+ * Presents a player as a reel: looping, and at the reel's `timeUpdate` cadence
+ * only while its slide is on screen, the one time anything reads the playhead
+ * (the scrubber, the buffer-ahead report). Every tick runs the listener and its
+ * synchronous player reads, which on Android wait for the main thread: a slide
+ * of a Videos tab behind Home ticked four times a second and cost about half a
+ * second of the JS thread during startup (Pixel 8a). A function rather than an
+ * assignment in the hook: the player IS a mutable native object, and the React
+ * Compiler treats a hook argument as immutable.
  */
-function presentAsReel(target: VideoPlayer): void {
-  Object.assign(target, { loop: true, timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
+function presentAsReel(target: VideoPlayer, onScreen: boolean): void {
+  Object.assign(target, {
+    loop: true,
+    timeUpdateEventInterval: onScreen ? REEL_TIME_UPDATE_INTERVAL_S : 0,
+  });
 }
 
 /** How far ahead the player buffers: the full lead while watched, a slice while preloading. */
@@ -319,15 +327,6 @@ export function useReelChrome({
     }
   });
 
-  // A reel loops, and its scrubber and buffer-ahead report both ride
-  // `timeUpdate`, so the player has to emit it. Whoever handed the player over
-  // set neither: the registry hands out players reset (parked players are
-  // emptied back to `loop: false` and no `timeUpdate`), and an ADOPTED one was
-  // configured by the feed row that built it (no feed row draws a progress bar).
-  useEffect(() => {
-    presentAsReel(player);
-  }, [player]);
-
   // Single place that syncs the live player's mute with the store.
   useEffect(() => {
     if (player.muted !== muted) {
@@ -472,6 +471,15 @@ export function useReelChrome({
   // trackers above. From an effect it would land AFTER the claim below and leave
   // that claim standing on stale visibility, which the authority then drops.
   const onScreen = isActive && screenFocused;
+  // A reel loops, and its scrubber and buffer-ahead report both ride
+  // `timeUpdate`, so the player has to emit it while the slide is on screen.
+  // Whoever handed the player over set neither: the registry hands out players
+  // reset (parked players are emptied back to `loop: false` and no
+  // `timeUpdate`), and an ADOPTED one was configured by the feed row that built
+  // it (no feed row draws a progress bar).
+  useEffect(() => {
+    presentAsReel(player, onScreen);
+  }, [player, onScreen]);
   const surfaceCenterY = windowHeight / 2;
   const [reportedOnScreen, setReportedOnScreen] = useState<boolean | null>(null);
   const [reportedCenterY, setReportedCenterY] = useState<number | null>(null);
@@ -558,8 +566,10 @@ export function useReelChrome({
     if (wasWatchedRef.current) {
       wasWatchedRef.current = false;
       player.currentTime = 0;
+      // The scrubber follows: off screen the player reports no playhead.
+      progress.set(0);
     }
-  }, [player, restartOnActivate, isWatched]);
+  }, [player, restartOnActivate, isWatched, progress]);
 
   // ── Double-tap-to-like ──────────────────────────────────────────
   // A single tap toggles pause but is DEFERRED by DOUBLE_TAP_WINDOW_MS; a second

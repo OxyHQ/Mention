@@ -146,6 +146,18 @@ describe('the reel playhead', () => {
     expect(player.timeUpdateEventInterval).toBe(REEL_TIME_UPDATE_INTERVAL_S);
   });
 
+  it('ticks only while its slide is on screen: a neighbour or a slide behind another tab reads no playhead', () => {
+    const player = fakePlayer(20);
+    const renderer = mount({ player, isActive: false });
+    expect(player.timeUpdateEventInterval).toBe(0);
+
+    act(() => renderer.update(<Harness player={player} isActive />));
+    expect(player.timeUpdateEventInterval).toBe(REEL_TIME_UPDATE_INTERVAL_S);
+
+    act(() => renderer.update(<Harness player={player} isActive={false} />));
+    expect(player.timeUpdateEventInterval).toBe(0);
+  });
+
   it('presents a pooled player as a reel: looping, a slice of buffer until it is watched', () => {
     // The registry hands players out reset (parked: `loop: false`, full buffer).
     const player = { ...fakePlayer(20), loop: false, bufferOptions: VIDEO_BUFFER_OPTIONS };

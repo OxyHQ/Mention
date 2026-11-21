@@ -1721,7 +1721,11 @@ export default function VideosScreen() {
           isFocused,
           prewarm,
         )}
-        onBufferAhead={handleBufferAhead}
+        // Only the slide being waited on measures its buffer: each report is a
+        // synchronous read of the native player, four times a second.
+        onBufferAhead={
+          index === currentVisibleIndex && activeRadius === 0 ? handleBufferAhead : undefined
+        }
         screenFocused={isFocused}
         theme={theme}
         onLike={handleLike}
@@ -1852,7 +1856,11 @@ export default function VideosScreen() {
                           isFocused,
                           prewarm,
                         )}
-                        onBufferAhead={handleBufferAhead}
+                        onBufferAhead={
+                          index === currentVisibleIndex && activeRadius === 0
+                            ? handleBufferAhead
+                            : undefined
+                        }
                         screenFocused={isFocused}
                         theme={theme}
                         onLike={handleLike}
