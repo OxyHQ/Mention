@@ -16,14 +16,14 @@ export function SupervisedFeatureGate({
 }) {
   const { t } = useTranslation();
   const state = useSupervisionState();
-  if (state.isError)
+  if (state.failed)
     return (
       <EmptyState
         error={{
           title: t('safety.checkFailed'),
           message: t('safety.retryDescription'),
           onRetry: async () => {
-            await state.refetch();
+            await state.refresh();
           },
         }}
       />

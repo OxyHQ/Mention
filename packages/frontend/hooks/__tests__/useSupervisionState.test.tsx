@@ -6,9 +6,9 @@ const mockAuth = {
   canUsePrivateApi: true,
   isAuthResolved: true,
 };
-const mockQuery: { data?: { self: null | { status: string } }; isSuccess: boolean } = {
-  data: undefined,
-  isSuccess: true,
+const mockQuery: { value?: { self: null | { status: string } }; status: string } = {
+  value: undefined,
+  status: 'success',
 };
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => mockAuth,
@@ -23,7 +23,7 @@ function Probe() {
 beforeEach(() => {
   mockAuth.user = { id: 'person', kind: 'personal' };
   mockAuth.canUsePrivateApi = true;
-  mockQuery.data = undefined;
+  mockQuery.value = undefined;
 });
 afterEach(() => act(() => renderer?.unmount()));
 
@@ -32,17 +32,17 @@ it('does not treat retained success metadata without fresh shared data as an adu
     renderer = TestRenderer.create(<Probe />);
   });
   expect(result.ready).toBe(false);
-  mockQuery.data = { self: null };
+  mockQuery.value = { self: null };
   act(() => renderer.update(<Probe />));
   expect(result.ready).toBe(true);
   expect(result.supervised).toBe(false);
-  mockQuery.data = undefined;
+  mockQuery.value = undefined;
   act(() => renderer.update(<Probe />));
   expect(result.ready).toBe(false);
 });
 
 it('uses the shared active/orphaned decision and withdraws presentation access on account transition', () => {
-  mockQuery.data = { self: { status: 'orphaned' } };
+  mockQuery.value = { self: { status: 'orphaned' } };
   act(() => {
     renderer = TestRenderer.create(<Probe />);
   });
@@ -52,7 +52,7 @@ it('uses the shared active/orphaned decision and withdraws presentation access o
   expect(result.ready).toBe(false);
   mockAuth.canUsePrivateApi = true;
   mockAuth.user = { id: 'organization', kind: 'organization' };
-  mockQuery.data = undefined;
+  mockQuery.value = undefined;
   act(() => renderer.update(<Probe />));
   expect(result.ready).toBe(true);
   expect(result.supervised).toBe(false);

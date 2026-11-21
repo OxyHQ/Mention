@@ -1,18 +1,22 @@
 import { useAuth, useSupervision } from '@oxy.so/services/ui/client';
 
-/** Presentation readiness derives from the shared live supervision query. */
+/** Presentation readiness derives from the shared live supervision read. */
 export function useSupervisionState() {
   const { user, canUsePrivateApi, isAuthResolved } = useAuth();
-  const query = useSupervision();
+  const supervision = useSupervision();
   const ready =
     isAuthResolved &&
     (!user ||
       (canUsePrivateApi &&
-        ((Boolean(user.kind) && user.kind !== 'personal') || Boolean(query.data))));
+        ((Boolean(user.kind) && user.kind !== 'personal') || Boolean(supervision.value))));
   return {
-    ...query,
     ready,
     supervised:
-      ready && (query.data?.self?.status === 'active' || query.data?.self?.status === 'orphaned'),
+      ready &&
+      (supervision.value?.self?.status === 'active' ||
+        supervision.value?.self?.status === 'orphaned'),
+    /** The last read failed after its retries. */
+    failed: supervision.status === 'error',
+    refresh: supervision.refresh,
   };
 }

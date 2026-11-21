@@ -21,7 +21,7 @@ import type { User } from '@oxy.so/core';
  * EMPTY, which is the only way the skeleton can appear at all.
  */
 
-const mockSupervision = { ready: true, supervised: false, isError: false };
+const mockSupervision = { ready: true, supervised: false, failed: false };
 jest.mock('@/hooks/useSupervisionState', () => ({ useSupervisionState: () => mockSupervision }));
 
 const mockViewer: { current: User | null } = { current: null };
@@ -55,20 +55,29 @@ jest.mock('@oxy.so/services/ui/client', () => {
         assets: { renderUrl: (ref: string) => `https://cloud.oxy.so/${ref}` },
       },
     }),
-    queryKeys: { users: { byUsername } },
-    // The SDK hook's own options, verbatim — a 5-minute `staleTime`, a
-    // 30-minute `gcTime`, `refetchOnMount: true` and the viewer in the key. The
-    // point of running real react-query here rather than a stub is that
-    // `isPending` has to mean what it means in the app: this key holds nothing.
-    useUserByUsername: (username: string | null) =>
-      useQuery({
+    // The SDK read's own lifetime — a 5-minute staleness, a 30-minute `gcTime`,
+    // read on mount, one entry per viewer — answered as the SDK's `RecordView`.
+    // Real react-query rather than a stub, so `isLoading` means what it means
+    // in the app: nothing is held for this handle yet.
+    useUserByUsername: (username: string | null) => {
+      const read = useQuery({
         queryKey: byUsername(username ?? '', mockViewer.current?.id ?? ''),
         queryFn: () => mockFetchProfile(username),
         enabled: Boolean(username),
         staleTime: 5 * 60 * 1000,
         gcTime: 30 * 60 * 1000,
         refetchOnMount: true,
-      }),
+      });
+      return {
+        value: read.data,
+        isLoading: Boolean(username) && read.isPending,
+        status: read.isError ? 'error' : read.isSuccess ? 'success' : 'loading',
+        error: read.error,
+        refresh: async () => {
+          await read.refetch();
+        },
+      };
+    },
   };
 });
 

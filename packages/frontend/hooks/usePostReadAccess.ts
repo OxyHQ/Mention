@@ -23,9 +23,9 @@ export function usePostReadAccess(postId: string) {
   return {
     allowed: supervision.ready && (!supervision.supervised || (read.isSuccess && !read.isFetching)),
     supervised: supervision.supervised,
-    failed: supervision.isError || (supervision.supervised && read.isError),
+    failed: supervision.failed || (supervision.supervised && read.isError),
     retry: async () => {
-      if (supervision.isError) await supervision.refetch();
+      if (supervision.failed) await supervision.refresh();
       else await read.refetch();
     },
   };

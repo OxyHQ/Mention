@@ -92,7 +92,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   const connectionTab = connectionTabFromPathname(pathname);
   const supervision = useSupervisionState();
   const canShowSupervisedHeader =
-    supervision.ready && !supervision.isError && !supervision.supervised;
+    supervision.ready && !supervision.failed && !supervision.supervised;
   const canShowCommunityHeader = useCommunitiesPreview();
 
   // The strip navigates on its own (it is a `RouterTabs`), so this is reached

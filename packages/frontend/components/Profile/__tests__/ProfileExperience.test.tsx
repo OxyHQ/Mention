@@ -13,7 +13,7 @@ import type { Experience } from '@clarity.surf/sdk/experience';
 // `renderer` and failed ten more. Warm, the same reads take under 0.5 s.
 jest.setTimeout(30_000);
 
-const mockSupervision = { ready: true, supervised: false, isError: false, refetch: jest.fn() };
+const mockSupervision = { ready: true, supervised: false, failed: false, refresh: jest.fn() };
 jest.mock('@/hooks/useSupervisionState', () => ({ useSupervisionState: () => mockSupervision }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: 'empty-state' }));
 
@@ -158,7 +158,7 @@ async function press(label: string) {
 }
 beforeEach(() => {
   jest.clearAllMocks();
-  Object.assign(mockSupervision, { ready: true, supervised: false, isError: false });
+  Object.assign(mockSupervision, { ready: true, supervised: false, failed: false });
   mockAuth.user = { id: 'person' };
   mockAuth.isAuthenticated = true;
   mockAuth.canUsePrivateApi = true;
@@ -649,7 +649,7 @@ it('withholds unrated history until current supervision permits it and hides cac
   expect(JSON.stringify(renderer.toJSON())).not.toContain('Designer');
   expect(button('Add experience')).toBeUndefined();
   expect(renderer.root.findByType(EmptyState).props.title).toBe('Unavailable for this account');
-  mockSupervision.isError = true;
+  mockSupervision.failed = true;
   await act(async () => {
     renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
   });

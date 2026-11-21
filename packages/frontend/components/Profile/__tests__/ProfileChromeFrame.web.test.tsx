@@ -11,7 +11,7 @@ import TestRenderer, { act } from 'react-test-renderer';
  */
 
 let mockPathname = '/@nate';
-let mockSupervision = { ready: true, isError: false, supervised: false };
+let mockSupervision = { ready: true, failed: false, supervised: false };
 let mockCommunitiesPreview = true;
 jest.mock('@/hooks/useSupervisionState', () => ({ useSupervisionState: () => mockSupervision }));
 jest.mock('@/hooks/useCommunitiesPreview', () => ({
@@ -174,9 +174,9 @@ test('the stats row jumps to another tab by pushing its route', () => {
 });
 
 test.each([
-  { ready: true, isError: false, supervised: true },
-  { ready: false, isError: false, supervised: false },
-  { ready: true, isError: true, supervised: false },
+  { ready: true, failed: false, supervised: true },
+  { ready: false, failed: false, supervised: false },
+  { ready: true, failed: true, supervised: false },
 ])('withholds the connections and about headers when supervision blocks the surface', (state) => {
   mockSupervision = state;
   for (const path of ['/followers', '/about']) {
@@ -185,7 +185,7 @@ test.each([
     expect(mockShell.mock.calls.at(-1)?.[0].routeHeader).toBeUndefined();
     act(() => tree.unmount());
   }
-  mockSupervision = { ready: true, isError: false, supervised: false };
+  mockSupervision = { ready: true, failed: false, supervised: false };
 });
 
 test('withholds the community settings header outside the preview', () => {
