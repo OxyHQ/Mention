@@ -1,0 +1,13 @@
+diff --git a/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt b/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
+index 310ecc57c62111fa8129da33fba4f1c42f6bed2c..6ba3f93a1667e0ac76066e2bcb986087ed2ae819 100644
+--- a/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
++++ b/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
+@@ -26,6 +26,8 @@ internal object LottieAnimationViewManagerImpl {
+     fun createViewInstance(context: ThemedReactContext): LottieAnimationView {
+         return LottieAnimationView(context).apply {
+             scaleType = ImageView.ScaleType.CENTER_INSIDE
++            // Redraw at the animation's own frame rate, not on every vsync of a 120 Hz panel.
++            setUseCompositionFrameRate(true)
+         }
+     }
+ 

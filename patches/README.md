@@ -201,3 +201,15 @@ nightlies so far. Remove the patch at the first release that includes #579.
 The root `overrides` pins react-native-css to 3.1.0-rc.0 while
 `packages/frontend/package.json` asks for 3.1.0-rc.1; rc.0 is what installs, and
 this patch is keyed to it.
+
+# lottie-react-native 7.5.0
+
+On Android, a playing LottieAnimationView asks for a redraw on every vsync, so a
+looping sticker redraws at the panel's rate (120 Hz on a Pixel 8a) although its
+animation has 30 or 60 frames a second. Measured on Mention's empty Notifications
+page (the frog sticker), the page rendered about 130 frames a second at rest. The
+patch turns on Lottie's own `setUseCompositionFrameRate(true)` for every view the
+module creates, so a view redraws only when the animation's frame changes. Bloom's
+web Sticker already plays at the animation's own frame rate (`docs/sticker.mdx`).
+Remove this patch if lottie-react-native exposes the setting as a prop (then set
+it from Bloom's native Sticker player) or makes it the default.

@@ -279,6 +279,7 @@
     "expo-video@58.0.13": "patches/expo-video@58.0.13.patch",
     "react-native@0.88.1": "patches/react-native@0.88.1.patch",
     "react-native-gesture-handler@3.4.0": "patches/react-native-gesture-handler@3.4.0.patch",
+    "lottie-react-native@7.5.0": "patches/lottie-react-native@7.5.0.patch",
   },
   "overrides": {
     "@expo/cli": "58.1.19",
