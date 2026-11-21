@@ -51,7 +51,8 @@ module.exports = {
   fontFamilies: {},
   // The family a kind's text is set in, as Bloom names it on native (the Bloom language reads it).
   fontFamilyStyle: (kind) => ({
-    fontFamily: kind === 'mono' ? 'JetBrains Mono' : kind === 'display' ? 'BlomusModernus' : 'Inter',
+    fontFamily:
+      kind === 'mono' ? 'JetBrains Mono' : kind === 'display' ? 'BlomusModernus' : 'Inter',
   }),
   TYPE_SCALE: {},
   typeScale: () => ({}),
