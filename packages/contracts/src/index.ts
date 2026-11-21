@@ -16,6 +16,8 @@ export const MentionIdentity = z.object({
   oxyUserId: z.string().min(1),
   handle: z.string(),
   displayName: z.string(),
+  /** When the account's Oxy record last changed (ISO 8601); the later copy is the newer. */
+  updatedAt: z.string().optional(),
 });
 export const MentionEffectRefusal = z.object({
   error: z.enum(['mcp_effect_already_reserved', 'mcp_idempotency_conflict']),

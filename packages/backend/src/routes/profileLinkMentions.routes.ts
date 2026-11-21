@@ -163,6 +163,7 @@ router.post('/profile-links', async (req: AuthRequest, res: Response) => {
           userId,
           handle,
           displayName: summary.user.name?.displayName?.trim() || handle,
+          updatedAt: summary.user.updatedAt,
         },
       };
     });
