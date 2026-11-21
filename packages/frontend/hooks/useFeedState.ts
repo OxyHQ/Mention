@@ -7,7 +7,6 @@ import type {
   HydratedPost,
 } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
-import { Platform } from 'react-native';
 import {
   FED_PENDING_POLL_DELAYS_MS,
   type FeedIdentity,
@@ -18,14 +17,12 @@ import {
 } from '@/data/feeds';
 import { classifyFeedFailure, type FeedFailureKind, isFeedCursorExpired } from '@/utils/feedRetry';
 import { buildFeedScrollKey, type FeedFilters } from '@/utils/feedUtils';
-import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 import { useBoundedReread } from './useBoundedReread';
 import { useDeepCompareMemo } from './useDeepCompare';
 import { useFeedRankingStaleness } from './useFeedRankingStaleness';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
 
 export { FED_PENDING_POLL_DELAYS_MS, UNRESOLVED_AUTHOR_REREAD_DELAYS_MS } from '@/data/feeds';
-export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
 const logger = createLogger('useFeedState');
 
@@ -43,7 +40,6 @@ export interface UseFeedStateOptions {
   type: FeedType;
   userId?: string;
   filters?: FeedFilters;
-  useScoped?: boolean;
   reloadKey?: string | number;
   isAuthenticated?: boolean;
   currentUserId?: string;
@@ -54,7 +50,6 @@ export interface UseFeedStateReturn {
   feedScrollKey: string;
   items: HydratedPost[];
   slices?: FeedPostSlice[];
-  socialContexts?: NonNullable<FeedPostSlice['socialContext']>[];
   /**
    * Recommendation-card placements accumulated across the loaded pages:
    * appended on `loadMore`, replaced on a first-page read. Placements only;
@@ -90,15 +85,13 @@ export interface UseFeedStateReturn {
  * (`stores/feedStaleness`). The list does not re-render when a post changes:
  * each row reads its own post (`usePostSelector`).
  *
- * Native unscoped feeds render by item, with their social context beside the
- * items; web and scoped feeds render by slice. That split is how the two
- * earlier paths drew them, kept as it was (`resolveUseMemoryFeed`).
+ * Every feed renders the server's slices (threads grouped, each with its
+ * social context), on every platform.
  */
 export function useFeedState({
   type,
   userId,
   filters,
-  useScoped,
   reloadKey,
   isAuthenticated,
   currentUserId,
@@ -147,14 +140,6 @@ export function useFeedState({
         ? content.slices?.map((slice) => ({ ...slice, socialContext: undefined }))
         : content.slices,
     [content.slices, staleSocialEvidence],
-  );
-  const presentsSlices = resolveUseMemoryFeed(useScoped, Platform.OS !== 'web');
-  const socialContexts = useMemo(
-    () =>
-      presentsSlices
-        ? undefined
-        : content.slices?.flatMap((slice) => (slice.socialContext ? [slice.socialContext] : [])),
-    [presentsSlices, content.slices],
   );
 
   /**
@@ -250,8 +235,7 @@ export function useFeedState({
   return {
     feedScrollKey,
     items: content.items,
-    slices: presentsSlices ? slices : undefined,
-    socialContexts,
+    slices,
     interstitials: content.interstitials,
     hasMore: viewerReady && view.hasMore,
     isLoading: !viewerReady || isFetching,
