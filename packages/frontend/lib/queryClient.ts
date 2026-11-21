@@ -1,11 +1,10 @@
 /**
  * Singleton QueryClient — the single in-memory cache for the whole app.
  *
- * Exported as a module-level instance so non-React code (feed/post ingestion,
- * imperative cache priming) can read and write the same cache that the SDK's
- * React Query hooks and components consume. This is the Bluesky model: React
- * Query is the one in-memory actor cache, working identically on web and native
- * with no SQLite dependency.
+ * Exported as a module-level instance so non-React code can read and write the
+ * same cache that the SDK's React Query hooks and components consume. People
+ * are not kept here: the Oxy SDK holds each one once, in its `User` entity
+ * (`data/users`).
  *
  * `app/_layout.tsx` passes this instance to `AppProviders` → `OxyProvider`,
  * so the SDK hooks and Mention's `setQueryData` share ONE client.

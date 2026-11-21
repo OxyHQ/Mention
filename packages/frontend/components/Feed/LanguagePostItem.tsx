@@ -98,7 +98,7 @@ import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styl
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
 import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
 import { ThreadHoverOverlay } from './ThreadHoverOverlay';
-import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
+import { useHeldUsers, withHeldUser } from '@/data/users';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
@@ -404,25 +404,17 @@ function usePostRowModel({
   const viewPost = storePost ?? post;
   const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
-  // Every actor on this row, corrected against any profile edit made in this
-  // session.
+  // Every person on this row, as the Oxy SDK holds them (`data/users`). A
+  // stored post's author already resolves through `User`; the byline, the
+  // reposter and the people a slice names are the row's own copies, so a
+  // profile edit reaches them through the held copy laid over each.
   //
-  // Each of them is a SNAPSHOT of an identity taken when the server hydrated
-  // the post, and nothing rewrites those: the feed query's cached pages and
-  // the SQLite copy both keep them, and a remount warm-starts from those pages
-  // rather than refetching page 1. So a picture changed after a post was
-  // fetched stays wrong on that row until something throws the whole cache
-  // away — which is why a full reload looked like the only fix.
-  // `stores/identityUpdates` is the one authority that knows better, and
-  // resolving it HERE covers every post surface at once: a feed row, a post
-  // detail, a quote card and a boosted original are all this same component.
-  //
-  // All THREE actors, not just the author. They sit side by side in one row —
-  // `boostedBy` puts the reposter's picture in the same avatar cluster as the
-  // author's — so correcting one and not the others is more conspicuous than
-  // correcting none: the same person would be drawn twice, differently, in one
-  // cluster. Subscribed by id, so an edit to someone else never wakes this row.
-  const knownIdentities = useKnownIdentitySet([
+  // All of them, not just the author: they sit side by side in one row
+  // (`boostedBy` puts the reposter's picture in the same avatar cluster as the
+  // author's), so updating one and not the others would draw the same person
+  // twice, differently. Subscribed by id, so an edit to someone else never
+  // wakes this row.
+  const heldUsers = useHeldUsers([
     viewPost?.user?.id,
     repostedBy?.id,
     ...(socialContext?.actors.map((actor) => actor.id) ?? []),
@@ -435,19 +427,18 @@ function usePostRowModel({
   const viewUser = viewPost?.user;
   const viewAuthors = viewPost?.authors;
   const author = useMemo(
-    () => (viewUser ? mergeKnownIdentity(viewUser, knownIdentities.get(viewUser.id)) : undefined),
-    [viewUser, knownIdentities],
+    () => (viewUser ? withHeldUser(viewUser, heldUsers.get(viewUser.id)) : undefined),
+    [viewUser, heldUsers],
   );
   const reposter = useMemo(
-    () =>
-      repostedBy ? mergeKnownIdentity(repostedBy, knownIdentities.get(repostedBy.id)) : undefined,
-    [repostedBy, knownIdentities],
+    () => (repostedBy ? withHeldUser(repostedBy, heldUsers.get(repostedBy.id)) : undefined),
+    [repostedBy, heldUsers],
   );
   // The collaborative byline: owner plus each accepted collaborator, drawn as
   // the avatar cluster that replaces the solo avatar.
   const bylineAuthors = useMemo(
-    () => viewAuthors?.map((entry) => mergeKnownIdentity(entry, knownIdentities.get(entry.id))),
-    [viewAuthors, knownIdentities],
+    () => viewAuthors?.map((entry) => withHeldUser(entry, heldUsers.get(entry.id))),
+    [viewAuthors, heldUsers],
   );
 
   const viewerState = viewPost?.viewerState ?? {
@@ -987,7 +978,7 @@ function usePostRowModel({
     toggleContentWarning,
     viewPost,
     viewPostId,
-    knownIdentities,
+    heldUsers,
     author,
     reposter,
     metadata,
@@ -1102,7 +1093,7 @@ function PostRow(props: PostItemProps): Child {
     toggleContentWarning,
     viewPost,
     viewPostId,
-    knownIdentities,
+    heldUsers,
     author,
     reposter,
     metadata,
@@ -1270,7 +1261,7 @@ function PostRow(props: PostItemProps): Child {
     const names = socialContext.actors
       .slice(0, 2)
       .map((actor) => {
-        const identity = mergeKnownIdentity(actor, knownIdentities.get(actor.id));
+        const identity = withHeldUser(actor, heldUsers.get(actor.id));
         return displayNameOrHandle(
           identity.name?.displayName,
           getNormalizedUserHandle(identity) ?? '',

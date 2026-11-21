@@ -8,12 +8,11 @@ import TestRenderer, { act } from 'react-test-renderer';
  * The bug these pin: changing a channel's picture saved correctly and then did
  * not appear on any of its posts until a full reload. The server is fine — it is
  * told about the write and re-asking returns the new picture — but nothing
- * re-asks: `post.user` is frozen in the feed store's retained slice and in
- * SQLite, and a remount warm-starts from that slice instead of refetching page
- * 1. A reload was the only thing throwing all of it away.
- * `stores/identityUpdates` is what knows better, and `PostItem` is where a post
- * surface consults it — one place for feed rows, post details, quote cards and
- * boosted originals alike, since all four are this component.
+ * re-asked, and a feed answer hydrated before the write put the old picture
+ * back. A stored post now keeps only its author's id (`data/posts` refs), and the
+ * author is the one copy the Oxy SDK's `User` holds, which keeps the copy with
+ * the later `updatedAt`. The people a row holds its own copy of (the byline, the
+ * reposter) are laid over by that same copy (`data/users`).
  *
  * `PostHeader` stands in for Bloom's avatar so the assertion reads the exact
  * values `PostItem` hands down. Everything else mocked here is mocked for one
@@ -23,10 +22,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
-jest.mock('@oxy.so/services/ui/client', () => ({
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
-}));
+jest.mock('@oxy.so/services/ui/client', () => jest.requireActual('@/test-support/oxyUsers'));
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
@@ -54,7 +50,10 @@ jest.mock('react-i18next', () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
   }),
 }));
-jest.mock('@/stores/postsStore', () => ({ usePostSelector: () => null }));
+// The row reads its post from the account's store, as `usePostSelector` does.
+jest.mock('@/stores/postsStore', () => ({
+  usePostSelector: (postId?: string) => jest.requireActual('@/data/posts').usePost(postId),
+}));
 // The row's commands come from the app's one controller; these tests are about
 // what the row RENDERS, so the commands are inert.
 jest.mock('../postInteractions', () => {
@@ -134,37 +133,69 @@ jest.mock('@/components/Post/PostHeader', () => {
 });
 
 import PostItem from '../PostItem';
-import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
-import { noteIdentityChanged } from '@/lib/actorCache';
-import { resetIdentityUpdates } from '@/stores/identityUpdates';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { storeUsers } from '@oxy.so/services/ui/client';
+import { storePosts } from '@/data/posts';
 
 const CHANNEL_ID = 'channel-1';
+/** When the server hydrated the posts below, and when the edit landed at Oxy. */
+const HYDRATED_AT = '2026-08-01T00:00:00.000Z';
+const EDITED_AT = '2026-08-02T00:00:00.000Z';
 
-/** One post authored by the channel, as the server hydrated it before the edit. */
-function stalePost() {
+/** The channel as a post embeds it, hydrated before the edit. */
+function channelBefore() {
   return {
-    id: 'post-1',
-    content: {},
-    metadata: { createdAt: '2026-08-02T00:00:00.000Z' },
-    user: {
-      id: CHANNEL_ID,
-      username: 'daily',
-      name: { displayName: 'Daily' },
-      avatar: 'avatar-before',
-      kind: 'channel',
-    },
+    id: CHANNEL_ID,
+    username: 'daily',
+    name: { displayName: 'Daily' },
+    avatar: 'avatar-before',
+    kind: 'channel',
+    updatedAt: HYDRATED_AT,
   };
 }
 
-/** The row currently on screen, unmounted by `afterEach` so no test leaks one. */
-let mounted: TestRenderer.ReactTestRenderer | null = null;
+/** One post authored by the channel, as the server hydrated it before the edit. */
+function stalePost(id = 'post-1', user: Record<string, unknown> = channelBefore()) {
+  return {
+    id,
+    content: {},
+    attachments: {},
+    metadata: { createdAt: '2026-08-02T00:00:00.000Z' },
+    user,
+  };
+}
 
-function renderRow() {
+/**
+ * An accepted profile write, as the SDK's account settings store Oxy's answer
+ * in `User`: with the `updatedAt` Oxy gave it.
+ */
+function edit(person: { id: string; [field: string]: unknown }): void {
+  storeUsers({ ...person, updatedAt: EDITED_AT });
+}
+
+/** Every row rendered by a test, unmounted by `afterEach` so no test leaks one. */
+const mounted: TestRenderer.ReactTestRenderer[] = [];
+
+/** A row for a post the account's store holds (stored first, as a feed does). */
+function renderStoredRow(post = stalePost()) {
   act(() => {
-    mounted = TestRenderer.create(<PostItem post={stalePost() as never} />);
+    storePosts([post as never]);
   });
-  if (!mounted) throw new Error('the row did not render');
-  return mounted;
+  return renderRow(post.id);
+}
+
+function renderRow(postId = 'post-1') {
+  return mount(<PostItem post={stalePost(postId) as never} />);
+}
+
+function mount(element: React.ReactElement) {
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(element);
+  });
+  if (!renderer) throw new Error('the row did not render');
+  mounted.push(renderer);
+  return renderer;
 }
 
 function identityOf(renderer: TestRenderer.ReactTestRenderer): string {
@@ -175,26 +206,27 @@ function probe(renderer: TestRenderer.ReactTestRenderer, testID: string): string
   return String(renderer.root.findByProps({ testID }).props.children);
 }
 
+beforeEach(() => {
+  setActiveStore(new Store());
+});
+
 afterEach(() => {
-  const renderer = mounted;
-  if (renderer) act(() => renderer.unmount());
-  mounted = null;
-  resetIdentityUpdates();
+  for (const renderer of mounted.splice(0)) act(() => renderer.unmount());
   jest.clearAllMocks();
 });
 
 describe('a post row follows its author’s identity', () => {
   it('shows the hydrated author when nothing has been edited', () => {
-    const renderer = renderRow();
+    const renderer = renderStoredRow();
     expect(identityOf(renderer)).toBe('avatar-before|Daily|daily');
   });
 
-  it('repaints a MOUNTED row when the author’s profile is edited — no refetch, no new post data', () => {
-    const renderer = renderRow();
-    expect(identityOf(renderer)).toBe('avatar-before|Daily|daily');
+  it('repaints every MOUNTED post by that author when the profile is edited — no refetch, no new post data', () => {
+    const first = renderStoredRow(stalePost('post-1'));
+    const second = renderStoredRow(stalePost('post-2'));
 
     act(() => {
-      noteIdentityChanged({
+      edit({
         id: CHANNEL_ID,
         username: 'daily',
         name: { displayName: 'Daily Digest' },
@@ -202,62 +234,104 @@ describe('a post row follows its author’s identity', () => {
       });
     });
 
-    // The row was never handed a new post, and nothing refetched — the same
-    // hydrated DTO is still its `post` prop.
-    expect(identityOf(renderer)).toBe('avatar-after|Daily Digest|daily');
+    // Neither row was handed a new post, and nothing refetched.
+    expect(identityOf(first)).toBe('avatar-after|Daily Digest|daily');
+    expect(identityOf(second)).toBe('avatar-after|Daily Digest|daily');
   });
 
   it('shows the edited identity on a row mounted AFTER the edit', () => {
     act(() => {
-      noteIdentityChanged({ id: CHANNEL_ID, avatar: 'avatar-after' });
+      storePosts([stalePost() as never]);
+      edit({ id: CHANNEL_ID, avatar: 'avatar-after' });
     });
 
-    const renderer = renderRow();
-    expect(identityOf(renderer)).toBe('avatar-after|Daily|daily');
+    expect(identityOf(renderRow())).toBe('avatar-after|Daily|daily');
   });
 
-  it('survives a later feed response that still carries the pre-edit author', () => {
-    const renderer = renderRow();
+  it('keeps the edit when a feed answer hydrated before it arrives', () => {
+    const renderer = renderStoredRow();
     act(() => {
-      noteIdentityChanged({ id: CHANNEL_ID, avatar: 'avatar-after' });
+      edit({ id: CHANNEL_ID, avatar: 'avatar-after' });
     });
-    expect(identityOf(renderer)).toBe('avatar-after|Daily|daily');
 
     // The channel's own page loads a page of its posts. Every one of them is
     // authored by the account whose picture just changed, and the server is
     // still answering with the old one.
     act(() => {
-      precacheActorsFromPosts([stalePost()]);
+      storePosts([stalePost() as never, stalePost('post-2') as never]);
     });
 
     expect(identityOf(renderer)).toBe('avatar-after|Daily|daily');
   });
 
-  it('stands down once the server catches up, so a later change elsewhere is not pinned', () => {
+  it('takes a change made after the edit somewhere else', () => {
+    const renderer = renderStoredRow();
     act(() => {
-      noteIdentityChanged({ id: CHANNEL_ID, avatar: 'avatar-after' });
+      edit({ id: CHANNEL_ID, avatar: 'avatar-after' });
     });
 
-    // Hydration now carries the edit — the overlay has done its job.
+    // Another device, or accounts.oxy.so, changed the picture again later.
     act(() => {
-      precacheActorsFromPosts([
-        { ...stalePost(), user: { ...stalePost().user, avatar: 'avatar-after' } },
+      storePosts([
+        stalePost('post-1', {
+          ...channelBefore(),
+          avatar: 'avatar-elsewhere',
+          updatedAt: '2026-08-03T00:00:00.000Z',
+        }) as never,
       ]);
     });
 
-    // A picture changed somewhere else afterwards (another device,
-    // accounts.oxy.so) must not be overridden by what this session once wrote.
-    const renderer = renderRow();
+    expect(identityOf(renderer)).toBe('avatar-elsewhere|Daily|daily');
+  });
+
+  it('never lets the "Unknown user" placeholder replace a resolved author', () => {
+    const renderer = renderStoredRow();
+
+    // An Oxy outage hydrates the author degraded, with no `updatedAt`.
+    act(() => {
+      storePosts([
+        stalePost('post-2', {
+          id: CHANNEL_ID,
+          username: '',
+          name: { displayName: 'Unknown user' },
+          avatar: null,
+        }) as never,
+      ]);
+    });
+
     expect(identityOf(renderer)).toBe('avatar-before|Daily|daily');
+    expect(identityOf(renderRow('post-2'))).toBe('avatar-before|Daily|daily');
   });
 
   it('leaves every other author alone', () => {
+    const renderer = renderStoredRow();
+
     act(() => {
-      noteIdentityChanged({ id: 'someone-else', avatar: 'avatar-after' });
+      edit({ id: 'someone-else', avatar: 'avatar-after' });
     });
 
-    const renderer = renderRow();
     expect(identityOf(renderer)).toBe('avatar-before|Daily|daily');
+  });
+
+  it('keeps each account’s people to that account', () => {
+    const alice = new Store();
+    const bob = new Store();
+
+    setActiveStore(alice);
+    act(() => {
+      storePosts([stalePost() as never]);
+      edit({ id: CHANNEL_ID, avatar: 'avatar-after' });
+    });
+
+    // Bob's store holds the same post as his own feed hydrated it.
+    setActiveStore(bob);
+    act(() => {
+      storePosts([stalePost() as never]);
+    });
+    expect(identityOf(renderRow())).toBe('avatar-before|Daily|daily');
+
+    setActiveStore(alice);
+    expect(identityOf(renderRow())).toBe('avatar-after|Daily|daily');
   });
 });
 
@@ -275,41 +349,40 @@ describe('every actor on the row follows its identity', () => {
   const COLLABORATOR = 'collab-1';
 
   function renderCollabRepost() {
-    act(() => {
-      mounted = TestRenderer.create(
-        <PostItem
-          post={
-            {
-              ...stalePost(),
-              authors: [
-                {
-                  id: CHANNEL_ID,
-                  username: 'daily',
-                  name: { displayName: 'Daily' },
-                  avatar: 'avatar-before',
-                },
-                {
-                  id: COLLABORATOR,
-                  username: 'co',
-                  name: { displayName: 'Co' },
-                  avatar: 'collab-before',
-                },
-              ],
-            } as never
-          }
-          repostedBy={
-            {
-              id: BOOSTER,
-              username: 'boo',
-              name: { displayName: 'Boo' },
-              avatar: 'booster-before',
-            } as never
-          }
-        />,
-      );
-    });
-    if (!mounted) throw new Error('the row did not render');
-    return mounted;
+    return mount(
+      <PostItem
+        post={
+          {
+            ...stalePost(),
+            authors: [
+              {
+                id: CHANNEL_ID,
+                username: 'daily',
+                name: { displayName: 'Daily' },
+                avatar: 'avatar-before',
+                updatedAt: HYDRATED_AT,
+              },
+              {
+                id: COLLABORATOR,
+                username: 'co',
+                name: { displayName: 'Co' },
+                avatar: 'collab-before',
+                updatedAt: HYDRATED_AT,
+              },
+            ],
+          } as never
+        }
+        repostedBy={
+          {
+            id: BOOSTER,
+            username: 'boo',
+            name: { displayName: 'Boo' },
+            avatar: 'booster-before',
+            updatedAt: HYDRATED_AT,
+          } as never
+        }
+      />,
+    );
   }
 
   it('starts from what the server hydrated', () => {
@@ -322,7 +395,7 @@ describe('every actor on the row follows its identity', () => {
     const renderer = renderCollabRepost();
 
     act(() => {
-      noteIdentityChanged({ id: BOOSTER, avatar: 'booster-after' });
+      edit({ id: BOOSTER, avatar: 'booster-after' });
     });
 
     expect(probe(renderer, 'booster-avatar')).toBe('booster-after');
@@ -334,7 +407,7 @@ describe('every actor on the row follows its identity', () => {
     const renderer = renderCollabRepost();
 
     act(() => {
-      noteIdentityChanged({ id: COLLABORATOR, avatar: 'collab-after' });
+      edit({ id: COLLABORATOR, avatar: 'collab-after' });
     });
 
     expect(probe(renderer, 'byline-avatars')).toBe('avatar-before,collab-after');
@@ -346,7 +419,7 @@ describe('every actor on the row follows its identity', () => {
 
     // The channel is both the post's author and the first byline entry.
     act(() => {
-      noteIdentityChanged({ id: CHANNEL_ID, avatar: 'avatar-after' });
+      edit({ id: CHANNEL_ID, avatar: 'avatar-after' });
     });
 
     expect(identityOf(renderer)).toBe('avatar-after|Daily|daily');
@@ -364,17 +437,15 @@ it('repaints a changed character on the same post and author without engagement 
   };
   const before = stalePost();
   const post = { ...before, user: { ...before.user, kind: 'bot', character } };
-  act(() => {
-    mounted = TestRenderer.create(<PostItem post={post as never} />);
-  });
-  expect(probe(mounted!, 'author-character')).toBe(JSON.stringify({ kind: 'bot', character }));
+  const renderer = mount(<PostItem post={post as never} />);
+  expect(probe(renderer, 'author-character')).toBe(JSON.stringify({ kind: 'bot', character }));
   const changed = { ...character, color: 'lime' };
   act(() => {
-    mounted!.update(
+    renderer.update(
       <PostItem post={{ ...post, user: { ...post.user, character: changed } } as never} />,
     );
   });
-  expect(probe(mounted!, 'author-character')).toBe(
+  expect(probe(renderer, 'author-character')).toBe(
     JSON.stringify({ kind: 'bot', character: changed }),
   );
 });

@@ -165,7 +165,7 @@ function computeDesign(
 
 /**
  * Unified hook for profile data. Combines:
- * - The Oxy profile (React Query — the single in-memory actor cache).
+ * - The Oxy profile (the SDK's `useUserByUsername`, which also stores it in `User`).
  * - The SESSION, when the handle asked for is the viewer's own: an account the
  *   app is already holding is never worth a skeleton (see `sessionProfile`).
  * - Appearance/customization settings (HTTP-backed appearance store, works web + native).

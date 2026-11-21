@@ -14,11 +14,12 @@ import { createFeedRuleSignal } from './feedRuleSignal';
  * different author list either side of the toggle.
  *
  * **Why this is a refetch signal rather than a correction applied locally**, which
- * is the question to settle first because Mention now has machinery for the other
- * answer. `stores/identityUpdates` + `lib/actorCache` correct an identity FIELD of
- * an actor a cached post already carries — a changed picture or display name — and
- * they are the right tool for that. They cannot serve this one, in both
- * directions and for two different reasons:
+ * is the question to settle first because Mention has machinery for the other
+ * answer. The Oxy SDK's `User` holds every person once (`data/users`), so an
+ * identity FIELD of an actor a cached post already carries — a changed picture or
+ * display name — reaches every post through it, and it is the right tool for
+ * that. It cannot serve this one, in both directions and for two different
+ * reasons:
  *
  *   * OFF → ON. The writer is not in the cached DTO to correct, and their id was
  *     never sent to this device: withholding it is the entire point of
@@ -127,10 +128,10 @@ export function noteChannelBylineChanged(channelOxyUserId: string): void {
  * Drop the recorded change. For tests.
  *
  * Deliberately NOT wired into the account switch, unlike `resetEngagementInvalidation`
- * and `resetSafetyInvalidation` beside it, and for the reason `resetIdentityUpdates`
- * gives: those two record something about the VIEWER — their own engagements, their
- * own safety rules — which says nothing about the next viewer. A channel's byline is
- * the channel's fact and is the same fact whoever is signed in. It would also be
+ * and `resetSafetyInvalidation` beside it: those two record something about the
+ * VIEWER — their own engagements, their own safety rules — which says nothing about
+ * the next viewer. A channel's byline is the channel's fact and is the same fact
+ * whoever is signed in. It would also be
  * inert either way: the switch drops every held feed, so every feed the next
  * viewer holds was read after this stamp and none of them is condemned by it.
  */

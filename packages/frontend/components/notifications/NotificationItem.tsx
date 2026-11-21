@@ -3,7 +3,6 @@ import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
@@ -13,11 +12,10 @@ import { useSurfaceFill, tokens } from '@oxy.so/bloom/styles';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { queryKeys as sdkQueryKeys } from '@oxy.so/services/ui/client';
+import { useUserById } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { notificationSubjectHref } from '@/utils/notificationRoute';
-import type { User } from '@oxy.so/core';
 import type { PostUser } from '@mention/shared-types';
 
 import UserName from '../UserName';
@@ -28,9 +26,8 @@ import CollabAcceptSheet from '@/components/Compose/CollabAcceptSheet';
 import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { getDescriptor, type TranslateFn } from './notificationDescriptors';
-import { useUserById } from '@/hooks/useCachedUser';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
-import { useKnownIdentitySet, type IdentityUpdate } from '@/stores/identityUpdates';
+import { currentHeldUser, type HeldUser, useHeldUsers } from '@/data/users';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { NotificationIntent } from '@/types/notificationIntent';
 import { normalizeApiError } from '@/utils/apiError';
@@ -100,16 +97,12 @@ interface ResolvedActor {
 }
 
 /**
- * The cached Oxy user a row merges over its raw actor, plus whatever a profile
- * edit made in this session says about that person.
- *
- * `Partial` because an edit alone is a valid answer: a grouped actor the screen
- * never prewarmed has no cache entry, and the overlay is still a better source
- * than the copy the notification arrived with.
+ * The person `User` holds for an actor, which a row merges over the copy the
+ * notification arrived with. Only the fields the row draws.
  */
 type CachedIdentity = Partial<
   Pick<
-    User,
+    HeldUser,
     | 'id'
     | 'username'
     | 'name'
@@ -118,8 +111,7 @@ type CachedIdentity = Partial<
     | 'isFederated'
     | 'instance'
     | 'federation'
-    // What the account IS, which decides the marker beside its name. A profile
-    // edit never changes it, so it only ever arrives from the cache entry.
+    // What the account IS, which decides the marker beside its name.
     | 'kind'
     | 'character'
     | 'color'
@@ -141,28 +133,10 @@ function normalizedHandle(
 }
 
 /**
- * Merge a raw grouped actor with its cached Oxy `User` (when present). Cached
- * fields win — restoring the proven fallback the old row had via the prewarmed
- * user cache — with the raw actor as the floor.
+ * Merge a raw grouped actor with the person `User` holds (when it holds a dated
+ * copy, see `currentHeldUser`). Held fields win, with the raw actor as the
+ * floor.
  */
-/**
- * The best identity known for one actor: the prewarmed cache entry, with a
- * profile edit made in this session laid over it.
- *
- * The edit is ALREADY in that cache entry — `lib/actorCache` put it there — so
- * for the reactive primary this changes nothing. It matters for the grouped
- * actors, whose cache read is not reactive: passing the overlay makes the value
- * correct AND makes the memo that computes it depend on something that actually
- * changes when a profile is edited, which is the only reason it re-runs at all.
- */
-function correctedIdentity(
-  cached: User | undefined,
-  known: IdentityUpdate | undefined,
-): CachedIdentity | undefined {
-  if (!known) return cached;
-  return { ...cached, ...known };
-}
-
 function mergeActor(
   actor: GroupedActor | undefined,
   cached: CachedIdentity | undefined,
@@ -340,7 +314,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const locale = useBloomLocale();
   const theme = useTheme();
   const surfaceFill = useSurfaceFill();
-  const queryClient = useQueryClient();
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
   // Accepting/declining an invite mutates the post's authorship, so the updated
   // post must be propagated here — updating only the React Query post-detail cache
@@ -366,56 +339,27 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const [actionLoadingFor, setActionLoadingFor] = useState<string | null>(null);
   const actionLoading = actionLoadingFor !== null && actionLoadingFor === postId;
 
-  // Resolve the PRIMARY actor from the Oxy user cache reactively (the screen
-  // prewarms it via `prewarmUsersByIds`). Cached fields are merged over the raw
-  // `actors[0]`, so names + real avatars appear even when the backend's
-  // `actorId_populated` is empty. An actor with no id cannot be looked up; the
-  // system actor below is synthetic. All other IDs are passed through without an
-  // id-SHAPE test, which used to exclude accounts created with uuid v7.
-  const primaryOxyId = primaryActor?.id;
-  // System notifications name a synthetic actor, not an Oxy account.
-  const cachedPrimary = useUserById(
-    primaryOxyId === SYSTEM_NOTIFICATION_ACTOR_ID ? undefined : primaryOxyId,
-  );
-  const knownIdentities = useKnownIdentitySet(item.actors.map((actor) => actor.id));
-  const resolvedPrimary = useMemo(
-    () =>
-      mergeActor(
-        primaryActor,
-        correctedIdentity(cachedPrimary, knownIdentities.get(primaryActor?.id ?? '')),
-      ),
-    [primaryActor, cachedPrimary, knownIdentities],
-  );
-
-  // Grouped strip / expanded list: best-effort resolve each id from the SAME
-  // prewarmed cache (non-reactive read; re-runs when the reactive primary lands,
-  // which coincides with the bulk cache write).
-  //
-  //
-  // A profile edited in this session is laid over each of them. The edit is
-  // already IN the cache read below (`lib/actorCache` put it there), so this is
-  // not about the value — it is about this memo re-running at all: editing a
-  // grouped actor who is not `actors[0]` changes nothing else it watches.
+  // Every actor, from the people the Oxy SDK holds (`data/users`): the screen
+  // prewarms the ones the notifications did not populate
+  // (`prewarmUsersByIds`), and a profile edit reaches the row through the same
+  // records. Held fields are merged over the raw actor, so names and real
+  // avatars appear even when the backend's `actorId_populated` is empty. An
+  // actor with no id cannot be looked up, and the system actor is synthetic,
+  // not an Oxy account. Other ids pass through without an id-SHAPE test, which
+  // used to exclude accounts created with uuid v7.
+  const heldUsers = useHeldUsers(item.actors.map((actor) => actor.id));
+  const primaryOxyId =
+    primaryActor?.id === SYSTEM_NOTIFICATION_ACTOR_ID ? undefined : primaryActor?.id;
+  // The primary is asked for when nobody holds them; the answer lands in `User`.
+  useUserById(primaryOxyId && !heldUsers.has(primaryOxyId) ? primaryOxyId : null);
   const resolvedActors = useMemo(
     () =>
-      item.actors.map((actor, index) =>
-        index === 0
-          ? resolvedPrimary
-          : mergeActor(
-              actor,
-              // An actor with no id has no cache entry and no edit to lay over
-              // it; reading the cache under an `undefined` key would ask for a
-              // query key that cannot exist.
-              actor.id
-                ? correctedIdentity(
-                    queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id)),
-                    knownIdentities.get(actor.id),
-                  )
-                : undefined,
-            ),
+      item.actors.map((actor) =>
+        mergeActor(actor, actor.id ? currentHeldUser(actor, heldUsers.get(actor.id)) : undefined),
       ),
-    [item.actors, resolvedPrimary, queryClient, knownIdentities],
+    [item.actors, heldUsers],
   );
+  const resolvedPrimary = resolvedActors[0] ?? mergeActor(undefined, undefined);
 
   // Collab invites carry no backend preview — read the invited post through the
   // shared posts store, fresh, since the invite state may postdate a cached copy.

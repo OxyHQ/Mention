@@ -47,8 +47,9 @@ const NOTIF_ID = 'notif-1';
 const VIEWER_ID = 'viewer-1';
 
 jest.mock('@oxy.so/services/ui/client', () => ({
+  ...jest.requireActual('@/test-support/oxyUsers'),
   useAuth: () => ({ user: { id: 'viewer-1' } }),
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
+  useUserById: () => ({ data: undefined }),
 }));
 
 // ── Module boundaries ───────────────────────────────────────────────────────
@@ -205,7 +206,6 @@ jest.mock('../notificationDescriptors', () => ({
   }),
 }));
 
-jest.mock('@/hooks/useCachedUser', () => ({ useUserById: () => undefined }));
 jest.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));

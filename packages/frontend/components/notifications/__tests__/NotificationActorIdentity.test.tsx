@@ -7,16 +7,14 @@ import type { TRawNotification } from '@/types/validation';
  * A grouped notification names several people, and all of them follow a profile
  * edit — not just the first.
  *
- * The row resolves `actors[0]` reactively through the user cache, so the primary
- * was always going to pick an edit up. Every OTHER actor is resolved by a
- * non-reactive `getQueryData` read inside a memo keyed on the primary, so
- * editing a grouped actor who is not first changed nothing that memo watches and
- * the row kept the picture the notification arrived with.
+ * The row once resolved only `actors[0]` reactively; every OTHER actor was a
+ * non-reactive cache read inside a memo keyed on the primary, so editing a
+ * grouped actor who is not first changed nothing that memo watched and the row
+ * kept the picture the notification arrived with. Every actor now reads the
+ * person the Oxy SDK's `User` holds (`data/users`), each subscribed by id.
  *
- * These deliberately give the row NO cache entry for anybody. That is the
- * sharper case: it proves the overlay itself carries the correction rather than
- * the row happening to re-read a cache somebody else had already fixed, and it
- * is real — a grouped actor the screen never prewarmed has no entry to read.
+ * Each test starts from an empty store: nobody is held until the edit, the case
+ * of a grouped actor the screen never prewarmed.
  */
 
 // Keep the renderer boundary isolated; the account policy has its own contract tests.
@@ -36,11 +34,13 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
 }));
 
+// The SDK's per-person read, which the row calls to ask Oxy for a primary
+// nobody holds. A `jest.fn` so a test can read whom the row asked about.
+const mockUseUserById = jest.fn((_id: string | null) => ({ data: undefined }));
 jest.mock('@oxy.so/services/ui/client', () => ({
+  ...jest.requireActual('@/test-support/oxyUsers'),
   useAuth: () => ({ user: { id: 'viewer-1' } }),
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
+  useUserById: (id: string | null) => mockUseUserById(id),
 }));
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
 jest.mock('@/stores/postsStore', () => ({
@@ -116,18 +116,22 @@ jest.mock('@/components/common/ActionMenu', () => ({
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
-// Nobody is in the user cache: the overlay alone has to carry the correction.
-// A `jest.fn` rather than a bare arrow so one test can read the id the row asked
-// about — the answer stays `undefined`, so every other test is unaffected.
-jest.mock('@/hooks/useCachedUser', () => ({ useUserById: jest.fn(() => undefined) }));
 jest.mock('@/lib/queryClient', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }));
 
 import { NotificationItem } from '../NotificationItem';
-import { useUserById } from '@/hooks/useCachedUser';
-import { noteIdentityChanged } from '@/lib/actorCache';
-import { resetIdentityUpdates } from '@/stores/identityUpdates';
+import { setActiveStore, Store } from '@oxy.so/bloom-data';
+import { storeUsers } from '@oxy.so/services/ui/client';
+
+/** An accepted profile write, as the SDK stores Oxy's answer in `User`. */
+function edit(person: { id: string; [field: string]: unknown }): void {
+  storeUsers({ ...person, updatedAt: '2026-08-04T00:00:00.000Z' });
+}
+
+beforeEach(() => {
+  setActiveStore(new Store());
+});
 
 const PRIMARY_ID = 'actor-primary';
 const SECONDARY_ID = 'actor-secondary';
@@ -205,7 +209,6 @@ afterEach(() => {
   mounted = null;
   queryClient?.clear();
   queryClient = null;
-  resetIdentityUpdates();
   jest.clearAllMocks();
 });
 
@@ -223,7 +226,7 @@ describe('a grouped notification follows every actor it names', () => {
     const renderer = renderRow();
 
     act(() => {
-      noteIdentityChanged({ id: SECONDARY_ID, avatar: 'secondary-after' });
+      edit({ id: SECONDARY_ID, avatar: 'secondary-after' });
     });
 
     const avatars = stripAvatars(renderer);
@@ -237,7 +240,7 @@ describe('a grouped notification follows every actor it names', () => {
     const renderer = renderRow();
 
     act(() => {
-      noteIdentityChanged({ id: PRIMARY_ID, avatar: 'primary-after' });
+      edit({ id: PRIMARY_ID, avatar: 'primary-after' });
     });
 
     const avatars = stripAvatars(renderer);
@@ -249,7 +252,7 @@ describe('a grouped notification follows every actor it names', () => {
     const renderer = renderRow();
 
     act(() => {
-      noteIdentityChanged({ id: 'nobody-here', avatar: 'x' });
+      edit({ id: 'nobody-here', avatar: 'x' });
     });
 
     expect(stripAvatars(renderer)).toEqual(
@@ -268,7 +271,7 @@ describe('a grouped notification follows every actor it names', () => {
  * fine), which is why the assertion is on the id the row asks about.
  */
 describe('the actor whose profile the row resolves', () => {
-  const asked = () => (useUserById as jest.Mock).mock.calls.map((call) => call[0]);
+  const asked = () => mockUseUserById.mock.calls.map((call) => call[0]);
 
   it('does not look up the synthetic system actor and still resolves a real actor after reuse', () => {
     const system = groupedLike();
@@ -277,7 +280,7 @@ describe('the actor whose profile the row resolves', () => {
     system.actors = [system.actors[0]];
 
     const renderer = renderRow(system);
-    expect(asked().at(-1)).toBeUndefined();
+    expect(asked().at(-1)).toBeNull();
     expect(JSON.stringify(renderer.toJSON())).toContain('System');
 
     const actual = groupedLike();
@@ -315,7 +318,7 @@ describe('the actor whose profile the row resolves', () => {
         </QueryClientProvider>,
       );
     });
-    expect(asked().at(-1)).toBeUndefined();
+    expect(asked().at(-1)).toBeNull();
     expect(JSON.stringify(renderer.toJSON())).toContain('System');
   });
 
@@ -351,6 +354,15 @@ describe('the actor whose profile the row resolves', () => {
 
     renderRow(item);
 
-    expect(asked().every((id) => id === undefined)).toBe(true);
+    expect(asked().every((id) => id === null)).toBe(true);
+  });
+
+  it('does not ask Oxy about a primary the store already holds', () => {
+    edit({ id: PRIMARY_ID, username: 'primary', avatar: 'primary-held' });
+
+    const renderer = renderRow();
+
+    expect(asked().every((id) => id === null)).toBe(true);
+    expect(stripAvatars(renderer)).toEqual(expect.arrayContaining(['primary-held']));
   });
 });
