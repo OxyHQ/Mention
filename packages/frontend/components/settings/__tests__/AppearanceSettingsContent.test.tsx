@@ -59,6 +59,8 @@ afterEach(() => {
  * The props Bloom's select receives for a row's control. A row's control is a
  * language element, so it is drawn to reach them.
  */
+/** Read through a function: TypeScript cannot see the mock assign it while the control draws. */
+const drawnSelect = () => mockSelectProps;
 function control(section: string, row: string) {
   const element = mockSections
     .find((item) => item.key === section)
@@ -70,8 +72,9 @@ function control(section: string, row: string) {
     drawn = TestRenderer.create(<BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>);
   });
   act(() => drawn.unmount());
-  if (!mockSelectProps) throw new Error(`${section}/${row} drew no select`);
-  return mockSelectProps;
+  const select = drawnSelect();
+  if (!select) throw new Error(`${section}/${row} drew no select`);
+  return select;
 }
 it.each([null, new Error('Save unavailable')])(
   'reports a failed preference save and clears pending state (%s)',

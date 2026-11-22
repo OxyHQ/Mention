@@ -35,7 +35,7 @@ function loadRoute(development: boolean): { view: ReactElement; words: string } 
         tree = TestRenderer.create(React.createElement(BloomThemeProvider, { fonts: false }, view));
       });
       words = tree.root
-        .findAll((node) => node.type === 'Text')
+        .findAll((node) => (node.type as unknown) === 'Text')
         .flatMap((node) => node.props.children)
         .filter((child): child is string => typeof child === 'string')
         .join('');

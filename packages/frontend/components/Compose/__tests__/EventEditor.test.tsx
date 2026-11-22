@@ -109,7 +109,7 @@ function headerSave(): { disabled?: boolean; onPress: () => void } {
     (n) => n.props.testID === 'eventEditorSave' && typeof n.type !== 'string',
   )[0];
   if (!button) throw new Error('no Save action in the header');
-  return button.props;
+  return button.props as { disabled?: boolean; onPress: () => void };
 }
 
 const renderEditor = (

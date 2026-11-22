@@ -97,7 +97,7 @@ jest.mock('@oxy.so/bloom/button', () => {
     }: {
       children: MockNode;
       onPress: () => void;
-      style?: unknown;
+      style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
     }) =>
       ReactActual.createElement(
         Pressable,
@@ -124,6 +124,9 @@ function mount(): ReactTestRenderer {
   });
   return renderer;
 }
+
+/** React Native's host `View` (the test renderer types a host's name as an element type). */
+const isHostView = (node: ReactTestInstance) => (node.type as unknown) === 'View';
 
 /** What the host drew inside Bloom's theme: `null` while it draws nothing. */
 function drawn(renderer: ReactTestRenderer) {
@@ -279,7 +282,7 @@ describe('the explainer opens, steps and closes', () => {
 
     const rows = renderer.root.findAll(
       (node) =>
-        node.type === 'View' &&
+        isHostView(node) &&
         styleOf(node).flexDirection === 'row' &&
         textIn(node).includes(COPY.next) &&
         textIn(node).includes(COPY.cancel),
