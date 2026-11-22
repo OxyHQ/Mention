@@ -5,6 +5,7 @@ import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import type { View } from 'react-native';
 import type { FeedType } from '@mention/shared-types';
+import { useTabPageContentPainted } from '@oxy.so/bloom/tab-pager';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -179,10 +180,13 @@ export function useFeedCore(props: FeedProps) {
     [allFeedRows, previewLimit],
   );
 
-  const holdForLeading = useHoldForLeading(
-    merged.leadingPending,
-    feedRows.length > 0 || !feedState.isLoading,
-  );
+  // The feed has settled on its first content: rows, or an empty or failed read.
+  const settled = feedRows.length > 0 || !feedState.isLoading;
+  const holdForLeading = useHoldForLeading(merged.leadingPending, settled);
+  // A feed is its page's first content: the pager mounts the pages beside this one only once
+  // it is on screen, so they do not compete with its first paint (Home's neighbour is the
+  // Videos tab, with its reel and its player).
+  useTabPageContentPainted(settled);
 
   // Infinite scroll for everyone, anonymous included. An anonymous reader is
   // never prompted to sign in by scrolling: `signIn()` opens the SDK sheet, and
