@@ -4,7 +4,6 @@ import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
 import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
@@ -25,6 +24,7 @@ import {
   RawText,
   Text as LText,
   VStack,
+  VirtualList,
   toElement,
 } from '@oxy.so/bloom-language';
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
@@ -185,79 +185,62 @@ export default Lscreen(function JobApplicationsScreen() {
     );
   };
 
-  return Embed(
-    <VirtualList
-      screen={{}}
-      data={forbidden ? [] : applications}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) =>
-        toElement(
-          LCard(
-            HStack(
-              RawText(
-                item.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' }),
-              )
-                .flex('1')
-                .foreground('foreground')
-                .font('md')
-                .weight('semibold')
-                .lines(1)
-                .onPress(() => openApplication(item)),
-              Embed(
-                <Badge
-                  content={item.status}
-                  color={STATUS_TONE[item.status]}
-                  variant="subtle"
-                  size="sm"
-                />,
-              ),
-            )
-              .align('start')
-              .justify('between')
-              .spacing('sm'),
-            item.contactMethod
-              ? RawText(item.contactMethod)
-                  .foreground('muted')
-                  .font('sm')
-                  .margin('top', '2xs')
-                  .lines(1)
-              : null,
-            item.coverNote
-              ? RawText(item.coverNote)
-                  .foreground('foreground')
-                  .font('sm')
-                  .margin('top', 'sm')
-                  .lines(2)
-              : null,
-            RawText(t('jobs.applications.viewDetails', { defaultValue: 'View details' }))
-              .foreground('primary')
-              .font('sm')
-              .weight('semibold')
-              .margin('top', 'sm')
-              .onPress(() => openApplication(item)),
-          )
-            .outline('thin')
-            .elevation('none')
-            .radius('lg')
-            .margin('horizontal', 'lg')
-            .margin('bottom', 'md')
-            .padding('lg'),
-        )
-      }
-      onEndReached={handleEndReached}
-      onEndReachedThreshold={0.5}
-      ListEmptyComponent={renderEmpty()}
-      ListFooterComponent={toElement(
-        VStack(Embed(isFetchingNextPage ? <ListSkeleton count={2} /> : null))
-          .padding('vertical', 'lg')
-          .align('center')
-          .justify('center'),
-      )}
-    />,
-  ).header(
-    Header(t('jobs.applications.title', { defaultValue: 'Applications' }))
-      .backLabel(t('common.back', { defaultValue: 'Back' }))
-      .accessory(Embed(forbidden ? undefined : filterRow))
-      .inPage(),
-  );
+  return VirtualList(forbidden ? [] : applications, ({ item }) =>
+    LCard(
+      HStack(
+        RawText(item.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' }))
+          .flex('1')
+          .foreground('foreground')
+          .font('md')
+          .weight('semibold')
+          .lines(1)
+          .onPress(() => openApplication(item)),
+        Embed(
+          <Badge
+            content={item.status}
+            color={STATUS_TONE[item.status]}
+            variant="subtle"
+            size="sm"
+          />,
+        ),
+      )
+        .align('start')
+        .justify('between')
+        .spacing('sm'),
+      item.contactMethod
+        ? RawText(item.contactMethod).foreground('muted').font('sm').margin('top', '2xs').lines(1)
+        : null,
+      item.coverNote
+        ? RawText(item.coverNote).foreground('foreground').font('sm').margin('top', 'sm').lines(2)
+        : null,
+      RawText(t('jobs.applications.viewDetails', { defaultValue: 'View details' }))
+        .foreground('primary')
+        .font('sm')
+        .weight('semibold')
+        .margin('top', 'sm')
+        .onPress(() => openApplication(item)),
+    )
+      .outline('thin')
+      .elevation('none')
+      .radius('lg')
+      .margin('horizontal', 'lg')
+      .margin('bottom', 'md')
+      .padding('lg'),
+  )
+    .itemKey((item: MentionJobApplication) => item.id)
+    .onEndReached(handleEndReached, 0.5)
+    .emptyState(Embed(renderEmpty()))
+    .footerContent(
+      VStack(Embed(isFetchingNextPage ? <ListSkeleton count={2} /> : null))
+        .padding('vertical', 'lg')
+        .align('center')
+        .justify('center'),
+    )
+    .screen()
+    .header(
+      Header(t('jobs.applications.title', { defaultValue: 'Applications' }))
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .accessory(Embed(forbidden ? undefined : filterRow))
+        .inPage(),
+    );
 });

@@ -11,7 +11,6 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
-import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
@@ -29,6 +28,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import {
+  Dialog,
   Divider as LDivider,
   Embed,
   HStack,
@@ -72,7 +72,7 @@ const BoostScreen: React.FC = () => {
 
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const discardControl = useDialogControl();
+  const [discarding, setDiscarding] = useState(false);
   const [originalPost, setOriginalPost] = useState<FeedItem | null>(null);
   const textInputRef = useRef<TextInputInstance>(null);
 
@@ -138,7 +138,7 @@ const BoostScreen: React.FC = () => {
 
   const handleCancel = () => {
     if (content.trim().length > 0) {
-      discardControl.open();
+      setDiscarding(true);
     } else {
       back?.();
     }
@@ -311,22 +311,23 @@ const BoostScreen: React.FC = () => {
             .scrollIndicators('hidden', 'vertical'),
         )}
       </Screen>
-      <Dialog
-        control={discardControl}
-        title="Discard Boost?"
-        description="Are you sure you want to discard this boost?"
-        actions={[
-          {
-            label: 'Discard',
-            color: 'destructive',
-            onPress: () => back?.(),
-          },
-          {
-            label: 'Keep Editing',
-            color: 'cancel',
-          },
-        ]}
-      />
+      {toElement(
+        Dialog()
+          .title('Discard Boost?')
+          .message('Are you sure you want to discard this boost?')
+          .buttons([
+            {
+              label: 'Discard',
+              color: 'destructive',
+              onPress: () => back?.(),
+            },
+            {
+              label: 'Keep Editing',
+              color: 'cancel',
+            },
+          ])
+          .presented([discarding, setDiscarding]),
+      )}
     </KeyboardAvoidingView>
   );
 };
