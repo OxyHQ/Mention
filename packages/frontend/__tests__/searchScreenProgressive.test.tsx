@@ -18,6 +18,7 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: { error: jest.fn() } }));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
 }));
+import { BloomProvider } from '@oxy.so/bloom/provider';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -104,6 +105,7 @@ jest.mock('@/stores/trendsStore', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: new Proxy({}, { get: () => '#000' }) }),
 }));
 
@@ -274,9 +276,11 @@ async function renderScreen(): Promise<{ renderer: ReactTestRenderer; client: Qu
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <SearchScreen />
-      </QueryClientProvider>,
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
+        <QueryClientProvider client={client}>
+          <SearchScreen />
+        </QueryClientProvider>
+      </BloomProvider>,
     );
   });
   await settle();
