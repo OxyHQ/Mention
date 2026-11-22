@@ -1,5 +1,5 @@
 import { memo, useCallback, useState } from 'react';
-import { Image } from 'expo-image';
+import { Image, type ImageStyle } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { CappedChipRow, Chip } from '@oxy.so/bloom/chip';
@@ -15,6 +15,9 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { prettifyUrl } from '@/utils/prettifyUrl';
 
 import { Embed, Icon, Row, VStack, toElement } from '@oxy.so/bloom-language';
+
+/** A site icon: 16pt, its corners rounded 4pt, as `size-4 rounded` drew it. */
+const FAVICON_STYLE: ImageStyle = { width: 16, height: 16, borderRadius: 4 };
 
 /** Pills shown before the rest fold behind a "+N" pill (two lines, as on Bluesky). */
 const MAX_LINES = 2;
@@ -65,7 +68,6 @@ async function showUrl(url: string): Promise<string> {
  * has none, or the image fails to load, the pill shows the generic link icon.
  */
 function LinkIcon({ link }: { link: ProfileLink }) {
-  const { colors } = useTheme();
   const [failed, setFailed] = useState(false);
   if (!link.faviconUrl || failed) {
     return toElement(Icon(RiLink).size('sm').foreground('muted'));
@@ -73,7 +75,7 @@ function LinkIcon({ link }: { link: ProfileLink }) {
   return (
     <Image
       source={{ uri: link.faviconUrl }}
-      className="size-4 rounded"
+      style={FAVICON_STYLE}
       contentFit="cover"
       onError={() => setFailed(true)}
     />
@@ -89,7 +91,6 @@ interface LinkActionsSheetProps {
 /** Long-press content: the full destination, and what to do with it. */
 function LinkActionsSheet({ link, onOpen, onClose }: LinkActionsSheetProps) {
   const { t } = useTranslation();
-  const { colors } = useTheme();
 
   return toElement(
     VStack(

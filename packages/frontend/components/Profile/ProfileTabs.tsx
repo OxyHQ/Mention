@@ -1,7 +1,7 @@
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { lazy, memo, Suspense } from 'react';
-import { View, Platform } from 'react-native';
+import { type View, Platform } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -116,30 +116,32 @@ export const ProfileTabs = memo(function ProfileTabs({
 
   // Show private message for restricted profiles
   if (isPrivate && !isOwnProfile) {
-    return (
-      <View className="items-center justify-center p-8" style={{ minHeight: 200 }}>
-        <RiLockLine size="3xl" fill={theme.colors.textSecondary} style={{ marginBottom: 16 }} />
-        {toElement(
-          RawText(t('profile.private.message', { defaultValue: 'This profile is private' }))
-            .foreground('foreground')
-            .font('18')
-            .leading('28px')
-            .weight('semibold')
-            .textAlign('center')
-            .margin('bottom', 'sm'),
-        )}
-        {toElement(
-          RawText(
-            t('profile.private.subtext', {
-              defaultValue: 'Follow this account to see their posts',
-            }),
-          )
-            .foreground('muted')
-            .font('14')
-            .leading('20px')
-            .textAlign('center'),
-        )}
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <RiLockLine size="3xl" fill={theme.colors.textSecondary} style={{ marginBottom: 16 }} />,
+        ),
+        RawText(t('profile.private.message', { defaultValue: 'This profile is private' }))
+          .foreground('foreground')
+          .font('18')
+          .leading('28px')
+          .weight('semibold')
+          .textAlign('center')
+          .margin('bottom', 'sm'),
+        RawText(
+          t('profile.private.subtext', {
+            defaultValue: 'Follow this account to see their posts',
+          }),
+        )
+          .foreground('muted')
+          .font('14')
+          .leading('20px')
+          .textAlign('center'),
+      )
+        .padding('all', '3xl')
+        .frame({ minHeight: '200' })
+        .align('center')
+        .justify('center'),
     );
   }
 
