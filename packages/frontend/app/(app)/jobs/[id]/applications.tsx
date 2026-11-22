@@ -1,11 +1,9 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
-import { Text } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Card } from '@oxy.so/bloom/card';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
@@ -19,6 +17,7 @@ import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailShe
 import { EmptyState } from '@/components/common/EmptyState';
 
 import {
+  Card as LCard,
   Chip as LChip,
   Embed,
   HStack,
@@ -191,25 +190,19 @@ export default Lscreen(function JobApplicationsScreen() {
       screen={{}}
       data={forbidden ? [] : applications}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
-        <Card
-          border="thin"
-          elevation="none"
-          radius="radius-16"
-          style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}
-        >
-          {toElement(
+      renderItem={({ item }) =>
+        toElement(
+          LCard(
             HStack(
-              Embed(
-                <Text
-                  className="flex-1 text-foreground text-[15px] font-semibold"
-                  numberOfLines={1}
-                  onPress={() => openApplication(item)}
-                >
-                  {item.displayName ||
-                    t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
-                </Text>,
-              ),
+              RawText(
+                item.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' }),
+              )
+                .flex('1')
+                .foreground('foreground')
+                .font('md')
+                .weight('semibold')
+                .lines(1)
+                .onPress(() => openApplication(item)),
               Embed(
                 <Badge
                   content={item.status}
@@ -222,33 +215,35 @@ export default Lscreen(function JobApplicationsScreen() {
               .align('start')
               .justify('between')
               .spacing('sm'),
-          )}
-          {item.contactMethod
-            ? toElement(
-                RawText(item.contactMethod)
+            item.contactMethod
+              ? RawText(item.contactMethod)
                   .foreground('muted')
                   .font('sm')
                   .margin('top', '2xs')
-                  .lines(1),
-              )
-            : null}
-          {item.coverNote
-            ? toElement(
-                RawText(item.coverNote)
+                  .lines(1)
+              : null,
+            item.coverNote
+              ? RawText(item.coverNote)
                   .foreground('foreground')
                   .font('sm')
                   .margin('top', 'sm')
-                  .lines(2),
-              )
-            : null}
-          <Text
-            className="text-primary text-[13px] font-semibold mt-2"
-            onPress={() => openApplication(item)}
-          >
-            {t('jobs.applications.viewDetails', { defaultValue: 'View details' })}
-          </Text>
-        </Card>
-      )}
+                  .lines(2)
+              : null,
+            RawText(t('jobs.applications.viewDetails', { defaultValue: 'View details' }))
+              .foreground('primary')
+              .font('sm')
+              .weight('semibold')
+              .margin('top', 'sm')
+              .onPress(() => openApplication(item)),
+          )
+            .outline('thin')
+            .elevation('none')
+            .radius('lg')
+            .margin('horizontal', 'lg')
+            .margin('bottom', 'md')
+            .padding('lg'),
+        )
+      }
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.5}
       ListEmptyComponent={renderEmpty()}

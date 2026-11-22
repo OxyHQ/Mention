@@ -1,7 +1,7 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { Suspense, lazy, useCallback, useEffect, useRef } from 'react';
-import { Text, TouchableOpacity } from 'react-native';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +35,9 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** The report link sits centred, 16pt under the actions (`mt-4 self-center`). */
+const REPORT_STYLE: ViewStyle = { marginTop: 16, alignSelf: 'center' };
 import { screen } from '@oxy.so/bloom-language/router';
 
 const ReportModal = lazy(() =>
@@ -236,11 +239,11 @@ export default screen(function JobDetailScreen() {
       Embed(
         <Avatar source={employerQuery.data?.avatar} size={28} variant={MEDIA_VARIANT_AVATAR} />,
       ),
-      Embed(
-        <Text className="text-primary text-[15px] font-semibold" onPress={openEmployer}>
-          {employerName}
-        </Text>,
-      ),
+      RawText(employerName)
+        .foreground('primary')
+        .font('md')
+        .weight('semibold')
+        .onPress(openEmployer),
     )
       .align('center')
       .spacing('sm')
@@ -316,20 +319,16 @@ export default screen(function JobDetailScreen() {
     )
       .spacing('md')
       .margin('top', '2xl'),
-    Embed(
-      <TouchableOpacity
-        onPress={openReport}
-        className="mt-4 self-center"
-        hitSlop={tokens.hitSlop.md}
-      >
-        {toElement(
+    Embed((render) => (
+      <TouchableOpacity onPress={openReport} style={REPORT_STYLE} hitSlop={tokens.hitSlop.md}>
+        {render(
           RawText(t('jobs.detail.report', { defaultValue: 'Report this listing' }))
             .foreground('muted')
             .font('xs')
             .leading('16px'),
         )}
-      </TouchableOpacity>,
-    ),
+      </TouchableOpacity>
+    )),
   )
     .contentView((v) => v.padding('horizontal', 'lg').padding('bottom', '64').padding('top', 'sm'))
     .header(Embed(header));
