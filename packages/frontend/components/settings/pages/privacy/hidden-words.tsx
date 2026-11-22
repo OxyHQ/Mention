@@ -12,10 +12,8 @@ import { getErrorMessage } from '@/utils/apiError';
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
-import { Loading } from '@oxy.so/bloom/loading';
 import { confirm as confirmSettingsAction } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -30,17 +28,21 @@ import {
   GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Icon,
+  Loading,
   SettingsSection as LSettingsSection,
   Text,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 
 const hiddenWordsLogger = createLogger('HiddenWords');
 
+/** The add button's glyph, a size Bloom's icon scale lacks. */
+const appTokens = defineTokens({ iconSize: { add: 26 } });
+
 export default function HiddenWordsScreen() {
   const { t } = useTranslation();
-  const { colors } = useTheme();
 
   const { isAuthenticated, user, canUsePrivateApi } = useAuth();
 
@@ -193,33 +195,26 @@ export default function HiddenWordsScreen() {
                   })}
                 />,
               ),
-              Embed(
-                addMutation.isPending ? (
-                  <Loading
-                    className="text-primary"
-                    variant="inline"
-                    size="sm"
-                    style={{ flex: undefined }}
-                  />
-                ) : (
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={handleAdd}
-                    disabled={input.trim().length === 0}
-                    accessibilityLabel={t('settings.privacy.addMutedWord', {
-                      defaultValue: 'Add a word or hashtag',
-                    })}
-                  >
-                    <RiAddCircleLine
-                      width={26}
-                      height={26}
-                      fill={input.trim().length === 0 ? colors.textSecondary : colors.primary}
-                    />
-                  </Button>
-                ),
-              ),
+              addMutation.isPending
+                ? Loading().style('inline').size('sm')
+                : Embed(
+                    <Button
+                      size="sm"
+                      appearance="subtle"
+                      tone="neutral"
+                      onPress={handleAdd}
+                      disabled={input.trim().length === 0}
+                      accessibilityLabel={t('settings.privacy.addMutedWord', {
+                        defaultValue: 'Add a word or hashtag',
+                      })}
+                    >
+                      {toElement(
+                        Icon(RiAddCircleLine)
+                          .size(appTokens.iconSize.add)
+                          .foreground(input.trim().length === 0 ? 'muted' : 'primary'),
+                      )}
+                    </Button>,
+                  ),
             )
               .padding('horizontal', 'lg')
               .padding('vertical', 'md')
@@ -287,10 +282,7 @@ export default function HiddenWordsScreen() {
                             }),
                       )
                       .trailing(
-                        Embed(
-                          <>
-                            {toElement(
-                              LButton(Text(t('common.remove', { defaultValue: 'Remove' })))
+                        LButton(Text(t('common.remove', { defaultValue: 'Remove' })))
                                 .size('sm')
                                 .style('subtle')
                                 .tint('danger')
@@ -300,9 +292,6 @@ export default function HiddenWordsScreen() {
                                     defaultValue: 'Remove muted word',
                                   }),
                                 ),
-                            )}
-                          </>,
-                        ),
                       ),
                     word.id,
                   );

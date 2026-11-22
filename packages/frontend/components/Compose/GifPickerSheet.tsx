@@ -3,8 +3,7 @@ import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import type React from 'react';
 import { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +21,7 @@ import {
   Embed,
   Header,
   Icon,
+  Loading,
   RawText,
   Search as LSearch,
   Text as LText,
@@ -55,6 +55,7 @@ interface GifSearchResponse {
 
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
   const theme = useTheme();
+  const colorTokens = useColorTokens();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const { user, canUsePrivateApi } = useAuth();
@@ -124,8 +125,8 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
     return (
       <TouchableOpacity
-        className="bg-surface"
         style={[
+          { backgroundColor: colorTokens.surface },
           styles.gifItem,
           { borderColor: isSelected ? theme.colors.primary : theme.colors.border },
           isSelected && { opacity: 0.7 },
@@ -147,9 +148,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.contrast50 }]} />
         )}
         {isUploading && (
-          <View className="absolute inset-0 bg-black/50 justify-center items-center">
-            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-          </View>
+          <View style={styles.uploading}>{toElement(Loading().size('sm'))}</View>
         )}
       </TouchableOpacity>
     );
@@ -245,7 +244,17 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     width: '100%',
   },
+  // Tailwind's `absolute inset-0 bg-black/50`: one `inset`, which the language's
+  // `.position()` writes as four edges.
+  uploading: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   gifItem: {
+
     flex: 1,
     aspectRatio: 1,
     overflow: 'hidden',

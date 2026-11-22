@@ -7,12 +7,11 @@ import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiInformationFill } from '@oxy.so/bloom/icons/RiInformationFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { Button } from '@oxy.so/bloom/button';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
 } from '@oxy.so/bloom/surfaces';
-import { useTheme } from '@oxy.so/bloom/theme';
 import type { User } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import { queryKeys } from '@oxy.so/services/ui/client';
@@ -27,6 +26,7 @@ import {
   GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Icon,
+  Loading,
   RawText,
   Search as LSearch,
   SettingsSection as LSettingsSection,
@@ -51,7 +51,6 @@ const getUserId = (user: RestrictedUser): string | undefined => user.id || user.
 
 export default function RestrictedUsersScreen() {
   const { t } = useTranslation();
-  const { colors } = useTheme();
 
   const {
     user: currentUser,
@@ -399,34 +398,20 @@ export default function RestrictedUsersScreen() {
                         .description(`@${handle}`)
                         .trailing(
                           Embed(
-                            <>
+                            <Button
+                              size="sm"
+                              appearance="subtle"
+                              tone="neutral"
+                              onPress={() => !isRestricting && handleRestrict(user)}
+                              disabled={isRestricting}
+                              accessibilityLabel={user.name.displayName}
+                            >
                               {toElement(
-                                LButton(
-                                  LText(
-                                    isRestricting ? (
-                                      <Loading
-                                        className="text-primary"
-                                        variant="inline"
-                                        size="sm"
-                                        style={{ flex: undefined }}
-                                      />
-                                    ) : (
-                                      <RiAddCircleLine
-                                        width={22}
-                                        height={22}
-                                        fill={colors.primary}
-                                      />
-                                    ),
-                                  ),
-                                )
-                                  .size('sm')
-                                  .style('subtle')
-                                  .tint('neutral')
-                                  .onPress(() => !isRestricting && handleRestrict(user))
-                                  .disabled(isRestricting)
-                                  .label(user.name.displayName),
+                                isRestricting
+                                  ? Loading().style('inline').size('sm')
+                                  : Icon(RiAddCircleLine).size('22').foreground('primary'),
                               )}
-                            </>,
+                            </Button>,
                           ),
                         ),
                       userId,
@@ -474,26 +459,20 @@ export default function RestrictedUsersScreen() {
                       .wrapControl()
                       .description(`@${handle}`)
                       .trailing(
-                        Embed(
-                          <>
-                            {toElement(
-                              LButton(LText(t('settings.privacy.unrestrict')))
-                                .size('sm')
-                                .style('subtle')
-                                .tint('danger')
-                                .onPress(() => {
-                                  if (userId) {
-                                    handleUnrestrict(userId);
-                                  } else {
-                                    restrictedLogger.error('No userId found for user', undefined, {
-                                      user,
-                                    });
-                                    void showSettingsAlert(t('common.error'), 'Invalid user ID');
-                                  }
-                                }),
-                            )}
-                          </>,
-                        ),
+                        LButton(LText(t('settings.privacy.unrestrict')))
+                          .size('sm')
+                          .style('subtle')
+                          .tint('danger')
+                          .onPress(() => {
+                            if (userId) {
+                              handleUnrestrict(userId);
+                            } else {
+                              restrictedLogger.error('No userId found for user', undefined, {
+                                user,
+                              });
+                              void showSettingsAlert(t('common.error'), 'Invalid user ID');
+                            }
+                          }),
                       ),
                     userId,
                   );

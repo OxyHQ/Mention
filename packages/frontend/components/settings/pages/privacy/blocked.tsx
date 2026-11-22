@@ -6,12 +6,11 @@ import { searchService } from '@/services/searchService';
 import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { Button } from '@oxy.so/bloom/button';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
 } from '@oxy.so/bloom/surfaces';
-import { useTheme } from '@oxy.so/bloom/theme';
 import type { User } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import { queryKeys } from '@oxy.so/services/ui/client';
@@ -26,6 +25,7 @@ import {
   GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Icon,
+  Loading,
   RawText,
   Search as LSearch,
   SettingsSection as LSettingsSection,
@@ -50,7 +50,6 @@ const getUserId = (user: BlockedUser): string | undefined => user.id || user._id
 
 export default function BlockedUsersScreen() {
   const { t } = useTranslation();
-  const { colors } = useTheme();
 
   const {
     user: currentUser,
@@ -326,34 +325,20 @@ export default function BlockedUsersScreen() {
                         .description(`@${handle}`)
                         .trailing(
                           Embed(
-                            <>
+                            <Button
+                              size="sm"
+                              appearance="subtle"
+                              tone="neutral"
+                              onPress={() => !isBlocking && handleBlock(user)}
+                              disabled={isBlocking}
+                              accessibilityLabel={user.name.displayName}
+                            >
                               {toElement(
-                                LButton(
-                                  LText(
-                                    isBlocking ? (
-                                      <Loading
-                                        className="text-primary"
-                                        variant="inline"
-                                        size="sm"
-                                        style={{ flex: undefined }}
-                                      />
-                                    ) : (
-                                      <RiAddCircleLine
-                                        width={22}
-                                        height={22}
-                                        fill={colors.primary}
-                                      />
-                                    ),
-                                  ),
-                                )
-                                  .size('sm')
-                                  .style('subtle')
-                                  .tint('neutral')
-                                  .onPress(() => !isBlocking && handleBlock(user))
-                                  .disabled(isBlocking)
-                                  .label(user.name.displayName),
+                                isBlocking
+                                  ? Loading().style('inline').size('sm')
+                                  : Icon(RiAddCircleLine).size('22').foreground('primary'),
                               )}
-                            </>,
+                            </Button>,
                           ),
                         ),
                       userId,
@@ -401,24 +386,18 @@ export default function BlockedUsersScreen() {
                       .wrapControl()
                       .description(`@${handle}`)
                       .trailing(
-                        Embed(
-                          <>
-                            {toElement(
-                              LButton(LText(t('settings.privacy.unblock')))
-                                .size('sm')
-                                .style('subtle')
-                                .tint('danger')
-                                .onPress(() => {
-                                  if (userId) {
-                                    handleUnblock(userId);
-                                  } else {
-                                    blockedLogger.error('No userId found for user');
-                                    void showSettingsAlert(t('common.error'), 'Invalid user ID');
-                                  }
-                                }),
-                            )}
-                          </>,
-                        ),
+                        LButton(LText(t('settings.privacy.unblock')))
+                          .size('sm')
+                          .style('subtle')
+                          .tint('danger')
+                          .onPress(() => {
+                            if (userId) {
+                              handleUnblock(userId);
+                            } else {
+                              blockedLogger.error('No userId found for user');
+                              void showSettingsAlert(t('common.error'), 'Invalid user ID');
+                            }
+                          }),
                       ),
                     userId,
                   );

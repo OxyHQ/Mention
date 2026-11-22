@@ -6,7 +6,7 @@ import { MCP_RESOURCE_URL } from '@/config';
 import { getErrorMessage } from '@/utils/apiError';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { Loading } from '@oxy.so/bloom/loading';
+
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import type { ConnectedMcpClient } from '@oxy.so/core';
@@ -14,7 +14,6 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text } from 'react-native';
 
 import {
   Button as LButton,
@@ -22,14 +21,19 @@ import {
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
   IconCircle as LIconCircle,
+  Loading,
   RawText,
   SettingsSection as LSettingsSection,
   Text as LText,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 
 const logger = createLogger('ConnectedAiSettings');
+
+/** The empty state's explanation keeps to a readable measure. */
+const appTokens = defineTokens({ space: { emptyText: 340 } });
 
 const KNOWN_MCP_CLIENTS: Record<string, string> = {
   claude: 'Claude',
@@ -170,14 +174,16 @@ export default function ConnectedAiScreen() {
                   .weight('bold')
                   .foreground('foreground')
                   .textAlign('center'),
-                Embed(
-                  <Text className="text-[15px] text-muted-foreground text-center max-w-[340px]">
-                    {t('mcp.connections.empty.description', {
-                      defaultValue:
-                        'AI apps you authorize to access your Mention account will appear here. You can revoke access anytime.',
-                    })}
-                  </Text>,
-                ),
+                RawText(
+                  t('mcp.connections.empty.description', {
+                    defaultValue:
+                      'AI apps you authorize to access your Mention account will appear here. You can revoke access anytime.',
+                  }),
+                )
+                  .font('md')
+                  .foreground('muted')
+                  .textAlign('center')
+                  .frame({ maxWidth: appTokens.space.emptyText }),
               )
                 .padding('horizontal', '2xl')
                 .padding('vertical', '4xl')
@@ -208,39 +214,21 @@ export default function ConnectedAiScreen() {
                               }),
                             })
                           : undefined;
+                      const row = LGroupedSectionItem(connectionLabel(connection)).wrapControl();
                       return toElement(
-                        LGroupedSectionItem(connectionLabel(connection))
-                          .wrapControl()
-                          .description(timeLine)
-                          .trailing(
-                            Embed(
-                              <>
-                                {revoking ? (
-                                  <Loading
-                                    className="text-primary"
-                                    variant="inline"
-                                    size="sm"
-                                    style={{ flex: undefined }}
-                                  />
-                                ) : (
-                                  toElement(
-                                    LButton(
-                                      LText(
-                                        t('mcp.connections.revoke', {
-                                          defaultValue: 'Revoke',
-                                        }),
-                                      ),
-                                    )
-                                      .style('subtle')
-                                      .tint('neutral')
-                                      .size('sm')
-                                      .onPress(() => handleRevoke(connection))
-                                      .disabled(revokeMutation.isPending),
-                                  )
-                                )}
-                              </>,
-                            ),
-                          ),
+                        (timeLine === undefined ? row : row.description(timeLine)).trailing(
+                          revoking
+                            ? Loading().style('inline').size('sm')
+                            : LButton(
+                                LText(t('mcp.connections.revoke', { defaultValue: 'Revoke' })),
+                              )
+                                .style('subtle')
+                                .tint('neutral')
+                                .size('sm')
+                                .onPress(() => handleRevoke(connection))
+                                .disabled(revokeMutation.isPending),
+                        ),
+
                         connection.id,
                       );
                     }),

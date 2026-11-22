@@ -3,7 +3,7 @@ import type React from 'react';
 import { memo, useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxy.so/bloom/loading';
+
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { Button } from '@oxy.so/bloom/button';
@@ -21,6 +21,7 @@ import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
+import { Loading, toElement } from '@oxy.so/bloom-language';
 
 /**
  * The attachment row under ONE compose box.
@@ -333,12 +334,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
           >
             {(color) =>
               isGettingLocation ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
+                toElement(Loading().style('inline').size('sm'))
               ) : (
                 <RiMapPinLine width={20} height={20} fill={color} />
               )

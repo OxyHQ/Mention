@@ -1,11 +1,10 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { Button } from '@oxy.so/bloom/button';
+
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
 import { isPastDue, scheduledDate } from '@/utils/postSchedule';
@@ -17,7 +16,6 @@ import { createLogger } from '@oxy.so/core/logger';
 import { formatScheduledLabel } from '@/utils/dateUtils';
 import {
   Button as LButton,
-  Embed,
   HStack,
   Icon,
   RawText,
@@ -65,7 +63,6 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
   onCancel,
   onCancelled,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [isCancelling, setIsCancelling] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -185,39 +182,23 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
       )}
       {toElement(
         HStack(
-          Embed(
-            <Button
-              className="flex-1"
-              appearance="subtle"
-              tone="neutral"
-              size="lg"
-              leadingIcon={RiEditLine}
-              onPress={onEdit}
-              disabled={busy}
-              accessibilityLabel={t('compose.scheduled.edit', {
-                defaultValue: 'Edit scheduled post',
-              })}
-            >
-              {t('common.edit', { defaultValue: 'Edit' })}
-            </Button>,
-          ),
-          Embed(
-            <Button
-              className="flex-1"
-              appearance="solid"
-              tone="danger"
-              size="lg"
-              leadingIcon={RiDeleteBinLine}
-              onPress={handleCancel}
-              disabled={busy}
-              loading={isCancelling}
-              accessibilityLabel={t('compose.scheduled.cancelTitle', {
-                defaultValue: 'Cancel scheduled post',
-              })}
-            >
-              {t('common.cancel')}
-            </Button>,
-          ),
+          LButton(Icon(RiEditLine), LText(t('common.edit', { defaultValue: 'Edit' })))
+            .style('subtle')
+            .tint('neutral')
+            .size('lg')
+            .onPress(onEdit)
+            .disabled(busy)
+            .label(t('compose.scheduled.edit', { defaultValue: 'Edit scheduled post' }))
+            .flex('1'),
+          LButton(Icon(RiDeleteBinLine), LText(t('common.cancel')))
+            .style('solid')
+            .tint('danger')
+            .size('lg')
+            .onPress(handleCancel)
+            .disabled(busy)
+            .loading(isCancelling)
+            .label(t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' }))
+            .flex('1'),
         )
           .padding('horizontal', 'lg')
           .padding('vertical', 'md')

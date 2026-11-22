@@ -2,10 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { TouchableOpacity, FlatList } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Button } from '@oxy.so/bloom/button';
+import { TouchableOpacity, FlatList, StyleSheet } from 'react-native';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
@@ -29,7 +26,17 @@ import {
   otherDraftLanguages,
 } from './serverDraftActions';
 
-import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Icon,
+  Loading,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('DraftsList');
 
@@ -66,7 +73,6 @@ const DraftsList: React.FC<DraftsListProps> = ({
   onPreviewServerDraft,
   onEditServerDraft,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const {
     items,
@@ -264,7 +270,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
         HStack(
           Embed(
             <TouchableOpacity
-              className="flex-1 flex-row items-center"
+              style={styles.open}
               onPress={open}
               disabled={isBusy}
               accessibilityRole="button"
@@ -380,7 +386,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
           Embed(
             isServer && (
               <TouchableOpacity
-                className="p-1 mr-1"
+                style={{ padding: tokens.space.xs, marginRight: tokens.space.xs }}
                 onPress={() => handlePublishServerDraft(item.post)}
                 disabled={isBusy}
                 hitSlop={tokens.hitSlop.lg}
@@ -396,7 +402,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
           ),
           Embed(
             <TouchableOpacity
-              className="p-1 mr-1"
+              style={{ padding: tokens.space.xs, marginRight: tokens.space.xs }}
               onPress={openPreview}
               disabled={isBusy}
               hitSlop={tokens.hitSlop.lg}
@@ -409,7 +415,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
           ),
           Embed(
             <TouchableOpacity
-              className="p-1"
+              style={{ padding: tokens.space.xs }}
               onPress={remove}
               disabled={isBusy}
               hitSlop={tokens.hitSlop.lg}
@@ -417,15 +423,10 @@ const DraftsList: React.FC<DraftsListProps> = ({
               accessibilityRole="button"
               accessibilityLabel={t('compose.deleteDraft')}
             >
-              {isBusy ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
-              ) : (
-                toElement(Icon(RiDeleteBinLine).size('18').foreground('muted'))
+              {toElement(
+                isBusy
+                  ? Loading().style('inline').size('sm')
+                  : Icon(RiDeleteBinLine).size('18').foreground('muted'),
               )}
             </TouchableOpacity>,
           ),
@@ -451,7 +452,6 @@ const DraftsList: React.FC<DraftsListProps> = ({
       onPreviewDraft,
       onPreviewServerDraft,
       t,
-      theme,
       viewerId,
     ],
   );
@@ -474,11 +474,10 @@ const DraftsList: React.FC<DraftsListProps> = ({
           .leading('20px')
           .textAlign('center')
           .foreground('muted'),
-        Embed(
-          <Button className="mt-3" onPress={refetchServerDrafts}>
-            {t('common.retry', { defaultValue: 'Retry' })}
-          </Button>,
-        ),
+        // The web's button never drew this margin; native's did.
+        LButton(LText(t('common.retry', { defaultValue: 'Retry' })))
+          .onPress(refetchServerDrafts)
+          .when('native', (v) => v.margin('top', 'md')),
       )
         .padding('vertical', 'lg')
         .padding('horizontal', '3xl')
@@ -501,11 +500,10 @@ const DraftsList: React.FC<DraftsListProps> = ({
             .leading('20px')
             .textAlign('center')
             .foreground('muted'),
-          Embed(
-            <Button className="mt-3" onPress={refetchDeviceDrafts}>
-              {t('common.retry', { defaultValue: 'Retry' })}
-            </Button>,
-          ),
+          // The web's button never drew this margin; native's did.
+          LButton(LText(t('common.retry', { defaultValue: 'Retry' })))
+            .onPress(refetchDeviceDrafts)
+            .when('native', (v) => v.margin('top', 'md')),
         )
           .padding('vertical', 'lg')
           .padding('horizontal', '3xl')
@@ -540,9 +538,16 @@ const DraftsList: React.FC<DraftsListProps> = ({
           </>
         ) : undefined
       }
-      className="flex-1"
+      style={styles.list}
     />
   );
 };
+
+const styles = StyleSheet.create({
+  // A row's press area takes the width its actions leave (`flex-1`: grow,
+  // shrink, from nothing), its content in a row.
+  open: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', flexDirection: 'row', alignItems: 'center' },
+  list: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+});
 
 export default DraftsList;

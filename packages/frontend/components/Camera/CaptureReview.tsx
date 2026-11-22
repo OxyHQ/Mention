@@ -5,9 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useVideoPlayer } from 'expo-video';
 import { VideoView } from '@oxy.so/bloom/video-view';
 
-import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import type { LocalCapture } from './useCaptureUpload';
+import { Loading } from '@oxy.so/bloom/loading';
 import { Button as LButton, Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface CaptureReviewProps {
@@ -130,10 +130,11 @@ export function CaptureReview({
         {busy
           ? toElement(
               VStack(
-                Embed(<Loading className="text-white" size="sm" />),
+                // The language's Loading takes a tone, not a fixed colour: white over the capture.
+                Embed(<Loading size="sm" color="#fff" />),
                 Embed(
                   <Text
-                    className="text-white text-base text-center"
+                    style={styles.progress}
                     accessibilityRole="progressbar"
                     accessibilityLabel={progressLabel}
                     accessibilityValue={
@@ -183,4 +184,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   busy: { alignItems: 'center', paddingBottom: 4 },
+  // Tailwind's `text-white text-base text-center`: the progress reads on the dark preview.
+  progress: { color: '#fff', fontSize: 16, lineHeight: 24, textAlign: 'center' },
 });

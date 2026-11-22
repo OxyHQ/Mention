@@ -1,11 +1,10 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { Button } from '@oxy.so/bloom/button';
+
 import { RiCloudLine } from '@oxy.so/bloom/icons/RiCloudLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
 import PostPreviewSurface from './PostPreviewSurface';
@@ -16,7 +15,6 @@ import {
 } from './serverDraftActions';
 import {
   Button as LButton,
-  Embed,
   HStack,
   Icon,
   RawText,
@@ -54,7 +52,6 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
   onDelete,
   onDone,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [isPublishing, setIsPublishing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -127,35 +124,23 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
       )}
       {toElement(
         HStack(
-          Embed(
-            <Button
-              className="flex-1"
-              appearance="subtle"
-              tone="neutral"
-              size="lg"
-              leadingIcon={RiEditLine}
-              onPress={onEdit}
-              disabled={busy}
-              accessibilityLabel={t('compose.serverDrafts.edit', { defaultValue: 'Edit draft' })}
-            >
-              {t('common.edit', { defaultValue: 'Edit' })}
-            </Button>,
-          ),
-          Embed(
-            <Button
-              className="flex-1"
-              appearance="solid"
-              tone="danger"
-              size="lg"
-              leadingIcon={RiDeleteBinLine}
-              onPress={handleDelete}
-              disabled={busy}
-              loading={isDeleting}
-              accessibilityLabel={t('compose.deleteDraft')}
-            >
-              {t('common.delete')}
-            </Button>,
-          ),
+          LButton(Icon(RiEditLine), LText(t('common.edit', { defaultValue: 'Edit' })))
+            .style('subtle')
+            .tint('neutral')
+            .size('lg')
+            .onPress(onEdit)
+            .disabled(busy)
+            .label(t('compose.serverDrafts.edit', { defaultValue: 'Edit draft' }))
+            .flex('1'),
+          LButton(Icon(RiDeleteBinLine), LText(t('common.delete')))
+            .style('solid')
+            .tint('danger')
+            .size('lg')
+            .onPress(handleDelete)
+            .disabled(busy)
+            .loading(isDeleting)
+            .label(t('compose.deleteDraft'))
+            .flex('1'),
         )
           .padding('horizontal', 'lg')
           .padding('vertical', 'md')

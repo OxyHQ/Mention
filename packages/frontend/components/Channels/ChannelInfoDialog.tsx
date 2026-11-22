@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
-import { Button } from '@oxy.so/bloom/button';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
-import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type ExplainerStep = 0 | 1 | 2;
 
@@ -82,7 +89,6 @@ export function ChannelInfoDialogProvider() {
  * `setTimeout` and no dependency on how the request was triggered.
  */
 function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
-  const { colors } = useTheme();
   const { t } = useTranslation();
   const control = useDialogControl();
   const [step, setStep] = useState<ExplainerStep>(0);
@@ -178,28 +184,20 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
        */}
       {toElement(
         HStack(
-          Embed(
-            <Button
-              appearance="plain"
-              tone="neutral"
-              size="lg"
-              className="flex-1"
-              onPress={onSecondary}
-            >
-              {isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')}
-            </Button>,
-          ),
-          Embed(
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              className="flex-1"
-              onPress={onPrimary}
-            >
-              {isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')}
-            </Button>,
-          ),
+          LButton(
+            LText(isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')),
+          )
+            .style('plain')
+            .tint('neutral')
+            .size('lg')
+            .onPress(onSecondary)
+            .flex('1'),
+          LButton(LText(isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')))
+            .style('solid')
+            .tint('accent')
+            .size('lg')
+            .onPress(onPrimary)
+            .flex('1'),
         )
           .align('center')
           .spacing('md'),

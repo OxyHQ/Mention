@@ -2,10 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { TouchableOpacity, FlatList } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Button } from '@oxy.so/bloom/button';
+import { TouchableOpacity, FlatList, StyleSheet } from 'react-native';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -22,7 +19,17 @@ import { formatScheduledLabel } from '@/utils/dateUtils';
 import { createLogger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
 
-import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Icon,
+  Loading,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('ScheduledPostsList');
 
@@ -123,7 +130,6 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   onCancel,
   viewerId,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
@@ -200,7 +206,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
         HStack(
           Embed(
             <TouchableOpacity
-              className="flex-1 flex-row items-center"
+              style={styles.open}
               onPress={() => onPreview(item)}
               disabled={isCancelling}
               activeOpacity={0.7}
@@ -272,7 +278,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           ),
           Embed(
             <TouchableOpacity
-              className="p-1 mr-1"
+              style={{ padding: tokens.space.xs, marginRight: tokens.space.xs }}
               onPress={() => onEdit(item)}
               disabled={isCancelling}
               hitSlop={tokens.hitSlop.lg}
@@ -287,7 +293,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           ),
           Embed(
             <TouchableOpacity
-              className="p-1"
+              style={{ padding: tokens.space.xs }}
               onPress={() => handleCancel(item)}
               disabled={isCancelling}
               hitSlop={tokens.hitSlop.lg}
@@ -297,15 +303,10 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
                 defaultValue: 'Cancel scheduled post',
               })}
             >
-              {isCancelling ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
-              ) : (
-                toElement(Icon(RiDeleteBinLine).size('18').foreground('muted'))
+              {toElement(
+                isCancelling
+                  ? Loading().style('inline').size('sm')
+                  : Icon(RiDeleteBinLine).size('18').foreground('muted'),
               )}
             </TouchableOpacity>,
           ),
@@ -317,7 +318,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           .align('center'),
       );
     },
-    [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme, viewerId],
+    [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, viewerId],
   );
 
   if (isLoading) {
@@ -336,11 +337,10 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           .leading('normal')
           .textAlign('center')
           .foreground('muted'),
-        Embed(
-          <Button className="mt-4" onPress={onRetry}>
-            {t('common.retry', { defaultValue: 'Retry' })}
-          </Button>,
-        ),
+        // The web's button never drew this margin; native's did.
+        LButton(LText(t('common.retry', { defaultValue: 'Retry' })))
+          .onPress(onRetry)
+          .when('native', (v) => v.margin('top', 'lg')),
       )
         .padding('vertical', '48')
         .padding('horizontal', '3xl')
@@ -368,9 +368,16 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
       data={posts}
       renderItem={renderItem}
       keyExtractor={(item) => item.id}
-      className="flex-1"
+      style={styles.list}
     />
   );
 };
+
+const styles = StyleSheet.create({
+  // A row's press area takes the width its actions leave (`flex-1`: grow,
+  // shrink, from nothing), its content in a row.
+  open: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', flexDirection: 'row', alignItems: 'center' },
+  list: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+});
 
 export default ScheduledPostsList;
