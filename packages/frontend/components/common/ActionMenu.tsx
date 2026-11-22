@@ -1,12 +1,17 @@
 import { memo } from 'react';
-import { View } from 'react-native';
+import { GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { SurfaceControls, SurfaceRenderFn } from '@oxy.so/bloom/surfaces';
-
 import { buildMenuGroups, type ActionMenuAction } from '@/components/common/actionMenuGroups';
+
 import { presentCancelableSheet, presentSheet } from '@/utils/sheet';
 import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ActionMenuGroupProps {
   actions: ActionMenuAction[];
@@ -16,21 +21,23 @@ interface ActionMenuGroupProps {
 const ActionMenuGroup = memo(function ActionMenuGroup({ actions }: ActionMenuGroupProps) {
   if (actions.length === 0) return null;
 
-  return (
-    <GroupedSection>
-      {actions.map((action) => (
-        <GroupedSectionItem
-          key={action.label}
-          title={action.label}
-          titleNumberOfLines={0}
-          rightElement={action.icon}
-          showChevron={false}
-          destructive={Boolean(action.color)}
-          onPress={action.onPress}
-          accessibilityLabel={action.label}
-        />
-      ))}
-    </GroupedSection>
+  return toElement(
+    LGroupedSection(
+      Embed(
+        actions.map((action) => (
+          <GroupedSectionItem
+            key={action.label}
+            title={action.label}
+            titleNumberOfLines={0}
+            rightElement={action.icon}
+            showChevron={false}
+            destructive={Boolean(action.color)}
+            onPress={action.onPress}
+            accessibilityLabel={action.label}
+          />
+        )),
+      ),
+    ),
   );
 });
 
@@ -69,12 +76,14 @@ function presentActionMenu(
     own = surface;
     activeMenu = surface;
     const groups = buildMenuGroups(request.groups, surface.dismiss, request.signal);
-    const content = (
-      <View className="p-4 gap-2">
-        {groups.map((actions) => (
-          <ActionMenuGroup key={actions[0].label} actions={actions} />
-        ))}
-      </View>
+    const content = toElement(
+      VStack(
+        Embed(
+          groups.map((actions) => <ActionMenuGroup key={actions[0].label} actions={actions} />),
+        ),
+      )
+        .padding('all', 'lg')
+        .spacing('sm'),
     );
     return request.signal ? (
       <OwnedSurfaceContent signal={request.signal}>{content}</OwnedSurfaceContent>

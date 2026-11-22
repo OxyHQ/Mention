@@ -15,6 +15,8 @@ import { LogoIcon } from '@/assets/logo';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
 
+import { Button as LButton, Icon, toElement } from '@oxy.so/bloom-language';
+
 export function MentionHomeHeader() {
   const router = useRouter();
   const shell = useAppShell();
@@ -54,12 +56,12 @@ export function MentionHomeHeader() {
             />
           )}
           <Button.Group accessibilityLabel={t('common.search')}>
-            <Button
-              iconOnly
-              leadingIcon={RiSearchLine}
-              accessibilityLabel={t('common.search')}
-              onPress={() => router.push('/search')}
-            />
+            {toElement(
+              LButton(Icon(RiSearchLine))
+                .shape('circle')
+                .label(t('common.search'))
+                .onPress(() => router.push('/search')),
+            )}
           </Button.Group>
         </>
       }
@@ -68,12 +70,12 @@ export function MentionHomeHeader() {
           <Button leadingIcon={GemieAvatarIcon} onPress={() => ask()}>
             {t('header.askAlia')}
           </Button>
-          <Button
-            iconOnly
-            leadingIcon={RiNotification3Line}
-            accessibilityLabel={t('notifications.title')}
-            onPress={() => router.push('/notifications')}
-          />
+          {toElement(
+            LButton(Icon(RiNotification3Line))
+              .shape('circle')
+              .label(t('notifications.title'))
+              .onPress(() => router.push('/notifications')),
+          )}
         </Button.Group>
       }
     />

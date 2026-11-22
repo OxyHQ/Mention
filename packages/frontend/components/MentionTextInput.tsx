@@ -36,6 +36,8 @@ import { useMentionSearchCache } from '@/context/MentionSearchContext';
 import { useMentionSearchResults } from '@/hooks/useMentionSearchResults';
 import { logger } from '@oxy.so/core/logger';
 
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
 export interface MentionTextInputHandle {
   /** Insert text at the current cursor position */
   insertTextAtCursor: (text: string) => void;
@@ -362,36 +364,39 @@ const MentionTextInput = memo(
         [multiline, contentHeight, style],
       );
 
-      return (
-        <View style={styles.container}>
-          <TextInput
-            ref={textInputRef}
-            value={displayValue}
-            onChangeText={handleTextChange}
-            onSelectionChange={handleSelectionChange}
-            onContentSizeChange={handleContentSizeChange}
-            onKeyPress={handleKeyPress}
-            placeholder={placeholder}
-            placeholderTextColor={theme.colors.textTertiary}
-            maxLength={maxLength}
-            multiline={multiline}
-            className="text-foreground"
-            style={inputStyle}
-            {...textInputProps}
-          />
-
-          {showMentionPicker && mentionQuery.length > 0 && (
-            <View style={styles.pickerContainer}>
-              <MentionPicker
-                users={pickerUsers}
-                loading={pickerLoading}
-                activeIndex={activeIndex}
-                onActiveIndexChange={setActiveIndex}
-                onSelect={handleMentionSelect}
-              />
-            </View>
-          )}
-        </View>
+      return toElement(
+        VStack(
+          Embed(
+            <TextInput
+              ref={textInputRef}
+              value={displayValue}
+              onChangeText={handleTextChange}
+              onSelectionChange={handleSelectionChange}
+              onContentSizeChange={handleContentSizeChange}
+              onKeyPress={handleKeyPress}
+              placeholder={placeholder}
+              placeholderTextColor={theme.colors.textTertiary}
+              maxLength={maxLength}
+              multiline={multiline}
+              className="text-foreground"
+              style={inputStyle}
+              {...textInputProps}
+            />,
+          ),
+          Embed(
+            showMentionPicker && mentionQuery.length > 0 && (
+              <View style={styles.pickerContainer}>
+                <MentionPicker
+                  users={pickerUsers}
+                  loading={pickerLoading}
+                  activeIndex={activeIndex}
+                  onActiveIndexChange={setActiveIndex}
+                  onSelect={handleMentionSelect}
+                />
+              </View>
+            ),
+          ),
+        ),
       );
     },
   ),

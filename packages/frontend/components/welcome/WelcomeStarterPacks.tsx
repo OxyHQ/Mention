@@ -1,9 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
-import { ResponsiveGrid } from '@oxy.so/bloom/grid';
-import { Button } from '@oxy.so/bloom/button';
-import { Muted } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import { FollowButton } from '@/components/FollowButton';
@@ -16,6 +13,8 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useRouter } from '@/lib/navigation/router';
 import { starterPacksService } from '@/services/starterPacksService';
+
+import { Button as LButton, Embed, Grid, Text, toElement } from '@oxy.so/bloom-language';
 
 /** A first-run screen offers a few packs, not the catalogue. */
 const WELCOME_STARTER_PACKS = 3;
@@ -66,42 +65,47 @@ export function WelcomeStarterPacks() {
           <StarterPackCardSkeleton />
         ) : query.isError ? (
           <>
-            <Muted>{t('welcome.people.loadError')}</Muted>
-            <Button
-              size="sm"
-              appearance="subtle"
-              tone="neutral"
-              onPress={() => void query.refetch()}
-            >
-              {t('common.retry')}
-            </Button>
+            {toElement(Text(t('welcome.people.loadError')).textStyle('muted'))}
+            {toElement(
+              LButton(Text(t('common.retry')))
+                .size('sm')
+                .style('subtle')
+                .tint('neutral')
+                .onPress(() => void query.refetch()),
+            )}
           </>
         ) : (
-          <ResponsiveGrid minItemWidth={260} maxColumns={2}>
-            {packs.map((pack) => {
-              const id = starterPackId(pack);
-              return (
-                <StarterPackCard
-                  key={id}
-                  pack={starterPackCardData(pack)}
-                  onPress={() => router.push(`/starter-packs/${id}`)}
-                  footer={
-                    canUsePrivateApi ? (
-                      <FollowButton
-                        userIds={pack.memberOxyUserIds ?? []}
-                        size="sm"
-                        followAllLabel={t('welcome.people.followAll')}
-                        followedAllLabel={t('welcome.people.followingAll')}
-                        onBulkFollow={() => recordUse.mutate(id)}
-                      />
-                    ) : (
-                      <Muted>{t('welcome.people.signInToFollow')}</Muted>
-                    )
-                  }
-                />
-              );
-            })}
-          </ResponsiveGrid>
+          toElement(
+            Grid(
+              Embed(
+                packs.map((pack) => {
+                  const id = starterPackId(pack);
+                  return (
+                    <StarterPackCard
+                      key={id}
+                      pack={starterPackCardData(pack)}
+                      onPress={() => router.push(`/starter-packs/${id}`)}
+                      footer={
+                        canUsePrivateApi ? (
+                          <FollowButton
+                            userIds={pack.memberOxyUserIds ?? []}
+                            size="sm"
+                            followAllLabel={t('welcome.people.followAll')}
+                            followedAllLabel={t('welcome.people.followingAll')}
+                            onBulkFollow={() => recordUse.mutate(id)}
+                          />
+                        ) : (
+                          toElement(Text(t('welcome.people.signInToFollow')).textStyle('muted'))
+                        )
+                      }
+                    />
+                  );
+                }),
+              ),
+            )
+              .minCellWidth('260')
+              .columns(2),
+          )
         )}
       </CardBody>
       <CardHeader>

@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { APP_COLOR_NAMES, type AppColorName, type PersistedThemeState } from '@oxy.so/bloom/theme';
 import { getPresetBackground } from '@oxy.so/bloom/preset-vars';
 import { LogoIcon } from '@/assets/logo';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 import { createLogger } from '@oxy.so/core/logger';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('AppSplashScreen');
 
@@ -114,14 +116,18 @@ const AppSplashScreen: React.FC = () => {
 
   const gradient = useMemo(() => buildDarkGradient(preset), [preset]);
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={gradient} style={styles.gradient}>
-        <View style={styles.logoContainer}>
-          <LogoIcon size={LOGO_SIZE} color="white" />
-        </View>
-      </LinearGradient>
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        <LinearGradient colors={gradient} style={styles.gradient}>
+          {toElement(
+            VStack(Embed(<LogoIcon size={LOGO_SIZE} color="white" />))
+              .align('center')
+              .justify('center'),
+          )}
+        </LinearGradient>,
+      ),
+    ).grow(),
   );
 };
 

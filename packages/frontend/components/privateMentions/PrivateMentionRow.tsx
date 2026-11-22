@@ -12,6 +12,8 @@ import { useRouter } from '@/lib/navigation/router';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
 /** A conversation row draws at most this many faces (Bloom's group avatar cap). */
 const MAX_FACES = 4;
 
@@ -132,7 +134,7 @@ export const PrivateMentionRow = memo(function PrivateMentionRow({
         avatar: faces ? undefined : (participants[0]?.avatar ?? undefined),
         faces,
         kind: faces ? 'group' : 'direct',
-        marker: <RiLockLine width={14} height={14} fill={theme.colors.textSecondary} />,
+        marker: toElement(Icon(RiLockLine).size('14').foreground('muted')),
         preview,
         time,
       }}

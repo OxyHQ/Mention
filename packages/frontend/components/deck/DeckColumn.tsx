@@ -9,14 +9,10 @@ import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import NotFoundScreen from '@/components/NotFoundScreen';
 import { deckRoutes, retryFailedDeckRoutes } from './deckRoutes';
 import { PanelErrorBoundary } from '@oxy.so/bloom/error-boundary';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { usePanelNavigation } from '@oxy.so/bloom/app-shell/hooks';
 import { Button } from '@oxy.so/bloom/button';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
-import { Switch } from '@oxy.so/bloom/switch';
 import { APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
 import {
   DECK_SOURCES,
@@ -25,7 +21,19 @@ import {
   useDeckSettings,
   type DeckSource,
 } from './deckSettings';
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
+import {
+  Button as LButton,
+  Dialog as LDialog,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  HStack,
+  Icon,
+  SettingsSelect as LSettingsSelect,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** Column actions compose into the current screen header through Bloom. */
 export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
@@ -50,145 +58,134 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
   };
   return (
     <>
-      <Button
-        appearance="outline"
-        tone="neutral"
-        iconOnly
-        leadingIcon={RiSettings3Line}
-        accessibilityLabel={t('deck.settings')}
-        onPress={() => setOpen(true)}
-      />
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        label={t('deck.settings')}
-        header={{ title: t('deck.settings') }}
-        maxWidth={480}
-      >
-        <View className="px-5 pb-5 gap-5">
-          <GroupedSection>
-            <GroupedSectionItem
-              title={t('deck.source')}
-              rightElement={
-                <SettingsSelect
-                  label={t('deck.source')}
-                  value={source}
-                  items={DECK_SOURCES.map((value) => ({
+      {toElement(
+        LButton(Icon(RiSettings3Line))
+          .shape('circle')
+          .style('outline')
+          .tint('neutral')
+          .label(t('deck.settings'))
+          .onPress(() => setOpen(true)),
+      )}
+      {toElement(
+        LDialog(
+          VStack(
+            LGroupedSection(
+              LGroupedSectionItem(t('deck.source')).trailing(
+                LSettingsSelect(
+                  t('deck.source'),
+                  [source, setSource],
+                  DECK_SOURCES.map((value) => ({
                     value,
                     label: t(`deck.sources.${value}`),
-                  }))}
-                  onChange={setSource}
-                />
-              }
-            />
-            {navigation.entry.name.split(/[?#]/)[0] !== '/videos' && (
-              <GroupedSectionItem
-                title={t('deck.resizable')}
-                rightElement={
-                  <Switch
-                    checked={settings.resizable}
-                    onCheckedChange={(resizable) => updatePanel(panelId, { resizable })}
-                    accessibilityLabel={t('deck.resizable')}
-                  />
-                }
-              />
-            )}
-            <GroupedSectionItem
-              title={t('deck.appearance')}
-              rightElement={
-                <SettingsSelect
-                  label={t('deck.appearance')}
-                  value={settings.appearance}
-                  items={[
+                  })),
+                ),
+              ),
+              navigation.entry.name.split(/[?#]/)[0] !== '/videos'
+                ? LGroupedSectionItem(t('deck.resizable')).trailing(
+                    Toggle([
+                      settings.resizable,
+                      (resizable) => updatePanel(panelId, { resizable }),
+                    ]).label(t('deck.resizable')),
+                  )
+                : null,
+              LGroupedSectionItem(t('deck.appearance')).trailing(
+                LSettingsSelect(
+                  t('deck.appearance'),
+                  [settings.appearance, (appearance) => updatePanel(panelId, { appearance })],
+                  [
                     { value: 'solid', label: t('deck.solid') },
                     { value: 'plain', label: t('deck.plain') },
-                  ]}
-                  onChange={(appearance) => updatePanel(panelId, { appearance })}
-                />
-              }
-            />
-            <GroupedSectionItem
-              title={t('deck.color')}
-              description={t('deck.colorDescription')}
-              rightElement={
-                <SettingsSelect
-                  label={t('deck.color')}
-                  value={settings.colorPreset ?? 'inherit'}
-                  items={[
-                    { value: 'inherit', label: t('deck.inherit') },
-                    ...Object.keys(APP_COLOR_PRESETS).map((value) => ({
-                      value,
-                      label: value.charAt(0).toUpperCase() + value.slice(1),
-                    })),
-                  ]}
-                  onChange={(value) =>
-                    updatePanel(panelId, {
-                      colorPreset: value === 'inherit' ? undefined : (value as AppColorName),
-                    })
-                  }
-                />
-              }
-            />
-          </GroupedSection>
-          {source !== 'saved' && (
-            <GroupedSection>
-              <GroupedSectionItem
-                title={t('deck.liveUpdates', 'Update in real time')}
-                description={
-                  !canUsePrivateApi
-                    ? t('deck.liveRequiresSignIn', 'Sign in to receive live feed updates')
-                    : undefined
-                }
-                rightElement={
-                  <Switch
-                    checked={settings.liveUpdates ?? false}
-                    disabled={!canUsePrivateApi}
-                    onCheckedChange={(liveUpdates) => updatePanel(panelId, { liveUpdates })}
-                    accessibilityLabel={t('deck.liveUpdates', 'Update in real time')}
-                  />
-                }
-              />
-              <GroupedSectionItem
-                title={t('deck.pauseWhileReading', 'Pause updates while reading')}
-                rightElement={
-                  <Switch
-                    checked={settings.pauseWhileReading ?? true}
-                    onCheckedChange={(pauseWhileReading) =>
-                      updatePanel(panelId, { pauseWhileReading })
-                    }
-                    accessibilityLabel={t('deck.pauseWhileReading', 'Pause updates while reading')}
-                  />
-                }
-              />
-            </GroupedSection>
-          )}
-          <View className="flex-row gap-3">
-            <Button
-              className="flex-1"
-              appearance="outline"
-              onPress={() => {
-                resetPanel(panelId);
-                const source = (DEFAULT_DECK_SETTINGS[panelId] ?? DEFAULT_DECK_SETTINGS['deck-0'])
-                  .source;
-                navigation.push(deckRouteForSource(source));
-              }}
-            >
-              {t('deck.reset')}
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={!canRemove}
-              appearance="subtle"
-              onPress={() => {
-                setOpen(false);
-                removePanel(panelId);
-              }}
-            >
-              {t('deck.removePanel', 'Remove panel')}
-            </Button>
-          </View>
-        </View>
-      </Dialog>
+                  ],
+                ),
+              ),
+              LGroupedSectionItem(t('deck.color'))
+                .description(t('deck.colorDescription'))
+                .trailing(
+                  LSettingsSelect(
+                    t('deck.color'),
+                    [
+                      settings.colorPreset ?? 'inherit',
+                      (value) =>
+                        updatePanel(panelId, {
+                          colorPreset: value === 'inherit' ? undefined : (value as AppColorName),
+                        }),
+                    ],
+                    [
+                      { value: 'inherit', label: t('deck.inherit') },
+                      ...Object.keys(APP_COLOR_PRESETS).map((value) => ({
+                        value,
+                        label: value.charAt(0).toUpperCase() + value.slice(1),
+                      })),
+                    ],
+                  ),
+                ),
+            ),
+            source !== 'saved'
+              ? LGroupedSection(
+                  LGroupedSectionItem(t('deck.liveUpdates', 'Update in real time'))
+                    .description(
+                      !canUsePrivateApi
+                        ? t('deck.liveRequiresSignIn', 'Sign in to receive live feed updates')
+                        : undefined,
+                    )
+                    .trailing(
+                      Toggle([
+                        settings.liveUpdates ?? false,
+                        (liveUpdates) => updatePanel(panelId, { liveUpdates }),
+                      ])
+                        .disabled(!canUsePrivateApi)
+                        .label(t('deck.liveUpdates', 'Update in real time')),
+                    ),
+                  LGroupedSectionItem(
+                    t('deck.pauseWhileReading', 'Pause updates while reading'),
+                  ).trailing(
+                    Toggle([
+                      settings.pauseWhileReading ?? true,
+                      (pauseWhileReading) => updatePanel(panelId, { pauseWhileReading }),
+                    ]).label(t('deck.pauseWhileReading', 'Pause updates while reading')),
+                  ),
+                )
+              : null,
+            HStack(
+              Embed(
+                <Button
+                  className="flex-1"
+                  appearance="outline"
+                  onPress={() => {
+                    resetPanel(panelId);
+                    const source = (
+                      DEFAULT_DECK_SETTINGS[panelId] ?? DEFAULT_DECK_SETTINGS['deck-0']
+                    ).source;
+                    navigation.push(deckRouteForSource(source));
+                  }}
+                >
+                  {t('deck.reset')}
+                </Button>,
+              ),
+              Embed(
+                <Button
+                  className="flex-1"
+                  disabled={!canRemove}
+                  appearance="subtle"
+                  onPress={() => {
+                    setOpen(false);
+                    removePanel(panelId);
+                  }}
+                >
+                  {t('deck.removePanel', 'Remove panel')}
+                </Button>,
+              ),
+            ).spacing('md'),
+          )
+            .padding('horizontal', 'xl')
+            .padding('bottom', 'xl')
+            .spacing('xl'),
+        )
+          .label(t('deck.settings'))
+          .header({ title: t('deck.settings') })
+          .frame({ maxWidth: '480' })
+          .presented([open, () => setOpen(false)]),
+      )}
     </>
   );
 }

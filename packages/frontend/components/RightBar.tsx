@@ -1,12 +1,14 @@
 import React, { Activity, useMemo } from 'react';
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
-import { View, Platform, Text } from 'react-native';
+import { Platform, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { asTextStyle } from '@/types/webStyles';
 import { useTopicRailStore } from '@/stores/topicRailStore';
+
+import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
 
 // `cursor` is a web-only CSS property absent from RN's `TextStyle` — author it
 // through the shared extended TextStyle and bridge at the consumption point
@@ -38,13 +40,14 @@ export function RightBar() {
 function RightBarContent() {
   const topicTerm = useTopicRailStore((state) => state.term);
 
-  return (
-    // No column `gap` — each child owns its own bottom margin, see `BaseWidget`.
-    <View className="flex-col px-[14px] pt-4">
-      <SearchBar />
-      <WidgetManager screenId="home" topicTerm={topicTerm} />
-      {Platform.OS === 'web' && <RightBarFooter />}
-    </View>
+  return toElement(
+    VStack(
+      Embed(<SearchBar />),
+      Embed(<WidgetManager screenId="home" topicTerm={topicTerm} />),
+      Embed(Platform.OS === 'web' && <RightBarFooter />),
+    )
+      .padding('horizontal', '14')
+      .padding('top', 'lg'),
   );
 }
 
@@ -60,20 +63,23 @@ function RightBarFooter() {
     [t],
   );
 
-  return (
-    <View className="pb-3">
-      <View className="flex-row flex-wrap">
-        {footerLinks.map((link) => (
-          <FooterLink key={link.label} label={link.label} url={link.url} />
-        ))}
-      </View>
-      <Text className="text-muted-foreground text-[12.5px] pt-0.5">
-        Made with ❤️ in the 🌎 by Oxy&trade;.
-      </Text>
-      {/* No legal notice under the links on purpose: "Mention" carries no
-                trademark claim here, and Oxy's work is under its own licenses,
-                not an all-rights-reserved copyright line. */}
-    </View>
+  return toElement(
+    VStack(
+      HStack(
+        Embed(
+          footerLinks.map((link) => (
+            <FooterLink key={link.label} label={link.label} url={link.url} />
+          )),
+        ),
+      ).wrap(),
+      Embed(
+        <Text className="text-muted-foreground text-[12.5px] pt-0.5">
+          Made with ❤️ in the 🌎 by Oxy&trade;.
+        </Text>,
+      ) /* No legal notice under the links on purpose: "Mention" carries no
+                  trademark claim here, and Oxy's work is under its own licenses,
+                  not an all-rights-reserved copyright line. */,
+    ).padding('bottom', 'md'),
   );
 }
 

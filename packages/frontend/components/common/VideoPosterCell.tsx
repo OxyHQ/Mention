@@ -6,6 +6,8 @@ import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDuration } from '@/utils/formatDuration';
 
+import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
+
 interface VideoPosterCellProps {
   /**
    * Static poster URL: an Oxy `thumb` variant for native assets, or the backend
@@ -124,47 +126,68 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
             onError={handlePosterError}
           />
         ) : (
-          <View className="w-full h-full items-center justify-center bg-muted">
-            <RiFilmLine
-              width={placeholderIconSize}
-              height={placeholderIconSize}
-              fill={placeholderColor}
-            />
-          </View>
+          toElement(
+            VStack(
+              Embed(
+                <RiFilmLine
+                  width={placeholderIconSize}
+                  height={placeholderIconSize}
+                  fill={placeholderColor}
+                />,
+              ),
+            )
+              .frame({ width: 'full', height: 'full' })
+              .background('mutedFill')
+              .align('center')
+              .justify('center'),
+          )
         )}
         {scrim && <View className="absolute inset-0" style={{ backgroundColor: SCRIM_BG }} />}
         {/*
           Both grids wrap this cell in a TouchableOpacity, so the row must not
           swallow the tap along the bottom strip.
         */}
-        <View
-          className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between px-1 pb-1 gap-1"
-          pointerEvents="none"
-        >
-          {/*
-            The play glyph is unconditional: it is the only video marker left
-            after the centered/corner affordances were removed, and an invariant
-            one means the layout never shifts as a cell is recycled onto a post
-            with a different count.
-          */}
-          <View className="flex-row items-center gap-0.5">
-            <RiPlayFill
-              width={META_PLAY_ICON_SIZE}
-              height={META_PLAY_ICON_SIZE}
-              fill={META_TEXT_COLOR}
-            />
-            {viewsLabel !== null && (
-              <Text className="text-white text-xs font-semibold" style={META_TEXT_SHADOW}>
-                {viewsLabel}
-              </Text>
-            )}
-          </View>
-          {durationLabel !== null && (
-            <Text className="text-white text-xs font-semibold" style={META_TEXT_SHADOW}>
-              {durationLabel}
-            </Text>
-          )}
-        </View>
+        {toElement(
+          HStack(
+            /*
+                    The play glyph is unconditional: it is the only video marker left
+                    after the centered/corner affordances were removed, and an invariant
+                    one means the layout never shifts as a cell is recycled onto a post
+                    with a different count.
+                  */ HStack(
+              Embed(
+                <RiPlayFill
+                  width={META_PLAY_ICON_SIZE}
+                  height={META_PLAY_ICON_SIZE}
+                  fill={META_TEXT_COLOR}
+                />,
+              ),
+              Embed(
+                viewsLabel !== null && (
+                  <Text className="text-white text-xs font-semibold" style={META_TEXT_SHADOW}>
+                    {viewsLabel}
+                  </Text>
+                ),
+              ),
+            )
+              .align('center')
+              .spacing('2xs'),
+            Embed(
+              durationLabel !== null && (
+                <Text className="text-white text-xs font-semibold" style={META_TEXT_SHADOW}>
+                  {durationLabel}
+                </Text>
+              ),
+            ),
+          )
+            .padding('horizontal', 'xs')
+            .padding('bottom', 'xs')
+            .align('center')
+            .justify('between')
+            .spacing('xs')
+            .position({ bottom: 'none', left: 'none', right: 'none' })
+            .allowsHitTesting(false),
+        )}
       </View>
     );
   },

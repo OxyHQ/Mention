@@ -1,9 +1,9 @@
 import { View, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
-import { Button } from '@oxy.so/bloom/button';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Button as LButton, Icon, Text, toElement } from '@oxy.so/bloom-language';
 
 interface ErrorProps {
   title?: string;
@@ -56,16 +56,14 @@ export function Error({
             : undefined,
         }}
         footer={
-          hideBackButton ? undefined : (
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              leadingIcon={RiArrowLeftLine}
-              onPress={handleGoBack}
-            >
-              {router.canGoBack() ? 'Go back' : 'Go home'}
-            </Button>
-          )
+          hideBackButton
+            ? undefined
+            : toElement(
+                LButton(Icon(RiArrowLeftLine), Text(router.canGoBack() ? 'Go back' : 'Go home'))
+                  .style('subtle')
+                  .tint('neutral')
+                  .onPress(handleGoBack),
+              )
         }
       />
     </View>

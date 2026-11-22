@@ -1,11 +1,13 @@
 import { memo, useCallback, useMemo } from 'react';
 import { useDebouncedValue } from '@oxy.so/bloom/hooks';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { authenticatedClient } from '@/utils/api';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -130,9 +132,10 @@ export const ResultsFooter = memo(function ResultsFooter({ loading }: { loading:
   if (!loading) {
     return null;
   }
-  return (
-    <View className="items-center justify-center py-3">
-      <ActivityIndicator size="small" color={colors.primary} />
-    </View>
+  return toElement(
+    VStack(Embed(<ActivityIndicator size="small" color={colors.primary} />))
+      .padding('vertical', 'md')
+      .align('center')
+      .justify('center'),
   );
 });

@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
+import { Embed, ScrollView, toElement } from '@oxy.so/bloom-language';
+
 export interface SignInRequiredProps {
   /** The prompt's title, e.g. "Sign in to create a list". */
   label: string;
@@ -43,11 +45,7 @@ export function SignInRequired({ label, description, children }: SignInRequiredP
   const { isAuthResolved, isPrivateApiPending, canUsePrivateApi } = useAuth();
 
   if (!isAuthResolved || isPrivateApiPending) {
-    return (
-      <ScreenScrollView testID="sign-in-required-pending">
-        <FormSkeleton />
-      </ScreenScrollView>
-    );
+    return toElement(ScrollView(Embed(<FormSkeleton />)).testID('sign-in-required-pending'));
   }
 
   if (!canUsePrivateApi) {

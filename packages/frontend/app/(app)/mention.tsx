@@ -1,15 +1,15 @@
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
-import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import { Redirect, useLocalSearchParams } from '@/lib/navigation/router';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { SEO } from '@/components/SEO';
 import { resolveMention } from '@/utils/resolveMention';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
+
+import { Embed, Header, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Imported mentions without an ID resolve on demand, never outside Mention. */
 export default function MentionRoute() {
@@ -31,24 +31,30 @@ export default function MentionRoute() {
 
   if (handle) return <Redirect href={`/@${handle}`} />;
 
-  return (
-    <View className="flex-1">
-      <SEO title={t('navigation.profile', { defaultValue: 'Profile' })} robots="noindex,follow" />
-      <PageHeader
-        title={t('navigation.profile', { defaultValue: 'Profile' })}
-        onBack={back}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-      {valid && query.isPending ? (
-        <FeedSkeleton />
-      ) : (
-        <ProfileUnavailable
-          notFound={!valid || (!query.isError && !handle)}
-          onRetry={async () => {
-            await query.refetch();
-          }}
-        />
-      )}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        <SEO
+          title={t('navigation.profile', { defaultValue: 'Profile' })}
+          robots="noindex,follow"
+        />,
+      ),
+      Header(t('navigation.profile', { defaultValue: 'Profile' }))
+        .onBack(back)
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .inPage(),
+      Embed(
+        valid && query.isPending ? (
+          <FeedSkeleton />
+        ) : (
+          <ProfileUnavailable
+            notFound={!valid || (!query.isError && !handle)}
+            onRetry={async () => {
+              await query.refetch();
+            }}
+          />
+        ),
+      ),
+    ).flex('1'),
   );
 }

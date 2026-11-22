@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { Button } from '@oxy.so/bloom/button';
 import { RiInsertColumnRight } from '@oxy.so/bloom/icons/RiInsertColumnRight';
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { DECK_SOURCES, useDeckSettings, type DeckSource } from './deckSettings';
+
+import {
+  Button as LButton,
+  Dialog as LDialog,
+  Icon,
+  SettingsSelect as LSettingsSelect,
+  Text,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export function DeckAddPanel() {
   const { t } = useTranslation();
@@ -14,38 +20,35 @@ export function DeckAddPanel() {
   const addPanel = useDeckSettings((state) => state.addPanel);
   return (
     <>
-      <Button
-        appearance="outline"
-        tone="neutral"
-        iconOnly
-        leadingIcon={RiInsertColumnRight}
-        accessibilityLabel={t('deck.addPanel', 'Add panel')}
-        onPress={() => setOpen(true)}
-      />
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        label={t('deck.addPanel', 'Add panel')}
-        header={{ title: t('deck.addPanel', 'Add panel') }}
-        maxWidth={480}
-      >
-        <View className="p-5 gap-5">
-          <SettingsSelect
-            label={t('deck.source')}
-            value={source}
-            items={DECK_SOURCES.map((value) => ({ value, label: t(`deck.sources.${value}`) }))}
-            onChange={setSource}
-          />
-          <Button
-            onPress={() => {
+      {toElement(
+        LButton(Icon(RiInsertColumnRight))
+          .shape('circle')
+          .style('outline')
+          .tint('neutral')
+          .label(t('deck.addPanel', 'Add panel'))
+          .onPress(() => setOpen(true)),
+      )}
+      {toElement(
+        LDialog(
+          VStack(
+            LSettingsSelect(
+              t('deck.source'),
+              [source, setSource],
+              DECK_SOURCES.map((value) => ({ value, label: t(`deck.sources.${value}`) })),
+            ),
+            LButton(Text(t('deck.addPanel', 'Add panel'))).onPress(() => {
               addPanel(source);
               setOpen(false);
-            }}
-          >
-            {t('deck.addPanel', 'Add panel')}
-          </Button>
-        </View>
-      </Dialog>
+            }),
+          )
+            .padding('all', 'xl')
+            .spacing('xl'),
+        )
+          .label(t('deck.addPanel', 'Add panel'))
+          .header({ title: t('deck.addPanel', 'Add panel') })
+          .frame({ maxWidth: '480' })
+          .presented([open, () => setOpen(false)]),
+      )}
     </>
   );
 }

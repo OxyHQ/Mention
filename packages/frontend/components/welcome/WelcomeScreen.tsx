@@ -4,9 +4,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { CardBody, CardDescription, CardHeader } from '@oxy.so/bloom/card';
 
 import { PageFooter } from '@oxy.so/bloom/page-footer';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { Muted, Title } from '@oxy.so/bloom/typography';
+import { Screen } from '@oxy.so/bloom/screen';
 import { WizardProgress, type WizardStep } from '@oxy.so/bloom/wizard';
 import { TopicPicker } from '@/components/interests/TopicPicker';
 import { requestSettings } from '@/components/settings/settingsRoutes';
@@ -14,6 +12,15 @@ import { LazyWhoToFollowTab } from '@/components/sharedRouteScreens';
 import { useCompleteWelcome } from '@/hooks/useWelcome';
 import { useLocalSearchParams, useRouter, type Href } from '@/lib/navigation/router';
 import { WelcomeStarterPacks } from './WelcomeStarterPacks';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  ScrollView,
+  Text,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Where to go once the flow is done: the in-app path the person was opening
@@ -28,7 +35,7 @@ function destination(next: string | undefined): Href {
 function StepHeading({ title, description }: { title: string; description?: string }) {
   return (
     <CardHeader>
-      <Title variant="display-3-semibold">{title}</Title>
+      {toElement(Text(title).textStyle('title').font('display-3').weight('semibold'))}
       {description ? <CardDescription>{description}</CardDescription> : null}
     </CardHeader>
   );
@@ -71,14 +78,11 @@ export function WelcomeScreen() {
     });
   };
 
-  const primaryAction = (
-    <Button
-      size="lg"
-      onPress={isLast ? finish : () => setStep(step + 1)}
-      loading={complete.isPending}
-    >
-      {isLast ? t('welcome.finish') : t('welcome.next')}
-    </Button>
+  const primaryAction = toElement(
+    LButton(Text(isLast ? t('welcome.finish') : t('welcome.next')))
+      .size('lg')
+      .onPress(isLast ? finish : () => setStep(step + 1))
+      .loading(complete.isPending),
   );
 
   return (
@@ -86,40 +90,46 @@ export function WelcomeScreen() {
       // Content passes under the floating header and footer, as in Bloom's own
       // floating chrome, instead of stopping at a bar.
       bottomBarPlacement="overlay"
-      header={
-        <PageHeader
-          onBack={null}
-          actions={
-            <Button size="sm" appearance="subtle" tone="neutral" onPress={finish}>
-              {t('welcome.skip')}
-            </Button>
-          }
-          accessory={
-            <WizardProgress
-              steps={steps}
-              current={step}
-              hideTitle
-              formatStepCount={(position, total) => t('welcome.stepCount', { position, total })}
-            />
-          }
-        />
-      }
+      header={toElement(
+        Header()
+          .onBack(null)
+          .toolbar(
+            LButton(Text(t('welcome.skip')))
+              .size('sm')
+              .style('subtle')
+              .tint('neutral')
+              .onPress(finish),
+          )
+          .accessory(
+            Embed(
+              <WizardProgress
+                steps={steps}
+                current={step}
+                hideTitle
+                formatStepCount={(position, total) => t('welcome.stepCount', { position, total })}
+              />,
+            ),
+          )
+          .inPage(),
+      )}
       bottomBar={
         <PageFooter scrim="always" actions={primaryAction}>
           {/* Always present, so the primary action stays on the right on every step. */}
           <Button.Group separated>
-            {step > 0 ? (
-              <Button onPress={() => setStep(step - 1)}>{t('welcome.back')}</Button>
-            ) : null}
+            {step > 0
+              ? toElement(LButton(Text(t('welcome.back'))).onPress(() => setStep(step - 1)))
+              : null}
           </Button.Group>
         </PageFooter>
       }
     >
       {step === 0 ? (
-        <ScreenScrollView>
-          <StepHeading title={steps[0].title} description={steps[0].description} />
-          <TopicPicker query="" />
-        </ScreenScrollView>
+        toElement(
+          ScrollView(
+            Embed(<StepHeading title={steps[0].title} description={steps[0].description} />),
+            Embed(<TopicPicker query="" />),
+          ),
+        )
       ) : step === 1 ? (
         <LazyWhoToFollowTab
           showInviteBanner={false}
@@ -131,15 +141,21 @@ export function WelcomeScreen() {
           }
         />
       ) : (
-        <ScreenScrollView>
-          <StepHeading title={steps[2].title} description={steps[2].description} />
-          <CardBody>
-            <Muted>{t('welcome.profile.body')}</Muted>
-            <Button onPress={() => requestSettings('/settings/edit-profile')}>
-              {t('welcome.profile.edit')}
-            </Button>
-          </CardBody>
-        </ScreenScrollView>
+        toElement(
+          ScrollView(
+            Embed(<StepHeading title={steps[2].title} description={steps[2].description} />),
+            Embed(
+              <CardBody>
+                {toElement(Text(t('welcome.profile.body')).textStyle('muted'))}
+                {toElement(
+                  LButton(Text(t('welcome.profile.edit'))).onPress(() =>
+                    requestSettings('/settings/edit-profile'),
+                  ),
+                )}
+              </CardBody>,
+            ),
+          ),
+        )
       )}
     </Screen>
   );

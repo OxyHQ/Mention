@@ -12,6 +12,8 @@ import { showActionMenu } from '@/components/common/ActionMenu';
 import { ALLO_APP_STORE_URL, ALLO_PLAY_STORE_URL } from '@/config';
 import { openExternalLink } from '@/utils/openExternalLink';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
 /**
  * Opens a place in Allo, Oxy's messaging app: the profile's "Message @handle"
  * and a post's "Send in Allo". The decisions (which URL, what to do without the
@@ -42,7 +44,7 @@ export function useOpenInAllo(): (links: AlloLinks | null, notInstalledLabel: st
               [
                 {
                   label: t('allo.getApp', { defaultValue: 'Get Allo' }),
-                  icon: <RiDownloadLine size="lg" fill={theme.colors.text} />,
+                  icon: toElement(Icon(RiDownloadLine).size('lg').foreground('foreground')),
                   onPress: () => {
                     Linking.openURL(storeUrl).catch((error: unknown) =>
                       logger.warn('Could not open the Allo store listing', { error }),
@@ -51,7 +53,7 @@ export function useOpenInAllo(): (links: AlloLinks | null, notInstalledLabel: st
                 },
                 {
                   label: t('allo.openWeb', { defaultValue: 'Open Allo on the web' }),
-                  icon: <RiGlobalLine size="lg" fill={theme.colors.text} />,
+                  icon: toElement(Icon(RiGlobalLine).size('lg').foreground('foreground')),
                   onPress: () => {
                     void openExternalLink(webUrl);
                   },

@@ -1,9 +1,9 @@
 import { useRouter } from '@/lib/navigation/router';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-
 import { EmptyState } from '@/components/common/EmptyState';
+
 import { SEO } from '@/components/SEO';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * The app's one "this page does not exist" screen. Two routes reach it: the
@@ -25,19 +25,26 @@ export default function NotFoundScreen() {
         description={t('seo.notFound.description')}
         robots="noindex,follow"
       />
-      <View className="flex-1 items-center justify-center">
-        <EmptyState
-          sticker="notFound"
-          title={t('notFound.title', { defaultValue: 'This page does not exist' })}
-          subtitle={t('notFound.subtitle', {
-            defaultValue: 'The link may be broken, or the page may have moved.',
-          })}
-          action={{
-            label: t('notFound.goHome', { defaultValue: 'Go to home' }),
-            onPress: () => router.replace('/'),
-          }}
-        />
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            <EmptyState
+              sticker="notFound"
+              title={t('notFound.title', { defaultValue: 'This page does not exist' })}
+              subtitle={t('notFound.subtitle', {
+                defaultValue: 'The link may be broken, or the page may have moved.',
+              })}
+              action={{
+                label: t('notFound.goHome', { defaultValue: 'Go to home' }),
+                onPress: () => router.replace('/'),
+              }}
+            />,
+          ),
+        )
+          .flex('1')
+          .align('center')
+          .justify('center'),
+      )}
     </>
   );
 }

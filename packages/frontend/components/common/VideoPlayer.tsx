@@ -30,6 +30,9 @@ import { VIDEO_BUFFER_OPTIONS, videoSourceFor } from '@/utils/videoSource';
 import { useVideoPlayerEvent } from '@/hooks/useVideoPlayerEvent';
 import { findVideoElement } from './videoElementSize';
 
+import { Icon, RawText, defineTokens, toElement } from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { white: 'white' } });
+
 interface VideoPlayerProps {
   src: string;
   /**
@@ -575,7 +578,6 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
           pointerEvents="none"
         />
       )}
-
       {poster && !hasRenderedFrame && !posterFailed && (
         <Image
           source={{ uri: poster }}
@@ -587,17 +589,17 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
           onError={handlePosterError}
         />
       )}
-
       {hasError && (
         <View
           className="absolute inset-0 items-center justify-center bg-black/60"
           pointerEvents="none"
           accessibilityRole="alert"
         >
-          <Text className="text-sm text-white">{t('videos.unavailable')}</Text>
+          {toElement(
+            RawText(t('videos.unavailable')).font('14').leading('20px').foreground('white'),
+          )}
         </View>
       )}
-
       {!gif &&
         (isPreviewMode ? (
           <>
@@ -665,7 +667,9 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
                     hitSlop={tokens.hitSlop.md}
                     style={styles.controlButton}
                   >
-                    <RiExpandDiagonalSLine size="md" fill="white" />
+                    {toElement(
+                      Icon(RiExpandDiagonalSLine).size('md').foreground(appColors.color.white),
+                    )}
                   </Pressable>
                 </View>
               </View>

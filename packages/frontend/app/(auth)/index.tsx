@@ -6,6 +6,8 @@ import { LogoIcon } from '@/assets/logo';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
 export default function AuthScreen() {
   const { signIn } = useAuth();
   const { t } = useTranslation();
@@ -18,49 +20,91 @@ export default function AuthScreen() {
     <>
       {/* Desktop split-screen (>= md) */}
       <View className="hidden md:flex flex-1 md:flex-row">
-        <View className="flex-1 justify-center items-center p-12 bg-primary">
-          <View className="max-w-[400px] items-start gap-4">
-            <LogoIcon size={56} color="#fff" />
-            <Text className="text-[42px] font-bold text-white mt-2">Mention</Text>
-            <Text className="text-xl text-white/85 leading-7">{t('auth.signIn.subtitle')}</Text>
-          </View>
-        </View>
-        <View className="flex-1 justify-center items-center p-12">
-          <View className="w-full max-w-[360px] gap-6">
-            <Text className="text-2xl font-bold text-foreground">{t('auth.signIn.title')}</Text>
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              style={styles.signInButton}
-              onPress={() => signIn().catch(() => {})}
-            >
-              {t('auth.signIn.withOxy')}
-            </Button>
-          </View>
-        </View>
+        {toElement(
+          VStack(
+            VStack(
+              Embed(<LogoIcon size={56} color="#fff" />),
+              Embed(<Text className="text-[42px] font-bold text-white mt-2">Mention</Text>),
+              Embed(
+                <Text className="text-xl text-white/85 leading-7">
+                  {t('auth.signIn.subtitle')}
+                </Text>,
+              ),
+            )
+              .frame({ maxWidth: '400' })
+              .align('start')
+              .spacing('lg'),
+          )
+            .padding('all', '48')
+            .background('primary')
+            .flex('1')
+            .justify('center')
+            .align('center'),
+        )}
+        {toElement(
+          VStack(
+            VStack(
+              RawText(t('auth.signIn.title'))
+                .font('24')
+                .leading('32px')
+                .weight('bold')
+                .foreground('foreground'),
+              Embed(
+                <Button
+                  appearance="solid"
+                  tone="accent"
+                  size="lg"
+                  style={styles.signInButton}
+                  onPress={() => signIn().catch(() => {})}
+                >
+                  {t('auth.signIn.withOxy')}
+                </Button>,
+              ),
+            )
+              .frame({ width: 'full', maxWidth: '360' })
+              .spacing('2xl'),
+          )
+            .padding('all', '48')
+            .flex('1')
+            .justify('center')
+            .align('center'),
+        )}
       </View>
-
       {/* Stacked mobile layout (< md) */}
       <View className="flex md:hidden flex-1 justify-center items-center px-6 pt-safe-offset-6 pb-safe-offset-6">
-        <View className="flex-1 justify-center items-center gap-4">
-          <LogoIcon size={48} color={colors.primary} />
-          <Text className="text-[28px] font-bold mt-2 text-foreground">Mention</Text>
-          <Text className="text-base text-center max-w-[280px] leading-[22px] text-muted-foreground">
-            {t('auth.signIn.subtitle')}
-          </Text>
-        </View>
-        <View className="w-full max-w-[320px] pb-8">
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="lg"
-            style={styles.signInButton}
-            onPress={() => signIn().catch(() => {})}
-          >
-            {t('auth.signIn.withOxy')}
-          </Button>
-        </View>
+        {toElement(
+          VStack(
+            Embed(<LogoIcon size={48} color={colors.primary} />),
+            Embed(<Text className="text-[28px] font-bold mt-2 text-foreground">Mention</Text>),
+            RawText(t('auth.signIn.subtitle'))
+              .frame({ maxWidth: '280' })
+              .font('16')
+              .textAlign('center')
+              .leading('22px')
+              .foreground('muted'),
+          )
+            .flex('1')
+            .justify('center')
+            .align('center')
+            .spacing('lg'),
+        )}
+        {toElement(
+          VStack(
+            Embed(
+              <Button
+                appearance="solid"
+                tone="accent"
+                size="lg"
+                style={styles.signInButton}
+                onPress={() => signIn().catch(() => {})}
+              >
+                {t('auth.signIn.withOxy')}
+              </Button>,
+            ),
+          )
+            .padding('bottom', '3xl')
+            .frame({ width: 'full', maxWidth: '320' }),
+        )}
       </View>
     </>
   );
