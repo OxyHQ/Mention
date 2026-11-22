@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { Text, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
+import { Text, StyleSheet, type StyleProp, type TextProps, type TextStyle } from 'react-native';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Link, type Href } from '@/lib/navigation/router';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
@@ -17,7 +18,6 @@ interface LinkifiedTextProps {
   /** Emit text runs inside an existing Text host; the parent owns its text styling. */
   inline?: boolean;
   style?: StyleProp<TextStyle>;
-  className?: string;
   linkStyle?: StyleProp<TextStyle>;
   suffix?: React.ReactNode;
   /** Clamp the rendered text to N lines (forwarded to the root <Text>). */
@@ -28,6 +28,19 @@ interface LinkifiedTextProps {
    * opens the complete source URL instead of the visibly cut prefix.
    */
   linkTargetText?: string;
+}
+
+const usePrimaryInk = createTokenStyles((t) => ({ ink: { color: t.primary } }));
+
+/**
+ * A run of text in the primary ink (a link, a "Read more"), under the caller's
+ * own style. A component of its own, so only a text that holds one reads the
+ * theme. React Native's Text: a `Link asChild` hands its props to its child's
+ * host, which a language text node is not.
+ */
+export function PrimaryText({ style, ...props }: TextProps) {
+  const styles = usePrimaryInk();
+  return <Text {...props} style={[styles.ink, style]} />;
 }
 
 /**
@@ -53,7 +66,6 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
   text,
   inline = false,
   style,
-  className,
   linkStyle,
   suffix,
   numberOfLines,
@@ -72,9 +84,9 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
       unverified?: boolean,
     ) => (
       <Link key={linkKey} href={href} push asChild onPress={stopAtLink}>
-        <Text className="text-primary" style={flatLinkStyle} {...(unverified ? NOFOLLOW : null)}>
+        <PrimaryText style={flatLinkStyle} {...(unverified ? NOFOLLOW : null)}>
           {label}
-        </Text>
+        </PrimaryText>
       </Link>
     );
 
@@ -128,14 +140,9 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
         const { url, trailing } = trimUrlTrailingPunctuation(entity.value);
         const href = toOpenableUrl(fullUrlByStart.get(entity.start) ?? url);
         elements.push(
-          <Text
-            key={`u-${key++}`}
-            className="text-primary"
-            style={linkStyle}
-            onPress={() => openExternalLink(href)}
-          >
+          <PrimaryText key={`u-${key++}`} style={linkStyle} onPress={() => openExternalLink(href)}>
             {url}
-          </Text>,
+          </PrimaryText>,
         );
         // Punctuation that merely trailed the URL belongs to the sentence.
         pushText(trailing);
@@ -163,7 +170,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
       </>
     );
   return (
-    <Text style={style} className={className} numberOfLines={numberOfLines}>
+    <Text style={style} numberOfLines={numberOfLines}>
       {nodes}
       {suffix}
     </Text>
@@ -193,18 +200,15 @@ export function MentionTextLink({
       : undefined;
   const content = href ? (
     <Link href={href as Href} push asChild onPress={stopAtLink}>
-      <Text
-        className="text-primary"
+      <PrimaryText
         style={StyleSheet.flatten(linkStyle)}
         {...(sourceUrl || unverified ? NOFOLLOW : null)}
       >
         {label}
-      </Text>
+      </PrimaryText>
     </Link>
   ) : (
-    <Text className="text-primary" style={linkStyle}>
-      {label}
-    </Text>
+    <PrimaryText style={linkStyle}>{label}</PrimaryText>
   );
   return sourceUrl ? content : <ProfileHoverCard username={handle}>{content}</ProfileHoverCard>;
 }

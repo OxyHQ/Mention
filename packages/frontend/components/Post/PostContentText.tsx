@@ -4,14 +4,15 @@ import { InlineMarkdown } from '@oxy.so/bloom/markdown';
 import { truncateInlineMarkdown } from '@oxy.so/bloom/markdown/inline';
 import { parsePostInlineMarkdown, postMentionForLink } from '@/utils/postInlineMarkdown';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { Text } from 'react-native';
-import { LinkifiedText, MentionTextLink } from '../common/LinkifiedText';
+import { LinkifiedText, MentionTextLink, PrimaryText } from '../common/LinkifiedText';
 import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostTextExpansion } from '@/hooks/useExpandableText';
 import { type PostLinkCard, withoutCardLinks } from '@/utils/postLinkCards';
 import { useTranslation } from 'react-i18next';
+
+import { Embed, RawText, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   content?: string | PostContent;
@@ -78,48 +79,50 @@ const PostContentText: React.FC<Props> = ({
   const suffix =
     isTruncated && postId ? (
       expandInline ? (
-        <Text className="text-primary" onPress={expansion.toggle}>
-          {isExpanded ? <ShowLessLabel /> : ' Read more'}
-        </Text>
+        <PrimaryText onPress={expansion.toggle}>
+          {isExpanded ? <ShowLessLabel /> : READ_MORE}
+        </PrimaryText>
       ) : (
-        <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
-          {' Read more'}
-        </Text>
+        <PrimaryText onPress={() => router.push(`/p/${postId}`)}>{READ_MORE}</PrimaryText>
       )
     ) : null;
 
-  return (
-    <Text
-      className={
-        detail
-          ? 'text-foreground text-[17px] leading-[22px]'
-          : 'text-foreground text-[15px] leading-5'
-      }
-    >
-      <InlineMarkdown
-        nodes={isExpanded ? parsed.nodes : preview.nodes}
-        onLinkPress={openExternalLink}
-        renderText={(text) => <LinkifiedText inline text={text} />}
-        renderLink={({ url, label, children }) => {
-          const mention = postMentionForLink(parsed.mentions, url, label);
-          return mention ? (
-            <MentionTextLink
-              destination={mention.value}
-              label={children}
-              unverified={mention.unverified}
-            />
-          ) : undefined;
-        }}
-        suffix={
-          <>
-            {suffix}
-            {trailingContent}
-          </>
-        }
-      />
-    </Text>
+  // The body's text: the markdown's runs (links and mentions among them) as
+  // spans of one React Native text, in the larger reading size on a detail page.
+  return toElement(
+    RawText(
+      Embed(
+        <InlineMarkdown
+          nodes={isExpanded ? parsed.nodes : preview.nodes}
+          onLinkPress={openExternalLink}
+          renderText={(text) => <LinkifiedText inline text={text} />}
+          renderLink={({ url, label, children }) => {
+            const mention = postMentionForLink(parsed.mentions, url, label);
+            return mention ? (
+              <MentionTextLink
+                destination={mention.value}
+                label={children}
+                unverified={mention.unverified}
+              />
+            ) : undefined;
+          }}
+          suffix={
+            <>
+              {suffix}
+              {trailingContent}
+            </>
+          }
+        />,
+      ),
+    )
+      .foreground('foreground')
+      .font(detail ? 'lg' : 'md')
+      .leading(detail ? '22px' : '20px'),
   );
 };
+
+/** The truncated body's continuation link, after its last word. */
+const READ_MORE = ' Read more';
 
 function ShowLessLabel() {
   const { t } = useTranslation();

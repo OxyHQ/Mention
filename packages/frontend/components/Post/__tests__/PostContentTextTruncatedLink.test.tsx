@@ -8,7 +8,13 @@ import PostContentText from '../PostContentText';
 // Worklets require a native host; the Markdown renderer itself remains real.
 jest.mock('react-native-reanimated', () => {
   const { Animated } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: Animated, useSharedValue: (value: number) => ({ value }) };
+  // Reanimated's own exports stay (the language's motion reads its easings).
+  return {
+    ...jest.requireActual('react-native-reanimated'),
+    __esModule: true,
+    default: Animated,
+    useSharedValue: (value: number) => ({ value }),
+  };
 });
 
 jest.mock('expo-font', () => ({ useFonts: () => [true, null], isLoaded: () => true }));

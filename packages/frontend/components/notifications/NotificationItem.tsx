@@ -265,13 +265,16 @@ function postThumbnailUrl(content: unknown): string | undefined {
  * primitive the feed uses, WITHOUT mounting a `PostItem` (no per-row engagement
  * hooks or SQLite reads). Renders nothing when there is no text.
  */
-const NotificationPreview: React.FC<{ text: string }> = ({ text }) => (
-  <LinkifiedText
-    text={text}
-    numberOfLines={2}
-    className="text-muted-foreground text-sm leading-5"
-  />
-);
+const NotificationPreview: React.FC<{ text: string }> = ({ text }) =>
+  text
+    ? toElement(
+        RawText(Embed(<LinkifiedText inline text={text} />))
+          .foreground('muted')
+          .font('14')
+          .leading('20px')
+          .lines(2),
+      )
+    : null;
 
 /** Collapsed stacked-avatar strip (up to 3 + "+N") for grouped rows. */
 const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = ({

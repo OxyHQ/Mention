@@ -9,8 +9,10 @@ import {
   Modal,
   Platform,
   type GestureResponderEvent,
+  type ViewStyle,
 } from 'react-native';
 import { Backdrop } from '@oxy.so/bloom/overlay';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import Animated from 'react-native-reanimated';
 import { ScaleAndFadeIn, ScaleAndFadeOut } from '@oxy.so/bloom/motion';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -50,6 +52,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const ink = useInkStyles();
 
   // Only use state for async-fetched article data; use props directly otherwise
   const [fetchedTitle, setFetchedTitle] = useState<string | undefined>(undefined);
@@ -133,8 +136,6 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     [insets.top],
   );
 
-  // Memoize blur tint
-  // Text styles are now handled via className - only keep non-theme memoized styles
   const headerTitleStyle = styles.headerTitle;
   const articleTitleStyle = styles.articleTitle;
   const articleBodyStyle = styles.articleBody;
@@ -147,24 +148,20 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   }
 
   const modalContent = (
-    <GestureHandlerRootView
-      className="web:fixed web:inset-0 web:z-[10000]"
-      style={styles.modalContainer}
-    >
+    <GestureHandlerRootView style={styles.modalContainer}>
       {/* Bloom's shared backdrop — one blur + dim for every surface. */}
       <Backdrop onPress={handleBackdropPress} />
 
       <Animated.View
         entering={ScaleAndFadeIn}
         exiting={ScaleAndFadeOut}
-        className="bg-background"
         pointerEvents="box-none"
-        style={contentContainerStyle}
+        style={[ink.surface, contentContainerStyle]}
       >
         {toElement(
           VStack(
             Embed(
-              <View style={headerStyle} className="border-b border-border">
+              <View style={[headerStyle, ink.headerRule]}>
                 <Button
                   appearance="subtle"
                   tone="neutral"
@@ -174,10 +171,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
                   onPress={onClose}
                   style={styles.closeButton}
                 />
-                <Text
-                  style={[headerTitleStyle, { pointerEvents: 'none' }]}
-                  className="text-foreground"
-                >
+                <Text style={[ink.foreground, headerTitleStyle, { pointerEvents: 'none' }]}>
                   {titleText}
                 </Text>
                 <View style={styles.headerRight} />
@@ -198,23 +192,14 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
                   <View style={styles.articleWrapper}>
                     <LinkifiedText
                       text={trimmedTitle || untitledText}
-                      style={articleTitleStyle}
-                      className="text-foreground"
+                      style={[ink.foreground, articleTitleStyle]}
                     />
                     {trimmedBody ? (
-                      <LinkifiedText
-                        text={trimmedBody}
-                        style={articleBodyStyle}
-                        className="text-muted-foreground"
-                      />
+                      <LinkifiedText text={trimmedBody} style={[ink.muted, articleBodyStyle]} />
                     ) : loadError ? (
-                      <Text style={errorStyle} className="text-destructive">
-                        {loadError}
-                      </Text>
+                      <Text style={[ink.destructive, errorStyle]}>{loadError}</Text>
                     ) : (
-                      <Text style={articleBodyPlaceholderStyle} className="text-muted-foreground">
-                        {emptyBodyText}
-                      </Text>
+                      <Text style={[ink.muted, articleBodyPlaceholderStyle]}>{emptyBodyText}</Text>
                     )}
                   </View>
                 </ScrollView>
@@ -254,13 +239,25 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
 // Memoize component to prevent unnecessary re-renders
 export default memo(PostArticleModal);
 
+// `position: fixed` on the web: React Native types `position` without it, while
+// react-native-web passes it through as CSS (Bloom's own WEB_POSITION_FIXED).
+const WEB_POSITION_FIXED = 'fixed' as ViewStyle['position'];
+
+// The reader's theme colours, painted before its own styles as the classes were.
+const useInkStyles = createTokenStyles((t) => ({
+  surface: { backgroundColor: t.background },
+  headerRule: { borderBottomWidth: 1, borderColor: t.border },
+  foreground: { color: t.foreground },
+  muted: { color: t.mutedForeground },
+  destructive: { color: t.destructive },
+}));
+
 const styles = StyleSheet.create({
   modalContainer: {
-    // WEB full-screen overlay positioning lives in NativeWind classes on the
-    // GestureHandlerRootView (`web:fixed web:inset-0 web:z-[10000]`). NATIVE: the
-    // Portal-mounted root fills via flex.
+    // WEB: a full-screen overlay fixed to the viewport, above the app's layers.
+    // NATIVE: the Portal-mounted root fills via flex.
     ...Platform.select({
-      web: {},
+      web: { position: WEB_POSITION_FIXED, inset: 0, zIndex: 10000 },
       default: {
         flex: 1,
       },

@@ -2,11 +2,17 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Platform, Modal, ScrollView } from 'react-native';
 
-jest.mock('react-native-reanimated', () => ({
-  __esModule: true,
-  default: { View: 'AnimatedAuditView' },
-}));
+jest.mock('react-native-reanimated', () => {
+  // Reanimated's own exports stay (the language's motion reads its easings).
+  const actual = jest.requireActual('react-native-reanimated');
+  return {
+    ...actual,
+    __esModule: true,
+    default: { ...actual.default, View: 'AnimatedAuditView' },
+  };
+});
 jest.mock('@oxy.so/bloom/motion', () => ({
+  ...jest.requireActual('@oxy.so/bloom/motion'),
   ScaleAndFadeIn: 'audit-enter',
   ScaleAndFadeOut: 'audit-exit',
 }));

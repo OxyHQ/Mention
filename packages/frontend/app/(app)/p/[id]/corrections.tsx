@@ -16,6 +16,7 @@ import {
   Button as LButton,
   Embed,
   Header,
+  RawText,
   ScrollView,
   Text as LText,
   VStack,
@@ -199,7 +200,12 @@ function Version({ title, subtitle, text }: { title: string; subtitle: string; t
     VStack(
       LText(title).font('md').weight('semibold').foreground('foreground'),
       LText(subtitle).font('sm').foreground('muted'),
-      Embed(<LinkifiedText text={text} className="text-foreground mt-2 text-[15px]" />),
+      text
+        ? RawText(Embed(<LinkifiedText inline text={text} />))
+            .foreground('foreground')
+            .margin('top', 'sm')
+            .font('md')
+        : null,
     )
       .padding('horizontal', 'lg')
       .padding('vertical', 'lg')
