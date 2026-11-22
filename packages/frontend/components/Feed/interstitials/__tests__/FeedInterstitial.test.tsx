@@ -390,13 +390,13 @@ jest.mock('@oxy.so/bloom/button', () => {
   // marks its buttons through context, so a button the Bloom language draws
   // inside it (not a direct child element) is marked too.
   const InGroup = React.createContext(undefined);
-  const Button = React.forwardRef((props: Record<string, unknown>, ref: unknown) =>
-    React.createElement(TouchableOpacity, {
+  const Button = React.forwardRef(function Button(props: Record<string, unknown>, ref: unknown) {
+    return React.createElement(TouchableOpacity, {
       testID: React.useContext(InGroup),
       ...props,
       ref,
-    }),
-  );
+    });
+  });
   return {
     Button: Object.assign(Button, {
       Group: ({ children }: { children?: React.ReactNode }) =>
