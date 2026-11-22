@@ -95,16 +95,24 @@ jest.mock('@oxy.so/bloom/switch', () => {
 jest.mock('@oxy.so/bloom/search', () => {
   const { TextInput } = jest.requireActual('react-native');
   return {
-    // Bloom's Search takes its change as `onValueChange` (as the language hands it);
-    // the stand-in answers it through the TextInput's own prop.
+    // Bloom's Search takes its change as `onValueChange` (as the language hands it) or
+    // `onChangeText` (as JSX does); the stand-in answers either through the TextInput's own prop.
     Search: ({
       label,
       onValueChange,
+      onChangeText,
       ...props
     }: {
       label: string;
       onValueChange?: (text: string) => void;
-    }) => <TextInput {...props} accessibilityLabel={label} onChangeText={onValueChange} />,
+      onChangeText?: (text: string) => void;
+    }) => (
+      <TextInput
+        {...props}
+        accessibilityLabel={label}
+        onChangeText={onValueChange ?? onChangeText}
+      />
+    ),
   };
 });
 jest.mock('@/components/Post/Attachments/CommerceCard', () => {
