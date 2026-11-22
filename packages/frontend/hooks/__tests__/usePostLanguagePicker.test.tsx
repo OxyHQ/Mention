@@ -4,6 +4,7 @@ import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import type { PostLanguageOption } from '@/utils/postLanguages';
 
 import { usePostLanguagePicker } from '../usePostLanguagePicker';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The picker has no standing surface: a post never shows a language toolbar, and
@@ -23,6 +24,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { primary: '#0000ff', textSecondary: '#888888' } }),
 }));
 
@@ -69,7 +71,10 @@ function sheet(): TestRenderer.ReactTestRenderer {
   const content = render({ dismiss: mockDismiss });
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(content);
+    // Under Bloom's theme, as the app draws it: the sheet's language text paints from it.
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{content}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }
