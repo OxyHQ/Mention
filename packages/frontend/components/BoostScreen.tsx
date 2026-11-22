@@ -3,12 +3,12 @@ import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   type TextInputInstance,
+  type ViewStyle,
 } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
@@ -36,8 +36,29 @@ import {
   RawText,
   ScrollView,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** "Post not found" sits 100pt down the empty screen. */
+const boost = defineTokens({ space: { notFoundTop: 100 } });
+
+// What the screen's classes drew, as plain objects (inline, as the classes were).
+const FILL_STYLE: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' };
+const HEADER_ROW_STYLE: ViewStyle = {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  paddingHorizontal: 16,
+  paddingBottom: 12,
+};
+const CANCEL_STYLE: ViewStyle = { paddingVertical: 8, paddingHorizontal: 12 };
+/** The Boost pill: 20pt by 8pt inside a full radius. */
+const BOOST_BUTTON_STYLE: ViewStyle = {
+  borderRadius: Number.MAX_SAFE_INTEGER,
+  paddingHorizontal: 20,
+  paddingVertical: 8,
+};
 
 const MAX_CHARACTERS = 280;
 
@@ -79,6 +100,11 @@ const BoostScreen: React.FC = () => {
   const characterCount = content.length;
   const isOverLimit = characterCount > MAX_CHARACTERS;
   const canBoost = !isOverLimit && !isSubmitting;
+  // The label fades with the pill while a boost cannot be sent.
+  const boostLabel = RawText(isSubmitting ? 'Boosting...' : 'Boost')
+    .font('16')
+    .leading('normal')
+    .weight('bold');
 
   const handleBoost = async () => {
     if (!canBoost || !user || !originalPost || !postId) return;
@@ -121,30 +147,28 @@ const BoostScreen: React.FC = () => {
   if (!originalPost) {
     return toElement(
       VStack(
-        Embed(
-          <Text className="text-lg text-center" style={{ marginTop: 100 }}>
-            Post not found
-          </Text>,
-        ),
+        RawText('Post not found')
+          .font('18')
+          .leading('28px')
+          .textAlign('center')
+          .margin('top', boost.space.notFoundTop),
       ).flex('1'),
     );
   }
 
   return (
     <KeyboardAvoidingView
-      className="flex-1"
+      style={FILL_STYLE}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Screen
         header={toElement(
           VStack(
-            Embed(
-              <View
-                className="flex-row justify-between items-center px-4"
-                style={{ paddingBottom: 12, paddingTop: insets.top }}
-              >
-                <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
-                  {toElement(
+            // A View: its top pad is the safe area's, a number known only as it renders.
+            Embed((render) => (
+              <View style={[HEADER_ROW_STYLE, { paddingTop: insets.top }]}>
+                <TouchableOpacity onPress={handleCancel} style={CANCEL_STYLE}>
+                  {render(
                     RawText('Cancel')
                       .foreground('primary')
                       .font('16')
@@ -153,27 +177,21 @@ const BoostScreen: React.FC = () => {
                   )}
                 </TouchableOpacity>
 
-                {toElement(
+                {render(
                   HStack(
                     Embed(
                       <TouchableOpacity
-                        className="rounded-full px-5 py-2"
-                        style={[!canBoost && { opacity: 0.5 }]}
+                        style={[BOOST_BUTTON_STYLE, !canBoost && { opacity: 0.5 }]}
                         onPress={handleBoost}
                         disabled={!canBoost}
                       >
-                        <Text
-                          className="text-base font-bold"
-                          style={[!canBoost && { opacity: 0.7 }]}
-                        >
-                          {isSubmitting ? 'Boosting...' : 'Boost'}
-                        </Text>
+                        {render(canBoost ? boostLabel : boostLabel.opacity('70'))}
                       </TouchableOpacity>,
                     ),
                   ).align('center'),
                 )}
-              </View>,
-            ),
+              </View>
+            )),
             LDivider(),
           ).background('background'),
         )}
@@ -252,7 +270,6 @@ const BoostScreen: React.FC = () => {
               Embed(
                 <TextInput
                   ref={textInputRef}
-                  className="text-foreground"
                   style={{
                     fontSize: 20,
                     lineHeight: 28,
@@ -271,14 +288,11 @@ const BoostScreen: React.FC = () => {
                 />,
               ),
               /* Character Count */ HStack(
-                Embed(
-                  <Text
-                    className="text-muted-foreground text-sm font-medium"
-                    style={isOverLimit ? { color: theme.colors.error } : undefined}
-                  >
-                    {characterCount}
-                  </Text>,
-                ),
+                RawText(characterCount)
+                  .font('14')
+                  .leading('20px')
+                  .weight('medium')
+                  .foreground(isOverLimit ? 'error' : 'muted'),
                 RawText('/', MAX_CHARACTERS)
                   .foreground('muted')
                   .font('14')
