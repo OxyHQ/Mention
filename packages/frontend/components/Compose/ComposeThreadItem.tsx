@@ -41,6 +41,9 @@ import type { MentionTextValue } from '@/utils/mentions';
 import { HPAD, BOTTOM_LEFT_PAD } from './composeLayout';
 
 import { Icon, defineTokens, toElement } from '@oxy.so/bloom-language';
+
+/** A commerce attachment's card in the attachment row (`w-[280px]`). */
+const COMMERCE_CARD = { width: 280 } satisfies ViewStyle;
 const appColors = defineTokens({ color: { hex5e5e5e: '#5e5e5e' } });
 
 /**
@@ -563,7 +566,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 )}
                 {(item.commerce ?? []).map((ref) => (
                   <View key={commerceReferenceKey(ref)} style={styles.pollAttachmentWrapper}>
-                    <CommerceCard referenceId={commerceReferenceKey(ref)} className="w-[280px]" />
+                    <CommerceCard referenceId={commerceReferenceKey(ref)} style={COMMERCE_CARD} />
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityLabel={t('commerce.remove', {
