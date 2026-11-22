@@ -40,14 +40,25 @@ import type { LocalCapture } from './useCaptureUpload';
 import {
   Button as LButton,
   Embed,
+  HStack,
   Text as LText,
   VStack,
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 
-/** The selected zoom stop (`text-yellow-400`, as NativeWind drew it). */
-const cameraColors = defineTokens({ color: { active: '#fcc800' } });
+/**
+ * The camera's own colours: the selected zoom stop (`text-yellow-400`, as NativeWind
+ * drew it), the selected stop's darker disc and the recording red.
+ */
+const cameraColors = defineTokens({
+  color: { active: '#fcc800', zoomSelected: 'rgba(0,0,0,0.55)', recording: '#ef4444' },
+});
+/**
+ * Where the camera's chrome sits over the frame: the control column's top, the
+ * shutter row's distance from the bottom, and a zoom stop's narrowest width.
+ */
+const cameraSpace = defineTokens({ space: { controlTop: 52, controlsBottom: 74, zoomStop: 34 } });
 
 /** The arc drawn around the shutter while recording. */
 const RING_SIZE = 92;
@@ -383,275 +394,307 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
 
   // `permission` is null only while the module is still answering. Deciding
   // "denied" then would show the explanation to someone who has not been asked.
-  if (!permission) return <View style={styles.root} />;
+  if (!permission) return toElement(VStack().grow().background('black'));
 
   if (!permission.granted) {
-    return (
-      <View style={[styles.root, styles.explain]}>
-        {toElement(
-          LText(t('camera.permissionTitle', { defaultValue: 'Let Mention use the camera' }))
-            .foreground('white')
-            .font('18')
-            .leading('28px')
-            .textAlign('center')
-            .margin('bottom', 'sm'),
-        )}
-        {toElement(
-          LText(
-            t('camera.permissionBody', {
-              defaultValue: 'Photos and videos you take here are only posted when you choose to.',
-            }),
-          )
-            .foreground('white/70')
-            .font('16')
-            .leading('24px')
-            .textAlign('center')
-            .margin('bottom', '2xl'),
-        )}
-        {/* `canAskAgain` is false once the reader has refused twice on iOS; the
-            prompt would never appear, so the honest button is the one that goes
-            back rather than one that silently does nothing. */}
-        {permission.canAskAgain
-          ? toElement(
-              LButton(LText(t('camera.permissionAllow', { defaultValue: 'Allow camera' })))
-                .onPress(requestPermission)
-                .size('lg'),
-            )
-          : toElement(
-              LButton(LText(t('common.close', { defaultValue: 'Close' })))
-                .onPress(onClose)
-                .size('lg'),
-            )}
-      </View>
+    return toElement(
+      VStack(
+        LText(t('camera.permissionTitle', { defaultValue: 'Let Mention use the camera' }))
+          .foreground('white')
+          .font('18')
+          .leading('28px')
+          .textAlign('center')
+          .margin('bottom', 'sm'),
+        LText(
+          t('camera.permissionBody', {
+            defaultValue: 'Photos and videos you take here are only posted when you choose to.',
+          }),
+        )
+          .foreground('white/70')
+          .font('16')
+          .leading('24px')
+          .textAlign('center')
+          .margin('bottom', '2xl'),
+        /* `canAskAgain` is false once the reader has refused twice on iOS; the
+           prompt would never appear, so the honest button is the one that goes
+           back rather than one that silently does nothing. */
+        permission.canAskAgain
+          ? LButton(LText(t('camera.permissionAllow', { defaultValue: 'Allow camera' })))
+              .onPress(requestPermission)
+              .size('lg')
+          : LButton(LText(t('common.close', { defaultValue: 'Close' })))
+              .onPress(onClose)
+              .size('lg'),
+      )
+        .padding('horizontal', '3xl')
+        .background('black')
+        .align('center')
+        .justify('center')
+        .grow(),
     );
   }
 
   const recording = isRecording;
 
-  return (
-    <View style={styles.root}>
-      <GestureDetector gesture={pinch}>
-        <View style={StyleSheet.absoluteFill}>
-          {/* Preserve the native owner across mode changes: Expo CameraX disposal
-              unbinds the process-wide provider and can tear down a replacement
-              camera that React mounted before the old view's cleanup. */}
-          <CameraView
-            onCameraReady={() => cameraReady(mode, generation)}
-            onMountError={(event) => cameraError(event, generation)}
-            onRecordingProgress={(event) => recordingProgress(event, generation)}
-            ref={cameraRef}
-            style={StyleSheet.absoluteFill}
-            facing={facing}
-            mode={mode}
-            flash={flash}
-            // The torch is the flash's meaning DURING a recording: a still's
-            // flash fires once and would light nothing for a video.
-            enableTorch={recording && flash === 'on'}
-            zoom={zoom}
-          />
-        </View>
-      </GestureDetector>
-      {/* Every control sits on its own translucent disc rather than bare on the
-          frame. A camera's chrome has to stay legible over whatever the lens
-          happens to be pointing at, and white-on-white is the failure mode. */}
-      <RoundButton
-        style={styles.close}
-        onPress={onClose}
-        icon={RiCloseLine}
-        label={t('common.close', { defaultValue: 'Close' })}
-      />
-      {/* The modal controls, in a column where the thumb is not covering the
-          frame. Each is a cycle rather than a menu: one target, one tap. */}
-      <View style={styles.controlColumn}>
+  return toElement(
+    VStack(
+      Embed(
+        <GestureDetector gesture={pinch}>
+          <View style={StyleSheet.absoluteFill}>
+            {/* Preserve the native owner across mode changes: Expo CameraX disposal
+                unbinds the process-wide provider and can tear down a replacement
+                camera that React mounted before the old view's cleanup. */}
+            <CameraView
+              onCameraReady={() => cameraReady(mode, generation)}
+              onMountError={(event) => cameraError(event, generation)}
+              onRecordingProgress={(event) => recordingProgress(event, generation)}
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              facing={facing}
+              mode={mode}
+              flash={flash}
+              // The torch is the flash's meaning DURING a recording: a still's
+              // flash fires once and would light nothing for a video.
+              enableTorch={recording && flash === 'on'}
+              zoom={zoom}
+            />
+          </View>
+        </GestureDetector>,
+      ),
+      /* Every control sits on its own translucent disc rather than bare on the
+         frame. A camera's chrome has to stay legible over whatever the lens
+         happens to be pointing at, and white-on-white is the failure mode. */
+      Embed(
         <RoundButton
-          onPress={() => setFlash(nextChoice(FLASH_CHOICES, flash))}
-          // One bolt for every setting: the colour says off or on, and the "A" is
-          // how every camera distinguishes automatic from on.
-          icon={RiFlashlightLine}
-          badge={flash === 'auto' ? 'A' : undefined}
-          active={flash !== 'off'}
-          label={t('camera.flash', { defaultValue: 'Flash' })}
-          // FLAT keys, not `camera.flash.<value>`: `camera.flash` is itself a
-          // string here, and i18next cannot have a key be both a leaf and a
-          // parent — the nested lookups would silently fall back to English.
-          value={
-            flash === 'off'
-              ? t('camera.flashOff', { defaultValue: 'Off' })
-              : flash === 'auto'
-                ? t('camera.flashAuto', { defaultValue: 'Auto' })
-                : t('camera.flashOn', { defaultValue: 'On' })
-          }
-        />
-        <RoundButton
-          onPress={() => setTimer(nextChoice(TIMER_CHOICES, timer))}
-          icon={RiTimerLine}
-          badge={timer === 0 ? undefined : String(timer)}
-          active={timer !== 0}
-          label={t('camera.timer', { defaultValue: 'Timer' })}
-          value={timer === 0 ? t('camera.timerOff', { defaultValue: 'Off' }) : `${timer}s`}
-        />
-      </View>
-      {countdown !== null
-        ? toElement(
-            VStack(Embed(<Text style={styles.countdownText}>{countdown}</Text>))
-              .align('center')
-              .justify('center')
-              .position({ top: 'none', left: 'none', right: 'none', bottom: 'none' })
-              .allowsHitTesting(false),
-          )
-        : null}
-      {recording ? (
-        <View style={styles.recordingBadge} pointerEvents="none">
-          <View style={styles.recordingDot} />
-          {toElement(
-            LText(phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining))
-              .foreground('white')
-              .font('14')
-              .leading('20px'),
-          )}
-        </View>
-      ) : null}
-      {/* ZOOM STOPS, the row a phone camera puts just above its shutter. The
-          pinch and the drag move the same value, so the selected pill follows
-          them; between two stops the selected one shows the live multiplier
-          instead of its own label, which is the only way the row can stay
-          honest about a zoom it did not choose. */}
-      <View style={styles.zoomRow}>
-        {ZOOM_STOPS.map((stop) => {
-          const selected = stop === activeStop;
-          // Its own label when the zoom is ON the stop, the live figure when it
-          // is merely nearest to it.
-          const text =
-            selected && selectedStop === null ? formatMultiplier(multiplier) : `${stop}×`;
-          return (
-            <Pressable
-              key={stop}
-              onPress={() => setZoom(multiplierToZoom(stop))}
-              style={[styles.zoomPill, selected && styles.zoomPillSelected]}
-              accessibilityRole="button"
-              accessibilityLabel={t('camera.zoomTo', {
-                defaultValue: 'Zoom to {{amount}}',
-                amount: `${stop}×`,
-              })}
-            >
-              {toElement(
+          style={styles.close}
+          onPress={onClose}
+          icon={RiCloseLine}
+          label={t('common.close', { defaultValue: 'Close' })}
+        />,
+      ),
+      /* The modal controls, in a column where the thumb is not covering the
+         frame. Each is a cycle rather than a menu: one target, one tap. */
+      VStack(
+        Embed(
+          <RoundButton
+            onPress={() => setFlash(nextChoice(FLASH_CHOICES, flash))}
+            // One bolt for every setting: the colour says off or on, and the "A" is
+            // how every camera distinguishes automatic from on.
+            icon={RiFlashlightLine}
+            badge={flash === 'auto' ? 'A' : undefined}
+            active={flash !== 'off'}
+            label={t('camera.flash', { defaultValue: 'Flash' })}
+            // FLAT keys, not `camera.flash.<value>`: `camera.flash` is itself a
+            // string here, and i18next cannot have a key be both a leaf and a
+            // parent — the nested lookups would silently fall back to English.
+            value={
+              flash === 'off'
+                ? t('camera.flashOff', { defaultValue: 'Off' })
+                : flash === 'auto'
+                  ? t('camera.flashAuto', { defaultValue: 'Auto' })
+                  : t('camera.flashOn', { defaultValue: 'On' })
+            }
+          />,
+        ),
+        Embed(
+          <RoundButton
+            onPress={() => setTimer(nextChoice(TIMER_CHOICES, timer))}
+            icon={RiTimerLine}
+            badge={timer === 0 ? undefined : String(timer)}
+            active={timer !== 0}
+            label={t('camera.timer', { defaultValue: 'Timer' })}
+            value={timer === 0 ? t('camera.timerOff', { defaultValue: 'Off' }) : `${timer}s`}
+          />,
+        ),
+      )
+        .spacing('10')
+        .position({ top: cameraSpace.space.controlTop, right: 'lg' }),
+      countdown !== null
+        ? VStack(Embed(<Text style={styles.countdownText}>{countdown}</Text>))
+            .align('center')
+            .justify('center')
+            .position({ top: 'none', left: 'none', right: 'none', bottom: 'none' })
+            .allowsHitTesting(false)
+        : null,
+      Embed(
+        recording ? (
+          <View style={styles.recordingBadge} pointerEvents="none">
+            {toElement(
+              VStack()
+                .frame({ width: 'sm', height: 'sm' })
+                .background(cameraColors.color.recording)
+                .corner('xs'),
+            )}
+            {toElement(
+              LText(phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining))
+                .foreground('white')
+                .font('14')
+                .leading('20px'),
+            )}
+          </View>
+        ) : null,
+      ),
+      /* ZOOM STOPS, the row a phone camera puts just above its shutter. The
+         pinch and the drag move the same value, so the selected pill follows
+         them; between two stops the selected one shows the live multiplier
+         instead of its own label, which is the only way the row can stay
+         honest about a zoom it did not choose. */
+      Embed(
+        <View style={styles.zoomRow}>
+          {ZOOM_STOPS.map((stop) => {
+            const selected = stop === activeStop;
+            // Its own label when the zoom is ON the stop, the live figure when it
+            // is merely nearest to it.
+            const text =
+              selected && selectedStop === null ? formatMultiplier(multiplier) : `${stop}×`;
+            return toElement(
+              VStack(
                 LText(text)
                   .font('xs')
                   .leading('16px')
                   .foreground(selected ? cameraColors.color.active : 'white'),
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
-      <View style={styles.controls}>
-        {/* Keeps the shutter centred where the thumb expects it. Instagram's
-            gallery shortcut would live here; `CameraCapture`'s header says why
-            this app's does not. */}
-        <View style={styles.sideSlot} />
-
-        <GestureDetector gesture={shutterDrag}>
-          <Animated.View>
-            <Pressable
-              onPress={onShutterPress}
-              onLongPress={onShutterLongPress}
-              delayLongPress={HOLD_TO_RECORD_MS}
-              accessibilityRole="button"
-              // The control does more than one thing and a reader who cannot see
-              // it has no other way to learn the rest.
-              accessibilityLabel={
-                recording
-                  ? t('camera.stop', { defaultValue: 'Stop recording' })
-                  : captureMode === 'video'
-                    ? t('camera.record', { defaultValue: 'Start recording' })
-                    : t('camera.shutter', { defaultValue: 'Take a photo' })
-              }
-              accessibilityHint={
-                captureMode === 'video'
-                  ? t('camera.shutterHintVideo', { defaultValue: 'Tap again to stop' })
-                  : t('camera.shutterHint', {
-                      defaultValue: 'Hold to record a video, and drag up to zoom',
-                    })
-              }
-              style={styles.shutterHitArea}
-            >
-              {/* A RING plus a separate core, not one filled circle: the core is
-                  what changes between the three states, and animating a border
-                  colour would have moved the ring with it. */}
-              <View style={styles.shutterRing}>
-                <View
-                  style={[
-                    styles.shutterCore,
-                    captureMode === 'video' && styles.shutterCoreVideo,
-                    recording && styles.shutterCoreRecording,
-                  ]}
-                />
-              </View>
-            </Pressable>
-            {recording ? (
-              <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ring} pointerEvents="none">
-                <AnimatedCircle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RING_RADIUS}
-                  stroke="#ef4444"
-                  strokeWidth={4}
-                  strokeLinecap="round"
-                  fill="none"
-                  strokeDasharray={RING_CIRCUMFERENCE}
-                  animatedProps={ringAnimatedProps}
-                  // Start the arc at the top, where a clock does.
-                  transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
-                />
-              </Svg>
-            ) : null}
-          </Animated.View>
-        </GestureDetector>
-
-        <RoundButton
-          style={[styles.sideSlot, recording && styles.slotHidden]}
-          onPress={() => setFacing((current) => (current === 'back' ? 'front' : 'back'))}
-          disabled={recording}
-          icon={RiCameraSwitchLine}
-          label={t('camera.flip', { defaultValue: 'Switch camera' })}
-        />
-      </View>
-      {/* THE MODE CAROUSEL, the row of names under the shutter that every phone
-          camera has and that says what the button is for. It is hidden while
-          recording: changing mode mid-take is not a thing it can honour, and a
-          control that is present but inert is worse than one that stepped
-          aside. */}
-      {recording ? null : (
-        <View style={styles.modeRow}>
-          {CAPTURE_MODES.map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => setCaptureMode(option)}
-              style={styles.modeItem}
-              accessibilityRole="button"
-              accessibilityState={{ selected: option === captureMode }}
-              accessibilityLabel={
-                option === 'video'
-                  ? t('camera.modeVideo', { defaultValue: 'Video' })
-                  : t('camera.modePhoto', { defaultValue: 'Photo' })
-              }
-            >
-              {toElement(
-                LText(
-                  option === 'video'
-                    ? t('camera.modeVideo', { defaultValue: 'Video' })
-                    : t('camera.modePhoto', { defaultValue: 'Photo' }),
-                )
-                  .font('xs')
-                  .leading('16px')
-                  .when(option === captureMode, (v) => v.foreground('white').weight('bold'))
-                  .when(!(option === captureMode), (v) => v.foreground('white/half')),
-              )}
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </View>
+              )
+                .padding('horizontal', 'sm')
+                .frame({ minWidth: cameraSpace.space.zoomStop, height: '28' })
+                .when(selected, (v) => v.background(cameraColors.color.zoomSelected))
+                .corner('14')
+                .align('center')
+                .justify('center')
+                .onPress(() => setZoom(multiplierToZoom(stop)))
+                .role('button')
+                .label(
+                  t('camera.zoomTo', {
+                    defaultValue: 'Zoom to {{amount}}',
+                    amount: `${stop}×`,
+                  }),
+                ),
+              stop,
+            );
+          })}
+        </View>,
+      ),
+      HStack(
+        /* Keeps the shutter centred where the thumb expects it. Instagram's
+           gallery shortcut would live here; `CameraCapture`'s header says why
+           this app's does not. */
+        VStack().frame({ width: '48', height: '48' }).corner('2xl'),
+        Embed(
+          <GestureDetector gesture={shutterDrag}>
+            <Animated.View>
+              <Pressable
+                onPress={onShutterPress}
+                onLongPress={onShutterLongPress}
+                delayLongPress={HOLD_TO_RECORD_MS}
+                accessibilityRole="button"
+                // The control does more than one thing and a reader who cannot see
+                // it has no other way to learn the rest.
+                accessibilityLabel={
+                  recording
+                    ? t('camera.stop', { defaultValue: 'Stop recording' })
+                    : captureMode === 'video'
+                      ? t('camera.record', { defaultValue: 'Start recording' })
+                      : t('camera.shutter', { defaultValue: 'Take a photo' })
+                }
+                accessibilityHint={
+                  captureMode === 'video'
+                    ? t('camera.shutterHintVideo', { defaultValue: 'Tap again to stop' })
+                    : t('camera.shutterHint', {
+                        defaultValue: 'Hold to record a video, and drag up to zoom',
+                      })
+                }
+                style={styles.shutterHitArea}
+              >
+                {/* A RING plus a separate core, not one filled circle: the core is
+                    what changes between the three states, and animating a border
+                    colour would have moved the ring with it. */}
+                <View style={styles.shutterRing}>
+                  <View
+                    style={[
+                      styles.shutterCore,
+                      captureMode === 'video' && styles.shutterCoreVideo,
+                      recording && styles.shutterCoreRecording,
+                    ]}
+                  />
+                </View>
+              </Pressable>
+              {recording ? (
+                <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ring} pointerEvents="none">
+                  <AnimatedCircle
+                    cx={RING_SIZE / 2}
+                    cy={RING_SIZE / 2}
+                    r={RING_RADIUS}
+                    stroke="#ef4444"
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    fill="none"
+                    strokeDasharray={RING_CIRCUMFERENCE}
+                    animatedProps={ringAnimatedProps}
+                    // Start the arc at the top, where a clock does.
+                    transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+                  />
+                </Svg>
+              ) : null}
+            </Animated.View>
+          </GestureDetector>,
+        ),
+        Embed(
+          <RoundButton
+            style={[styles.sideSlot, recording && styles.slotHidden]}
+            onPress={() => setFacing((current) => (current === 'back' ? 'front' : 'back'))}
+            disabled={recording}
+            icon={RiCameraSwitchLine}
+            label={t('camera.flip', { defaultValue: 'Switch camera' })}
+          />,
+        ),
+      )
+        .padding('horizontal', '4xl')
+        .align('center')
+        .justify('between')
+        .position({ left: 'none', right: 'none', bottom: cameraSpace.space.controlsBottom }),
+      /* THE MODE CAROUSEL, the row of names under the shutter that every phone
+         camera has and that says what the button is for. It is hidden while
+         recording: changing mode mid-take is not a thing it can honour, and a
+         control that is present but inert is worse than one that stepped
+         aside. */
+      recording
+        ? null
+        : HStack(
+            Embed(
+              CAPTURE_MODES.map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setCaptureMode(option)}
+                  style={styles.modeItem}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: option === captureMode }}
+                  accessibilityLabel={
+                    option === 'video'
+                      ? t('camera.modeVideo', { defaultValue: 'Video' })
+                      : t('camera.modePhoto', { defaultValue: 'Photo' })
+                  }
+                >
+                  {toElement(
+                    LText(
+                      option === 'video'
+                        ? t('camera.modeVideo', { defaultValue: 'Video' })
+                        : t('camera.modePhoto', { defaultValue: 'Photo' }),
+                    )
+                      .font('xs')
+                      .leading('16px')
+                      .when(option === captureMode, (v) => v.foreground('white').weight('bold'))
+                      .when(!(option === captureMode), (v) => v.foreground('white/half')),
+                  )}
+                </Pressable>
+              )),
+            ),
+          )
+            .align('center')
+            .justify('center')
+            .spacing('xs')
+            .position({ left: 'none', right: 'none', bottom: '30' }),
+    )
+      .grow()
+      .background('black'),
   );
 }
 
@@ -716,10 +759,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   badgeText: { color: '#000', fontSize: 9, fontWeight: '700' },
-  root: { flex: 1, backgroundColor: '#000' },
-  explain: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   close: { position: 'absolute', top: 56, left: 20 },
-  controlColumn: { position: 'absolute', top: 52, right: 16, gap: 10 },
   roundButton: {
     width: 40,
     height: 40,
@@ -742,15 +782,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#facc15',
   },
-  countdown: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   recordingBadge: {
     position: 'absolute',
     top: 60,
@@ -763,7 +794,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  recordingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
   zoomRow: {
     position: 'absolute',
     bottom: 148,
@@ -774,25 +804,6 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 999,
     backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  zoomPill: {
-    minWidth: 34,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  zoomPillSelected: { backgroundColor: 'rgba(0,0,0,0.55)' },
-  controls: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 74,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 40,
   },
   sideSlot: { width: 48, height: 48, borderRadius: 24 },
   slotHidden: { opacity: 0 },
@@ -816,15 +827,5 @@ const styles = StyleSheet.create({
   // untouched ring is what makes the progress arc read as progress.
   shutterCoreRecording: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
   ring: { position: 'absolute', top: -8, left: -8 },
-  modeRow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 30,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
   modeItem: { paddingHorizontal: 14, paddingVertical: 6 },
 });

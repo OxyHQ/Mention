@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import type { AssetUploadStageProgress } from '@oxy.so/core';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useVideoPlayer } from 'expo-video';
 import { VideoView } from '@oxy.so/bloom/video-view';
@@ -79,111 +79,95 @@ export function CaptureReview({
     onRetake();
   }, [busy, onRetake]);
 
-  return (
-    <View style={styles.root}>
-      {capture.kind === 'video' ? (
-        <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={false} />
-      ) : (
-        <Image source={{ uri: capture.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      )}
-      <Pressable
-        onPress={retake}
-        style={styles.retake}
-        accessibilityRole="button"
-        accessibilityLabel={t('camera.retake', { defaultValue: 'Retake' })}
-      >
-        {toElement(LText('×').foreground('white').font('24').leading('32px'))}
-      </Pressable>
-      <View style={styles.actions}>
-        {/* Two different failures, and the difference matters to what the reader
-            does next: one means the file never left the device, the other means
-            it did and no post came of it. Neither loses the capture. */}
-        {uploadFailed
-          ? toElement(
-              LText(
-                t('camera.uploadFailed', {
-                  defaultValue: "That didn't upload. Check your connection and try again.",
-                }),
-              )
-                .foreground('white')
-                .font('16')
-                .leading('24px')
-                .textAlign('center')
-                .margin('bottom', 'md'),
+  return toElement(
+    VStack(
+      Embed(
+        capture.kind === 'video' ? (
+          <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={false} />
+        ) : (
+          <Image source={{ uri: capture.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ),
+      ),
+      VStack(LText('×').foreground('white').font('24').leading('32px'))
+        .padding('all', 'md')
+        .position({ top: '56', left: 'xl' })
+        .onPress(retake)
+        .role('button')
+        .label(t('camera.retake', { defaultValue: 'Retake' })),
+      VStack(
+        /* Two different failures, and the difference matters to what the reader
+           does next: one means the file never left the device, the other means
+           it did and no post came of it. Neither loses the capture. */
+        uploadFailed
+          ? LText(
+              t('camera.uploadFailed', {
+                defaultValue: "That didn't upload. Check your connection and try again.",
+              }),
             )
-          : null}
-        {publishFailed
-          ? toElement(
-              LText(
-                t('camera.publishFailed', {
-                  defaultValue:
-                    'Could not confirm publication. Check your posts before trying again. Your capture is still here.',
-                }),
-              )
-                .foreground('white')
-                .font('16')
-                .leading('24px')
-                .textAlign('center')
-                .margin('bottom', 'md'),
+              .foreground('white')
+              .font('16')
+              .leading('24px')
+              .textAlign('center')
+              .margin('bottom', 'md')
+          : null,
+        publishFailed
+          ? LText(
+              t('camera.publishFailed', {
+                defaultValue:
+                  'Could not confirm publication. Check your posts before trying again. Your capture is still here.',
+              }),
             )
-          : null}
-        {busy
-          ? toElement(
-              VStack(
-                // The language's Loading takes a tone, not a fixed colour: white over the capture.
-                Embed(<Loading size="sm" color="#fff" />),
-                Embed(
-                  <Text
-                    style={styles.progress}
-                    accessibilityRole="progressbar"
-                    accessibilityLabel={progressLabel}
-                    accessibilityValue={
-                      percentage === null || uploadProgress?.phase === 'verify'
-                        ? { text: progressLabel }
-                        : { min: 0, max: 100, now: percentage }
-                    }
-                  >
-                    {progressLabel}
-                    {percentage !== null && uploadProgress?.phase !== 'verify'
-                      ? ` ${percentage}%`
-                      : ''}
-                  </Text>,
-                ),
-              )
-                .padding('bottom', 'xs')
-                .align('center'),
+              .foreground('white')
+              .font('16')
+              .leading('24px')
+              .textAlign('center')
+              .margin('bottom', 'md')
+          : null,
+        busy
+          ? VStack(
+              // The language's Loading takes a tone, not a fixed colour: white over the capture.
+              Embed(<Loading size="sm" color="#fff" />),
+              Embed(
+                <Text
+                  style={styles.progress}
+                  accessibilityRole="progressbar"
+                  accessibilityLabel={progressLabel}
+                  accessibilityValue={
+                    percentage === null || uploadProgress?.phase === 'verify'
+                      ? { text: progressLabel }
+                      : { min: 0, max: 100, now: percentage }
+                  }
+                >
+                  {progressLabel}
+                  {percentage !== null && uploadProgress?.phase !== 'verify'
+                    ? ` ${percentage}%`
+                    : ''}
+                </Text>,
+              ),
             )
-          : null}
-        {toElement(
-          LButton(LText(t('camera.addText', { defaultValue: 'Add text' })))
-            .onPress(onAddText)
-            .disabled(busy)
-            .style('subtle')
-            .tint('neutral')
-            .size('lg'),
-        )}
-        {toElement(
-          LButton(LText(t('camera.publish', { defaultValue: 'Post' })))
-            .onPress(onPublish)
-            .disabled(busy)
-            .size('lg'),
-        )}
-      </View>
-    </View>
+              .padding('bottom', 'xs')
+              .align('center')
+          : null,
+        LButton(LText(t('camera.addText', { defaultValue: 'Add text' })))
+          .onPress(onAddText)
+          .disabled(busy)
+          .style('subtle')
+          .tint('neutral')
+          .size('lg'),
+        LButton(LText(t('camera.publish', { defaultValue: 'Post' })))
+          .onPress(onPublish)
+          .disabled(busy)
+          .size('lg'),
+      )
+        .position({ left: 'xl', right: 'xl', bottom: '48' })
+        .spacing('md'),
+    )
+      .grow()
+      .background('black'),
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  retake: { position: 'absolute', top: 56, left: 20, padding: 12 },
-  actions: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 48,
-    gap: 12,
-  },
-  busy: { alignItems: 'center', paddingBottom: 4 },
   // Tailwind's `text-white text-base text-center`: the progress reads on the dark preview.
   progress: { color: '#fff', fontSize: 16, lineHeight: 24, textAlign: 'center' },
 });
