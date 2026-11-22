@@ -1,12 +1,8 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -16,6 +12,19 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobLocationInputFrom, useJobForm } from '@/components/Jobs/jobForm';
 import { LazyJobFormFields } from '@/components/sharedRouteScreens';
 
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  RawText,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
+
 /**
  * Edit an existing Mention job listing. Same fields as `jobs/create.tsx`
  * minus the employer picker — the employer is immutable after creation
@@ -23,7 +32,7 @@ import { LazyJobFormFields } from '@/components/sharedRouteScreens';
  * (publish/pause/close/duplicate) live on the dashboard (`jobs/mine.tsx`),
  * not here.
  */
-export default function EditJobScreen() {
+export default screen(function EditJobScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = String(id);
@@ -108,91 +117,87 @@ export default function EditJobScreen() {
 
   const canSave = form.isComplete && form.isApplyReady;
 
-  const header = (
-    <PageHeader
-      title={t('jobs.edit.title', { defaultValue: 'Edit job' })}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
+  const header = toElement(
+    Header(t('jobs.edit.title', { defaultValue: 'Edit job' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
 
   if (jobQuery.isLoading || !hydrated) {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView>
-          <FormSkeleton />
-        </ScreenScrollView>
-      </Screen>
-    );
+    return ScrollView(Embed(<FormSkeleton />)).header(Embed(header));
   }
 
   if (jobQuery.isError || !jobQuery.data) {
-    return (
-      <Screen header={header}>
-        <View className="flex-1 items-center justify-center gap-3 px-8">
-          <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.edit.loadFailed', { defaultValue: 'Could not load this job' })}
-          </Text>
-          <Button appearance="subtle" tone="neutral" size="sm" onPress={() => jobQuery.refetch()}>
-            {t('common.tryAgain', { defaultValue: 'Try again' })}
-          </Button>
-        </View>
-      </Screen>
-    );
+    return VStack(
+      RawText(t('jobs.edit.loadFailed', { defaultValue: 'Could not load this job' }))
+        .foreground('muted')
+        .font('16')
+        .leading('normal')
+        .textAlign('center'),
+      LButton(LText(t('common.tryAgain', { defaultValue: 'Try again' })))
+        .style('subtle')
+        .tint('neutral')
+        .size('sm')
+        .onPress(() => jobQuery.refetch()),
+    )
+      .padding('horizontal', '3xl')
+      .flex('1')
+      .align('center')
+      .justify('center')
+      .spacing('md')
+      .header(Embed(header));
   }
 
-  return (
-    <Screen header={header}>
-      <ScreenScrollView
-        contentContainerClassName="px-4 pb-16 pt-2"
-        keyboardShouldPersistTaps="handled"
-      >
-        {metrics ? (
-          <View className="flex-row flex-wrap gap-4 mb-4 p-3 bg-muted rounded-[12px]">
-            <View>
-              <Text className="text-foreground text-[18px] font-bold">{metrics.views}</Text>
-              <Text className="text-muted-foreground text-[11px]">
-                {t('jobs.edit.metricsViews', { defaultValue: 'Views' })}
-              </Text>
-            </View>
-            <View>
-              <Text className="text-foreground text-[18px] font-bold">{metrics.applyStarts}</Text>
-              <Text className="text-muted-foreground text-[11px]">
-                {t('jobs.edit.metricsApplyStarts', { defaultValue: 'Apply starts' })}
-              </Text>
-            </View>
-            <View>
-              <Text className="text-foreground text-[18px] font-bold">
-                {metrics.externalApplyClicks}
-              </Text>
-              <Text className="text-muted-foreground text-[11px]">
-                {t('jobs.edit.metricsExternalClicks', { defaultValue: 'External clicks' })}
-              </Text>
-            </View>
-            <View>
-              <Text className="text-foreground text-[18px] font-bold">
-                {metrics.completedApplications}
-              </Text>
-              <Text className="text-muted-foreground text-[11px]">
-                {t('jobs.edit.metricsCompleted', { defaultValue: 'Completed applications' })}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-        <LazyJobFormFields form={form} />
-
-        <View className="mt-6">
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="lg"
-            loading={updateMutation.isPending}
-            disabled={!canSave || updateMutation.isPending}
-            onPress={save}
-          >
-            {t('jobs.edit.save', { defaultValue: 'Save changes' })}
-          </Button>
-        </View>
-      </ScreenScrollView>
-    </Screen>
-  );
-}
+  return ScrollView(
+    metrics
+      ? HStack(
+          VStack(
+            RawText(metrics.views).foreground('foreground').font('18').weight('bold'),
+            RawText(t('jobs.edit.metricsViews', { defaultValue: 'Views' }))
+              .foreground('muted')
+              .font('11'),
+          ),
+          VStack(
+            RawText(metrics.applyStarts).foreground('foreground').font('18').weight('bold'),
+            RawText(t('jobs.edit.metricsApplyStarts', { defaultValue: 'Apply starts' }))
+              .foreground('muted')
+              .font('11'),
+          ),
+          VStack(
+            RawText(metrics.externalApplyClicks).foreground('foreground').font('18').weight('bold'),
+            RawText(t('jobs.edit.metricsExternalClicks', { defaultValue: 'External clicks' }))
+              .foreground('muted')
+              .font('11'),
+          ),
+          VStack(
+            RawText(metrics.completedApplications)
+              .foreground('foreground')
+              .font('18')
+              .weight('bold'),
+            RawText(t('jobs.edit.metricsCompleted', { defaultValue: 'Completed applications' }))
+              .foreground('muted')
+              .font('11'),
+          ),
+        )
+          .padding('all', 'md')
+          .background('mutedFill')
+          .corner('md')
+          .wrap()
+          .spacing('lg')
+          .margin('bottom', 'lg')
+      : null,
+    Embed(<LazyJobFormFields form={form} />),
+    VStack(
+      LButton(LText(t('jobs.edit.save', { defaultValue: 'Save changes' })))
+        .style('solid')
+        .tint('accent')
+        .size('lg')
+        .loading(updateMutation.isPending)
+        .disabled(!canSave || updateMutation.isPending)
+        .onPress(save),
+    ).margin('top', '2xl'),
+  )
+    .contentView((v) => v.padding('horizontal', 'lg').padding('bottom', '64').padding('top', 'sm'))
+    .keyboardTaps('handled')
+    .header(Embed(header));
+});

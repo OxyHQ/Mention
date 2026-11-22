@@ -2,17 +2,17 @@ import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
 import type { HydratedPost } from '@mention/shared-types';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { InsightsDashboard } from './InsightsDashboard';
+
+import { Embed, ScrollView, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
 
 export interface InsightsViewProps {
   /**
@@ -98,74 +98,72 @@ const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
     [selectedPeriod],
   );
 
-  return (
-    <ScreenScrollView>
-      <Tabs
-        value={activeTab}
-        onValueChange={(tabId) => setActiveTab(tabId as 'overview' | 'engagement' | 'publishing')}
-        variant="underline"
-      >
-        {[
+  return toElement(
+    ScrollView(
+      LTabs(
+        [activeTab, (tabId) => setActiveTab(tabId as 'overview' | 'engagement' | 'publishing')],
+        [
           { id: 'overview', label: t('insights.tabs.overview') },
           { id: 'engagement', label: t('insights.tabs.engagement') },
           { id: 'publishing', label: t('insights.publishing') },
-        ].map((tab: { id: string; label: string; count?: number }) => (
-          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-        ))}
-      </Tabs>
-
-      {isPrivateApiPending || isLoading ? (
-        <InsightsSkeleton />
-      ) : !canUsePrivateApi ? (
-        <OxyAuthPrompt
-          label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
-          description={t('insights.signInRequiredDesc', {
-            defaultValue:
-              'Your posts, views, and engagement stats will appear here once you sign in.',
-          })}
-        />
-      ) : isError ? (
-        // A failed read must SAY so. Both tab bodies return `null` when
-        // their data is missing, so without this branch a refusal or an
-        // outage paints an empty panel under a working period selector —
-        // indistinguishable from an account that genuinely has no
-        // activity, and far worse than an honest error, because there is
-        // nothing to retry and nothing to report.
-        //
-        // The reachable refusal is narrow but real: the affordance and the
-        // API resolve membership through two different Oxy reads —
-        // `listAccounts` (effective, so an INHERITED membership counts) on
-        // the client, `listAccounts/:id/members` (direct rows only) on the
-        // server. A member whose role cascades from an ancestor account is
-        // therefore offered the screen and refused the data. That gap is
-        // known and lives in the shared publish-as authority rather than
-        // here; what this branch owes such a reader is a plain statement
-        // that the numbers could not be loaded.
-        <EmptyState
-          error={{
-            title: t('insights.unavailable.title', { defaultValue: 'Insights unavailable' }),
-            message: t('insights.unavailable.message', {
+        ].map((tab: { id: string; label: string; count?: number }) =>
+          TabItem(tab.id, tab.label).count(tab.count),
+        ),
+      ).style('underline'),
+      Embed(
+        isPrivateApiPending || isLoading ? (
+          <InsightsSkeleton />
+        ) : !canUsePrivateApi ? (
+          <OxyAuthPrompt
+            label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
+            description={t('insights.signInRequiredDesc', {
               defaultValue:
-                'These insights could not be loaded. You may not have access to this account, or the service may be temporarily unavailable.',
-            }),
-            onRetry: async () => {
-              await refetch();
-            },
-          }}
-        />
-      ) : stats && engagementRatios ? (
-        <InsightsDashboard
-          stats={stats}
-          engagementRatios={engagementRatios}
-          topPostsData={topPostsData}
-          accountId={accountId}
-          selectedPeriod={selectedPeriod}
-          handlePeriodChange={handlePeriodChange}
-          activeTab={activeTab}
-          isFetching={isFetching}
-        />
-      ) : null}
-    </ScreenScrollView>
+                'Your posts, views, and engagement stats will appear here once you sign in.',
+            })}
+          />
+        ) : isError ? (
+          // A failed read must SAY so. Both tab bodies return `null` when
+          // their data is missing, so without this branch a refusal or an
+          // outage paints an empty panel under a working period selector —
+          // indistinguishable from an account that genuinely has no
+          // activity, and far worse than an honest error, because there is
+          // nothing to retry and nothing to report.
+          //
+          // The reachable refusal is narrow but real: the affordance and the
+          // API resolve membership through two different Oxy reads —
+          // `listAccounts` (effective, so an INHERITED membership counts) on
+          // the client, `listAccounts/:id/members` (direct rows only) on the
+          // server. A member whose role cascades from an ancestor account is
+          // therefore offered the screen and refused the data. That gap is
+          // known and lives in the shared publish-as authority rather than
+          // here; what this branch owes such a reader is a plain statement
+          // that the numbers could not be loaded.
+          <EmptyState
+            error={{
+              title: t('insights.unavailable.title', { defaultValue: 'Insights unavailable' }),
+              message: t('insights.unavailable.message', {
+                defaultValue:
+                  'These insights could not be loaded. You may not have access to this account, or the service may be temporarily unavailable.',
+              }),
+              onRetry: async () => {
+                await refetch();
+              },
+            }}
+          />
+        ) : stats && engagementRatios ? (
+          <InsightsDashboard
+            stats={stats}
+            engagementRatios={engagementRatios}
+            topPostsData={topPostsData}
+            accountId={accountId}
+            selectedPeriod={selectedPeriod}
+            handlePeriodChange={handlePeriodChange}
+            activeTab={activeTab}
+            isFetching={isFetching}
+          />
+        ) : null,
+      ),
+    ),
   );
 };
 

@@ -1,15 +1,12 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card } from '@oxy.so/bloom/card';
-import { Chip } from '@oxy.so/bloom/chip';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
 import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
@@ -20,6 +17,18 @@ import { getNextJobApplicationPage } from '@/lib/jobPagination';
 import { jobApplicationsService, isJobForbiddenError } from '@/services/jobApplicationsService';
 import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailSheet';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Chip as LChip,
+  Embed,
+  HStack,
+  Header,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 
 const STATUS_TONE: Record<
   MentionJobApplicationStatus,
@@ -41,7 +50,7 @@ type StatusFilter = 'all' | MentionJobApplicationStatus;
  * `app/(app)/jobs/mine.tsx`'s per-job actions, for jobs with
  * `applicationMode: 'mention'`.
  */
-export default function JobApplicationsScreen() {
+export default Lscreen(function JobApplicationsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = String(id);
   const { t } = useTranslation();
@@ -112,35 +121,48 @@ export default function JobApplicationsScreen() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const filterRow = (
-    <View className="flex-row flex-wrap gap-2 pt-2 pb-1">
-      <Chip selected={statusFilter === 'all'} onPress={() => setStatusFilter('all')}>
-        {t('jobs.applications.all', { defaultValue: 'All' })}
-      </Chip>
-      {MENTION_JOB_APPLICATION_STATUSES.map((status) => (
-        <Chip
-          key={status}
-          selected={statusFilter === status}
-          onPress={() => setStatusFilter(status)}
-        >
-          {status}
-        </Chip>
-      ))}
-    </View>
+  const filterRow = toElement(
+    HStack(
+      LChip(LText(t('jobs.applications.all', { defaultValue: 'All' })))
+        .selected(statusFilter === 'all')
+        .onPress(() => setStatusFilter('all')),
+      Embed(
+        MENTION_JOB_APPLICATION_STATUSES.map((status) =>
+          toElement(
+            LChip(LText(status))
+              .selected(statusFilter === status)
+              .onPress(() => setStatusFilter(status)),
+            status,
+          ),
+        ),
+      ),
+    )
+      .padding('top', 'sm')
+      .padding('bottom', 'xs')
+      .wrap()
+      .spacing('sm'),
   );
 
   // One list in every state, so Bloom pads each of them clear of the header and
   // the bottom bar.
   const renderEmpty = () => {
     if (forbidden) {
-      return (
-        <View className="items-center justify-center px-8 py-16">
-          <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.applications.forbidden', {
+      return toElement(
+        VStack(
+          RawText(
+            t('jobs.applications.forbidden', {
               defaultValue: "Only this job's operators can view applications",
-            })}
-          </Text>
-        </View>
+            }),
+          )
+            .foreground('muted')
+            .font('16')
+            .leading('normal')
+            .textAlign('center'),
+        )
+          .padding('horizontal', '3xl')
+          .padding('vertical', '64')
+          .align('center')
+          .justify('center'),
       );
     }
     if (applicationsQuery.isPending) return <ListSkeleton />;
@@ -164,69 +186,83 @@ export default function JobApplicationsScreen() {
     );
   };
 
-  return (
-    <Screen
-      header={
-        <PageHeader
-          title={t('jobs.applications.title', { defaultValue: 'Applications' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          accessory={forbidden ? undefined : filterRow}
-        />
-      }
-    >
-      <VirtualList
-        screen={{}}
-        data={forbidden ? [] : applications}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Card
-            border="thin"
-            elevation="none"
-            radius="radius-16"
-            style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}
+  return Embed(
+    <VirtualList
+      screen={{}}
+      data={forbidden ? [] : applications}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => (
+        <Card
+          border="thin"
+          elevation="none"
+          radius="radius-16"
+          style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}
+        >
+          {toElement(
+            HStack(
+              Embed(
+                <Text
+                  className="flex-1 text-foreground text-[15px] font-semibold"
+                  numberOfLines={1}
+                  onPress={() => openApplication(item)}
+                >
+                  {item.displayName ||
+                    t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
+                </Text>,
+              ),
+              Embed(
+                <Badge
+                  content={item.status}
+                  color={STATUS_TONE[item.status]}
+                  variant="subtle"
+                  size="sm"
+                />,
+              ),
+            )
+              .align('start')
+              .justify('between')
+              .spacing('sm'),
+          )}
+          {item.contactMethod
+            ? toElement(
+                RawText(item.contactMethod)
+                  .foreground('muted')
+                  .font('sm')
+                  .margin('top', '2xs')
+                  .lines(1),
+              )
+            : null}
+          {item.coverNote
+            ? toElement(
+                RawText(item.coverNote)
+                  .foreground('foreground')
+                  .font('sm')
+                  .margin('top', 'sm')
+                  .lines(2),
+              )
+            : null}
+          <Text
+            className="text-primary text-[13px] font-semibold mt-2"
+            onPress={() => openApplication(item)}
           >
-            <View className="flex-row items-start justify-between gap-2">
-              <Text
-                className="flex-1 text-foreground text-[15px] font-semibold"
-                numberOfLines={1}
-                onPress={() => openApplication(item)}
-              >
-                {item.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
-              </Text>
-              <Badge
-                content={item.status}
-                color={STATUS_TONE[item.status]}
-                variant="subtle"
-                size="sm"
-              />
-            </View>
-            {item.contactMethod ? (
-              <Text className="text-muted-foreground text-[13px] mt-0.5" numberOfLines={1}>
-                {item.contactMethod}
-              </Text>
-            ) : null}
-            {item.coverNote ? (
-              <Text className="text-foreground text-[13px] mt-2" numberOfLines={2}>
-                {item.coverNote}
-              </Text>
-            ) : null}
-            <Text
-              className="text-primary text-[13px] font-semibold mt-2"
-              onPress={() => openApplication(item)}
-            >
-              {t('jobs.applications.viewDetails', { defaultValue: 'View details' })}
-            </Text>
-          </Card>
-        )}
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        ListEmptyComponent={renderEmpty()}
-        ListFooterComponent={
-          <View className="items-center justify-center py-4">
-            {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
-          </View>
-        }
-      />
-    </Screen>
+            {t('jobs.applications.viewDetails', { defaultValue: 'View details' })}
+          </Text>
+        </Card>
+      )}
+      onEndReached={handleEndReached}
+      onEndReachedThreshold={0.5}
+      ListEmptyComponent={renderEmpty()}
+      ListFooterComponent={toElement(
+        VStack(Embed(isFetchingNextPage ? <ListSkeleton count={2} /> : null))
+          .padding('vertical', 'lg')
+          .align('center')
+          .justify('center'),
+      )}
+    />,
+  ).header(
+    Header(t('jobs.applications.title', { defaultValue: 'Applications' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .accessory(Embed(forbidden ? undefined : filterRow))
+      .inPage(),
   );
-}
+});

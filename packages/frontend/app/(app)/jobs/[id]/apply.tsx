@@ -1,6 +1,5 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -9,10 +8,8 @@ import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
+import { useScreenBack } from '@oxy.so/bloom/screen';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -22,6 +19,22 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
 
+import {
+  Button as LButton,
+  Embed,
+  Field as LField,
+  HStack,
+  Header,
+  RawText,
+  ScrollView,
+  Text as LText,
+  TextEditor,
+  TextField as LTextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen as Lscreen } from '@oxy.so/bloom-language/router';
+
 /**
  * The Mention-native apply flow (OxyHQ/Mention#952) for a job whose
  * `applicationMode` is `'mention'` — `app/(app)/jobs/[id].tsx`'s Apply button
@@ -30,7 +43,7 @@ import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplic
  * same values, not a second form, so keeping them in one component means the
  * summary can never drift from what the edit step actually holds.
  */
-export default function JobApplyScreen() {
+export default Lscreen(function JobApplyScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = String(id);
@@ -137,289 +150,326 @@ export default function JobApplyScreen() {
     },
   });
 
-  const header = (
-    <PageHeader
-      title={t('jobs.apply.title', { defaultValue: 'Apply' })}
-      onBack={() => (step === 'review' ? setStep('edit') : back?.())}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
+  const header = toElement(
+    Header(t('jobs.apply.title', { defaultValue: 'Apply' }))
+      .onBack(() => (step === 'review' ? setStep('edit') : back?.()))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
 
   if (jobQuery.isLoading) {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView>
-          <FormSkeleton />
-        </ScreenScrollView>
-      </Screen>
-    );
+    return ScrollView(Embed(<FormSkeleton />)).header(Embed(header));
   }
 
   if (!job || job.applicationMode !== 'mention') {
-    return (
-      <Screen header={header}>
-        <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.apply.unavailable', {
-              defaultValue: 'This job cannot be applied to on Mention',
-            })}
-          </Text>
-        </View>
-      </Screen>
-    );
+    return VStack(
+      RawText(
+        t('jobs.apply.unavailable', {
+          defaultValue: 'This job cannot be applied to on Mention',
+        }),
+      )
+        .foreground('muted')
+        .font('16')
+        .leading('normal')
+        .textAlign('center'),
+    )
+      .padding('horizontal', '3xl')
+      .flex('1')
+      .align('center')
+      .justify('center')
+      .header(Embed(header));
   }
 
   // The backend refuses a submission on anything but a published job — same
   // rule shown here up front rather than let the reader fill out a form for a
   // request that will 400.
   if (job.status !== 'published') {
-    return (
-      <Screen header={header}>
-        <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.apply.notAccepting', {
-              defaultValue: 'This job is not currently accepting applications',
-            })}
-          </Text>
-        </View>
-      </Screen>
-    );
+    return VStack(
+      RawText(
+        t('jobs.apply.notAccepting', {
+          defaultValue: 'This job is not currently accepting applications',
+        }),
+      )
+        .foreground('muted')
+        .font('16')
+        .leading('normal')
+        .textAlign('center'),
+    )
+      .padding('horizontal', '3xl')
+      .flex('1')
+      .align('center')
+      .justify('center')
+      .header(Embed(header));
   }
 
   if (step === 'review') {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="px-4 pb-16 pt-2">
-          <Text className="text-foreground text-lg font-bold mb-1">
-            {t('jobs.apply.reviewTitle', { defaultValue: 'Review what you are sharing' })}
-          </Text>
-          <Text className="text-muted-foreground text-sm mb-4">
-            {t('jobs.apply.reviewSubtitle', {
-              defaultValue:
-                'This is exactly what {{employer}} will see. Nothing else about your Mention account is shared.',
-              employer: employerName,
-            })}
-          </Text>
-
-          <Card appearance="outline" radius="radius-16" style={{ padding: 16, gap: 12 }}>
-            <View>
-              <Text className="text-xs text-muted-foreground font-primary">
-                {t('jobs.apply.displayName', { defaultValue: 'Name' })}
-              </Text>
-              <Text className="text-foreground text-[15px]">
-                {displayName.trim() ||
-                  t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
-              </Text>
-            </View>
-            <View>
-              <Text className="text-xs text-muted-foreground font-primary">
-                {t('jobs.apply.contactMethod', { defaultValue: 'Contact method' })}
-              </Text>
-              <Text className="text-foreground text-[15px]">
-                {contactMethod.trim() ||
-                  t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
-              </Text>
-            </View>
-            <View>
-              <Text className="text-xs text-muted-foreground font-primary">
-                {t('jobs.apply.coverNote', { defaultValue: 'Cover note' })}
-              </Text>
-              <Text className="text-foreground text-[15px]">
-                {coverNote.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
-              </Text>
-            </View>
-            <View>
-              <Text className="text-xs text-muted-foreground font-primary">
-                {t('jobs.apply.portfolio', { defaultValue: 'Portfolio links' })}
-              </Text>
-              {portfolioLinks.length > 0 ? (
-                portfolioLinks.map((link) => (
-                  <Text key={link} className="text-foreground text-[15px]">
-                    {link}
-                  </Text>
-                ))
-              ) : (
-                <Text className="text-foreground text-[15px]">
-                  {t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
-                </Text>
-              )}
-            </View>
-            <View>
-              <Text className="text-xs text-muted-foreground font-primary">
-                {t('jobs.apply.resume', { defaultValue: 'Resume' })}
-              </Text>
-              <Text className="text-foreground text-[15px]">
-                {resumeFileName || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
-              </Text>
-            </View>
-          </Card>
-
-          <View className="flex-row gap-3 mt-6">
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              size="lg"
-              style={{ flex: 1 }}
-              onPress={() => setStep('edit')}
-              disabled={submitMutation.isPending}
-            >
-              {t('jobs.apply.backToEdit', { defaultValue: 'Edit' })}
-            </Button>
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              style={{ flex: 1 }}
-              loading={submitMutation.isPending}
-              onPress={() => submitMutation.mutate()}
-            >
-              {t('jobs.apply.submit', { defaultValue: 'Submit application' })}
-            </Button>
-          </View>
-        </ScreenScrollView>
-      </Screen>
-    );
-  }
-
-  const canContinue = displayName.trim().length > 0 || contactMethod.trim().length > 0;
-
-  return (
-    <Screen header={header}>
-      <ScreenScrollView
-        contentContainerClassName="px-4 pb-16 pt-2"
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text className="text-foreground text-lg font-bold mb-1">{job.title}</Text>
-        <Text className="text-muted-foreground text-sm mb-4">
-          {t('jobs.apply.privacyNote', {
-            defaultValue:
-              'Only the fields you fill in here are shared with the employer — never your posts, follows, likes or DMs.',
-          })}
-        </Text>
-
-        <View className="mt-1">
-          <TextField>
-            <TextFieldInput
-              label={t('jobs.apply.displayName', { defaultValue: 'Name' })}
-              value={displayName}
-              onChangeText={setDisplayName}
-              maxLength={200}
-            />
-          </TextField>
-        </View>
-
-        <View className="mt-3">
-          <TextField>
-            <TextFieldInput
-              label={t('jobs.apply.contactMethod', {
-                defaultValue: 'Contact method (email, etc.)',
-              })}
-              value={contactMethod}
-              onChangeText={setContactMethod}
-              maxLength={200}
-            />
-          </TextField>
-        </View>
-
-        <View className="mt-3">
-          <Textarea
-            accessibilityLabel={t('jobs.apply.coverNote', {
-              defaultValue: 'Cover note (optional)',
-            })}
-            placeholder={t('jobs.apply.coverNote', { defaultValue: 'Cover note (optional)' })}
-            value={coverNote}
-            onChangeText={setCoverNote}
-            rows={5}
-          />
-        </View>
-
-        {/* Not a TagField: a link needs the URL keyboard and no auto-capitalisation,
-            which TagField's caret does not take, and a comma is legal in a URL. */}
-        <View className="mt-4">
-          <Field label={t('jobs.apply.portfolio', { defaultValue: 'Portfolio links (optional)' })}>
-            <InputGroup>
-              <TextFieldInput
-                label={t('jobs.apply.addLink', { defaultValue: 'Add a link' })}
-                value={portfolioLinkDraft}
-                onChangeText={setPortfolioLinkDraft}
-                onSubmitEditing={addPortfolioLink}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                returnKeyType="done"
-              />
-              <InputGroupAddon divider noPadding>
-                <Button
-                  appearance="plain"
-                  tone="neutral"
-                  size="sm"
-                  onPress={addPortfolioLink}
-                  disabled={!portfolioLinkDraft.trim()}
-                >
-                  {t('common.add', { defaultValue: 'Add' })}
-                </Button>
-              </InputGroupAddon>
-            </InputGroup>
-          </Field>
-          {portfolioLinks.length > 0 ? (
-            <View className="flex-row flex-wrap gap-2 mt-2">
-              {portfolioLinks.map((link) => (
-                <Chip key={link} onClose={() => removePortfolioLink(link)}>
-                  {link}
-                </Chip>
-              ))}
-            </View>
-          ) : null}
-        </View>
-
-        <Field
-          label={t('jobs.apply.resume', { defaultValue: 'Resume (optional)' })}
-          style={{ marginTop: 16 }}
-        >
-          {resumeFileName ? (
-            <Card
-              appearance="outline"
-              radius="radius-16"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-              }}
-            >
-              <Text className="text-foreground text-[14px] flex-1" numberOfLines={1}>
-                {resumeFileName}
-              </Text>
-              <Button appearance="plain" tone="neutral" size="sm" onPress={removeResume}>
-                {t('common.remove', { defaultValue: 'Remove' })}
-              </Button>
-            </Card>
-          ) : (
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              size="md"
-              onPress={openResumePicker}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              {t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })}
-            </Button>
+    return ScrollView(
+      RawText(t('jobs.apply.reviewTitle', { defaultValue: 'Review what you are sharing' }))
+        .foreground('foreground')
+        .font('18')
+        .leading('28px')
+        .weight('bold')
+        .margin('bottom', 'xs'),
+      RawText(
+        t('jobs.apply.reviewSubtitle', {
+          defaultValue:
+            'This is exactly what {{employer}} will see. Nothing else about your Mention account is shared.',
+          employer: employerName,
+        }),
+      )
+        .foreground('muted')
+        .font('14')
+        .leading('20px')
+        .margin('bottom', 'lg'),
+      Embed(
+        <Card appearance="outline" radius="radius-16" style={{ padding: 16, gap: 12 }}>
+          {toElement(
+            VStack(
+              RawText(t('jobs.apply.displayName', { defaultValue: 'Name' }))
+                .font('xs')
+                .leading('16px')
+                .foreground('muted'),
+              RawText(
+                displayName.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+              )
+                .foreground('foreground')
+                .font('md'),
+            ),
           )}
-        </Field>
-
-        <View className="mt-6">
+          {toElement(
+            VStack(
+              RawText(t('jobs.apply.contactMethod', { defaultValue: 'Contact method' }))
+                .font('xs')
+                .leading('16px')
+                .foreground('muted'),
+              RawText(
+                contactMethod.trim() ||
+                  t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+              )
+                .foreground('foreground')
+                .font('md'),
+            ),
+          )}
+          {toElement(
+            VStack(
+              RawText(t('jobs.apply.coverNote', { defaultValue: 'Cover note' }))
+                .font('xs')
+                .leading('16px')
+                .foreground('muted'),
+              RawText(
+                coverNote.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+              )
+                .foreground('foreground')
+                .font('md'),
+            ),
+          )}
+          {toElement(
+            VStack(
+              RawText(t('jobs.apply.portfolio', { defaultValue: 'Portfolio links' }))
+                .font('xs')
+                .leading('16px')
+                .foreground('muted'),
+              Embed(
+                portfolioLinks.length > 0
+                  ? portfolioLinks.map((link) =>
+                      toElement(RawText(link).foreground('foreground').font('md'), link),
+                    )
+                  : toElement(
+                      RawText(t('jobs.apply.notProvided', { defaultValue: 'Not provided' }))
+                        .foreground('foreground')
+                        .font('md'),
+                    ),
+              ),
+            ),
+          )}
+          {toElement(
+            VStack(
+              RawText(t('jobs.apply.resume', { defaultValue: 'Resume' }))
+                .font('xs')
+                .leading('16px')
+                .foreground('muted'),
+              RawText(
+                resumeFileName || t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+              )
+                .foreground('foreground')
+                .font('md'),
+            ),
+          )}
+        </Card>,
+      ),
+      HStack(
+        Embed(
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            size="lg"
+            style={{ flex: 1 }}
+            onPress={() => setStep('edit')}
+            disabled={submitMutation.isPending}
+          >
+            {t('jobs.apply.backToEdit', { defaultValue: 'Edit' })}
+          </Button>,
+        ),
+        Embed(
           <Button
             appearance="solid"
             tone="accent"
             size="lg"
-            disabled={!canContinue}
-            onPress={() => setStep('review')}
+            style={{ flex: 1 }}
+            loading={submitMutation.isPending}
+            onPress={() => submitMutation.mutate()}
           >
-            {t('jobs.apply.review', { defaultValue: 'Review and submit' })}
+            {t('jobs.apply.submit', { defaultValue: 'Submit application' })}
+          </Button>,
+        ),
+      )
+        .spacing('md')
+        .margin('top', '2xl'),
+    )
+      .contentView((v) =>
+        v.padding('horizontal', 'lg').padding('bottom', '64').padding('top', 'sm'),
+      )
+      .header(Embed(header));
+  }
+
+  const canContinue = displayName.trim().length > 0 || contactMethod.trim().length > 0;
+
+  return ScrollView(
+    RawText(job.title)
+      .foreground('foreground')
+      .font('18')
+      .leading('28px')
+      .weight('bold')
+      .margin('bottom', 'xs'),
+    RawText(
+      t('jobs.apply.privacyNote', {
+        defaultValue:
+          'Only the fields you fill in here are shared with the employer — never your posts, follows, likes or DMs.',
+      }),
+    )
+      .foreground('muted')
+      .font('14')
+      .leading('20px')
+      .margin('bottom', 'lg'),
+    VStack(
+      LTextField(
+        [displayName, setDisplayName],
+        t('jobs.apply.displayName', { defaultValue: 'Name' }),
+      ).maxLength(200),
+    ).margin('top', 'xs'),
+    VStack(
+      LTextField(
+        [contactMethod, setContactMethod],
+        t('jobs.apply.contactMethod', {
+          defaultValue: 'Contact method (email, etc.)',
+        }),
+      ).maxLength(200),
+    ).margin('top', 'md'),
+    VStack(
+      TextEditor([coverNote, setCoverNote])
+        .label(
+          t('jobs.apply.coverNote', {
+            defaultValue: 'Cover note (optional)',
+          }),
+        )
+        .placeholder(t('jobs.apply.coverNote', { defaultValue: 'Cover note (optional)' }))
+        .rows(5),
+    ).margin('top', 'md'),
+    /* Not a TagField: a link needs the URL keyboard and no auto-capitalisation,
+              which TagField's caret does not take, and a comma is legal in a URL. */ VStack(
+      LField(
+        t('jobs.apply.portfolio', { defaultValue: 'Portfolio links (optional)' }),
+        Embed(
+          <InputGroup>
+            <TextFieldInput
+              label={t('jobs.apply.addLink', { defaultValue: 'Add a link' })}
+              value={portfolioLinkDraft}
+              onChangeText={setPortfolioLinkDraft}
+              onSubmitEditing={addPortfolioLink}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="done"
+            />
+            <InputGroupAddon divider noPadding>
+              {toElement(
+                LButton(LText(t('common.add', { defaultValue: 'Add' })))
+                  .style('plain')
+                  .tint('neutral')
+                  .size('sm')
+                  .onPress(addPortfolioLink)
+                  .disabled(!portfolioLinkDraft.trim()),
+              )}
+            </InputGroupAddon>
+          </InputGroup>,
+        ),
+      ),
+      portfolioLinks.length > 0
+        ? HStack(
+            Embed(
+              portfolioLinks.map((link) => (
+                <Chip key={link} onClose={() => removePortfolioLink(link)}>
+                  {link}
+                </Chip>
+              )),
+            ),
+          )
+            .wrap()
+            .spacing('sm')
+            .margin('top', 'sm')
+        : null,
+    ).margin('top', 'lg'),
+    Embed(
+      <Field
+        label={t('jobs.apply.resume', { defaultValue: 'Resume (optional)' })}
+        style={{ marginTop: 16 }}
+      >
+        {resumeFileName ? (
+          <Card
+            appearance="outline"
+            radius="radius-16"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+            }}
+          >
+            {toElement(
+              RawText(resumeFileName).foreground('foreground').font('14').flex('1').lines(1),
+            )}
+            {toElement(
+              LButton(LText(t('common.remove', { defaultValue: 'Remove' })))
+                .style('plain')
+                .tint('neutral')
+                .size('sm')
+                .onPress(removeResume),
+            )}
+          </Card>
+        ) : (
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            size="md"
+            onPress={openResumePicker}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            {t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })}
           </Button>
-        </View>
-      </ScreenScrollView>
-    </Screen>
-  );
-}
+        )}
+      </Field>,
+    ),
+    VStack(
+      LButton(LText(t('jobs.apply.review', { defaultValue: 'Review and submit' })))
+        .style('solid')
+        .tint('accent')
+        .size('lg')
+        .disabled(!canContinue)
+        .onPress(() => setStep('review')),
+    ).margin('top', '2xl'),
+  )
+    .contentView((v) => v.padding('horizontal', 'lg').padding('bottom', '64').padding('top', 'sm'))
+    .keyboardTaps('handled')
+    .header(Embed(header));
+});

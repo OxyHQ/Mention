@@ -25,15 +25,9 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from '@oxy.so/bloom/accordion';
-import { ResponsiveGrid } from '@oxy.so/bloom/grid';
-import { Divider } from '@oxy.so/bloom/divider';
 import PostItem from '@/components/Feed/PostItem';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-  SegmentedControlItemText,
-} from '@oxy.so/bloom/segmented-control';
+import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import type { AccountInsights, EngagementRatios } from '@/services/insightsService';
 import type { HydratedPost } from '@mention/shared-types';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -49,6 +43,19 @@ import {
   buildPublishingSummary,
 } from './insightsSeries';
 
+import {
+  Divider as LDivider,
+  Embed,
+  Grid,
+  HStack,
+  Icon,
+  Option,
+  Segmented,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+
 const PERIOD_OPTIONS = [
   { labelKey: 'insights.period.7days', value: 7 },
   { labelKey: 'insights.period.30days', value: 30 },
@@ -61,24 +68,17 @@ interface PeriodSelectorProps {
   t: (key: string) => string;
 }
 
-const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selected, onSelect, t }) => (
-  <View style={styles.periodRow}>
-    <View style={styles.periodControl}>
-      <SegmentedControl
-        label={t('insights.title')}
-        type="radio"
-        value={String(selected)}
-        onValueChange={(value) => onSelect(Number(value))}
-      >
-        {PERIOD_OPTIONS.map((opt) => (
-          <SegmentedControlItem key={opt.value} value={String(opt.value)}>
-            <SegmentedControlItemText>{t(opt.labelKey)}</SegmentedControlItemText>
-          </SegmentedControlItem>
-        ))}
-      </SegmentedControl>
-    </View>
-  </View>
-);
+const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selected, onSelect, t }) =>
+  toElement(
+    VStack(
+      VStack(
+        Segmented(
+          [String(selected), (value) => onSelect(Number(value))],
+          PERIOD_OPTIONS.map((opt) => Option(String(opt.value), t(opt.labelKey))),
+        ).label(t('insights.title')),
+      ).align('start'),
+    ).margin('bottom', 'xs'),
+  );
 
 export interface InsightsDashboardProps {
   stats: AccountInsights;
@@ -137,22 +137,22 @@ export function InsightsDashboard({
     {
       label: t('insights.post.likes'),
       value: stats.interactions.likes,
-      icon: <RiHeart3Line width={16} height={16} fill={colors.text} />,
+      icon: toElement(Icon(RiHeart3Line).size('sm').foreground('foreground')),
     },
     {
       label: t('insights.post.replies'),
       value: stats.interactions.replies,
-      icon: <RiChat3Line width={16} height={16} fill={colors.text} />,
+      icon: toElement(Icon(RiChat3Line).size('sm').foreground('foreground')),
     },
     {
       label: t('insights.post.boosts'),
       value: stats.interactions.boosts,
-      icon: <RiRepeat2Line width={16} height={16} fill={colors.text} />,
+      icon: toElement(Icon(RiRepeat2Line).size('sm').foreground('foreground')),
     },
     {
       label: t('insights.post.shares'),
       value: stats.interactions.shares,
-      icon: <RiUpload2Line width={16} height={16} fill={colors.text} />,
+      icon: toElement(Icon(RiUpload2Line).size('sm').foreground('foreground')),
     },
   ];
   const calendarDays = publishing.weekdays.total + publishing.weekends.total;
@@ -272,83 +272,112 @@ export function InsightsDashboard({
   );
   const body = (
     <>
-      <View style={styles.filters}>
-        <View className="flex-row flex-wrap items-center justify-between gap-2">
-          <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} t={t} />
-          {!accountId && (
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              size="sm"
-              leading={<RiCalendarEventLine width={16} height={16} fill={colors.text} />}
-              onPress={() => router.push('/insights/weekly_recap')}
-            >
-              {t('insights.weeklyRecap.title')}
-            </Button>
-          )}
-        </View>
-        <Text className="text-xs text-muted-foreground" accessibilityLiveRegion="polite">
-          {isFetching ? t('insights.updating') : `${range} · UTC`}
-        </Text>
-      </View>
-      <Text className="text-sm text-muted-foreground">{t('insights.periodScope')}</Text>
+      {toElement(
+        VStack(
+          HStack(
+            Embed(<PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} t={t} />),
+            Embed(
+              !accountId && (
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  size="sm"
+                  leading={toElement(Icon(RiCalendarEventLine).size('sm').foreground('foreground'))}
+                  onPress={() => router.push('/insights/weekly_recap')}
+                >
+                  {t('insights.weeklyRecap.title')}
+                </Button>
+              ),
+            ),
+          )
+            .wrap()
+            .align('center')
+            .justify('between')
+            .spacing('sm'),
+          Embed(
+            <Text className="text-xs text-muted-foreground" accessibilityLiveRegion="polite">
+              {isFetching ? t('insights.updating') : `${range} · UTC`}
+            </Text>,
+          ),
+        ).spacing('sm'),
+      )}
+      {toElement(LText(t('insights.periodScope')).font('14').leading('20px').foreground('muted'))}
 
       {activeTab === 'overview' ? (
         <>
-          <ResponsiveGrid stretchItems testID="insights-summary-grid">
-            <ChartCardSurface height="auto" testID="insights-views-summary">
-              <View className="flex-row items-center justify-between gap-3">
-                <ChartHeadline
-                  label={t('insights.post.views')}
-                  value={stats.overview.totalViews}
+          {toElement(
+            Grid(
+              Embed(
+                <ChartCardSurface height="auto" testID="insights-views-summary">
+                  {toElement(
+                    HStack(
+                      Embed(
+                        <ChartHeadline
+                          label={t('insights.post.views')}
+                          value={stats.overview.totalViews}
+                          format={formatNumber}
+                          caption={range}
+                        />,
+                      ),
+                      Embed(
+                        <Sparkline
+                          data={series.map((point) => point.value)}
+                          width={96}
+                          height={40}
+                          shape="sharp"
+                          accessibilityLabel={t('insights.viewsByPublicationDate')}
+                        />,
+                      ),
+                    )
+                      .align('center')
+                      .justify('between')
+                      .spacing('md'),
+                  )}
+                  <ChartStatTiles
+                    items={[
+                      {
+                        label: t('insights.posts'),
+                        value: formatNumber(stats.overview.totalPosts),
+                      },
+                      {
+                        label: t('insights.post.interactions'),
+                        value: formatNumber(stats.overview.totalInteractions),
+                      },
+                      {
+                        label: t('insights.post.engagementRate'),
+                        value: formatPercent(stats.overview.engagementRate),
+                      },
+                      {
+                        label: t('insights.viewsPerPost'),
+                        value: formatDecimal(engagementRatios.averages.viewsPerPost),
+                      },
+                      {
+                        label: t('insights.interactionsPerPostShort'),
+                        value: formatDecimal(stats.overview.averageEngagementPerPost),
+                      },
+                      {
+                        label: t('insights.activeDaysShort'),
+                        value: formatNumber(publishing.activeDays),
+                      },
+                    ]}
+                  />
+                </ChartCardSurface>,
+              ),
+              Embed(
+                <BarListCard
+                  title={t('insights.post.interactions')}
+                  metricLabel={t('insights.post.totalInteractions')}
+                  items={interactions}
+                  showShares
+                  stats={interactionStats}
+                  metric="value"
                   format={formatNumber}
-                  caption={range}
-                />
-                <Sparkline
-                  data={series.map((point) => point.value)}
-                  width={96}
-                  height={40}
-                  shape="sharp"
-                  accessibilityLabel={t('insights.viewsByPublicationDate')}
-                />
-              </View>
-              <ChartStatTiles
-                items={[
-                  { label: t('insights.posts'), value: formatNumber(stats.overview.totalPosts) },
-                  {
-                    label: t('insights.post.interactions'),
-                    value: formatNumber(stats.overview.totalInteractions),
-                  },
-                  {
-                    label: t('insights.post.engagementRate'),
-                    value: formatPercent(stats.overview.engagementRate),
-                  },
-                  {
-                    label: t('insights.viewsPerPost'),
-                    value: formatDecimal(engagementRatios.averages.viewsPerPost),
-                  },
-                  {
-                    label: t('insights.interactionsPerPostShort'),
-                    value: formatDecimal(stats.overview.averageEngagementPerPost),
-                  },
-                  {
-                    label: t('insights.activeDaysShort'),
-                    value: formatNumber(publishing.activeDays),
-                  },
-                ]}
-              />
-            </ChartCardSurface>
-
-            <BarListCard
-              title={t('insights.post.interactions')}
-              metricLabel={t('insights.post.totalInteractions')}
-              items={interactions}
-              showShares
-              stats={interactionStats}
-              metric="value"
-              format={formatNumber}
-            />
-          </ResponsiveGrid>
+                />,
+              ),
+            )
+              .stretchItems()
+              .testID('insights-summary-grid'),
+          )}
           <Accordion value={expanded} onValueChange={setExpanded}>
             <AccordionItem value="views">
               <AccordionTrigger>{t('insights.exploreViews')}</AccordionTrigger>
@@ -369,230 +398,271 @@ export function InsightsDashboard({
                     formatAxisValue={formatCompactNumber}
                   />
                 )}
-                <Text variant="caption-1-regular">{t('insights.viewsByPublicationDate')}</Text>
+                {toElement(LText(t('insights.viewsByPublicationDate')).font('caption-1'))}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-          {stats.topPosts.length > 0 && (
-            <ResponsiveGrid testID="insights-posts-grid">
-              <View className="gap-3">
-                <Text variant="headline-medium">{t('insights.topPerformingPosts')}</Text>
-                {topPostsData.length > 0 ? (
-                  topPostsData.map((post, index) => (
-                    <Fragment key={post.id}>
-                      <PostItem post={post} openPostEngagement={openPostEngagement} />
-                      {index < topPostsData.length - 1 ? <Divider /> : null}
-                    </Fragment>
-                  ))
-                ) : (
-                  <Text>{t('insights.unableToLoadPosts')}</Text>
-                )}
-              </View>
-              <View className="gap-4">
-                {publishingCard}
-                {strongestDates}
-                <Text variant="caption-1-regular">{t('insights.strongestDatesScope')}</Text>
-              </View>
-            </ResponsiveGrid>
-          )}
+          {stats.topPosts.length > 0 &&
+            toElement(
+              Grid(
+                VStack(
+                  LText(t('insights.topPerformingPosts')).font('headline').weight('medium'),
+                  Embed(
+                    topPostsData.length > 0
+                      ? topPostsData.map((post, index) => (
+                          <Fragment key={post.id}>
+                            <PostItem post={post} openPostEngagement={openPostEngagement} />
+                            {index < topPostsData.length - 1 ? toElement(LDivider()) : null}
+                          </Fragment>
+                        ))
+                      : toElement(LText(t('insights.unableToLoadPosts'))),
+                  ),
+                ).spacing('md'),
+                VStack(
+                  Embed(publishingCard),
+                  Embed(strongestDates),
+                  LText(t('insights.strongestDatesScope')).font('caption-1'),
+                ).spacing('lg'),
+              ).testID('insights-posts-grid'),
+            )}
         </>
       ) : activeTab === 'engagement' ? (
         <>
-          <ResponsiveGrid stretchItems>
-            <ChartCardSurface height="auto">
-              <ChartHeadline
-                label={t('insights.post.engagementRate')}
-                value={engagementRatios.ratios.engagementRate}
-                format={formatPercent}
-                caption={t('insights.rateExplanation')}
-              />
-              <ChartStatTiles
-                items={[
-                  {
-                    label: t('insights.post.views'),
-                    value: formatNumber(stats.overview.totalViews),
-                  },
-                  { label: t('insights.posts'), value: formatNumber(stats.overview.totalPosts) },
-                  {
-                    label: t('insights.mainInteraction'),
-                    value: topInteraction.value > 0 ? topInteraction.label : '—',
-                  },
-                ]}
-              />
-            </ChartCardSurface>
-            <ChartCardSurface height="auto">
-              <ChartHeadline
-                label={t('insights.engagementPerPost')}
-                value={engagementRatios.averages.engagementPerPost}
-                format={(value) => formatDecimal(value)}
-                caption={range}
-              />
-              <ChartStatTiles
-                items={[
-                  {
-                    label: t('insights.post.interactions'),
-                    value: formatNumber(engagementRatios.totals.interactions),
-                  },
-                  {
-                    label: t('insights.activeDaysShort'),
-                    value: formatNumber(publishing.activeDays),
-                  },
-                  {
-                    label: t('insights.viewsPerPost'),
-                    value: formatDecimal(engagementRatios.averages.viewsPerPost),
-                  },
-                ]}
-              />
-            </ChartCardSurface>
-          </ResponsiveGrid>
-          <ResponsiveGrid stretchItems testID="insights-engagement-grid">
-            <RadarChartCard
-              title={t('insights.engagementProfile')}
-              variant="filled"
-              tiles
-              range={range}
-              headline={engagementRatios.ratios.engagementRate}
-              format={formatPercent}
-              data={[
-                { label: t('insights.post.likes'), rate: engagementRatios.ratios.likeRate },
-                { label: t('insights.post.replies'), rate: engagementRatios.ratios.replyRate },
-                { label: t('insights.post.boosts'), rate: engagementRatios.ratios.boostRate },
-                { label: t('insights.post.shares'), rate: engagementRatios.ratios.shareRate },
-              ]}
-              series={[{ key: 'rate', label: t('insights.ofViews') }]}
-            />
-            <HeatmapChartCard
-              title={t('insights.interactionsByWeekday')}
-              range={range}
-              stats={[
-                {
-                  label: t('insights.topWeekday'),
-                  value: strongestWeekday.value > 0 ? strongestWeekday.label : '—',
-                },
-                {
-                  label: t('insights.topWeekdayInteractions'),
-                  value: formatNumber(strongestWeekday.value),
-                },
-                {
-                  label: t('insights.activeDaysShort'),
-                  value: formatNumber(publishing.activeDays),
-                },
-              ]}
-              headline={stats.overview.totalInteractions}
-              columns={weekdayInteractions.columns}
-              rows={(['likes', 'replies', 'boosts', 'shares'] as const).map((kind) => ({
-                label: t(`insights.post.${kind}`),
-                values: weekdayInteractions.values[kind],
-              }))}
-              format={formatNumber}
-              legendLabels={[t('insights.fewer'), t('insights.more')]}
-            />
-          </ResponsiveGrid>
-          <Text className="text-xs text-muted-foreground">{t('insights.weekdayScope')}</Text>
-          <ResponsiveGrid stretchItems>
-            <BarListCard
-              title={t('insights.engagementRatios')}
-              stats={[
-                { label: t('insights.post.views'), value: formatNumber(stats.overview.totalViews) },
-                {
-                  label: t('insights.post.interactions'),
-                  value: formatNumber(stats.overview.totalInteractions),
-                },
-              ]}
-              metricLabel={t('insights.ofViews')}
-              metric="value"
-              format={formatPercent}
-              items={[
-                { label: t('insights.likeRate'), value: engagementRatios.ratios.likeRate },
-                { label: t('insights.replyRate'), value: engagementRatios.ratios.replyRate },
-                { label: t('insights.boostRate'), value: engagementRatios.ratios.boostRate },
-                { label: t('insights.shareRate'), value: engagementRatios.ratios.shareRate },
-              ]}
-            />
-            <BarListCard
-              title={t('insights.engagementPerPost')}
-              stats={[
-                { label: t('insights.posts'), value: formatNumber(stats.overview.totalPosts) },
-                {
-                  label: t('insights.viewsPerPost'),
-                  value: formatDecimal(engagementRatios.averages.viewsPerPost),
-                },
-              ]}
-              metricLabel={t('insights.perPost')}
-              metric="value"
-              format={(value) => formatDecimal(value)}
-              items={interactions.map((item) => ({
-                ...item,
-                value: stats.overview.totalPosts ? item.value / stats.overview.totalPosts : 0,
-              }))}
-            />
-          </ResponsiveGrid>
+          {toElement(
+            Grid(
+              Embed(
+                <ChartCardSurface height="auto">
+                  <ChartHeadline
+                    label={t('insights.post.engagementRate')}
+                    value={engagementRatios.ratios.engagementRate}
+                    format={formatPercent}
+                    caption={t('insights.rateExplanation')}
+                  />
+                  <ChartStatTiles
+                    items={[
+                      {
+                        label: t('insights.post.views'),
+                        value: formatNumber(stats.overview.totalViews),
+                      },
+                      {
+                        label: t('insights.posts'),
+                        value: formatNumber(stats.overview.totalPosts),
+                      },
+                      {
+                        label: t('insights.mainInteraction'),
+                        value: topInteraction.value > 0 ? topInteraction.label : '—',
+                      },
+                    ]}
+                  />
+                </ChartCardSurface>,
+              ),
+              Embed(
+                <ChartCardSurface height="auto">
+                  <ChartHeadline
+                    label={t('insights.engagementPerPost')}
+                    value={engagementRatios.averages.engagementPerPost}
+                    format={(value) => formatDecimal(value)}
+                    caption={range}
+                  />
+                  <ChartStatTiles
+                    items={[
+                      {
+                        label: t('insights.post.interactions'),
+                        value: formatNumber(engagementRatios.totals.interactions),
+                      },
+                      {
+                        label: t('insights.activeDaysShort'),
+                        value: formatNumber(publishing.activeDays),
+                      },
+                      {
+                        label: t('insights.viewsPerPost'),
+                        value: formatDecimal(engagementRatios.averages.viewsPerPost),
+                      },
+                    ]}
+                  />
+                </ChartCardSurface>,
+              ),
+            ).stretchItems(),
+          )}
+          {toElement(
+            Grid(
+              Embed(
+                <RadarChartCard
+                  title={t('insights.engagementProfile')}
+                  variant="filled"
+                  tiles
+                  range={range}
+                  headline={engagementRatios.ratios.engagementRate}
+                  format={formatPercent}
+                  data={[
+                    { label: t('insights.post.likes'), rate: engagementRatios.ratios.likeRate },
+                    { label: t('insights.post.replies'), rate: engagementRatios.ratios.replyRate },
+                    { label: t('insights.post.boosts'), rate: engagementRatios.ratios.boostRate },
+                    { label: t('insights.post.shares'), rate: engagementRatios.ratios.shareRate },
+                  ]}
+                  series={[{ key: 'rate', label: t('insights.ofViews') }]}
+                />,
+              ),
+              Embed(
+                <HeatmapChartCard
+                  title={t('insights.interactionsByWeekday')}
+                  range={range}
+                  stats={[
+                    {
+                      label: t('insights.topWeekday'),
+                      value: strongestWeekday.value > 0 ? strongestWeekday.label : '—',
+                    },
+                    {
+                      label: t('insights.topWeekdayInteractions'),
+                      value: formatNumber(strongestWeekday.value),
+                    },
+                    {
+                      label: t('insights.activeDaysShort'),
+                      value: formatNumber(publishing.activeDays),
+                    },
+                  ]}
+                  headline={stats.overview.totalInteractions}
+                  columns={weekdayInteractions.columns}
+                  rows={(['likes', 'replies', 'boosts', 'shares'] as const).map((kind) => ({
+                    label: t(`insights.post.${kind}`),
+                    values: weekdayInteractions.values[kind],
+                  }))}
+                  format={formatNumber}
+                  legendLabels={[t('insights.fewer'), t('insights.more')]}
+                />,
+              ),
+            )
+              .stretchItems()
+              .testID('insights-engagement-grid'),
+          )}
+          {toElement(
+            LText(t('insights.weekdayScope')).font('xs').leading('16px').foreground('muted'),
+          )}
+          {toElement(
+            Grid(
+              Embed(
+                <BarListCard
+                  title={t('insights.engagementRatios')}
+                  stats={[
+                    {
+                      label: t('insights.post.views'),
+                      value: formatNumber(stats.overview.totalViews),
+                    },
+                    {
+                      label: t('insights.post.interactions'),
+                      value: formatNumber(stats.overview.totalInteractions),
+                    },
+                  ]}
+                  metricLabel={t('insights.ofViews')}
+                  metric="value"
+                  format={formatPercent}
+                  items={[
+                    { label: t('insights.likeRate'), value: engagementRatios.ratios.likeRate },
+                    { label: t('insights.replyRate'), value: engagementRatios.ratios.replyRate },
+                    { label: t('insights.boostRate'), value: engagementRatios.ratios.boostRate },
+                    { label: t('insights.shareRate'), value: engagementRatios.ratios.shareRate },
+                  ]}
+                />,
+              ),
+              Embed(
+                <BarListCard
+                  title={t('insights.engagementPerPost')}
+                  stats={[
+                    { label: t('insights.posts'), value: formatNumber(stats.overview.totalPosts) },
+                    {
+                      label: t('insights.viewsPerPost'),
+                      value: formatDecimal(engagementRatios.averages.viewsPerPost),
+                    },
+                  ]}
+                  metricLabel={t('insights.perPost')}
+                  metric="value"
+                  format={(value) => formatDecimal(value)}
+                  items={interactions.map((item) => ({
+                    ...item,
+                    value: stats.overview.totalPosts ? item.value / stats.overview.totalPosts : 0,
+                  }))}
+                />,
+              ),
+            ).stretchItems(),
+          )}
         </>
       ) : (
         <>
-          <ResponsiveGrid stretchItems testID="insights-publishing-grid">
-            {publishingCard}
-            {Object.keys(stats.postsByType).length > 0 && (
-              <StageBarsCard
-                title={t('insights.publishingMix')}
-                range={range}
-                headline={stats.overview.totalPosts}
-                percentageBase="total"
-                stats={[
-                  { label: t('insights.formatsUsed'), value: String(formats.length) },
-                  {
-                    label: t('insights.leadingFormat'),
-                    value: leadingFormat
-                      ? t(`insights.postType.${leadingFormat}`, { defaultValue: leadingFormat })
-                      : '—',
-                  },
-                  {
-                    label: t('insights.postsPerDay'),
-                    value: formatDecimal(
-                      stats.period.days > 0 ? stats.overview.totalPosts / stats.period.days : 0,
-                    ),
-                  },
-                ]}
-                stages={formats.map(([type, value]) => ({
-                  label: t(`insights.postType.${type}`, { defaultValue: type }),
-                  value,
-                }))}
-                format={formatNumber}
-              />
-            )}
-          </ResponsiveGrid>
-          <ResponsiveGrid stretchItems testID="insights-publishing-detail-grid">
-            <SleepScoreCard
-              testID="publishing-consistency"
-              title={t('insights.publishingConsistency')}
-              range={range}
-              stats={consistencyStats}
-              scoreLabel={t('insights.publishedDayRatio', {
-                count: publishing.activeDays,
-                total: publishing.weekdays.total + publishing.weekends.total,
-              })}
-              accessibilityLabel={t('insights.publishedDayRatio', {
-                count: publishing.activeDays,
-                total: publishing.weekdays.total + publishing.weekends.total,
-              })}
-              metrics={[
-                {
-                  label: t('insights.weekdays'),
-                  detail: t('insights.publishedDays'),
-                  score: publishing.weekdays.active,
-                  max: publishing.weekdays.total,
-                },
-                {
-                  label: t('insights.weekends'),
-                  detail: t('insights.publishedDays'),
-                  score: publishing.weekends.active,
-                  max: publishing.weekends.total,
-                },
-              ]}
-            />
-            {strongestDates}
-          </ResponsiveGrid>
-          <Text variant="caption-1-regular">{t('insights.strongestDatesScope')}</Text>
+          {toElement(
+            Grid(
+              Embed(publishingCard),
+              Embed(
+                Object.keys(stats.postsByType).length > 0 && (
+                  <StageBarsCard
+                    title={t('insights.publishingMix')}
+                    range={range}
+                    headline={stats.overview.totalPosts}
+                    percentageBase="total"
+                    stats={[
+                      { label: t('insights.formatsUsed'), value: String(formats.length) },
+                      {
+                        label: t('insights.leadingFormat'),
+                        value: leadingFormat
+                          ? t(`insights.postType.${leadingFormat}`, { defaultValue: leadingFormat })
+                          : '—',
+                      },
+                      {
+                        label: t('insights.postsPerDay'),
+                        value: formatDecimal(
+                          stats.period.days > 0 ? stats.overview.totalPosts / stats.period.days : 0,
+                        ),
+                      },
+                    ]}
+                    stages={formats.map(([type, value]) => ({
+                      label: t(`insights.postType.${type}`, { defaultValue: type }),
+                      value,
+                    }))}
+                    format={formatNumber}
+                  />
+                ),
+              ),
+            )
+              .stretchItems()
+              .testID('insights-publishing-grid'),
+          )}
+          {toElement(
+            Grid(
+              Embed(
+                <SleepScoreCard
+                  testID="publishing-consistency"
+                  title={t('insights.publishingConsistency')}
+                  range={range}
+                  stats={consistencyStats}
+                  scoreLabel={t('insights.publishedDayRatio', {
+                    count: publishing.activeDays,
+                    total: publishing.weekdays.total + publishing.weekends.total,
+                  })}
+                  accessibilityLabel={t('insights.publishedDayRatio', {
+                    count: publishing.activeDays,
+                    total: publishing.weekdays.total + publishing.weekends.total,
+                  })}
+                  metrics={[
+                    {
+                      label: t('insights.weekdays'),
+                      detail: t('insights.publishedDays'),
+                      score: publishing.weekdays.active,
+                      max: publishing.weekdays.total,
+                    },
+                    {
+                      label: t('insights.weekends'),
+                      detail: t('insights.publishedDays'),
+                      score: publishing.weekends.active,
+                      max: publishing.weekends.total,
+                    },
+                  ]}
+                />,
+              ),
+              Embed(strongestDates),
+            )
+              .stretchItems()
+              .testID('insights-publishing-detail-grid'),
+          )}
+          {toElement(LText(t('insights.strongestDatesScope')).font('caption-1'))}
         </>
       )}
     </>

@@ -1,13 +1,20 @@
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Search } from '@oxy.so/bloom/search';
-import { Button } from '@oxy.so/bloom/button';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { commerceService } from '@/services/commerceService';
 import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
+
+import {
+  Button as LButton,
+  Embed,
+  RawText,
+  Search as LSearch,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export function StorefrontSettings({ accountId }: { accountId: string }) {
   const { t } = useTranslation();
@@ -36,68 +43,74 @@ export function StorefrontSettings({ accountId }: { accountId: string }) {
       });
     },
   });
-  return (
-    <View className="p-4 gap-3">
-      <Text className="text-foreground text-lg font-semibold">
-        {t('commerce.shop', { defaultValue: 'Shop' })}
-      </Text>
-      <Text className="text-muted-foreground">
-        {t('commerce.connectHelp', {
+  return toElement(
+    VStack(
+      RawText(t('commerce.shop', { defaultValue: 'Shop' }))
+        .foreground('foreground')
+        .font('18')
+        .leading('28px')
+        .weight('semibold'),
+      RawText(
+        t('commerce.connectHelp', {
           defaultValue:
             'Connect a Mercaria store owned by this account. Products and checkout stay on Mercaria.',
-        })}
-      </Text>
-      {store.data?.state === 'available' ? (
-        <>
-          <Text className="text-foreground">{store.data.store.name}</Text>
-          <Button disabled={mutation.isPending} onPress={() => mutation.mutate('disconnect')}>
-            {t('commerce.disconnect', { defaultValue: 'Disconnect store' })}
-          </Button>
-          {metrics.data ? (
-            <Text className="text-muted-foreground">
-              {metrics.data.suppressed
-                ? t('commerce.metricsSuppressed', {
-                    defaultValue:
-                      'Activity totals appear after at least {{count}} opens in the last 30 days.',
-                    count: metrics.data.minimumOpens,
-                  })
-                : t('commerce.metricsSummary', {
-                    defaultValue:
-                      'Last 30 days: {{opens}} opens · {{handoffs}} visits to Mercaria. Counts are interactions, not unique visitors or sales.',
-                    opens: metrics.data.opens,
-                    handoffs: metrics.data.handoffs,
-                  })}
-            </Text>
-          ) : null}
-        </>
-      ) : null}
-      <Search
-        label={t('commerce.storeHandle', { defaultValue: 'Mercaria store handle' })}
-        value={handle}
-        onChangeText={setHandle}
-        onClearText={() => setHandle('')}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-      <Button
-        disabled={!handle.trim() || mutation.isPending}
-        onPress={() => mutation.mutate('connect')}
-      >
-        {t('commerce.connect', { defaultValue: 'Connect store' })}
-      </Button>
-      {mutation.isError ? (
-        <Text accessibilityRole="alert" className="text-destructive">
-          {t('commerce.connectError', {
-            defaultValue:
-              'Could not update the connection. Check the store handle and your access to this account.',
-          })}
-        </Text>
-      ) : null}
-      {store.isError ? (
-        <Text className="text-muted-foreground">
-          {t('commerce.shopUnavailable', { defaultValue: 'This shop is unavailable' })}
-        </Text>
-      ) : null}
-    </View>
+        }),
+      ).foreground('muted'),
+      Embed(
+        store.data?.state === 'available' ? (
+          <>
+            {toElement(RawText(store.data.store.name).foreground('foreground'))}
+            {toElement(
+              LButton(LText(t('commerce.disconnect', { defaultValue: 'Disconnect store' })))
+                .disabled(mutation.isPending)
+                .onPress(() => mutation.mutate('disconnect')),
+            )}
+            {metrics.data
+              ? toElement(
+                  RawText(
+                    metrics.data.suppressed
+                      ? t('commerce.metricsSuppressed', {
+                          defaultValue:
+                            'Activity totals appear after at least {{count}} opens in the last 30 days.',
+                          count: metrics.data.minimumOpens,
+                        })
+                      : t('commerce.metricsSummary', {
+                          defaultValue:
+                            'Last 30 days: {{opens}} opens · {{handoffs}} visits to Mercaria. Counts are interactions, not unique visitors or sales.',
+                          opens: metrics.data.opens,
+                          handoffs: metrics.data.handoffs,
+                        }),
+                  ).foreground('muted'),
+                )
+              : null}
+          </>
+        ) : null,
+      ),
+      LSearch([handle, setHandle])
+        .label(t('commerce.storeHandle', { defaultValue: 'Mercaria store handle' }))
+        .onClearText(() => setHandle(''))
+        .autocapitalize('none')
+        .autocorrect(false),
+      LButton(LText(t('commerce.connect', { defaultValue: 'Connect store' })))
+        .disabled(!handle.trim() || mutation.isPending)
+        .onPress(() => mutation.mutate('connect')),
+      mutation.isError
+        ? RawText(
+            t('commerce.connectError', {
+              defaultValue:
+                'Could not update the connection. Check the store handle and your access to this account.',
+            }),
+          )
+            .foreground('destructive')
+            .role('alert')
+        : null,
+      store.isError
+        ? RawText(
+            t('commerce.shopUnavailable', { defaultValue: 'This shop is unavailable' }),
+          ).foreground('muted')
+        : null,
+    )
+      .padding('all', 'lg')
+      .spacing('md'),
   );
 }

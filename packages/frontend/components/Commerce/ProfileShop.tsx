@@ -4,7 +4,7 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import type { CommerceReference } from '@mention/shared-types/commerce';
-import { Dimensions, Linking, Text, View } from 'react-native';
+import { Dimensions, Linking, View } from 'react-native';
 import { useScreenVisible } from '@oxy.so/bloom/screen';
 import { isNotFoundError } from '@/utils/apiError';
 import {
@@ -13,9 +13,6 @@ import {
 } from './FeaturedCollectionObserver';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
-import { Search } from '@oxy.so/bloom/search';
-import { Switch } from '@oxy.so/bloom/switch';
 import {
   Select,
   SelectContent,
@@ -32,6 +29,18 @@ import { commerceReferenceKey } from '@/utils/commerceReferences';
 import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  RawText,
+  Search as LSearch,
+  Text as LText,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type ShopRow =
   | { kind: 'content'; key: string; element: ReactElement }
@@ -165,73 +174,82 @@ export function ProfileShop({
     const currentStore = store.data.store;
     append(
       'store',
-      <View className="p-4 gap-3">
-        <Text className="text-foreground text-xl font-bold">{currentStore.name}</Text>
-        {currentStore.description ? (
-          <Text className="text-muted-foreground">{currentStore.description}</Text>
-        ) : null}
-        <Button
-          onPress={() => {
+      toElement(
+        VStack(
+          RawText(currentStore.name)
+            .foreground('foreground')
+            .font('xl')
+            .leading('28px')
+            .weight('bold'),
+          currentStore.description ? RawText(currentStore.description).foreground('muted') : null,
+          LButton(LText(t('commerce.visitStore'))).onPress(() => {
             void commerceService.recordMetric('stores', accountId, 'handoff').catch(() => {});
             void Linking.openURL(currentStore.url);
-          }}
-        >
-          {t('commerce.visitStore')}
-        </Button>
-      </View>,
+          }),
+        )
+          .padding('all', 'lg')
+          .spacing('md'),
+      ),
     );
     append(
       'product-controls',
-      <View className="px-4 py-2 gap-3">
-        <Search
-          label={t('commerce.searchProducts')}
-          value={searchText}
-          onChangeText={setSearchText}
-          onClearText={() => setSearchText('')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          maxLength={200}
-        />
-        <Select
-          value={effectiveSort}
-          onValueChange={(value) => {
-            const selected = sorts.find((option) => option.value === value);
-            if (selected) setSort(selected.value);
-          }}
-        >
-          <SelectTrigger label={t('commerce.sortProducts')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent
-            items={sorts}
-            renderItem={(option) => (
-              <SelectItem value={option.value} label={option.label}>
-                <SelectItemText>{option.label}</SelectItemText>
-              </SelectItem>
-            )}
-          />
-        </Select>
-        <View className="flex-row items-center justify-between gap-3">
-          <Text className="text-foreground flex-1">{t('commerce.inStockOnly')}</Text>
-          <Switch
-            accessibilityLabel={t('commerce.inStockOnly')}
-            checked={inStock}
-            onCheckedChange={setInStock}
-          />
-        </View>
-      </View>,
+      toElement(
+        VStack(
+          LSearch([searchText, setSearchText])
+            .label(t('commerce.searchProducts'))
+            .onClearText(() => setSearchText(''))
+            .autocapitalize('none')
+            .autocorrect(false)
+            .maxLength(200),
+          Embed(
+            <Select
+              value={effectiveSort}
+              onValueChange={(value) => {
+                const selected = sorts.find((option) => option.value === value);
+                if (selected) setSort(selected.value);
+              }}
+            >
+              <SelectTrigger label={t('commerce.sortProducts')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                items={sorts}
+                renderItem={(option) => (
+                  <SelectItem value={option.value} label={option.label}>
+                    <SelectItemText>{option.label}</SelectItemText>
+                  </SelectItem>
+                )}
+              />
+            </Select>,
+          ),
+          HStack(
+            RawText(t('commerce.inStockOnly')).foreground('foreground').flex('1'),
+            Toggle([inStock, setInStock]).label(t('commerce.inStockOnly')),
+          )
+            .align('center')
+            .justify('between')
+            .spacing('md'),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'sm')
+          .spacing('md'),
+      ),
     );
     if (showCuration && featured.isError)
       append('featured-error', <EmptyState title={t('commerce.catalogUnavailable')} />);
     if (selectedCollections.length)
       append(
         'featured-heading',
-        <Text
-          accessibilityRole="header"
-          className="px-4 py-2 text-foreground text-lg font-semibold"
-        >
-          {t('commerce.featuredCollections')}
-        </Text>,
+        toElement(
+          RawText(t('commerce.featuredCollections'))
+            .padding('horizontal', 'lg')
+            .padding('vertical', 'sm')
+            .foreground('foreground')
+            .font('18')
+            .leading('28px')
+            .weight('semibold')
+            .role('header'),
+        ),
       );
     for (const collection of selectedCollections) {
       // Never render a previous viewer/store snapshot while effects catch up.
@@ -247,12 +265,16 @@ export function ProfileShop({
       if (shelf?.isError && isNotFoundError(shelf.error)) continue;
       append(
         `featured-${collection.ref.id}-heading`,
-        <Text
-          accessibilityRole="header"
-          className="px-4 py-2 text-foreground text-lg font-semibold"
-        >
-          {collection.title}
-        </Text>,
+        toElement(
+          RawText(collection.title)
+            .padding('horizontal', 'lg')
+            .padding('vertical', 'sm')
+            .foreground('foreground')
+            .font('18')
+            .leading('28px')
+            .weight('semibold')
+            .role('header'),
+        ),
       );
       if (!shelf || shelf.isPending)
         append(`featured-${collection.ref.id}-loading`, <ListSkeleton />);
@@ -269,21 +291,27 @@ export function ProfileShop({
         if (shelf.hasNextPage)
           append(
             `featured-${collection.ref.id}-more`,
-            <Button
-              accessibilityLabel={t('commerce.moreCollectionProducts', { title: collection.title })}
-              disabled={shelf.isFetchingNextPage}
-              onPress={() => void shelf.fetchNextPage()}
-            >
-              {t('commerce.more')}
-            </Button>,
+            toElement(
+              LButton(LText(t('commerce.more')))
+                .label(t('commerce.moreCollectionProducts', { title: collection.title }))
+                .disabled(shelf.isFetchingNextPage)
+                .onPress(() => void shelf.fetchNextPage()),
+            ),
           );
       }
     }
     append(
       'products-heading',
-      <Text accessibilityRole="header" className="px-4 py-2 text-foreground text-lg font-semibold">
-        {t('commerce.products')}
-      </Text>,
+      toElement(
+        RawText(t('commerce.products'))
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'sm')
+          .foreground('foreground')
+          .font('18')
+          .leading('28px')
+          .weight('semibold')
+          .role('header'),
+      ),
     );
     const productRefs =
       products.data?.pages.flatMap((page) => page.items.map((item) => item.ref)) ?? [];
@@ -296,22 +324,25 @@ export function ProfileShop({
     if (products.hasNextPage)
       append(
         'products-more',
-        <Button
-          disabled={products.isFetchingNextPage}
-          onPress={() => void products.fetchNextPage()}
-        >
-          {t('commerce.more')}
-        </Button>,
+        toElement(
+          LButton(LText(t('commerce.more')))
+            .disabled(products.isFetchingNextPage)
+            .onPress(() => void products.fetchNextPage()),
+        ),
       );
     if (showCuration) {
       append(
         'collections-heading',
-        <Text
-          accessibilityRole="header"
-          className="px-4 py-2 text-foreground text-lg font-semibold"
-        >
-          {t('commerce.collections')}
-        </Text>,
+        toElement(
+          RawText(t('commerce.collections'))
+            .padding('horizontal', 'lg')
+            .padding('vertical', 'sm')
+            .foreground('foreground')
+            .font('18')
+            .leading('28px')
+            .weight('semibold')
+            .role('header'),
+        ),
       );
       const collectionRefs =
         collections.data?.pages.flatMap((page) => page.items.map((item) => item.ref)) ?? [];
@@ -324,24 +355,21 @@ export function ProfileShop({
       if (collections.hasNextPage)
         append(
           'collections-more',
-          <Button
-            disabled={collections.isFetchingNextPage}
-            onPress={() => void collections.fetchNextPage()}
-          >
-            {t('commerce.more')}
-          </Button>,
+          toElement(
+            LButton(LText(t('commerce.more')))
+              .disabled(collections.isFetchingNextPage)
+              .onPress(() => void collections.fetchNextPage()),
+          ),
         );
     }
   }
   const renderRow = useCallback(
     ({ item }: { item: ShopRow }) =>
-      item.kind === 'content' ? (
-        item.element
-      ) : (
-        <View className="p-1.5">
-          <CommerceCard referenceId={item.referenceId} />
-        </View>
-      ),
+      item.kind === 'content'
+        ? item.element
+        : toElement(
+            VStack(Embed(<CommerceCard referenceId={item.referenceId} />)).padding('all', '6'),
+          ),
     [],
   );
   const span = useCallback(

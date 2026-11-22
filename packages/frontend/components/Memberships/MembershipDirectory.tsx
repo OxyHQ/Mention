@@ -1,10 +1,10 @@
-import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ProfileCard } from '@/components/ProfileCard';
 import { membershipsService } from '@/services/membershipsService';
 import { membershipKeys, membershipQueryPolicy } from './membershipQueries';
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Only identities that explicitly opted into the public directory reach Oxy's bulk lookup. */
 export function MembershipDirectory({ communityId }: { communityId: string }) {
@@ -21,31 +21,31 @@ export function MembershipDirectory({ communityId }: { communityId: string }) {
         : [];
     },
   });
-  return (
-    <View className="gap-2">
-      <Text className="font-semibold text-foreground">
-        {t('memberships.directory', 'Public member directory')}
-      </Text>
-      <Text className="text-muted-foreground">
-        {t(
+  return toElement(
+    VStack(
+      RawText(t('memberships.directory', 'Public member directory'))
+        .weight('semibold')
+        .foreground('foreground'),
+      RawText(
+        t(
           'memberships.directoryHelp',
           'Only members who choose to show their membership appear here.',
-        )}
-      </Text>
-      {directory.isSuccess && !directory.isFetching
-        ? directory.data.map((member) => (
-            <ProfileCard
-              key={member.id}
-              profile={member}
-              showFollowButton={false}
-              accessory={
-                <Text className="text-muted-foreground">
-                  {t('memberships.memberBadge', 'Member')}
-                </Text>
-              }
-            />
-          ))
-        : null}
-    </View>
+        ),
+      ).foreground('muted'),
+      Embed(
+        directory.isSuccess && !directory.isFetching
+          ? directory.data.map((member) => (
+              <ProfileCard
+                key={member.id}
+                profile={member}
+                showFollowButton={false}
+                accessory={toElement(
+                  RawText(t('memberships.memberBadge', 'Member')).foreground('muted'),
+                )}
+              />
+            ))
+          : null,
+      ),
+    ).spacing('sm'),
   );
 }

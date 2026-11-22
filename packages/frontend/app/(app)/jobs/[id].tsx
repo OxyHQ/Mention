@@ -1,16 +1,13 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { Suspense, lazy, useCallback, useEffect, useRef } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
-import { Chip } from '@oxy.so/bloom/chip';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
@@ -24,6 +21,21 @@ import { reportService } from '@/services/reportService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { presentSheet } from '@/utils/sheet';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
+
+import {
+  Badge as LBadge,
+  Button as LButton,
+  Chip as LChip,
+  Embed,
+  HStack,
+  Header,
+  RawText,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const ReportModal = lazy(() =>
   import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })),
@@ -76,7 +88,7 @@ function formatSalary(
  * anyone — the backend gates what a non-operator may see, this screen just
  * renders what it gets back.
  */
-export default function JobDetailScreen() {
+export default screen(function JobDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const idOrSlug = String(id);
@@ -163,33 +175,30 @@ export default function JobDetailScreen() {
     ));
   }, [job, t]);
 
-  const header = (
-    <PageHeader
-      title={t('jobs.detail.title', { defaultValue: 'Job' })}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
+  const header = toElement(
+    Header(t('jobs.detail.title', { defaultValue: 'Job' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
 
   if (jobQuery.isLoading) {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView>
-          <DetailSkeleton />
-        </ScreenScrollView>
-      </Screen>
-    );
+    return ScrollView(Embed(<DetailSkeleton />)).header(Embed(header));
   }
 
   if (jobQuery.isError || !job) {
-    return (
-      <Screen header={header}>
-        <View className="flex-1 items-center justify-center gap-3 px-8">
-          <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.detail.notFound', { defaultValue: 'This job could not be found' })}
-          </Text>
-        </View>
-      </Screen>
-    );
+    return VStack(
+      RawText(t('jobs.detail.notFound', { defaultValue: 'This job could not be found' }))
+        .foreground('muted')
+        .font('16')
+        .leading('normal')
+        .textAlign('center'),
+    )
+      .padding('horizontal', '3xl')
+      .flex('1')
+      .align('center')
+      .justify('center')
+      .spacing('md')
+      .header(Embed(header));
   }
 
   const isPublished = job.status === 'published';
@@ -204,95 +213,124 @@ export default function JobDetailScreen() {
     job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : undefined,
   ].filter((value): value is string => Boolean(value));
 
-  return (
-    <Screen header={header}>
-      <ScreenScrollView contentContainerClassName="px-4 pb-16 pt-2">
-        {!isPublished ? (
-          <View className="flex-row items-center">
+  return ScrollView(
+    !isPublished
+      ? HStack(
+          Embed(
             <Badge
               content={job.status}
               color={STATUS_TONE[job.status]}
               variant="subtle"
               size="sm"
-            />
-          </View>
-        ) : null}
-
-        <Text className="text-foreground text-2xl font-bold mt-2">{job.title}</Text>
-
-        <View className="flex-row items-center gap-2 mt-2">
-          <Avatar source={employerQuery.data?.avatar} size={28} variant={MEDIA_VARIANT_AVATAR} />
-          <Text className="text-primary text-[15px] font-semibold" onPress={openEmployer}>
-            {employerName}
-          </Text>
-        </View>
-
-        {badges.length > 0 ? (
-          <View className="flex-row flex-wrap gap-2 mt-3">
-            {badges.map((label) => (
-              <Badge key={label} content={label} color="default" variant="outlined" size="sm" />
-            ))}
-          </View>
-        ) : null}
-
-        {salaryLabel ? (
-          <Text className="text-foreground text-base font-semibold mt-3">{salaryLabel}</Text>
-        ) : null}
-
-        <Text className="text-foreground text-[15px] leading-6 mt-4">{job.description}</Text>
-
-        {job.skills.length > 0 ? (
-          <View className="mt-4">
-            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-              {t('jobs.detail.skills', { defaultValue: 'Skills' })}
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {job.skills.map((skill) => (
-                <Chip key={skill}>{skill}</Chip>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        <View className="flex-row gap-3 mt-6">
-          {job.applicationMode === 'external' ? (
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              style={{ flex: 1 }}
-              onPress={applyExternally}
-              disabled={!job.externalApplyUrl}
-            >
-              {t('jobs.detail.apply', { defaultValue: 'Apply' })}
-            </Button>
-          ) : (
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              style={{ flex: 1 }}
-              disabled={!isPublished}
-              onPress={() => router.push(`/jobs/${job.id}/apply`)}
-            >
-              {t('jobs.detail.applyOnMention', { defaultValue: 'Apply on Mention' })}
-            </Button>
-          )}
-          <Button appearance="subtle" tone="neutral" size="lg" onPress={share}>
-            {t('jobs.detail.share', { defaultValue: 'Share' })}
+            />,
+          ),
+        ).align('center')
+      : null,
+    RawText(job.title)
+      .foreground('foreground')
+      .font('24')
+      .leading('32px')
+      .weight('bold')
+      .margin('top', 'sm'),
+    HStack(
+      Embed(
+        <Avatar source={employerQuery.data?.avatar} size={28} variant={MEDIA_VARIANT_AVATAR} />,
+      ),
+      Embed(
+        <Text className="text-primary text-[15px] font-semibold" onPress={openEmployer}>
+          {employerName}
+        </Text>,
+      ),
+    )
+      .align('center')
+      .spacing('sm')
+      .margin('top', 'sm'),
+    badges.length > 0
+      ? HStack(
+          Embed(
+            badges.map((label) =>
+              toElement(LBadge(label).color('default').style('outlined').size('sm'), label),
+            ),
+          ),
+        )
+          .wrap()
+          .spacing('sm')
+          .margin('top', 'md')
+      : null,
+    salaryLabel
+      ? RawText(salaryLabel)
+          .foreground('foreground')
+          .font('16')
+          .leading('normal')
+          .weight('semibold')
+          .margin('top', 'md')
+      : null,
+    RawText(job.description)
+      .foreground('foreground')
+      .font('md')
+      .leading('24px')
+      .margin('top', 'lg'),
+    job.skills.length > 0
+      ? VStack(
+          RawText(t('jobs.detail.skills', { defaultValue: 'Skills' }))
+            .font('14')
+            .leading('20px')
+            .foreground('muted')
+            .margin('bottom', '6'),
+          HStack(Embed(job.skills.map((skill) => toElement(LChip(LText(skill)), skill))))
+            .wrap()
+            .spacing('sm'),
+        ).margin('top', 'lg')
+      : null,
+    HStack(
+      Embed(
+        job.applicationMode === 'external' ? (
+          <Button
+            appearance="solid"
+            tone="accent"
+            size="lg"
+            style={{ flex: 1 }}
+            onPress={applyExternally}
+            disabled={!job.externalApplyUrl}
+          >
+            {t('jobs.detail.apply', { defaultValue: 'Apply' })}
           </Button>
-        </View>
-
-        <TouchableOpacity
-          onPress={openReport}
-          className="mt-4 self-center"
-          hitSlop={tokens.hitSlop.md}
-        >
-          <Text className="text-muted-foreground text-xs">
-            {t('jobs.detail.report', { defaultValue: 'Report this listing' })}
-          </Text>
-        </TouchableOpacity>
-      </ScreenScrollView>
-    </Screen>
-  );
-}
+        ) : (
+          <Button
+            appearance="solid"
+            tone="accent"
+            size="lg"
+            style={{ flex: 1 }}
+            disabled={!isPublished}
+            onPress={() => router.push(`/jobs/${job.id}/apply`)}
+          >
+            {t('jobs.detail.applyOnMention', { defaultValue: 'Apply on Mention' })}
+          </Button>
+        ),
+      ),
+      LButton(LText(t('jobs.detail.share', { defaultValue: 'Share' })))
+        .style('subtle')
+        .tint('neutral')
+        .size('lg')
+        .onPress(share),
+    )
+      .spacing('md')
+      .margin('top', '2xl'),
+    Embed(
+      <TouchableOpacity
+        onPress={openReport}
+        className="mt-4 self-center"
+        hitSlop={tokens.hitSlop.md}
+      >
+        {toElement(
+          RawText(t('jobs.detail.report', { defaultValue: 'Report this listing' }))
+            .foreground('muted')
+            .font('xs')
+            .leading('16px'),
+        )}
+      </TouchableOpacity>,
+    ),
+  )
+    .contentView((v) => v.padding('horizontal', 'lg').padding('bottom', '64').padding('top', 'sm'))
+    .header(Embed(header));
+});

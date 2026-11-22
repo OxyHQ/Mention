@@ -13,15 +13,14 @@ import {
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
-import { Divider } from '@oxy.so/bloom/divider';
-import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
+import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
 import type { FeedItem } from '@/db';
 import PostContentText from '@/components/Post/PostContentText';
-
 import UserName from './UserName';
+
 import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -29,6 +28,16 @@ import { usePostsStore } from '../stores/postsStore';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
+import {
+  Divider as LDivider,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  ScrollView,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const MAX_CHARACTERS = 280;
 
@@ -110,12 +119,14 @@ const BoostScreen: React.FC = () => {
   };
 
   if (!originalPost) {
-    return (
-      <View className="flex-1">
-        <Text className="text-lg text-center" style={{ marginTop: 100 }}>
-          Post not found
-        </Text>
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <Text className="text-lg text-center" style={{ marginTop: 100 }}>
+            Post not found
+          </Text>,
+        ),
+      ).flex('1'),
     );
   }
 
@@ -125,121 +136,167 @@ const BoostScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Screen
-        header={
-          <View className="bg-background">
-            <View
-              className="flex-row justify-between items-center px-4"
-              style={{ paddingBottom: 12, paddingTop: insets.top }}
-            >
-              <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
-                <Text className="text-primary text-base font-semibold">Cancel</Text>
-              </TouchableOpacity>
-
-              <View className="flex-row items-center">
-                <TouchableOpacity
-                  className="rounded-full px-5 py-2"
-                  style={[!canBoost && { opacity: 0.5 }]}
-                  onPress={handleBoost}
-                  disabled={!canBoost}
-                >
-                  <Text className="text-base font-bold" style={[!canBoost && { opacity: 0.7 }]}>
-                    {isSubmitting ? 'Boosting...' : 'Boost'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            <Divider />
-          </View>
-        }
-      >
-        <ScreenScrollView contentContainerClassName="px-4" showsVerticalScrollIndicator={false}>
-          {/* Boost Header */}
-          <View className="flex-row items-center py-3">
-            <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />
-            <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
-          </View>
-          <Divider />
-
-          {/* Original Post */}
-          <View className="py-4 mt-4">
-            <View className="flex-row items-center mb-2">
-              <AccountAvatar
-                account={originalPost.user}
-                source={originalPost.user.avatar ?? undefined}
-                size={32}
-                variant={MEDIA_VARIANT_AVATAR}
-                style={{ marginRight: 8 }}
-              />
-              <View className="flex-1">
-                <UserName
-                  name={originalPost.user.name?.displayName}
-                  handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
-                  verified={originalPost.user.verified}
-                  variant="small"
-                  style={{ handle: { fontSize: 13 } }}
-                />
-              </View>
-            </View>
-            <PostContentText
-              content={originalPost.content}
-              postId={originalPost.id}
-              previewChars={Infinity}
-            />
-          </View>
-          <Divider />
-
-          {/* Boost Input */}
-          <View className="flex-1 mt-4">
-            <View className="flex-row mb-3">
-              <AccountAvatar
-                account={user ?? undefined}
-                source={user?.avatar}
-                size={48}
-                variant={MEDIA_VARIANT_AVATAR}
-                style={{ marginRight: 12 }}
-              />
-              <View className="justify-center">
-                <Text className="text-foreground text-base font-bold mb-0.5">
-                  {user?.name.displayName}
-                </Text>
-                <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
-              </View>
-            </View>
-
-            <TextInput
-              ref={textInputRef}
-              className="text-foreground"
-              style={{
-                fontSize: 20,
-                lineHeight: 28,
-                minHeight: 120,
-                textAlignVertical: 'top',
-                color: theme.colors.text,
-              }}
-              placeholder={t('compose.commentPlaceholder')}
-              placeholderTextColor={theme.colors.textTertiary}
-              value={content}
-              onChangeText={setContent}
-              multiline
-              autoFocus
-              maxLength={MAX_CHARACTERS + 50}
-              textAlignVertical="top"
-            />
-
-            {/* Character Count */}
-            <View className="flex-row justify-end items-center mt-4 mb-5">
-              <Text
-                className="text-muted-foreground text-sm font-medium"
-                style={isOverLimit ? { color: theme.colors.error } : undefined}
+        header={toElement(
+          VStack(
+            Embed(
+              <View
+                className="flex-row justify-between items-center px-4"
+                style={{ paddingBottom: 12, paddingTop: insets.top }}
               >
-                {characterCount}
-              </Text>
-              <Text className="text-muted-foreground text-sm ml-0.5">/{MAX_CHARACTERS}</Text>
-            </View>
-          </View>
-        </ScreenScrollView>
-      </Screen>
+                <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
+                  {toElement(
+                    RawText('Cancel')
+                      .foreground('primary')
+                      .font('16')
+                      .leading('normal')
+                      .weight('semibold'),
+                  )}
+                </TouchableOpacity>
 
+                {toElement(
+                  HStack(
+                    Embed(
+                      <TouchableOpacity
+                        className="rounded-full px-5 py-2"
+                        style={[!canBoost && { opacity: 0.5 }]}
+                        onPress={handleBoost}
+                        disabled={!canBoost}
+                      >
+                        <Text
+                          className="text-base font-bold"
+                          style={[!canBoost && { opacity: 0.7 }]}
+                        >
+                          {isSubmitting ? 'Boosting...' : 'Boost'}
+                        </Text>
+                      </TouchableOpacity>,
+                    ),
+                  ).align('center'),
+                )}
+              </View>,
+            ),
+            LDivider(),
+          ).background('background'),
+        )}
+      >
+        {toElement(
+          ScrollView(
+            /* Boost Header */ HStack(
+              Icon(RiRepeat2Line).size('md').foreground('primary'),
+              RawText('Boost')
+                .foreground('primary')
+                .font('16')
+                .leading('normal')
+                .weight('semibold')
+                .margin('left', 'sm'),
+            )
+              .padding('vertical', 'md')
+              .align('center'),
+            LDivider(),
+            /* Original Post */ VStack(
+              HStack(
+                Embed(
+                  <AccountAvatar
+                    account={originalPost.user}
+                    source={originalPost.user.avatar ?? undefined}
+                    size={32}
+                    variant={MEDIA_VARIANT_AVATAR}
+                    style={{ marginRight: 8 }}
+                  />,
+                ),
+                VStack(
+                  Embed(
+                    <UserName
+                      name={originalPost.user.name?.displayName}
+                      handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
+                      verified={originalPost.user.verified}
+                      variant="small"
+                      style={{ handle: { fontSize: 13 } }}
+                    />,
+                  ),
+                ).flex('1'),
+              )
+                .align('center')
+                .margin('bottom', 'sm'),
+              Embed(
+                <PostContentText
+                  content={originalPost.content}
+                  postId={originalPost.id}
+                  previewChars={Infinity}
+                />,
+              ),
+            )
+              .padding('vertical', 'lg')
+              .margin('top', 'lg'),
+            LDivider(),
+            /* Boost Input */ VStack(
+              HStack(
+                Embed(
+                  <AccountAvatar
+                    account={user ?? undefined}
+                    source={user?.avatar}
+                    size={48}
+                    variant={MEDIA_VARIANT_AVATAR}
+                    style={{ marginRight: 12 }}
+                  />,
+                ),
+                VStack(
+                  RawText(user?.name.displayName)
+                    .foreground('foreground')
+                    .font('16')
+                    .leading('normal')
+                    .weight('bold')
+                    .margin('bottom', '2xs'),
+                  RawText('@', user?.username).foreground('muted').font('14').leading('20px'),
+                ).justify('center'),
+              ).margin('bottom', 'md'),
+              Embed(
+                <TextInput
+                  ref={textInputRef}
+                  className="text-foreground"
+                  style={{
+                    fontSize: 20,
+                    lineHeight: 28,
+                    minHeight: 120,
+                    textAlignVertical: 'top',
+                    color: theme.colors.text,
+                  }}
+                  placeholder={t('compose.commentPlaceholder')}
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={content}
+                  onChangeText={setContent}
+                  multiline
+                  autoFocus
+                  maxLength={MAX_CHARACTERS + 50}
+                  textAlignVertical="top"
+                />,
+              ),
+              /* Character Count */ HStack(
+                Embed(
+                  <Text
+                    className="text-muted-foreground text-sm font-medium"
+                    style={isOverLimit ? { color: theme.colors.error } : undefined}
+                  >
+                    {characterCount}
+                  </Text>,
+                ),
+                RawText('/', MAX_CHARACTERS)
+                  .foreground('muted')
+                  .font('14')
+                  .leading('20px')
+                  .margin('left', '2xs'),
+              )
+                .justify('end')
+                .align('center')
+                .margin('top', 'lg')
+                .margin('bottom', 'xl'),
+            )
+              .flex('1')
+              .margin('top', 'lg'),
+          )
+            .contentView((v) => v.padding('horizontal', 'lg'))
+            .scrollIndicators('hidden', 'vertical'),
+        )}
+      </Screen>
       <Dialog
         control={discardControl}
         title="Discard Boost?"

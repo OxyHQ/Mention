@@ -1,21 +1,29 @@
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { useState } from 'react';
-import { Text } from 'react-native';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { useRouter } from '@/lib/navigation/router';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { membershipsService } from '@/services/membershipsService';
 import { getErrorMessage } from '@/utils/apiError';
 
-export default function CreateMembershipScreen() {
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  RawText,
+  ScrollView,
+  Text as LText,
+  TextEditor,
+  TextField as LTextField,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
+
+export default screen(function CreateMembershipScreen() {
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
@@ -42,112 +50,94 @@ export default function CreateMembershipScreen() {
     },
     onSuccess: (community) => router.replace(`/memberships/${community.id}`),
   });
-  const header = (
-    <PageHeader title={t('memberships.create', 'Create community')} onBack={() => router.back()} />
+  const header = toElement(
+    Header(t('memberships.create', 'Create community'))
+      .onBack(() => router.back())
+      .inPage(),
   );
   if (!canUsePrivateApi)
-    return (
-      <Screen header={header}>
-        <SignInRequired
-          label={t('memberships.signIn', 'Sign in to join a community')}
-          description={t(
-            'memberships.privateHelp',
-            'Only authorized members can read community posts and files.',
-          )}
-        />
-      </Screen>
-    );
-  return (
-    <Screen header={header}>
-      <ScreenScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-        <Text className="text-muted-foreground">
-          {t(
-            'memberships.createDescription',
-            'Build a community with private discussions, articles and polls. Start free; your draft stays unpublished until you activate it.',
-          )}
-        </Text>
-        <Text className="font-semibold text-foreground">
-          {t('memberships.owner', 'Community owner')}
-        </Text>
-        <Button
-          appearance={!owner || owner === user?.id ? 'solid' : 'outline'}
-          onPress={() => setOwner(null)}
-        >
-          {t('memberships.myAccount', 'My account')}
-        </Button>
-        {accounts.data
-          ?.filter(
-            (account) =>
-              account.accountId !== user?.id &&
-              ['organization', 'project', 'channel'].includes(account.kind),
-          )
-          .map((account) => (
-            <Button
-              key={account.accountId}
-              appearance={owner === account.accountId ? 'solid' : 'outline'}
-              onPress={() => setOwner(account.accountId)}
-            >
-              {displayNameOrHandle(
-                account.account.name?.displayName,
-                account.account.username ?? '',
-              )}
-            </Button>
-          ))}
-        <TextField>
-          <TextFieldInput
-            label={t('memberships.name', 'Community name')}
-            value={name}
-            onChangeText={setName}
-            maxLength={120}
-          />
-        </TextField>
-        <TextField>
-          <TextFieldInput
-            label={t('memberships.slug', 'Community handle')}
-            value={slug}
-            onChangeText={setSlug}
-            autoCapitalize="none"
-            maxLength={80}
-          />
-        </TextField>
-        <Textarea
-          accessibilityLabel={t('memberships.description', 'Description')}
-          placeholder={t('memberships.description', 'Description')}
-          value={description}
-          onChangeText={setDescription}
-          maxLength={5000}
-          rows={5}
-        />
-        <Text className="text-muted-foreground">
-          {t(
-            'memberships.visibilityHelp',
-            'Community name and description can be shared publicly, independently of your profile privacy. Posts and files are only available to authorized members.',
-          )}
-        </Text>
-        <Button
-          appearance="outline"
-          onPress={() => setVisibility(visibility === 'public' ? 'unlisted' : 'public')}
-        >
-          {visibility === 'public'
-            ? t('memberships.public', 'Public community')
-            : t('memberships.unlisted', 'Unlisted community')}
-        </Button>
-        {mutation.isError ? (
-          <Text accessibilityRole="alert" className="text-destructive">
-            {getErrorMessage(
-              mutation.error,
-              t('memberships.failed', 'The action could not be completed.'),
-            )}
-          </Text>
-        ) : null}
-        <Button
-          disabled={!name.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3}
-          loading={mutation.isPending}
-          onPress={() => mutation.mutate()}
-        >
-          {t('memberships.createDraft', 'Create draft')}
-        </Button>
-      </ScreenScrollView>
-    </Screen>
-  );
-}
+    return Embed(
+      <SignInRequired
+        label={t('memberships.signIn', 'Sign in to join a community')}
+        description={t(
+          'memberships.privateHelp',
+          'Only authorized members can read community posts and files.',
+        )}
+      />,
+    ).header(Embed(header));
+  return ScrollView(
+    RawText(
+      t(
+        'memberships.createDescription',
+        'Build a community with private discussions, articles and polls. Start free; your draft stays unpublished until you activate it.',
+      ),
+    ).foreground('muted'),
+    RawText(t('memberships.owner', 'Community owner')).weight('semibold').foreground('foreground'),
+    Embed(
+      <Button
+        appearance={!owner || owner === user?.id ? 'solid' : 'outline'}
+        onPress={() => setOwner(null)}
+      >
+        {t('memberships.myAccount', 'My account')}
+      </Button>,
+    ),
+    Embed(
+      accounts.data
+        ?.filter(
+          (account) =>
+            account.accountId !== user?.id &&
+            ['organization', 'project', 'channel'].includes(account.kind),
+        )
+        .map((account) => (
+          <Button
+            key={account.accountId}
+            appearance={owner === account.accountId ? 'solid' : 'outline'}
+            onPress={() => setOwner(account.accountId)}
+          >
+            {displayNameOrHandle(account.account.name?.displayName, account.account.username ?? '')}
+          </Button>
+        )),
+    ),
+    LTextField([name, setName], t('memberships.name', 'Community name')).maxLength(120),
+    LTextField([slug, setSlug], t('memberships.slug', 'Community handle'))
+      .autocapitalize('none')
+      .maxLength(80),
+    TextEditor([description, setDescription])
+      .label(t('memberships.description', 'Description'))
+      .placeholder(t('memberships.description', 'Description'))
+      .maxLength(5000)
+      .rows(5),
+    RawText(
+      t(
+        'memberships.visibilityHelp',
+        'Community name and description can be shared publicly, independently of your profile privacy. Posts and files are only available to authorized members.',
+      ),
+    ).foreground('muted'),
+    LButton(
+      LText(
+        visibility === 'public'
+          ? t('memberships.public', 'Public community')
+          : t('memberships.unlisted', 'Unlisted community'),
+      ),
+    )
+      .style('outline')
+      .onPress(() => setVisibility(visibility === 'public' ? 'unlisted' : 'public')),
+    mutation.isError
+      ? RawText(
+          getErrorMessage(
+            mutation.error,
+            t('memberships.failed', 'The action could not be completed.'),
+          ),
+        )
+          .foreground('destructive')
+          .role('alert')
+      : null,
+    LButton(LText(t('memberships.createDraft', 'Create draft')))
+      .disabled(!name.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3)
+      .loading(mutation.isPending)
+      .onPress(() => mutation.mutate()),
+  )
+    .contentMargins('lg')
+    .spacing('lg')
+    .header(Embed(header));
+});

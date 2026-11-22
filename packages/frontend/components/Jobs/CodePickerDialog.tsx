@@ -1,9 +1,14 @@
 import { memo, useMemo, useState } from 'react';
-import { ScrollView, Text } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { Item } from '@oxy.so/bloom/item';
-import { Search } from '@oxy.so/bloom/search';
+import {
+  Dialog as LDialog,
+  Embed,
+  RawText,
+  Row,
+  Search as LSearch,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface CodePickerOption<Code extends string> {
   code: Code;
@@ -53,43 +58,46 @@ function CodePickerDialogInner<Code extends string>({
     );
   }, [options, query]);
 
-  return (
-    <Dialog
-      open={open}
-      onClose={() => {
-        setQuery('');
-        onClose();
-      }}
-      title={title}
-      label={title}
-    >
-      <Search
-        label={searchLabel}
-        value={query}
-        onChangeText={setQuery}
-        onClearText={() => setQuery('')}
-      />
-      <ScrollView style={{ maxHeight: 360, marginTop: 8 }} keyboardShouldPersistTaps="handled">
-        {filtered.length === 0 ? (
-          <Text className="text-center text-sm text-muted-foreground py-6">
-            {t('jobs.create.noMatches', { defaultValue: 'Nothing matches' })}
-          </Text>
-        ) : (
-          filtered.map((option) => (
-            <Item
-              key={option.code}
-              onPress={() => {
-                setQuery('');
-                onSelect(option.code);
-              }}
-              title={option.name ?? option.code}
-              subtitle={option.name ? option.code : undefined}
-              selected={option.code === selected}
-            />
-          ))
-        )}
-      </ScrollView>
-    </Dialog>
+  return toElement(
+    LDialog(
+      LSearch([query, setQuery])
+        .label(searchLabel)
+        .onClearText(() => setQuery('')),
+      Embed(
+        <ScrollView style={{ maxHeight: 360, marginTop: 8 }} keyboardShouldPersistTaps="handled">
+          {filtered.length === 0
+            ? toElement(
+                RawText(t('jobs.create.noMatches', { defaultValue: 'Nothing matches' }))
+                  .padding('vertical', '2xl')
+                  .textAlign('center')
+                  .font('14')
+                  .leading('20px')
+                  .foreground('muted'),
+              )
+            : filtered.map((option) =>
+                toElement(
+                  Row(option.name ?? option.code)
+                    .onPress(() => {
+                      setQuery('');
+                      onSelect(option.code);
+                    })
+                    .subtitle(option.name ? option.code : undefined)
+                    .selected(option.code === selected),
+                  option.code,
+                ),
+              )}
+        </ScrollView>,
+      ),
+    )
+      .title(title)
+      .label(title)
+      .presented([
+        open,
+        () => {
+          setQuery('');
+          onClose();
+        },
+      ]),
   );
 }
 

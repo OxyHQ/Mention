@@ -1,21 +1,10 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
-import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
-import { VirtualList } from '@oxy.so/bloom/list';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen } from '@oxy.so/bloom/screen';
-import { Search } from '@oxy.so/bloom/search';
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-  SegmentedControlItemText,
-} from '@oxy.so/bloom/segmented-control';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { JobSearchResult } from '@mention/shared-types/job';
@@ -34,6 +23,23 @@ import JobDiscoveryResultCard, {
   ExternalJobReportSheet,
 } from '@/components/Jobs/JobDiscoveryResultCard';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Chip as LChip,
+  Embed,
+  Field as LField,
+  HStack,
+  Header,
+  Option,
+  Search as LSearch,
+  Segmented,
+  Text,
+  TextField as LTextField,
+  VStack,
+  VirtualList as LVirtualList,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -122,7 +128,7 @@ type DiscoveryRow =
  * applications do) — it is a lightweight, PER-DEVICE bookmark list in
  * `AsyncStorage`, keyed per viewer like search history and drafts already are.
  */
-export default function JobsDiscoveryScreen() {
+export default Lscreen(function JobsDiscoveryScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const viewerId = user?.id;
@@ -296,127 +302,114 @@ export default function JobsDiscoveryScreen() {
     return out;
   }, [loading, discoveryQuery.isError, results]);
 
-  const filtersHeader = (
-    <View className="px-4 pt-3 pb-2 gap-3">
-      <Search
-        label={t('jobs.discovery.searchPlaceholder', { defaultValue: 'Search jobs' })}
-        value={draft.q}
-        onChangeText={handleQueryChange}
-        onClearText={() => handleQueryChange('')}
-        onSubmitEditing={() => commitNow(draft)}
-      />
-      <TextField>
-        <TextFieldInput
-          label={t('jobs.discovery.location', { defaultValue: 'Location' })}
-          value={draft.location}
-          onChangeText={handleLocationChange}
-        />
-      </TextField>
-
-      <Button
-        size="sm"
-        onPress={() => setShowMoreFilters((v) => !v)}
-        style={{ alignSelf: 'flex-start' }}
-        tone="accent"
-        appearance="plain"
-      >
-        {showMoreFilters
-          ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
-          : t('jobs.discovery.moreFilters', { defaultValue: 'More filters' })}
-      </Button>
-
-      {showMoreFilters ? (
-        <View className="gap-3">
-          <Field
-            label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-            multiple
-          >
-            <View className="flex-row flex-wrap gap-2">
-              {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
-                <Chip
-                  key={value}
-                  selected={draft.workplaceType === value}
-                  onPress={() => setWorkplaceType(draft.workplaceType === value ? '' : value)}
-                >
-                  {WORKPLACE_LABELS[value]}
-                </Chip>
-              ))}
-            </View>
-          </Field>
-
-          <Field
-            label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
-            multiple
-          >
-            <View className="flex-row flex-wrap gap-2">
-              {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
-                <Chip
-                  key={value}
-                  selected={draft.employmentType === value}
-                  onPress={() => setEmploymentType(draft.employmentType === value ? '' : value)}
-                >
-                  {EMPLOYMENT_LABELS[value]}
-                </Chip>
-              ))}
-            </View>
-          </Field>
-
-          <View className="flex-row gap-2">
-            <View className="flex-1">
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.create.salaryMin', { defaultValue: 'Min salary' })}
-                  value={draft.salaryMin}
-                  onChangeText={(v) => handleSalaryChange('salaryMin', v)}
-                  keyboardType="numeric"
-                />
-              </TextField>
-            </View>
-            <View className="flex-1">
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.create.salaryMax', { defaultValue: 'Max salary' })}
-                  value={draft.salaryMax}
-                  onChangeText={(v) => handleSalaryChange('salaryMax', v)}
-                  keyboardType="numeric"
-                />
-              </TextField>
-            </View>
-          </View>
-
-          <Field label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}>
-            <SegmentedControl
-              label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}
-              type="radio"
-              size="sm"
-              value={draft.datePosted}
-              onChange={setDatePosted}
-            >
-              <SegmentedControlItem value="any">
-                <SegmentedControlItemText>
-                  {t('jobs.discovery.anyTime', { defaultValue: 'Any time' })}
-                </SegmentedControlItemText>
-              </SegmentedControlItem>
-              <SegmentedControlItem value="24h">
-                <SegmentedControlItemText>
-                  {t('jobs.discovery.past24h', { defaultValue: 'Past 24h' })}
-                </SegmentedControlItemText>
-              </SegmentedControlItem>
-              <SegmentedControlItem value="7d">
-                <SegmentedControlItemText>
-                  {t('jobs.discovery.pastWeek', { defaultValue: 'Past week' })}
-                </SegmentedControlItemText>
-              </SegmentedControlItem>
-              <SegmentedControlItem value="30d">
-                <SegmentedControlItemText>
-                  {t('jobs.discovery.pastMonth', { defaultValue: 'Past month' })}
-                </SegmentedControlItemText>
-              </SegmentedControlItem>
-            </SegmentedControl>
-          </Field>
-        </View>
-      ) : null}
-    </View>
+  const filtersHeader = toElement(
+    VStack(
+      LSearch([draft.q, handleQueryChange])
+        .label(t('jobs.discovery.searchPlaceholder', { defaultValue: 'Search jobs' }))
+        .onClearText(() => handleQueryChange(''))
+        .onSubmit(() => commitNow(draft)),
+      LTextField(
+        [draft.location, handleLocationChange],
+        t('jobs.discovery.location', { defaultValue: 'Location' }),
+      ),
+      Embed(
+        <Button
+          size="sm"
+          onPress={() => setShowMoreFilters((v) => !v)}
+          style={{ alignSelf: 'flex-start' }}
+          tone="accent"
+          appearance="plain"
+        >
+          {showMoreFilters
+            ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
+            : t('jobs.discovery.moreFilters', { defaultValue: 'More filters' })}
+        </Button>,
+      ),
+      showMoreFilters
+        ? VStack(
+            Embed(
+              <Field
+                label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
+                multiple
+              >
+                {toElement(
+                  HStack(
+                    Embed(
+                      MENTION_JOB_WORKPLACE_TYPES.map((value) =>
+                        toElement(
+                          LChip(Text(WORKPLACE_LABELS[value]))
+                            .selected(draft.workplaceType === value)
+                            .onPress(() =>
+                              setWorkplaceType(draft.workplaceType === value ? '' : value),
+                            ),
+                          value,
+                        ),
+                      ),
+                    ),
+                  )
+                    .wrap()
+                    .spacing('sm'),
+                )}
+              </Field>,
+            ),
+            Embed(
+              <Field
+                label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
+                multiple
+              >
+                {toElement(
+                  HStack(
+                    Embed(
+                      MENTION_JOB_EMPLOYMENT_TYPES.map((value) =>
+                        toElement(
+                          LChip(Text(EMPLOYMENT_LABELS[value]))
+                            .selected(draft.employmentType === value)
+                            .onPress(() =>
+                              setEmploymentType(draft.employmentType === value ? '' : value),
+                            ),
+                          value,
+                        ),
+                      ),
+                    ),
+                  )
+                    .wrap()
+                    .spacing('sm'),
+                )}
+              </Field>,
+            ),
+            HStack(
+              VStack(
+                LTextField(
+                  [draft.salaryMin, (v) => handleSalaryChange('salaryMin', v)],
+                  t('jobs.create.salaryMin', { defaultValue: 'Min salary' }),
+                ).keyboard('numeric'),
+              ).flex('1'),
+              VStack(
+                LTextField(
+                  [draft.salaryMax, (v) => handleSalaryChange('salaryMax', v)],
+                  t('jobs.create.salaryMax', { defaultValue: 'Max salary' }),
+                ).keyboard('numeric'),
+              ).flex('1'),
+            ).spacing('sm'),
+            LField(
+              t('jobs.discovery.datePosted', { defaultValue: 'Date posted' }),
+              Segmented(
+                [draft.datePosted, setDatePosted],
+                Option('any', t('jobs.discovery.anyTime', { defaultValue: 'Any time' })),
+                Option('24h', t('jobs.discovery.past24h', { defaultValue: 'Past 24h' })),
+                Option('7d', t('jobs.discovery.pastWeek', { defaultValue: 'Past week' })),
+                Option('30d', t('jobs.discovery.pastMonth', { defaultValue: 'Past month' })),
+              )
+                .label(t('jobs.discovery.datePosted', { defaultValue: 'Date posted' }))
+                .size('sm'),
+            ),
+          ).spacing('md')
+        : null,
+    )
+      .padding('horizontal', 'lg')
+      .padding('top', 'md')
+      .padding('bottom', 'sm')
+      .spacing('md'),
   );
 
   const renderRow = useCallback(
@@ -464,29 +457,20 @@ export default function JobsDiscoveryScreen() {
 
   const keyExtractor = useCallback((item: DiscoveryRow) => item.key, []);
 
-  return (
-    <Screen
-      header={
-        <PageHeader
-          title={t('jobs.discovery.title', { defaultValue: 'Jobs' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
-    >
-      <VirtualList
-        screen={{}}
-        data={rows}
-        keyExtractor={keyExtractor}
-        renderItem={renderRow}
-        ListHeaderComponent={filtersHeader}
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={
-          <View className="items-center justify-center py-4">
-            {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
-          </View>
-        }
-      />
-    </Screen>
-  );
-}
+  return LVirtualList(rows, renderRow)
+    .screen()
+    .itemKey(keyExtractor)
+    .headerContent(Embed(filtersHeader))
+    .onEndReached(handleEndReached, 0.5)
+    .footerContent(
+      VStack(Embed(isFetchingNextPage ? <ListSkeleton count={2} /> : null))
+        .padding('vertical', 'lg')
+        .align('center')
+        .justify('center'),
+    )
+    .header(
+      Header(t('jobs.discovery.title', { defaultValue: 'Jobs' }))
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .inPage(),
+    );
+});

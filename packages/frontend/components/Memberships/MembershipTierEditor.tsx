@@ -1,10 +1,6 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import {
   MEMBERSHIP_BENEFITS,
   type MembershipTier,
@@ -12,6 +8,19 @@ import {
 } from '@mention/shared-types/membership';
 import { membershipsService } from '@/services/membershipsService';
 import { getErrorMessage } from '@/utils/apiError';
+
+import {
+  Button as LButton,
+  Card as LCard,
+  Embed,
+  HStack,
+  RawText,
+  Text as LText,
+  TextEditor,
+  TextField as LTextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export function MembershipTierEditor({
   communityId,
@@ -64,92 +73,73 @@ export function MembershipTierEditor({
       setPending(false);
     }
   };
-  return (
-    <Card>
-      <View className="p-4 gap-3">
-        <Text className="font-semibold text-foreground">
-          {tier ? tier.name : t('memberships.draftTier', 'Plan a paid tier')}
-        </Text>
-        <TextField>
-          <TextFieldInput
-            label={t('memberships.tierName', 'Tier name')}
-            value={name}
-            onChangeText={setName}
-            maxLength={120}
-          />
-        </TextField>
-        <Textarea
-          accessibilityLabel={t('memberships.description', 'Description')}
-          value={description}
-          onChangeText={setDescription}
-          maxLength={5000}
-          rows={3}
-        />
-        {MEMBERSHIP_BENEFITS.map((benefit) => (
-          <Button
-            key={benefit}
-            size="sm"
-            appearance={benefits.includes(benefit) ? 'solid' : 'outline'}
-            onPress={() =>
-              setBenefits((current) =>
-                current.includes(benefit)
-                  ? current.filter((value) => value !== benefit)
-                  : [...current, benefit],
-              )
-            }
-          >
-            {labels[benefit]}
-          </Button>
-        ))}
-        {!tier || tier.kind === 'paid' ? (
-          <Text className="text-muted-foreground">
-            {t(
-              'memberships.paidDraftOnly',
-              'Saved as a draft. Payment terms and billing must be configured before a paid tier can accept members.',
-            )}
-          </Text>
-        ) : null}
-        <Button
-          disabled={!name.trim() || !benefits.length}
-          loading={pending}
-          onPress={() => {
+  return toElement(
+    LCard(
+      VStack(
+        RawText(tier ? tier.name : t('memberships.draftTier', 'Plan a paid tier'))
+          .weight('semibold')
+          .foreground('foreground'),
+        LTextField([name, setName], t('memberships.tierName', 'Tier name')).maxLength(120),
+        TextEditor([description, setDescription])
+          .label(t('memberships.description', 'Description'))
+          .maxLength(5000)
+          .rows(3),
+        Embed(
+          MEMBERSHIP_BENEFITS.map((benefit) => (
+            <Button
+              key={benefit}
+              size="sm"
+              appearance={benefits.includes(benefit) ? 'solid' : 'outline'}
+              onPress={() =>
+                setBenefits((current) =>
+                  current.includes(benefit)
+                    ? current.filter((value) => value !== benefit)
+                    : [...current, benefit],
+                )
+              }
+            >
+              {labels[benefit]}
+            </Button>
+          )),
+        ),
+        !tier || tier.kind === 'paid'
+          ? RawText(
+              t(
+                'memberships.paidDraftOnly',
+                'Saved as a draft. Payment terms and billing must be configured before a paid tier can accept members.',
+              ),
+            ).foreground('muted')
+          : null,
+        LButton(LText(t('common.save', 'Save')))
+          .disabled(!name.trim() || !benefits.length)
+          .loading(pending)
+          .onPress(() => {
             void save();
-          }}
-        >
-          {t('common.save', 'Save')}
-        </Button>
-        {tier ? (
-          <View className="flex-row gap-2">
-            {tier.kind === 'free' && tier.status !== 'active' ? (
-              <Button
-                appearance="outline"
-                disabled={pending}
-                onPress={() => {
-                  void save('active');
-                }}
-              >
-                {t('memberships.activate', 'Activate')}
-              </Button>
-            ) : null}
-            {tier.status !== 'retired' ? (
-              <Button
-                appearance="outline"
-                disabled={pending}
-                onPress={() => {
-                  void save('retired');
-                }}
-              >
-                {t('memberships.retire', 'Stop new memberships')}
-              </Button>
-            ) : null}
-          </View>
-        ) : null}
-        {error ? (
-          <Text accessibilityRole="alert" className="text-destructive">
-            {error}
-          </Text>
-        ) : null}
-      </View>
-    </Card>
+          }),
+        tier
+          ? HStack(
+              tier.kind === 'free' && tier.status !== 'active'
+                ? LButton(LText(t('memberships.activate', 'Activate')))
+                    .style('outline')
+                    .disabled(pending)
+                    .onPress(() => {
+                      void save('active');
+                    })
+                : null,
+              tier.status !== 'retired'
+                ? LButton(LText(t('memberships.retire', 'Stop new memberships')))
+                    .style('outline')
+                    .disabled(pending)
+                    .onPress(() => {
+                      void save('retired');
+                    })
+                : null,
+            ).spacing('sm')
+          : null,
+        error ? RawText(error).foreground('destructive').role('alert') : null,
+      )
+        .padding('all', 'lg')
+        .spacing('md'),
+    ),
   );
 }

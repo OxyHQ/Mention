@@ -1,16 +1,10 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type { Href } from '@/lib/navigation/router';
 import { useCallback, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
-import { Item } from '@oxy.so/bloom/item';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
@@ -23,6 +17,21 @@ import { SignInRequired } from '@/components/common/SignInRequired';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Button as LButton,
+  Card as LCard,
+  Embed,
+  HStack,
+  Header,
+  RawText,
+  Row,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 type JobAction = 'publish' | 'pause' | 'close' | 'duplicate';
 
@@ -45,7 +54,7 @@ const STATUS_TONE: Record<
  * job: every employer a job can name is necessarily an account the caller
  * operates, so that list is already the complete lookup table.
  */
-export default function MyJobsScreen() {
+export default screen(function MyJobsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
@@ -140,253 +149,269 @@ export default function MyJobsScreen() {
     [router],
   );
 
-  const header = (
-    <PageHeader
-      title={t('jobs.mine.title', { defaultValue: 'My jobs' })}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-      actions={
-        canUsePrivateApi ? (
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="sm"
-            onPress={() => router.push('/jobs/create')}
-          >
-            {t('jobs.mine.create', { defaultValue: 'Create job' })}
-          </Button>
-        ) : undefined
-      }
-    />
+  const header = toElement(
+    Header(t('jobs.mine.title', { defaultValue: 'My jobs' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .toolbar(
+        Embed(
+          canUsePrivateApi
+            ? toElement(
+                LButton(LText(t('jobs.mine.create', { defaultValue: 'Create job' })))
+                  .style('solid')
+                  .tint('accent')
+                  .size('sm')
+                  .onPress(() => router.push('/jobs/create')),
+              )
+            : undefined,
+        ),
+      )
+      .inPage(),
   );
 
   // Signed out this used to spin forever: the query is disabled, so
   // `isLoading` never settles. The gate shows the pending spinner or the
   // sign-in prompt instead.
   if (!canUsePrivateApi) {
-    return (
-      <Screen header={header}>
-        <SignInRequired
-          label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
-          description={t('jobs.signInRequiredDesc', {
-            defaultValue: 'Jobs are published by an organization or project account you operate.',
-          })}
-        />
-      </Screen>
-    );
+    return Embed(
+      <SignInRequired
+        label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
+        description={t('jobs.signInRequiredDesc', {
+          defaultValue: 'Jobs are published by an organization or project account you operate.',
+        })}
+      />,
+    ).header(Embed(header));
   }
 
   if (jobsQuery.isLoading) {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView>
-          <ListSkeleton />
-        </ScreenScrollView>
-      </Screen>
-    );
+    return ScrollView(Embed(<ListSkeleton />)).header(Embed(header));
   }
 
   if (jobsQuery.isError) {
-    return (
-      <Screen header={header}>
-        <View className="flex-1 items-center justify-center gap-3 px-8">
-          <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.mine.loadFailed', { defaultValue: 'Could not load your jobs' })}
-          </Text>
-          <Button appearance="subtle" tone="neutral" size="sm" onPress={() => jobsQuery.refetch()}>
-            {t('common.tryAgain', { defaultValue: 'Try again' })}
-          </Button>
-        </View>
-      </Screen>
-    );
+    return VStack(
+      RawText(t('jobs.mine.loadFailed', { defaultValue: 'Could not load your jobs' }))
+        .foreground('muted')
+        .font('16')
+        .leading('normal')
+        .textAlign('center'),
+      LButton(LText(t('common.tryAgain', { defaultValue: 'Try again' })))
+        .style('subtle')
+        .tint('neutral')
+        .size('sm')
+        .onPress(() => jobsQuery.refetch()),
+    )
+      .padding('horizontal', '3xl')
+      .flex('1')
+      .align('center')
+      .justify('center')
+      .spacing('md')
+      .header(Embed(header));
   }
 
   const jobs = jobsQuery.data?.jobs ?? [];
 
-  return (
-    <Screen header={header}>
-      <ScreenScrollView contentContainerClassName="pb-10">
-        {jobs.length === 0 ? (
-          <EmptyState
-            title={t('jobs.mine.emptyTitle', { defaultValue: 'No jobs yet' })}
-            subtitle={t('jobs.mine.emptySubtitle', {
-              defaultValue:
-                'Create a job listing for an organization or project account you operate.',
-            })}
-            action={{
-              label: t('jobs.mine.create', { defaultValue: 'Create job' }),
-              onPress: () => router.push('/jobs/create'),
-            }}
-            sticker="jobsMine"
-            containerStyle={{ paddingTop: 40 }}
-          />
-        ) : (
-          <View className="px-4 gap-3 mt-2">
-            {jobs.map((job) => {
-              const busy = pendingId === job.id && actionMutation.isPending;
-              const dateLabel = job.publishedAt
-                ? t('jobs.mine.publishedAgo', {
-                    defaultValue: 'Published {{time}}',
-                    time: formatTimeAgo(job.publishedAt),
-                  })
-                : t('jobs.mine.createdAgo', {
-                    defaultValue: 'Created {{time}}',
-                    time: formatTimeAgo(job.createdAt),
-                  });
+  return ScrollView(
+    Embed(
+      jobs.length === 0 ? (
+        <EmptyState
+          title={t('jobs.mine.emptyTitle', { defaultValue: 'No jobs yet' })}
+          subtitle={t('jobs.mine.emptySubtitle', {
+            defaultValue:
+              'Create a job listing for an organization or project account you operate.',
+          })}
+          action={{
+            label: t('jobs.mine.create', { defaultValue: 'Create job' }),
+            onPress: () => router.push('/jobs/create'),
+          }}
+          sticker="jobsMine"
+          containerStyle={{ paddingTop: 40 }}
+        />
+      ) : (
+        toElement(
+          VStack(
+            Embed(
+              jobs.map((job) => {
+                const busy = pendingId === job.id && actionMutation.isPending;
+                const dateLabel = job.publishedAt
+                  ? t('jobs.mine.publishedAgo', {
+                      defaultValue: 'Published {{time}}',
+                      time: formatTimeAgo(job.publishedAt),
+                    })
+                  : t('jobs.mine.createdAgo', {
+                      defaultValue: 'Created {{time}}',
+                      time: formatTimeAgo(job.createdAt),
+                    });
 
-              return (
-                <Card key={job.id} border="thin" elevation="none" radius="radius-16">
-                  <Item
-                    title={job.title}
-                    subtitle={`${employerLabel(job.employerOxyUserId)} · ${dateLabel}`}
-                    trailing={
-                      <Badge
-                        content={job.status}
-                        color={STATUS_TONE[job.status]}
-                        variant="subtle"
-                        size="sm"
-                      />
-                    }
-                    onPress={() => editJob(job)}
-                  />
-                  <View className="flex-row items-center justify-between px-4 pb-3 pt-1">
-                    <Text className="text-muted-foreground text-xs">
-                      {t('jobs.mine.applications', {
-                        defaultValue: '{{count}} applications',
-                        count: job.applicationCount,
-                      })}
-                    </Text>
-                    <View className="flex-row flex-wrap gap-2 justify-end">
-                      {job.status === 'draft' && (
-                        <>
-                          <Button
-                            appearance="subtle"
-                            tone="neutral"
+                return toElement(
+                  LCard(
+                    Row(job.title)
+                      .subtitle(`${employerLabel(job.employerOxyUserId)} · ${dateLabel}`)
+                      .trailing(
+                        Embed(
+                          <Badge
+                            content={job.status}
+                            color={STATUS_TONE[job.status]}
+                            variant="subtle"
                             size="sm"
-                            onPress={() => editJob(job)}
-                          >
-                            {t('common.edit', { defaultValue: 'Edit' })}
-                          </Button>
-                          <Button
-                            appearance="solid"
-                            tone="accent"
-                            size="sm"
-                            loading={busy}
-                            onPress={() => runAction(job.id, 'publish')}
-                          >
-                            {t('jobs.mine.publish', { defaultValue: 'Publish' })}
-                          </Button>
-                          <Button
-                            appearance="plain"
-                            tone="neutral"
-                            size="sm"
-                            loading={busy}
-                            onPress={() => discardDraft(job)}
-                          >
-                            {t('jobs.mine.discard', { defaultValue: 'Discard' })}
-                          </Button>
-                        </>
-                      )}
-                      {job.status === 'published' && (
-                        <>
-                          <Button
-                            appearance="subtle"
-                            tone="neutral"
-                            size="sm"
-                            onPress={() => openJob(job)}
-                          >
-                            {t('common.view', { defaultValue: 'View' })}
-                          </Button>
-                          <Button
-                            appearance="subtle"
-                            tone="neutral"
-                            size="sm"
-                            onPress={() => editJob(job)}
-                          >
-                            {t('common.edit', { defaultValue: 'Edit' })}
-                          </Button>
-                          <Button
-                            appearance="subtle"
-                            tone="neutral"
-                            size="sm"
-                            loading={busy}
-                            onPress={() => runAction(job.id, 'pause')}
-                          >
-                            {t('jobs.mine.pause', { defaultValue: 'Pause' })}
-                          </Button>
-                          <Button
-                            appearance="plain"
-                            tone="neutral"
-                            size="sm"
-                            loading={busy}
-                            onPress={() => runAction(job.id, 'close')}
-                          >
-                            {t('jobs.mine.close', { defaultValue: 'Close' })}
-                          </Button>
-                        </>
-                      )}
-                      {job.status === 'paused' && (
-                        <>
-                          <Button
-                            appearance="subtle"
-                            tone="neutral"
-                            size="sm"
-                            onPress={() => editJob(job)}
-                          >
-                            {t('common.edit', { defaultValue: 'Edit' })}
-                          </Button>
-                          <Button
-                            appearance="solid"
-                            tone="accent"
-                            size="sm"
-                            loading={busy}
-                            onPress={() => runAction(job.id, 'publish')}
-                          >
-                            {t('jobs.mine.publish', { defaultValue: 'Publish' })}
-                          </Button>
-                          <Button
-                            appearance="plain"
-                            tone="neutral"
-                            size="sm"
-                            loading={busy}
-                            onPress={() => runAction(job.id, 'close')}
-                          >
-                            {t('jobs.mine.close', { defaultValue: 'Close' })}
-                          </Button>
-                        </>
-                      )}
-                      {(job.status === 'closed' || job.status === 'expired') && (
-                        <Button
-                          appearance="subtle"
-                          tone="neutral"
-                          size="sm"
-                          loading={busy}
-                          onPress={() => runAction(job.id, 'duplicate')}
-                        >
-                          {t('jobs.mine.duplicate', { defaultValue: 'Duplicate' })}
-                        </Button>
-                      )}
-                      {/* Applications only exist for jobs applicants apply to
-                          THROUGH Mention — an `external` job's applications
-                          live on whatever site its `externalApplyUrl` points
-                          to, and Mention never sees them. */}
-                      {job.applicationMode === 'mention' && (
-                        <Button
-                          appearance="subtle"
-                          tone="neutral"
-                          size="sm"
-                          onPress={() => router.push(`/jobs/${job.id}/applications`)}
-                        >
-                          {t('jobs.mine.viewApplications', { defaultValue: 'View applications' })}
-                        </Button>
-                      )}
-                    </View>
-                  </View>
-                </Card>
-              );
-            })}
-          </View>
-        )}
-      </ScreenScrollView>
-    </Screen>
-  );
-}
+                          />,
+                        ),
+                      )
+                      .onPress(() => editJob(job)),
+                    HStack(
+                      RawText(
+                        t('jobs.mine.applications', {
+                          defaultValue: '{{count}} applications',
+                          count: job.applicationCount,
+                        }),
+                      )
+                        .foreground('muted')
+                        .font('xs')
+                        .leading('16px'),
+                      HStack(
+                        Embed(
+                          job.status === 'draft' && (
+                            <>
+                              {toElement(
+                                LButton(LText(t('common.edit', { defaultValue: 'Edit' })))
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .onPress(() => editJob(job)),
+                              )}
+                              {toElement(
+                                LButton(LText(t('jobs.mine.publish', { defaultValue: 'Publish' })))
+                                  .style('solid')
+                                  .tint('accent')
+                                  .size('sm')
+                                  .loading(busy)
+                                  .onPress(() => runAction(job.id, 'publish')),
+                              )}
+                              {toElement(
+                                LButton(LText(t('jobs.mine.discard', { defaultValue: 'Discard' })))
+                                  .style('plain')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .loading(busy)
+                                  .onPress(() => discardDraft(job)),
+                              )}
+                            </>
+                          ),
+                        ),
+                        Embed(
+                          job.status === 'published' && (
+                            <>
+                              {toElement(
+                                LButton(LText(t('common.view', { defaultValue: 'View' })))
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .onPress(() => openJob(job)),
+                              )}
+                              {toElement(
+                                LButton(LText(t('common.edit', { defaultValue: 'Edit' })))
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .onPress(() => editJob(job)),
+                              )}
+                              {toElement(
+                                LButton(LText(t('jobs.mine.pause', { defaultValue: 'Pause' })))
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .loading(busy)
+                                  .onPress(() => runAction(job.id, 'pause')),
+                              )}
+                              {toElement(
+                                LButton(LText(t('jobs.mine.close', { defaultValue: 'Close' })))
+                                  .style('plain')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .loading(busy)
+                                  .onPress(() => runAction(job.id, 'close')),
+                              )}
+                            </>
+                          ),
+                        ),
+                        Embed(
+                          job.status === 'paused' && (
+                            <>
+                              {toElement(
+                                LButton(LText(t('common.edit', { defaultValue: 'Edit' })))
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .onPress(() => editJob(job)),
+                              )}
+                              {toElement(
+                                LButton(LText(t('jobs.mine.publish', { defaultValue: 'Publish' })))
+                                  .style('solid')
+                                  .tint('accent')
+                                  .size('sm')
+                                  .loading(busy)
+                                  .onPress(() => runAction(job.id, 'publish')),
+                              )}
+                              {toElement(
+                                LButton(LText(t('jobs.mine.close', { defaultValue: 'Close' })))
+                                  .style('plain')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .loading(busy)
+                                  .onPress(() => runAction(job.id, 'close')),
+                              )}
+                            </>
+                          ),
+                        ),
+                        job.status === 'closed' || job.status === 'expired'
+                          ? LButton(LText(t('jobs.mine.duplicate', { defaultValue: 'Duplicate' })))
+                              .style('subtle')
+                              .tint('neutral')
+                              .size('sm')
+                              .loading(busy)
+                              .onPress(() => runAction(job.id, 'duplicate'))
+                          : null,
+                        /* Applications only exist for jobs applicants apply to
+                                THROUGH Mention — an `external` job's applications
+                                live on whatever site its `externalApplyUrl` points
+                                to, and Mention never sees them. */ job.applicationMode ===
+                          'mention'
+                          ? LButton(
+                              LText(
+                                t('jobs.mine.viewApplications', {
+                                  defaultValue: 'View applications',
+                                }),
+                              ),
+                            )
+                              .style('subtle')
+                              .tint('neutral')
+                              .size('sm')
+                              .onPress(() => router.push(`/jobs/${job.id}/applications`))
+                          : null,
+                      )
+                        .wrap()
+                        .spacing('sm')
+                        .justify('end'),
+                    )
+                      .padding('horizontal', 'lg')
+                      .padding('bottom', 'md')
+                      .padding('top', 'xs')
+                      .align('center')
+                      .justify('between'),
+                  )
+                    .outline('thin')
+                    .elevation('none')
+                    .radius('lg'),
+                  job.id,
+                );
+              }),
+            ),
+          )
+            .padding('horizontal', 'lg')
+            .spacing('md')
+            .margin('top', 'sm'),
+        )
+      ),
+    ),
+  )
+    .contentView((v) => v.padding('bottom', '4xl'))
+    .header(Embed(header));
+});

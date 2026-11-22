@@ -1,15 +1,24 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import type { CreateMembershipContentRequest, MembershipTier } from '@mention/shared-types';
 import { membershipsService } from '@/services/membershipsService';
 import { getErrorMessage } from '@/utils/apiError';
 import { pickedDocumentFile } from './pickedDocumentFile';
+
+import {
+  Button as LButton,
+  Card as LCard,
+  Embed,
+  HStack,
+  RawText,
+  Text as LText,
+  TextEditor,
+  TextField as LTextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export function MembershipComposer({
   communityId,
@@ -110,161 +119,153 @@ export function MembershipComposer({
       setPending(false);
     }
   };
-  return (
-    <Card>
-      <View className="p-4 gap-3">
-        <Text className="font-semibold text-foreground">
-          {parentContentId
+  return toElement(
+    LCard(
+      VStack(
+        RawText(
+          parentContentId
             ? t('memberships.reply', 'Reply to this discussion')
-            : t('memberships.write', 'Share with members')}
-        </Text>
-        {manager && !parentContentId ? (
-          <View className="flex-row flex-wrap gap-2">
-            {(['discussion', 'post', 'article', 'poll'] as const).map((value) => (
-              <Button
-                key={value}
-                size="sm"
-                appearance={kind === value ? 'solid' : 'outline'}
-                onPress={() => setKind(value)}
-              >
-                {labels[value]}
-              </Button>
-            ))}
-          </View>
-        ) : null}
-        {kind !== 'discussion' ? (
-          <TextField>
-            <TextFieldInput
-              label={t('memberships.contentTitle', 'Title')}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={200}
-            />
-          </TextField>
-        ) : null}
-        <Textarea
-          accessibilityLabel={t('memberships.body', 'Message for members')}
-          value={body}
-          onChangeText={setBody}
-          maxLength={50000}
-          rows={5}
-        />
-        {manager && !parentContentId ? (
-          <Textarea
-            accessibilityLabel={t('memberships.teaser', 'Optional public teaser')}
-            placeholder={t('memberships.teaser', 'Optional public teaser')}
-            value={teaser}
-            onChangeText={setTeaser}
-            maxLength={1000}
-            rows={2}
-          />
-        ) : null}
-        {kind === 'poll' ? (
-          <>
-            <Textarea
-              accessibilityLabel={t('memberships.pollOptions', 'One option per line (2–10)')}
-              value={options}
-              onChangeText={setOptions}
-              maxLength={2010}
-              rows={4}
-            />
-            <Text className="text-muted-foreground">
-              {t('memberships.pollDuration', 'Voting stays open for 24 hours.')}
-            </Text>
-          </>
-        ) : null}
-        {manager && !parentContentId ? (
-          <View className="gap-2">
-            <Text className="text-muted-foreground">
-              {t('memberships.tiers', 'Membership tiers')}
-            </Text>
-            <Button
-              appearance={requiredTierIds.length === 0 ? 'solid' : 'outline'}
-              onPress={() => setRequiredTierIds([])}
-            >
-              {t('explore.tabs.all')}
-            </Button>
-            {tiers.map((tier) => (
-              <Button
-                key={tier.id}
-                appearance={requiredTierIds.includes(tier.id) ? 'solid' : 'outline'}
-                onPress={() =>
-                  setRequiredTierIds((current) =>
-                    current.includes(tier.id)
-                      ? current.filter((id) => id !== tier.id)
-                      : [...current, tier.id],
-                  )
-                }
-              >
-                {tier.name}
-              </Button>
-            ))}
-          </View>
-        ) : null}
-        {attachments.map((file, index) => (
-          <View key={file.id} className="gap-2">
-            <Text className="text-muted-foreground">
-              {t('memberships.attached', 'Private attachment {{number}} ready', {
-                number: index + 1,
-              })}
-            </Text>
-            <Button
-              appearance="plain"
-              disabled={pending}
-              onPress={() => {
-                void (async () => {
-                  setPending(true);
-                  setError('');
-                  try {
-                    await membershipsService.discardUpload(communityId, file.id);
-                    setAttachments((current) => current.filter((item) => item.id !== file.id));
-                  } catch (failure) {
-                    setError(
-                      getErrorMessage(
-                        failure,
-                        t('memberships.failed', 'The action could not be completed.'),
-                      ),
-                    );
-                  } finally {
-                    setPending(false);
-                  }
-                })();
-              }}
-            >
-              {t('memberships.removeAction', 'Remove')}
-            </Button>
-          </View>
-        ))}
-        <Button
-          appearance="outline"
-          disabled={pending || attachments.length >= 10}
-          onPress={() => {
+            : t('memberships.write', 'Share with members'),
+        )
+          .weight('semibold')
+          .foreground('foreground'),
+        manager && !parentContentId
+          ? HStack(
+              Embed(
+                (['discussion', 'post', 'article', 'poll'] as const).map((value) => (
+                  <Button
+                    key={value}
+                    size="sm"
+                    appearance={kind === value ? 'solid' : 'outline'}
+                    onPress={() => setKind(value)}
+                  >
+                    {labels[value]}
+                  </Button>
+                )),
+              ),
+            )
+              .wrap()
+              .spacing('sm')
+          : null,
+        kind !== 'discussion'
+          ? LTextField([title, setTitle], t('memberships.contentTitle', 'Title')).maxLength(200)
+          : null,
+        TextEditor([body, setBody])
+          .label(t('memberships.body', 'Message for members'))
+          .maxLength(50000)
+          .rows(5),
+        manager && !parentContentId
+          ? TextEditor([teaser, setTeaser])
+              .label(t('memberships.teaser', 'Optional public teaser'))
+              .placeholder(t('memberships.teaser', 'Optional public teaser'))
+              .maxLength(1000)
+              .rows(2)
+          : null,
+        Embed(
+          kind === 'poll' ? (
+            <>
+              {toElement(
+                TextEditor([options, setOptions])
+                  .label(t('memberships.pollOptions', 'One option per line (2–10)'))
+                  .maxLength(2010)
+                  .rows(4),
+              )}
+              {toElement(
+                RawText(
+                  t('memberships.pollDuration', 'Voting stays open for 24 hours.'),
+                ).foreground('muted'),
+              )}
+            </>
+          ) : null,
+        ),
+        manager && !parentContentId
+          ? VStack(
+              RawText(t('memberships.tiers', 'Membership tiers')).foreground('muted'),
+              Embed(
+                <Button
+                  appearance={requiredTierIds.length === 0 ? 'solid' : 'outline'}
+                  onPress={() => setRequiredTierIds([])}
+                >
+                  {t('explore.tabs.all')}
+                </Button>,
+              ),
+              Embed(
+                tiers.map((tier) => (
+                  <Button
+                    key={tier.id}
+                    appearance={requiredTierIds.includes(tier.id) ? 'solid' : 'outline'}
+                    onPress={() =>
+                      setRequiredTierIds((current) =>
+                        current.includes(tier.id)
+                          ? current.filter((id) => id !== tier.id)
+                          : [...current, tier.id],
+                      )
+                    }
+                  >
+                    {tier.name}
+                  </Button>
+                )),
+              ),
+            ).spacing('sm')
+          : null,
+        Embed(
+          attachments.map((file, index) =>
+            toElement(
+              VStack(
+                RawText(
+                  t('memberships.attached', 'Private attachment {{number}} ready', {
+                    number: index + 1,
+                  }),
+                ).foreground('muted'),
+                LButton(LText(t('memberships.removeAction', 'Remove')))
+                  .style('plain')
+                  .disabled(pending)
+                  .onPress(() => {
+                    void (async () => {
+                      setPending(true);
+                      setError('');
+                      try {
+                        await membershipsService.discardUpload(communityId, file.id);
+                        setAttachments((current) => current.filter((item) => item.id !== file.id));
+                      } catch (failure) {
+                        setError(
+                          getErrorMessage(
+                            failure,
+                            t('memberships.failed', 'The action could not be completed.'),
+                          ),
+                        );
+                      } finally {
+                        setPending(false);
+                      }
+                    })();
+                  }),
+              ).spacing('sm'),
+              file.id,
+            ),
+          ),
+        ),
+        LButton(LText(t('memberships.attach', 'Attach a private file')))
+          .style('outline')
+          .disabled(pending || attachments.length >= 10)
+          .onPress(() => {
             void attach();
-          }}
-        >
-          {t('memberships.attach', 'Attach a private file')}
-        </Button>
-        {error ? (
-          <Text accessibilityRole="alert" className="text-destructive">
-            {error}
-          </Text>
-        ) : null}
-        <Button
-          loading={pending}
-          disabled={
+          }),
+        error ? RawText(error).foreground('destructive').role('alert') : null,
+        LButton(LText(t('memberships.publishContent', 'Publish to members')))
+          .loading(pending)
+          .disabled(
             !body.trim() ||
-            (kind === 'poll' &&
-              (pollOptions.length < 2 ||
-                pollOptions.length > 10 ||
-                pollOptions.some((value) => value.length > 200)))
-          }
-          onPress={() => {
+              (kind === 'poll' &&
+                (pollOptions.length < 2 ||
+                  pollOptions.length > 10 ||
+                  pollOptions.some((value) => value.length > 200))),
+          )
+          .onPress(() => {
             void publish();
-          }}
-        >
-          {t('memberships.publishContent', 'Publish to members')}
-        </Button>
-      </View>
-    </Card>
+          }),
+      )
+        .padding('all', 'lg')
+        .spacing('md'),
+    ),
   );
 }

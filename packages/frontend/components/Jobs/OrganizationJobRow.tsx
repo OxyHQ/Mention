@@ -1,14 +1,21 @@
 import type { Href } from '@/lib/navigation/router';
 import { memo, useCallback } from 'react';
-import { Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card } from '@oxy.so/bloom/card';
-import { Text as BloomText } from '@oxy.so/bloom/typography';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
+
+import {
+  Badge as LBadge,
+  Embed,
+  HStack,
+  RawText,
+  Text as LText,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const WORKPLACE_LABELS: Record<string, string> = {
   onsite: 'On-site',
@@ -107,30 +114,44 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
       accessibilityLabel={job.title}
       appearance="outline"
     >
-      <View className="flex-row items-start justify-between gap-2">
-        <BloomText variant="headline-bold" style={{ flex: 1 }} numberOfLines={2}>
-          {job.title}
-        </BloomText>
-        {!isPublished ? (
-          <Badge content={job.status} color={STATUS_TONE[job.status]} variant="subtle" size="sm" />
-        ) : null}
-      </View>
-
-      {badges.length > 0 ? (
-        <View className="flex-row flex-wrap gap-1.5 mt-2">
-          {badges.map((label) => (
-            <Badge key={label} content={label} color="default" variant="outlined" size="sm" />
-          ))}
-        </View>
-      ) : null}
-
-      {salaryLabel ? (
-        <BloomText variant="body-semibold" style={{ marginTop: 8 }}>
-          {salaryLabel}
-        </BloomText>
-      ) : null}
-
-      <Text className="text-muted-foreground text-xs mt-2">{dateLabel}</Text>
+      {toElement(
+        HStack(
+          LText(job.title).grow().font('headline').weight('bold').lines(2),
+          Embed(
+            !isPublished ? (
+              <Badge
+                content={job.status}
+                color={STATUS_TONE[job.status]}
+                variant="subtle"
+                size="sm"
+              />
+            ) : null,
+          ),
+        )
+          .align('start')
+          .justify('between')
+          .spacing('sm'),
+      )}
+      {badges.length > 0
+        ? toElement(
+            HStack(
+              Embed(
+                badges.map((label) =>
+                  toElement(LBadge(label).color('default').style('outlined').size('sm'), label),
+                ),
+              ),
+            )
+              .wrap()
+              .spacing('6')
+              .margin('top', 'sm'),
+          )
+        : null}
+      {salaryLabel
+        ? toElement(LText(salaryLabel).margin('top', 'sm').font('body').weight('semibold'))
+        : null}
+      {toElement(
+        RawText(dateLabel).foreground('muted').font('xs').leading('16px').margin('top', 'sm'),
+      )}
     </Card>
   );
 });

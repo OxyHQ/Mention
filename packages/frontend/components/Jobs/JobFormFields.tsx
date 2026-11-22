@@ -1,16 +1,9 @@
 import { useCallback } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-  SegmentedControlItemText,
-} from '@oxy.so/bloom/segmented-control';
+import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { TagField } from '@oxy.so/bloom/tag-field';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import type {
   MentionJobEmploymentType,
   MentionJobSalaryInterval,
@@ -25,6 +18,21 @@ import {
 import JobLocationField from '@/components/Jobs/JobLocationField';
 import type { JobForm } from '@/components/Jobs/jobForm';
 import JobCurrencyField from '@/components/Jobs/JobCurrencyField';
+
+import {
+  Chip as LChip,
+  Embed,
+  Field as LField,
+  HStack,
+  Option,
+  RawText,
+  Segmented,
+  Text as LText,
+  TextEditor,
+  TextField as LTextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -87,57 +95,45 @@ export function JobFormFields({ form }: { form: JobForm }) {
 
   return (
     <>
-      <View className="mt-4">
-        <TextField>
-          <TextFieldInput
-            label={t('jobs.create.jobTitle', { defaultValue: 'Job title' })}
-            value={title}
-            onChangeText={setTitle}
-            maxLength={200}
-          />
-        </TextField>
-      </View>
-
-      <View className="mt-3">
-        <Textarea
-          accessibilityLabel={t('jobs.create.description', { defaultValue: 'Description' })}
-          placeholder={t('jobs.create.description', { defaultValue: 'Description' })}
-          value={description}
-          onChangeText={setDescription}
-          rows={6}
-        />
-      </View>
-
+      {toElement(
+        VStack(
+          LTextField(
+            [title, setTitle],
+            t('jobs.create.jobTitle', { defaultValue: 'Job title' }),
+          ).maxLength(200),
+        ).margin('top', 'lg'),
+      )}
+      {toElement(
+        VStack(
+          TextEditor([description, setDescription])
+            .label(t('jobs.create.description', { defaultValue: 'Description' }))
+            .placeholder(t('jobs.create.description', { defaultValue: 'Description' }))
+            .rows(6),
+        ).margin('top', 'md'),
+      )}
       {/* Location — a Clarity place or a country, never free text */}
-      <View className="mt-4">
-        <JobLocationField value={location} onChange={setLocation} />
-      </View>
-
+      {toElement(
+        VStack(Embed(<JobLocationField value={location} onChange={setLocation} />)).margin(
+          'top',
+          'lg',
+        ),
+      )}
       <Field
         label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
         style={{ marginTop: 16 }}
       >
-        <SegmentedControl
-          label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-          type="radio"
-          value={workplaceType || 'unset'}
-          onChange={(value) =>
-            setWorkplaceType(value === 'unset' ? '' : (value as MentionJobWorkplaceType))
-          }
-        >
-          <SegmentedControlItem value="unset">
-            <SegmentedControlItemText>
-              {t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}
-            </SegmentedControlItemText>
-          </SegmentedControlItem>
-          {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
-            <SegmentedControlItem key={value} value={value}>
-              <SegmentedControlItemText>{WORKPLACE_LABELS[value]}</SegmentedControlItemText>
-            </SegmentedControlItem>
-          ))}
-        </SegmentedControl>
+        {toElement(
+          Segmented(
+            [
+              workplaceType || 'unset',
+              (value) =>
+                setWorkplaceType(value === 'unset' ? '' : (value as MentionJobWorkplaceType)),
+            ],
+            Option('unset', t('jobs.create.notSpecified', { defaultValue: 'Not specified' })),
+            MENTION_JOB_WORKPLACE_TYPES.map((value) => Option(value, WORKPLACE_LABELS[value])),
+          ).label(t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })),
+        )}
       </Field>
-
       {/* Employment type — a chip row rather than a SegmentedControl: six
           values would cram into an unreadable pill row on a phone width. */}
       <Field
@@ -145,66 +141,60 @@ export function JobFormFields({ form }: { form: JobForm }) {
         multiple
         style={{ marginTop: 16 }}
       >
-        <View className="flex-row flex-wrap gap-2">
-          {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
-            <Chip
-              key={value}
-              selected={employmentType === value}
-              onPress={() => setEmploymentType((prev) => (prev === value ? '' : value))}
-            >
-              {EMPLOYMENT_LABELS[value]}
-            </Chip>
-          ))}
-        </View>
+        {toElement(
+          HStack(
+            Embed(
+              MENTION_JOB_EMPLOYMENT_TYPES.map((value) =>
+                toElement(
+                  LChip(LText(EMPLOYMENT_LABELS[value]))
+                    .selected(employmentType === value)
+                    .onPress(() => setEmploymentType((prev) => (prev === value ? '' : value))),
+                  value,
+                ),
+              ),
+            ),
+          )
+            .wrap()
+            .spacing('sm'),
+        )}
       </Field>
-
       <Field
         label={t('jobs.create.salary', { defaultValue: 'Salary (optional)' })}
         multiple
         style={{ marginTop: 16 }}
       >
-        <View className="flex-row gap-2">
-          <View className="flex-1">
-            <TextField>
-              <TextFieldInput
-                label={t('jobs.create.salaryMin', { defaultValue: 'Min' })}
-                value={salaryMin}
-                onChangeText={setSalaryMin}
-                keyboardType="numeric"
-              />
-            </TextField>
-          </View>
-          <View className="flex-1">
-            <TextField>
-              <TextFieldInput
-                label={t('jobs.create.salaryMax', { defaultValue: 'Max' })}
-                value={salaryMax}
-                onChangeText={setSalaryMax}
-                keyboardType="numeric"
-              />
-            </TextField>
-          </View>
-        </View>
-        <View className="mt-2">
-          <JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />
-        </View>
-        <View className="mt-2">
-          <SegmentedControl
-            label={t('jobs.create.salaryInterval', { defaultValue: 'Per' })}
-            type="radio"
-            size="sm"
-            value={salaryInterval}
-            onChange={setSalaryInterval}
-          >
-            {MENTION_JOB_SALARY_INTERVALS.map((value) => (
-              <SegmentedControlItem key={value} value={value}>
-                <SegmentedControlItemText>{INTERVAL_LABELS[value]}</SegmentedControlItemText>
-              </SegmentedControlItem>
-            ))}
-          </SegmentedControl>
-        </View>
+        {toElement(
+          HStack(
+            VStack(
+              LTextField(
+                [salaryMin, setSalaryMin],
+                t('jobs.create.salaryMin', { defaultValue: 'Min' }),
+              ).keyboard('numeric'),
+            ).flex('1'),
+            VStack(
+              LTextField(
+                [salaryMax, setSalaryMax],
+                t('jobs.create.salaryMax', { defaultValue: 'Max' }),
+              ).keyboard('numeric'),
+            ).flex('1'),
+          ).spacing('sm'),
+        )}
+        {toElement(
+          VStack(
+            Embed(<JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />),
+          ).margin('top', 'sm'),
+        )}
+        {toElement(
+          VStack(
+            Segmented(
+              [salaryInterval, setSalaryInterval],
+              MENTION_JOB_SALARY_INTERVALS.map((value) => Option(value, INTERVAL_LABELS[value])),
+            )
+              .label(t('jobs.create.salaryInterval', { defaultValue: 'Per' }))
+              .size('sm'),
+          ).margin('top', 'sm'),
+        )}
       </Field>
-
       {/* Skills — Enter or a comma commits a skill; each chip removes itself. */}
       <Field label={t('jobs.create.skills', { defaultValue: 'Skills' })} style={{ marginTop: 16 }}>
         <TagField
@@ -213,48 +203,49 @@ export function JobFormFields({ form }: { form: JobForm }) {
           placeholder={t('jobs.create.addSkill', { defaultValue: 'Add a skill' })}
         />
       </Field>
-
-      <View className="mt-4">
-        <Field label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}>
-          <SegmentedControl
-            label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
-            type="radio"
-            value={applicationMode}
-            onChange={setApplicationMode}
-          >
-            {MENTION_JOB_APPLICATION_MODES.map((value) => (
-              <SegmentedControlItem key={value} value={value}>
-                <SegmentedControlItemText>
-                  {value === 'mention'
+      {toElement(
+        VStack(
+          LField(
+            t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' }),
+            Segmented(
+              [applicationMode, setApplicationMode],
+              MENTION_JOB_APPLICATION_MODES.map((value) =>
+                Option(
+                  value,
+                  value === 'mention'
                     ? t('jobs.create.applyViaMention', { defaultValue: 'On Mention' })
-                    : t('jobs.create.applyExternally', { defaultValue: 'External link' })}
-                </SegmentedControlItemText>
-              </SegmentedControlItem>
-            ))}
-          </SegmentedControl>
-        </Field>
-        {applicationMode === 'external' ? (
-          <View className="mt-2">
-            <TextField isInvalid={!externalApplyUrl.trim()}>
-              <TextFieldInput
-                label={t('jobs.create.externalApplyUrl', { defaultValue: 'Application URL' })}
-                value={externalApplyUrl}
-                onChangeText={setExternalApplyUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-              />
-            </TextField>
-          </View>
-        ) : (
-          <Text className="text-muted-foreground text-xs mt-2">
-            {t('jobs.create.applyViaMentionHint', {
-              defaultValue:
-                'Applicants apply through Mention, and you’ll review applications from your dashboard.',
-            })}
-          </Text>
-        )}
-      </View>
+                    : t('jobs.create.applyExternally', { defaultValue: 'External link' }),
+                ),
+              ),
+            ).label(t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })),
+          ),
+          applicationMode === 'external'
+            ? VStack(
+                Embed(
+                  <TextField isInvalid={!externalApplyUrl.trim()}>
+                    <TextFieldInput
+                      label={t('jobs.create.externalApplyUrl', { defaultValue: 'Application URL' })}
+                      value={externalApplyUrl}
+                      onChangeText={setExternalApplyUrl}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="url"
+                    />
+                  </TextField>,
+                ),
+              ).margin('top', 'sm')
+            : RawText(
+                t('jobs.create.applyViaMentionHint', {
+                  defaultValue:
+                    'Applicants apply through Mention, and you’ll review applications from your dashboard.',
+                }),
+              )
+                .foreground('muted')
+                .font('xs')
+                .leading('16px')
+                .margin('top', 'sm'),
+        ).margin('top', 'lg'),
+      )}
     </>
   );
 }

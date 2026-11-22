@@ -1,9 +1,9 @@
 import type React from 'react';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
 import LazyInsightsView from '@/components/insights/LazyInsightsView';
+import { Header, toElement } from '@oxy.so/bloom-language';
 
 /**
  * The VIEWER's own insights.
@@ -21,13 +21,12 @@ const InsightsScreen: React.FC = () => {
       <SEO title={t('seo.insights.title')} description={t('seo.insights.description')} />
       <Screen
         scroll="auto"
-        header={
-          <PageHeader
-            title={t('insights.title')}
-            presentation="floating"
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('insights.title'))
+            .presentation('floating')
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
         <LazyInsightsView />
       </Screen>

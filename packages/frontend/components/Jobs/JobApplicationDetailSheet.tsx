@@ -1,11 +1,10 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
-import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
@@ -17,6 +16,15 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
+import {
+  Chip as LChip,
+  Embed,
+  HStack,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const STATUS_TONE: Record<
   MentionJobApplicationStatus,
@@ -125,151 +133,226 @@ const JobApplicationDetailSheet = ({
       style={{ maxHeight: '90%' }}
       contentContainerStyle={{ paddingBottom: 24 }}
     >
-      <View className="flex-row items-start justify-between gap-2 mb-2">
-        <Text className="flex-1 text-foreground text-lg font-bold">
-          {application.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
-        </Text>
-        <Badge
-          content={application.status}
-          color={STATUS_TONE[application.status]}
-          variant="subtle"
-          size="sm"
-        />
-      </View>
-
-      <Text className="text-muted-foreground text-xs mb-4">
-        {t('jobs.applications.appliedAgo', {
-          defaultValue: 'Applied {{time}}',
-          time: formatTimeAgo(application.createdAt),
-        })}
-      </Text>
-
-      {application.contactMethod ? (
-        <View className="mb-3">
-          <Text className="text-sm text-muted-foreground mb-1 font-primary">
-            {t('jobs.applications.contact', { defaultValue: 'Contact' })}
-          </Text>
-          <Text className="text-foreground text-[15px]">{application.contactMethod}</Text>
-        </View>
-      ) : null}
-
-      {application.coverNote ? (
-        <View className="mb-3">
-          <Text className="text-sm text-muted-foreground mb-1 font-primary">
-            {t('jobs.applications.coverNote', { defaultValue: 'Cover note' })}
-          </Text>
-          <Text className="text-foreground text-[15px] leading-5">{application.coverNote}</Text>
-        </View>
-      ) : null}
-
-      {application.portfolioLinks && application.portfolioLinks.length > 0 ? (
-        <View className="mb-3">
-          <Text className="text-sm text-muted-foreground mb-1 font-primary">
-            {t('jobs.applications.portfolio', { defaultValue: 'Portfolio links' })}
-          </Text>
-          {application.portfolioLinks.map((link) => (
-            <Text
-              key={link}
-              className="text-primary text-[14px]"
-              numberOfLines={1}
-              onPress={() => void openExternalLink(link)}
+      {toElement(
+        HStack(
+          RawText(
+            application.displayName ||
+              t('jobs.applications.unnamed', { defaultValue: 'Applicant' }),
+          )
+            .flex('1')
+            .foreground('foreground')
+            .font('18')
+            .leading('28px')
+            .weight('bold'),
+          Embed(
+            <Badge
+              content={application.status}
+              color={STATUS_TONE[application.status]}
+              variant="subtle"
+              size="sm"
+            />,
+          ),
+        )
+          .align('start')
+          .justify('between')
+          .spacing('sm')
+          .margin('bottom', 'sm'),
+      )}
+      {toElement(
+        RawText(
+          t('jobs.applications.appliedAgo', {
+            defaultValue: 'Applied {{time}}',
+            time: formatTimeAgo(application.createdAt),
+          }),
+        )
+          .foreground('muted')
+          .font('xs')
+          .leading('16px')
+          .margin('bottom', 'lg'),
+      )}
+      {application.contactMethod
+        ? toElement(
+            VStack(
+              RawText(t('jobs.applications.contact', { defaultValue: 'Contact' }))
+                .font('14')
+                .leading('20px')
+                .foreground('muted')
+                .margin('bottom', 'xs'),
+              RawText(application.contactMethod).foreground('foreground').font('md'),
+            ).margin('bottom', 'md'),
+          )
+        : null}
+      {application.coverNote
+        ? toElement(
+            VStack(
+              RawText(t('jobs.applications.coverNote', { defaultValue: 'Cover note' }))
+                .font('14')
+                .leading('20px')
+                .foreground('muted')
+                .margin('bottom', 'xs'),
+              RawText(application.coverNote).foreground('foreground').font('md').leading('20px'),
+            ).margin('bottom', 'md'),
+          )
+        : null}
+      {application.portfolioLinks && application.portfolioLinks.length > 0
+        ? toElement(
+            VStack(
+              RawText(t('jobs.applications.portfolio', { defaultValue: 'Portfolio links' }))
+                .font('14')
+                .leading('20px')
+                .foreground('muted')
+                .margin('bottom', 'xs'),
+              Embed(
+                application.portfolioLinks.map((link) => (
+                  <Text
+                    key={link}
+                    className="text-primary text-[14px]"
+                    numberOfLines={1}
+                    onPress={() => void openExternalLink(link)}
+                  >
+                    {link}
+                  </Text>
+                )),
+              ),
+            ).margin('bottom', 'md'),
+          )
+        : null}
+      {application.resumeFileId
+        ? toElement(
+            VStack(
+              Embed(
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  size="sm"
+                  onPress={openResume}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  {t('jobs.applications.viewResume', { defaultValue: 'View resume' })}
+                </Button>,
+              ),
+            ).margin('bottom', 'md'),
+          )
+        : null}
+      {application.answers && application.answers.length > 0
+        ? toElement(
+            VStack(
+              Embed(
+                application.answers.map((answer, index) =>
+                  toElement(
+                    VStack(
+                      RawText(answer.question).font('14').leading('20px').foreground('muted'),
+                      RawText(answer.answer).foreground('foreground').font('md'),
+                    ),
+                    `${answer.question}-${index}`,
+                  ),
+                ),
+              ),
+            )
+              .margin('bottom', 'md')
+              .spacing('sm'),
+          )
+        : null}
+      {toElement(
+        VStack(
+          RawText(t('jobs.applications.changeStatus', { defaultValue: 'Change status' }))
+            .font('14')
+            .leading('20px')
+            .foreground('muted')
+            .margin('bottom', '6'),
+          HStack(
+            Embed(
+              MENTION_JOB_APPLICATION_STATUSES.map((status) =>
+                toElement(
+                  LChip(LText(status))
+                    .selected(application.status === status)
+                    .onPress(() => statusMutation.mutate(status)),
+                  status,
+                ),
+              ),
+            ),
+          )
+            .wrap()
+            .spacing('sm'),
+          Embed(
+            statusMutation.isPending ? <Loading className="text-primary mt-2" size="sm" /> : null,
+          ),
+        )
+          .margin('top', 'sm')
+          .margin('bottom', 'lg'),
+      )}
+      {toElement(
+        VStack(
+          RawText(
+            t('jobs.applications.internalNotes', {
+              defaultValue: 'Internal notes (never shown to the applicant)',
+            }),
+          )
+            .font('14')
+            .leading('20px')
+            .foreground('muted')
+            .margin('bottom', 'sm'),
+          Embed(
+            notesQuery.isLoading ? (
+              <ListSkeleton count={2} />
+            ) : (
+              toElement(
+                VStack(
+                  Embed(
+                    (notesQuery.data?.notes ?? []).map((note) =>
+                      toElement(
+                        VStack(
+                          RawText(note.note).foreground('foreground').font('14'),
+                          RawText(formatTimeAgo(note.createdAt))
+                            .foreground('muted')
+                            .font('11')
+                            .margin('top', 'xs'),
+                        )
+                          .padding('all', 'md')
+                          .background('mutedFill')
+                          .corner('md'),
+                        note.id,
+                      ),
+                    ),
+                  ),
+                  (notesQuery.data?.notes ?? []).length === 0
+                    ? RawText(t('jobs.applications.noNotes', { defaultValue: 'No notes yet' }))
+                        .foreground('muted')
+                        .font('sm')
+                    : null,
+                )
+                  .spacing('sm')
+                  .margin('bottom', 'md'),
+              )
+            ),
+          ),
+          Embed(
+            <TextField>
+              <TextFieldInput
+                label={t('jobs.applications.addNote', { defaultValue: 'Add a note' })}
+                value={noteDraft}
+                onChangeText={setNoteDraft}
+                multiline
+              />
+            </TextField>,
+          ),
+          Embed(
+            <Button
+              appearance="subtle"
+              tone="neutral"
+              size="sm"
+              style={{ alignSelf: 'flex-end', marginTop: 8 }}
+              loading={addNoteMutation.isPending}
+              disabled={!noteDraft.trim()}
+              onPress={submitNote}
             >
-              {link}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-
-      {application.resumeFileId ? (
-        <View className="mb-3">
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            size="sm"
-            onPress={openResume}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            {t('jobs.applications.viewResume', { defaultValue: 'View resume' })}
-          </Button>
-        </View>
-      ) : null}
-
-      {application.answers && application.answers.length > 0 ? (
-        <View className="mb-3 gap-2">
-          {application.answers.map((answer, index) => (
-            <View key={`${answer.question}-${index}`}>
-              <Text className="text-sm text-muted-foreground font-primary">{answer.question}</Text>
-              <Text className="text-foreground text-[15px]">{answer.answer}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      <View className="mt-2 mb-4">
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-          {t('jobs.applications.changeStatus', { defaultValue: 'Change status' })}
-        </Text>
-        <View className="flex-row flex-wrap gap-2">
-          {MENTION_JOB_APPLICATION_STATUSES.map((status) => (
-            <Chip
-              key={status}
-              selected={application.status === status}
-              onPress={() => statusMutation.mutate(status)}
-            >
-              {status}
-            </Chip>
-          ))}
-        </View>
-        {statusMutation.isPending ? <Loading className="text-primary mt-2" size="sm" /> : null}
-      </View>
-
-      <View className="pt-3 border-t border-border">
-        <Text className="text-sm text-muted-foreground mb-2 font-primary">
-          {t('jobs.applications.internalNotes', {
-            defaultValue: 'Internal notes (never shown to the applicant)',
-          })}
-        </Text>
-
-        {notesQuery.isLoading ? (
-          <ListSkeleton count={2} />
-        ) : (
-          <View className="gap-2 mb-3">
-            {(notesQuery.data?.notes ?? []).map((note) => (
-              <View key={note.id} className="bg-muted rounded-xl p-3">
-                <Text className="text-foreground text-[14px]">{note.note}</Text>
-                <Text className="text-muted-foreground text-[11px] mt-1">
-                  {formatTimeAgo(note.createdAt)}
-                </Text>
-              </View>
-            ))}
-            {(notesQuery.data?.notes ?? []).length === 0 ? (
-              <Text className="text-muted-foreground text-[13px]">
-                {t('jobs.applications.noNotes', { defaultValue: 'No notes yet' })}
-              </Text>
-            ) : null}
-          </View>
-        )}
-
-        <TextField>
-          <TextFieldInput
-            label={t('jobs.applications.addNote', { defaultValue: 'Add a note' })}
-            value={noteDraft}
-            onChangeText={setNoteDraft}
-            multiline
-          />
-        </TextField>
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          size="sm"
-          style={{ alignSelf: 'flex-end', marginTop: 8 }}
-          loading={addNoteMutation.isPending}
-          disabled={!noteDraft.trim()}
-          onPress={submitNote}
-        >
-          {t('common.add', { defaultValue: 'Add' })}
-        </Button>
-      </View>
+              {t('common.add', { defaultValue: 'Add' })}
+            </Button>,
+          ),
+        )
+          .padding('top', 'md')
+          .border('border', 'thin', 'top'),
+      )}
     </ScrollView>
   );
 };

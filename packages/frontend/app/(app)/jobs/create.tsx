@@ -1,18 +1,10 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type { Href } from '@/lib/navigation/router';
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { Field } from '@oxy.so/bloom/field';
-import { Item } from '@oxy.so/bloom/item';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
@@ -26,6 +18,21 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { jobLocationInputFrom, useJobForm } from '@/components/Jobs/jobForm';
 import { LazyJobFormFields } from '@/components/sharedRouteScreens';
+
+import {
+  Avatar as LAvatar,
+  Card as LCard,
+  Dialog as LDialog,
+  Embed,
+  Field as LField,
+  HStack,
+  Header,
+  RawText,
+  Row,
+  ScrollView,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const ELIGIBLE_KINDS: readonly string[] = MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS;
 
@@ -52,43 +59,48 @@ function EmployerPickerDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={t('jobs.create.employerPickerTitle', { defaultValue: 'Publish as' })}
-      label={t('jobs.create.employerPickerTitle', { defaultValue: 'Publish as' })}
-    >
-      {accounts.length === 0 ? (
-        <Text className="text-center text-sm text-muted-foreground py-6 px-6">
-          {t('jobs.create.noEmployers', {
-            defaultValue:
-              'You do not operate an organization or project account yet. Create one to publish a job.',
-          })}
-        </Text>
-      ) : (
-        accounts.map((account) => (
-          <Item
-            key={account.accountId}
-            onPress={() => onSelect(account)}
-            leading={
-              <Avatar
-                source={account.account.avatar}
-                size={36}
-                variant={MEDIA_VARIANT_AVATAR}
-                verified={Boolean(account.account.verified)}
-              />
-            }
-            title={displayNameOrHandle(
-              account.account.name?.displayName,
-              `@${account.account.username}`,
-            )}
-            subtitle={`@${account.account.username} · ${account.kind}`}
-            selected={account.accountId === selectedId}
-          />
-        ))
-      )}
-    </Dialog>
+  return toElement(
+    LDialog(
+      Embed(
+        accounts.length === 0
+          ? toElement(
+              RawText(
+                t('jobs.create.noEmployers', {
+                  defaultValue:
+                    'You do not operate an organization or project account yet. Create one to publish a job.',
+                }),
+              )
+                .padding('vertical', '2xl')
+                .padding('horizontal', '2xl')
+                .textAlign('center')
+                .font('14')
+                .leading('20px')
+                .foreground('muted'),
+            )
+          : accounts.map((account) =>
+              toElement(
+                Row(
+                  displayNameOrHandle(
+                    account.account.name?.displayName,
+                    `@${account.account.username}`,
+                  ),
+                )
+                  .onPress(() => onSelect(account))
+                  .leadingView(
+                    LAvatar(account.account.avatar, { variant: MEDIA_VARIANT_AVATAR })
+                      .size('lg')
+                      .verified(Boolean(account.account.verified)),
+                  )
+                  .subtitle(`@${account.account.username} · ${account.kind}`)
+                  .selected(account.accountId === selectedId),
+                account.accountId,
+              ),
+            ),
+      ),
+    )
+      .title(t('jobs.create.employerPickerTitle', { defaultValue: 'Publish as' }))
+      .label(t('jobs.create.employerPickerTitle', { defaultValue: 'Publish as' }))
+      .presented([open, () => onClose()]),
   );
 }
 
@@ -98,7 +110,7 @@ function EmployerPickerDialog({
  * (`publish: false` / `true`) rather than one button with a toggle, so a
  * draft can never be published by mistake.
  */
-export default function CreateJobScreen() {
+export default screen(function CreateJobScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
@@ -179,96 +191,102 @@ export default function CreateJobScreen() {
   const canPublish = canSubmitBase && form.isApplyReady;
   const publishingIntent = createMutation.variables?.publish === true;
 
-  return (
-    <Screen
-      header={
-        <PageHeader
-          title={t('jobs.create.title', { defaultValue: 'Create job' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+  return Embed(
+    <SignInRequired
+      label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
+      description={t('jobs.signInRequiredDesc', {
+        defaultValue: 'Jobs are published by an organization or project account you operate.',
+      })}
     >
-      <SignInRequired
-        label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
-        description={t('jobs.signInRequiredDesc', {
-          defaultValue: 'Jobs are published by an organization or project account you operate.',
-        })}
-      >
-        <ScreenScrollView
-          contentContainerClassName="px-4 pb-16 pt-2"
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Employer picker */}
-          <Field label={t('jobs.create.employer', { defaultValue: 'Publish as' })}>
-            <Card border="thin" elevation="none" radius="radius-16">
-              <Item
-                onPress={() => setEmployerPickerOpen(true)}
-                leading={
-                  employer ? (
-                    <Avatar
-                      source={employer.account.avatar}
-                      size={36}
-                      variant={MEDIA_VARIANT_AVATAR}
-                    />
-                  ) : undefined
-                }
-                title={
-                  employer
-                    ? displayNameOrHandle(
-                        employer.account.name?.displayName,
-                        `@${employer.account.username}`,
-                      )
-                    : accountsLoading
-                      ? t('common.loading', { defaultValue: 'Loading…' })
-                      : t('jobs.create.selectEmployer', {
-                          defaultValue: 'Select an organization or project',
-                        })
-                }
-                subtitle={employer ? `@${employer.account.username}` : undefined}
-              />
-            </Card>
-          </Field>
-          <EmployerPickerDialog
-            open={employerPickerOpen}
-            accounts={eligibleAccounts}
-            selectedId={employer?.accountId ?? null}
-            onSelect={(account) => {
-              setEmployer(account);
-              setEmployerPickerOpen(false);
-            }}
-            onClose={() => setEmployerPickerOpen(false)}
-          />
-
-          <LazyJobFormFields form={form} />
-
-          {/* Submit */}
-          <View className="flex-row gap-3 mt-6">
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              size="lg"
-              style={{ flex: 1 }}
-              loading={createMutation.isPending && !publishingIntent}
-              disabled={!canSubmitBase || createMutation.isPending}
-              onPress={() => submit(false)}
-            >
-              {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
-            </Button>
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              style={{ flex: 1 }}
-              loading={createMutation.isPending && publishingIntent}
-              disabled={!canPublish || createMutation.isPending}
-              onPress={() => submit(true)}
-            >
-              {t('jobs.create.publish', { defaultValue: 'Publish' })}
-            </Button>
-          </View>
-          {accountsLoading ? <ListSkeleton count={2} /> : null}
-        </ScreenScrollView>
-      </SignInRequired>
-    </Screen>
+      {toElement(
+        ScrollView(
+          /* Employer picker */ LField(
+            t('jobs.create.employer', { defaultValue: 'Publish as' }),
+            LCard(
+              Row(
+                employer
+                  ? displayNameOrHandle(
+                      employer.account.name?.displayName,
+                      `@${employer.account.username}`,
+                    )
+                  : accountsLoading
+                    ? t('common.loading', { defaultValue: 'Loading…' })
+                    : t('jobs.create.selectEmployer', {
+                        defaultValue: 'Select an organization or project',
+                      }),
+              )
+                .onPress(() => setEmployerPickerOpen(true))
+                .leadingView(
+                  Embed(
+                    employer
+                      ? toElement(
+                          LAvatar(employer.account.avatar, { variant: MEDIA_VARIANT_AVATAR }).size(
+                            'lg',
+                          ),
+                        )
+                      : undefined,
+                  ),
+                )
+                .subtitle(employer ? `@${employer.account.username}` : undefined),
+            )
+              .outline('thin')
+              .elevation('none')
+              .radius('lg'),
+          ),
+          Embed(
+            <EmployerPickerDialog
+              open={employerPickerOpen}
+              accounts={eligibleAccounts}
+              selectedId={employer?.accountId ?? null}
+              onSelect={(account) => {
+                setEmployer(account);
+                setEmployerPickerOpen(false);
+              }}
+              onClose={() => setEmployerPickerOpen(false)}
+            />,
+          ),
+          Embed(<LazyJobFormFields form={form} />),
+          /* Submit */ HStack(
+            Embed(
+              <Button
+                appearance="subtle"
+                tone="neutral"
+                size="lg"
+                style={{ flex: 1 }}
+                loading={createMutation.isPending && !publishingIntent}
+                disabled={!canSubmitBase || createMutation.isPending}
+                onPress={() => submit(false)}
+              >
+                {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
+              </Button>,
+            ),
+            Embed(
+              <Button
+                appearance="solid"
+                tone="accent"
+                size="lg"
+                style={{ flex: 1 }}
+                loading={createMutation.isPending && publishingIntent}
+                disabled={!canPublish || createMutation.isPending}
+                onPress={() => submit(true)}
+              >
+                {t('jobs.create.publish', { defaultValue: 'Publish' })}
+              </Button>,
+            ),
+          )
+            .spacing('md')
+            .margin('top', '2xl'),
+          Embed(accountsLoading ? <ListSkeleton count={2} /> : null),
+        )
+          .contentView((v) =>
+            v.padding('horizontal', 'lg').padding('bottom', '64').padding('top', 'sm'),
+          )
+          .keyboardTaps('handled'),
+      )}
+    </SignInRequired>,
+  ).header(
+    Header(t('jobs.create.title', { defaultValue: 'Create job' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-}
+});
