@@ -1,9 +1,9 @@
 import type React from 'react';
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { ScrollView, TouchableOpacity, View, type ViewStyle } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
 import { Textarea } from '@oxy.so/bloom/textarea';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { REPORT_CATEGORIES } from '@/services/reportService';
@@ -16,8 +16,40 @@ import {
   Icon,
   RawText,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+
+const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
+
+// What the sheet's classes drew, as plain objects (inline, as the classes were).
+/** The sheet: the background colour, its top corners rounded 24pt, at most 90% of the window. */
+const SHEET_STYLE: ViewStyle = {
+  maxHeight: '90%',
+  borderTopLeftRadius: 24,
+  borderTopRightRadius: 24,
+};
+/** The close button: an 8pt target pad, above the centred title. */
+const CLOSE_STYLE: ViewStyle = { padding: 8, zIndex: 10 };
+const CONTENT_STYLE: ViewStyle = { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 };
+/** A category: 14pt by 16pt inside a 1.5pt outline, 12pt corners. */
+const CATEGORY_STYLE: ViewStyle = {
+  paddingVertical: 14,
+  paddingHorizontal: 16,
+  borderRadius: 12,
+  borderWidth: 1.5,
+};
+/** Cancel and Submit: halves of the row, centred, 12pt corners. */
+const ACTION_STYLE: ViewStyle = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 12,
+  paddingVertical: 14,
+  minHeight: 50,
+};
 
 interface ReportModalProps {
   visible: boolean;
@@ -55,134 +87,155 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
     onClose();
   };
 
-  return (
-    <View className="bg-background rounded-t-3xl" style={{ maxHeight: '90%' }}>
-      {/* Header */}
-      {toElement(
-        HStack(
-          Embed(
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-              onPress={handleCancel}
-              className="p-2 z-10"
-              activeOpacity={0.7}
-            >
-              {toElement(Icon(RiCloseLine).size('md').foreground('foreground'))}
-            </TouchableOpacity>,
-          ),
-          Embed(
-            <Text
-              className="text-foreground text-lg font-bold absolute left-0 right-0 text-center"
-              style={{ pointerEvents: 'none' }}
-            >
-              Report Post
-            </Text>,
-          ),
-          Embed(<View style={{ width: 36, marginLeft: 'auto' }} />),
-        )
-          .padding('horizontal', 'lg')
-          .padding('vertical', 'md')
-          .frame({ minHeight: '56' })
-          .align('center'),
-      )}
-      {toElement(LDivider())}
-      {/* Content */}
-      <ScrollView className="px-4 pt-4 pb-2">
-        <Text className="text-muted-foreground text-[15px] mb-4" style={{ lineHeight: 20 }}>
-          Select at least one reason for reporting:
-        </Text>
+  const canSubmit = selectedCategories.length > 0;
 
-        {/* Categories */}
-        {toElement(
-          VStack(
+  return toElement(
+    Embed((render) => (
+      <View style={[SHEET_STYLE, { backgroundColor: theme.colors.background }]}>
+        {/* Header */}
+        {render(
+          HStack(
             Embed(
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+                onPress={handleCancel}
+                style={CLOSE_STYLE}
+                activeOpacity={0.7}
+              >
+                {render(Icon(RiCloseLine).size('md').foreground('foreground'))}
+              </TouchableOpacity>,
+            ),
+            RawText('Report Post')
+              .foreground('foreground')
+              .font('18')
+              .leading('28px')
+              .weight('bold')
+              .position({ left: 'none', right: 'none' })
+              .textAlign('center')
+              .allowsHitTesting(false),
+            Embed(<View style={{ width: 36, marginLeft: 'auto' }} />),
+          )
+            .padding('horizontal', 'lg')
+            .padding('vertical', 'md')
+            .frame({ minHeight: '56' })
+            .align('center'),
+        )}
+        {render(LDivider())}
+        {/* Content */}
+        <ScrollView style={CONTENT_STYLE}>
+          {render(
+            RawText('Select at least one reason for reporting:')
+              .foreground('muted')
+              .font('md')
+              .leading('20px')
+              .margin('bottom', 'lg'),
+          )}
+
+          {/* Categories */}
+          {render(
+            VStack(
               REPORT_CATEGORIES.map((category) => {
                 const isSelected = selectedCategories.includes(category.id);
-                return (
-                  // The selected tint is `bg-primary/10`, never
-                  // `theme.colors.primary + '20'`: the token is an
-                  // `rgb(...)` string, so a hex-alpha suffix makes a
-                  // malformed colour react-native-web reads as fully
-                  // opaque primary — a solid card behind the label.
+                return Embed(
+                  // The selected tint is the primary at 10% (`withAlpha`), never
+                  // `theme.colors.primary + '20'`: the token is an `rgb(...)` string,
+                  // so a hex-alpha suffix makes a malformed colour react-native-web
+                  // reads as fully opaque primary — a solid card behind the label.
                   <View
-                    key={category.id}
-                    className={`py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
-                    style={{
-                      borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-                      borderWidth: 1.5,
-                    }}
+                    style={[
+                      CATEGORY_STYLE,
+                      {
+                        backgroundColor: isSelected
+                          ? withAlpha(theme.colors.primary, 0.1)
+                          : theme.colors.card,
+                        borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                      },
+                    ]}
                   >
-                    {toElement(
+                    {render(
                       LCheckbox([isSelected, () => toggleCategory(category.id)], category.label),
                     )}
-                  </View>
-                );
+                  </View>,
+                ).id(category.id);
               }),
+            )
+              .spacing('sm')
+              .margin('bottom', '2xl'),
+          )}
+
+          {/* Details Input */}
+          <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
+            <Textarea
+              placeholder={t('report.contextPlaceholder')}
+              value={details}
+              onChangeText={setDetails}
+              rows={5}
+              autoResize
+              maxRows={7}
+              maxLength={500}
+              showCount
+            />
+          </Field>
+        </ScrollView>
+        {/* Action Buttons */}
+        {render(LDivider())}
+        {render(
+          HStack(
+            Embed(
+              <TouchableOpacity
+                style={[
+                  ACTION_STYLE,
+                  {
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.card,
+                  },
+                ]}
+                accessibilityRole="button"
+                onPress={handleCancel}
+                activeOpacity={0.7}
+              >
+                {render(
+                  RawText('Cancel')
+                    .foreground('foreground')
+                    .font('16')
+                    .leading('normal')
+                    .weight('semibold'),
+                )}
+              </TouchableOpacity>,
+            ),
+            Embed(
+              <TouchableOpacity
+                style={[
+                  ACTION_STYLE,
+                  { backgroundColor: canSubmit ? theme.colors.error : theme.colors.border },
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canSubmit }}
+                onPress={handleSubmit}
+                disabled={!canSubmit}
+                activeOpacity={0.7}
+              >
+                {render(
+                  RawText('Submit Report')
+                    .font('16')
+                    .leading('normal')
+                    .weight('semibold')
+                    .foreground(canSubmit ? appColors.color.hexFFFFFF : 'muted'),
+                )}
+              </TouchableOpacity>,
             ),
           )
-            .spacing('sm')
-            .margin('bottom', '2xl'),
+            .spacing('md')
+            .padding('horizontal', 'lg')
+            .padding('top', 'lg')
+            // `py-4 pb-5`: the web's CSS kept py-4's bottom, NativeWind took pb-5's.
+            .padding('bottom', 'lg')
+            .when('native', (v) => v.padding('bottom', 'xl')),
         )}
-
-        {/* Details Input */}
-        <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
-          <Textarea
-            placeholder={t('report.contextPlaceholder')}
-            value={details}
-            onChangeText={setDetails}
-            rows={5}
-            autoResize
-            maxRows={7}
-            maxLength={500}
-            showCount
-          />
-        </Field>
-      </ScrollView>
-      {/* Action Buttons */}
-      {toElement(LDivider())}
-      <View className="flex-row gap-3 px-4 py-4 pb-5">
-        <TouchableOpacity
-          className="flex-1 items-center justify-center rounded-xl border border-border bg-card"
-          style={{ paddingVertical: 14, minHeight: 50 }}
-          accessibilityRole="button"
-          onPress={handleCancel}
-          activeOpacity={0.7}
-        >
-          {toElement(
-            RawText('Cancel')
-              .foreground('foreground')
-              .font('16')
-              .leading('normal')
-              .weight('semibold'),
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          className="flex-1 items-center justify-center rounded-xl"
-          style={{
-            paddingVertical: 14,
-            minHeight: 50,
-            backgroundColor:
-              selectedCategories.length > 0 ? theme.colors.error : theme.colors.border,
-          }}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: selectedCategories.length === 0 }}
-          onPress={handleSubmit}
-          disabled={selectedCategories.length === 0}
-          activeOpacity={0.7}
-        >
-          <Text
-            className="text-base font-semibold"
-            style={{
-              color: selectedCategories.length > 0 ? '#FFFFFF' : theme.colors.textSecondary,
-            }}
-          >
-            Submit Report
-          </Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    )),
   );
 };
 
