@@ -277,10 +277,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const haptic = useHaptics();
   const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
   const { drafts, saveDraft, queueDeleteDraft, readDraft } = useDrafts();
-  const discardControl = useDialogControl();
-  const clearAllControl = useDialogControl();
+  // The confirmations the composer asks, each its open state.
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+  const [translateOverwriteOpen, setTranslateOverwriteOpen] = useState(false);
   const intentConflictControl = useDialogControl();
-  const translateOverwriteControl = useDialogControl();
   const { user, showBottomSheet, oxyServices } = useAuth();
   const { capture: capturePublication, isMounted: isPublicationMounted } =
     usePublicationContinuation();
@@ -2850,12 +2851,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       const target = { itemId, tag: activeTag };
       if (getVariantItem(variants, activeTag, itemId).text.trim().length > 0) {
         pendingTranslationRef.current = target;
-        translateOverwriteControl.open();
+        setTranslateOverwriteOpen(true);
         return;
       }
       void translateInto(itemId, activeTag);
     },
-    [translatingItemId, activeTag, variants, translateOverwriteControl, translateInto],
+    [translatingItemId, activeTag, variants, translateInto],
   );
 
   const confirmTranslateOverwrite = useCallback(() => {
@@ -3247,7 +3248,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       leadingIcon={RiArrowLeftLine}
                       onPress={() => {
                         if (hasDraftContent(draftSnapshot) && !isEditMode) {
-                          discardControl.open();
+                          setDiscardOpen(true);
                         } else {
                           dismiss();
                         }
@@ -3386,7 +3387,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       iconOnly
                       leadingIcon={RiDeleteBinLine}
                       style={styles.iconBtn}
-                      onPress={() => clearAllControl.open()}
+                      onPress={() => setClearAllOpen(true)}
                       accessibilityLabel={t('compose.clearAll.a11y', {
                         defaultValue: 'Clear all content',
                       })}
@@ -4637,95 +4638,108 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         )}
 
         {/* Save draft / discard prompt */}
-        <Dialog
-          control={discardControl}
-          title={t('compose.saveDraftTitle', 'Save draft?')}
-          description={t(
-            'compose.saveDraftDescription',
-            'Would you like to save this as a draft to edit later?',
-          )}
-          actions={[
-            {
-              label: t('compose.saveDraft', 'Save draft'),
-              color: 'default',
-              onPress: async () => {
-                try {
-                  await saveDraftNow(draftSnapshot);
+        {toElement(
+          LDialog()
+            .title(t('compose.saveDraftTitle', 'Save draft?'))
+            .message(
+              t(
+                'compose.saveDraftDescription',
+                'Would you like to save this as a draft to edit later?',
+              ),
+            )
+            .buttons([
+              {
+                label: t('compose.saveDraft', 'Save draft'),
+                color: 'default',
+                onPress: async () => {
+                  try {
+                    await saveDraftNow(draftSnapshot);
+                    dismiss();
+                  } catch (error) {
+                    logger.error('Failed to save draft', error);
+                  }
+                },
+              },
+              {
+                label: t('common.discard', 'Discard'),
+                color: 'destructive',
+                onPress: async () => {
+                  try {
+                    await discardDraft();
+                  } catch (error) {
+                    // The author chose to throw this work away; a stored copy that
+                    // could not be deleted must not keep them in the composer.
+                    logger.error('Failed to delete the discarded draft', error);
+                    toast(t('compose.deleteDraftError', 'Failed to delete draft'), {
+                      type: 'error',
+                    });
+                  }
                   dismiss();
-                } catch (error) {
-                  logger.error('Failed to save draft', error);
-                }
+                },
               },
-            },
-            {
-              label: t('common.discard', 'Discard'),
-              color: 'destructive',
-              onPress: async () => {
-                try {
-                  await discardDraft();
-                } catch (error) {
-                  // The author chose to throw this work away; a stored copy that
-                  // could not be deleted must not keep them in the composer.
-                  logger.error('Failed to delete the discarded draft', error);
-                  toast(t('compose.deleteDraftError', 'Failed to delete draft'), { type: 'error' });
-                }
-                dismiss();
+              {
+                label: t('compose.keepEditing', 'Keep editing'),
+                color: 'cancel',
               },
-            },
-            {
-              label: t('compose.keepEditing', 'Keep editing'),
-              color: 'cancel',
-            },
-          ]}
-        />
+            ])
+            .presented([discardOpen, setDiscardOpen]),
+        )}
 
         {/* Clear all confirmation prompt */}
-        <Dialog
-          control={clearAllControl}
-          title={t('compose.clearAllTitle', 'Clear all content?')}
-          description={t(
-            'compose.clearAllDescription',
-            'This will remove all text, media, and attachments from your post.',
-          )}
-          actions={[
-            {
-              label: t('common.clearAll', 'Clear All'),
-              color: 'destructive',
-              onPress: () => {
-                clearComposerContent();
-                toast(t('common.cleared'), { type: 'success' });
+        {toElement(
+          LDialog()
+            .title(t('compose.clearAllTitle', 'Clear all content?'))
+            .message(
+              t(
+                'compose.clearAllDescription',
+                'This will remove all text, media, and attachments from your post.',
+              ),
+            )
+            .buttons([
+              {
+                label: t('common.clearAll', 'Clear All'),
+                color: 'destructive',
+                onPress: () => {
+                  clearComposerContent();
+                  toast(t('common.cleared'), { type: 'success' });
+                },
               },
-            },
-            {
-              label: t('common.cancel', 'Cancel'),
-              color: 'cancel',
-            },
-          ]}
-        />
+              {
+                label: t('common.cancel', 'Cancel'),
+                color: 'cancel',
+              },
+            ])
+            .presented([clearAllOpen, setClearAllOpen]),
+        )}
 
         {/* Machine translation over an author's own words — always ask first. */}
-        <Dialog
-          control={translateOverwriteControl}
-          title={t('compose.languages.overwriteTitle', { defaultValue: 'Replace what you wrote?' })}
-          description={t('compose.languages.overwriteDescription', {
-            defaultValue:
-              'This tab already has text. Translating replaces it with an editable machine translation.',
-          })}
-          actions={[
-            {
-              label: t('compose.languages.overwriteConfirm', { defaultValue: 'Translate' }),
-              color: 'destructive',
-              onPress: confirmTranslateOverwrite,
-            },
-            {
-              label: t('common.cancel', 'Cancel'),
-              color: 'cancel',
-              onPress: () => {
-                pendingTranslationRef.current = null;
+        {toElement(
+          LDialog()
+            .title(
+              t('compose.languages.overwriteTitle', { defaultValue: 'Replace what you wrote?' }),
+            )
+            .message(
+              t('compose.languages.overwriteDescription', {
+                defaultValue:
+                  'This tab already has text. Translating replaces it with an editable machine translation.',
+              }),
+            )
+            .buttons([
+              {
+                label: t('compose.languages.overwriteConfirm', { defaultValue: 'Translate' }),
+                color: 'destructive',
+                onPress: confirmTranslateOverwrite,
               },
-            },
-          ]}
-        />
+              {
+                label: t('common.cancel', 'Cancel'),
+                color: 'cancel',
+                onPress: () => {
+                  pendingTranslationRef.current = null;
+                },
+              },
+            ])
+            .presented([translateOverwriteOpen, setTranslateOverwriteOpen]),
+        )}
 
         {/* Intent-vs-draft conflict prompt (shown when /compose is opened
             while an autosaved draft already exists). */}
