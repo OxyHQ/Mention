@@ -16,7 +16,7 @@ import {
 import { usePathname } from '@/lib/navigation/router';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TouchableOpacity, Platform } from 'react-native';
+import { Platform, TouchableOpacity, type ViewStyle } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -37,6 +37,19 @@ import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
 import { Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+
+/** The invite banner, as its classes drew it: a 20pt-round outlined row, 12pt inside. */
+const INVITE_BANNER_STYLE: ViewStyle = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 12,
+  marginHorizontal: 16,
+  marginTop: 12,
+  marginBottom: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  gap: 10,
+};
 
 type TabType = ConnectionTab;
 
@@ -372,8 +385,10 @@ function ConnectionsContent({
   const renderInviteBanner = useCallback(
     () => (
       <TouchableOpacity
-        className="flex-row items-center p-3 mx-4 mt-3 mb-2 rounded-[20px] border bg-card border-border"
-        style={{ gap: 10 }}
+        style={[
+          INVITE_BANNER_STYLE,
+          { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+        ]}
         onPress={handleInviteFriends}
         activeOpacity={0.7}
       >
@@ -409,7 +424,7 @@ function ConnectionsContent({
         {toElement(Icon(RiArrowRightSLine).size('md').foreground('muted'))}
       </TouchableOpacity>
     ),
-    [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t],
+    [handleInviteFriends, theme.colors.card, theme.colors.border, theme.colors.textSecondary, t],
   );
 
   const currentData = useMemo(() => {

@@ -1,9 +1,8 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback } from 'react';
-import { Pressable } from 'react-native';
 
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 
@@ -62,17 +61,16 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       profile={profile}
       showFollowButton
       accessory={
-        hideDismiss ? undefined : (
-          <Pressable
-            className="p-1"
-            onPress={handleDismiss}
-            hitSlop={tokens.hitSlop.md}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss suggestion"
-          >
-            <RiCloseLine width={14} fill={theme.colors.textSecondary} />
-          </Pressable>
-        )
+        hideDismiss
+          ? undefined
+          : toElement(
+              VStack(Embed(<RiCloseLine width={14} fill={theme.colors.textSecondary} />))
+                .padding('all', 'xs')
+                .onPress(handleDismiss)
+                .hitSlop('md')
+                .role('button')
+                .label('Dismiss suggestion'),
+            )
       }
     />
   );
