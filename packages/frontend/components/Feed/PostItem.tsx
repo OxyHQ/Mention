@@ -2,7 +2,14 @@ import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react';
-import { View, Text as RNText, TouchableOpacity, type GestureResponderEvent } from 'react-native';
+import {
+  View,
+  Text as RNText,
+  TouchableOpacity,
+  type GestureResponderEvent,
+  type ViewProps,
+} from 'react-native';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type { TFunction } from 'i18next';
 import type { AccessibilityActionEvent } from 'react-native';
@@ -177,6 +184,29 @@ const MENU_GLYPH = HStack(Icon(RiMoreFill).size(row.iconSize.menu).foreground('m
 
 const NAME_STYLE = { container: { flexShrink: 1, minWidth: 0 } } as const;
 const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
+
+/** The row's inks that are not language chains, as Bloom paints its own: once per palette. */
+const useRowInk = createTokenStyles((t) => ({
+  rule: { backgroundColor: t.border },
+  edge: { borderColor: t.border },
+  byline: { color: t.foreground, fontSize: 15, fontWeight: '600', lineHeight: 18.75 },
+}));
+
+/** A thread line (a fill) or the reply branch's elbow (its edges), in the border ink. */
+function ThreadRule({ edge, style, ...props }: ViewProps & { edge?: boolean }) {
+  const ink = useRowInk();
+  return <View {...props} style={[style, edge ? ink.edge : ink.rule]} />;
+}
+
+/** The collaborators' byline: React Native text, so its names can be links. */
+function BylineText({ children }: { children: React.ReactNode }) {
+  const ink = useRowInk();
+  return (
+    <RNText style={[ink.byline, SHRINK_STYLE]} numberOfLines={2}>
+      {children}
+    </RNText>
+  );
+}
 const INDICATOR_STYLE = { flexShrink: 0, alignSelf: 'center' } as const;
 
 // The two vote arrows are adjacent halves of ONE pill, so neither hit region
@@ -1464,7 +1494,7 @@ function PostRow(props: PostItemProps): Child {
       isFederated={user.isFederated}
       kind={user.kind}
       size={13}
-      containerClassName="self-center ml-1"
+      style={{ alignSelf: 'center', marginLeft: 4 }}
     />,
   );
 
@@ -1473,11 +1503,7 @@ function PostRow(props: PostItemProps): Child {
         LtoElement(
           LHStack(
             LEmbed(
-              <RNText
-                className="text-foreground text-[15px] font-semibold leading-tight"
-                style={SHRINK_STYLE}
-                numberOfLines={2}
-              >
+              <BylineText>
                 {headerAuthors.map((a, i) => {
                   const isLast = i === headerAuthors.length - 1;
                   const separator =
@@ -1506,7 +1532,7 @@ function PostRow(props: PostItemProps): Child {
                     </React.Fragment>
                   );
                 })}
-              </RNText>,
+              </BylineText>,
             ),
           )
             .frame({ minWidth: 'none' })
@@ -1803,7 +1829,7 @@ function PostRow(props: PostItemProps): Child {
     isThreadChild && !isNested
       ? Embed(
           // Above the avatar, from the previous post's bottom to just above the offset avatar.
-          <View
+          <ThreadRule
             style={{
               position: 'absolute',
               top: 0,
@@ -1813,7 +1839,6 @@ function PostRow(props: PostItemProps): Child {
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
             }}
-            className="bg-border"
           />,
         )
       : null;
@@ -1821,7 +1846,7 @@ function PostRow(props: PostItemProps): Child {
     isThreadParent && !isNested && !isDetailMain
       ? Embed(
           // Below the avatar, to the next post's top.
-          <View
+          <ThreadRule
             style={{
               position: 'absolute',
               top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
@@ -1831,14 +1856,14 @@ function PostRow(props: PostItemProps): Child {
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
             }}
-            className="bg-border"
           />,
         )
       : null;
   const replyBranchElbow =
     replyBranch && !isNested
       ? Embed(
-          <View
+          <ThreadRule
+            edge
             pointerEvents="none"
             style={{
               position: 'absolute',
@@ -1850,7 +1875,6 @@ function PostRow(props: PostItemProps): Child {
               borderBottomWidth: THREAD_LINE_WIDTH,
               borderBottomLeftRadius: 8,
             }}
-            className="border-border"
           />,
         )
       : null;
