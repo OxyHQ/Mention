@@ -134,7 +134,8 @@ describe('resuming a draft', () => {
 
 describe('editing a scheduled post', () => {
   it('has an explicit Post now, and a cleared schedule publishes only after a confirmation', () => {
-    expect(screen).toContain('testID="compose-publish-now"');
+    // The button is a language chain: its test id is `.testID('compose-publish-now')`.
+    expect(screen).toContain(".testID('compose-publish-now')");
     const body = handlePostBody();
     expect(body.indexOf('confirmDialog')).toBeGreaterThan(-1);
     expect(body.indexOf('confirmDialog')).toBeLessThan(body.indexOf('setIsPosting(true)'));

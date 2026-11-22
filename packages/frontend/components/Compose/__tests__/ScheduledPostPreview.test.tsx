@@ -217,7 +217,8 @@ describe('ScheduledPostPreview', () => {
     // `pointerEvents` in its style (which React Native hands the view as the prop).
     const inert = tree.root.findAll(
       (node) =>
-        (node.type as unknown) === 'View' && StyleSheet.flatten(node.props.style)?.pointerEvents === 'none',
+        (node.type as unknown) === 'View' &&
+        StyleSheet.flatten(node.props.style)?.pointerEvents === 'none',
     );
     expect(inert).toHaveLength(1);
     expect(inert[0].findAllByType(Text).some((node) => node.props.children === 'POST ITEM')).toBe(

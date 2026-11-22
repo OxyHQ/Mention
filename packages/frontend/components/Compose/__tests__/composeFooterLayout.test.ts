@@ -48,9 +48,10 @@ describe('the composer footer', () => {
     // It used to float outside it, absolutely positioned — behind the keyboard,
     // and over the last pill once the keyboard was down.
     const body = keyboardAvoidingBody();
-    expect(body).toContain('testID="compose-submit"');
+    // The button is a language chain inside the view: `.testID('compose-submit')`.
+    expect(body).toContain(".testID('compose-submit')");
     expect(body).toContain('<ChipRow');
-    expect(body.indexOf('<ChipRow')).toBeLessThan(body.indexOf('testID="compose-submit"'));
+    expect(body.indexOf('<ChipRow')).toBeLessThan(body.indexOf(".testID('compose-submit')"));
     expect(screen).not.toContain('floatingPostButton');
   });
 
@@ -62,7 +63,8 @@ describe('the composer footer', () => {
   });
 
   it('clears the bottom safe area itself, since the shell bar is never drawn over it', () => {
-    expect(screen).toContain('className="flex-1 bg-card pt-safe pb-safe"');
+    // The root pads itself by the device's insets, top and bottom.
+    expect(screen).toMatch(/paddingTop: insets\.top,\s*paddingBottom: insets\.bottom,/);
     // The old per-screen guesses at the shell bar's height are gone.
     expect(screen).not.toMatch(/bottomBarVisible/);
   });
@@ -71,8 +73,9 @@ describe('the composer footer', () => {
 describe('the composer header', () => {
   it('gives the composer TAB a close control, not just the pushed composer', () => {
     // "New post" (the tab) had no way out; "Reply" (pushed) had a back arrow.
+    // The header is the first child of the screen's language stack (`/* Header */`).
     const header = screen.slice(
-      screen.indexOf('{/* Header */}'),
+      screen.indexOf('/* Header */'),
       screen.indexOf('styles.headerTitle'),
     );
     expect(header).toMatch(/presentation === 'tab' \?/);

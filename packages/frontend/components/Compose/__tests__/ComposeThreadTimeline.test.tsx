@@ -34,6 +34,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -258,18 +259,17 @@ describe('ComposeThreadItem — the timeline between avatars', () => {
    * for that string, byte-identical to unsuffixed primary). The line rendered as
    * a solid saturated bar down the composer.
    *
-   * So the tint must come from the NativeWind opacity class, which composites
-   * through the CSS pipeline, and the connector must declare NO inline
-   * background colour — an inline one would win over the class and put the bug
-   * straight back.
+   * So the tint is Bloom's `tokenAlpha`: the primary token's own colour at a
+   * fifth of its alpha, one well-formed colour, never a token with a hex suffix.
    */
-  it('tints the connector with an opacity CLASS and no inline background', () => {
+  it('tints the connector with the primary token at 20%, never a hex-suffixed token', () => {
     const tree = renderItem('thread');
 
     for (const marker of [CONNECTOR_ABOVE, CONNECTOR_BELOW]) {
       const [node] = connectors(tree, marker);
-      expect(node.props.className).toMatch(/\bbg-primary\/\d+\b/);
-      expect(inlineBackgroundColors(node.props.style)).toEqual([]);
+      expect(inlineBackgroundColors(node.props.style)).toEqual([
+        expect.stringMatching(/^rgba\(\d+, \d+, \d+, 0\.2\)$/),
+      ]);
     }
 
     act(() => tree.unmount());
