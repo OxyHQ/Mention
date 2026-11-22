@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Screen } from '@oxy.so/bloom/screen';
 import { CheckoutPreviewControls } from '@/components/payments/CheckoutPreviewControls';
 import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge';
 import { MerchantInstallmentSettings } from '@/components/payments/MerchantInstallmentSettings';
@@ -18,15 +17,22 @@ import {
 import {
   Button as LButton,
   Embed,
+  Group,
   Header,
   ScrollView,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /** Local developer fixtures only. This route is never a customer checkout mode. */
 export default function CheckoutPlayground() {
+  if (!isLocalCheckoutPreview()) return toElement(LText('Not available'));
+  return <CheckoutPlaygroundScreen />;
+}
+
+const CheckoutPlaygroundScreen = screen(function CheckoutPlaygroundScreen() {
   const [open, setOpen] = useState(false);
   const [scenario, setScenario] = useState<CheckoutScenario>('physical');
   const [outcome, setOutcome] = useState<PreviewOutcome>('success');
@@ -35,40 +41,37 @@ export default function CheckoutPlayground() {
   const [incomingFunds, setIncomingFunds] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [preferences, setPreferences] = useState(DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES);
-  if (!isLocalCheckoutPreview()) return toElement(LText('Not available'));
-  return (
-    <Screen header={toElement(Header().inPage())}>
-      {toElement(
-        ScrollView(
-          VStack(
-            LText('Checkout development fixtures').font('title-2').weight('semibold'),
-            Embed(
-              <CheckoutPreviewControls
-                scenario={scenario}
-                onScenario={setScenario}
-                outcome={outcome}
-                onOutcome={setOutcome}
-                customerMode={customerMode}
-                onCustomerMode={setCustomerMode}
-                installmentDecision={decision}
-                onInstallmentDecision={setDecision}
-                incomingFunds={incomingFunds}
-                onIncomingFunds={setIncomingFunds}
-                soundEnabled={soundEnabled}
-                onSoundEnabled={setSoundEnabled}
-              />,
-            ),
-            Embed(<MerchantInstallmentSettings value={preferences} onChange={setPreferences} />),
-            LButton(LText('Open checkout'))
-              .size('lg')
-              .onPress(() => setOpen(true)),
-          )
-            .padding('all', '2xl')
-            .spacing('xl'),
+  return Group(
+    ScrollView(
+      VStack(
+        LText('Checkout development fixtures').font('title-2').weight('semibold'),
+        Embed(
+          <CheckoutPreviewControls
+            scenario={scenario}
+            onScenario={setScenario}
+            outcome={outcome}
+            onOutcome={setOutcome}
+            customerMode={customerMode}
+            onCustomerMode={setCustomerMode}
+            installmentDecision={decision}
+            onInstallmentDecision={setDecision}
+            incomingFunds={incomingFunds}
+            onIncomingFunds={setIncomingFunds}
+            soundEnabled={soundEnabled}
+            onSoundEnabled={setSoundEnabled}
+          />,
         ),
-      )}
-      <CheckoutPreviewBadge />
-      {open && (
+        Embed(<MerchantInstallmentSettings value={preferences} onChange={setPreferences} />),
+        LButton(LText('Open checkout'))
+          .size('lg')
+          .onPress(() => setOpen(true)),
+      )
+        .padding('all', '2xl')
+        .spacing('xl'),
+    ),
+    Embed(<CheckoutPreviewBadge />),
+    Embed(
+      open && (
         <CheckoutFixtureSheet
           cadence="month"
           previewScenario={scenario}
@@ -80,7 +83,7 @@ export default function CheckoutPlayground() {
           merchantInstallmentPreferences={preferences}
           onClose={() => setOpen(false)}
         />
-      )}
-    </Screen>
-  );
-}
+      ),
+    ),
+  ).header(Header().inPage());
+});

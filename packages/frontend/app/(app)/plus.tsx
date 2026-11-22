@@ -162,120 +162,109 @@ export default screen(function PlusScreen() {
   const selectedPlan = plans.find((plan) => plan.id === selected);
   return Group(
     ScrollView(
-      Embed(
-        <View
-          style={{
-            width: '100%',
-            maxWidth: 640,
-            alignSelf: 'center',
-            gap: 16,
-            paddingHorizontal: 16,
-            paddingTop: 24,
-          }}
-        >
+      VStack(
+        Embed(
           <Title variant="display-4-semibold" style={{ textAlign: 'center' }}>
             Mention {selectedPlan?.label}
-          </Title>
-          <Subtitle style={{ textAlign: 'center' }}>{selectedPlan?.subtitle}</Subtitle>
-          {selectedPlan?.price &&
-            (typeof selectedPlan.price === 'object' && 'amount' in selectedPlan.price ? (
-              <SubscriptionPrice {...selectedPlan.price} />
-            ) : (
-              <Text style={{ textAlign: 'center' }}>{selectedPlan.price}</Text>
-            ))}
-          {toElement(
-            HStack(
-              VStack(
-                Segmented(
-                  [
-                    selected,
-                    (value) => {
-                      if (!paymentOpen) setSelected(value);
-                    },
-                  ],
-                  plans.map((plan) => Option(plan.id, plan.label).disabled(paymentOpen)),
-                )
-                  .label(t('plus.selectorLabel'))
-                  .size('sm'),
-              )
-                .frame({ minWidth: 'none' })
-                .grow(),
-              VStack(
-                Segmented(
-                  [
-                    cadence,
-                    (value) => {
-                      if (!paymentOpen) setCadence(value);
-                    },
-                  ],
-                  Option('month', t('plus.payment.cadenceMonth')).disabled(paymentOpen),
-                  Option('year', t('plus.payment.cadenceYearShort')).disabled(paymentOpen),
-                )
-                  .label(t('plus.payment.cadenceLabel'))
-                  .size('sm'),
-              )
-                .frame({ minWidth: 'none' })
-                .grow(),
+          </Title>,
+        ),
+        Embed(<Subtitle style={{ textAlign: 'center' }}>{selectedPlan?.subtitle}</Subtitle>),
+        // A plan's price is the offer (an amount) or this screen's own words for it.
+        selectedPlan?.price &&
+          typeof selectedPlan.price === 'object' &&
+          'amount' in selectedPlan.price
+          ? Embed(<SubscriptionPrice {...selectedPlan.price} />)
+          : typeof selectedPlan?.price === 'string' && selectedPlan.price
+            ? LText(selectedPlan.price).textAlign('center')
+            : null,
+        HStack(
+          VStack(
+            Segmented(
+              [
+                selected,
+                (value) => {
+                  if (!paymentOpen) setSelected(value);
+                },
+              ],
+              plans.map((plan) => Option(plan.id, plan.label).disabled(paymentOpen)),
             )
-              .spacing('sm')
-              .align('center')
-              .testID('plus-plan-selectors'),
-          )}
-          {cadence === 'year' && (
-            <Text variant="caption-1-regular" style={{ textAlign: 'center' }}>
-              {t('plus.payment.annualDiscount')}
-            </Text>
-          )}
-          {toElement(
-            LGroupedSection(
-              Embed(
-                selectedPlan?.benefits.map((benefit) =>
-                  toElement(
-                    (benefit.description === undefined
-                      ? LGroupedSectionItem(benefit.title)
-                      : LGroupedSectionItem(benefit.title).description(benefit.description)
-                    )
-                      .leadingView(Embed(benefit.icon))
-                      .lines(0)
-                      .descriptionLines(0),
-                    benefit.id,
-                  ),
-                ),
+              .label(t('plus.selectorLabel'))
+              .size('sm'),
+          )
+            .frame({ minWidth: 'none' })
+            .grow(),
+          VStack(
+            Segmented(
+              [
+                cadence,
+                (value) => {
+                  if (!paymentOpen) setCadence(value);
+                },
+              ],
+              Option('month', t('plus.payment.cadenceMonth')).disabled(paymentOpen),
+              Option('year', t('plus.payment.cadenceYearShort')).disabled(paymentOpen),
+            )
+              .label(t('plus.payment.cadenceLabel'))
+              .size('sm'),
+          )
+            .frame({ minWidth: 'none' })
+            .grow(),
+        )
+          .spacing('sm')
+          .align('center')
+          .testID('plus-plan-selectors'),
+        cadence === 'year'
+          ? LText(t('plus.payment.annualDiscount')).font('caption-1').textAlign('center')
+          : null,
+        LGroupedSection(
+          Embed(
+            selectedPlan?.benefits.map((benefit) =>
+              toElement(
+                (benefit.description === undefined
+                  ? LGroupedSectionItem(benefit.title)
+                  : LGroupedSectionItem(benefit.title).description(benefit.description)
+                )
+                  .leadingView(Embed(benefit.icon))
+                  .lines(0)
+                  .descriptionLines(0),
+                benefit.id,
               ),
             ),
-          )}
-          {selected === 'plus' &&
-            toElement(
-              LButton(
-                LText(
-                  t(
-                    hasAccess
-                      ? 'plus.payment.included'
-                      : developmentCheckout || purchaseAvailable
-                        ? 'plus.subscribe'
-                        : failed
-                          ? 'plus.payment.pricingUnavailable'
-                          : 'plus.payment.comingSoon',
-                  ),
+          ),
+        ),
+        selected === 'plus'
+          ? LButton(
+              LText(
+                t(
+                  hasAccess
+                    ? 'plus.payment.included'
+                    : developmentCheckout || purchaseAvailable
+                      ? 'plus.subscribe'
+                      : failed
+                        ? 'plus.payment.pricingUnavailable'
+                        : 'plus.payment.comingSoon',
                 ),
-              )
-                .size('lg')
-                .disabled(hasAccess || loading || (!developmentCheckout && !purchaseAvailable))
-                .onPress(() => {
-                  if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
-                    openPayment();
-                }),
-            )}
-          {toElement(
-            LButton(LText(t('plus.exploreOxyOne')))
-              .style('plain')
-              .tint('neutral')
+              ),
+            )
+              .size('lg')
+              .disabled(hasAccess || loading || (!developmentCheckout && !purchaseAvailable))
               .onPress(() => {
-                void Linking.openURL('https://oxy.so/one');
-              }),
-          )}
-        </View>,
-      ),
+                if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
+                  openPayment();
+              })
+          : null,
+        LButton(LText(t('plus.exploreOxyOne')))
+          .style('plain')
+          .tint('neutral')
+          .onPress(() => {
+            void Linking.openURL('https://oxy.so/one');
+          }),
+      )
+        .padding('horizontal', 'lg')
+        .padding('top', '2xl')
+        .frame({ width: 'full', maxWidth: '640' })
+        .alignSelf('center')
+        .spacing('lg'),
       Embed(selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />),
       selected === 'plus' && !hasAccess && !purchaseAvailable && !failed && !loading
         ? VStack(

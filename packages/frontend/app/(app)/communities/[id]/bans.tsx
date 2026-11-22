@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
@@ -28,6 +27,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * Who a community's moderators banned from posting in it, and the way to lift a
@@ -35,7 +35,7 @@ import {
  * change this list (`assertCanModerateCommunity`), so a non-moderator sees its
  * refusal rather than a list.
  */
-function CommunityBansScreen() {
+const CommunityBansScreen = screen(function CommunityBansScreen() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user, canUsePrivateApi } = useAuth();
@@ -86,30 +86,35 @@ function CommunityBansScreen() {
     [t, unban],
   );
 
-  return (
-    <Screen
-      header={toElement(
-        Header(t('communities.bansTitle', { defaultValue: 'Banned from this community' }))
-          .backLabel(t('common.back', { defaultValue: 'Back' }))
-          .inPage(),
-      )}
+  return Embed(
+    <SignInRequired
+      label={t('communities.signInRequired', {
+        defaultValue: 'Sign in to manage your communities',
+      })}
     >
-      <SignInRequired
-        label={t('communities.signInRequired', {
-          defaultValue: 'Sign in to manage your communities',
-        })}
-      >
-        {toElement(
-          ScrollView(
-            Embed(
-              isLoading
-                ? toElement(VStack(Embed(<ListSkeleton />)).padding('vertical', '3xl'))
-                : isError
+      {toElement(
+        ScrollView(
+          Embed(
+            isLoading
+              ? toElement(VStack(Embed(<ListSkeleton />)).padding('vertical', '3xl'))
+              : isError
+                ? toElement(
+                    RawText(
+                      t('communities.bansUnavailable', {
+                        defaultValue:
+                          'Only the moderators of this community can see who is banned.',
+                      }),
+                    )
+                      .padding('horizontal', 'lg')
+                      .padding('vertical', '2xl')
+                      .foreground('muted')
+                      .font('14'),
+                  )
+                : bans.length === 0
                   ? toElement(
                       RawText(
-                        t('communities.bansUnavailable', {
-                          defaultValue:
-                            'Only the moderators of this community can see who is banned.',
+                        t('communities.noBans', {
+                          defaultValue: 'Nobody is banned from this community.',
                         }),
                       )
                         .padding('horizontal', 'lg')
@@ -117,26 +122,17 @@ function CommunityBansScreen() {
                         .foreground('muted')
                         .font('14'),
                     )
-                  : bans.length === 0
-                    ? toElement(
-                        RawText(
-                          t('communities.noBans', {
-                            defaultValue: 'Nobody is banned from this community.',
-                          }),
-                        )
-                          .padding('horizontal', 'lg')
-                          .padding('vertical', '2xl')
-                          .foreground('muted')
-                          .font('14'),
-                      )
-                    : bans.map(renderBan),
-            ),
-          ).contentView((v) => v.padding('bottom', '4xl')),
-        )}
-      </SignInRequired>
-    </Screen>
+                  : bans.map(renderBan),
+          ),
+        ).contentView((v) => v.padding('bottom', '4xl')),
+      )}
+    </SignInRequired>,
+  ).header(
+    Header(t('communities.bansTitle', { defaultValue: 'Banned from this community' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-}
+});
 
 export default function CommunityBansRoute() {
   return (
