@@ -1,18 +1,24 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
+import {
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  type TextStyle,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, type Severity, type LabelActionType } from '@/components/LabelBadge';
-import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
 
 import {
@@ -21,6 +27,7 @@ import {
   HStack,
   Header,
   Icon,
+  Loading,
   RawText,
   ScrollView,
   VStack,
@@ -28,6 +35,27 @@ import {
   toElement,
 } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
+
+/** A label's slug: 12/16, the platform's monospace on native (the web drew the inherited face). */
+const SLUG_STYLE: TextStyle = {
+  fontSize: 12,
+  lineHeight: 16,
+  ...Platform.select({ native: { fontFamily: 'monospace' } }),
+};
+
+/** The "Official" badge: a shield and the word, white on the primary fill (rounded on the web only, as the app's `rounded-md` drew it). */
+function officialBadge(label: string) {
+  return HStack(
+    Icon(RiShieldCheckLine).size('10').foreground(appColors.color.hexfff),
+    RawText(label).foreground('white').font('2xs').weight('bold'),
+  )
+    .padding('horizontal', '6')
+    .padding('vertical', '2xs')
+    .background('primary')
+    .when('web', (v) => v.corner('14'))
+    .align('center')
+    .spacing('3');
+}
 
 type LabelAction = LabelActionType;
 
@@ -96,33 +124,32 @@ const ActionChips = React.memo(
 
     return toElement(
       HStack(
-        Embed(
+        Embed((render) =>
           ACTION_OPTIONS_CONFIG.map(({ value, labelKey }) => {
             const isActive = currentAction === value;
             return (
               <TouchableOpacity
                 key={value}
-                // The active fill is `bg-primary/10`, NOT `${theme.colors.primary}18`:
-                // that token resolves to `rgb(0 98 157)`, so the hex-alpha suffix is a
-                // malformed colour react-native-web reads as fully opaque — the chip
-                // painted solid primary under its own `text-primary` label, so the
-                // selected action was the one word you could not read.
-                className={cn(isActive && 'bg-primary/10')}
+                // The active fill is the primary at 10% (`withAlpha`), NOT
+                // `${theme.colors.primary}18`: that token resolves to `rgb(0 98 157)`, so the
+                // hex-alpha suffix is a malformed colour react-native-web reads as fully
+                // opaque — the chip painted solid primary under its own primary label, so
+                // the selected action was the one word you could not read.
                 style={[
                   styles.actionChip,
                   { borderColor: isActive ? theme.colors.primary : theme.colors.border },
+                  isActive && { backgroundColor: withAlpha(theme.colors.primary, 0.1) },
                 ]}
                 onPress={() => onActionChange(labelSlug, value)}
                 activeOpacity={0.7}
               >
-                <Text
-                  className={cn(
-                    'text-xs font-semibold',
-                    isActive ? 'text-primary' : 'text-muted-foreground',
-                  )}
-                >
-                  {t(labelKey)}
-                </Text>
+                {render(
+                  RawText(t(labelKey))
+                    .font('xs')
+                    .leading('16px')
+                    .weight('semibold')
+                    .foreground(isActive ? 'primary' : 'muted'),
+                )}
               </TouchableOpacity>
             );
           }),
@@ -307,19 +334,9 @@ const LabelerDetailScreen: React.FC = () => {
               .leading('28px')
               .weight('bold')
               .foreground('foreground'),
-            Embed(
-              labeler.isOfficial && (
-                <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
-                  {toElement(Icon(RiShieldCheckLine).size('10').foreground(appColors.color.hexfff))}
-                  {toElement(
-                    RawText(t('labelers.official', { defaultValue: 'Official' }))
-                      .foreground('white')
-                      .font('2xs')
-                      .weight('bold'),
-                  )}
-                </View>
-              ),
-            ),
+            labeler.isOfficial
+              ? officialBadge(t('labelers.official', { defaultValue: 'Official' }))
+              : null,
           )
             .align('center')
             .spacing('sm')
@@ -353,7 +370,7 @@ const LabelerDetailScreen: React.FC = () => {
           )
             .wrap()
             .spacing('md'),
-          Embed(
+          Embed((render) => (
             <TouchableOpacity
               style={[
                 styles.subscribeBtn,
@@ -369,27 +386,20 @@ const LabelerDetailScreen: React.FC = () => {
               disabled={subscribing}
               activeOpacity={0.7}
             >
-              {subscribing ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
-              ) : (
-                <Text
-                  className={cn(
-                    'text-[15px] font-semibold',
-                    labeler.isSubscribed ? 'text-foreground' : 'text-white',
-                  )}
-                >
-                  {labeler.isSubscribed
-                    ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
-                    : t('labelers.subscribe', { defaultValue: 'Subscribe' })}
-                </Text>
+              {render(
+                subscribing
+                  ? Loading().style('inline').size('sm')
+                  : RawText(
+                      labeler.isSubscribed
+                        ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
+                        : t('labelers.subscribe', { defaultValue: 'Subscribe' }),
+                    )
+                      .font('md')
+                      .weight('semibold')
+                      .foreground(labeler.isSubscribed ? 'foreground' : 'white'),
               )}
-            </TouchableOpacity>,
-          ),
+            </TouchableOpacity>
+          )),
         )
           .padding('all', 'lg')
           .background('mutedFill')
@@ -435,21 +445,27 @@ const LabelerDetailScreen: React.FC = () => {
                               Embed(<SeverityBadge severity={severity} />),
                               /* Same defect as the action chip above: an interpolated
                                             hex alpha on the `rgb(...)` primary token painted this
-                                            badge solid primary under its own `text-primary`
-                                            label. Tint and hairline both come from classes. */ Embed(
-                                ld.defaultAction && (
-                                  <View
-                                    className="bg-primary/10 border-primary/25"
-                                    style={styles.badge}
-                                  >
-                                    {toElement(
-                                      RawText(ld.defaultAction)
-                                        .font('11')
-                                        .weight('semibold')
-                                        .foreground('primary'),
-                                    )}
-                                  </View>
-                                ),
+                                            badge solid primary under its own primary label. Tint
+                                            and hairline are the primary at 10% and 25%. */ Embed(
+                                (render) =>
+                                  ld.defaultAction && (
+                                    <View
+                                      style={[
+                                        styles.badge,
+                                        {
+                                          backgroundColor: withAlpha(theme.colors.primary, 0.1),
+                                          borderColor: withAlpha(theme.colors.primary, 0.25),
+                                        },
+                                      ]}
+                                    >
+                                      {render(
+                                        RawText(ld.defaultAction)
+                                          .font('11')
+                                          .weight('semibold')
+                                          .foreground('primary'),
+                                      )}
+                                    </View>
+                                  ),
                               ),
                             )
                               .spacing('6')
@@ -460,7 +476,7 @@ const LabelerDetailScreen: React.FC = () => {
                             .spacing('sm'),
                           Embed(
                             <Text
-                              className="text-xs font-mono text-muted-foreground"
+                              style={[SLUG_STYLE, { color: theme.colors.textSecondary }]}
                               numberOfLines={1}
                             >
                               {ld.slug}
