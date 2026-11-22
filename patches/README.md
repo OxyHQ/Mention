@@ -31,6 +31,16 @@ those two files the patched lines map to the nearest upstream line. The native
 predictive Back gates (source-built opted and default APKs, device acceptance)
 were not repeated for this forward.
 
+`fork/getStateFromPath.js` reuses the route config it prepares (every route's
+normalized config, its regex and the sort) while the options and the current
+segments are the same; upstream rebuilds it on every call ("config resources
+depend on the current state", which is those two inputs). Bloom's tab pager is
+a `useTabsWithTriggers` layout, which resolves each tab's href through
+`getStateFromPath` on every render, and it renders on every navigation, a
+pushed post included: on the Pixel 8a that rebuild was 90 to 210 ms of each tab
+switch, post open and Back (Hermes sampling profile, 2026-11-22). Remove the
+hunk when upstream caches the config resources.
+
 # expo-video 58.0.13
 
 The web player calls `video.play()` and drops the returned promise, so two

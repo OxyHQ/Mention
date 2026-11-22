@@ -90,6 +90,45 @@ index 278b17621df2a34d8eb3ba8ff0edadbb2f2705ea..cff9e30d7634ba6af0dd17e3ce9e8836
 \ No newline at end of file
 +{"version":3,"sources":["fork/useBackButton.native.ts"],"sourcesContent":[null],"names":["useBackButton","ref","React","useEffect","subscription","BackHandler","addEventListener","navigation","current","canGoBack","dispatchSync","CommonActions","goBack","updateOwnership","setNativeNavigationFallback","isNativeBackNavigationOwned","removeStateListener","addListener","removeOwnershipListener","remove"],"mappings":";;;;+BASgBA;;;eAAAA;;;;iEATO;;;;;;;yBACK;;;;;;wBAMrB;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;AAEA,SAASA,cAAcC,GAA2D;IACvFC,SAAMC,SAAS,CAAC;QACd,MAAMC,eAAeC,0BAAW,CAACC,gBAAgB,CAAC,qBAAqB;YACrE,MAAMC,aAAaN,IAAIO,OAAO;YAE9B,IAAID,cAAc,MAAM;gBACtB,OAAO;YACT;YAEA,IAAIA,WAAWE,SAAS,IAAI;gBAC1BF,WAAWG,YAAY,CAACC,qBAAa,CAACC,MAAM;gBAE5C,OAAO;YACT;YAEA,OAAO;QACT;QAGA,MAAMC,kBAAkB,IACtBT,aAAaU,2BAA2B,GACtCb,IAAIO,OAAO,EAAEO,kCAAkC;QAEnDF;QACA,MAAMG,sBAAsBf,IAAIO,OAAO,EAAES,YAAY,SAASJ;QAC9D,MAAMK,0BAA0BjB,IAAIO,OAAO,EAAES,YAC3C,6BACAJ;QAGF,OAAO;YACLG;YACAE;YACAd,aAAae,MAAM;QACrB;IACF,GAAG;QAAClB;KAAI;AACV"}
 \ No newline at end of file
+diff --git a/build/fork/getStateFromPath.js b/build/fork/getStateFromPath.js
+index 3006e9ccc20775758659b1d4f7f17e3a9a8da4f9..95166bd37ad9623a7e9b9e7fb713ec683247136f 100644
+--- a/build/fork/getStateFromPath.js
++++ b/build/fork/getStateFromPath.js
+@@ -111,18 +111,27 @@ function getStateFromPath(path, options, segments = []) {
+     return result;
+ }
+ /**
+- * Reference to the most recently computed config resources.
++ * Reference to the most recently computed config resources, with the options
++ * and the segments they were computed for.
+  */ let cachedConfigResources = [
+     undefined,
++    '',
+     prepareConfigResources()
+ ];
+ function getConfigResources(options, previousSegments) {
+-    // Recompute every time because config resources depend on the current state.
+-    cachedConfigResources = [
+-        options,
+-        prepareConfigResources(options, previousSegments)
+-    ];
+-    return cachedConfigResources[1];
++    // The resources depend on the options and on the current segments (the
++    // route sorter prefers the routes they name), nothing else: reuse them
++    // while both are the same. Every tab trigger resolves its href through here
++    // on each render of a tabs layout.
++    const segmentsKey = previousSegments.join('\0');
++    if (cachedConfigResources[0] !== options || cachedConfigResources[1] !== segmentsKey) {
++        cachedConfigResources = [
++            options,
++            segmentsKey,
++            prepareConfigResources(options, previousSegments)
++        ];
++    }
++    return cachedConfigResources[2];
+ }
+ function prepareConfigResources(options, previousSegments) {
+     if (options) {
 diff --git a/build/global-state/createSeededNavigationState.js b/build/global-state/createSeededNavigationState.js
 index cb11c3ff30bc36c217f713b495fe2ce7ccac7ff0..66556f7de9035d5f384b18769d65fd488b08f05e 100644
 --- a/build/global-state/createSeededNavigationState.js
