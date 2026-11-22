@@ -84,7 +84,8 @@ describe('handlePost', () => {
     );
     expect(reset).toContain('clearComposerContent();');
     expect(reset).toContain('clearQuote();');
-    const clearAll = screen.slice(screen.indexOf('control={clearAllControl}'));
+    // The "Clear all" confirmation: the dialog presented by `clearAllOpen`.
+    const clearAll = screen.slice(screen.indexOf("t('compose.clearAllTitle'"));
     expect(clearAll.slice(0, clearAll.indexOf('toast('))).toContain('clearComposerContent();');
   });
 });
