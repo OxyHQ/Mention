@@ -1,4 +1,5 @@
 import type React from 'react';
+import { StyleSheet } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import AltTextSheet from '../AltTextSheet';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
@@ -77,6 +78,11 @@ function renderSheet() {
   return created;
 }
 
+/** A tab's fill, as its style draws it. */
+function tint(tab: TestRenderer.ReactTestInstance) {
+  return StyleSheet.flatten(tab.props.style)?.backgroundColor;
+}
+
 /** Outermost node per tab — the role propagates down the nested tree. */
 function tabControls(tree: TestRenderer.ReactTestRenderer) {
   return tree.root.findAll((node) => node.props.accessibilityRole === 'tab', { deep: false });
@@ -89,19 +95,17 @@ describe('AltTextSheet language tabs', () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
-  it('tints the ACTIVE tab with a class, never a hand-built alpha colour', () => {
+  it('tints the ACTIVE tab with the primary token at 10%, never a hand-built alpha colour', () => {
     const tree = renderSheet();
     const tabs = tabControls(tree);
 
     expect(tabs).toHaveLength(2);
-    expect(tabs[0].props.className).toContain('bg-primary/10');
-    expect(tabs[1].props.className).not.toContain('bg-primary/10');
-
-    // The specific failure: an inline backgroundColor here is how the opaque
-    // token gets in, and it renders as a readable-looking pill in a screenshot
-    // right up until the label happens to use the same token.
-    const styles = [tabs[0].props.style].flat().filter(Boolean);
-    expect(styles.some((entry) => 'backgroundColor' in (entry as object))).toBe(false);
+    // Bloom's `tokenAlpha`: the token's own colour at a tenth of its alpha. The
+    // specific failure was `${primary}1A`: the accent token is an `rgb(...)`
+    // string, so a hex suffix reads back as the OPAQUE token and the label on
+    // it disappears.
+    expect(tint(tabs[0])).toMatch(/^rgba\(\d+, \d+, \d+, 0\.1\)$/);
+    expect(tint(tabs[1])).toBeUndefined();
 
     act(() => tree.unmount());
   });
@@ -112,8 +116,8 @@ describe('AltTextSheet language tabs', () => {
     act(() => tabControls(tree)[1].props.onPress());
 
     const tabs = tabControls(tree);
-    expect(tabs[1].props.className).toContain('bg-primary/10');
-    expect(tabs[0].props.className).not.toContain('bg-primary/10');
+    expect(tint(tabs[1])).toBeDefined();
+    expect(tint(tabs[0])).toBeUndefined();
 
     act(() => tree.unmount());
   });
