@@ -16,7 +16,7 @@ function styleBody(file: string, name: string): string {
 describe('dynamic theme surfaces', () => {
   it('does not let inline compose-mode colors override light/dark theme roles', () => {
     // TWO sources, because this case has two subjects and they no longer share a
-    // file: the class tokens are applied in the component's JSX, while the style
+    // file: the theme roles are applied in the component's JSX, while the style
     // objects they must not be overridden by live in the composer's stylesheet
     // module. Reading the component for both was correct only while the
     // stylesheet sat at the bottom of it.
@@ -25,14 +25,22 @@ describe('dynamic theme surfaces', () => {
     const modeLabel = styleBody(stylesFile, 'modeLabel');
     const modeDescription = styleBody(stylesFile, 'modeDescription');
 
-    expect(file).toContain("postingMode === 'thread' ? 'text-primary' : 'text-foreground'");
-    expect(file).toContain("postingMode === 'beast' ? 'text-primary' : 'text-foreground'");
-    expect(file).toContain('className="text-muted-foreground" style={styles.modeDescription}');
+    // The colours are Bloom's theme roles (`useColorTokens`), set before the
+    // style objects so nothing in the stylesheet can override them.
+    expect(file).toMatch(
+      /postingMode === 'thread'\s*\?\s*colorTokens\.primary\s*:\s*colorTokens\.foreground/,
+    );
+    expect(file).toMatch(
+      /postingMode === 'beast'\s*\?\s*colorTokens\.primary\s*:\s*colorTokens\.foreground/,
+    );
+    expect(file).toContain(
+      'style={[{ color: colorTokens.mutedForeground }, styles.modeDescription]}',
+    );
     expect(modeLabel).not.toMatch(/\bcolor\s*:/);
     expect(modeDescription).not.toMatch(/\bcolor\s*:/);
 
     // Positive control: this is the exact inline shape that would win over the
-    // class token on both light and dark render paths.
+    // theme role on both light and dark render paths.
     expect("fontSize: 16, color: '#005c67'").toMatch(/\bcolor\s*:/);
   });
 });
