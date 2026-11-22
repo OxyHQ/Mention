@@ -53,7 +53,8 @@ export const Post: Entity<FeedItem> = entity<FeedItem>('post', {
   // the viewer's own state or permissions on a post they hold (#1140).
   viewerFields: ['viewerState', 'permissions'],
   // An under-hydrated boost (its original lost) never replaces a hydrated one.
-  accept: (incoming, held) => isRenderableBoost(incoming) || !isRenderableBoost(held),
+  combine: (incoming, held) =>
+    isRenderableBoost(incoming) || !isRenderableBoost(held) ? incoming : held,
   // Every stored post carries the server's view count, and its pending link
   // cards are asked for again (`stores/pendingDocuments`).
   onStore: (posts) => {

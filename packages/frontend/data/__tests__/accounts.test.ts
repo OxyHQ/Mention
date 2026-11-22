@@ -12,6 +12,7 @@ function mockPersister(account: string): Persister {
   const copy = mockCopies.get(account) ?? { list: null, records: [] };
   return {
     open: async () => undefined,
+    destroy: async () => undefined,
     openNow: () => {
       mockOpened.push(account);
       return true;

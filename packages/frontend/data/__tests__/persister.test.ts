@@ -18,7 +18,7 @@ describe('account persisters', () => {
   it('give each account its own file, opened synchronously for the boot read', () => {
     const persister = nativePersister('01a0-b/c');
     expect(mockOpenDatabaseSync).not.toHaveBeenCalled();
-    expect(persister.openNow?.({ versions: { post: 16 }, maxAgeMs: 1000 })).toBe(true);
+    expect(persister.openNow?.({ versions: { post: 16 }, maxAgeMs: 1000, keep: [] })).toBe(true);
     expect(mockOpenDatabaseSync).toHaveBeenCalledWith('mention-data-01a0-b_c.db');
   });
 

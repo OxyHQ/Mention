@@ -991,6 +991,7 @@ describe('useFeedState: one feed list per identity', () => {
       const lists = new Map<string, { ids: readonly string[]; json: string }>();
       return {
         open: async () => undefined,
+        destroy: async () => undefined,
         readRecords: async (type, wanted) =>
           wanted.flatMap((id) => {
             const json = records.get(`${type}:${id}`);
