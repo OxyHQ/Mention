@@ -18,8 +18,14 @@ import UserName from '../UserName';
  * one sees either.
  */
 
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { text: '#000' } }) }));
-jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ colors: { text: '#000' } }),
+}));
+jest.mock('@oxy.so/bloom/toast', () => ({
+  ...jest.requireActual('@oxy.so/bloom/toast'),
+  toast: jest.fn(),
+}));
 jest.mock('expo-clipboard', () => ({}));
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 
