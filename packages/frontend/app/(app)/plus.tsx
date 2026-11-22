@@ -12,7 +12,6 @@ import { SubscriptionPrice, type SubscriptionPlan } from '@oxy.so/bloom/subscrip
 import { plusPriceMajorUnits, type PlusCadence } from '@/lib/payments/plusCheckout';
 import { Text, Title, Subtitle } from '@oxy.so/bloom/typography';
 import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import { isLocalCheckoutPreview } from '@/lib/payments/checkoutPreview';
@@ -58,7 +57,6 @@ export default screen(function PlusScreen() {
     window.history.replaceState(window.history.state, '', clean.toString());
   }, [checkoutBinding, router, routeParams['#']]);
   const { t, i18n } = useTranslation();
-  const { colors } = useTheme();
   const [cadence, setCadence] = useState<PlusCadence>('month');
   const { offer, hasAccess, purchaseAvailable, failed, loading } = usePlusOffer(cadence);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -281,11 +279,10 @@ export default screen(function PlusScreen() {
       Embed(selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />),
       selected === 'plus' && !hasAccess && !purchaseAvailable && !failed && !loading
         ? VStack(
-            Embed(
-              <Text style={{ maxWidth: 480, textAlign: 'center', color: colors.textSecondary }}>
-                {t('plus.payment.notReady')}
-              </Text>,
-            ),
+            LText(t('plus.payment.notReady'))
+              .frame({ maxWidth: '480' })
+              .textAlign('center')
+              .foreground('muted'),
           )
             .padding('horizontal', '2xl')
             .margin('top', 'lg')
