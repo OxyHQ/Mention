@@ -590,11 +590,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
         />
       )}
       {hasError && (
-        <View
-          className="absolute inset-0 items-center justify-center bg-black/60"
-          pointerEvents="none"
-          accessibilityRole="alert"
-        >
+        <View style={styles.errorVeil} pointerEvents="none" accessibilityRole="alert">
           {toElement(
             RawText(t('videos.unavailable')).font('14').leading('20px').foreground('white'),
           )}
@@ -688,6 +684,15 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
+  },
+  // Pinned with React Native's `inset`; black at 60% as NativeWind wrote
+  // `bg-black/60` (an 8-bit alpha).
+  errorVeil: {
+    position: 'absolute',
+    inset: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00000099',
   },
   posterLayer: {
     ...StyleSheet.absoluteFill,

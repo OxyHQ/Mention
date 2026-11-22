@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Text, View, type TextStyle } from 'react-native';
+import { StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
@@ -85,6 +86,22 @@ const META_TEXT_SHADOW: Pick<
  * The poster (especially the federated `/media/poster` frame) can 404 / fail to
  * load → falls back to the video-icon placeholder, never a broken image.
  */
+// The cell's muted fill behind its poster, from the theme.
+const useCellStyles = createTokenStyles((t) => ({ cell: { backgroundColor: t.muted } }));
+
+const styles = StyleSheet.create({
+  scrim: { position: 'absolute', inset: 0, backgroundColor: SCRIM_BG },
+  // The metadata's text is white at 12/16 semibold under its shadow, which no
+  // language modifier draws, so it keeps React Native's Text.
+  meta: {
+    color: '#fff',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+    ...META_TEXT_SHADOW,
+  },
+});
+
 const VideoPosterCell = React.memo<VideoPosterCellProps>(
   ({ posterUri, size, placeholderColor, views, durationSec, scrim }) => {
     const containerStyle = useMemo(
@@ -102,6 +119,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
     }
 
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
+    const cellStyles = useCellStyles();
 
     const placeholderIconSize = scrim ? SCRIM_PLACEHOLDER_ICON_SIZE : PLAIN_PLACEHOLDER_ICON_SIZE;
     // Both guards are on the VALUE, not on its absence. A zero count is not
@@ -115,7 +133,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
       typeof durationSec === 'number' && durationSec > 0 ? formatDuration(durationSec) : null;
 
     return (
-      <View className="bg-muted" style={containerStyle}>
+      <View style={[cellStyles.cell, containerStyle]}>
         {posterUri && !posterFailed ? (
           <Image
             source={{ uri: posterUri }}
@@ -142,7 +160,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
               .justify('center'),
           )
         )}
-        {scrim && <View className="absolute inset-0" style={{ backgroundColor: SCRIM_BG }} />}
+        {scrim && <View style={styles.scrim} />}
         {/*
           Both grids wrap this cell in a TouchableOpacity, so the row must not
           swallow the tap along the bottom strip.
@@ -162,23 +180,11 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
                   fill={META_TEXT_COLOR}
                 />,
               ),
-              Embed(
-                viewsLabel !== null && (
-                  <Text className="text-white text-xs font-semibold" style={META_TEXT_SHADOW}>
-                    {viewsLabel}
-                  </Text>
-                ),
-              ),
+              Embed(viewsLabel !== null && <Text style={styles.meta}>{viewsLabel}</Text>),
             )
               .align('center')
               .spacing('2xs'),
-            Embed(
-              durationLabel !== null && (
-                <Text className="text-white text-xs font-semibold" style={META_TEXT_SHADOW}>
-                  {durationLabel}
-                </Text>
-              ),
-            ),
+            Embed(durationLabel !== null && <Text style={styles.meta}>{durationLabel}</Text>),
           )
             .padding('horizontal', 'xs')
             .padding('bottom', 'xs')
