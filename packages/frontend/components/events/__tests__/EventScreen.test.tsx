@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { EventState } from '@oxy.so/mention-contracts';
 import TestRenderer, { act } from 'react-test-renderer';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Switch } from 'react-native';
 import { waitUntil } from '@/test-support/waitUntil';
@@ -54,9 +55,11 @@ async function mount() {
   let tree!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     tree = TestRenderer.create(
-      <QueryClientProvider client={cache}>
-        <EventScreen />
-      </QueryClientProvider>,
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
+        <QueryClientProvider client={cache}>
+          <EventScreen />
+        </QueryClientProvider>
+      </BloomProvider>,
     );
   });
   await settle();
@@ -130,9 +133,11 @@ it('clears unsaved public visibility when the signed-in account changes', async 
   mockUser = 'another-attendee';
   await act(async () => {
     tree.update(
-      <QueryClientProvider client={cache}>
-        <EventScreen />
-      </QueryClientProvider>,
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
+        <QueryClientProvider client={cache}>
+          <EventScreen />
+        </QueryClientProvider>
+      </BloomProvider>,
     );
   });
   await settle();
