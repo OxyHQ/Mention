@@ -1110,8 +1110,6 @@ const rowStyles = StyleSheet.create({
   inviteButton: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
 });
 
-
-
 // Memoized: a realtime patch to one notification (or a parent re-render) must not
 // re-render every row — the parent passes a stable `item` and a memoized
 // `onMarkAsRead`.

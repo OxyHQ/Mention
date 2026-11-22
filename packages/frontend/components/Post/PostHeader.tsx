@@ -462,17 +462,17 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     />
   );
   const identityHandle =
-    hasDisplayName && user.handle ? (
-      toElement(
-        RawText(`${detail ? '' : '\u00A0'}@${user.handle}`)
-          .foreground('muted')
-          .font('md')
-          .leading('close')
-          .frame({ minWidth: 'none' })
-          .shrink('first')
-          .lines(1),
-      )
-    ) : null;
+    hasDisplayName && user.handle
+      ? toElement(
+          RawText(`${detail ? '' : '\u00A0'}@${user.handle}`)
+            .foreground('muted')
+            .font('md')
+            .leading('close')
+            .frame({ minWidth: 'none' })
+            .shrink('first')
+            .lines(1),
+        )
+      : null;
   const identityBadge = (
     <AccountBadge
       isFederated={user.isFederated}
