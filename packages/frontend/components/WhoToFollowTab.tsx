@@ -8,7 +8,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import {
@@ -25,7 +24,7 @@ import {
 } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const APP_URL = 'https://mention.earth';
 
@@ -165,26 +164,29 @@ function ProfileDiscoveryList({
         {listHeaderComponent}
         {showInviteBanner ? (
           <TouchableOpacity
-            className="bg-card border-border"
-            style={styles.inviteBanner}
+            style={[
+              styles.inviteBanner,
+              { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+            ]}
             onPress={handleInviteFriends}
             activeOpacity={0.7}
           >
-            <View className="bg-primary" style={styles.inviteIconContainer}>
+            <View style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}>
               <RiGroupFill width={18} fill={theme.colors.card} />
             </View>
             {toElement(
               VStack(
-                Embed(
-                  <Text className="leading-6 text-foreground" style={styles.inviteTitle}>
-                    {t('settings.inviteContacts.inviteBannerTitle')}
-                  </Text>,
-                ),
-                Embed(
-                  <Text className="leading-6 text-muted-foreground" style={styles.inviteSubtitle}>
-                    {t('settings.inviteContacts.inviteBannerSubtitle')}
-                  </Text>,
-                ),
+                LText(t('settings.inviteContacts.inviteBannerTitle'))
+                  .font('14')
+                  .weight('bold')
+                  .leading('24px')
+                  .foreground('foreground')
+                  .margin('bottom', '2xs'),
+                LText(t('settings.inviteContacts.inviteBannerSubtitle'))
+                  .font('xs')
+                  .weight('medium')
+                  .leading('24px')
+                  .foreground('muted'),
               ).grow(),
             )}
             <RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />
@@ -197,6 +199,8 @@ function ProfileDiscoveryList({
       showInviteBanner,
       handleInviteFriends,
       theme.colors.card,
+      theme.colors.border,
+      theme.colors.primary,
       theme.colors.textSecondary,
       t,
     ],
@@ -339,14 +343,5 @@ const styles = StyleSheet.create({
   },
   inviteContent: {
     flex: 1,
-  },
-  inviteTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  inviteSubtitle: {
-    fontSize: 12,
-    fontWeight: '500',
   },
 });
