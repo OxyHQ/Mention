@@ -31,19 +31,32 @@ const mockCover = jest.fn();
 
 // The shell decides its branch from `Platform.OS` at module load.
 // The native list owner; the web shell scrolls the document.
-jest.mock('@oxy.so/bloom/list', () => ({ VirtualList: () => null }));
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
+jest.mock('@oxy.so/bloom/list', () => ({
+  ...jest.requireActual('@oxy.so/bloom/list'),
+  VirtualList: () => null,
+}));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  ...jest.requireActual('@oxy.so/bloom/styles'),
+  useSurfaceFill: () => 'rgb(20, 55, 84)',
+}));
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');
-  return Object.defineProperty(Object.create(actual), 'Platform', {
-    value: {
-      ...actual.Platform,
-      OS: 'web',
-      select: (spec: Record<string, unknown>) => spec.web ?? spec.default,
+  // React Native's (lazy) exports as OWN properties: a namespace import (`import * as
+  // ReactNative`, as Bloom's agent avatar reads Platform) copies only own properties.
+  return Object.defineProperty(
+    Object.defineProperties({}, Object.getOwnPropertyDescriptors(actual)),
+    'Platform',
+    {
+      value: {
+        ...actual.Platform,
+        OS: 'web',
+        select: (spec: Record<string, unknown>) => spec.web ?? spec.default,
+      },
     },
-  });
+  );
 });
 jest.mock('@oxy.so/bloom/layout', () => ({
+  ...jest.requireActual('@oxy.so/bloom/layout'),
   HeaderDockProvider: (props: { children: React.ReactNode }) => {
     mockDock(props);
     return props.children;
@@ -54,18 +67,21 @@ jest.mock('@oxy.so/bloom/layout', () => ({
   },
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/page-header'),
   PageHeader: (props: object) => {
     mockHeader(props);
     return null;
   },
 }));
 jest.mock('@oxy.so/bloom/cover-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/cover-header'),
   CoverHeader: (props: { children: React.ReactNode }) => {
     mockCover(props);
     return props.children;
   },
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ isDark: false }),
 }));
 jest.mock('react-i18next', () => ({

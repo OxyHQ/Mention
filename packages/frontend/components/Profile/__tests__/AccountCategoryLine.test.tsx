@@ -1,5 +1,7 @@
-import { Text } from 'react-native';
-import TestRenderer, { act } from 'react-test-renderer';
+import type React from 'react';
+import { BloomThemeProvider, useTheme } from '@oxy.so/bloom/theme';
+import { StyleSheet, Text, type TextStyle } from 'react-native';
+import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 
 import { AccountCategoryLine } from '../AccountCategoryLine';
 
@@ -43,12 +45,16 @@ const THREE_CATEGORIES = ['music', 'news', 'art'];
 /** An id from a vocabulary newer than this build — the shape the server can send. */
 const UNKNOWN_ID = 'quantum_basket_weaving';
 
+/** The theme's muted ink, read inside the same provider the line paints from. */
+let mutedInk: string | undefined;
+function MutedInk() {
+  mutedInk = String(useTheme().colors.textSecondary);
+  return null;
+}
+
 /**
- * `act` is required, not decorative: NativeWind's className interop resolves
- * styles through a state update on mount, so an unwrapped `create` tears the
- * renderer down mid-commit and every assertion fails as
- * "Can't access .root on unmounted test renderer" — which reads like a broken
- * component rather than a missing wrapper.
+ * Under Bloom's theme provider: the language paints the line's ink from the
+ * theme, so it renders only inside one, as in the app.
  */
 function renderLine(
   accountCategories: readonly string[] | undefined,
@@ -57,7 +63,10 @@ function renderLine(
   let tree: TestRenderer.ReactTestRenderer | null = null;
   act(() => {
     tree = TestRenderer.create(
-      <AccountCategoryLine accountCategories={accountCategories} align={align} />,
+      <BloomThemeProvider fonts={false}>
+        <MutedInk />
+        <Line accountCategories={accountCategories} align={align} />
+      </BloomThemeProvider>,
     );
   });
   if (tree === null) throw new Error('the renderer never mounted');
@@ -71,16 +80,26 @@ function renderedTexts(accountCategories?: readonly string[]): string[] {
     .filter((child): child is string => typeof child === 'string');
 }
 
+/** The subject, under a name of its own so its subtree can be found inside the provider. */
+function Line(props: React.ComponentProps<typeof AccountCategoryLine>) {
+  return <AccountCategoryLine {...props} />;
+}
+
+/** The host nodes the line renders (the provider's own wrapper excluded). */
+function lineHosts(tree: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+  return tree.root.findByType(Line).findAll((node) => typeof node.type === 'string');
+}
+
 /** The single rendered node, for the tests that inspect its shape. */
 function renderedNode(
   accountCategories: readonly string[],
   align: 'center' | 'start' = 'center',
-): TestRenderer.ReactTestRendererJSON {
-  const json = renderLine(accountCategories, align).toJSON();
-  if (json === null || Array.isArray(json)) {
+): ReactTestInstance {
+  const hosts = lineHosts(renderLine(accountCategories, align));
+  if (hosts.length !== 1) {
     throw new Error('expected exactly one rendered node');
   }
-  return json;
+  return hosts[0];
 }
 
 describe('AccountCategoryLine', () => {
@@ -114,21 +133,21 @@ describe('AccountCategoryLine', () => {
     for (const categories of [undefined, []]) {
       // `null`, not an empty Text: the margin travels with the text, so a
       // channel without a category keeps exactly the masthead it had before.
-      expect(renderLine(categories).toJSON()).toBeNull();
+      expect(lineHosts(renderLine(categories))).toEqual([]);
     }
   });
 
   it('renders nothing, and never the slug, when the primary is from a newer vocabulary', () => {
-    const json = renderLine([UNKNOWN_ID]).toJSON();
+    const tree = renderLine([UNKNOWN_ID]);
 
-    expect(json).toBeNull();
-    expect(JSON.stringify(json)).not.toContain(UNKNOWN_ID);
+    expect(lineHosts(tree)).toEqual([]);
+    expect(JSON.stringify(tree.toJSON())).not.toContain(UNKNOWN_ID);
   });
 
   it('does NOT fall through to the second category when the primary is unnameable', () => {
     // Showing `News` here would state that news is this account's primary
     // category, which is false. Incomplete beats wrong.
-    expect(renderLine([UNKNOWN_ID, 'news', 'art']).toJSON()).toBeNull();
+    expect(lineHosts(renderLine([UNKNOWN_ID, 'news', 'art']))).toEqual([]);
   });
 
   it('is plain muted text — no chip, no border, no background, no icon', () => {
@@ -139,22 +158,29 @@ describe('AccountCategoryLine', () => {
     expect(node.type).toBe('Text');
     expect(node.children).toEqual(['Música']);
 
-    const className = String(node.props.className ?? '');
-    expect(className).toContain('text-muted-foreground');
-    for (const chipLike of ['bg-', 'border', 'rounded', 'px-', 'py-']) {
-      expect(className).not.toContain(chipLike);
+    const style = StyleSheet.flatten(node.props.style) as TextStyle;
+    expect(style.color).toBe(mutedInk);
+    for (const chipLike of [
+      'backgroundColor',
+      'borderWidth',
+      'borderColor',
+      'borderRadius',
+      'paddingHorizontal',
+      'paddingVertical',
+      'paddingLeft',
+      'paddingRight',
+      'paddingTop',
+      'paddingBottom',
+    ] as const) {
+      expect(style[chipLike]).toBeUndefined();
     }
   });
 
   it('leads the text on the person-family header and centres it on the channel masthead', () => {
-    // Two complete literal class strings rather than one composed at runtime —
-    // NativeWind extracts classes statically, so a concatenated className can
-    // silently produce no styling at all.
-    expect(String(renderedNode(THREE_CATEGORIES, 'center').props.className)).toContain(
-      'text-center',
-    );
-    expect(String(renderedNode(THREE_CATEGORIES, 'start').props.className)).not.toContain(
-      'text-center',
-    );
+    const alignOf = (align: 'center' | 'start') =>
+      (StyleSheet.flatten(renderedNode(THREE_CATEGORIES, align).props.style) as TextStyle)
+        .textAlign;
+    expect(alignOf('center')).toBe('center');
+    expect(alignOf('start')).not.toBe('center');
   });
 });

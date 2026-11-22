@@ -2,6 +2,13 @@ import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { ProfileMovedNotice } from '../ProfileMovedNotice';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import type React from 'react';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 /**
  * A federated account that announced a verified `Move` says where it went, and
@@ -25,6 +32,7 @@ jest.mock('react-i18next', () => ({
 // `profileRoute` imports `@oxy.so/core` (ESM) for helpers this path never calls.
 jest.mock('@oxy.so/core', () => ({ getNormalizedUserHandle: () => undefined }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
 jest.mock('@oxy.so/bloom/icons/RiArrowRightLine', () => ({ RiArrowRightLine: () => null }));
@@ -34,7 +42,7 @@ const MOVE = { handle: 'alice@new.example', actorUri: 'https://new.example/users
 function render(): TestRenderer.ReactTestRenderer {
   let tree: TestRenderer.ReactTestRenderer | null = null;
   act(() => {
-    tree = TestRenderer.create(<ProfileMovedNotice movedTo={MOVE} />);
+    tree = TestRenderer.create(themed(<ProfileMovedNotice movedTo={MOVE} />));
   });
   return tree!;
 }

@@ -1,4 +1,5 @@
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  ...jest.requireActual('@oxy.so/bloom/agent-avatar'),
   parseAvatarCharacter: jest.requireActual(
     require('node:path').join(
       require.resolve('@oxy.so/bloom/package.json'),
@@ -14,6 +15,7 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
 }));
 import type React from 'react';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import TestRenderer, { act } from 'react-test-renderer';
 
 /**
@@ -96,9 +98,13 @@ jest.mock('@oxy.so/services/ui/client', () => {
 });
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text };
 });
-jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: () => null, Group: () => null }));
+jest.mock('@oxy.so/bloom/skeleton', () => ({
+  ...jest.requireActual('@oxy.so/bloom/skeleton'),
+  Box: () => null,
+  Group: () => null,
+}));
 jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
@@ -129,14 +135,16 @@ let mounted: TestRenderer.ReactTestRenderer | null = null;
 function renderRow() {
   act(() => {
     mounted = TestRenderer.create(
-      <ProfileCard
-        profile={{
-          id: PERSON_ID,
-          username: 'ada',
-          name: { displayName: 'Ada' },
-          avatar: 'avatar-before',
-        }}
-      />,
+      themed(
+        <ProfileCard
+          profile={{
+            id: PERSON_ID,
+            username: 'ada',
+            name: { displayName: 'Ada' },
+            avatar: 'avatar-before',
+          }}
+        />,
+      ),
     );
   });
   if (!mounted) throw new Error('the row did not render');
@@ -154,6 +162,11 @@ afterEach(() => {
   resetIdentityUpdates();
   jest.clearAllMocks();
 });
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 describe('ProfileCard follows the identity it names', () => {
   it('shows what its surface fetched when nothing has been edited', () => {
@@ -194,12 +207,14 @@ describe('ProfileCard follows the identity it names', () => {
     const onFollowChange = jest.fn();
     act(() => {
       mounted = TestRenderer.create(
-        <ProfileCard
-          profile={{ id: PERSON_ID, username: 'ada' }}
-          size="sm"
-          showFollowButton
-          onFollowChange={onFollowChange}
-        />,
+        themed(
+          <ProfileCard
+            profile={{ id: PERSON_ID, username: 'ada' }}
+            size="sm"
+            showFollowButton
+            onFollowChange={onFollowChange}
+          />,
+        ),
       );
     });
     const follow = mounted!.root.findByProps({ testID: 'follow-control' });
@@ -230,10 +245,12 @@ describe('ProfileCard names its follow button', () => {
     // "Follow". Services names it by state and handle once it has the handle.
     act(() => {
       mounted = TestRenderer.create(
-        <ProfileCard
-          profile={{ id: PERSON_ID, username: 'ada', name: { displayName: 'Ada' } }}
-          showFollowButton
-        />,
+        themed(
+          <ProfileCard
+            profile={{ id: PERSON_ID, username: 'ada', name: { displayName: 'Ada' } }}
+            showFollowButton
+          />,
+        ),
       );
     });
     expect(mockFollowButtonUsernames[mockFollowButtonUsernames.length - 1]).toBe('ada');
@@ -243,7 +260,7 @@ describe('ProfileCard names its follow button', () => {
 describe('SuggestedProfileCard resolves its identity the way the row does', () => {
   function renderTile(profile: React.ComponentProps<typeof SuggestedProfileCard>['profile']) {
     act(() => {
-      mounted = TestRenderer.create(<SuggestedProfileCard profile={profile} />);
+      mounted = TestRenderer.create(themed(<SuggestedProfileCard profile={profile} />));
     });
     if (!mounted) throw new Error('the tile did not render');
     return mounted;
@@ -288,10 +305,12 @@ describe('SuggestedProfileCard resolves its identity the way the row does', () =
     const onFollowChange = jest.fn();
     act(() => {
       mounted = TestRenderer.create(
-        <SuggestedProfileCard
-          profile={{ id: PERSON_ID, username: 'ada' }}
-          onFollowChange={onFollowChange}
-        />,
+        themed(
+          <SuggestedProfileCard
+            profile={{ id: PERSON_ID, username: 'ada' }}
+            onFollowChange={onFollowChange}
+          />,
+        ),
       );
     });
     act(() => mounted!.root.findByProps({ testID: 'follow-control' }).props.onPress());
@@ -315,14 +334,14 @@ it('hands the stored agent account to Bloom on search rows and suggested cards',
     },
   };
   act(() => {
-    mounted = TestRenderer.create(<ProfileCard profile={profile} />);
+    mounted = TestRenderer.create(themed(<ProfileCard profile={profile} />));
   });
   expect(JSON.parse(probe(mounted!, 'card-character'))).toMatchObject({
     account: profile,
     motion: 'always',
   });
   act(() => {
-    mounted!.update(<SuggestedProfileCard profile={profile} />);
+    mounted!.update(themed(<SuggestedProfileCard profile={profile} />));
   });
   expect(JSON.parse(probe(mounted!, 'card-character'))).toMatchObject({
     account: profile,

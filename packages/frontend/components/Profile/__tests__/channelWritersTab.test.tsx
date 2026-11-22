@@ -72,6 +72,7 @@ function mockTranslate(
 
 // Keep the renderer boundary isolated; the account policy has its own contract tests.
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
+  ...jest.requireActual('@oxy.so/bloom/agent-avatar'),
   parseAvatarCharacter: jest.requireActual(
     require('node:path').join(
       require.resolve('@oxy.so/bloom/package.json'),
@@ -148,6 +149,7 @@ jest.mock('@oxy.so/bloom/skeleton', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       primary: '#0000ff',
@@ -162,13 +164,16 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text };
 });
 
 jest.mock('@oxy.so/bloom/icons', () => ({ RiEditLine: () => null }));
 
 // Reached through ProfileCard → UserName (its copyable handle).
-jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({
+  ...jest.requireActual('@oxy.so/bloom/toast'),
+  toast: jest.fn(),
+}));
 
 jest.mock('@oxy.so/bloom/button', () => {
   const { Text, TouchableOpacity } =
@@ -227,6 +232,12 @@ import {
   type ProfileTab,
 } from '../types';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -294,7 +305,7 @@ function render(element: React.ReactElement, client: QueryClient): TestRenderer.
   let renderer: TestRenderer.ReactTestRenderer | null = null;
   act(() => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>{element}</QueryClientProvider>,
+      themed(<QueryClientProvider client={client}>{element}</QueryClientProvider>),
     );
   });
   const created = renderer as unknown as TestRenderer.ReactTestRenderer;

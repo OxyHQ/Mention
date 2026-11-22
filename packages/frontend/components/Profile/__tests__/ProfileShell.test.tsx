@@ -30,8 +30,12 @@ const mockDock = jest.fn();
 const mockSticky = jest.fn();
 const mockCover = jest.fn();
 
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  ...jest.requireActual('@oxy.so/bloom/styles'),
+  useSurfaceFill: () => 'rgb(20, 55, 84)',
+}));
 jest.mock('@oxy.so/bloom/layout', () => ({
+  ...jest.requireActual('@oxy.so/bloom/layout'),
   HeaderDockProvider: (props: { children: React.ReactNode }) => {
     mockDock(props);
     return props.children;
@@ -42,18 +46,21 @@ jest.mock('@oxy.so/bloom/layout', () => ({
   },
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/page-header'),
   PageHeader: (props: object) => {
     mockHeader(props);
     return null;
   },
 }));
 jest.mock('@oxy.so/bloom/cover-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/cover-header'),
   CoverHeader: (props: { children: React.ReactNode }) => {
     mockCover(props);
     return props.children;
   },
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ isDark: false }),
 }));
 jest.mock('react-i18next', () => ({

@@ -16,8 +16,9 @@ describe('Edit Profile presentation', () => {
   it('presents the header at its real 3:1 ratio with accessible edit and remove actions', () => {
     const banner = read('components/Profile/EditProfile/BannerSection.tsx');
     expect(banner).toMatch(/aspectRatio: 3/);
-    expect(banner).toMatch(/accessibilityLabel=\{`\$\{t\('common\.edit'\)\}/);
-    expect(banner).toMatch(/accessibilityLabel=\{`\$\{t\('common\.remove'\)\}/);
+    // Named in JSX (`accessibilityLabel={…}`) or in the Bloom language (`.label(…)`).
+    expect(banner).toMatch(/(accessibilityLabel=\{|\.label\()`\$\{t\('common\.edit'\)\}/);
+    expect(banner).toMatch(/(accessibilityLabel=\{|\.label\()`\$\{t\('common\.remove'\)\}/);
     expect(banner).toMatch(/defaultVisibility: 'public'/);
   });
 });

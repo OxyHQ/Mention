@@ -2,6 +2,12 @@ import TestRenderer, { act } from 'react-test-renderer';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { FeedCard } from '../FeedCard';
 import { StarterPackCard } from '../StarterPackCard';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 jest.mock('@oxy.so/bloom/agent-avatar', () => {
   const character = jest.requireActual(
@@ -16,14 +22,38 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => {
     useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
   };
 });
-jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
-jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: 'Avatar' }));
-jest.mock('@oxy.so/bloom/card', () => ({ Card: 'Card' }));
-jest.mock('@oxy.so/bloom/icon-circle', () => ({ IconCircle: 'IconCircle' }));
-jest.mock('@oxy.so/bloom/pressable-scale', () => ({ PressableScale: 'PressableScale' }));
-jest.mock('@oxy.so/bloom/typography', () => ({ Text: 'Text' }));
-jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: 'SkeletonBox' }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { card: '#fff' } }) }));
+jest.mock('@oxy.so/bloom/avatar-group', () => ({
+  ...jest.requireActual('@oxy.so/bloom/avatar-group'),
+  AvatarGroup: 'AvatarGroup',
+}));
+jest.mock('@oxy.so/bloom/avatar', () => ({
+  ...jest.requireActual('@oxy.so/bloom/avatar'),
+  Avatar: 'Avatar',
+}));
+jest.mock('@oxy.so/bloom/card', () => ({
+  ...jest.requireActual('@oxy.so/bloom/card'),
+  Card: 'Card',
+}));
+jest.mock('@oxy.so/bloom/icon-circle', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icon-circle'),
+  IconCircle: 'IconCircle',
+}));
+jest.mock('@oxy.so/bloom/pressable-scale', () => ({
+  ...jest.requireActual('@oxy.so/bloom/pressable-scale'),
+  PressableScale: 'PressableScale',
+}));
+jest.mock('@oxy.so/bloom/typography', () => ({
+  ...jest.requireActual('@oxy.so/bloom/typography'),
+  Text: 'Text',
+}));
+jest.mock('@oxy.so/bloom/skeleton', () => ({
+  ...jest.requireActual('@oxy.so/bloom/skeleton'),
+  Box: 'SkeletonBox',
+}));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ colors: { card: '#fff' } }),
+}));
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: null }) }));
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@/components/ProfileHoverCard', () => ({ ProfileHoverCard: 'ProfileHoverCard' }));
@@ -73,7 +103,7 @@ it.each(['feed', 'pack'] as const)(
         />
       );
     act(() => {
-      tree = TestRenderer.create(render([bot]));
+      tree = TestRenderer.create(themed(render([bot])));
     });
     const group = () => tree.root.findByType('AvatarGroup' as unknown as React.ComponentType);
     expect(group().props.motion).toBe('always');
@@ -87,7 +117,7 @@ it.each(['feed', 'pack'] as const)(
         username: 'agent',
       },
     ]);
-    act(() => tree.update(render()));
+    act(() => tree.update(themed(render())));
     expect(group().props.items).toHaveLength(1);
     expect(group().props.items[0].uri).toBe('legacy-photo');
     act(() => tree.unmount());

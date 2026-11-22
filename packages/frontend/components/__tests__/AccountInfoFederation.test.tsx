@@ -21,7 +21,10 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: ({ username, instance }: { username?: string; instance?: string }) =>
     username && !username.includes('@') && instance ? `${username}@${instance}` : username,
 }));
-jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: 'PageHeader' }));
+jest.mock('@oxy.so/bloom/page-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/page-header'),
+  PageHeader: 'PageHeader',
+}));
 jest.mock('@/components/ZoomableAvatar', () => ({ ZoomableAvatar: 'ZoomableAvatar' }));
 jest.mock('@oxy.so/bloom/screen', () => ({
   ...jest.requireActual('@oxy.so/bloom/screen'),
@@ -29,14 +32,19 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   ScreenScrollView: ({ children }: { children: unknown }) => children,
 }));
 jest.mock('@oxy.so/bloom/grouped-section', () => ({
+  ...jest.requireActual('@oxy.so/bloom/grouped-section'),
   GroupedSection: 'GroupedSection',
   GroupedSectionItem: 'GroupedSectionItem',
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
-jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
+jest.mock('@oxy.so/bloom/loading', () => ({
+  ...jest.requireActual('@oxy.so/bloom/loading'),
+  Loading: 'Loading',
+}));
 jest.mock('expo-router', () => ({ Redirect: 'Redirect' }));
 jest.mock('@/hooks/useAccountCategoryLabel', () => ({
   useAccountCategoryLabel: () => (id: string) => id,
@@ -132,7 +140,8 @@ describe('AccountInfoScreen — one Fediverse section for every non-Oxy account'
 
       expect(section.props.title).toBe(catalogText('fediverse.about.title'));
       const network = row(section, catalogText('fediverse.about.network'));
-      expect(network.props.icon.type).toBe(RiFediverseLine);
+      // The language hands the row its glyph as the theme-painted host of the icon.
+      expect(network.props.icon.props.host).toBe(RiFediverseLine);
       expect(network.props.value).toBe(catalogText(`fediverse.about.${networkKey}`));
 
       // Kept: the link to the ORIGINAL profile.

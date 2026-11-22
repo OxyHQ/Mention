@@ -1,6 +1,13 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { openProfileMediaPicker } from '../openProfileMediaPicker';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import type React from 'react';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const mockPresent = jest.fn();
 const mockLoad = jest.fn();
@@ -43,7 +50,7 @@ it('loads the picker on demand with the selected media and lets it close the sur
   const render = mockPresent.mock.calls[0][0];
   const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
   act(() => {
-    rendered.current = TestRenderer.create(render({ dismiss: mockDismiss }));
+    rendered.current = TestRenderer.create(themed(render({ dismiss: mockDismiss })));
   });
   const renderer = rendered.current;
   if (!renderer) throw new Error('Media picker did not render');

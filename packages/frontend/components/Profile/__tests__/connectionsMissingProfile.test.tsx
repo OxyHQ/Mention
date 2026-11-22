@@ -4,7 +4,10 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   useScreenBack: () => mockBack,
 }));
 jest.mock('@/utils/shareLink', () => ({ shareLink: jest.fn() }));
-jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/loading', () => ({
+  ...jest.requireActual('@oxy.so/bloom/loading'),
+  Loading: () => null,
+}));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
 }));
@@ -154,16 +157,24 @@ jest.mock('@/components/Error', () => {
     ),
   };
 });
-jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
+jest.mock('@oxy.so/bloom/page-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/page-header'),
+  PageHeader: () => null,
+}));
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text: RNText };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text: RNText };
 });
 jest.mock('@oxy.so/bloom/icons/RiArrowRightSLine', () => ({ RiArrowRightSLine: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiGroupFill', () => ({ RiGroupFill: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiGroupLine', () => ({ RiGroupLine: () => null }));
-jest.mock('@oxy.so/bloom/tabs', () => ({ Tabs: () => null, TabsTrigger: () => null }));
+jest.mock('@oxy.so/bloom/tabs', () => ({
+  ...jest.requireActual('@oxy.so/bloom/tabs'),
+  Tabs: () => null,
+  TabsTrigger: () => null,
+}));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
   useTheme: () => ({ colors: { card: '#fff', textSecondary: '#666' } }),
 }));
