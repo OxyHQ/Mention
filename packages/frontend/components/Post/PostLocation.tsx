@@ -1,5 +1,5 @@
 import type React from 'react';
-import { View, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
@@ -35,8 +35,7 @@ const PostLocation: React.FC<PostLocationProps> = ({
 
   return (
     <Container
-      className="flex-row items-center py-1"
-      style={[{ paddingHorizontal }, style]}
+      style={[styles.row, { paddingHorizontal }, style]}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
@@ -52,3 +51,7 @@ const PostLocation: React.FC<PostLocationProps> = ({
 };
 
 export default PostLocation;
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+});

@@ -1,11 +1,11 @@
 import React, { useCallback } from 'react';
-import { type GestureResponderEvent, Text, View } from 'react-native';
+import type { GestureResponderEvent } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { RiExchangeLine } from '@oxy.so/bloom/icons/RiExchangeLine';
 import type { CrosspostProvenance } from '@mention/shared-types';
-import { POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
+import { CONTEXT_GLYPH_COLOR, contextRowTokens } from './postContextRowLayout';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * `Instagram · Threads` — one piece of writing that was published to two
@@ -62,46 +62,35 @@ const PostCrosspostRow: React.FC<Props> = ({ crosspost }) => {
   const variants = crosspost?.variants ?? [];
   if (variants.length < 2) return null;
 
-  return (
-    <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-      {toElement(
-        VStack(
-          Embed(
-            <RiExchangeLine
-              width={13}
-              height={13}
-              fill="currentColor"
-              className="text-muted-foreground"
-            />,
-          ),
-        )
-          .margin('left', '-lg')
-          .margin('right', '3'),
-      )}
-      <Text
-        className="text-muted-foreground text-[13px] font-semibold"
-        numberOfLines={1}
-        ellipsizeMode="tail"
-      >
-        {variants.map((variant, index) => (
-          <React.Fragment key={variant.postId}>
-            {index > 0 ? ' · ' : ''}
-            {variant.rendered ? (
-              variant.label
-            ) : (
-              <Text
-                accessibilityRole="link"
-                accessibilityLabel={variant.label}
-                onPress={openVariant(variant.postId)}
-                className="text-muted-foreground underline"
-              >
-                {variant.label}
-              </Text>
-            )}
-          </React.Fragment>
-        ))}
-      </Text>
-    </View>
+  return toElement(
+    HStack(
+      VStack(
+        Embed(
+          <RiExchangeLine width={13} height={13} fill="currentColor" color={CONTEXT_GLYPH_COLOR} />,
+        ),
+      )
+        .margin('left', '-lg')
+        .margin('right', contextRowTokens.space.iconGap),
+      RawText(
+        ...variants.flatMap((variant, index) => [
+          index > 0 ? ' · ' : '',
+          variant.rendered
+            ? variant.label
+            : RawText(variant.label)
+                .foreground('muted')
+                .underline()
+                .role('link')
+                .label(variant.label)
+                .onPress(openVariant(variant.postId)),
+        ]),
+      )
+        .foreground('muted')
+        .font('sm')
+        .weight('semibold')
+        .lines(1),
+    )
+      .align('center')
+      .frame({ height: contextRowTokens.space.row }),
   );
 };
 

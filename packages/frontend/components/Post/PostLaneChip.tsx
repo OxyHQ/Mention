@@ -1,8 +1,11 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback } from 'react';
-import { type GestureResponderEvent, Pressable, Text } from 'react-native';
+import { type GestureResponderEvent, Pressable, StyleSheet, Text } from 'react-native';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
 import type { LaneSummary } from '@mention/shared-types';
+
+import { RawText, toElement } from '@oxy.so/bloom-language';
 
 /**
  * The widest the chip may grow before it starts truncating. A lane name can be
@@ -22,6 +25,17 @@ const MAX_CHIP_WIDTH = 140;
  * intrinsic width at all.
  */
 const CHIP_SHRINK = 20;
+
+const styles = StyleSheet.create({
+  chip: { flexShrink: CHIP_SHRINK, minWidth: 0, maxWidth: MAX_CHIP_WIDTH },
+});
+
+// A chip that cannot open a tab is the label alone, which shrinks at a rank no
+// shrink token has: React Native's Text, in the muted ink at the identity line's
+// 15px (`leading-tight`).
+const useLabelStyles = createTokenStyles((t) => ({
+  label: { color: t.mutedForeground, fontSize: 15, lineHeight: 18.75 },
+}));
 
 interface Props {
   /** The lane this post is on, straight off `post.lane`. */
@@ -55,6 +69,7 @@ interface Props {
  */
 const PostLaneChip: React.FC<Props> = ({ lane, authorHandle, feedDescriptor }) => {
   const router = useRouter();
+  const labelStyles = useLabelStyles();
 
   const handlePress = useCallback(
     (event: GestureResponderEvent) => {
@@ -73,12 +88,7 @@ const PostLaneChip: React.FC<Props> = ({ lane, authorHandle, feedDescriptor }) =
 
   if (!canOpenTab) {
     return (
-      <Text
-        className="text-muted-foreground text-[15px] leading-tight"
-        style={{ flexShrink: CHIP_SHRINK, minWidth: 0, maxWidth: MAX_CHIP_WIDTH }}
-        numberOfLines={1}
-        ellipsizeMode="tail"
-      >
+      <Text style={[labelStyles.label, styles.chip]} numberOfLines={1} ellipsizeMode="tail">
         {label}
       </Text>
     );
@@ -90,15 +100,9 @@ const PostLaneChip: React.FC<Props> = ({ lane, authorHandle, feedDescriptor }) =
       hitSlop={tokens.hitSlop.md}
       accessibilityRole="link"
       accessibilityLabel={lane.name}
-      style={{ flexShrink: CHIP_SHRINK, minWidth: 0, maxWidth: MAX_CHIP_WIDTH }}
+      style={styles.chip}
     >
-      <Text
-        className="text-muted-foreground text-[15px] leading-tight"
-        numberOfLines={1}
-        ellipsizeMode="tail"
-      >
-        {label}
-      </Text>
+      {toElement(RawText(label).foreground('muted').font('md').leading('close').lines(1))}
     </Pressable>
   );
 };

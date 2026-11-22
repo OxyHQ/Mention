@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -8,9 +8,25 @@ import type { ReplyPermission } from '@mention/shared-types';
 import { KnownLikersRow } from '@/components/Post/KnownLikersRow';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { POST_ITEM_SPACING } from '@/styles/shared';
-import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  defineModifier,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const { HPAD, SECTION_GAP } = POST_ITEM_SPACING;
+
+/**
+ * A detail row: its own full-width hairline rule on top, the post's side
+ * padding and the section gap above its content (HPAD and SECTION_GAP, 12).
+ */
+const detailRow = defineModifier((v) =>
+  v.padding('horizontal', 'md').padding('top', 'md').border('border', 'hairline', 'top'),
+);
 
 /**
  * A count straight off the post DTO, NOT coalesced by the caller — the three
@@ -137,60 +153,51 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
           />
         ) : null,
       ),
-      Embed(
-        timestampLabel || restrictions.length > 0 ? (
-          <View
-            className="flex-row items-center flex-wrap border-border"
-            style={[rowStyle, { paddingBottom: SECTION_GAP, gap: 6 }]}
-          >
-            {timestampLabel ? (
-              <>
-                {toElement(RawText(timestampLabel).foreground('muted').font('14'))}
-                {toElement(Icon(RiGlobalLine).size('14').foreground('muted'))}
-              </>
-            ) : null}
-            {restrictions.map((restriction) =>
-              toElement(
-                HStack(
-                  RawText('·').foreground('muted').font('14'),
-                  Icon(RiLockLine).size('13').foreground('muted'),
-                  RawText(restriction).foreground('muted').font('14'),
-                )
-                  .align('center')
-                  .spacing('xs'),
-                restriction,
-              ),
-            )}
-          </View>
-        ) : null,
-      ),
-      Embed(
-        statsEntries.length > 0 && (
-          // No bottom padding: the post container's own `VPAD` closes the block.
-          <View
-            className="flex-row items-center flex-wrap border-border"
-            style={[rowStyle, { gap: 16 }]}
-          >
-            {statsEntries.map((stat) =>
-              toElement(
-                HStack(
-                  RawText(formatCompactNumber(stat.count))
-                    .foreground('foreground')
-                    .font('14')
-                    .weight('bold'),
-                  RawText(stat.label).foreground('muted').font('14'),
-                )
-                  .align('center')
-                  .spacing('xs')
-                  .onPress(stat.onPress)
-                  .disabled(!stat.onPress)
-                  .pressScale(),
-                stat.key,
-              ),
-            )}
-          </View>
-        ),
-      ),
+      timestampLabel || restrictions.length > 0
+        ? HStack(
+            timestampLabel ? RawText(timestampLabel).foreground('muted').font('14') : null,
+            timestampLabel ? Icon(RiGlobalLine).size('14').foreground('muted') : null,
+            restrictions.map((restriction) =>
+              HStack(
+                RawText('·').foreground('muted').font('14'),
+                Icon(RiLockLine).size('13').foreground('muted'),
+                RawText(restriction).foreground('muted').font('14'),
+              )
+                .align('center')
+                .spacing('xs')
+                .id(restriction),
+            ),
+          )
+            .padding('bottom', 'md')
+            .modifier(detailRow)
+            .align('center')
+            .wrap()
+            .spacing('6')
+        : null,
+      // No bottom padding: the post container's own `VPAD` closes the block.
+      statsEntries.length > 0
+        ? HStack(
+            statsEntries.map((stat) =>
+              HStack(
+                RawText(formatCompactNumber(stat.count))
+                  .foreground('foreground')
+                  .font('14')
+                  .weight('bold'),
+                RawText(stat.label).foreground('muted').font('14'),
+              )
+                .align('center')
+                .spacing('xs')
+                .onPress(stat.onPress)
+                .disabled(!stat.onPress)
+                .pressScale()
+                .id(stat.key),
+            ),
+          )
+            .modifier(detailRow)
+            .align('center')
+            .wrap()
+            .spacing('lg')
+        : null,
     ),
   );
 });

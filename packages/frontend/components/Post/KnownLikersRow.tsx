@@ -1,6 +1,7 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
 import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -59,12 +60,19 @@ interface KnownLikersRowProps {
  * sentence wraps to a second line instead of clipping, so a narrow phone
  * viewport degrades by re-flowing rather than truncating mid-name.
  */
+// The row lays out its faces and sentence; the caller's style draws its rule
+// (width and padding), in the theme's border colour.
+const useRowStyles = createTokenStyles((t) => ({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, borderColor: t.border },
+}));
+
 export const KnownLikersRow = memo(function KnownLikersRow({
   postId,
   onPress,
   rowStyle,
 }: KnownLikersRowProps) {
   const { t } = useTranslation();
+  const styles = useRowStyles();
   const { likers, total, isPending } = useKnownLikers(postId);
 
   // One pass serves both the face pile and the sentence, so a name can never
@@ -117,8 +125,7 @@ export const KnownLikersRow = memo(function KnownLikersRow({
 
   return (
     <Pressable
-      className="flex-row items-center gap-2 border-border"
-      style={rowStyle}
+      style={[styles.row, rowStyle]}
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole="button"

@@ -1,3 +1,6 @@
+import { defineTokens } from '@oxy.so/bloom-language';
+import { Platform } from 'react-native';
+
 /**
  * The two measurements every post CONTEXT ROW shares — "Reposted by", "Pinned",
  * "Replying to", `Instagram · Threads`.
@@ -29,3 +32,23 @@ export const HEADER_CONTENT_GAP = 4;
  * `onLayout`. See `headerTopOffset` in `PostHeader`.
  */
 export const POST_CONTEXT_ROW_HEIGHT = 18;
+
+/**
+ * A context row's measurements as Bloom language tokens: the row's height, the
+ * glyph (13pt, hung in the avatar gutter) and the gap between it and the text.
+ */
+export const contextRowTokens = defineTokens({
+  space: { row: POST_CONTEXT_ROW_HEIGHT, iconGap: 3 },
+  iconSize: { glyph: 13 },
+});
+
+/**
+ * A context glyph's colour, as the owner's build drew it: its `currentColor`
+ * fill took the muted ink from a class, which reached the glyph only on the web
+ * (natively the class stays a raw prop of react-native-svg's Svg, so the glyph
+ * keeps currentColor with no colour; an owner-build bug kept as it was, for the
+ * owner to decide). On the web the muted ink is its CSS variable, handed to the
+ * Svg as its `color`, which its currentColor reads.
+ */
+export const CONTEXT_GLYPH_COLOR: string | undefined =
+  Platform.OS === 'web' ? 'var(--muted-foreground)' : undefined;
