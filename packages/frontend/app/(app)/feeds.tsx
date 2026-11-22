@@ -3,7 +3,7 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, RefreshControl, type ViewStyle } from 'react-native';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -95,6 +95,17 @@ interface FeedItem {
   isLiked?: boolean;
 }
 
+// A row's body stays React Native's TouchableOpacity (the language has no node for
+// its fading press); this draws its classes: `flex-1 flex-row items-center gap-3`.
+const feedRowBody: ViewStyle = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+};
+
 // Pin toggle button shared by preset + custom rows.
 const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }) => {
   const theme = useTheme();
@@ -138,7 +149,7 @@ const PresetRow = ({
   return (
     <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
       <TouchableOpacity
-        className="flex-1 flex-row items-center gap-3"
+        style={feedRowBody}
         onPress={onOpen}
         activeOpacity={0.7}
         accessibilityRole="button"
@@ -206,7 +217,7 @@ const TrendFeedRow = ({
   return (
     <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
       <TouchableOpacity
-        className="flex-1 flex-row items-center gap-3"
+        style={feedRowBody}
         onPress={onOpen}
         activeOpacity={0.7}
         accessibilityRole="button"
@@ -259,7 +270,7 @@ const FeedRow = ({
   return (
     <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
       <TouchableOpacity
-        className="flex-1 flex-row items-center gap-3"
+        style={feedRowBody}
         onPress={onOpen}
         activeOpacity={0.7}
         accessibilityRole="button"

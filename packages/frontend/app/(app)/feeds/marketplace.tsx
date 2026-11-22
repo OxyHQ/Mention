@@ -1,7 +1,14 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+  type ViewStyle,
+} from 'react-native';
 import {
   useInfiniteQuery,
   useQuery,
@@ -16,14 +23,13 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Rating } from '@oxy.so/bloom/rating';
 import { EmptyState } from '@/components/common/EmptyState';
-import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import type { CustomFeedListResponse } from '@mention/shared-types';
@@ -154,6 +160,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
 
 function FeedMarketplaceScreen() {
   const theme = useTheme();
+  const colors = useColorTokens();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -348,7 +355,7 @@ function FeedMarketplaceScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.pillsContent}
-              className="mt-3"
+              style={classStyles.pills}
             >
               {categoryPills.map((cat) => {
                 const active = cat === activeCategory;
@@ -364,14 +371,13 @@ function FeedMarketplaceScreen() {
                     onPress={() => handleCategoryPress(cat)}
                     activeOpacity={0.7}
                   >
-                    <Text
-                      className={cn(
-                        'text-sm font-medium',
-                        active ? 'text-white' : 'text-foreground',
-                      )}
-                    >
-                      {cat}
-                    </Text>
+                    {toElement(
+                      RawText(cat)
+                        .font('14')
+                        .leading('20px')
+                        .weight('medium')
+                        .foreground(active ? 'white' : 'foreground'),
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -384,19 +390,20 @@ function FeedMarketplaceScreen() {
                 return (
                   <TouchableOpacity
                     key={opt.id}
-                    className="flex-1 items-center py-2.5 relative"
+                    style={classStyles.sortOption}
                     onPress={() => handleSortPress(opt.id)}
                     activeOpacity={0.7}
                   >
-                    <Text
-                      className={cn(
-                        'text-sm',
-                        active ? 'font-bold text-primary' : 'font-medium text-muted-foreground',
-                      )}
-                    >
-                      {t(opt.labelKey)}
-                    </Text>
-                    {active && <View style={styles.sortIndicator} className="bg-primary" />}
+                    {toElement(
+                      RawText(t(opt.labelKey))
+                        .font('14')
+                        .leading('20px')
+                        .weight(active ? 'bold' : 'medium')
+                        .foreground(active ? 'primary' : 'muted'),
+                    )}
+                    {active && (
+                      <View style={[styles.sortIndicator, { backgroundColor: colors.primary }]} />
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -414,6 +421,7 @@ function FeedMarketplaceScreen() {
       sortBy,
       handleSortPress,
       theme,
+      colors.primary,
       t,
     ],
   );
@@ -519,6 +527,21 @@ function FeedMarketplaceScreen() {
     </Screen>
   );
 }
+
+// The category pills' scroller and the sort options stay React Native (a horizontal
+// ScrollView and TouchableOpacity, which the language has no node for); these draw
+// what their classes drew.
+const classStyles = {
+  pills: { marginTop: 12 },
+  sortOption: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    paddingVertical: 10,
+    position: 'relative',
+  },
+} satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({
   listContent: {

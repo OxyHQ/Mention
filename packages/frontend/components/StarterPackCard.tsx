@@ -4,7 +4,7 @@ import { useCallback, useMemo, type ReactNode } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -237,6 +237,7 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
  * Skeleton placeholder matching StarterPackCard layout.
  */
 export function StarterPackCardSkeleton() {
+  const colors = useColorTokens();
   return (
     <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
       {/* Skeleton avatar row */}
@@ -246,8 +247,10 @@ export function StarterPackCardSkeleton() {
             Array.from({ length: 6 }).map((_, i) => (
               <View
                 key={i}
-                className="bg-input"
-                style={[styles.skeletonCircle, { marginLeft: i > 0 ? -8 : 0, zIndex: 6 - i }]}
+                style={[
+                  styles.skeletonCircle,
+                  { backgroundColor: colors.input, marginLeft: i > 0 ? -8 : 0, zIndex: 6 - i },
+                ]}
               />
             )),
           ),

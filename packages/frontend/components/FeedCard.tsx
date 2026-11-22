@@ -2,10 +2,7 @@ import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { View } from 'react-native';
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useRouter } from '@/lib/navigation/router';
-import { Text } from '@oxy.so/bloom/typography';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -50,11 +47,6 @@ interface FeedCardProps {
 }
 
 /** Card surface (default) vs. flush full-width feed row (result lists). */
-const OUTER_CLASS: Record<FeedCardVariant, string> = {
-  card: 'w-full p-4 gap-2 rounded-xl bg-card',
-  row: 'w-full px-3 py-3 gap-1 border-b border-border',
-};
-
 /**
  * Feed card matching Bluesky's FeedSourceCard layout:
  * - 36px algo avatar on the left
@@ -124,90 +116,88 @@ export function FeedCard({
     }));
   }, [feed.memberAvatars, feed.memberProfiles]);
 
-  return (
-    <PressableScale
-      onPress={handlePress}
-      className={OUTER_CLASS[variant]}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      testID={`feed-${feed.id}`}
-    >
-      {toElement(
-        HStack(
-          /* Avatar */ Embed(
-            <AccountAvatar
-              account={feed.avatar ? undefined : feed.creator}
-              source={feed.avatar || feed.creator?.avatar}
-              size={36}
-              variant={MEDIA_VARIANT_AVATAR}
-              shape="squircle"
-            />,
-          ),
-          /* Text content */ VStack(
-            LText(feed.displayName)
-              .font('14')
-              .weight('semibold')
-              .leading('18px')
-              .foreground('foreground')
-              .lines(1),
-            Embed(
-              feed.creator && (
-                <ProfileHoverCard username={getNormalizedUserHandle(feed.creator) ?? undefined}>
-                  {toElement(
-                    LText('Feed by @', feed.creator.username)
-                      .font('14')
-                      .foreground('muted')
-                      .leading('18px')
-                      .lines(1),
-                  )}
-                </ProfileHoverCard>
-              ),
+  const isRow = variant === 'row';
+  return toElement(
+    VStack(
+      HStack(
+        /* Avatar */ Embed(
+          <AccountAvatar
+            account={feed.avatar ? undefined : feed.creator}
+            source={feed.avatar || feed.creator?.avatar}
+            size={36}
+            variant={MEDIA_VARIANT_AVATAR}
+            shape="squircle"
+          />,
+        ),
+        /* Text content */ VStack(
+          LText(feed.displayName)
+            .font('14')
+            .weight('semibold')
+            .leading('18px')
+            .foreground('foreground')
+            .lines(1),
+          Embed(
+            feed.creator && (
+              <ProfileHoverCard username={getNormalizedUserHandle(feed.creator) ?? undefined}>
+                {toElement(
+                  LText('Feed by @', feed.creator.username)
+                    .font('14')
+                    .foreground('muted')
+                    .leading('18px')
+                    .lines(1),
+                )}
+              </ProfileHoverCard>
             ),
-          ).flex('1'),
-          /* Right side: avatar cluster or custom slot */ Embed(
-            avatarItems.length > 0 ? (
-              <AccountAvatarGroup
-                items={avatarItems}
-                size={28}
-                max={3}
-                variant={MEDIA_VARIANT_AVATAR}
-              />
-            ) : headerRight ? (
-              toElement(VStack(Embed(headerRight)))
-            ) : null,
           ),
-        )
-          .align('center')
-          .spacing('md'),
-      )}
-      {showDescription && feed.description
-        ? toElement(
-            LText(feed.description)
-              .foreground('muted')
-              .font('14')
-              .leading('20px')
-              .lines(variant === 'row' ? 2 : 3),
+        ).flex('1'),
+        /* Right side: avatar cluster or custom slot */ Embed(
+          avatarItems.length > 0 ? (
+            <AccountAvatarGroup
+              items={avatarItems}
+              size={28}
+              max={3}
+              variant={MEDIA_VARIANT_AVATAR}
+            />
+          ) : headerRight ? (
+            toElement(VStack(Embed(headerRight)))
+          ) : null,
+        ),
+      )
+        .align('center')
+        .spacing('md'),
+      showDescription && feed.description
+        ? LText(feed.description)
+            .foreground('muted')
+            .font('14')
+            .leading('20px')
+            .lines(isRow ? 2 : 3)
+        : null,
+      statsLine ? LText(statsLine).font('14').foreground('muted').leading('18px').lines(1) : null,
+      showLikes && feed.likeCount && feed.likeCount > 0
+        ? LText(
+            'Pinned by ',
+            formatCompactNumber(feed.likeCount),
+            ' ',
+            feed.likeCount === 1 ? 'user' : 'users',
           )
-        : null}
-      {statsLine
-        ? toElement(LText(statsLine).font('14').foreground('muted').leading('18px').lines(1))
-        : null}
-      {showLikes && feed.likeCount && feed.likeCount > 0
-        ? toElement(
-            LText(
-              'Pinned by ',
-              formatCompactNumber(feed.likeCount),
-              ' ',
-              feed.likeCount === 1 ? 'user' : 'users',
-            )
-              .font('14')
-              .weight('semibold')
-              .foreground('muted')
-              .leading('18px')
-              .lines(1),
-          )
-        : null}
-    </PressableScale>
+            .font('14')
+            .weight('semibold')
+            .foreground('muted')
+            .leading('18px')
+            .lines(1)
+        : null,
+    )
+      .padding(isRow ? 'md' : 'lg')
+      .frame({ width: 'full' })
+      .spacing(isRow ? 'xs' : 'sm')
+      // A row is a flush feed row; a card a filled, rounded surface.
+      .when(isRow, (v) => v.border('border', 'thin', 'bottom'))
+      .when(!isRow, (v) => v.background('card').corner('md'))
+      .pressScale()
+      .onPress(handlePress)
+      .role('button')
+      .label(accessibilityLabel)
+      .testID(`feed-${feed.id}`),
   );
 }
 
@@ -219,16 +209,23 @@ export function FeedCard({
  * geometry stays as plain style objects here.
  */
 export function FeedCardSkeleton() {
-  return (
-    <View className={OUTER_CLASS.card}>
-      <Skeleton.Row style={{ alignItems: 'center', gap: 12 }}>
-        <Skeleton.Circle size={36} />
-        <Skeleton.Col style={{ flex: 1, gap: 6 }}>
-          <Skeleton.Text style={{ width: 140, fontSize: 14 }} />
-          <Skeleton.Text style={{ width: 100, fontSize: 13 }} />
-        </Skeleton.Col>
-      </Skeleton.Row>
-      <Skeleton.Box width="80%" height={14} />
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        <Skeleton.Row style={{ alignItems: 'center', gap: 12 }}>
+          <Skeleton.Circle size={36} />
+          <Skeleton.Col style={{ flex: 1, gap: 6 }}>
+            <Skeleton.Text style={{ width: 140, fontSize: 14 }} />
+            <Skeleton.Text style={{ width: 100, fontSize: 13 }} />
+          </Skeleton.Col>
+        </Skeleton.Row>,
+      ),
+      Embed(<Skeleton.Box width="80%" height={14} />),
+    )
+      .padding('lg')
+      .frame({ width: 'full' })
+      .spacing('sm')
+      .background('card')
+      .corner('md'),
   );
 }

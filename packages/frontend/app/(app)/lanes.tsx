@@ -1,11 +1,10 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
-import { TextInput, TouchableOpacity } from 'react-native';
+import { TextInput, TouchableOpacity, type TextStyle } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Screen } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -41,6 +40,7 @@ import {
   HStack,
   Header,
   Icon,
+  Loading as LLoading,
   RawText,
   ScrollView,
   VStack,
@@ -55,6 +55,10 @@ const MODE_ICON: Record<LaneDisplayMode, BloomIcon> = {
   tab: RiNodeTree,
   hidden: RiEyeOffLine,
 };
+
+// A lane's name field stays React Native's TextInput (the language's TextField draws
+// Bloom's field shell); this draws its classes: `flex-1 text-[15px] text-foreground`.
+const laneNameInput: TextStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%', fontSize: 15 };
 
 function ModeIcon({ mode, size, fill }: { mode: LaneDisplayMode; size: number; fill: string }) {
   const Glyph = MODE_ICON[mode];
@@ -76,6 +80,7 @@ function ModeIcon({ mode, size, fill }: { mode: LaneDisplayMode; size: number; f
 export default function LanesScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const colorTokens = useColorTokens();
   const { isAuthenticated, user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const [input, setInput] = useState('');
@@ -324,7 +329,7 @@ export default function LanesScreen() {
                 Icon(RiNodeTree).size('md').foreground('muted'),
                 Embed(
                   <TextInput
-                    className="flex-1 text-[15px] text-foreground"
+                    style={[laneNameInput, { color: colorTokens.foreground }]}
                     placeholder={t('lanes.namePlaceholder', { defaultValue: 'Lane name' })}
                     placeholderTextColor={colors.textSecondary}
                     value={input}
@@ -338,12 +343,7 @@ export default function LanesScreen() {
                 ),
                 Embed(
                   createMutation.isPending ? (
-                    <Loading
-                      className="text-primary"
-                      variant="inline"
-                      size="sm"
-                      style={{ flex: undefined }}
-                    />
+                    toElement(LLoading().style('inline').size('sm'))
                   ) : (
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -426,7 +426,7 @@ export default function LanesScreen() {
                             Icon(RiEditBoxLine).size('md').foreground('muted'),
                             Embed(
                               <TextInput
-                                className="flex-1 text-[15px] text-foreground"
+                                style={[laneNameInput, { color: colorTokens.foreground }]}
                                 value={editingName}
                                 onChangeText={setEditingName}
                                 maxLength={MAX_LANE_NAME_LENGTH}

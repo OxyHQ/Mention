@@ -1,7 +1,7 @@
 import { DetailSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, type ViewStyle } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
@@ -12,7 +12,7 @@ import { RiPushpinFill } from '@oxy.so/bloom/icons/RiPushpinFill';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
@@ -26,8 +26,6 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { shareLink } from '@/utils/shareLink';
 import { Rating, RatingInput } from '@oxy.so/bloom/rating';
-import { Textarea } from '@oxy.so/bloom/textarea';
-import { Divider } from '@oxy.so/bloom/divider';
 import { EmptyState } from '@/components/common/EmptyState';
 import { toast } from '@oxy.so/bloom/toast';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
@@ -38,6 +36,19 @@ import {
   type DialogControlProps,
 } from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
+import {
+  Avatar as LAvatar,
+  Button as LButton,
+  Divider as LDivider,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  TextEditor,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
@@ -61,6 +72,8 @@ function profileHandle(profile: FeedProfile | null | undefined): string {
   const handle = getNormalizedUserHandle(profile);
   return handle ? `@${handle}` : '';
 }
+
+const feedTokens = defineTokens({ avatarSize: { info: 48 } });
 
 const TABS_CONFIG = [
   { id: 'recent', labelKey: 'feeds.detail.tabs.recent' },
@@ -90,6 +103,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   onOpenInfo: () => void;
 }) {
   const theme = useTheme();
+  const colors = useColorTokens();
   const { t } = useTranslation();
   const back = useScreenBack();
   const creatorHandle = profileHandle(feed.owner);
@@ -103,7 +117,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       backLabel={t('common.back', { defaultValue: 'Back' })}
       title={
         <Pressable
-          className="flex-1 flex-row items-center gap-2.5 py-1 px-1"
+          style={headerTitleStyle}
           onPress={onOpenInfo}
           accessibilityRole="button"
           accessibilityLabel="Open feed info"
@@ -111,37 +125,52 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
           {({ pressed }) => (
             <>
               <View
-                style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]}
-                className="bg-muted"
+                style={[
+                  headerStyles.pressHighlight,
+                  { backgroundColor: colors.muted },
+                  pressed && { opacity: 1 },
+                ]}
               />
               <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
-              <View className="flex-1">
-                <Text
-                  className="text-[15px] font-bold leading-snug text-foreground"
-                  numberOfLines={2}
-                >
-                  {feed.title}
-                </Text>
-                <View className="flex-row items-center" style={{ gap: 6 }}>
-                  {creatorHandle ? (
-                    <ProfileHoverCard username={ownerHandle}>
-                      <Text
-                        className="text-sm leading-snug text-muted-foreground shrink"
-                        numberOfLines={1}
-                      >
-                        {creatorHandle}
-                      </Text>
-                    </ProfileHoverCard>
-                  ) : null}
-                  <View className="flex-row items-center" style={{ gap: 2 }}>
-                    <RiGroupLine size="xs" fill={theme.colors.textSecondary} />
-                    <Text className="text-sm leading-snug text-muted-foreground" numberOfLines={1}>
-                      {formatCompactNumber(subscriberCount)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
+              {toElement(
+                VStack(
+                  RawText(feed.title)
+                    .font('md')
+                    .weight('bold')
+                    .leading('easy')
+                    .foreground('foreground')
+                    .lines(2),
+                  HStack(
+                    creatorHandle
+                      ? Embed(
+                          <ProfileHoverCard username={ownerHandle}>
+                            {toElement(
+                              RawText(creatorHandle)
+                                .font('14')
+                                .leading('easy')
+                                .foreground('muted')
+                                .shrink('normal')
+                                .lines(1),
+                            )}
+                          </ProfileHoverCard>,
+                        )
+                      : null,
+                    HStack(
+                      Icon(RiGroupLine).size('xs').foreground('muted'),
+                      RawText(formatCompactNumber(subscriberCount))
+                        .font('14')
+                        .leading('easy')
+                        .foreground('muted')
+                        .lines(1),
+                    )
+                      .align('center')
+                      .spacing('2xs'),
+                  )
+                    .align('center')
+                    .spacing('6'),
+                ).flex('1'),
+              )}
+              {toElement(Icon(RiMoreFill).size('18').foreground('muted'))}
             </>
           )}
         </Pressable>
@@ -206,103 +235,109 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
   const { t } = useTranslation();
   const creatorHandle = profileHandle(feed.owner);
 
-  return (
-    <View className="gap-4 px-5 pb-8 pt-2">
-      {/* Avatar + title + share */}
-      <View className="flex-row items-center gap-3.5">
-        <Avatar source={feed.coverImage} size={48} variant={MEDIA_VARIANT_AVATAR} />
-        <View className="flex-1 gap-0.5">
-          <Text className="text-2xl font-bold leading-tight text-foreground" numberOfLines={2}>
-            {feed.title}
-          </Text>
-          {creatorHandle ? (
-            <Text className="text-sm leading-relaxed text-muted-foreground">
-              By{' '}
-              <Text
-                className="underline text-muted-foreground"
-                accessibilityRole="link"
-                onPress={() => {
-                  onClose();
-                  router.push(`/${creatorHandle}`);
-                }}
-              >
-                {creatorHandle}
-              </Text>
-            </Text>
-          ) : null}
-        </View>
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiShare2Line}
-          onPress={onShare}
-          accessibilityLabel={t('videos.share', { defaultValue: 'Share' })}
-        />
-      </View>
-
-      {/* Description */}
-      {feed.description ? (
-        <Text className="text-base leading-relaxed text-foreground">{feed.description}</Text>
-      ) : null}
-
-      {/* Subscriber tally — the same `FeedLike` records the subscribe pill writes. */}
-      {subscriberCount > 0 ? (
-        <Text className="text-sm text-muted-foreground">
-          {t('feeds.subscriberCount', { count: subscriberCount })}
-        </Text>
-      ) : null}
-
-      {/* Action buttons */}
-      <View className="flex-row gap-2.5 pt-1">
-        <FeedSubscribeButton
-          isSubscribed={isSubscribed}
-          isSubscribing={isSubscribing}
-          onPress={onToggleSubscribe}
-        />
-        <Button
-          className="flex-1"
-          appearance={isPinned ? 'solid' : 'subtle'}
-          tone={isPinned ? 'accent' : 'neutral'}
-          leadingIcon={isPinned ? RiPushpinFill : RiPushpinLine}
-          onPress={onTogglePin}
-        >
-          {isPinned ? 'Unpin feed' : 'Pin feed'}
-        </Button>
-      </View>
-
-      {/* Owner-only edit */}
-      {isOwner ? (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          leadingIcon={RiEditBoxLine}
-          onPress={() => {
-            onClose();
-            onEdit();
-          }}
-        >
-          Edit feed
-        </Button>
-      ) : null}
-
-      {/* Divider + report */}
-      <Divider />
-      <View className="flex-row items-center justify-between">
-        <Text className="text-sm italic text-muted-foreground">Something wrong? Let us know.</Text>
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          size="sm"
-          onPress={() => {
+  return toElement(
+    VStack(
+      /* Avatar + title + share */ HStack(
+        LAvatar(feed.coverImage, { variant: MEDIA_VARIANT_AVATAR }).size(
+          feedTokens.avatarSize.info,
+        ),
+        VStack(
+          RawText(feed.title)
+            .font('24')
+            .weight('bold')
+            .leading('close')
+            .foreground('foreground')
+            .lines(2),
+          creatorHandle
+            ? RawText(
+                'By',
+                ' ',
+                RawText(creatorHandle)
+                  .underline()
+                  .foreground('muted')
+                  .role('link')
+                  .onPress(() => {
+                    onClose();
+                    router.push(`/${creatorHandle}`);
+                  }),
+              )
+                .font('14')
+                .leading('relaxed')
+                .foreground('muted')
+            : null,
+        )
+          .flex('1')
+          .spacing('2xs'),
+        LButton(Icon(RiShare2Line))
+          .style('subtle')
+          .tint('neutral')
+          .shape('circle')
+          .onPress(onShare)
+          .label(t('videos.share', { defaultValue: 'Share' })),
+      )
+        .align('center')
+        .spacing('14'),
+      /* Description */ feed.description
+        ? RawText(feed.description).font('16').leading('relaxed').foreground('foreground')
+        : null,
+      /* Subscriber tally — the same `FeedLike` records the subscribe pill writes. */ subscriberCount >
+        0
+        ? RawText(t('feeds.subscriberCount', { count: subscriberCount }))
+            .font('14')
+            .leading('20px')
+            .foreground('muted')
+        : null,
+      /* Action buttons */ HStack(
+        Embed(
+          <FeedSubscribeButton
+            isSubscribed={isSubscribed}
+            isSubscribing={isSubscribing}
+            onPress={onToggleSubscribe}
+          />,
+        ),
+        LButton(
+          Icon(isPinned ? RiPushpinFill : RiPushpinLine),
+          RawText(isPinned ? 'Unpin feed' : 'Pin feed'),
+        )
+          .style(isPinned ? 'solid' : 'subtle')
+          .tint(isPinned ? 'accent' : 'neutral')
+          .flex('1')
+          .onPress(onTogglePin),
+      )
+        .padding('top', 'xs')
+        .spacing('10'),
+      /* Owner-only edit */ isOwner
+        ? LButton(Icon(RiEditBoxLine), RawText('Edit feed'))
+            .style('subtle')
+            .tint('neutral')
+            .onPress(() => {
+              onClose();
+              onEdit();
+            })
+        : null,
+      /* Divider + report */ LDivider(),
+      HStack(
+        RawText('Something wrong? Let us know.')
+          .font('14')
+          .leading('20px')
+          .italic()
+          .foreground('muted'),
+        LButton(RawText('Report feed'))
+          .style('subtle')
+          .tint('neutral')
+          .size('sm')
+          .onPress(() => {
             toast('Report submitted', { type: 'info' });
             onClose();
-          }}
-        >
-          Report feed
-        </Button>
-      </View>
-    </View>
+          }),
+      )
+        .align('center')
+        .justify('between'),
+    )
+      .padding('horizontal', 'xl')
+      .padding('bottom', '3xl')
+      .padding('top', 'sm')
+      .spacing('lg'),
   );
 });
 
@@ -333,10 +368,17 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
     <View style={styles.topicsList}>
       {keywords.map((keyword) => (
         <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
-          <View className="w-10 h-10 rounded-full items-center justify-center bg-muted">
-            <RiHashtag width={18} height={18} fill={theme.colors.textSecondary} />
-          </View>
-          <Text className="text-base font-medium text-foreground">{keyword}</Text>
+          {toElement(
+            VStack(Icon(RiHashtag).size('18').foreground('muted'))
+              .frame({ width: '4xl', height: '4xl' })
+              .background('mutedFill')
+              .corner('infinite')
+              .align('center')
+              .justify('center'),
+          )}
+          {toElement(
+            RawText(keyword).font('16').leading('normal').weight('medium').foreground('foreground'),
+          )}
         </View>
       ))}
     </View>
@@ -388,18 +430,19 @@ const WriteReviewDialog = React.memo(function WriteReviewDialog({
       placement={{ base: 'bottom', md: 'center' }}
       actions={actions}
     >
-      <View className="gap-4">
-        <View className="items-center py-1">
-          <RatingInput value={rating} onChange={setRating} accessibilityLabel="Rating" />
-        </View>
-        <Textarea
-          value={text}
-          onValueChange={setText}
-          placeholder={t('feeds.detail.reviewPlaceholder')}
-          maxLength={500}
-          rows={4}
-        />
-      </View>
+      {toElement(
+        VStack(
+          VStack(
+            Embed(<RatingInput value={rating} onChange={setRating} accessibilityLabel="Rating" />),
+          )
+            .padding('vertical', 'xs')
+            .align('center'),
+          TextEditor([text, setText])
+            .placeholder(t('feeds.detail.reviewPlaceholder'))
+            .maxLength(500)
+            .rows(4),
+        ).spacing('lg'),
+      )}
     </Dialog>
   );
 });
@@ -462,100 +505,107 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
     return <ListSkeleton />;
   }
 
-  return (
-    <View className="p-4 gap-1">
-      <Button
-        className="mb-2"
-        appearance="outline"
-        tone="neutral"
-        leadingIcon={RiEditBoxLine}
-        onPress={() => reviewDialog.open()}
-      >
-        Write a Review
-      </Button>
+  return toElement(
+    VStack(
+      LButton(Icon(RiEditBoxLine), RawText('Write a Review'))
+        .style('outline')
+        .tint('neutral')
+        // Its class's margin reached the outline button on native only: on the web
+        // the outline button's own margin won over the class.
+        .when('native', (v) => v.margin('bottom', 'sm'))
+        .onPress(() => reviewDialog.open()),
+      reviews.length === 0
+        ? Embed(
+            <EmptyState
+              title="No reviews yet"
+              subtitle="Be the first to leave a review"
+              sticker="feedPageEmpty"
+            />,
+          )
+        : reviews.map((review) => {
+            const reviewId = review.id || String(review._id);
+            // Oxy owns identity: the reviewer's name is `name.displayName`, and an
+            // unresolved reviewer degrades to their handle before "Anonymous".
+            const reviewerHandle = profileHandle(review.reviewer);
+            const reviewerName = displayNameOrHandle(
+              review.reviewer?.name?.displayName,
+              reviewerHandle || 'Anonymous',
+            );
+            const date = review.createdAt
+              ? new Date(review.createdAt).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : '';
 
-      {reviews.length === 0 ? (
-        <EmptyState
-          title="No reviews yet"
-          subtitle="Be the first to leave a review"
-          sticker="feedPageEmpty"
-        />
-      ) : (
-        reviews.map((review) => {
-          const reviewId = review.id || String(review._id);
-          // Oxy owns identity: the reviewer's name is `name.displayName`, and an
-          // unresolved reviewer degrades to their handle before "Anonymous".
-          const reviewerHandle = profileHandle(review.reviewer);
-          const reviewerName = displayNameOrHandle(
-            review.reviewer?.name?.displayName,
-            reviewerHandle || 'Anonymous',
-          );
-          const date = review.createdAt
-            ? new Date(review.createdAt).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })
-            : '';
-
-          return (
-            <View
-              key={reviewId}
-              style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
-            >
-              <View className="flex-row items-start gap-2.5">
-                <Avatar
-                  source={review.reviewer?.avatar ?? undefined}
-                  size={36}
-                  variant={MEDIA_VARIANT_AVATAR}
-                />
-                <View className="flex-1 gap-[3px]">
-                  <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                    {reviewerName}
-                  </Text>
-                  <View className="flex-row items-center gap-2">
-                    <Rating
-                      variant="stars"
-                      size="sm"
-                      value={review.rating || 0}
-                      starColor={theme.colors.primary}
-                    />
-                    {date ? <Text className="text-xs text-muted-foreground">{date}</Text> : null}
-                  </View>
-                </View>
-              </View>
-              {review.reviewText ? (
-                <Text className="text-sm leading-5 text-foreground">{review.reviewText}</Text>
-              ) : null}
-            </View>
-          );
-        })
-      )}
-
-      {hasNextPage && (
-        <Button
-          className="my-3"
-          appearance="plain"
-          tone="accent"
-          loading={isFetchingNextPage}
-          onPress={handleLoadMore}
-        >
-          Load more reviews
-        </Button>
-      )}
-
-      <WriteReviewDialog
-        control={reviewDialog}
-        onSubmit={handleSubmitReview}
-        submitting={isSubmitting}
-      />
-    </View>
+            return Embed(
+              <View style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}>
+                {toElement(
+                  HStack(
+                    LAvatar(review.reviewer?.avatar ?? undefined, {
+                      variant: MEDIA_VARIANT_AVATAR,
+                    }).size('lg'),
+                    VStack(
+                      RawText(reviewerName)
+                        .font('md')
+                        .weight('semibold')
+                        .foreground('foreground')
+                        .lines(1),
+                      HStack(
+                        Embed(
+                          <Rating
+                            variant="stars"
+                            size="sm"
+                            value={review.rating || 0}
+                            starColor={theme.colors.primary}
+                          />,
+                        ),
+                        date ? RawText(date).font('xs').leading('16px').foreground('muted') : null,
+                      )
+                        .align('center')
+                        .spacing('sm'),
+                    )
+                      .flex('1')
+                      .spacing('3'),
+                  )
+                    .align('start')
+                    .spacing('10'),
+                )}
+                {review.reviewText
+                  ? toElement(
+                      RawText(review.reviewText)
+                        .font('14')
+                        .leading('20px')
+                        .foreground('foreground'),
+                    )
+                  : null}
+              </View>,
+            ).id(reviewId);
+          }),
+      hasNextPage
+        ? LButton(RawText('Load more reviews'))
+            .style('plain')
+            .tint('accent')
+            .loading(isFetchingNextPage)
+            .margin('vertical', 'md')
+            .onPress(handleLoadMore)
+        : null,
+      Embed(
+        <WriteReviewDialog
+          control={reviewDialog}
+          onSubmit={handleSubmitReview}
+          submitting={isSubmitting}
+        />,
+      ),
+    )
+      .padding('lg')
+      .spacing('xs'),
   );
 });
 
 function CustomFeedTimelineScreen() {
   const router = useRouter();
-  const theme = useTheme();
   const { t } = useTranslation();
   const back = useScreenBack();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -720,11 +770,12 @@ function CustomFeedTimelineScreen() {
       }
     >
       {hasError ? (
-        <View className="flex-1 items-center justify-center">
-          <Text style={{ color: theme.colors.error || theme.colors.textSecondary }}>
-            {t('feeds.loadError')}
-          </Text>
-        </View>
+        toElement(
+          VStack(RawText(t('feeds.loadError')).foreground('error'))
+            .flex('1')
+            .align('center')
+            .justify('center'),
+        )
       ) : isLoading ? (
         <DetailSkeleton />
       ) : activeTab === 'recent' ? (
@@ -771,6 +822,20 @@ function CustomFeedTimelineScreen() {
     </Screen>
   );
 }
+
+// The title stays React Native's Pressable: its pressed highlight is a view of its
+// own, drawn from the press state its children render with. This draws its classes:
+// `flex-1 flex-row items-center gap-2.5 py-1 px-1`.
+const headerTitleStyle: ViewStyle = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+  paddingVertical: 4,
+  paddingHorizontal: 4,
+};
 
 const headerStyles = StyleSheet.create({
   pressHighlight: {

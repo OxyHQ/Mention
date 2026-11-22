@@ -2,7 +2,7 @@ import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, RefreshControl, Platform, TouchableOpacity } from 'react-native';
+import { View, RefreshControl, Platform, TouchableOpacity, type ViewStyle } from 'react-native';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -23,7 +23,7 @@ import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import Feed from '@/components/Feed/Feed';
 import { listsService } from '@/services/listsService';
 import { subscribeToListChanges } from '@/services/listMutations';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
@@ -72,6 +72,23 @@ interface ListData {
   memberOxyUserIds?: string[];
   subscriberCount?: number;
 }
+
+// The title's 26px line over its 22pt size (a leading is a ratio of the size).
+const listTokens = defineTokens({ leading: { title: 26 / 22 } });
+
+// Tailwind's `ml-auto`: the language has no auto margin, so this slot stays a view.
+const followSlot: ViewStyle = { marginLeft: 'auto' };
+
+// Kept as React Native's TouchableOpacity (the language has no node for its fading
+// press); its style draws what its classes drew.
+const addPeopleRow: ViewStyle = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  borderBottomWidth: 1,
+};
 
 const TABS_CONFIG = [
   { id: 'posts', labelKey: 'lists.tabs.posts' },
@@ -180,14 +197,12 @@ function ListDetailScreen() {
               />,
             ),
             VStack(
-              Embed(
-                <Text
-                  className="text-foreground text-[22px] font-bold leading-[26px]"
-                  numberOfLines={4}
-                >
-                  {list?.title || 'Untitled List'}
-                </Text>,
-              ),
+              RawText(list?.title || 'Untitled List')
+                .foreground('foreground')
+                .font('2xl')
+                .weight('bold')
+                .leading(listTokens.leading.title)
+                .lines(4),
               Embed(
                 <ProfileHoverCard username={isOwnList ? undefined : listOwnerHandle}>
                   {toElement(
@@ -264,7 +279,7 @@ function ListDetailScreen() {
               .spacing('xs'),
             Embed(
               !isOwnList ? (
-                <View className="ml-auto">
+                <View style={followSlot}>
                   <EntityFollowButton
                     entityType="list"
                     entityId={listId}
@@ -503,6 +518,7 @@ function ListMembers({
 }) {
   const router = useRouter();
   const theme = useTheme();
+  const colors = useColorTokens();
   const { t } = useTranslation();
   const { oxyServices, user } = useAuth();
 
@@ -533,7 +549,7 @@ function ListMembers({
       {header}
       {isOwnList && (
         <TouchableOpacity
-          className="flex-row items-center gap-3 px-4 py-3 border-b border-border"
+          style={[addPeopleRow, { borderColor: colors.border }]}
           onPress={() => router.push(`/lists/${listId}/edit`)}
           activeOpacity={0.7}
         >

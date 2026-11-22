@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
+import { Platform, TouchableOpacity, StyleSheet, type ViewStyle } from 'react-native';
 import { Screen } from '@oxy.so/bloom/screen';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
@@ -37,7 +37,7 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { TagField, commitTag } from '@oxy.so/bloom/tag-field';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedModules } from '@/hooks/useFeedModules';
@@ -347,7 +347,7 @@ const AccountPicker = ({
         results.map((u) => (
           <TouchableOpacity
             key={u.id}
-            className="flex-row items-center gap-3 py-1.5"
+            style={touchables.accountRow}
             onPress={() => add(u)}
             activeOpacity={0.7}
           >
@@ -417,6 +417,7 @@ const ParamControl = ({
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const colors = useColorTokens();
   const label = useParamLabel(descriptor);
 
   switch (descriptor.control) {
@@ -451,7 +452,7 @@ const ParamControl = ({
                 return (
                   <TouchableOpacity
                     key={option.value}
-                    className="flex-row items-center justify-between py-2"
+                    style={touchables.optionRow}
                     onPress={() => onChange(active ? undefined : option.value)}
                     activeOpacity={0.7}
                   >
@@ -496,11 +497,16 @@ const ParamControl = ({
                       key={option.value}
                       onPress={() => toggle(option.value)}
                       activeOpacity={0.7}
-                      className={
+                      style={[
+                        touchables.optionChip,
                         active
-                          ? 'rounded-full px-3 py-1 bg-primary'
-                          : 'rounded-full px-3 py-1 bg-background border border-border'
-                      }
+                          ? { backgroundColor: colors.primary }
+                          : {
+                              backgroundColor: colors.background,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                            },
+                      ]}
                     >
                       {toElement(
                         RawText(t(option.labelKey, { defaultValue: option.label }))
@@ -1224,6 +1230,20 @@ const ModeCheck = ({ active }: { active: boolean }) => {
     ? toElement(Icon(RiCheckLine).size('md').foreground('primary'))
     : toElement(VStack().frame({ width: 'xl', height: 'xl' }));
 };
+
+// Rows and chips stay React Native's TouchableOpacity (the language has no node for
+// its fading press); these draw their classes.
+const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+const touchables = {
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  optionChip: { borderRadius: PILL_RADIUS, paddingHorizontal: 12, paddingVertical: 4 },
+} satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({
   scrollContent: {
