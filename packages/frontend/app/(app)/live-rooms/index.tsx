@@ -1,15 +1,12 @@
 import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, RefreshControl } from 'react-native';
+import { View, RefreshControl } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Button } from '@oxy.so/bloom/button';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { Text as BloomText } from '@oxy.so/bloom/typography';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { RoomsListSkeleton } from '@/components/rooms/RoomsListSkeleton';
@@ -27,6 +24,18 @@ import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+
 const SectionHeader = ({
   icon,
   title,
@@ -35,15 +44,18 @@ const SectionHeader = ({
   icon: React.ReactNode;
   title: string;
   subtitle: string;
-}) => (
-  <View className="flex-row items-center mb-3">
-    <View className="mr-3">{icon}</View>
-    <View className="flex-1">
-      <BloomText className="text-foreground text-xl font-bold">{title}</BloomText>
-      <Text className="text-[13px] mt-0.5 text-muted-foreground">{subtitle}</Text>
-    </View>
-  </View>
-);
+}) =>
+  toElement(
+    HStack(
+      VStack(Embed(icon)).margin('right', 'md'),
+      VStack(
+        LText(title).foreground('foreground').font('xl').leading('28px').weight('bold'),
+        RawText(subtitle).font('sm').margin('top', '2xs').foreground('muted'),
+      ).flex('1'),
+    )
+      .align('center')
+      .margin('bottom', 'md'),
+  );
 
 const LiveRoomsScreen = () => {
   const router = useRouter();
@@ -134,46 +146,67 @@ const LiveRoomsScreen = () => {
     />
   ) : (
     <>
-      {liveRooms.length > 0 && (
-        <View className="mt-4 px-4">
-          <SectionHeader
-            icon={
-              <View
-                className="w-9 h-9 items-center justify-center rounded-full"
-                style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
-              >
-                <RiBroadcastLine width={18} height={18} fill={LIVE_INDICATOR_FOREGROUND_COLOR} />
-              </View>
-            }
-            title={t('agora.liveNow')}
-            subtitle="Join the conversation"
-          />
-          {liveRooms.map((room) => (
-            <RoomCard key={room._id} room={room} onPress={() => joinLiveRoom(room._id)} />
-          ))}
-        </View>
-      )}
+      {liveRooms.length > 0 &&
+        toElement(
+          VStack(
+            Embed(
+              <SectionHeader
+                icon={
+                  <View
+                    className="w-9 h-9 items-center justify-center rounded-full"
+                    style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
+                  >
+                    <RiBroadcastLine
+                      width={18}
+                      height={18}
+                      fill={LIVE_INDICATOR_FOREGROUND_COLOR}
+                    />
+                  </View>
+                }
+                title={t('agora.liveNow')}
+                subtitle="Join the conversation"
+              />,
+            ),
+            Embed(
+              liveRooms.map((room) => (
+                <RoomCard key={room._id} room={room} onPress={() => joinLiveRoom(room._id)} />
+              )),
+            ),
+          )
+            .padding('horizontal', 'lg')
+            .margin('top', 'lg'),
+        )}
 
-      {scheduledRooms.length > 0 && (
-        <View className="mt-4 px-4">
-          <SectionHeader
-            icon={
-              <View className="w-9 h-9 items-center justify-center rounded-full bg-primary">
-                <RiCalendarLine width={18} height={18} fill={theme.colors.primaryForeground} />
-              </View>
-            }
-            title={t('agora.upcoming')}
-            subtitle="Scheduled rooms"
-          />
-          {scheduledRooms.map((room) => (
-            <RoomCard
-              key={room._id}
-              room={room}
-              onPress={() => router.push(`/live-rooms/${room._id}`)}
-            />
-          ))}
-        </View>
-      )}
+      {scheduledRooms.length > 0 &&
+        toElement(
+          VStack(
+            Embed(
+              <SectionHeader
+                icon={toElement(
+                  VStack(Icon(RiCalendarLine).size('18').foreground('onPrimary'))
+                    .frame({ width: '36', height: '36' })
+                    .background('primary')
+                    .corner('infinite')
+                    .align('center')
+                    .justify('center'),
+                )}
+                title={t('agora.upcoming')}
+                subtitle="Scheduled rooms"
+              />,
+            ),
+            Embed(
+              scheduledRooms.map((room) => (
+                <RoomCard
+                  key={room._id}
+                  room={room}
+                  onPress={() => router.push(`/live-rooms/${room._id}`)}
+                />
+              )),
+            ),
+          )
+            .padding('horizontal', 'lg')
+            .margin('top', 'lg'),
+        )}
     </>
   );
 
@@ -182,27 +215,26 @@ const LiveRoomsScreen = () => {
       <SEO title="Live Rooms" description="Join live audio conversations" />
       <Screen
         reselect={{ refresh: onRefresh }}
-        header={
-          <PageHeader
-            title={t('agora.title')}
-            actions={
-              // Signed out, Syra refuses the create with a 401, and the sheet
-              // gave no sign of it. The button is only offered to a reader who
-              // can create; everyone else gets the sign-in prompt below.
-              canUsePrivateApi ? (
-                <Button
-                  appearance="solid"
-                  tone="accent"
-                  size="sm"
-                  leadingIcon={RiAddLine}
-                  onPress={openCreateSheet}
-                >
-                  Create
-                </Button>
-              ) : undefined
-            }
-          />
-        }
+        header={toElement(
+          Header(t('agora.title'))
+            .toolbar(
+              Embed(
+                // Signed out, Syra refuses the create with a 401, and the sheet
+                // gave no sign of it. The button is only offered to a reader who
+                // can create; everyone else gets the sign-in prompt below.
+                canUsePrivateApi
+                  ? toElement(
+                      LButton(Icon(RiAddLine), LText('Create'))
+                        .style('solid')
+                        .tint('accent')
+                        .size('sm')
+                        .onPress(openCreateSheet),
+                    )
+                  : undefined,
+              ),
+            )
+            .inPage(),
+        )}
       >
         <SignInRequired
           label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}

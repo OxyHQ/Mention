@@ -94,6 +94,16 @@ import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 import { postPermalink } from '@/utils/postPermalink';
 import { usePostInteractions } from '@/components/Feed/postInteractions';
 
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+
 // ── Tuning constants ─────────────────────────────────────────────
 const FEED_PAGE_LIMIT = 20;
 // One-screen vertical pager: the slide on screen and one either side hold a
@@ -220,6 +230,10 @@ const GRADIENT_COLORS = [
 ] as const;
 const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
 const LIKE_ACTIVE_COLOR = '#FF3040';
+
+const appColors = defineTokens({
+  color: { LIKE_ACTIVE_COLOR, white: 'white', hexFFFFFF: '#FFFFFF' },
+});
 
 // Caption is collapsed to one line until this length, where a "more" toggle is
 // offered (TikTok-style expandable caption).
@@ -581,7 +595,6 @@ const ReelSurface: React.FC<
         renderVideo={renderReelVideo}
         pointerEvents="none"
       />
-
       {showPoster && (
         <ReelPoster
           posterUrl={posterUrl}
@@ -590,7 +603,6 @@ const ReelSurface: React.FC<
           theme={theme}
         />
       )}
-
       {/* Full-surface tap target → toggle play/pause (single tap, deferred)
                 or like (double tap). It sits ABOVE the video/poster but BELOW the
                 mute button (z 10), scrubber, and the bottom overlay actions, so
@@ -603,20 +615,17 @@ const ReelSurface: React.FC<
           muted ? 'lanes.muted.unmute' : userPaused ? 'videos.play' : 'videos.pause',
         )}
       />
-
       {/* Double-tap heart pop — large, centered, non-interactive. */}
       <Animated.View style={[styles.heartPop, heartStyle]} pointerEvents="none">
-        <RiHeartFill width={96} height={96} fill={LIKE_ACTIVE_COLOR} />
+        {toElement(Icon(RiHeartFill).size('96').foreground(appColors.color.LIKE_ACTIVE_COLOR))}
       </Animated.View>
-
       {showPauseAffordance && (
         <View style={styles.pauseAffordance} pointerEvents="none">
           <View style={styles.pauseAffordanceInner}>
-            <RiPlayFill width={44} height={44} fill="white" />
+            {toElement(Icon(RiPlayFill).size('44').foreground(appColors.color.white))}
           </View>
         </View>
       )}
-
       {showBufferSpinner && (
         <View style={styles.bufferSpinner} pointerEvents="none">
           <View style={styles.bufferSpinnerInner}>
@@ -624,7 +633,6 @@ const ReelSurface: React.FC<
           </View>
         </View>
       )}
-
       {showScrubber && (
         <View
           // Lifted clear of the floating BottomBar: pinned to the
@@ -870,14 +878,17 @@ const VideoItem = memo<VideoItemProps>(
             />
             {videoError && (
               <View style={styles.posterLayer} pointerEvents="none">
-                <Text className="mt-2 text-xs text-muted-foreground">
-                  {t('videos.unavailable')}
-                </Text>
+                {toElement(
+                  RawText(t('videos.unavailable'))
+                    .margin('top', 'sm')
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                )}
               </View>
             )}
           </>
         )}
-
         {/* `box-none`: the overlay container spans the bottom half of the
                 surface, but only its interactive leaves (author press, follow,
                 caption toggle, action buttons) should capture touches — empty
@@ -901,64 +912,100 @@ const VideoItem = memo<VideoItemProps>(
                 onAddThought={item.metadata.quotesDisabled ? undefined : () => onQuote(item.id)}
               />
             )}
-            <View style={styles.userInfo} pointerEvents="box-none">
-              <View style={styles.userHeaderRow} pointerEvents="box-none">
-                <Pressable onPress={handleProfilePress} style={styles.userHeader}>
-                  <Avatar
-                    source={item.user?.avatar ?? undefined}
-                    size={32}
-                    variant={MEDIA_VARIANT_AVATAR}
-                    verified={item.user?.verified || false}
-                    style={styles.userAvatar}
-                  />
-                  <View style={styles.userNameContainer}>
-                    <View style={styles.userNameRow}>
-                      <Text style={styles.userFullName} numberOfLines={1}>
-                        {userName}
-                      </Text>
-                      {item.user?.verified && (
-                        <RiVerifiedBadgeFill
-                          width={14}
-                          height={14}
-                          fill={VERIFIED_BADGE_COLOR}
-                          style={styles.verifiedIcon}
-                        />
-                      )}
-                    </View>
-                    <View style={styles.soundRow} pointerEvents="none">
-                      <RiMusic2Line width={13} height={13} fill="#FFFFFF" />
-                      <Text style={styles.soundText} numberOfLines={1}>
-                        {t('videos.original_audio')} · @{userHandle}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-                {showOnVideoFollow && item.user?.id && (
-                  <View style={styles.onVideoFollow}>
-                    <FollowButton userId={item.user.id} username={userHandle} size="sm" />
-                  </View>
-                )}
-              </View>
-              {postText ? (
-                <View style={styles.caption}>
-                  <LinkifiedText
-                    text={postText}
-                    style={styles.postText}
-                    linkStyle={styles.postLink}
-                    numberOfLines={captionExpanded ? undefined : 1}
-                  />
-                  {showCaptionToggle && (
-                    <Text
-                      style={styles.captionToggle}
-                      onPress={toggleCaption}
-                      accessibilityRole="button"
-                    >
-                      {t(captionExpanded ? 'videos.less' : 'videos.more')}
-                    </Text>
-                  )}
-                </View>
-              ) : null}
-            </View>
+            {toElement(
+              VStack(
+                HStack(
+                  HStack(
+                    Embed(
+                      <Avatar
+                        source={item.user?.avatar ?? undefined}
+                        size={32}
+                        variant={MEDIA_VARIANT_AVATAR}
+                        verified={item.user?.verified || false}
+                        style={styles.userAvatar}
+                      />,
+                    ),
+                    VStack(
+                      HStack(
+                        Embed(
+                          <Text style={styles.userFullName} numberOfLines={1}>
+                            {userName}
+                          </Text>,
+                        ),
+                        Embed(
+                          item.user?.verified && (
+                            <RiVerifiedBadgeFill
+                              width={14}
+                              height={14}
+                              fill={VERIFIED_BADGE_COLOR}
+                              style={styles.verifiedIcon}
+                            />
+                          ),
+                        ),
+                      )
+                        .align('center')
+                        .spacing('xs'),
+                      HStack(
+                        Icon(RiMusic2Line).size('13').foreground(appColors.color.hexFFFFFF),
+                        Embed(
+                          <Text style={styles.soundText} numberOfLines={1}>
+                            {t('videos.original_audio')} · @{userHandle}
+                          </Text>,
+                        ),
+                      )
+                        .align('center')
+                        .spacing('6')
+                        .margin('top', '2xs')
+                        .allowsHitTesting(false),
+                    ).grow(),
+                  )
+                    .frame({ minWidth: 'none' })
+                    .align('center')
+                    .spacing('10')
+                    .shrink('normal')
+                    .onPress(handleProfilePress),
+                  Embed(
+                    showOnVideoFollow &&
+                      item.user?.id &&
+                      toElement(
+                        VStack(
+                          Embed(
+                            <FollowButton userId={item.user.id} username={userHandle} size="sm" />,
+                          ),
+                        ).shrink('never'),
+                      ),
+                  ),
+                )
+                  .align('center')
+                  .spacing('md')
+                  .allowsHitTesting('children'),
+                postText
+                  ? VStack(
+                      Embed(
+                        <LinkifiedText
+                          text={postText}
+                          style={styles.postText}
+                          linkStyle={styles.postLink}
+                          numberOfLines={captionExpanded ? undefined : 1}
+                        />,
+                      ),
+                      Embed(
+                        showCaptionToggle && (
+                          <Text
+                            style={styles.captionToggle}
+                            onPress={toggleCaption}
+                            accessibilityRole="button"
+                          >
+                            {t(captionExpanded ? 'videos.less' : 'videos.more')}
+                          </Text>
+                        ),
+                      ),
+                    ).margin('top', 'xs')
+                  : null,
+              )
+                .spacing('xs')
+                .allowsHitTesting('children'),
+            )}
           </View>
 
           <View style={styles.rightActions} pointerEvents="box-none">

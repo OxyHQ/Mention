@@ -28,6 +28,16 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+
 type PodcastCardVariant = 'full' | 'card' | 'video';
 
 interface PodcastCardProps {
@@ -82,6 +92,7 @@ interface PodcastCardProps {
 
 /** Provider glyph and fallback-mic tint — icons take a colour prop, not a class. */
 const WHITE_MUTED = 'rgba(255,255,255,0.72)';
+const appColors = defineTokens({ color: { WHITE_MUTED } });
 /** The video variant's show strip is at least 12 padding + 48 artwork + 12 padding (more when its text runs longer). */
 const STRIP_MIN_HEIGHT = 72;
 
@@ -106,18 +117,16 @@ function providerFor(showUrl?: string): Provider | null {
 
 const ProviderRow = ({ provider, className }: { provider: Provider; className?: string }) => (
   <View className={cn('flex-row items-center gap-1', className)}>
-    {provider.glyph === 'spotify' ? (
-      <RiSpotifyFill width={13} height={13} fill={WHITE_MUTED} />
-    ) : provider.glyph === 'apple' ? (
-      <RiAppleFill width={13} height={13} fill={WHITE_MUTED} />
-    ) : provider.glyph === 'youtube' ? (
-      <RiYoutubeFill width={13} height={13} fill={WHITE_MUTED} />
-    ) : (
-      <RiRadioLine width={13} height={13} fill={WHITE_MUTED} />
+    {provider.glyph === 'spotify'
+      ? toElement(Icon(RiSpotifyFill).size('13').foreground(appColors.color.WHITE_MUTED))
+      : provider.glyph === 'apple'
+        ? toElement(Icon(RiAppleFill).size('13').foreground(appColors.color.WHITE_MUTED))
+        : provider.glyph === 'youtube'
+          ? toElement(Icon(RiYoutubeFill).size('13').foreground(appColors.color.WHITE_MUTED))
+          : toElement(Icon(RiRadioLine).size('13').foreground(appColors.color.WHITE_MUTED))}
+    {toElement(
+      RawText(provider.label).foreground('white/70').font('sm').weight('semibold').lines(1),
     )}
-    <Text className="text-white/70 text-[13px] font-semibold" numberOfLines={1}>
-      {provider.label}
-    </Text>
   </View>
 );
 
@@ -202,39 +211,59 @@ export const PodcastCard = memo(function PodcastCard({
           className="flex-row items-center gap-3 p-3"
           style={{ backgroundColor: colors.contrast50 }}
         >
-          {artworkUrl ? (
-            <View className="size-14 rounded-xl overflow-hidden">
-              <Image
-                source={{ uri: artworkUrl }}
-                style={styles.fill}
-                contentFit="cover"
-                transition={120}
-              />
-            </View>
-          ) : (
-            <View className="size-14 rounded-xl bg-card items-center justify-center">
-              <RiMic2Line size="lg" fill={colors.textSecondary} />
-            </View>
-          )}
+          {artworkUrl
+            ? toElement(
+                VStack(
+                  Embed(
+                    <Image
+                      source={{ uri: artworkUrl }}
+                      style={styles.fill}
+                      contentFit="cover"
+                      transition={120}
+                    />,
+                  ),
+                )
+                  .frame({ width: '56', height: '56' })
+                  .corner('md')
+                  .clipped(),
+              )
+            : toElement(
+                VStack(Icon(RiMic2Line).size('lg').foreground('muted'))
+                  .frame({ width: '56', height: '56' })
+                  .background('card')
+                  .corner('md')
+                  .align('center')
+                  .justify('center'),
+              )}
 
-          <View className="flex-1 shrink">
-            <Text className="text-foreground text-[15px] font-bold" numberOfLines={2}>
-              {title}
-            </Text>
-            <View className="flex-row items-center gap-1.5 mt-0.5">
-              <Text className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wide">
-                {t('profile.media.podcastLabel')}
-              </Text>
-              {author ? (
-                <>
-                  <Text className="text-muted-foreground text-[11px]">·</Text>
-                  <Text className="text-muted-foreground text-[13px] shrink" numberOfLines={1}>
-                    {author}
-                  </Text>
-                </>
-              ) : null}
-            </View>
-          </View>
+          {toElement(
+            VStack(
+              RawText(title).foreground('foreground').font('md').weight('bold').lines(2),
+              HStack(
+                RawText(t('profile.media.podcastLabel'))
+                  .foreground('muted')
+                  .font('11')
+                  .weight('semibold')
+                  .textCase('uppercase')
+                  .tracking('wide'),
+                Embed(
+                  author ? (
+                    <>
+                      {toElement(RawText('·').foreground('muted').font('11'))}
+                      {toElement(
+                        RawText(author).foreground('muted').font('sm').shrink('normal').lines(1),
+                      )}
+                    </>
+                  ) : null,
+                ),
+              )
+                .align('center')
+                .spacing('6')
+                .margin('top', '2xs'),
+            )
+              .flex('1')
+              .shrink('normal'),
+          )}
 
           {isOwnProfile ? (
             <Pressable
@@ -244,10 +273,10 @@ export const PodcastCard = memo(function PodcastCard({
               hitSlop={tokens.hitSlop.md}
               className="p-1"
             >
-              <RiEditLine size="sm" fill={colors.textSecondary} />
+              {toElement(Icon(RiEditLine).size('sm').foreground('muted'))}
             </Pressable>
           ) : (
-            <RiExternalLinkLine size="sm" fill={colors.textSecondary} />
+            toElement(Icon(RiExternalLinkLine).size('sm').foreground('muted'))
           )}
         </Card>
       </Pressable>
@@ -278,27 +307,39 @@ export const PodcastCard = memo(function PodcastCard({
         >
           {video}
         </View>
-        <View className="flex-row items-start gap-3 p-3">
-          <Pressable
-            onPress={handlePress}
-            disabled={!handlePress}
-            accessibilityRole="button"
-            accessibilityLabel={t('profile.media.openInSyra')}
-            className="flex-1 flex-row items-center gap-3"
-          >
-            <Artwork uri={artworkUrl} size="strip" />
-            <View className="flex-1 shrink gap-px">
-              <Text className="text-white text-[15px] font-bold" numberOfLines={1}>
-                {episode?.title ?? title}
-              </Text>
-              <Text className="text-white/70 text-[14px]" numberOfLines={1}>
-                {episode ? title : author}
-              </Text>
-              {provider ? <ProviderRow provider={provider} /> : null}
-            </View>
-          </Pressable>
-          {saveButton}
-        </View>
+        {toElement(
+          HStack(
+            HStack(
+              Embed(<Artwork uri={artworkUrl} size="strip" />),
+              VStack(
+                RawText(episode?.title ?? title)
+                  .foreground('white')
+                  .font('md')
+                  .weight('bold')
+                  .lines(1),
+                RawText(episode ? title : author)
+                  .foreground('white/70')
+                  .font('14')
+                  .lines(1),
+                Embed(provider ? <ProviderRow provider={provider} /> : null),
+              )
+                .flex('1')
+                .shrink('normal')
+                .spacing('1'),
+            )
+              .flex('1')
+              .align('center')
+              .spacing('md')
+              .onPress(handlePress)
+              .disabled(!handlePress)
+              .role('button')
+              .label(t('profile.media.openInSyra')),
+            Embed(saveButton),
+          )
+            .padding('all', 'md')
+            .align('start')
+            .spacing('md'),
+        )}
       </View>
     );
   }
@@ -314,34 +355,47 @@ export const PodcastCard = memo(function PodcastCard({
       className={cn('self-start flex-row rounded-2xl overflow-hidden', className)}
       style={[{ width: width ?? 320, height, backgroundColor: accent }, style]}
     >
-      <Pressable
-        onPress={handlePress}
-        disabled={!handlePress}
-        accessibilityRole="button"
-        accessibilityLabel={t('profile.media.openInSyra')}
-        className="flex-1 flex-row items-center gap-3 p-2.5"
-      >
-        <Artwork uri={artworkUrl} size="card" />
-        <View className="flex-1 shrink justify-center gap-[3px] py-0.5">
-          <Text className="text-white text-[15px] font-bold leading-[19px]" numberOfLines={2}>
-            {episode?.title ?? title}
-          </Text>
-          <Text
-            className="text-white/55 text-[11px] font-semibold uppercase tracking-wide"
-            numberOfLines={1}
-          >
-            {episode ? title : t('profile.media.podcastLabel')}
-          </Text>
-          {provider ? (
-            <ProviderRow provider={provider} className={saveButton ? 'mr-[34px]' : undefined} />
-          ) : null}
-        </View>
-      </Pressable>
-      {saveButton ? (
-        // Floats in the corner instead of taking a column: a narrow card (a
-        // quote on a phone) cannot spare 40px of title width for it.
-        <View className="absolute right-2.5 bottom-2.5">{saveButton}</View>
-      ) : null}
+      {toElement(
+        HStack(
+          Embed(<Artwork uri={artworkUrl} size="card" />),
+          VStack(
+            Embed(
+              <Text className="text-white text-[15px] font-bold leading-[19px]" numberOfLines={2}>
+                {episode?.title ?? title}
+              </Text>,
+            ),
+            Embed(
+              <Text
+                className="text-white/55 text-[11px] font-semibold uppercase tracking-wide"
+                numberOfLines={1}
+              >
+                {episode ? title : t('profile.media.podcastLabel')}
+              </Text>,
+            ),
+            Embed(
+              provider ? (
+                <ProviderRow provider={provider} className={saveButton ? 'mr-[34px]' : undefined} />
+              ) : null,
+            ),
+          )
+            .padding('vertical', '2xs')
+            .flex('1')
+            .shrink('normal')
+            .justify('center')
+            .spacing('3'),
+        )
+          .padding('all', '10')
+          .flex('1')
+          .align('center')
+          .spacing('md')
+          .onPress(handlePress)
+          .disabled(!handlePress)
+          .role('button')
+          .label(t('profile.media.openInSyra')),
+      )}
+      {saveButton
+        ? toElement(VStack(Embed(saveButton)).position({ right: '10', bottom: '10' }))
+        : null}
     </View>
   );
 });

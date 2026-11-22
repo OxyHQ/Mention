@@ -1,17 +1,26 @@
 import { useState } from 'react';
-import { Text, View, Switch } from 'react-native';
+import { Switch } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { EventEditor } from '@/components/Compose/EventEditor';
 import { eventsService } from '@/services/eventsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import type { EventState } from '@oxy.so/mention-contracts';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  RawText,
+  ScrollView,
+  Text as LText,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** Viewer-scoped data stays on the detail screen and never in the feed cache. */
 export default function EventScreen() {
@@ -93,179 +102,241 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
     }
   };
   return (
-    <Screen header={<PageHeader title={text('title', 'Event')} />}>
-      <ScreenScrollView contentContainerClassName="p-4 gap-4 max-w-2xl w-full self-center">
-        {query.isPending && (
-          <Text className="text-muted-foreground">{text('loading', 'Loading event…')}</Text>
-        )}
-        {query.isError && (
-          <>
-            <Text className="text-foreground">
-              {text('unavailable', 'This event is unavailable.')}
-            </Text>
-            <Button onPress={() => query.refetch()}>{text('retry', 'Try again')}</Button>
-          </>
-        )}
-        {event && (
-          <>
-            <Text className="text-foreground text-2xl font-bold">{event.name}</Text>
-            <Text className="text-foreground">{new Date(event.date).toLocaleString()}</Text>
-            {!!event.location && <Text className="text-foreground">{event.location}</Text>}
-            {!!event.description && <Text className="text-foreground">{event.description}</Text>}
-            <Text className="text-muted-foreground">
-              {t('events.attendance', {
-                defaultValue: '{{count}} attending',
-                count: event.attendingCount,
-              })}
-              {event.capacity !== null ? ` / ${event.capacity}` : ''}
-            </Text>
-            {event.cancelled && (
-              <Text className="text-foreground font-bold">
-                {text('cancelled', 'This event has been cancelled.')}
-              </Text>
-            )}
-            {!viewerId ? (
-              <Button onPress={signIn}>{text('signIn', 'Sign in to register')}</Button>
-            ) : (
+    <Screen header={toElement(Header(text('title', 'Event')).inPage())}>
+      {toElement(
+        ScrollView(
+          Embed(
+            query.isPending &&
+              toElement(RawText(text('loading', 'Loading event…')).foreground('muted')),
+          ),
+          Embed(
+            query.isError && (
               <>
-                {(!closed || event.viewerAttendance?.public) && (
+                {toElement(
+                  RawText(text('unavailable', 'This event is unavailable.')).foreground(
+                    'foreground',
+                  ),
+                )}
+                {toElement(
+                  LButton(LText(text('retry', 'Try again'))).onPress(() => query.refetch()),
+                )}
+              </>
+            ),
+          ),
+          Embed(
+            event && (
+              <>
+                {toElement(
+                  RawText(event.name)
+                    .foreground('foreground')
+                    .font('24')
+                    .leading('32px')
+                    .weight('bold'),
+                )}
+                {toElement(RawText(new Date(event.date).toLocaleString()).foreground('foreground'))}
+                {!!event.location && toElement(RawText(event.location).foreground('foreground'))}
+                {!!event.description &&
+                  toElement(RawText(event.description).foreground('foreground'))}
+                {toElement(
+                  RawText(
+                    t('events.attendance', {
+                      defaultValue: '{{count}} attending',
+                      count: event.attendingCount,
+                    }),
+                    event.capacity !== null ? ` / ${event.capacity}` : '',
+                  ).foreground('muted'),
+                )}
+                {event.cancelled &&
+                  toElement(
+                    RawText(text('cancelled', 'This event has been cancelled.'))
+                      .foreground('foreground')
+                      .weight('bold'),
+                  )}
+                {!viewerId ? (
+                  toElement(LButton(LText(text('signIn', 'Sign in to register'))).onPress(signIn))
+                ) : (
                   <>
-                    <Text className="text-muted-foreground">
-                      {text(
-                        'privacy',
-                        'Attendance is private by default. Organizers can see the complete attendee list.',
-                      )}
-                    </Text>
-                    <View className="flex-row items-center gap-3">
-                      <Switch
-                        accessibilityLabel={text('public', 'Show me publicly')}
-                        value={publiclyVisible ?? event.viewerAttendance?.public ?? false}
-                        onValueChange={(value) => setPubliclyVisible(closed ? false : value)}
-                      />
-                      <Text className="text-foreground">{text('public', 'Show me publicly')}</Text>
-                    </View>
-                    {event.viewerAttendance ? (
+                    {(!closed || event.viewerAttendance?.public) && (
                       <>
-                        <Text className="text-foreground">
-                          {event.viewerAttendance.public
-                            ? text('visible', 'Your attendance is public.')
-                            : text('private', 'Your attendance is private.')}
-                        </Text>
-                        <Button
-                          disabled={
-                            busy || (closed && (publiclyVisible ?? event.viewerAttendance.public))
-                          }
-                          onPress={() => mutation.mutate('visibility')}
-                        >
-                          {text('saveVisibility', 'Save visibility choice')}
-                        </Button>
+                        {toElement(
+                          RawText(
+                            text(
+                              'privacy',
+                              'Attendance is private by default. Organizers can see the complete attendee list.',
+                            ),
+                          ).foreground('muted'),
+                        )}
+                        {toElement(
+                          HStack(
+                            Embed(
+                              <Switch
+                                accessibilityLabel={text('public', 'Show me publicly')}
+                                value={publiclyVisible ?? event.viewerAttendance?.public ?? false}
+                                onValueChange={(value) =>
+                                  setPubliclyVisible(closed ? false : value)
+                                }
+                              />,
+                            ),
+                            RawText(text('public', 'Show me publicly')).foreground('foreground'),
+                          )
+                            .align('center')
+                            .spacing('md'),
+                        )}
+                        {event.viewerAttendance ? (
+                          <>
+                            {toElement(
+                              RawText(
+                                event.viewerAttendance.public
+                                  ? text('visible', 'Your attendance is public.')
+                                  : text('private', 'Your attendance is private.'),
+                              ).foreground('foreground'),
+                            )}
+                            {toElement(
+                              LButton(LText(text('saveVisibility', 'Save visibility choice')))
+                                .disabled(
+                                  busy ||
+                                    (closed && (publiclyVisible ?? event.viewerAttendance.public)),
+                                )
+                                .onPress(() => mutation.mutate('visibility')),
+                            )}
+                          </>
+                        ) : (
+                          toElement(
+                            LButton(LText(text('register', 'Register')))
+                              .disabled(
+                                busy ||
+                                  (event.capacity !== null &&
+                                    event.attendingCount >= event.capacity),
+                              )
+                              .onPress(() => mutation.mutate('register')),
+                          )
+                        )}
                       </>
-                    ) : (
-                      <Button
-                        disabled={
-                          busy ||
-                          (event.capacity !== null && event.attendingCount >= event.capacity)
-                        }
-                        onPress={() => mutation.mutate('register')}
-                      >
-                        {text('register', 'Register')}
-                      </Button>
+                    )}
+                    {event.viewerAttendance &&
+                      toElement(
+                        LButton(LText(text('withdraw', 'Cancel my attendance')))
+                          .disabled(busy)
+                          .onPress(() => mutation.mutate('withdraw')),
+                      )}
+                  </>
+                )}
+                {toElement(
+                  LButton(
+                    LText(
+                      event.canManage
+                        ? text('fullRoster', 'View all attendees (organizers only)')
+                        : text('publicRoster', 'View public attendees'),
+                    ),
+                  ).onPress(() => setRoster(!roster)),
+                )}
+                {roster && (
+                  <>
+                    {attendees.isError &&
+                      toElement(
+                        RawText(text('rosterFailed', 'Could not load attendees.')).foreground(
+                          'foreground',
+                        ),
+                      )}
+                    {!attendees.isError &&
+                      attendees.data?.pages
+                        .flatMap((page) => page.items)
+                        .map((attendee) =>
+                          toElement(
+                            RawText(
+                              attendee.displayName || text('attendee', 'Attendee'),
+                              !attendee.public ? ` · ${text('privateLabel', 'Private')}` : '',
+                            ).foreground('foreground'),
+                            attendee.oxyUserId,
+                          ),
+                        )}
+                    {attendees.hasNextPage &&
+                      toElement(
+                        LButton(LText(text('more', 'Load more')))
+                          .disabled(attendees.isFetching)
+                          .onPress(() => attendees.fetchNextPage()),
+                      )}
+                  </>
+                )}
+                {event.canManage && !event.cancelled && (
+                  <>
+                    {toElement(
+                      LButton(LText(text('edit', 'Edit event')))
+                        .disabled(busy)
+                        .onPress(startEditing),
+                    )}
+                    {toElement(
+                      LButton(LText(text('cancel', 'Cancel event')))
+                        .disabled(busy)
+                        .onPress(() => setConfirmCancel(true)),
+                    )}
+                    {confirmCancel && (
+                      <>
+                        {toElement(
+                          RawText(
+                            text(
+                              'cancelWarning',
+                              'Cancellation is permanent. Attendees will be notified.',
+                            ),
+                          ).foreground('foreground'),
+                        )}
+                        {toElement(
+                          LButton(LText(text('confirmCancel', 'Confirm cancellation')))
+                            .disabled(busy)
+                            .onPress(() => mutation.mutate('cancel')),
+                        )}
+                        {toElement(
+                          LButton(LText(text('keep', 'Keep event'))).onPress(() =>
+                            setConfirmCancel(false),
+                          ),
+                        )}
+                      </>
                     )}
                   </>
                 )}
-                {event.viewerAttendance && (
-                  <Button disabled={busy} onPress={() => mutation.mutate('withdraw')}>
-                    {text('withdraw', 'Cancel my attendance')}
-                  </Button>
-                )}
-              </>
-            )}
-            <Button onPress={() => setRoster(!roster)}>
-              {event.canManage
-                ? text('fullRoster', 'View all attendees (organizers only)')
-                : text('publicRoster', 'View public attendees')}
-            </Button>
-            {roster && (
-              <>
-                {attendees.isError && (
-                  <Text className="text-foreground">
-                    {text('rosterFailed', 'Could not load attendees.')}
-                  </Text>
-                )}
-                {!attendees.isError &&
-                  attendees.data?.pages
-                    .flatMap((page) => page.items)
-                    .map((attendee) => (
-                      <Text key={attendee.oxyUserId} className="text-foreground">
-                        {attendee.displayName || text('attendee', 'Attendee')}
-                        {!attendee.public ? ` · ${text('privateLabel', 'Private')}` : ''}
-                      </Text>
-                    ))}
-                {attendees.hasNextPage && (
-                  <Button disabled={attendees.isFetching} onPress={() => attendees.fetchNextPage()}>
-                    {text('more', 'Load more')}
-                  </Button>
-                )}
-              </>
-            )}
-            {event.canManage && !event.cancelled && (
-              <>
-                <Button disabled={busy} onPress={startEditing}>
-                  {text('edit', 'Edit event')}
-                </Button>
-                <Button disabled={busy} onPress={() => setConfirmCancel(true)}>
-                  {text('cancel', 'Cancel event')}
-                </Button>
-                {confirmCancel && (
+                {mutation.isError &&
+                  toElement(
+                    RawText(
+                      text(
+                        'failed',
+                        'Could not save. The event may be full, closed, or changed. Refresh and try again.',
+                      ),
+                    )
+                      .foreground('foreground')
+                      .role('alert'),
+                  )}
+                {editing && (
                   <>
-                    <Text className="text-foreground">
-                      {text(
-                        'cancelWarning',
-                        'Cancellation is permanent. Attendees will be notified.',
-                      )}
-                    </Text>
-                    <Button disabled={busy} onPress={() => mutation.mutate('cancel')}>
-                      {text('confirmCancel', 'Confirm cancellation')}
-                    </Button>
-                    <Button onPress={() => setConfirmCancel(false)}>
-                      {text('keep', 'Keep event')}
-                    </Button>
+                    <EventEditor
+                      visible
+                      name={editing.name}
+                      date={editing.date}
+                      location={editing.location ?? ''}
+                      description={editing.description ?? ''}
+                      onNameChange={(name) => setEditing({ ...editing, name })}
+                      onDateChange={(date) => setEditing({ ...editing, date })}
+                      onLocationChange={(location) => setEditing({ ...editing, location })}
+                      onDescriptionChange={(description) => setEditing({ ...editing, description })}
+                      capacity={capacity}
+                      onCapacityChange={setCapacity}
+                      onClose={() => setEditing(null)}
+                      onSave={() => {
+                        if (!busy) mutation.mutate('edit');
+                      }}
+                    />
                   </>
                 )}
               </>
-            )}
-            {mutation.isError && (
-              <Text accessibilityRole="alert" className="text-foreground">
-                {text(
-                  'failed',
-                  'Could not save. The event may be full, closed, or changed. Refresh and try again.',
-                )}
-              </Text>
-            )}
-            {editing && (
-              <>
-                <EventEditor
-                  visible
-                  name={editing.name}
-                  date={editing.date}
-                  location={editing.location ?? ''}
-                  description={editing.description ?? ''}
-                  onNameChange={(name) => setEditing({ ...editing, name })}
-                  onDateChange={(date) => setEditing({ ...editing, date })}
-                  onLocationChange={(location) => setEditing({ ...editing, location })}
-                  onDescriptionChange={(description) => setEditing({ ...editing, description })}
-                  capacity={capacity}
-                  onCapacityChange={setCapacity}
-                  onClose={() => setEditing(null)}
-                  onSave={() => {
-                    if (!busy) mutation.mutate('edit');
-                  }}
-                />
-              </>
-            )}
-          </>
-        )}
-      </ScreenScrollView>
+            ),
+          ),
+        ).contentView((v) =>
+          v
+            .padding('all', 'lg')
+            .frame({ maxWidth: '672', width: 'full' })
+            .spacing('lg')
+            .alignSelf('center'),
+        ),
+      )}
     </Screen>
   );
 }

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
@@ -7,6 +7,8 @@ import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
+
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface RoomCardData {
   _id: string;
@@ -51,33 +53,39 @@ const RoomCard = memo(function RoomCard({
       style={[{ padding: compact ? 12 : 16 }, style]}
       appearance="outline"
     >
-      <View className="flex-row items-center gap-3">
-        {/* A live room's disc is the fixed live signal; any other state sits on
-            the quiet secondary surface. Both halves of the pair are overridden
-            together, as `IconCircle` asks. */}
-        <IconCircle
-          icon={live ? RiBroadcastLine : RiCalendarLine}
-          size={compact ? 'sm' : 'md'}
-          style={{
-            width: disc,
-            height: disc,
-            backgroundColor: live ? LIVE_INDICATOR_COLOR : theme.colors.backgroundSecondary,
-          }}
-          iconStyle={{ color: live ? LIVE_INDICATOR_FOREGROUND_COLOR : theme.colors.text }}
-        />
-        <View className="flex-1">
-          <Text className="font-semibold text-foreground" numberOfLines={1}>
-            {room.title}
-          </Text>
-          <Text className="mt-0.5 text-xs text-muted-foreground" numberOfLines={1}>
-            {live ? `${listeners} listening` : room.status}
-            {room.topic ? ` · ${room.topic}` : ''}
-          </Text>
-        </View>
-        {onPress ? (
-          <RiArrowRightSLine width={18} height={18} fill={theme.colors.textSecondary} />
-        ) : null}
-      </View>
+      {toElement(
+        HStack(
+          /* A live room's disc is the fixed live signal; any other state sits on
+                  the quiet secondary surface. Both halves of the pair are overridden
+                  together, as `IconCircle` asks. */ Embed(
+            <IconCircle
+              icon={live ? RiBroadcastLine : RiCalendarLine}
+              size={compact ? 'sm' : 'md'}
+              style={{
+                width: disc,
+                height: disc,
+                backgroundColor: live ? LIVE_INDICATOR_COLOR : theme.colors.backgroundSecondary,
+              }}
+              iconStyle={{ color: live ? LIVE_INDICATOR_FOREGROUND_COLOR : theme.colors.text }}
+            />,
+          ),
+          VStack(
+            RawText(room.title).weight('semibold').foreground('foreground').lines(1),
+            RawText(
+              live ? `${listeners} listening` : room.status,
+              room.topic ? ` · ${room.topic}` : '',
+            )
+              .margin('top', '2xs')
+              .font('xs')
+              .leading('16px')
+              .foreground('muted')
+              .lines(1),
+          ).flex('1'),
+          onPress ? Icon(RiArrowRightSLine).size('18').foreground('muted') : null,
+        )
+          .align('center')
+          .spacing('md'),
+      )}
     </Card>
   );
 });

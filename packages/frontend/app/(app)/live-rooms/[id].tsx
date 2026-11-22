@@ -1,7 +1,7 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
@@ -29,9 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
-import { Text as BloomText } from '@oxy.so/bloom/typography';
+import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 
@@ -53,6 +51,19 @@ import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** The participant pile stays glanceable; the overflow collapses into Bloom's "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
@@ -107,26 +118,43 @@ const HostInfo = ({
 
   return (
     <ProfileHoverCard username={getNormalizedUserHandle(profile) ?? undefined}>
-      <View className="flex-row items-center">
-        <Avatar size={48} source={avatarUri} shape="squircle" />
-        <View className="flex-1 ml-3">
-          <BloomText className="text-foreground text-base leading-6 font-semibold">
-            {displayName}
-          </BloomText>
-          {profile?.username && (
-            <Text className="text-sm mt-0.5 text-muted-foreground">@{profile.username}</Text>
-          )}
-        </View>
-      </View>
+      {toElement(
+        HStack(
+          Embed(<Avatar size={48} source={avatarUri} shape="squircle" />),
+          VStack(
+            LText(displayName)
+              .foreground('foreground')
+              .font('16')
+              .leading('24px')
+              .weight('semibold'),
+            Embed(
+              profile?.username &&
+                toElement(
+                  RawText('@', profile.username)
+                    .font('14')
+                    .leading('20px')
+                    .margin('top', '2xs')
+                    .foreground('muted'),
+                ),
+            ),
+          )
+            .flex('1')
+            .margin('left', 'md'),
+        ).align('center'),
+      )}
     </ProfileHoverCard>
   );
 };
 
-const SectionHeading = ({ children }: { children: React.ReactNode }) => (
-  <BloomText className="text-foreground text-base leading-6 font-semibold mb-3">
-    {children}
-  </BloomText>
-);
+const SectionHeading = ({ children }: { children: React.ReactNode }) =>
+  toElement(
+    LText(children)
+      .foreground('foreground')
+      .font('16')
+      .leading('24px')
+      .weight('semibold')
+      .margin('bottom', 'md'),
+  );
 
 const RoomDetailScreen = () => {
   const router = useRouter();
@@ -276,252 +304,358 @@ const RoomDetailScreen = () => {
         description={room?.description || 'Join this room'}
       />
       <Screen
-        header={
-          <PageHeader
-            title={room ? undefined : t('agora.room')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-            actions={
-              room ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    asChild
-                    label={t('common.options', { defaultValue: 'Options' })}
-                  >
-                    <Button
-                      appearance="subtle"
-                      tone="neutral"
-                      iconOnly
-                      leadingIcon={RiMoreFill}
-                      accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
-                    />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent label={t('common.options', { defaultValue: 'Options' })}>
-                    <DropdownMenuItem
-                      leading={
-                        <RiShareForwardLine width={22} height={22} fill={theme.colors.text} />
-                      }
-                      onPress={handleShareRoom}
+        header={toElement(
+          Header(room ? undefined : t('agora.room'))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .toolbar(
+              Embed(
+                room ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      asChild
+                      label={t('common.options', { defaultValue: 'Options' })}
                     >
-                      {t('agora.shareRoom', { defaultValue: 'Share room' })}
-                    </DropdownMenuItem>
-                    {isJoined && !isHost ? (
+                      {toElement(
+                        LButton(Icon(RiMoreFill))
+                          .shape('circle')
+                          .style('subtle')
+                          .tint('neutral')
+                          .label(t('common.options', { defaultValue: 'Options' })),
+                      )}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent label={t('common.options', { defaultValue: 'Options' })}>
                       <DropdownMenuItem
-                        variant="destructive"
-                        leading={
-                          <RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />
-                        }
-                        onPress={handleLeave}
+                        leading={toElement(
+                          Icon(RiShareForwardLine).size('22').foreground('foreground'),
+                        )}
+                        onPress={handleShareRoom}
                       >
-                        {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
+                        {t('agora.shareRoom', { defaultValue: 'Share room' })}
                       </DropdownMenuItem>
-                    ) : null}
-                    {isHost ? null : (
-                      <DropdownMenuItem
-                        variant="destructive"
-                        leading={<RiFlagLine width={22} height={22} fill={theme.colors.error} />}
-                        onPress={handleReport}
-                      >
-                        {t('agora.reportRoom', { defaultValue: 'Report room' })}
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : undefined
-            }
-          />
-        }
+                      {isJoined && !isHost ? (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          leading={toElement(Icon(RiLogoutBoxRLine).size('22').foreground('error'))}
+                          onPress={handleLeave}
+                        >
+                          {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {isHost ? null : (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          leading={toElement(Icon(RiFlagLine).size('22').foreground('error'))}
+                          onPress={handleReport}
+                        >
+                          {t('agora.reportRoom', { defaultValue: 'Report room' })}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : undefined,
+              ),
+            )
+            .inPage(),
+        )}
         bottomBar={
           // Actions — a live host gets Join + End side by side, hence the row.
           !loading && room ? (
             <PageFooter>
-              <View className="flex-row gap-2">
-                {isLive && (
-                  <Button
-                    className="flex-1"
-                    leadingIcon={RiBroadcastLine}
-                    onPress={() => joinLiveRoom(id)}
-                    disabled={actionLoading}
-                  >
-                    Join Live
-                  </Button>
-                )}
-                {isHost && isScheduled && (
-                  <Button
-                    className="flex-1"
-                    leadingIcon={RiPlayFill}
-                    onPress={handleStartRoom}
-                    loading={actionLoading}
-                  >
-                    Start Room
-                  </Button>
-                )}
-                {!isHost && isScheduled && (
-                  <Button
-                    className="flex-1"
-                    appearance="subtle"
-                    tone="neutral"
-                    leadingIcon={RiTimeLine}
-                    disabled
-                  >
-                    Room not started yet
-                  </Button>
-                )}
-                {isHost && isLive && (
-                  <Button
-                    className="flex-1"
-                    tone="danger"
-                    leadingIcon={RiStopFill}
-                    onPress={handleEndRoom}
-                    loading={actionLoading}
-                  >
-                    End Room
-                  </Button>
-                )}
-                {isEnded && (
-                  <Button
-                    className="flex-1"
-                    appearance="subtle"
-                    tone="neutral"
-                    leadingIcon={RiCheckboxCircleLine}
-                    disabled
-                  >
-                    This room has ended
-                  </Button>
-                )}
-              </View>
+              {toElement(
+                HStack(
+                  Embed(
+                    isLive && (
+                      <Button
+                        className="flex-1"
+                        leadingIcon={RiBroadcastLine}
+                        onPress={() => joinLiveRoom(id)}
+                        disabled={actionLoading}
+                      >
+                        Join Live
+                      </Button>
+                    ),
+                  ),
+                  Embed(
+                    isHost && isScheduled && (
+                      <Button
+                        className="flex-1"
+                        leadingIcon={RiPlayFill}
+                        onPress={handleStartRoom}
+                        loading={actionLoading}
+                      >
+                        Start Room
+                      </Button>
+                    ),
+                  ),
+                  Embed(
+                    !isHost && isScheduled && (
+                      <Button
+                        className="flex-1"
+                        appearance="subtle"
+                        tone="neutral"
+                        leadingIcon={RiTimeLine}
+                        disabled
+                      >
+                        Room not started yet
+                      </Button>
+                    ),
+                  ),
+                  Embed(
+                    isHost && isLive && (
+                      <Button
+                        className="flex-1"
+                        tone="danger"
+                        leadingIcon={RiStopFill}
+                        onPress={handleEndRoom}
+                        loading={actionLoading}
+                      >
+                        End Room
+                      </Button>
+                    ),
+                  ),
+                  Embed(
+                    isEnded && (
+                      <Button
+                        className="flex-1"
+                        appearance="subtle"
+                        tone="neutral"
+                        leadingIcon={RiCheckboxCircleLine}
+                        disabled
+                      >
+                        This room has ended
+                      </Button>
+                    ),
+                  ),
+                ).spacing('sm'),
+              )}
             </PageFooter>
           ) : undefined
         }
       >
-        <ScreenScrollView>
-          {loading ? (
-            <DetailSkeleton />
-          ) : !room ? (
-            <EmptyState
-              error={{
-                title: t('agora.roomUnavailableTitle', { defaultValue: "Couldn't load this room" }),
-                message: t('agora.roomUnavailableMessage', {
-                  defaultValue: 'The room may have ended, or your connection dropped.',
-                }),
-                onRetry: loadRoom,
-              }}
-            />
-          ) : (
-            <>
-              {/* Status */}
-              <View className="px-4 pt-2 items-start">
-                {isLive && (
-                  <View
-                    className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
-                  >
-                    <View className="w-2 h-2 rounded-full bg-white" />
-                    <Text className="text-xs font-bold text-white">LIVE</Text>
-                  </View>
-                )}
-                {isScheduled && (
-                  <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
-                    <RiCalendarLine width={14} height={14} fill={theme.colors.text} />
-                    <Text className="text-xs font-bold text-foreground">SCHEDULED</Text>
-                  </View>
-                )}
-                {isEnded && (
-                  <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
-                    <Text className="text-xs font-bold text-muted-foreground">ENDED</Text>
-                  </View>
-                )}
-              </View>
+        {toElement(
+          ScrollView(
+            Embed(
+              loading ? (
+                <DetailSkeleton />
+              ) : !room ? (
+                <EmptyState
+                  error={{
+                    title: t('agora.roomUnavailableTitle', {
+                      defaultValue: "Couldn't load this room",
+                    }),
+                    message: t('agora.roomUnavailableMessage', {
+                      defaultValue: 'The room may have ended, or your connection dropped.',
+                    }),
+                    onRetry: loadRoom,
+                  }}
+                />
+              ) : (
+                <>
+                  {/* Status */}
+                  {toElement(
+                    VStack(
+                      Embed(
+                        isLive && (
+                          <View
+                            className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full"
+                            style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
+                          >
+                            {toElement(
+                              VStack()
+                                .frame({ width: 'sm', height: 'sm' })
+                                .background('white')
+                                .corner('infinite'),
+                            )}
+                            {toElement(
+                              RawText('LIVE')
+                                .font('xs')
+                                .leading('16px')
+                                .weight('bold')
+                                .foreground('white'),
+                            )}
+                          </View>
+                        ),
+                      ),
+                      Embed(
+                        isScheduled &&
+                          toElement(
+                            HStack(
+                              Icon(RiCalendarLine).size('14').foreground('foreground'),
+                              RawText('SCHEDULED')
+                                .font('xs')
+                                .leading('16px')
+                                .weight('bold')
+                                .foreground('foreground'),
+                            )
+                              .padding('horizontal', 'md')
+                              .padding('vertical', '6')
+                              .background('mutedFill')
+                              .corner('infinite')
+                              .align('center')
+                              .spacing('6'),
+                          ),
+                      ),
+                      Embed(
+                        isEnded &&
+                          toElement(
+                            HStack(
+                              RawText('ENDED')
+                                .font('xs')
+                                .leading('16px')
+                                .weight('bold')
+                                .foreground('muted'),
+                            )
+                              .padding('horizontal', 'md')
+                              .padding('vertical', '6')
+                              .background('mutedFill')
+                              .corner('infinite')
+                              .align('center')
+                              .spacing('6'),
+                          ),
+                      ),
+                    )
+                      .padding('horizontal', 'lg')
+                      .padding('top', 'sm')
+                      .align('start'),
+                  )}
 
-              {/* Title and description */}
-              <View className="px-4 pt-4">
-                <BloomText className="text-foreground text-xl font-bold mb-2">
-                  {room.title}
-                </BloomText>
-                {room.topic && (
-                  <Text className="text-base mb-2 text-muted-foreground">{room.topic}</Text>
-                )}
-                {room.description && (
-                  <Text className="text-[15px] leading-[22px] mt-2 text-foreground">
-                    {room.description}
-                  </Text>
-                )}
-              </View>
+                  {/* Title and description */}
+                  {toElement(
+                    VStack(
+                      LText(room.title)
+                        .foreground('foreground')
+                        .font('xl')
+                        .leading('28px')
+                        .weight('bold')
+                        .margin('bottom', 'sm'),
+                      Embed(
+                        room.topic &&
+                          toElement(
+                            RawText(room.topic)
+                              .font('16')
+                              .leading('normal')
+                              .margin('bottom', 'sm')
+                              .foreground('muted'),
+                          ),
+                      ),
+                      Embed(
+                        room.description &&
+                          toElement(
+                            RawText(room.description)
+                              .font('md')
+                              .leading('22px')
+                              .margin('top', 'sm')
+                              .foreground('foreground'),
+                          ),
+                      ),
+                    )
+                      .padding('horizontal', 'lg')
+                      .padding('top', 'lg'),
+                  )}
 
-              {/* Host */}
-              <View className="px-4 mt-6">
-                <SectionHeading>Host</SectionHeading>
-                <HostInfo hostId={room.host} oxyServices={oxyServices} />
-              </View>
+                  {/* Host */}
+                  {toElement(
+                    VStack(
+                      Embed(<SectionHeading>Host</SectionHeading>),
+                      Embed(<HostInfo hostId={room.host} oxyServices={oxyServices} />),
+                    )
+                      .padding('horizontal', 'lg')
+                      .margin('top', '2xl'),
+                  )}
 
-              {/* Participants */}
-              <View className="px-4 mt-6">
-                <SectionHeading>Participants ({participants.length})</SectionHeading>
-                {participantItems.length > 0 ? (
-                  <AvatarGroup
-                    items={participantItems}
-                    size={32}
-                    max={MAX_PARTICIPANT_AVATARS}
-                    total={participants.length}
-                    ringColor={theme.colors.background}
-                    hoverCard
-                    renderItemAction={renderFollowAction}
-                    onPressItem={(item) => openRoomMember(router, item)}
-                  />
-                ) : (
-                  <Text className="text-sm text-muted-foreground">No participants yet</Text>
-                )}
-              </View>
+                  {/* Participants */}
+                  {toElement(
+                    VStack(
+                      Embed(<SectionHeading>Participants ({participants.length})</SectionHeading>),
+                      Embed(
+                        participantItems.length > 0 ? (
+                          <AvatarGroup
+                            items={participantItems}
+                            size={32}
+                            max={MAX_PARTICIPANT_AVATARS}
+                            total={participants.length}
+                            ringColor={theme.colors.background}
+                            hoverCard
+                            renderItemAction={renderFollowAction}
+                            onPressItem={(item) => openRoomMember(router, item)}
+                          />
+                        ) : (
+                          toElement(
+                            RawText('No participants yet')
+                              .font('14')
+                              .leading('20px')
+                              .foreground('muted'),
+                          )
+                        ),
+                      ),
+                    )
+                      .padding('horizontal', 'lg')
+                      .margin('top', '2xl'),
+                  )}
 
-              {/* Speakers */}
-              {speakerItems.length > 0 && (
-                <View className="px-4 mt-6">
-                  <SectionHeading>Speakers</SectionHeading>
-                  <AvatarGroup
-                    items={speakerItems}
-                    size={32}
-                    max={MAX_PARTICIPANT_AVATARS}
-                    total={speakers.length}
-                    ringColor={theme.colors.background}
-                    hoverCard
-                    renderItemAction={renderFollowAction}
-                    onPressItem={(item) => openRoomMember(router, item)}
-                  />
-                </View>
-              )}
+                  {/* Speakers */}
+                  {speakerItems.length > 0 &&
+                    toElement(
+                      VStack(
+                        Embed(<SectionHeading>Speakers</SectionHeading>),
+                        Embed(
+                          <AvatarGroup
+                            items={speakerItems}
+                            size={32}
+                            max={MAX_PARTICIPANT_AVATARS}
+                            total={speakers.length}
+                            ringColor={theme.colors.background}
+                            hoverCard
+                            renderItemAction={renderFollowAction}
+                            onPressItem={(item) => openRoomMember(router, item)}
+                          />,
+                        ),
+                      )
+                        .padding('horizontal', 'lg')
+                        .margin('top', '2xl'),
+                    )}
 
-              {/* Stats */}
-              {room.stats && (
-                <Card
-                  radius="radius-12"
-                  className="mx-4 mt-6 flex-row items-center p-4"
-                  appearance="outline"
-                >
-                  <View className="flex-1 items-center">
-                    <BloomText variant="title-1-semibold">
-                      {room.stats.peakListeners || 0}
-                    </BloomText>
-                    <BloomText
-                      variant="body-2-regular"
-                      style={{ marginTop: 4, color: theme.colors.textSecondary }}
+                  {/* Stats */}
+                  {room.stats && (
+                    <Card
+                      radius="radius-12"
+                      className="mx-4 mt-6 flex-row items-center p-4"
+                      appearance="outline"
                     >
-                      Peak listeners
-                    </BloomText>
-                  </View>
-                  <Divider vertical spacing={16} style={{ height: 40, alignSelf: 'center' }} />
-                  <View className="flex-1 items-center">
-                    <BloomText variant="title-1-semibold">{room.stats.totalJoined || 0}</BloomText>
-                    <BloomText
-                      variant="body-2-regular"
-                      style={{ marginTop: 4, color: theme.colors.textSecondary }}
-                    >
-                      Total joined
-                    </BloomText>
-                  </View>
-                </Card>
-              )}
-            </>
-          )}
-        </ScreenScrollView>
+                      {toElement(
+                        VStack(
+                          LText(room.stats.peakListeners || 0)
+                            .font('title-1')
+                            .weight('semibold'),
+                          LText('Peak listeners')
+                            .margin('top', 'xs')
+                            .foreground('muted')
+                            .font('body-2'),
+                        )
+                          .flex('1')
+                          .align('center'),
+                      )}
+                      <Divider vertical spacing={16} style={{ height: 40, alignSelf: 'center' }} />
+                      {toElement(
+                        VStack(
+                          LText(room.stats.totalJoined || 0)
+                            .font('title-1')
+                            .weight('semibold'),
+                          LText('Total joined')
+                            .margin('top', 'xs')
+                            .foreground('muted')
+                            .font('body-2'),
+                        )
+                          .flex('1')
+                          .align('center'),
+                      )}
+                    </Card>
+                  )}
+                </>
+              ),
+            ),
+          ),
+        )}
       </Screen>
     </>
   );

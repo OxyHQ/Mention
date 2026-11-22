@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-
 import { useLiveRoom } from '@/context/LiveRoomContext';
+
+import { VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Deep link redirect: when navigating to /live-rooms/live/[id],
@@ -20,5 +20,5 @@ export default function LiveRoomRedirect() {
     }
   }, [id, joinLiveRoom]);
 
-  return <View />;
+  return toElement(VStack());
 }

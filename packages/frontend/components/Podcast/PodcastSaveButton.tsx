@@ -5,6 +5,9 @@ import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { usePodcastSave } from '@/hooks/usePodcastSave';
 
+import { Icon, defineTokens, toElement } from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { white: 'white' } });
+
 /**
  * The podcast card's save button: subscribes the viewer to the show in their
  * Syra library. Its own component so the subscription query only mounts where
@@ -25,11 +28,9 @@ export const PodcastSaveButton = ({ podcastId }: { podcastId: string }) => {
       accessibilityLabel={label}
       className="size-[30px] rounded-full items-center justify-center bg-white/20 active:bg-white/30"
     >
-      {isSaved ? (
-        <RiBookmarkFill width={15} height={15} fill="white" />
-      ) : (
-        <RiBookmarkLine width={15} height={15} fill="white" />
-      )}
+      {isSaved
+        ? toElement(Icon(RiBookmarkFill).size('15').foreground(appColors.color.white))
+        : toElement(Icon(RiBookmarkLine).size('15').foreground(appColors.color.white))}
     </Pressable>
   );
 };

@@ -1,6 +1,5 @@
 import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { Screen } from '@oxy.so/bloom/screen';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -9,6 +8,7 @@ import { isPrivateMention, postAcceptsReplies } from '@/utils/postReplies';
 import { CompactReplyComposer } from '@/components/Post/CompactReplyComposer';
 import type { Href } from '@/lib/navigation/router';
 import type { ReplyDraft } from '@/components/Post/replyDraft';
+import { Header, toElement } from '@oxy.so/bloom-language';
 
 export interface VideoRepliesProps {
   postId: string;
@@ -37,7 +37,7 @@ export function VideoReplies({
       scroll="auto"
       testID="video-replies-screen"
       bottomBarKeyboardBehavior="follow"
-      header={<PageHeader title={t('videos.replies')} onBack={null} safeArea={false} />}
+      header={toElement(Header(t('videos.replies')).onBack(null).safeArea(false).inPage())}
       bottomBar={
         user && postAcceptsReplies(post) ? (
           <PageFooter scrim="auto" contentContainerStyle={{ paddingLeft: 8, paddingRight: 8 }}>
