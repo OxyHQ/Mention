@@ -15,12 +15,21 @@ import TestRenderer, { act } from 'react-test-renderer';
  * surface consults it — one place for feed rows, post details, quote cards and
  * boosted originals alike, since all four are this component.
  *
- * `PostHeader` stands in for Bloom's avatar so the assertion reads the exact
- * values `PostItem` hands down. Everything else mocked here is mocked for one
+ * The row's avatar and avatar cluster are stand-ins (below) so the assertions
+ * read the exact values `PostItem` draws. Everything else mocked here is mocked for one
  * reason only — it drags untransformed ESM into the module graph at import time
  * (the same reason `PostDetailStats.test.tsx` mocks its Bloom subpaths).
  */
 
+// The row's ⋯ menu reads the publisher's lanes from the services session, and
+// the vote style from the persisted thread preferences: neither is the
+// subject here, so the lanes are none and the storage is Jest's.
+jest.mock('@/hooks/usePublisherLanes', () => ({
+  usePublisherLanes: () => ({ lanes: [], isLoading: false }),
+}));
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
 jest.mock('@oxy.so/services/ui/client', () => ({
@@ -28,16 +37,17 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   upsertCachedUsers: jest.fn(),
 }));
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
-jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-jest.mock('@oxy.so/bloom/icons', () => ({
-  RiChat3Fill: () => null,
-  RiCornerDownRightLine: () => null,
-  RiLinkM: () => null,
-  RiMoreFill: () => null,
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ colors: {} }),
+}));
+jest.mock('@oxy.so/bloom/hooks', () => ({
+  ...jest.requireActual('@oxy.so/bloom/hooks'),
+  useImagePreload: () => undefined,
 }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({
   SubtleHover: ({ children }: { children?: React.ReactNode }) => children ?? null,
@@ -48,6 +58,8 @@ jest.mock('@/components/ProfileHoverCard', () => ({
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
   usePathname: () => '/',
+  // The row links its context lines; a link draws the element it wraps.
+  Link: ({ children }: { children?: React.ReactNode }) => children,
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -95,16 +107,17 @@ jest.mock('@/lib/queryClient', () => ({
  * problem as a new picture and is fixed by the same signal, so a test that
  * watched only the avatar would let half of it rot.
  */
-jest.mock('@/components/Post/PostHeader', () => {
+// The row draws its author's avatar with `LiveAvatar` (the account it is handed
+// carries the name, handle, kind and character), and a collaborative byline as
+// one `AccountAvatarGroup` cluster. These stand-ins write what each is handed,
+// so the assertions read the exact values the row draws.
+jest.mock('@/components/ui/LiveAvatar', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
-    __esModule: true,
-    default: (props: {
-      avatarSource?: string | null;
-      user?: { displayName?: string; handle?: string; kind?: string; character?: unknown };
-      boostedBy?: { avatar?: string | null };
-      authors?: { id: string; avatar?: string | null }[];
+    LiveAvatar: (props: {
+      source?: string | null;
+      account?: { displayName?: string; handle?: string; kind?: string; character?: unknown };
     }) =>
       ReactActual.createElement(
         ReactActual.Fragment,
@@ -112,22 +125,36 @@ jest.mock('@/components/Post/PostHeader', () => {
         ReactActual.createElement(
           Text,
           { testID: 'author-identity' },
-          `${props.avatarSource ?? ''}|${props.user?.displayName ?? ''}|${props.user?.handle ?? ''}`,
+          `${props.source ?? ''}|${props.account?.displayName ?? ''}|${props.account?.handle ?? ''}`,
         ),
         ReactActual.createElement(
           Text,
           { testID: 'author-character' },
-          JSON.stringify({ kind: props.user?.kind, character: props.user?.character }),
+          JSON.stringify({ kind: props.account?.kind, character: props.account?.character }),
         ),
+      ),
+  };
+});
+jest.mock('@/components/ui/AccountAvatarGroup', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  const ReactActual = jest.requireActual<typeof import('react')>('react');
+  return {
+    // The cluster's lead is the author: its avatar, name and handle.
+    AccountAvatarGroup: (props: {
+      items: { uri?: string | null; displayName?: string; username?: string }[];
+    }) =>
+      ReactActual.createElement(
+        ReactActual.Fragment,
+        null,
         ReactActual.createElement(
           Text,
-          { testID: 'booster-avatar' },
-          props.boostedBy?.avatar ?? '',
+          { testID: 'author-identity' },
+          `${props.items[0]?.uri ?? ''}|${props.items[0]?.displayName ?? ''}|${props.items[0]?.username ?? ''}`,
         ),
         ReactActual.createElement(
           Text,
           { testID: 'byline-avatars' },
-          (props.authors ?? []).map((a) => a.avatar ?? '').join(','),
+          props.items.map((item) => item.uri ?? '').join(','),
         ),
       ),
   };
@@ -137,6 +164,8 @@ import PostItem from '../PostItem';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 const CHANNEL_ID = 'channel-1';
 
@@ -161,7 +190,11 @@ let mounted: TestRenderer.ReactTestRenderer | null = null;
 
 function renderRow() {
   act(() => {
-    mounted = TestRenderer.create(<PostItem post={stalePost() as never} />);
+    mounted = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={stalePost() as never} />}
+      </BloomThemeProvider>,
+    );
   });
   if (!mounted) throw new Error('the row did not render');
   return mounted;
@@ -173,6 +206,18 @@ function identityOf(renderer: TestRenderer.ReactTestRenderer): string {
 
 function probe(renderer: TestRenderer.ReactTestRenderer, testID: string): string {
   return String(renderer.root.findByProps({ testID }).props.children);
+}
+
+/** Every string the row draws, flattened: what a reader sees. */
+function rowText(renderer: TestRenderer.ReactTestRenderer): string {
+  const out: string[] = [];
+  const walk = (node: TestRenderer.ReactTestRendererJSON | string): void => {
+    if (typeof node === 'string') out.push(node);
+    else node.children?.forEach(walk);
+  };
+  const tree = renderer.toJSON();
+  (Array.isArray(tree) ? tree : tree ? [tree] : []).forEach(walk);
+  return out.join('');
 }
 
 afterEach(() => {
@@ -277,44 +322,49 @@ describe('every actor on the row follows its identity', () => {
   function renderCollabRepost() {
     act(() => {
       mounted = TestRenderer.create(
-        <PostItem
-          post={
-            {
-              ...stalePost(),
-              authors: [
+        <BloomThemeProvider fonts={false}>
+          {
+            <PostItem
+              post={
                 {
-                  id: CHANNEL_ID,
-                  username: 'daily',
-                  name: { displayName: 'Daily' },
-                  avatar: 'avatar-before',
-                },
+                  ...stalePost(),
+                  authors: [
+                    {
+                      id: CHANNEL_ID,
+                      username: 'daily',
+                      name: { displayName: 'Daily' },
+                      avatar: 'avatar-before',
+                    },
+                    {
+                      id: COLLABORATOR,
+                      username: 'co',
+                      name: { displayName: 'Co' },
+                      avatar: 'collab-before',
+                    },
+                  ],
+                } as never
+              }
+              repostedBy={
                 {
-                  id: COLLABORATOR,
-                  username: 'co',
-                  name: { displayName: 'Co' },
-                  avatar: 'collab-before',
-                },
-              ],
-            } as never
+                  id: BOOSTER,
+                  username: 'boo',
+                  name: { displayName: 'Boo' },
+                  avatar: 'booster-before',
+                } as never
+              }
+            />
           }
-          repostedBy={
-            {
-              id: BOOSTER,
-              username: 'boo',
-              name: { displayName: 'Boo' },
-              avatar: 'booster-before',
-            } as never
-          }
-        />,
+        </BloomThemeProvider>,
       );
     });
     if (!mounted) throw new Error('the row did not render');
     return mounted;
   }
 
+  // The reposter is drawn by name, on the row's "Reposted by" line.
   it('starts from what the server hydrated', () => {
     const renderer = renderCollabRepost();
-    expect(probe(renderer, 'booster-avatar')).toBe('booster-before');
+    expect(rowText(renderer)).toContain('Reposted by Boo');
     expect(probe(renderer, 'byline-avatars')).toBe('avatar-before,collab-before');
   });
 
@@ -322,10 +372,10 @@ describe('every actor on the row follows its identity', () => {
     const renderer = renderCollabRepost();
 
     act(() => {
-      noteIdentityChanged({ id: BOOSTER, avatar: 'booster-after' });
+      noteIdentityChanged({ id: BOOSTER, name: { displayName: 'Boo Radley' } });
     });
 
-    expect(probe(renderer, 'booster-avatar')).toBe('booster-after');
+    expect(rowText(renderer)).toContain('Reposted by Boo Radley');
     // and nobody else moved
     expect(probe(renderer, 'byline-avatars')).toBe('avatar-before,collab-before');
   });
@@ -338,7 +388,8 @@ describe('every actor on the row follows its identity', () => {
     });
 
     expect(probe(renderer, 'byline-avatars')).toBe('avatar-before,collab-after');
-    expect(probe(renderer, 'booster-avatar')).toBe('booster-before');
+    expect(rowText(renderer)).toContain('Reposted by Boo');
+    expect(rowText(renderer)).not.toContain('Boo Radley');
   });
 
   it('draws one person the same way wherever they appear in the row', () => {
@@ -365,13 +416,17 @@ it('repaints a changed character on the same post and author without engagement 
   const before = stalePost();
   const post = { ...before, user: { ...before.user, kind: 'bot', character } };
   act(() => {
-    mounted = TestRenderer.create(<PostItem post={post as never} />);
+    mounted = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{<PostItem post={post as never} />}</BloomThemeProvider>,
+    );
   });
   expect(probe(mounted!, 'author-character')).toBe(JSON.stringify({ kind: 'bot', character }));
   const changed = { ...character, color: 'lime' };
   act(() => {
     mounted!.update(
-      <PostItem post={{ ...post, user: { ...post.user, character: changed } } as never} />,
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={{ ...post, user: { ...post.user, character: changed } } as never} />}
+      </BloomThemeProvider>,
     );
   });
   expect(probe(mounted!, 'author-character')).toBe(

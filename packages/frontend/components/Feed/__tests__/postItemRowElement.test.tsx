@@ -7,6 +7,8 @@ import type { HydratedAuthor, HydratedPost } from '@mention/shared-types';
 import PostItem from '../PostItem';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { enterThreadHover, leaveThreadHover, useThreadHoverStore } from '@/stores/threadHoverStore';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The row's host element type must NOT depend on the route.
@@ -28,6 +30,23 @@ import { enterThreadHover, leaveThreadHover, useThreadHoverStore } from '@/store
  *     exists to forbid.
  */
 
+// The row's ⋯ menu reads the publisher's lanes from the services session, and
+// the vote style from the persisted thread preferences: neither is the
+// subject here, so the lanes are none and the storage is Jest's.
+jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
+jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
+// The services session is not the subject: a signed-out viewer.
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useAuth: () => ({ user: null, isAuthenticated: false, oxyServices: {} }),
+  upsertCachedUser: jest.fn(),
+  upsertCachedUsers: jest.fn(),
+}));
+jest.mock('@/hooks/usePublisherLanes', () => ({
+  usePublisherLanes: () => ({ lanes: [], isLoading: false }),
+}));
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
 jest.mock('../../Post/PostHeader', () => ({
   __esModule: true,
   default: () => null,
@@ -36,21 +55,24 @@ jest.mock('../../Post/PostHeader', () => ({
 // No `usePathname`: the point of the change is that this component never asks.
 // Exporting it here would let a reintroduced call pass unnoticed.
 const mockRouterPush = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockRouterPush }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+  // The row links its context lines; a link draws the element it wraps.
+  Link: ({ children }: { children?: React.ReactNode }) => children,
+}));
 
 jest.mock('../../../stores/postsStore', () => ({ usePostSelector: () => undefined }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
-jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
-jest.mock('@oxy.so/bloom/icons', () => ({
-  RiCornerDownRightLine: () => null,
-  RiLinkM: () => null,
+jest.mock('@oxy.so/bloom/hooks', () => ({
+  ...jest.requireActual('@oxy.so/bloom/hooks'),
+  useImagePreload: () => undefined,
 }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 
-jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
@@ -96,6 +118,7 @@ jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
 jest.mock('@/utils/feedTelemetry', () => ({ reportFeedInteraction: () => undefined }));
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
@@ -138,7 +161,11 @@ const post: HydratedPost = {
 function renderRowRoot(isPostDetail: boolean) {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<PostItem post={post} isPostDetail={isPostDetail} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={post} isPostDetail={isPostDetail} />}
+      </BloomThemeProvider>,
+    );
   });
   if (!renderer) throw new Error('render produced no tree');
   const label = 'Nate Isern: hola';
@@ -168,7 +195,8 @@ describe('PostItem row element', () => {
     const detailRow = renderRowRoot(true);
 
     expect(typeof feedRow.props.onPress).toBe('function');
-    expect(feedRow.props.focusable).toBe(true);
+    // In the tab order: a pressable host is focusable unless it says otherwise.
+    expect(feedRow.props.focusable).not.toBe(false);
 
     expect(detailRow.props.onPress).toBeUndefined();
     expect(detailRow.props.focusable).toBe(false);
@@ -190,7 +218,9 @@ describe('thread hover isolation', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <PostItem post={post} isThread isPostDetail sliceKey="detail" />,
+        <BloomThemeProvider fonts={false}>
+          {<PostItem post={post} isThread isPostDetail sliceKey="detail" />}
+        </BloomThemeProvider>,
       );
     });
     const row = renderer.root.findAll(
@@ -218,7 +248,7 @@ describe('thread hover isolation', () => {
       firstVisible = true,
       thirdVisible = true,
     ) => (
-      <>
+      <BloomThemeProvider fonts={false}>
         {firstVisible && (
           <PostItem
             key="first"
@@ -233,7 +263,7 @@ describe('thread hover isolation', () => {
           <PostItem key="third" post={third} isThread sliceKey="b" threadOpenId="thread-b" />
         )}
         <PostItem key="standalone" post={standalone} />
-      </>
+      </BloomThemeProvider>
     );
     let renderer!: TestRenderer.ReactTestRenderer;
     try {
