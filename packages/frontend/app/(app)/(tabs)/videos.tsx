@@ -17,7 +17,7 @@ import {
 import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
 import Animated from 'react-native-reanimated';
-import { BloomColorScope, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import {
   Screen,
   ScreenPager,
@@ -303,7 +303,6 @@ interface VideoItemProps {
   // route is pushed on top, freezeOnBlur pauses JS but the native decoder may
   // keep playing audio/video; gating playback on this prevents that bleed.
   screenFocused: boolean;
-  theme: ReturnType<typeof useTheme>;
   onLike: (postId: string, isLiked: boolean) => boolean | undefined;
   onComment: (postId: string) => void;
   onQuote: (postId: string) => void;
@@ -355,26 +354,30 @@ const ReelPoster = memo<{
   posterUrl?: string;
   posterFailed: boolean;
   onPosterError: () => void;
-  theme: ReturnType<typeof useTheme>;
-}>(({ posterUrl, posterFailed, onPosterError, theme }) => {
-  const colors = useColorTokens();
-  return (
-    <View style={[styles.posterLayer, { backgroundColor: colors.muted }]} pointerEvents="none">
-      {posterUrl && !posterFailed ? (
-        <Image
-          source={{ uri: posterUrl }}
-          style={styles.poster}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          priority="high"
-          onError={onPosterError}
-        />
-      ) : (
-        <RiVideoLine size="3xl" fill={theme.colors.textSecondary} />
-      )}
-    </View>
-  );
-});
+}>(({ posterUrl, posterFailed, onPosterError }) =>
+  toElement(
+    VStack(
+      posterUrl && !posterFailed
+        ? Embed(
+            <Image
+              source={{ uri: posterUrl }}
+              style={styles.poster}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              priority="high"
+              onError={onPosterError}
+            />,
+          )
+        : Icon(RiVideoLine).size('3xl').foreground('muted'),
+    )
+      .position({ top: 'none', bottom: 'none', left: 'none', right: 'none' })
+      .zIndex('raised')
+      .justify('center')
+      .align('center')
+      .background('mutedFill')
+      .allowsHitTesting(false),
+  ),
+);
 
 ReelPoster.displayName = 'ReelPoster';
 
@@ -383,7 +386,6 @@ interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'res
   // scrubber is the overlay's SIBLING, so it does not inherit the overlay's
   // own bottom padding and has to lift itself clear of the bar.
   bottomBarHeight: number;
-  theme: ReturnType<typeof useTheme>;
   /**
    * The poster's failure flag and its reporter, OWNED BY THE ROW.
    *
@@ -458,7 +460,6 @@ const ReelSurface: React.FC<
   onMutedChange,
   onError,
   t,
-  theme,
   isLiked,
   onLikePost,
   ownsSession,
@@ -606,7 +607,6 @@ const ReelSurface: React.FC<
           posterUrl={posterUrl}
           posterFailed={posterFailed}
           onPosterError={onPosterError}
-          theme={theme}
         />
       )}
       {/* Full-surface tap target → toggle play/pause (single tap, deferred)
@@ -742,7 +742,6 @@ const VideoItem = memo<VideoItemProps>(
     isNear,
     onBufferAhead,
     screenFocused,
-    theme,
     onLike,
     onComment,
     onQuote,
@@ -863,7 +862,6 @@ const VideoItem = memo<VideoItemProps>(
             onMutedChange={onMutedChange}
             onError={handleError}
             t={t}
-            theme={theme}
             isLiked={item.viewerState.isLiked}
             onLikePost={handleDoubleTapLike}
             ownsSession={ownsSession}
@@ -882,7 +880,6 @@ const VideoItem = memo<VideoItemProps>(
               posterUrl={item.posterUrl}
               posterFailed={posterFailed}
               onPosterError={handlePosterError}
-              theme={theme}
             />
             {videoError && (
               <View style={styles.posterLayer} pointerEvents="none">
@@ -1778,7 +1775,6 @@ export default function VideosScreen() {
           index === currentVisibleIndex && activeRadius === 0 ? handleBufferAhead : undefined
         }
         screenFocused={isFocused}
-        theme={theme}
         onLike={handleLike}
         onComment={handleComment}
         onQuote={handleQuote}
@@ -1805,7 +1801,6 @@ export default function VideosScreen() {
       handleBufferAhead,
       isFocused,
       prewarm,
-      theme,
       handleLike,
       handleComment,
       handleQuote,
@@ -1913,7 +1908,6 @@ export default function VideosScreen() {
                             : undefined
                         }
                         screenFocused={isFocused}
-                        theme={theme}
                         onLike={handleLike}
                         onComment={handleComment}
                         onQuote={handleQuote}
