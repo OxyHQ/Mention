@@ -10,13 +10,22 @@ import {
   Platform,
   type ScrollViewInstance,
 } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOJI_CATEGORIES, MAX_RECENT_EMOJIS } from '@/utils/emojiData';
 import { cn } from '@/lib/utils';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const RECENT_EMOJIS_KEY = '@mention/recent_emojis';
 const NUM_COLUMNS = 8;
@@ -98,21 +107,19 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
 
   return (
     <View className="flex-1 min-h-[350px] bg-background">
-      <PageHeader
-        title={t('compose.emoji.title', { defaultValue: 'Emojis' })}
-        safeArea={false}
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          />
-        }
-      />
-
+      {toElement(
+        Header(t('compose.emoji.title', { defaultValue: 'Emojis' }))
+          .safeArea(false)
+          .toolbar(
+            LButton(Icon(RiCloseLine))
+              .shape('circle')
+              .style('subtle')
+              .tint('neutral')
+              .onPress(onClose)
+              .label(t('common.close', { defaultValue: 'Close' })),
+          )
+          .inPage(),
+      )}
       {/* Category tabs */}
       <ScrollView
         horizontal
@@ -129,11 +136,10 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
             )}
             onPress={() => handleCategoryPress(cat.id)}
           >
-            <Text className="text-xl">{cat.icon}</Text>
+            {toElement(RawText(cat.icon).font('xl').leading('28px'))}
           </TouchableOpacity>
         ))}
       </ScrollView>
-
       {/* Emoji grid */}
       <ScrollView
         ref={scrollViewRef}
@@ -147,30 +153,44 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
               key={cat.id}
               onLayout={(e) => handleSectionLayout(cat.id, e.nativeEvent.layout.y)}
             >
-              <View className="px-4 pt-3 pb-1.5">
-                <Text className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {cat.name}
-                </Text>
-              </View>
-              {rows.map((row, rowIndex) => (
-                <View key={rowIndex} className="flex-row px-2">
-                  {row.map((emoji, colIndex) => (
-                    <TouchableOpacity
-                      key={`${cat.id}-${rowIndex}-${colIndex}`}
-                      style={styles.emojiCell}
-                      onPress={() => handleEmojiPress(emoji)}
-                      activeOpacity={0.6}
-                    >
-                      <Text style={styles.emojiText}>{emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {/* Fill remaining cells to maintain grid alignment */}
-                  {row.length < NUM_COLUMNS &&
-                    Array.from({ length: NUM_COLUMNS - row.length }).map((_, i) => (
-                      <View key={`pad-${i}`} style={styles.emojiCell} />
-                    ))}
-                </View>
-              ))}
+              {toElement(
+                VStack(
+                  RawText(cat.name)
+                    .font('sm')
+                    .weight('semibold')
+                    .textCase('uppercase')
+                    .tracking('wide')
+                    .foreground('muted'),
+                )
+                  .padding('horizontal', 'lg')
+                  .padding('top', 'md')
+                  .padding('bottom', '6'),
+              )}
+              {rows.map((row, rowIndex) =>
+                toElement(
+                  HStack(
+                    Embed(
+                      row.map((emoji, colIndex) => (
+                        <TouchableOpacity
+                          key={`${cat.id}-${rowIndex}-${colIndex}`}
+                          style={styles.emojiCell}
+                          onPress={() => handleEmojiPress(emoji)}
+                          activeOpacity={0.6}
+                        >
+                          <Text style={styles.emojiText}>{emoji}</Text>
+                        </TouchableOpacity>
+                      )),
+                    ),
+                    /* Fill remaining cells to maintain grid alignment */ Embed(
+                      row.length < NUM_COLUMNS &&
+                        Array.from({ length: NUM_COLUMNS - row.length }).map((_, i) => (
+                          <View key={`pad-${i}`} style={styles.emojiCell} />
+                        )),
+                    ),
+                  ).padding('horizontal', 'sm'),
+                  rowIndex,
+                ),
+              )}
             </View>
           );
         })}

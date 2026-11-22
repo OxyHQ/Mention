@@ -1,10 +1,9 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Item } from '@oxy.so/bloom/item';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
@@ -12,6 +11,7 @@ import { jobsService } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { JobAttachmentData } from '@/hooks/useJobAttachmentManager';
+import { Embed, RawText, Row, VStack, toElement } from '@oxy.so/bloom-language';
 
 const STATUS_TONE: Record<
   MentionJobStatus,
@@ -82,52 +82,73 @@ const JobPickerSheet = memo(function JobPickerSheet({
     [onSelect, onClose, employerName],
   );
 
-  return (
-    <View className="bg-background px-4 pt-3 pb-2">
-      <Text className="text-foreground text-lg font-bold mb-3">
-        {t('compose.job.title', { defaultValue: 'Attach a job' })}
-      </Text>
-
-      <View className="min-h-[120px]">
-        {isLoading ? (
-          <ListSkeleton />
-        ) : isError ? (
-          <Text className="text-muted-foreground text-[15px] text-center py-10">
-            {t('compose.job.loadError', { defaultValue: 'Could not load your jobs' })}
-          </Text>
-        ) : jobs.length === 0 ? (
-          <Text className="text-muted-foreground text-[15px] text-center py-10 px-4">
-            {t('compose.job.empty', {
-              defaultValue:
-                '{{employer}} has no job listings yet. Create one from your Jobs dashboard first.',
-              employer: employerName,
-            })}
-          </Text>
-        ) : (
-          <FlatList
-            data={jobs}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <Item
-                onPress={() => handleSelect(item)}
-                title={item.title}
-                trailing={
-                  <Badge
-                    content={item.status}
-                    color={STATUS_TONE[item.status]}
-                    variant="subtle"
-                    size="sm"
-                  />
-                }
-              />
-            )}
-            className="max-h-[340px]"
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          />
-        )}
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      RawText(t('compose.job.title', { defaultValue: 'Attach a job' }))
+        .foreground('foreground')
+        .font('18')
+        .leading('28px')
+        .weight('bold')
+        .margin('bottom', 'md'),
+      VStack(
+        Embed(
+          isLoading ? (
+            <ListSkeleton />
+          ) : isError ? (
+            toElement(
+              RawText(t('compose.job.loadError', { defaultValue: 'Could not load your jobs' }))
+                .padding('vertical', '4xl')
+                .foreground('muted')
+                .font('md')
+                .textAlign('center'),
+            )
+          ) : jobs.length === 0 ? (
+            toElement(
+              RawText(
+                t('compose.job.empty', {
+                  defaultValue:
+                    '{{employer}} has no job listings yet. Create one from your Jobs dashboard first.',
+                  employer: employerName,
+                }),
+              )
+                .padding('vertical', '4xl')
+                .padding('horizontal', 'lg')
+                .foreground('muted')
+                .font('md')
+                .textAlign('center'),
+            )
+          ) : (
+            <FlatList
+              data={jobs}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) =>
+                toElement(
+                  Row(item.title)
+                    .onPress(() => handleSelect(item))
+                    .trailing(
+                      Embed(
+                        <Badge
+                          content={item.status}
+                          color={STATUS_TONE[item.status]}
+                          variant="subtle"
+                          size="sm"
+                        />,
+                      ),
+                    ),
+                )
+              }
+              className="max-h-[340px]"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            />
+          ),
+        ),
+      ).frame({ minHeight: '120' }),
+    )
+      .padding('horizontal', 'lg')
+      .padding('top', 'md')
+      .padding('bottom', 'sm')
+      .background('background'),
   );
 });
 

@@ -1,7 +1,7 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useMemo } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Card } from '@oxy.so/bloom/card';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,8 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface QuoteCardProps {
   /** The fetched quoted post; null while loading or if not found. */
@@ -59,38 +61,45 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
 
   return (
     <Card appearance="subtle" border="thin" radius="radius-16" className="relative px-4 py-3">
-      <View className="flex-row items-start">
-        {/* `avatar` is a bare Oxy file id OR an absolute URL, for local and
-            federated authors alike — Bloom's Avatar accepts both shapes
-            (and `null`) directly and ignores `variant` for an absolute URL,
-            so nothing needs branching or coercing here. */}
-        <AccountAvatar
-          account={post.user}
-          source={post?.user?.avatar}
-          variant={MEDIA_VARIANT_AVATAR}
-          size={28}
-          style={{ marginRight: 10 }}
-        />
-        <View className="flex-1 pr-6">
-          <View className="flex-row items-center">
-            {userName ? (
-              <Text className="text-foreground text-[14px] font-semibold" numberOfLines={1}>
-                {userName}
-              </Text>
-            ) : null}
-            {userHandle ? (
-              <Text className="text-muted-foreground ml-1 text-[13px]" numberOfLines={1}>
-                @{userHandle}
-              </Text>
-            ) : null}
-          </View>
-          {previewText ? (
-            <Text className="text-foreground mt-1 text-[14px]" numberOfLines={3}>
-              {previewText}
-            </Text>
-          ) : null}
-        </View>
-      </View>
+      {toElement(
+        HStack(
+          /* `avatar` is a bare Oxy file id OR an absolute URL, for local and
+                  federated authors alike — Bloom's Avatar accepts both shapes
+                  (and `null`) directly and ignores `variant` for an absolute URL,
+                  so nothing needs branching or coercing here. */ Embed(
+            <AccountAvatar
+              account={post.user}
+              source={post?.user?.avatar}
+              variant={MEDIA_VARIANT_AVATAR}
+              size={28}
+              style={{ marginRight: 10 }}
+            />,
+          ),
+          VStack(
+            HStack(
+              userName
+                ? RawText(userName).foreground('foreground').font('14').weight('semibold').lines(1)
+                : null,
+              userHandle
+                ? RawText('@', userHandle)
+                    .foreground('muted')
+                    .margin('left', 'xs')
+                    .font('sm')
+                    .lines(1)
+                : null,
+            ).align('center'),
+            previewText
+              ? RawText(previewText)
+                  .foreground('foreground')
+                  .margin('top', 'xs')
+                  .font('14')
+                  .lines(3)
+              : null,
+          )
+            .padding('right', '2xl')
+            .flex('1'),
+        ).align('start'),
+      )}
       <TouchableOpacity
         onPress={onDismiss}
         accessibilityRole="button"
@@ -98,7 +107,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
         className="bg-background absolute right-2 top-2 rounded-full p-1.5"
         hitSlop={tokens.hitSlop.sm}
       >
-        <RiCloseLine width={14} height={14} fill={colors.text} />
+        {toElement(Icon(RiCloseLine).size('14').foreground('foreground'))}
       </TouchableOpacity>
     </Card>
   );

@@ -1,20 +1,28 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Item } from '@oxy.so/bloom/item';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { PostUser } from '@mention/shared-types';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { EmptyState } from '@/components/common/EmptyState';
 import { useJoinedCommunities } from '@/hooks/useCommunities';
 import { displayNameOrHandle } from '@/utils/displayName';
+
+import {
+  Avatar as LAvatar,
+  Button as LButton,
+  Embed,
+  Header,
+  Icon,
+  RawText,
+  Row,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface CommunityPickerSheetProps {
   /** The community the post is written in, or `null` for none. */
@@ -55,79 +63,76 @@ const CommunityPickerSheet = memo(function CommunityPickerSheet({
     router.push('/communities');
   }, [onClose, router]);
 
-  const current = (
-    <Text className="text-primary text-[13px] font-semibold">
-      {t('compose.community.current', { defaultValue: 'Current' })}
-    </Text>
+  const current = toElement(
+    RawText(t('compose.community.current', { defaultValue: 'Current' }))
+      .foreground('primary')
+      .font('sm')
+      .weight('semibold'),
   );
 
   const renderItem = useCallback(
     ({ item }: { item: PostUser }) => {
       const handle = getNormalizedUserHandle(item) ?? '';
-      return (
-        <Item
-          onPress={() => handleSelect(item)}
-          leading={<Avatar source={item.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />}
-          title={displayNameOrHandle(item.name?.displayName, handle ? `!${handle}` : '')}
-          subtitle={handle ? `!${handle}` : undefined}
-          trailing={item.id === selectedCommunityId ? current : undefined}
-        />
+      return toElement(
+        Row(displayNameOrHandle(item.name?.displayName, handle ? `!${handle}` : ''))
+          .onPress(() => handleSelect(item))
+          .leadingView(LAvatar(item.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))
+          .subtitle(handle ? `!${handle}` : undefined)
+          .trailing(Embed(item.id === selectedCommunityId ? current : undefined)),
       );
     },
     [current, handleSelect, selectedCommunityId],
   );
 
-  return (
-    <View className="flex-1 pb-6 bg-background">
-      <PageHeader
-        title={t('compose.community.title', { defaultValue: 'Post in a community' })}
-        titleAlign="center"
-        safeArea={false}
-        leading={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+  return toElement(
+    VStack(
+      Header(t('compose.community.title', { defaultValue: 'Post in a community' }))
+        .titleAlign('center')
+        .safeArea(false)
+        .toolbarLeading(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      Row(t('compose.community.none', { defaultValue: 'No community' }))
+        .onPress(() => handleSelect(null))
+        .subtitle(
+          t('compose.community.noneSubtitle', {
+            defaultValue: 'The post appears on your profile, as always',
+          }),
+        )
+        .trailing(Embed(selectedCommunityId === null ? current : undefined)),
+      Embed(
+        isLoading ? (
+          <ListSkeleton />
+        ) : (
+          <FlatList
+            data={communities}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <EmptyState
+                icon={RiGroupLine}
+                subtitle={t('compose.community.empty', {
+                  defaultValue: 'Join a community to post in it.',
+                })}
+              />
+            }
           />
-        }
-      />
-
-      <Item
-        onPress={() => handleSelect(null)}
-        title={t('compose.community.none', { defaultValue: 'No community' })}
-        subtitle={t('compose.community.noneSubtitle', {
-          defaultValue: 'The post appears on your profile, as always',
-        })}
-        trailing={selectedCommunityId === null ? current : undefined}
-      />
-
-      {isLoading ? (
-        <ListSkeleton />
-      ) : (
-        <FlatList
-          data={communities}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            <EmptyState
-              icon={RiGroupLine}
-              subtitle={t('compose.community.empty', {
-                defaultValue: 'Join a community to post in it.',
-              })}
-            />
-          }
-        />
-      )}
-
-      <Item
-        onPress={handleManage}
-        title={t('compose.community.manage', { defaultValue: 'Create or manage communities' })}
-      />
-    </View>
+        ),
+      ),
+      Row(t('compose.community.manage', { defaultValue: 'Create or manage communities' })).onPress(
+        handleManage,
+      ),
+    )
+      .padding('bottom', '2xl')
+      .background('background')
+      .flex('1'),
   );
 });
 

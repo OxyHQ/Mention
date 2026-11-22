@@ -1,6 +1,6 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, type ReactNode, type Ref } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -18,6 +18,8 @@ import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/u
 import type { ComposeVariantItem } from '@/utils/composeVariants';
 import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD } from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
+
+import { Embed, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface VariantEditorProps {
   /** `MAIN_ITEM_ID` for the main post, or the thread item's id. */
@@ -130,164 +132,211 @@ const VariantEditor = memo(function VariantEditor({
           verified={userVerified}
           style={styles.avatar}
         />
-        <View style={styles.column}>
-          <MentionTextInput
-            ref={textInputRef}
-            className="text-foreground"
-            style={styles.textInput}
-            placeholder={t('compose.languages.variantPlaceholder', {
-              defaultValue: 'Write this post in {{language}}',
-              language: language.nativeName,
-            })}
-            value={item.text}
-            mentions={mentions}
-            onValueChange={handleMentionValueChange}
-            onFocus={handleFocus}
-            multiline
-          />
-
-          {primaryText.trim().length > 0 ? (
-            <View style={[styles.reference, { borderLeftColor: theme.colors.border }]}>
-              <Text className="text-muted-foreground text-[13px]" numberOfLines={3}>
-                {primaryText}
-              </Text>
-            </View>
-          ) : null}
-
-          <TouchableOpacity
-            onPress={handleTranslate}
-            disabled={!canTranslate}
-            activeOpacity={0.75}
-            className="flex-row items-center gap-1.5 self-start px-3 py-1.5 rounded-full border mt-2"
-            style={{ borderColor: theme.colors.border, opacity: canTranslate ? 1 : 0.5 }}
-          >
-            {isTranslating ? (
-              <Loading className="text-primary" variant="inline" size="sm" style={loadingStyle} />
-            ) : null}
-            <Text className="text-[13px] font-semibold" style={{ color: theme.colors.primary }}>
-              {t('compose.languages.translate', { defaultValue: 'Translate with AI' })}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {toolbar}
-
-      {sharedMedia.length > 0 ? (
-        <View style={styles.mediaSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.mediaScroll}
-          >
-            {(ownMedia ?? sharedMedia).map((media) => (
-              <View key={media.id} className="border-border bg-muted" style={styles.mediaCard}>
-                <ComposeMediaPreview
-                  type={media.type}
-                  uri={getFileDownloadUrl(media.id)}
-                  imageStyle={styles.mediaImage}
-                />
-                {media.type === 'image' ? (
-                  <ComposeAltButton
-                    hasAlt={
-                      ownMedia
-                        ? Boolean(media.alt?.trim())
-                        : item.media.mode === 'inherit' && Boolean(item.media.alt[media.id]?.trim())
-                    }
-                    onPress={() =>
-                      ownMedia ? onOwnAltPress(itemId, media) : onSharedAltPress(itemId, media)
-                    }
-                  />
-                ) : null}
-                {ownMedia ? (
-                  <TouchableOpacity
-                    onPress={() => onRemoveOwnMedia(itemId, media.id)}
-                    className="bg-card"
-                    style={styles.mediaRemove}
-                    hitSlop={tokens.hitSlop.sm}
-                  >
-                    <RiCloseLine width={16} height={16} fill={theme.colors.text} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ))}
-            {ownMedia ? (
-              <TouchableOpacity
-                onPress={handlePickOwnMedia}
-                activeOpacity={0.75}
-                className="items-center justify-center border border-dashed border-border rounded-[15px]"
-                style={styles.mediaAddCard}
-              >
-                <RiAddLine width={20} height={20} fill={theme.colors.textSecondary} />
-                <Text className="text-[13px] mt-1" style={{ color: theme.colors.textSecondary }}>
-                  {t('compose.languages.addImage', { defaultValue: 'Add image' })}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </ScrollView>
-
-          <TouchableOpacity
-            onPress={ownMedia ? handleUseSharedMedia : handlePickOwnMedia}
-            activeOpacity={0.75}
-            style={styles.mediaModeButton}
-          >
-            <Text className="text-[13px] font-semibold" style={{ color: theme.colors.primary }}>
-              {ownMedia
-                ? t('compose.languages.useSharedMedia', { defaultValue: 'Use the original images' })
-                : t('compose.languages.useOwnMedia', {
-                    defaultValue: 'Use different images for {{language}}',
-                    language: language.nativeName,
-                  })}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {hasArticle ? (
-        <View style={styles.articleSection}>
-          {item.article ? (
-            <>
-              <TouchableOpacity
-                className="border-border bg-muted"
-                style={styles.articleCard}
-                activeOpacity={0.85}
-                onPress={handleArticlePress}
-              >
-                <PostArticlePreview
-                  title={item.article.title}
-                  body={item.article.body}
-                  onPress={handleArticlePress}
-                  style={styles.articlePreview}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleArticleReset}
-                activeOpacity={0.75}
-                style={styles.mediaModeButton}
-              >
-                <Text className="text-[13px] font-semibold" style={{ color: theme.colors.primary }}>
-                  {t('compose.languages.useSharedArticle', {
-                    defaultValue: 'Use the original article',
-                  })}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity
-              onPress={handleArticlePress}
-              activeOpacity={0.75}
-              style={styles.mediaModeButton}
-            >
-              <Text className="text-[13px] font-semibold" style={{ color: theme.colors.primary }}>
-                {t('compose.languages.localizeArticle', {
-                  defaultValue: 'Write the article in {{language}}',
+        {toElement(
+          VStack(
+            Embed(
+              <MentionTextInput
+                ref={textInputRef}
+                className="text-foreground"
+                style={styles.textInput}
+                placeholder={t('compose.languages.variantPlaceholder', {
+                  defaultValue: 'Write this post in {{language}}',
                   language: language.nativeName,
                 })}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : null}
+                value={item.text}
+                mentions={mentions}
+                onValueChange={handleMentionValueChange}
+                onFocus={handleFocus}
+                multiline
+              />,
+            ),
+            Embed(
+              primaryText.trim().length > 0 ? (
+                <View style={[styles.reference, { borderLeftColor: theme.colors.border }]}>
+                  {toElement(RawText(primaryText).foreground('muted').font('sm').lines(3))}
+                </View>
+              ) : null,
+            ),
+            Embed(
+              <TouchableOpacity
+                onPress={handleTranslate}
+                disabled={!canTranslate}
+                activeOpacity={0.75}
+                className="flex-row items-center gap-1.5 self-start px-3 py-1.5 rounded-full border mt-2"
+                style={{ borderColor: theme.colors.border, opacity: canTranslate ? 1 : 0.5 }}
+              >
+                {isTranslating ? (
+                  <Loading
+                    className="text-primary"
+                    variant="inline"
+                    size="sm"
+                    style={loadingStyle}
+                  />
+                ) : null}
+                {toElement(
+                  RawText(t('compose.languages.translate', { defaultValue: 'Translate with AI' }))
+                    .font('sm')
+                    .weight('semibold')
+                    .foreground('primary'),
+                )}
+              </TouchableOpacity>,
+            ),
+          )
+            .padding('top', '2xs')
+            .grow(),
+        )}
+      </View>
+      {toolbar}
+      {sharedMedia.length > 0
+        ? toElement(
+            VStack(
+              Embed(
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.mediaScroll}
+                >
+                  {(ownMedia ?? sharedMedia).map((media) => (
+                    <View
+                      key={media.id}
+                      className="border-border bg-muted"
+                      style={styles.mediaCard}
+                    >
+                      <ComposeMediaPreview
+                        type={media.type}
+                        uri={getFileDownloadUrl(media.id)}
+                        imageStyle={styles.mediaImage}
+                      />
+                      {media.type === 'image' ? (
+                        <ComposeAltButton
+                          hasAlt={
+                            ownMedia
+                              ? Boolean(media.alt?.trim())
+                              : item.media.mode === 'inherit' &&
+                                Boolean(item.media.alt[media.id]?.trim())
+                          }
+                          onPress={() =>
+                            ownMedia
+                              ? onOwnAltPress(itemId, media)
+                              : onSharedAltPress(itemId, media)
+                          }
+                        />
+                      ) : null}
+                      {ownMedia ? (
+                        <TouchableOpacity
+                          onPress={() => onRemoveOwnMedia(itemId, media.id)}
+                          className="bg-card"
+                          style={styles.mediaRemove}
+                          hitSlop={tokens.hitSlop.sm}
+                        >
+                          {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ))}
+                  {ownMedia ? (
+                    <TouchableOpacity
+                      onPress={handlePickOwnMedia}
+                      activeOpacity={0.75}
+                      className="items-center justify-center border border-dashed border-border rounded-[15px]"
+                      style={styles.mediaAddCard}
+                    >
+                      {toElement(Icon(RiAddLine).size('md').foreground('muted'))}
+                      {toElement(
+                        RawText(t('compose.languages.addImage', { defaultValue: 'Add image' }))
+                          .font('sm')
+                          .margin('top', 'xs')
+                          .foreground('muted'),
+                      )}
+                    </TouchableOpacity>
+                  ) : null}
+                </ScrollView>,
+              ),
+              Embed(
+                <TouchableOpacity
+                  onPress={ownMedia ? handleUseSharedMedia : handlePickOwnMedia}
+                  activeOpacity={0.75}
+                  style={styles.mediaModeButton}
+                >
+                  {toElement(
+                    RawText(
+                      ownMedia
+                        ? t('compose.languages.useSharedMedia', {
+                            defaultValue: 'Use the original images',
+                          })
+                        : t('compose.languages.useOwnMedia', {
+                            defaultValue: 'Use different images for {{language}}',
+                            language: language.nativeName,
+                          }),
+                    )
+                      .font('sm')
+                      .weight('semibold')
+                      .foreground('primary'),
+                  )}
+                </TouchableOpacity>,
+              ),
+            ).margin('top', 'xs'),
+          )
+        : null}
+      {hasArticle
+        ? toElement(
+            VStack(
+              Embed(
+                item.article ? (
+                  <>
+                    <TouchableOpacity
+                      className="border-border bg-muted"
+                      style={styles.articleCard}
+                      activeOpacity={0.85}
+                      onPress={handleArticlePress}
+                    >
+                      <PostArticlePreview
+                        title={item.article.title}
+                        body={item.article.body}
+                        onPress={handleArticlePress}
+                        style={styles.articlePreview}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleArticleReset}
+                      activeOpacity={0.75}
+                      style={styles.mediaModeButton}
+                    >
+                      {toElement(
+                        RawText(
+                          t('compose.languages.useSharedArticle', {
+                            defaultValue: 'Use the original article',
+                          }),
+                        )
+                          .font('sm')
+                          .weight('semibold')
+                          .foreground('primary'),
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <TouchableOpacity
+                    onPress={handleArticlePress}
+                    activeOpacity={0.75}
+                    style={styles.mediaModeButton}
+                  >
+                    {toElement(
+                      RawText(
+                        t('compose.languages.localizeArticle', {
+                          defaultValue: 'Write the article in {{language}}',
+                          language: language.nativeName,
+                        }),
+                      )
+                        .font('sm')
+                        .weight('semibold')
+                        .foreground('primary'),
+                    )}
+                  </TouchableOpacity>
+                ),
+              ),
+            ).margin('top', 'xs'),
+          )
+        : null}
     </View>
   );
 });

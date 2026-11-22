@@ -40,6 +40,9 @@ import type { MentionTextValue } from '@/utils/mentions';
 
 import { HPAD, BOTTOM_LEFT_PAD } from './composeLayout';
 
+import { Icon, defineTokens, toElement } from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hex5e5e5e: '#5e5e5e' } });
+
 /**
  * The exact slice of the composer's stylesheet this row renders with. The
  * composer owns the sheet, so spelling the contract out here is what makes a
@@ -401,7 +404,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
             absolutely positioned against this row's own box, and rendering it
             after the header is what puts it above the content it overlaps. */}
           <TouchableOpacity style={styles.removeThreadBtn} onPress={handleRemove}>
-            <RiCloseLine width={18} height={18} fill="#5e5e5e" />
+            {toElement(Icon(RiCloseLine).size('18').foreground(appColors.color.hex5e5e5e))}
           </TouchableOpacity>
 
           {/* Thread item attachments row */}
@@ -481,7 +484,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                         style={styles.mediaRemoveButton}
                         hitSlop={tokens.hitSlop.sm}
                       >
-                        <RiCloseLine width={16} height={16} fill={theme.colors.text} />
+                        {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
                       </TouchableOpacity>
                     </View>
                   );
@@ -514,7 +517,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={tokens.hitSlop.sm}
                     >
-                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
+                      {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
                     </TouchableOpacity>
                   </View>
                 )}
@@ -547,7 +550,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={tokens.hitSlop.sm}
                     >
-                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
+                      {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
                     </TouchableOpacity>
                   </View>
                 )}
@@ -563,7 +566,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       className="bg-card"
                       style={styles.pollAttachmentRemoveButton}
                     >
-                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
+                      {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -585,7 +588,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={tokens.hitSlop.sm}
                     >
-                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
+                      {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
                     </TouchableOpacity>
                   </View>
                 )}
@@ -620,7 +623,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={tokens.hitSlop.sm}
                     >
-                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
+                      {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
                     </TouchableOpacity>
                   </View>
                 )}

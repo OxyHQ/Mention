@@ -2,7 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import { TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AccountKind, AvatarCharacter } from '@oxy.so/contracts';
@@ -14,6 +14,8 @@ import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-ty
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
+
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 export interface CollaboratorUser {
   id: string;
@@ -130,97 +132,151 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
   // the entry point, so this block has nothing to say yet and takes no space.
   if (!expanded && selected.length === 0) return null;
 
-  return (
-    <View className="px-4 pb-2">
-      {selected.length > 0 && (
-        <View className="flex-row flex-wrap gap-2 mb-2">
-          {selected.map((collab) => (
-            <View
-              key={collab.id}
-              className="flex-row items-center bg-surface border border-border rounded-full pl-1 pr-2 py-1 gap-1"
-            >
-              <AccountAvatar
-                account={collab}
-                source={collab.avatar}
-                size={24}
-                variant={MEDIA_VARIANT_AVATAR}
-              />
-              <Text className="text-foreground text-sm" numberOfLines={1}>
-                {displayNameOrHandle(collab.displayName, `@${collab.username}`)}
-              </Text>
-              <TouchableOpacity onPress={() => removeUser(collab.id)} hitSlop={tokens.hitSlop.md}>
-                <RiCloseCircleLine width={18} height={18} fill={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {expanded && selected.length < MAX_POST_COLLABORATORS && (
-        <View className="border border-border rounded-xl bg-card overflow-hidden">
-          <View className="flex-row items-center px-3 py-2 gap-2">
-            <RiSearchLine width={18} height={18} fill={colors.textSecondary} />
-            <TextInput
-              className="flex-1 text-foreground text-[15px]"
-              placeholder={t('collab.searchPlaceholder', {
-                defaultValue: 'Search people to collaborate with',
-              })}
-              placeholderTextColor="#888"
-              value={query}
-              onChangeText={setQuery}
-              autoFocus
-            />
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={t('collab.closeSearch', {
-                defaultValue: 'Close collaborator search',
-              })}
-              onPress={closeSearch}
-            >
-              <RiCloseLine size="md" fill={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-          {loading ? (
-            <View style={styles.loadingRow}>
-              <ListSkeleton count={2} />
-            </View>
-          ) : (
-            <FlatList
-              data={results.filter((r) => !selectedIds.has(r.id))}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              style={{ maxHeight: 200 }}
-              ListEmptyComponent={
-                query.length > 0 ? (
-                  <Text className="text-muted-foreground text-sm p-3 text-center">
-                    {t('collab.noResults', { defaultValue: 'No users found' })}
-                  </Text>
-                ) : undefined
-              }
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  className="flex-row items-center px-3 py-2 gap-3"
-                  onPress={() => addUser(item)}
-                >
-                  <AccountAvatar
-                    account={item}
-                    source={item.avatar}
-                    size={32}
-                    variant={MEDIA_VARIANT_AVATAR}
+  return toElement(
+    VStack(
+      selected.length > 0
+        ? HStack(
+            Embed(
+              selected.map((collab) =>
+                toElement(
+                  HStack(
+                    Embed(
+                      <AccountAvatar
+                        account={collab}
+                        source={collab.avatar}
+                        size={24}
+                        variant={MEDIA_VARIANT_AVATAR}
+                      />,
+                    ),
+                    RawText(displayNameOrHandle(collab.displayName, `@${collab.username}`))
+                      .foreground('foreground')
+                      .font('14')
+                      .leading('20px')
+                      .lines(1),
+                    Embed(
+                      <TouchableOpacity
+                        onPress={() => removeUser(collab.id)}
+                        hitSlop={tokens.hitSlop.md}
+                      >
+                        {toElement(Icon(RiCloseCircleLine).size('18').foreground('muted'))}
+                      </TouchableOpacity>,
+                    ),
+                  )
+                    .padding('left', 'xs')
+                    .padding('right', 'sm')
+                    .padding('vertical', 'xs')
+                    .background('surface')
+                    .border('border', 'thin')
+                    .corner('infinite')
+                    .align('center')
+                    .spacing('xs'),
+                  collab.id,
+                ),
+              ),
+            ),
+          )
+            .wrap()
+            .spacing('sm')
+            .margin('bottom', 'sm')
+        : null,
+      Embed(
+        expanded &&
+          selected.length < MAX_POST_COLLABORATORS &&
+          toElement(
+            VStack(
+              HStack(
+                Icon(RiSearchLine).size('18').foreground('muted'),
+                Embed(
+                  <TextInput
+                    className="flex-1 text-foreground text-[15px]"
+                    placeholder={t('collab.searchPlaceholder', {
+                      defaultValue: 'Search people to collaborate with',
+                    })}
+                    placeholderTextColor="#888"
+                    value={query}
+                    onChangeText={setQuery}
+                    autoFocus
+                  />,
+                ),
+                Embed(
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={t('collab.closeSearch', {
+                      defaultValue: 'Close collaborator search',
+                    })}
+                    onPress={closeSearch}
+                  >
+                    {toElement(Icon(RiCloseLine).size('md').foreground('muted'))}
+                  </TouchableOpacity>,
+                ),
+              )
+                .padding('horizontal', 'md')
+                .padding('vertical', 'sm')
+                .align('center')
+                .spacing('sm'),
+              Embed(
+                loading ? (
+                  toElement(
+                    VStack(Embed(<ListSkeleton count={2} />))
+                      .padding('all', 'md')
+                      .align('center'),
+                  )
+                ) : (
+                  <FlatList
+                    data={results.filter((r) => !selectedIds.has(r.id))}
+                    keyExtractor={(item) => item.id}
+                    keyboardShouldPersistTaps="handled"
+                    style={{ maxHeight: 200 }}
+                    ListEmptyComponent={
+                      query.length > 0
+                        ? toElement(
+                            RawText(t('collab.noResults', { defaultValue: 'No users found' }))
+                              .padding('all', 'md')
+                              .foreground('muted')
+                              .font('14')
+                              .leading('20px')
+                              .textAlign('center'),
+                          )
+                        : undefined
+                    }
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        className="flex-row items-center px-3 py-2 gap-3"
+                        onPress={() => addUser(item)}
+                      >
+                        <AccountAvatar
+                          account={item}
+                          source={item.avatar}
+                          size={32}
+                          variant={MEDIA_VARIANT_AVATAR}
+                        />
+                        {toElement(
+                          VStack(
+                            RawText(displayNameOrHandle(item.displayName, item.username))
+                              .foreground('foreground')
+                              .font('md')
+                              .weight('medium'),
+                            RawText('@', item.username)
+                              .foreground('muted')
+                              .font('14')
+                              .leading('20px'),
+                          ).flex('1'),
+                        )}
+                      </TouchableOpacity>
+                    )}
                   />
-                  <View className="flex-1">
-                    <Text className="text-foreground text-[15px] font-medium">
-                      {displayNameOrHandle(item.displayName, item.username)}
-                    </Text>
-                    <Text className="text-muted-foreground text-sm">@{item.username}</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            />
-          )}
-        </View>
-      )}
-    </View>
+                ),
+              ),
+            )
+              .background('card')
+              .border('border', 'thin')
+              .corner('md')
+              .clipped(),
+          ),
+      ),
+    )
+      .padding('horizontal', 'lg')
+      .padding('bottom', 'sm'),
   );
 };
 

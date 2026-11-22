@@ -1,9 +1,9 @@
 import type React from 'react';
-import { View, ScrollView } from 'react-native';
-import { PageHeader } from '@oxy.so/bloom/page-header';
+import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
 import PostItem from '@/components/Feed/PostItem';
+import { Embed, Header, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface PostPreviewSurfaceProps {
   post: HydratedPost;
@@ -46,30 +46,26 @@ const PostPreviewSurface: React.FC<PostPreviewSurfaceProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  return (
-    <View className="flex-1">
-      <PageHeader
-        title={title}
-        subtitle={subtitle}
-        onBack={onBack}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-        safeArea={false}
-      />
-
-      {notice}
-
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/*
-          Inert on purpose — see the component doc. The wrapper carries no
-          styling of its own so the post renders at exactly its feed width.
-        */}
-        <View pointerEvents="none">
-          <PostItem post={post} />
-        </View>
-      </ScrollView>
-
-      {children}
-    </View>
+  return toElement(
+    VStack(
+      Header(title)
+        .subtitle(subtitle)
+        .onBack(onBack)
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .safeArea(false)
+        .inPage(),
+      Embed(notice),
+      Embed(
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          {/*
+      Inert on purpose — see the component doc. The wrapper carries no
+      styling of its own so the post renders at exactly its feed width.
+    */}
+          {toElement(VStack(Embed(<PostItem post={post} />)).allowsHitTesting(false))}
+        </ScrollView>,
+      ),
+      Embed(children),
+    ).flex('1'),
   );
 };
 

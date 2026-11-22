@@ -2,7 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList } from 'react-native';
+import { TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
@@ -28,6 +28,8 @@ import {
   confirmAndPublishDraft,
   otherDraftLanguages,
 } from './serverDraftActions';
+
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('DraftsList');
 
@@ -258,125 +260,181 @@ const DraftsList: React.FC<DraftsListProps> = ({
       // `theme.colors.primary + '15'`: that token is an `rgb(...)` string, so a
       // hex-alpha suffix reads back fully opaque and the row the user is editing
       // paints solid primary under its own foreground text.
-      return (
-        <View
-          className={`flex-row items-center px-4 py-3 border-b border-border ${isCurrentDraft ? 'bg-primary/10' : 'bg-background'}`}
-        >
-          <TouchableOpacity
-            className="flex-1 flex-row items-center"
-            onPress={open}
-            disabled={isBusy}
-            accessibilityRole="button"
-            accessibilityLabel={t('compose.draftPreviewEdit', { defaultValue: 'Continue writing' })}
-          >
-            <View className="flex-1 mr-3">
-              <View className="flex-row justify-between items-center mb-1">
-                <View className="flex-row items-center gap-2 flex-shrink">
-                  {isCurrentDraft && (
-                    <View className="px-1.5 py-0.5 rounded bg-primary">
-                      <Text
-                        className="text-[10px] font-semibold"
-                        style={{ color: theme.colors.card }}
-                      >
-                        {t('compose.current')}
-                      </Text>
-                    </View>
-                  )}
-                  <Text className="text-xs text-muted-foreground">
-                    {formatDate(item.updatedAt)}
-                  </Text>
-                  {!isServer && (
-                    <Text className="text-xs text-muted-foreground">
-                      {t('compose.draftOnThisDevice', { defaultValue: 'On this device' })}
-                    </Text>
-                  )}
-                  {draftedFor !== undefined && (
-                    <Text className="text-xs text-muted-foreground flex-shrink" numberOfLines={1}>
-                      {draftedFor}
-                    </Text>
-                  )}
-                </View>
-              </View>
-              <Text className="text-sm text-foreground mb-1" numberOfLines={2}>
-                {preview}
-              </Text>
-              {(mediaCount > 0 || threadCount > 0 || otherLanguages.length > 0) && (
-                <View className="flex-row items-center gap-3 mt-1">
-                  {mediaCount > 0 && (
-                    <View className="flex-row items-center gap-1">
-                      <RiImageLine width={14} height={14} fill={theme.colors.textSecondary} />
-                      <Text className="text-xs text-muted-foreground">{mediaCount}</Text>
-                    </View>
-                  )}
-                  {threadCount > 0 && (
-                    <View className="flex-row items-center gap-1">
-                      <RiFileCopyLine width={14} height={14} fill={theme.colors.textSecondary} />
-                      <Text className="text-xs text-muted-foreground">{threadCount + 1}</Text>
-                    </View>
-                  )}
-                  {otherLanguages.length > 0 && (
-                    <View className="flex-row items-center gap-1 flex-shrink">
-                      <RiGlobalLine width={14} height={14} fill={theme.colors.textSecondary} />
-                      <Text className="text-xs text-muted-foreground flex-shrink" numberOfLines={1}>
-                        {t('compose.serverDrafts.alsoIn', {
-                          defaultValue: 'Also in {{languages}}',
-                          languages: otherLanguages.join(', '),
-                        })}
-                      </Text>
-                    </View>
-                  )}
-                </View>
+      return toElement(
+        HStack(
+          Embed(
+            <TouchableOpacity
+              className="flex-1 flex-row items-center"
+              onPress={open}
+              disabled={isBusy}
+              accessibilityRole="button"
+              accessibilityLabel={t('compose.draftPreviewEdit', {
+                defaultValue: 'Continue writing',
+              })}
+            >
+              {toElement(
+                VStack(
+                  HStack(
+                    HStack(
+                      Embed(
+                        isCurrentDraft &&
+                          toElement(
+                            VStack(
+                              RawText(t('compose.current'))
+                                .font('2xs')
+                                .weight('semibold')
+                                .foreground('card'),
+                            )
+                              .padding('horizontal', '6')
+                              .padding('vertical', '2xs')
+                              .background('primary')
+                              .corner('xs'),
+                          ),
+                      ),
+                      RawText(formatDate(item.updatedAt))
+                        .font('xs')
+                        .leading('16px')
+                        .foreground('muted'),
+                      !isServer
+                        ? RawText(
+                            t('compose.draftOnThisDevice', { defaultValue: 'On this device' }),
+                          )
+                            .font('xs')
+                            .leading('16px')
+                            .foreground('muted')
+                        : null,
+                      draftedFor !== undefined
+                        ? RawText(draftedFor)
+                            .font('xs')
+                            .leading('16px')
+                            .foreground('muted')
+                            .shrink('normal')
+                            .lines(1)
+                        : null,
+                    )
+                      .align('center')
+                      .spacing('sm')
+                      .shrink('normal'),
+                  )
+                    .justify('between')
+                    .align('center')
+                    .margin('bottom', 'xs'),
+                  RawText(preview)
+                    .font('14')
+                    .leading('20px')
+                    .foreground('foreground')
+                    .margin('bottom', 'xs')
+                    .lines(2),
+                  mediaCount > 0 || threadCount > 0 || otherLanguages.length > 0
+                    ? HStack(
+                        mediaCount > 0
+                          ? HStack(
+                              Icon(RiImageLine).size('14').foreground('muted'),
+                              RawText(mediaCount).font('xs').leading('16px').foreground('muted'),
+                            )
+                              .align('center')
+                              .spacing('xs')
+                          : null,
+                        threadCount > 0
+                          ? HStack(
+                              Icon(RiFileCopyLine).size('14').foreground('muted'),
+                              RawText(threadCount + 1)
+                                .font('xs')
+                                .leading('16px')
+                                .foreground('muted'),
+                            )
+                              .align('center')
+                              .spacing('xs')
+                          : null,
+                        otherLanguages.length > 0
+                          ? HStack(
+                              Icon(RiGlobalLine).size('14').foreground('muted'),
+                              RawText(
+                                t('compose.serverDrafts.alsoIn', {
+                                  defaultValue: 'Also in {{languages}}',
+                                  languages: otherLanguages.join(', '),
+                                }),
+                              )
+                                .font('xs')
+                                .leading('16px')
+                                .foreground('muted')
+                                .shrink('normal')
+                                .lines(1),
+                            )
+                              .align('center')
+                              .spacing('xs')
+                              .shrink('normal')
+                          : null,
+                      )
+                        .align('center')
+                        .spacing('md')
+                        .margin('top', 'xs')
+                    : null,
+                )
+                  .flex('1')
+                  .margin('right', 'md'),
               )}
-            </View>
-            <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-          {isServer && (
+              {toElement(Icon(RiArrowRightSLine).size('md').foreground('muted'))}
+            </TouchableOpacity>,
+          ),
+          Embed(
+            isServer && (
+              <TouchableOpacity
+                className="p-1 mr-1"
+                onPress={() => handlePublishServerDraft(item.post)}
+                disabled={isBusy}
+                hitSlop={tokens.hitSlop.lg}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('compose.serverDrafts.publishTitle', {
+                  defaultValue: 'Publish draft',
+                })}
+              >
+                {toElement(Icon(RiSendPlaneLine).size('18').foreground('primary'))}
+              </TouchableOpacity>
+            ),
+          ),
+          Embed(
             <TouchableOpacity
               className="p-1 mr-1"
-              onPress={() => handlePublishServerDraft(item.post)}
+              onPress={openPreview}
               disabled={isBusy}
               hitSlop={tokens.hitSlop.lg}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={t('compose.serverDrafts.publishTitle', {
-                defaultValue: 'Publish draft',
-              })}
+              accessibilityLabel={t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' })}
             >
-              <RiSendPlaneLine width={18} height={18} fill={theme.colors.primary} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            className="p-1 mr-1"
-            onPress={openPreview}
-            disabled={isBusy}
-            hitSlop={tokens.hitSlop.lg}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' })}
-          >
-            <RiEyeLine width={18} height={18} fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="p-1"
-            onPress={remove}
-            disabled={isBusy}
-            hitSlop={tokens.hitSlop.lg}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('compose.deleteDraft')}
-          >
-            {isBusy ? (
-              <Loading
-                className="text-primary"
-                variant="inline"
-                size="sm"
-                style={{ flex: undefined }}
-              />
-            ) : (
-              <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
-            )}
-          </TouchableOpacity>
-        </View>
+              {toElement(Icon(RiEyeLine).size('18').foreground('muted'))}
+            </TouchableOpacity>,
+          ),
+          Embed(
+            <TouchableOpacity
+              className="p-1"
+              onPress={remove}
+              disabled={isBusy}
+              hitSlop={tokens.hitSlop.lg}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('compose.deleteDraft')}
+            >
+              {isBusy ? (
+                <Loading
+                  className="text-primary"
+                  variant="inline"
+                  size="sm"
+                  style={{ flex: undefined }}
+                />
+              ) : (
+                toElement(Icon(RiDeleteBinLine).size('18').foreground('muted'))
+              )}
+            </TouchableOpacity>,
+          ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'md')
+          .background(isCurrentDraft ? 'primary/10' : 'background')
+          .border('border', 'thin', 'bottom')
+          .align('center'),
       );
     },
     [
@@ -405,32 +463,56 @@ const DraftsList: React.FC<DraftsListProps> = ({
   // The account half reports beside the rows rather than instead of them: a
   // slow or failed server read must not hide the drafts already on this device.
   const serverStatus = serverError ? (
-    <View className="items-center py-4 px-8 border-b border-border">
-      <Text className="text-sm text-center text-muted-foreground">
-        {t('compose.serverDrafts.loadError', {
-          defaultValue: "We couldn't load the drafts saved to your account",
-        })}
-      </Text>
-      <Button className="mt-3" onPress={refetchServerDrafts}>
-        {t('common.retry', { defaultValue: 'Retry' })}
-      </Button>
-    </View>
+    toElement(
+      VStack(
+        RawText(
+          t('compose.serverDrafts.loadError', {
+            defaultValue: "We couldn't load the drafts saved to your account",
+          }),
+        )
+          .font('14')
+          .leading('20px')
+          .textAlign('center')
+          .foreground('muted'),
+        Embed(
+          <Button className="mt-3" onPress={refetchServerDrafts}>
+            {t('common.retry', { defaultValue: 'Retry' })}
+          </Button>,
+        ),
+      )
+        .padding('vertical', 'lg')
+        .padding('horizontal', '3xl')
+        .border('border', 'thin', 'bottom')
+        .align('center'),
+    )
   ) : serverLoading ? (
     <FeedSkeleton count={2} />
   ) : undefined;
 
-  const deviceStatus = deviceError ? (
-    <View className="items-center py-4 px-8 border-b border-border">
-      <Text className="text-sm text-center text-muted-foreground">
-        {t('compose.deviceDrafts.loadError', {
-          defaultValue: "We couldn't load the drafts saved on this device",
-        })}
-      </Text>
-      <Button className="mt-3" onPress={refetchDeviceDrafts}>
-        {t('common.retry', { defaultValue: 'Retry' })}
-      </Button>
-    </View>
-  ) : undefined;
+  const deviceStatus = deviceError
+    ? toElement(
+        VStack(
+          RawText(
+            t('compose.deviceDrafts.loadError', {
+              defaultValue: "We couldn't load the drafts saved on this device",
+            }),
+          )
+            .font('14')
+            .leading('20px')
+            .textAlign('center')
+            .foreground('muted'),
+          Embed(
+            <Button className="mt-3" onPress={refetchDeviceDrafts}>
+              {t('common.retry', { defaultValue: 'Retry' })}
+            </Button>,
+          ),
+        )
+          .padding('vertical', 'lg')
+          .padding('horizontal', '3xl')
+          .border('border', 'thin', 'bottom')
+          .align('center'),
+      )
+    : undefined;
 
   if (items.length === 0 && serverStatus === undefined && deviceStatus === undefined) {
     return (

@@ -1,8 +1,11 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
-import { Text, TouchableOpacity } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { cn } from '@/lib/utils';
+
+import { Icon, RawText, defineTokens, toElement } from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexffffff: '#ffffff' } });
 
 interface ComposeAltButtonProps {
   /** Whether an alt description has already been entered for this image. */
@@ -31,7 +34,7 @@ export const ComposeAltButton: React.FC<ComposeAltButtonProps> = ({ hasAlt, rais
     hitSlop={tokens.hitSlop.sm}
     accessibilityRole="button"
   >
-    {hasAlt ? <RiCheckLine width={11} height={11} fill="#ffffff" /> : null}
-    <Text className="text-white text-[11px] font-bold">ALT</Text>
+    {hasAlt ? toElement(Icon(RiCheckLine).size('11').foreground(appColors.color.hexffffff)) : null}
+    {toElement(RawText('ALT').foreground('white').font('11').weight('bold'))}
   </TouchableOpacity>
 );

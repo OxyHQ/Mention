@@ -1,6 +1,5 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { View, Text } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloudLine } from '@oxy.so/bloom/icons/RiCloudLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -15,6 +14,16 @@ import {
   confirmAndPublishDraft,
   otherDraftLanguages,
 } from './serverDraftActions';
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ServerDraftPreviewProps {
   post: HydratedPost;
@@ -74,63 +83,85 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
     <PostPreviewSurface
       post={post}
       title={t('compose.draftPreviewTitle', { defaultValue: 'Draft preview' })}
-      subtitle={
-        <View className="flex-row items-center gap-1.5 mt-0.5">
-          <RiCloudLine size="xs" fill={theme.colors.textSecondary} />
-          <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-            {otherLanguages.length > 0
+      subtitle={toElement(
+        HStack(
+          Icon(RiCloudLine).size('xs').foreground('muted'),
+          RawText(
+            otherLanguages.length > 0
               ? t('compose.serverDrafts.savedAlsoIn', {
                   defaultValue: 'Saved to your account · also in {{languages}}',
                   languages: otherLanguages.join(', '),
                 })
-              : t('compose.serverDrafts.title', { defaultValue: 'Saved to your account' })}
-          </Text>
-        </View>
-      }
+              : t('compose.serverDrafts.title', { defaultValue: 'Saved to your account' }),
+          )
+            .font('xs')
+            .leading('16px')
+            .foreground('muted')
+            .lines(1),
+        )
+          .align('center')
+          .spacing('6')
+          .margin('top', '2xs'),
+      )}
       onBack={onBack}
     >
-      <View className="px-4 pt-3 border-t border-border">
-        <Button
-          size="lg"
-          leadingIcon={RiSendPlaneLine}
-          onPress={handlePublish}
-          disabled={busy}
-          loading={isPublishing}
-          accessibilityLabel={t('compose.serverDrafts.publishTitle', {
-            defaultValue: 'Publish draft',
-          })}
-        >
-          {t('compose.serverDrafts.publish', { defaultValue: 'Publish' })}
-        </Button>
-      </View>
-
-      <View className="flex-row items-center gap-2 px-4 py-3">
-        <Button
-          className="flex-1"
-          appearance="subtle"
-          tone="neutral"
-          size="lg"
-          leadingIcon={RiEditLine}
-          onPress={onEdit}
-          disabled={busy}
-          accessibilityLabel={t('compose.serverDrafts.edit', { defaultValue: 'Edit draft' })}
-        >
-          {t('common.edit', { defaultValue: 'Edit' })}
-        </Button>
-        <Button
-          className="flex-1"
-          appearance="solid"
-          tone="danger"
-          size="lg"
-          leadingIcon={RiDeleteBinLine}
-          onPress={handleDelete}
-          disabled={busy}
-          loading={isDeleting}
-          accessibilityLabel={t('compose.deleteDraft')}
-        >
-          {t('common.delete')}
-        </Button>
-      </View>
+      {toElement(
+        VStack(
+          LButton(
+            Icon(RiSendPlaneLine),
+            LText(t('compose.serverDrafts.publish', { defaultValue: 'Publish' })),
+          )
+            .size('lg')
+            .onPress(handlePublish)
+            .disabled(busy)
+            .loading(isPublishing)
+            .label(
+              t('compose.serverDrafts.publishTitle', {
+                defaultValue: 'Publish draft',
+              }),
+            ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('top', 'md')
+          .border('border', 'thin', 'top'),
+      )}
+      {toElement(
+        HStack(
+          Embed(
+            <Button
+              className="flex-1"
+              appearance="subtle"
+              tone="neutral"
+              size="lg"
+              leadingIcon={RiEditLine}
+              onPress={onEdit}
+              disabled={busy}
+              accessibilityLabel={t('compose.serverDrafts.edit', { defaultValue: 'Edit draft' })}
+            >
+              {t('common.edit', { defaultValue: 'Edit' })}
+            </Button>,
+          ),
+          Embed(
+            <Button
+              className="flex-1"
+              appearance="solid"
+              tone="danger"
+              size="lg"
+              leadingIcon={RiDeleteBinLine}
+              onPress={handleDelete}
+              disabled={busy}
+              loading={isDeleting}
+              accessibilityLabel={t('compose.deleteDraft')}
+            >
+              {t('common.delete')}
+            </Button>,
+          ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'md')
+          .align('center')
+          .spacing('sm'),
+      )}
     </PostPreviewSurface>
   );
 };

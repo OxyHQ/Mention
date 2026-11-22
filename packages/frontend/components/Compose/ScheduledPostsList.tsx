@@ -2,7 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList } from 'react-native';
+import { TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
@@ -21,6 +21,8 @@ import { confirmDialog } from '@/utils/alerts';
 import { formatScheduledLabel } from '@/utils/dateUtils';
 import { createLogger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('ScheduledPostsList');
 
@@ -194,92 +196,125 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           ? author.name?.displayName?.trim() || getNormalizedUserHandle(author) || undefined
           : undefined;
 
-      return (
-        <View className="flex-row items-center px-4 py-3 bg-background border-b border-border">
-          <TouchableOpacity
-            className="flex-1 flex-row items-center"
-            onPress={() => onPreview(item)}
-            disabled={isCancelling}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('compose.scheduled.previewA11y', {
-              defaultValue: 'Preview scheduled post',
-            })}
-          >
-            <View className="flex-1 mr-3">
-              <View className="flex-row items-center gap-1.5 mb-1">
-                <RiCalendarLine width={14} height={14} fill={theme.colors.primary} />
-                <Text className="text-xs font-semibold" style={{ color: theme.colors.primary }}>
-                  {timeLabel}
-                </Text>
-                {queuedFor !== undefined && (
-                  <Text
-                    className="text-xs text-muted-foreground flex-shrink"
-                    numberOfLines={1}
-                    accessibilityLabel={t('compose.scheduled.queuedForA11y', {
-                      defaultValue: 'Queued for {{account}}',
-                      account: queuedFor,
-                    })}
-                  >
-                    {queuedFor}
-                  </Text>
-                )}
-              </View>
-              <Text className="text-sm text-foreground mb-1" numberOfLines={2}>
-                {getPreview(item)}
-              </Text>
-              {(mediaCount > 0 || hasPoll) && (
-                <View className="flex-row items-center gap-3 mt-1">
-                  {mediaCount > 0 && (
-                    <View className="flex-row items-center gap-1">
-                      <RiImageLine width={14} height={14} fill={theme.colors.textSecondary} />
-                      <Text className="text-xs text-muted-foreground">{mediaCount}</Text>
-                    </View>
-                  )}
-                  {hasPoll && (
-                    <RiListCheck3 width={14} height={14} fill={theme.colors.textSecondary} />
-                  )}
-                </View>
+      return toElement(
+        HStack(
+          Embed(
+            <TouchableOpacity
+              className="flex-1 flex-row items-center"
+              onPress={() => onPreview(item)}
+              disabled={isCancelling}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('compose.scheduled.previewA11y', {
+                defaultValue: 'Preview scheduled post',
+              })}
+            >
+              {toElement(
+                VStack(
+                  HStack(
+                    Icon(RiCalendarLine).size('14').foreground('primary'),
+                    RawText(timeLabel)
+                      .font('xs')
+                      .leading('16px')
+                      .weight('semibold')
+                      .foreground('primary'),
+                    queuedFor !== undefined
+                      ? RawText(queuedFor)
+                          .font('xs')
+                          .leading('16px')
+                          .foreground('muted')
+                          .shrink('normal')
+                          .label(
+                            t('compose.scheduled.queuedForA11y', {
+                              defaultValue: 'Queued for {{account}}',
+                              account: queuedFor,
+                            }),
+                          )
+                          .lines(1)
+                      : null,
+                  )
+                    .align('center')
+                    .spacing('6')
+                    .margin('bottom', 'xs'),
+                  RawText(getPreview(item))
+                    .font('14')
+                    .leading('20px')
+                    .foreground('foreground')
+                    .margin('bottom', 'xs')
+                    .lines(2),
+                  Embed(
+                    (mediaCount > 0 || hasPoll) &&
+                      toElement(
+                        HStack(
+                          mediaCount > 0
+                            ? HStack(
+                                Icon(RiImageLine).size('14').foreground('muted'),
+                                RawText(mediaCount).font('xs').leading('16px').foreground('muted'),
+                              )
+                                .align('center')
+                                .spacing('xs')
+                            : null,
+                          Embed(
+                            hasPoll && toElement(Icon(RiListCheck3).size('14').foreground('muted')),
+                          ),
+                        )
+                          .align('center')
+                          .spacing('md')
+                          .margin('top', 'xs'),
+                      ),
+                  ),
+                )
+                  .flex('1')
+                  .margin('right', 'md'),
               )}
-            </View>
-            <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="p-1 mr-1"
-            onPress={() => onEdit(item)}
-            disabled={isCancelling}
-            hitSlop={tokens.hitSlop.lg}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('compose.scheduled.edit', {
-              defaultValue: 'Edit scheduled post',
-            })}
-          >
-            <RiEditLine width={18} height={18} fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="p-1"
-            onPress={() => handleCancel(item)}
-            disabled={isCancelling}
-            hitSlop={tokens.hitSlop.lg}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('compose.scheduled.cancelTitle', {
-              defaultValue: 'Cancel scheduled post',
-            })}
-          >
-            {isCancelling ? (
-              <Loading
-                className="text-primary"
-                variant="inline"
-                size="sm"
-                style={{ flex: undefined }}
-              />
-            ) : (
-              <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
-            )}
-          </TouchableOpacity>
-        </View>
+              {toElement(Icon(RiArrowRightSLine).size('md').foreground('muted'))}
+            </TouchableOpacity>,
+          ),
+          Embed(
+            <TouchableOpacity
+              className="p-1 mr-1"
+              onPress={() => onEdit(item)}
+              disabled={isCancelling}
+              hitSlop={tokens.hitSlop.lg}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('compose.scheduled.edit', {
+                defaultValue: 'Edit scheduled post',
+              })}
+            >
+              {toElement(Icon(RiEditLine).size('18').foreground('muted'))}
+            </TouchableOpacity>,
+          ),
+          Embed(
+            <TouchableOpacity
+              className="p-1"
+              onPress={() => handleCancel(item)}
+              disabled={isCancelling}
+              hitSlop={tokens.hitSlop.lg}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('compose.scheduled.cancelTitle', {
+                defaultValue: 'Cancel scheduled post',
+              })}
+            >
+              {isCancelling ? (
+                <Loading
+                  className="text-primary"
+                  variant="inline"
+                  size="sm"
+                  style={{ flex: undefined }}
+                />
+              ) : (
+                toElement(Icon(RiDeleteBinLine).size('18').foreground('muted'))
+              )}
+            </TouchableOpacity>,
+          ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'md')
+          .background('background')
+          .border('border', 'thin', 'bottom')
+          .align('center'),
       );
     },
     [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme, viewerId],
@@ -290,17 +325,28 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   }
 
   if (isError) {
-    return (
-      <View className="flex-1 justify-center items-center py-12 px-8">
-        <Text className="text-base text-center text-muted-foreground">
-          {t('compose.scheduled.loadError', {
+    return toElement(
+      VStack(
+        RawText(
+          t('compose.scheduled.loadError', {
             defaultValue: "We couldn't load your scheduled posts",
-          })}
-        </Text>
-        <Button className="mt-4" onPress={onRetry}>
-          {t('common.retry', { defaultValue: 'Retry' })}
-        </Button>
-      </View>
+          }),
+        )
+          .font('16')
+          .leading('normal')
+          .textAlign('center')
+          .foreground('muted'),
+        Embed(
+          <Button className="mt-4" onPress={onRetry}>
+            {t('common.retry', { defaultValue: 'Retry' })}
+          </Button>,
+        ),
+      )
+        .padding('vertical', '48')
+        .padding('horizontal', '3xl')
+        .flex('1')
+        .justify('center')
+        .align('center'),
     );
   }
 

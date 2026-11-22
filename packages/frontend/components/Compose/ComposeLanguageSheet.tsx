@@ -1,16 +1,23 @@
 import { memo, useCallback } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { Item } from '@oxy.so/bloom/item';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { describeContentLanguage } from '@/constants/contentLanguages';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  Icon,
+  Row,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ComposeLanguageSheetProps {
   /** The language the post declares — what the feed and federation read. */
@@ -80,76 +87,75 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
 
   const tags = [primaryTag, ...variantTags];
 
-  return (
-    <View className="flex-1 pb-6 bg-background">
-      <PageHeader
-        title={t('compose.languages.sheetTitle', { defaultValue: 'Post languages' })}
-        titleAlign="center"
-        safeArea={false}
-        leading={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          />
-        }
-      />
-
-      <Item
-        onPress={() => onEdit(primaryTag)}
-        title={t('compose.languages.pickerTitle', { defaultValue: 'Post language' })}
-        subtitle={describeContentLanguage(primaryTag).nativeName}
-        leading={<RiGlobalLine size="md" fill={theme.colors.text} />}
-        trailing={<RiArrowRightSLine width={18} height={18} fill={theme.colors.textTertiary} />}
-      />
-
-      {variantTags.length > 0
-        ? tags.map((tag) => {
-            const language = describeContentLanguage(tag);
-            const isActive = tag === activeTag;
-            return (
-              <Item
-                key={tag}
-                onPress={() => handlePress(tag)}
-                role="option"
-                selected={isActive}
-                title={language.nativeName}
-                subtitle={
-                  tag === primaryTag
-                    ? t('compose.languages.main', { defaultValue: 'Main language' })
-                    : language.englishName
-                }
-                trailing={
-                  isActive ? (
-                    <RiCheckboxCircleFill size="md" fill={theme.colors.primary} />
-                  ) : undefined
-                }
-              />
-            );
-          })
-        : null}
-
-      <Item
-        // Item forwards the native press event. Keep the component's callback
-        // contract argument-free so ADD can never be mistaken for EDIT.
-        onPress={canAdd ? () => onAdd() : undefined}
-        disabled={!canAdd}
-        title={t('compose.languages.add', { defaultValue: 'Add language' })}
-        subtitle={
-          canAdd
-            ? undefined
-            : t('compose.languages.addFull', {
-                defaultValue: 'This post already holds every language it can',
-              })
-        }
-        leading={
-          <RiAddLine size="md" fill={canAdd ? theme.colors.text : theme.colors.textTertiary} />
-        }
-      />
-    </View>
+  return toElement(
+    VStack(
+      Header(t('compose.languages.sheetTitle', { defaultValue: 'Post languages' }))
+        .titleAlign('center')
+        .safeArea(false)
+        .toolbarLeading(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      Row(t('compose.languages.pickerTitle', { defaultValue: 'Post language' }))
+        .onPress(() => onEdit(primaryTag))
+        .subtitle(describeContentLanguage(primaryTag).nativeName)
+        .leadingView(Icon(RiGlobalLine).size('md').foreground('foreground'))
+        .trailing(Icon(RiArrowRightSLine).size('18').foreground('textTertiary')),
+      Embed(
+        variantTags.length > 0
+          ? tags.map((tag) => {
+              const language = describeContentLanguage(tag);
+              const isActive = tag === activeTag;
+              return (
+                <Item
+                  key={tag}
+                  onPress={() => handlePress(tag)}
+                  role="option"
+                  selected={isActive}
+                  title={language.nativeName}
+                  subtitle={
+                    tag === primaryTag
+                      ? t('compose.languages.main', { defaultValue: 'Main language' })
+                      : language.englishName
+                  }
+                  trailing={
+                    isActive
+                      ? toElement(Icon(RiCheckboxCircleFill).size('md').foreground('primary'))
+                      : undefined
+                  }
+                />
+              );
+            })
+          : null,
+      ),
+      Embed(
+        <Item
+          // Item forwards the native press event. Keep the component's callback
+          // contract argument-free so ADD can never be mistaken for EDIT.
+          onPress={canAdd ? () => onAdd() : undefined}
+          disabled={!canAdd}
+          title={t('compose.languages.add', { defaultValue: 'Add language' })}
+          subtitle={
+            canAdd
+              ? undefined
+              : t('compose.languages.addFull', {
+                  defaultValue: 'This post already holds every language it can',
+                })
+          }
+          leading={
+            <RiAddLine size="md" fill={canAdd ? theme.colors.text : theme.colors.textTertiary} />
+          }
+        />,
+      ),
+    )
+      .padding('bottom', '2xl')
+      .background('background')
+      .flex('1'),
   );
 });
 

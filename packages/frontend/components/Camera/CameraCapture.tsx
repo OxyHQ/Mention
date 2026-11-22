@@ -13,7 +13,6 @@ import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
 import type { BloomIconComponent } from '@oxy.so/bloom';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCameraSwitchLine } from '@oxy.so/bloom/icons/RiCameraSwitchLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
@@ -38,6 +37,7 @@ import {
 } from './constants';
 import { useVideoRecorder } from './useVideoRecorder';
 import type { LocalCapture } from './useCaptureUpload';
+import { Button as LButton, Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** The arc drawn around the shutter while recording. */
 const RING_SIZE = 92;
@@ -378,26 +378,40 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   if (!permission.granted) {
     return (
       <View style={[styles.root, styles.explain]}>
-        <Text className="text-white text-lg text-center mb-2">
-          {t('camera.permissionTitle', { defaultValue: 'Let Mention use the camera' })}
-        </Text>
-        <Text className="text-white/70 text-base leading-6 text-center mb-6">
-          {t('camera.permissionBody', {
-            defaultValue: 'Photos and videos you take here are only posted when you choose to.',
-          })}
-        </Text>
+        {toElement(
+          LText(t('camera.permissionTitle', { defaultValue: 'Let Mention use the camera' }))
+            .foreground('white')
+            .font('18')
+            .leading('28px')
+            .textAlign('center')
+            .margin('bottom', 'sm'),
+        )}
+        {toElement(
+          LText(
+            t('camera.permissionBody', {
+              defaultValue: 'Photos and videos you take here are only posted when you choose to.',
+            }),
+          )
+            .foreground('white/70')
+            .font('16')
+            .leading('24px')
+            .textAlign('center')
+            .margin('bottom', '2xl'),
+        )}
         {/* `canAskAgain` is false once the reader has refused twice on iOS; the
             prompt would never appear, so the honest button is the one that goes
             back rather than one that silently does nothing. */}
-        {permission.canAskAgain ? (
-          <Button onPress={requestPermission} size="lg">
-            {t('camera.permissionAllow', { defaultValue: 'Allow camera' })}
-          </Button>
-        ) : (
-          <Button onPress={onClose} size="lg">
-            {t('common.close', { defaultValue: 'Close' })}
-          </Button>
-        )}
+        {permission.canAskAgain
+          ? toElement(
+              LButton(LText(t('camera.permissionAllow', { defaultValue: 'Allow camera' })))
+                .onPress(requestPermission)
+                .size('lg'),
+            )
+          : toElement(
+              LButton(LText(t('common.close', { defaultValue: 'Close' })))
+                .onPress(onClose)
+                .size('lg'),
+            )}
       </View>
     );
   }
@@ -427,7 +441,6 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
           />
         </View>
       </GestureDetector>
-
       {/* Every control sits on its own translucent disc rather than bare on the
           frame. A camera's chrome has to stay legible over whatever the lens
           happens to be pointing at, and white-on-white is the failure mode. */}
@@ -437,7 +450,6 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
         icon={RiCloseLine}
         label={t('common.close', { defaultValue: 'Close' })}
       />
-
       {/* The modal controls, in a column where the thumb is not covering the
           frame. Each is a cycle rather than a menu: one target, one tap. */}
       <View style={styles.controlColumn}>
@@ -469,22 +481,26 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
           value={timer === 0 ? t('camera.timerOff', { defaultValue: 'Off' }) : `${timer}s`}
         />
       </View>
-
-      {countdown !== null ? (
-        <View style={styles.countdown} pointerEvents="none">
-          <Text className="text-white text-8xl font-bold">{countdown}</Text>
-        </View>
-      ) : null}
-
+      {countdown !== null
+        ? toElement(
+            VStack(Embed(<Text className="text-white text-8xl font-bold">{countdown}</Text>))
+              .align('center')
+              .justify('center')
+              .position({ top: 'none', left: 'none', right: 'none', bottom: 'none' })
+              .allowsHitTesting(false),
+          )
+        : null}
       {recording ? (
         <View style={styles.recordingBadge} pointerEvents="none">
           <View style={styles.recordingDot} />
-          <Text className="text-white text-sm">
-            {phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining)}
-          </Text>
+          {toElement(
+            LText(phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining))
+              .foreground('white')
+              .font('14')
+              .leading('20px'),
+          )}
         </View>
       ) : null}
-
       {/* ZOOM STOPS, the row a phone camera puts just above its shutter. The
           pinch and the drag move the same value, so the selected pill follows
           them; between two stops the selected one shows the live multiplier
@@ -515,7 +531,6 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
           );
         })}
       </View>
-
       <View style={styles.controls}>
         {/* Keeps the shutter centred where the thumb expects it. Instagram's
             gallery shortcut would live here; `CameraCapture`'s header says why
@@ -588,7 +603,6 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
           label={t('camera.flip', { defaultValue: 'Switch camera' })}
         />
       </View>
-
       {/* THE MODE CAROUSEL, the row of names under the shutter that every phone
           camera has and that says what the button is for. It is hidden while
           recording: changing mode mid-take is not a thing it can honour, and a
@@ -609,15 +623,17 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                   : t('camera.modePhoto', { defaultValue: 'Photo' })
               }
             >
-              <Text
-                className={
-                  option === captureMode ? 'text-white text-xs font-bold' : 'text-white/50 text-xs'
-                }
-              >
-                {option === 'video'
-                  ? t('camera.modeVideo', { defaultValue: 'Video' })
-                  : t('camera.modePhoto', { defaultValue: 'Photo' })}
-              </Text>
+              {toElement(
+                LText(
+                  option === 'video'
+                    ? t('camera.modeVideo', { defaultValue: 'Video' })
+                    : t('camera.modePhoto', { defaultValue: 'Photo' }),
+                )
+                  .font('xs')
+                  .leading('16px')
+                  .when(option === captureMode, (v) => v.foreground('white').weight('bold'))
+                  .when(!(option === captureMode), (v) => v.foreground('white/half')),
+              )}
             </Pressable>
           ))}
         </View>

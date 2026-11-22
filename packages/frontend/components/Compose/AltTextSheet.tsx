@@ -1,14 +1,14 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, Image, ScrollView, TouchableOpacity } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { describeContentLanguage } from '@/constants/contentLanguages';
+import { Button as LButton, Embed, Header, Icon, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Matches the backend cap on `content.media[].alt`. */
 const ALT_MAX_LENGTH = 2000;
@@ -80,115 +80,119 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
     onClose();
   }, [values, onSave, onClose]);
 
-  return (
-    <View className="flex-1 pb-6 bg-background">
-      <PageHeader
-        title={t('compose.altText.heading', { defaultValue: 'Alt text' })}
-        titleAlign="center"
-        safeArea={false}
-        leading={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          />
-        }
-      />
-
-      <ScrollView
-        contentContainerStyle={scrollContentStyle}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text className="text-[13px] text-muted-foreground mt-3 mb-3 px-4" style={helpTextStyle}>
-          {t('compose.altText.help', {
-            defaultValue:
-              'Describe this image for people who are blind or have low vision, and to add context for everyone.',
-          })}
-        </Text>
-
-        {imageUrl ? (
-          <Card appearance="outline" elevation="none" radius="radius-16" className="mx-4 mb-3">
-            <Image
-              source={{ uri: imageUrl }}
-              className="w-full"
-              style={previewStyle}
-              resizeMode="cover"
-            />
-          </Card>
-        ) : null}
-
-        {tags.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={tabsContentStyle}
-          >
-            {tags.map((tag) => {
-              const isActive = tag === activeTag;
-              const hasAlt = (values[tag] ?? '').trim().length > 0;
-              return (
-                <TouchableOpacity
-                  key={tag}
-                  onPress={() => setActiveTag(tag)}
-                  activeOpacity={0.75}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: isActive }}
-                  // `bg-primary/10`, not `${theme.colors.primary}1A`. Bloom
-                  // resolves ACCENT tokens to `rgb(0 98 157)` (the tonal engine
-                  // derives them; only the STATUS_COLORS family stays hex), so
-                  // appending hex alpha yields a malformed colour that
-                  // react-native-web renders as the OPAQUE token — measured here
-                  // at contrast 1.00, primary text on primary, the language name
-                  // fully invisible.
-                  className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border ${
-                    isActive ? 'bg-primary/10' : ''
-                  }`}
-                  style={{ borderColor: isActive ? theme.colors.primary : theme.colors.border }}
-                >
-                  <Text
-                    className={`text-[13px] font-semibold ${isActive ? 'text-primary' : ''}`}
-                    style={isActive ? undefined : { color: theme.colors.textSecondary }}
-                  >
-                    {describeContentLanguage(tag).nativeName}
-                  </Text>
-                  {hasAlt ? (
-                    <View
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: theme.colors.primary }}
-                    />
-                  ) : null}
-                </TouchableOpacity>
-              );
+  return toElement(
+    VStack(
+      Header(t('compose.altText.heading', { defaultValue: 'Alt text' }))
+        .titleAlign('center')
+        .safeArea(false)
+        .toolbarLeading(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      Embed(
+        <ScrollView
+          contentContainerStyle={scrollContentStyle}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text className="text-[13px] text-muted-foreground mt-3 mb-3 px-4" style={helpTextStyle}>
+            {t('compose.altText.help', {
+              defaultValue:
+                'Describe this image for people who are blind or have low vision, and to add context for everyone.',
             })}
-          </ScrollView>
-        ) : null}
+          </Text>
 
-        <Textarea
-          accessibilityLabel={t('compose.altText.heading', { defaultValue: 'Alt text' })}
-          placeholder={t('compose.altText.placeholder', { defaultValue: 'Describe this image…' })}
-          value={value}
-          onChangeText={handleChange}
-          maxLength={ALT_MAX_LENGTH}
-          showCount
-          rows={5}
-          autoResize
-          maxRows={12}
-          autoFocus
-          autoCapitalize="sentences"
-          autoCorrect
-          style={textareaStyle}
-        />
-      </ScrollView>
+          {imageUrl ? (
+            <Card appearance="outline" elevation="none" radius="radius-16" className="mx-4 mb-3">
+              <Image
+                source={{ uri: imageUrl }}
+                className="w-full"
+                style={previewStyle}
+                resizeMode="cover"
+              />
+            </Card>
+          ) : null}
 
-      <Button className="mt-2 mx-4" size="lg" onPress={handleSave}>
-        {t('common.done', { defaultValue: 'Done' })}
-      </Button>
-    </View>
+          {tags.length > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={tabsContentStyle}
+            >
+              {tags.map((tag) => {
+                const isActive = tag === activeTag;
+                const hasAlt = (values[tag] ?? '').trim().length > 0;
+                return (
+                  <TouchableOpacity
+                    key={tag}
+                    onPress={() => setActiveTag(tag)}
+                    activeOpacity={0.75}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isActive }}
+                    // `bg-primary/10`, not `${theme.colors.primary}1A`. Bloom
+                    // resolves ACCENT tokens to `rgb(0 98 157)` (the tonal engine
+                    // derives them; only the STATUS_COLORS family stays hex), so
+                    // appending hex alpha yields a malformed colour that
+                    // react-native-web renders as the OPAQUE token — measured here
+                    // at contrast 1.00, primary text on primary, the language name
+                    // fully invisible.
+                    className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border ${
+                      isActive ? 'bg-primary/10' : ''
+                    }`}
+                    style={{ borderColor: isActive ? theme.colors.primary : theme.colors.border }}
+                  >
+                    <Text
+                      className={`text-[13px] font-semibold ${isActive ? 'text-primary' : ''}`}
+                      style={isActive ? undefined : { color: theme.colors.textSecondary }}
+                    >
+                      {describeContentLanguage(tag).nativeName}
+                    </Text>
+                    {hasAlt
+                      ? toElement(
+                          VStack()
+                            .frame({ width: '6', height: '6' })
+                            .background('primary')
+                            .corner('infinite'),
+                        )
+                      : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+
+          <Textarea
+            accessibilityLabel={t('compose.altText.heading', { defaultValue: 'Alt text' })}
+            placeholder={t('compose.altText.placeholder', { defaultValue: 'Describe this image…' })}
+            value={value}
+            onChangeText={handleChange}
+            maxLength={ALT_MAX_LENGTH}
+            showCount
+            rows={5}
+            autoResize
+            maxRows={12}
+            autoFocus
+            autoCapitalize="sentences"
+            autoCorrect
+            style={textareaStyle}
+          />
+        </ScrollView>,
+      ),
+      Embed(
+        <Button className="mt-2 mx-4" size="lg" onPress={handleSave}>
+          {t('common.done', { defaultValue: 'Done' })}
+        </Button>,
+      ),
+    )
+      .padding('bottom', '2xl')
+      .background('background')
+      .flex('1'),
   );
 };
 

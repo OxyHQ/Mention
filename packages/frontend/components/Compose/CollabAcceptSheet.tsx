@@ -1,11 +1,17 @@
 import type React from 'react';
 import { useState } from 'react';
-import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import type { PostUser } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
+
+import {
+  Button as LButton,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface CollabAcceptSheetProps {
   inviter: PostUser;
@@ -37,46 +43,68 @@ const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
     inviterHandle ? `@${inviterHandle}` : '',
   );
 
-  return (
-    <View className="px-4 pb-8 pt-2 gap-4">
-      <Text className="text-foreground text-xl font-bold text-center">
-        {t('collab.acceptTitle', { defaultValue: 'Accept invite?' })}
-      </Text>
-      <Text className="text-muted-foreground text-[15px] text-center">
-        {t('collab.acceptSubtitle', {
+  return toElement(
+    VStack(
+      RawText(t('collab.acceptTitle', { defaultValue: 'Accept invite?' }))
+        .foreground('foreground')
+        .font('xl')
+        .leading('28px')
+        .weight('bold')
+        .textAlign('center'),
+      RawText(
+        t('collab.acceptSubtitle', {
           defaultValue: '{{name}} invited you to collaborate on their post.',
           name: inviterName,
-        })}
-      </Text>
-      <View className="gap-3">
-        <Text className="text-foreground text-[15px]">
-          {t('collab.acceptAttribution', {
+        }),
+      )
+        .foreground('muted')
+        .font('md')
+        .textAlign('center'),
+      VStack(
+        RawText(
+          t('collab.acceptAttribution', {
             defaultValue: 'Your username will be added to this post as a co-author.',
-          })}
-        </Text>
-        <Text className="text-foreground text-[15px]">
-          {t('collab.acceptDistribution', {
+          }),
+        )
+          .foreground('foreground')
+          .font('md'),
+        RawText(
+          t('collab.acceptDistribution', {
             defaultValue: 'The post will be shared with your followers and appear on your profile.',
-          })}
-        </Text>
-        <Text className="text-foreground text-[15px]">
-          {t('collab.acceptVisibility', {
+          }),
+        )
+          .foreground('foreground')
+          .font('md'),
+        RawText(
+          t('collab.acceptVisibility', {
             defaultValue: 'If any collaborator has a public account, the post is public.',
-          })}
-        </Text>
-      </View>
-      <View className="gap-2 mt-2">
-        <Button onPress={answer(onAccept)} disabled={loading}>
-          {t('collab.accept', { defaultValue: 'Accept' })}
-        </Button>
-        <Button appearance="subtle" tone="neutral" onPress={answer(onDecline)} disabled={loading}>
-          {t('collab.decline', { defaultValue: 'Decline' })}
-        </Button>
-        <Button appearance="plain" tone="neutral" onPress={onClose} disabled={loading}>
-          {t('common.cancel', { defaultValue: 'Cancel' })}
-        </Button>
-      </View>
-    </View>
+          }),
+        )
+          .foreground('foreground')
+          .font('md'),
+      ).spacing('md'),
+      VStack(
+        LButton(LText(t('collab.accept', { defaultValue: 'Accept' })))
+          .onPress(answer(onAccept))
+          .disabled(loading),
+        LButton(LText(t('collab.decline', { defaultValue: 'Decline' })))
+          .style('subtle')
+          .tint('neutral')
+          .onPress(answer(onDecline))
+          .disabled(loading),
+        LButton(LText(t('common.cancel', { defaultValue: 'Cancel' })))
+          .style('plain')
+          .tint('neutral')
+          .onPress(onClose)
+          .disabled(loading),
+      )
+        .spacing('sm')
+        .margin('top', 'sm'),
+    )
+      .padding('horizontal', 'lg')
+      .padding('bottom', '3xl')
+      .padding('top', 'sm')
+      .spacing('lg'),
   );
 };
 

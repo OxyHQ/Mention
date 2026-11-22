@@ -1,7 +1,5 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, Text } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -11,6 +9,15 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { Draft } from '@/hooks/useDrafts';
 import { draftToPreviewPost } from '@/utils/draftPreview';
 import PostPreviewSurface from './PostPreviewSurface';
+
+import {
+  Button as LButton,
+  Icon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface DraftPreviewProps {
   draft: Draft;
@@ -71,22 +78,36 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
       post={post}
       title={t('compose.draftPreviewTitle', { defaultValue: 'Draft preview' })}
       subtitle={
-        remainingThreadItems > 0 ? (
-          <Text className="text-xs text-muted-foreground mt-0.5">
-            {t('compose.draftPreviewThread', {
-              defaultValue: 'First post of {{count}} more in this thread',
-              count: remainingThreadItems,
-            })}
-          </Text>
-        ) : undefined
+        remainingThreadItems > 0
+          ? toElement(
+              RawText(
+                t('compose.draftPreviewThread', {
+                  defaultValue: 'First post of {{count}} more in this thread',
+                  count: remainingThreadItems,
+                }),
+              )
+                .font('xs')
+                .leading('16px')
+                .foreground('muted')
+                .margin('top', '2xs'),
+            )
+          : undefined
       }
       onBack={onBack}
     >
-      <View className="px-4 py-3 border-t border-border">
-        <Button size="lg" leadingIcon={RiEditLine} onPress={onEdit}>
-          {t('compose.draftPreviewEdit', { defaultValue: 'Continue writing' })}
-        </Button>
-      </View>
+      {toElement(
+        VStack(
+          LButton(
+            Icon(RiEditLine),
+            LText(t('compose.draftPreviewEdit', { defaultValue: 'Continue writing' })),
+          )
+            .size('lg')
+            .onPress(onEdit),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'md')
+          .border('border', 'thin', 'top'),
+      )}
     </PostPreviewSurface>
   );
 };

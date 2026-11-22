@@ -1,10 +1,16 @@
 import type React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
+import { TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
+
+import {
+  Dialog as LDialog,
+  RawText,
+  TextEditor,
+  TextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ArticleEditorProps {
   visible: boolean;
@@ -56,50 +62,47 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
       activeOpacity={0.85}
       accessibilityRole="button"
     >
-      <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
-        {t('common.save')}
-      </Text>
+      {toElement(
+        RawText(t('common.save')).font('14').leading('20px').weight('semibold').foreground('card'),
+      )}
     </TouchableOpacity>
   );
 
-  return (
-    <Dialog
-      open={visible}
-      onClose={onClose}
-      placement={{ base: 'bottom', md: 'center' }}
-      maxWidth={720}
-      maxHeightRatio={0.92}
-      header={{
+  return toElement(
+    LDialog(
+      VStack(
+        TextField(
+          [title, onTitleChange],
+          t('compose.article.titlePlaceholder', {
+            defaultValue: 'Article title',
+          }),
+        ).maxLength(280),
+        TextEditor([body, onBodyChange])
+          .label(
+            t('compose.article.bodyPlaceholder', {
+              defaultValue: 'Start writing…',
+            }),
+          )
+          .placeholder(
+            t('compose.article.bodyPlaceholder', {
+              defaultValue: 'Start writing…',
+            }),
+          )
+          .rows(12)
+          .autoResize(40),
+      )
+        .padding('bottom', '2xl')
+        .spacing('lg'),
+    )
+      .presentAt('bottom', { md: 'center' })
+      .frame({ maxWidth: '720' })
+      .maxHeightRatio(0.92)
+      .header({
         title: t('compose.article.editorTitle', { defaultValue: 'Write article' }),
         largeTitle: false,
         right: saveAction,
-      }}
-      testID="articleEditorDialog"
-    >
-      <View className="gap-4 pb-6">
-        <TextFieldInput
-          label={t('compose.article.titlePlaceholder', {
-            defaultValue: 'Article title',
-          })}
-          value={title}
-          onChangeText={onTitleChange}
-          maxLength={280}
-        />
-
-        <Textarea
-          accessibilityLabel={t('compose.article.bodyPlaceholder', {
-            defaultValue: 'Start writing…',
-          })}
-          placeholder={t('compose.article.bodyPlaceholder', {
-            defaultValue: 'Start writing…',
-          })}
-          value={body}
-          onChangeText={onBodyChange}
-          rows={12}
-          autoResize
-          maxRows={40}
-        />
-      </View>
-    </Dialog>
+      })
+      .testID('articleEditorDialog')
+      .presented([visible, () => onClose()]),
   );
 };

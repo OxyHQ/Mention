@@ -1,7 +1,6 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useRef } from 'react';
 import {
-  View,
   Text,
   TouchableOpacity,
   StyleSheet,
@@ -12,12 +11,12 @@ import {
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Card } from '@oxy.so/bloom/card';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from 'react-i18next';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { Embed, HStack, Icon, RawText, TextField, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface PollCreatorProps {
   pollTitle: string;
@@ -56,16 +55,24 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
 
   return (
     <Card border="thin" radius="radius-12" style={[styles.pollCreator, style]}>
-      <View className="flex-row justify-between items-center mb-2.5">
-        <View className="flex-row items-center gap-1.5">
-          <RiBarChartHorizontalLine width={18} height={18} fill={theme.colors.primary} />
-          <Text className="text-[15px] font-bold text-foreground">{t('compose.poll.create')}</Text>
-        </View>
-        <TouchableOpacity onPress={onRemove} className="p-1" hitSlop={tokens.hitSlop.md}>
-          <RiCloseLine width={18} height={18} fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
+      {toElement(
+        HStack(
+          HStack(
+            Icon(RiBarChartHorizontalLine).size('18').foreground('primary'),
+            RawText(t('compose.poll.create')).font('md').weight('bold').foreground('foreground'),
+          )
+            .align('center')
+            .spacing('6'),
+          Embed(
+            <TouchableOpacity onPress={onRemove} className="p-1" hitSlop={tokens.hitSlop.md}>
+              {toElement(Icon(RiCloseLine).size('18').foreground('muted'))}
+            </TouchableOpacity>,
+          ),
+        )
+          .justify('between')
+          .align('center')
+          .margin('bottom', '10'),
+      )}
       <Textarea
         inputRef={pollTitleInputRef}
         accessibilityLabel={t('compose.poll.question')}
@@ -79,51 +86,76 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
         maxRows={4}
         style={{ marginBottom: 10 }}
       />
-
-      <View className="mb-2 gap-2">
-        {pollOptions.map((option, index) => (
-          <InputGroup key={index}>
-            <InputGroupAddon>
-              <View className="w-6 h-6 rounded-full items-center justify-center bg-muted">
-                <Text className="text-xs font-bold text-muted-foreground">{index + 1}</Text>
-              </View>
-            </InputGroupAddon>
-            <TextFieldInput
-              label={t(`Option ${index + 1}`)}
-              value={option}
-              onChangeText={(value) => onOptionChange(index, value)}
-              maxLength={50}
-            />
-            {pollOptions.length > 2 && (
-              <InputGroupAddon>
-                <TouchableOpacity
-                  onPress={() => onRemoveOption(index)}
-                  className="p-1"
-                  hitSlop={tokens.hitSlop.md}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
-                >
-                  <RiCloseLine width={16} height={16} fill={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              </InputGroupAddon>
-            )}
-          </InputGroup>
-        ))}
-      </View>
-
+      {toElement(
+        VStack(
+          Embed(
+            pollOptions.map((option, index) => (
+              <InputGroup key={index}>
+                <InputGroupAddon>
+                  {toElement(
+                    VStack(
+                      RawText(index + 1)
+                        .font('xs')
+                        .leading('16px')
+                        .weight('bold')
+                        .foreground('muted'),
+                    )
+                      .frame({ width: '2xl', height: '2xl' })
+                      .background('mutedFill')
+                      .corner('infinite')
+                      .align('center')
+                      .justify('center'),
+                  )}
+                </InputGroupAddon>
+                {toElement(
+                  TextField(
+                    [option, (value) => onOptionChange(index, value)],
+                    t(`Option ${index + 1}`),
+                  ).maxLength(50),
+                )}
+                {pollOptions.length > 2 && (
+                  <InputGroupAddon>
+                    <TouchableOpacity
+                      onPress={() => onRemoveOption(index)}
+                      className="p-1"
+                      hitSlop={tokens.hitSlop.md}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
+                    >
+                      {toElement(Icon(RiCloseLine).size('sm').foreground('muted'))}
+                    </TouchableOpacity>
+                  </InputGroupAddon>
+                )}
+              </InputGroup>
+            )),
+          ),
+        )
+          .margin('bottom', 'sm')
+          .spacing('sm'),
+      )}
       {pollOptions.length < 4 && (
         <TouchableOpacity
           className="flex-row items-center gap-2 py-2.5 px-3 rounded-[10px] border-[1.5px] border-dashed border-border mb-1.5"
           onPress={onAddOption}
           activeOpacity={0.7}
         >
-          <View className="w-6 h-6 rounded-full items-center justify-center bg-muted">
-            <RiAddLine width={16} height={16} fill={theme.colors.primary} />
-          </View>
-          <Text className="text-sm font-semibold text-primary">{t('compose.poll.addOption')}</Text>
+          {toElement(
+            VStack(Icon(RiAddLine).size('sm').foreground('primary'))
+              .frame({ width: '2xl', height: '2xl' })
+              .background('mutedFill')
+              .corner('infinite')
+              .align('center')
+              .justify('center'),
+          )}
+          {toElement(
+            RawText(t('compose.poll.addOption'))
+              .font('14')
+              .leading('20px')
+              .weight('semibold')
+              .foreground('primary'),
+          )}
         </TouchableOpacity>
       )}
-
       <Text style={{ fontSize: 11, marginTop: 2, marginLeft: 2, color: theme.colors.textTertiary }}>
         {pollOptions.length === 2 ? t('compose.poll.addMoreOptions') : t('compose.poll.minOptions')}
       </Text>

@@ -1,6 +1,5 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { View, Text } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -16,6 +15,16 @@ import { confirmDialog } from '@/utils/alerts';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { formatScheduledLabel } from '@/utils/dateUtils';
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('ScheduledPostPreview');
 
@@ -114,77 +123,107 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
     <PostPreviewSurface
       post={post}
       title={t('compose.scheduled.previewTitle', { defaultValue: 'Preview' })}
-      subtitle={
-        <View className="flex-row items-center gap-1.5 mt-0.5">
-          <RiCalendarLine size="xs" fill={theme.colors.textSecondary} />
-          <Text className="text-xs text-muted-foreground">
-            {publishAt === null
+      subtitle={toElement(
+        HStack(
+          Icon(RiCalendarLine).size('xs').foreground('muted'),
+          RawText(
+            publishAt === null
               ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
               : pastDue
                 ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
                 : t('compose.scheduled.publishesAt', {
                     defaultValue: 'Publishes {{time}}',
                     time: formatScheduledLabel(publishAt),
-                  })}
-          </Text>
-        </View>
-      }
+                  }),
+          )
+            .font('xs')
+            .leading('16px')
+            .foreground('muted'),
+        )
+          .align('center')
+          .spacing('6')
+          .margin('top', '2xs'),
+      )}
       notice={
-        pastDue ? (
-          <View className="px-4 py-2 bg-muted border-b border-border">
-            <Text className="text-xs text-muted-foreground">
-              {t('compose.scheduled.pastDueNotice', {
-                defaultValue:
-                  'Its time has passed — it may already be live. Reopen this list to refresh.',
-              })}
-            </Text>
-          </View>
-        ) : undefined
+        pastDue
+          ? toElement(
+              VStack(
+                RawText(
+                  t('compose.scheduled.pastDueNotice', {
+                    defaultValue:
+                      'Its time has passed — it may already be live. Reopen this list to refresh.',
+                  }),
+                )
+                  .font('xs')
+                  .leading('16px')
+                  .foreground('muted'),
+              )
+                .padding('horizontal', 'lg')
+                .padding('vertical', 'sm')
+                .background('mutedFill')
+                .border('border', 'thin', 'bottom'),
+            )
+          : undefined
       }
       onBack={onBack}
     >
-      <View className="px-4 pt-3 border-t border-border">
-        <Button
-          size="lg"
-          leadingIcon={RiSendPlaneLine}
-          onPress={handlePublishNow}
-          disabled={busy}
-          loading={isPublishing}
-          accessibilityLabel={t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
-        >
-          {t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
-        </Button>
-      </View>
-
-      <View className="flex-row items-center gap-2 px-4 py-3">
-        <Button
-          className="flex-1"
-          appearance="subtle"
-          tone="neutral"
-          size="lg"
-          leadingIcon={RiEditLine}
-          onPress={onEdit}
-          disabled={busy}
-          accessibilityLabel={t('compose.scheduled.edit', { defaultValue: 'Edit scheduled post' })}
-        >
-          {t('common.edit', { defaultValue: 'Edit' })}
-        </Button>
-        <Button
-          className="flex-1"
-          appearance="solid"
-          tone="danger"
-          size="lg"
-          leadingIcon={RiDeleteBinLine}
-          onPress={handleCancel}
-          disabled={busy}
-          loading={isCancelling}
-          accessibilityLabel={t('compose.scheduled.cancelTitle', {
-            defaultValue: 'Cancel scheduled post',
-          })}
-        >
-          {t('common.cancel')}
-        </Button>
-      </View>
+      {toElement(
+        VStack(
+          LButton(
+            Icon(RiSendPlaneLine),
+            LText(t('compose.scheduled.publishNow', { defaultValue: 'Post now' })),
+          )
+            .size('lg')
+            .onPress(handlePublishNow)
+            .disabled(busy)
+            .loading(isPublishing)
+            .label(t('compose.scheduled.publishNow', { defaultValue: 'Post now' })),
+        )
+          .padding('horizontal', 'lg')
+          .padding('top', 'md')
+          .border('border', 'thin', 'top'),
+      )}
+      {toElement(
+        HStack(
+          Embed(
+            <Button
+              className="flex-1"
+              appearance="subtle"
+              tone="neutral"
+              size="lg"
+              leadingIcon={RiEditLine}
+              onPress={onEdit}
+              disabled={busy}
+              accessibilityLabel={t('compose.scheduled.edit', {
+                defaultValue: 'Edit scheduled post',
+              })}
+            >
+              {t('common.edit', { defaultValue: 'Edit' })}
+            </Button>,
+          ),
+          Embed(
+            <Button
+              className="flex-1"
+              appearance="solid"
+              tone="danger"
+              size="lg"
+              leadingIcon={RiDeleteBinLine}
+              onPress={handleCancel}
+              disabled={busy}
+              loading={isCancelling}
+              accessibilityLabel={t('compose.scheduled.cancelTitle', {
+                defaultValue: 'Cancel scheduled post',
+              })}
+            >
+              {t('common.cancel')}
+            </Button>,
+          ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'md')
+          .align('center')
+          .spacing('sm'),
+      )}
     </PostPreviewSurface>
   );
 };

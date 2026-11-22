@@ -1,17 +1,26 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Item } from '@oxy.so/bloom/item';
 import type { AccountNode } from '@oxy.so/core';
 import type { Lane } from '@mention/shared-types';
 import { usePublisherLanes } from '@/hooks/usePublisherLanes';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  Icon,
+  RawText,
+  Row,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface LanePickerSheetProps {
   /** The lane currently chosen for this post, or `null` for none. */
@@ -69,97 +78,108 @@ const LanePickerSheet = memo(function LanePickerSheet({
   }, [onClose, router]);
 
   const renderItem = useCallback(
-    ({ item }: { item: Lane }) => (
-      <Item
-        onPress={() => handleSelect(item.id)}
-        title={item.name}
-        subtitle={t('lanes.postCount', {
-          count: item.postCount ?? 0,
-          defaultValue: '{{count}} posts',
-        })}
-        trailing={
-          item.id === selectedLaneId ? (
-            <Text className="text-primary text-[13px] font-semibold">
-              {t('lanes.picker.current', { defaultValue: 'Current' })}
-            </Text>
-          ) : undefined
-        }
-      />
-    ),
+    ({ item }: { item: Lane }) =>
+      toElement(
+        Row(item.name)
+          .onPress(() => handleSelect(item.id))
+          .subtitle(
+            t('lanes.postCount', {
+              count: item.postCount ?? 0,
+              defaultValue: '{{count}} posts',
+            }),
+          )
+          .trailing(
+            Embed(
+              item.id === selectedLaneId
+                ? toElement(
+                    RawText(t('lanes.picker.current', { defaultValue: 'Current' }))
+                      .foreground('primary')
+                      .font('sm')
+                      .weight('semibold'),
+                  )
+                : undefined,
+            ),
+          ),
+      ),
     [handleSelect, selectedLaneId, t],
   );
 
-  return (
-    <View className="flex-1 pb-6 bg-background">
-      <PageHeader
-        title={t('lanes.picker.title', { defaultValue: 'Post lane' })}
-        titleAlign="center"
-        safeArea={false}
-        leading={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          />
-        }
-      />
-
-      <Item
-        onPress={() => handleSelect(null)}
-        title={t('lanes.picker.none', { defaultValue: 'No lane' })}
-        subtitle={
+  return toElement(
+    VStack(
+      Header(t('lanes.picker.title', { defaultValue: 'Post lane' }))
+        .titleAlign('center')
+        .safeArea(false)
+        .toolbarLeading(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      Row(t('lanes.picker.none', { defaultValue: 'No lane' }))
+        .onPress(() => handleSelect(null))
+        .subtitle(
           publishAs
             ? t('lanes.picker.noneSubtitleChannel', {
                 defaultValue: 'The post appears on the channel’s main tab',
               })
             : t('lanes.picker.noneSubtitle', {
                 defaultValue: 'The post appears on your main profile tab',
-              })
-        }
-        trailing={
-          selectedLaneId === null ? (
-            <Text className="text-primary text-[13px] font-semibold">
-              {t('lanes.picker.current', { defaultValue: 'Current' })}
-            </Text>
-          ) : undefined
-        }
-      />
-
-      {isLoading ? (
-        <ListSkeleton />
-      ) : (
-        <FlatList
-          data={lanes}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            <EmptyState
-              icon={RiNodeTree}
-              subtitle={t('lanes.picker.empty', {
-                defaultValue:
-                  'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
-              })}
-            />
-          }
-        />
-      )}
-
-      {/* `/lanes` manages the AUTHOR's lanes, which are not the ones listed while
-          publishing as another account. A channel account's lanes have no
-          management screen of their own yet, so the way out is omitted rather
-          than pointed somewhere that would edit the wrong publisher's lanes. */}
-      {publishAs ? null : (
-        <View className="mt-2 mx-4">
-          <Button appearance="subtle" tone="neutral" size="lg" onPress={handleManage}>
-            {t('lanes.picker.manage', { defaultValue: 'Manage lanes' })}
-          </Button>
-        </View>
-      )}
-    </View>
+              }),
+        )
+        .trailing(
+          Embed(
+            selectedLaneId === null
+              ? toElement(
+                  RawText(t('lanes.picker.current', { defaultValue: 'Current' }))
+                    .foreground('primary')
+                    .font('sm')
+                    .weight('semibold'),
+                )
+              : undefined,
+          ),
+        ),
+      Embed(
+        isLoading ? (
+          <ListSkeleton />
+        ) : (
+          <FlatList
+            data={lanes}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <EmptyState
+                icon={RiNodeTree}
+                subtitle={t('lanes.picker.empty', {
+                  defaultValue:
+                    'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
+                })}
+              />
+            }
+          />
+        ),
+      ),
+      /* `/lanes` manages the AUTHOR's lanes, which are not the ones listed while
+            publishing as another account. A channel account's lanes have no
+            management screen of their own yet, so the way out is omitted rather
+            than pointed somewhere that would edit the wrong publisher's lanes. */ publishAs
+        ? null
+        : VStack(
+            LButton(LText(t('lanes.picker.manage', { defaultValue: 'Manage lanes' })))
+              .style('subtle')
+              .tint('neutral')
+              .size('lg')
+              .onPress(handleManage),
+          )
+            .margin('top', 'sm')
+            .margin('horizontal', 'lg'),
+    )
+      .padding('bottom', '2xl')
+      .background('background')
+      .flex('1'),
   );
 });
 

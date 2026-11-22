@@ -1,15 +1,23 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useState } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Item } from '@oxy.so/bloom/item';
-import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
+
+import {
+  Embed,
+  Icon,
+  RawText,
+  Row,
+  Search as LSearch,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface PodcastSearchResult {
   syraPodcastId: string;
@@ -37,29 +45,29 @@ const PodcastResultRow = memo(function PodcastResultRow({
     onSelect(result);
   }, [onSelect, result]);
 
-  return (
-    <Item
-      onPress={handlePress}
-      title={result.title}
-      subtitle={result.author}
-      leading={
-        result.artworkUrl ? (
-          <Image
-            source={{ uri: result.artworkUrl }}
-            style={{ width: 40, height: 40, borderRadius: 6 }}
-            contentFit="cover"
-            transition={120}
-          />
-        ) : (
-          <View
-            className="rounded-md bg-muted items-center justify-center"
-            style={{ width: 40, height: 40 }}
-          >
-            <RiMic2Line size="md" fill={colors.textSecondary} />
-          </View>
-        )
-      }
-    />
+  return toElement(
+    Row(result.title)
+      .onPress(handlePress)
+      .subtitle(result.author)
+      .leadingView(
+        Embed(
+          result.artworkUrl ? (
+            <Image
+              source={{ uri: result.artworkUrl }}
+              style={{ width: 40, height: 40, borderRadius: 6 }}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <View
+              className="rounded-md bg-muted items-center justify-center"
+              style={{ width: 40, height: 40 }}
+            >
+              {toElement(Icon(RiMic2Line).size('md').foreground('muted'))}
+            </View>
+          ),
+        ),
+      ),
   );
 });
 
@@ -90,51 +98,72 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
     [onSelect, onClose],
   );
 
-  return (
-    <View className="bg-background px-4 pt-3 pb-2">
-      <Text className="text-foreground text-lg font-bold mb-3">{t('compose.podcast.title')}</Text>
-
-      <Search
-        label={t('compose.podcast.searchPlaceholder')}
-        value={query}
-        onChangeText={setQuery}
-        onClearText={() => setQuery('')}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      {/* Results */}
-      <View className="mt-2 min-h-[120px]">
-        {search.isLoading ? (
-          <ListSkeleton />
-        ) : search.isError ? (
-          <Text className="text-muted-foreground text-[15px] text-center py-10">
-            {t('compose.podcast.searchError')}
-          </Text>
-        ) : !search.hasQuery ? (
-          <Text className="text-muted-foreground text-[15px] text-center py-10">
-            {t('compose.podcast.searchHint')}
-          </Text>
-        ) : search.results.length === 0 ? (
-          <View className="items-center justify-center py-10 gap-2">
-            <RiSearchLine size="2xl" fill={colors.textSecondary} />
-            <Text className="text-muted-foreground text-[15px]">{t('compose.podcast.empty')}</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={search.results}
-            keyExtractor={(item) => item.syraPodcastId}
-            renderItem={({ item }) => <PodcastResultRow result={item} onSelect={handleSelect} />}
-            className="max-h-[340px]"
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            onEndReached={search.loadMore}
-            onEndReachedThreshold={0.4}
-            ListFooterComponent={<ResultsFooter loading={search.isFetchingNextPage} />}
-          />
-        )}
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      RawText(t('compose.podcast.title'))
+        .foreground('foreground')
+        .font('18')
+        .leading('28px')
+        .weight('bold')
+        .margin('bottom', 'md'),
+      LSearch([query, setQuery])
+        .label(t('compose.podcast.searchPlaceholder'))
+        .onClearText(() => setQuery(''))
+        .autocapitalize('none')
+        .autocorrect(false),
+      /* Results */ VStack(
+        Embed(
+          search.isLoading ? (
+            <ListSkeleton />
+          ) : search.isError ? (
+            toElement(
+              RawText(t('compose.podcast.searchError'))
+                .padding('vertical', '4xl')
+                .foreground('muted')
+                .font('md')
+                .textAlign('center'),
+            )
+          ) : !search.hasQuery ? (
+            toElement(
+              RawText(t('compose.podcast.searchHint'))
+                .padding('vertical', '4xl')
+                .foreground('muted')
+                .font('md')
+                .textAlign('center'),
+            )
+          ) : search.results.length === 0 ? (
+            toElement(
+              VStack(
+                Icon(RiSearchLine).size('2xl').foreground('muted'),
+                RawText(t('compose.podcast.empty')).foreground('muted').font('md'),
+              )
+                .padding('vertical', '4xl')
+                .align('center')
+                .justify('center')
+                .spacing('sm'),
+            )
+          ) : (
+            <FlatList
+              data={search.results}
+              keyExtractor={(item) => item.syraPodcastId}
+              renderItem={({ item }) => <PodcastResultRow result={item} onSelect={handleSelect} />}
+              className="max-h-[340px]"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onEndReached={search.loadMore}
+              onEndReachedThreshold={0.4}
+              ListFooterComponent={<ResultsFooter loading={search.isFetchingNextPage} />}
+            />
+          ),
+        ),
+      )
+        .frame({ minHeight: '120' })
+        .margin('top', 'sm'),
+    )
+      .padding('horizontal', 'lg')
+      .padding('top', 'md')
+      .padding('bottom', 'sm')
+      .background('background'),
   );
 });
 

@@ -1,18 +1,13 @@
 import type React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
+
+import { Embed, HStack, Icon, toElement } from '@oxy.so/bloom-language';
 
 interface LocationDisplayProps {
   location: {
@@ -38,24 +33,30 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
 
   return (
     <Card appearance="subtle" border="thin" radius="radius-8" style={[styles.container, style]}>
-      <View style={styles.header}>
-        <RiMapPinLine width={16} height={16} fill={theme.colors.primary} />
-        {isGettingLocation ? (
-          <>
-            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-            <Text style={[styles.text, { color: theme.colors.textSecondary }]}>
-              {t('compose.location.getting', { defaultValue: 'Getting location...' })}
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={[styles.text, { color: theme.colors.text }]}>{location?.address}</Text>
-            <TouchableOpacity onPress={onRemove}>
-              <RiCloseLine width={16} height={16} fill={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+      {toElement(
+        HStack(
+          Icon(RiMapPinLine).size('sm').foreground('primary'),
+          Embed(
+            isGettingLocation ? (
+              <>
+                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
+                <Text style={[styles.text, { color: theme.colors.textSecondary }]}>
+                  {t('compose.location.getting', { defaultValue: 'Getting location...' })}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.text, { color: theme.colors.text }]}>{location?.address}</Text>
+                <TouchableOpacity onPress={onRemove}>
+                  {toElement(Icon(RiCloseLine).size('sm').foreground('muted'))}
+                </TouchableOpacity>
+              </>
+            ),
+          ),
+        )
+          .align('center')
+          .spacing('sm'),
+      )}
     </Card>
   );
 };

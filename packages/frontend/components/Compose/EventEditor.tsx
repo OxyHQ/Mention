@@ -1,13 +1,22 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
-import { Dialog } from '@oxy.so/bloom/dialog';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
 import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from 'react-i18next';
 import { formatTimeInput } from '@/utils/dateUtils';
+
+import {
+  Button as LButton,
+  Dialog as LDialog,
+  Embed,
+  HStack,
+  Text,
+  TextEditor,
+  TextField as LTextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** Strict 24h `HH:mm` — `99:99`, `25:00` and half-typed values are not times. */
 const TIME_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
@@ -125,123 +134,120 @@ export const EventEditor: React.FC<EventEditorProps> = ({
     onSave();
   }, [missingName, timeInvalid, invalidCapacity, onSave]);
 
-  const saveAction = (
-    <Button
-      appearance="solid"
-      tone="accent"
-      size="sm"
-      disabled={missingName || timeInvalid || invalidCapacity}
-      onPress={handleSave}
-      testID="eventEditorSave"
-    >
-      {t('common.save')}
-    </Button>
+  const saveAction = toElement(
+    LButton(Text(t('common.save')))
+      .style('solid')
+      .tint('accent')
+      .size('sm')
+      .disabled(missingName || timeInvalid || invalidCapacity)
+      .onPress(handleSave)
+      .testID('eventEditorSave'),
   );
 
-  return (
-    <Dialog
-      open={visible}
-      onClose={onClose}
-      placement={{ base: 'bottom', md: 'center' }}
-      maxWidth={640}
-      maxHeightRatio={0.92}
-      header={{
+  return toElement(
+    LDialog(
+      VStack(
+        Embed(
+          onCapacityChange &&
+            toElement(
+              LTextField(
+                [capacity, onCapacityChange],
+                t('events.capacity', { defaultValue: 'Capacity (leave empty for unlimited)' }),
+              )
+                .keyboard('number-pad')
+                .testID('eventEditorCapacity'),
+            ),
+        ),
+        VStack(
+          LTextField(
+            [name, onNameChange],
+            t('compose.event.namePlaceholder', {
+              defaultValue: 'Event name',
+            }),
+          )
+            .maxLength(100)
+            .testID('eventEditorName'),
+          Embed(
+            missingName ? (
+              <TextFieldHint>
+                {t('compose.event.nameRequired', {
+                  defaultValue: 'Give the event a name to attach it.',
+                })}
+              </TextFieldHint>
+            ) : null,
+          ),
+        ),
+        HStack(
+          Embed(
+            <Field label={t('compose.event.date', { defaultValue: 'Date' })} style={{ flex: 1 }}>
+              <DatePicker
+                value={eventDay}
+                onChange={handleDateChange}
+                accessibilityLabel={t('compose.event.date', { defaultValue: 'Date' })}
+                testID="eventEditorDatePicker"
+              />
+            </Field>,
+          ),
+          Embed(
+            <View style={{ width: 120 }}>
+              <TextField>
+                <TextFieldInput
+                  label={t('compose.event.time', { defaultValue: 'Time' })}
+                  value={timeDraft}
+                  onChangeText={handleTimeChange}
+                  placeholder="HH:mm"
+                  inputMode="numeric"
+                  maxLength={5}
+                  aria-invalid={timeInvalid || undefined}
+                  testID="eventEditorTimeField"
+                />
+              </TextField>
+            </View>,
+          ),
+        ).spacing('md'),
+        timeInvalid
+          ? VStack(
+              Embed(
+                <TextFieldHint invalid>
+                  {t('compose.event.timeInvalid', {
+                    defaultValue: 'Enter a valid time, like 20:30.',
+                  })}
+                </TextFieldHint>,
+              ),
+            ).testID('eventEditorTimeError')
+          : null,
+        LTextField(
+          [location, onLocationChange],
+          t('compose.event.locationPlaceholder', {
+            defaultValue: 'Location (optional)',
+          }),
+        ).maxLength(200),
+        TextEditor([description, onDescriptionChange])
+          .label(
+            t('compose.event.descriptionPlaceholder', {
+              defaultValue: 'Description (optional)',
+            }),
+          )
+          .placeholder(
+            t('compose.event.descriptionPlaceholder', {
+              defaultValue: 'Description (optional)',
+            }),
+          )
+          .rows(4)
+          .maxLength(500),
+      )
+        .padding('bottom', '2xl')
+        .spacing('lg'),
+    )
+      .presentAt('bottom', { md: 'center' })
+      .frame({ maxWidth: '640' })
+      .maxHeightRatio(0.92)
+      .header({
         title: t('compose.event.editorTitle', { defaultValue: 'Create event' }),
         largeTitle: false,
         right: saveAction,
-      }}
-      testID="eventEditorDialog"
-    >
-      <View className="gap-4 pb-6">
-        {onCapacityChange && (
-          <TextField>
-            <TextFieldInput
-              label={t('events.capacity', { defaultValue: 'Capacity (leave empty for unlimited)' })}
-              value={capacity}
-              onChangeText={onCapacityChange}
-              keyboardType="number-pad"
-              testID="eventEditorCapacity"
-            />
-          </TextField>
-        )}
-        <View>
-          <TextField>
-            <TextFieldInput
-              label={t('compose.event.namePlaceholder', {
-                defaultValue: 'Event name',
-              })}
-              value={name}
-              onChangeText={onNameChange}
-              maxLength={100}
-              testID="eventEditorName"
-            />
-          </TextField>
-          {missingName ? (
-            <TextFieldHint>
-              {t('compose.event.nameRequired', {
-                defaultValue: 'Give the event a name to attach it.',
-              })}
-            </TextFieldHint>
-          ) : null}
-        </View>
-
-        <View className="flex-row gap-3">
-          <Field label={t('compose.event.date', { defaultValue: 'Date' })} style={{ flex: 1 }}>
-            <DatePicker
-              value={eventDay}
-              onChange={handleDateChange}
-              accessibilityLabel={t('compose.event.date', { defaultValue: 'Date' })}
-              testID="eventEditorDatePicker"
-            />
-          </Field>
-
-          <View style={{ width: 120 }}>
-            <TextField>
-              <TextFieldInput
-                label={t('compose.event.time', { defaultValue: 'Time' })}
-                value={timeDraft}
-                onChangeText={handleTimeChange}
-                placeholder="HH:mm"
-                inputMode="numeric"
-                maxLength={5}
-                aria-invalid={timeInvalid || undefined}
-                testID="eventEditorTimeField"
-              />
-            </TextField>
-          </View>
-        </View>
-        {timeInvalid ? (
-          <View testID="eventEditorTimeError">
-            <TextFieldHint invalid>
-              {t('compose.event.timeInvalid', {
-                defaultValue: 'Enter a valid time, like 20:30.',
-              })}
-            </TextFieldHint>
-          </View>
-        ) : null}
-
-        <TextFieldInput
-          label={t('compose.event.locationPlaceholder', {
-            defaultValue: 'Location (optional)',
-          })}
-          value={location}
-          onChangeText={onLocationChange}
-          maxLength={200}
-        />
-
-        <Textarea
-          accessibilityLabel={t('compose.event.descriptionPlaceholder', {
-            defaultValue: 'Description (optional)',
-          })}
-          placeholder={t('compose.event.descriptionPlaceholder', {
-            defaultValue: 'Description (optional)',
-          })}
-          value={description}
-          onChangeText={onDescriptionChange}
-          rows={4}
-          maxLength={500}
-        />
-      </View>
-    </Dialog>
+      })
+      .testID('eventEditorDialog')
+      .presented([visible, () => onClose()]),
   );
 };

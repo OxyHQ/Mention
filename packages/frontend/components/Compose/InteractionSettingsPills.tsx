@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
@@ -8,6 +8,8 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ReplySettingsMenu } from './ReplySettingsMenu';
 import type { ReplyPermission } from './replyPermission';
+
+import { Embed, HStack, toElement } from '@oxy.so/bloom-language';
 
 interface InteractionSettingsPillsProps {
   replyPermission: ReplyPermission[];
@@ -52,34 +54,41 @@ const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
       [isSensitive, theme.colors.error, theme.colors.textSecondary],
     );
 
-    return (
-      <View style={styles.container}>
-        <ReplySettingsMenu
-          replyPermission={replyPermission}
-          onReplyPermissionChange={onReplyPermissionChange}
-          quotesDisabled={quotesDisabled}
-          onQuotesDisabledChange={onQuotesDisabledChange}
-        >
-          <TouchableOpacity activeOpacity={0.7} style={replyPillStyle}>
-            <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
-            <Text numberOfLines={1} style={replyTextStyle}>
-              {anyoneCanInteract
-                ? t('compose.replySettings.anyoneCanInteract')
-                : t('compose.replySettings.limited')}
+    return toElement(
+      HStack(
+        Embed(
+          <ReplySettingsMenu
+            replyPermission={replyPermission}
+            onReplyPermissionChange={onReplyPermissionChange}
+            quotesDisabled={quotesDisabled}
+            onQuotesDisabledChange={onQuotesDisabledChange}
+          >
+            <TouchableOpacity activeOpacity={0.7} style={replyPillStyle}>
+              <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
+              <Text numberOfLines={1} style={replyTextStyle}>
+                {anyoneCanInteract
+                  ? t('compose.replySettings.anyoneCanInteract')
+                  : t('compose.replySettings.limited')}
+              </Text>
+            </TouchableOpacity>
+          </ReplySettingsMenu>,
+        ),
+        Embed(
+          <TouchableOpacity onPress={onSensitiveToggle} activeOpacity={0.7} style={styles.pill}>
+            <SensitiveIcon
+              width={14}
+              height={14}
+              fill={isSensitive ? theme.colors.error : theme.colors.textSecondary}
+            />
+            <Text style={sensitiveTextStyle}>
+              {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
             </Text>
-          </TouchableOpacity>
-        </ReplySettingsMenu>
-        <TouchableOpacity onPress={onSensitiveToggle} activeOpacity={0.7} style={styles.pill}>
-          <SensitiveIcon
-            width={14}
-            height={14}
-            fill={isSensitive ? theme.colors.error : theme.colors.textSecondary}
-          />
-          <Text style={sensitiveTextStyle}>
-            {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          </TouchableOpacity>,
+        ),
+      )
+        .padding('vertical', 'xs')
+        .align('center')
+        .spacing('sm'),
     );
   },
 );

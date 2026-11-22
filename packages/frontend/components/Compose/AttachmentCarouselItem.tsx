@@ -8,6 +8,8 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { cn } from '@/lib/utils';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
 interface AttachmentCarouselItemProps {
   attachmentKey: string;
   index: number;
@@ -43,14 +45,14 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
             disabled={!canMoveLeft}
             className={cn('rounded-full p-1.5 bg-background', !canMoveLeft && 'opacity-40')}
           >
-            <RiArrowLeftLine width={14} height={14} fill={colors.textSecondary} />
+            {toElement(Icon(RiArrowLeftLine).size('14').foreground('muted'))}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onMove(attachmentKey, 'right')}
             disabled={!canMoveRight}
             className={cn('rounded-full p-1.5 bg-background', !canMoveRight && 'opacity-40')}
           >
-            <RiArrowRightSLine width={14} height={14} fill={colors.textSecondary} />
+            {toElement(Icon(RiArrowRightSLine).size('14').foreground('muted'))}
           </TouchableOpacity>
         </View>
       ) : null}
@@ -63,7 +65,7 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
         className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
         hitSlop={tokens.hitSlop.sm}
       >
-        <RiCloseLine width={16} height={16} fill={colors.text} />
+        {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
       </TouchableOpacity>
     </View>
   );

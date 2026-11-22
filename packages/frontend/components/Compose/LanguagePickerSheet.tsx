@@ -1,12 +1,21 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Text, View } from 'react-native';
-import { Search } from '@oxy.so/bloom/search';
+import { FlatList } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
 import { CONTENT_LANGUAGES, type ContentLanguage } from '@/constants/contentLanguages';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  Icon,
+  RawText,
+  Search as LSearch,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface LanguagePickerSheetProps {
   /**
@@ -94,11 +103,14 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
               : item.englishName
           }
           trailing={
-            isCurrent ? (
-              <Text className="text-primary text-[13px] font-semibold">
-                {t('compose.languages.current', { defaultValue: 'Current' })}
-              </Text>
-            ) : undefined
+            isCurrent
+              ? toElement(
+                  RawText(t('compose.languages.current', { defaultValue: 'Current' }))
+                    .foreground('primary')
+                    .font('sm')
+                    .weight('semibold'),
+                )
+              : undefined
           }
         />
       );
@@ -106,63 +118,79 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
     [currentTag, handleSelect, t, usedTags],
   );
 
-  return (
-    <View className="flex-1 pb-6 bg-background">
-      <PageHeader
-        title={t('compose.languages.pickerTitle', { defaultValue: 'Post language' })}
-        titleAlign="center"
-        safeArea={false}
-        leading={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          />
-        }
-      />
-
-      <View className="mx-4 mt-3">
-        <Search
-          label={t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' })}
-          value={query}
-          onChangeText={setQuery}
-          onClearText={() => setQuery('')}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-      </View>
-
-      <FlatList
-        data={results}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          <Text className="text-center text-sm text-muted-foreground py-6">
-            {t('compose.languages.noResults', { defaultValue: 'No languages match your search' })}
-          </Text>
-        }
-      />
-
-      {onMakeMain || onRemove ? (
-        <View className="mt-2 mx-4 gap-2">
-          {onMakeMain ? (
-            <Button appearance="subtle" tone="neutral" size="lg" onPress={handleMakeMain}>
-              {t('compose.languages.makeMain', { defaultValue: 'Make main language' })}
-            </Button>
-          ) : null}
-          {onRemove ? (
-            <Button appearance="solid" tone="danger" size="lg" onPress={handleRemove}>
-              {removeLabel ??
-                t('compose.languages.remove', { defaultValue: 'Remove this language' })}
-            </Button>
-          ) : null}
-        </View>
-      ) : null}
-    </View>
+  return toElement(
+    VStack(
+      Header(t('compose.languages.pickerTitle', { defaultValue: 'Post language' }))
+        .titleAlign('center')
+        .safeArea(false)
+        .toolbarLeading(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      VStack(
+        LSearch([query, setQuery])
+          .label(t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' }))
+          .onClearText(() => setQuery(''))
+          .autocorrect(false)
+          .autocapitalize('none'),
+      )
+        .margin('horizontal', 'lg')
+        .margin('top', 'md'),
+      Embed(
+        <FlatList
+          data={results}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={toElement(
+            RawText(
+              t('compose.languages.noResults', { defaultValue: 'No languages match your search' }),
+            )
+              .padding('vertical', '2xl')
+              .textAlign('center')
+              .font('14')
+              .leading('20px')
+              .foreground('muted'),
+          )}
+        />,
+      ),
+      onMakeMain || onRemove
+        ? VStack(
+            onMakeMain
+              ? LButton(
+                  LText(t('compose.languages.makeMain', { defaultValue: 'Make main language' })),
+                )
+                  .style('subtle')
+                  .tint('neutral')
+                  .size('lg')
+                  .onPress(handleMakeMain)
+              : null,
+            onRemove
+              ? LButton(
+                  LText(
+                    removeLabel ??
+                      t('compose.languages.remove', { defaultValue: 'Remove this language' }),
+                  ),
+                )
+                  .style('solid')
+                  .tint('danger')
+                  .size('lg')
+                  .onPress(handleRemove)
+              : null,
+          )
+            .margin('top', 'sm')
+            .margin('horizontal', 'lg')
+            .spacing('sm')
+        : null,
+    )
+      .padding('bottom', '2xl')
+      .background('background')
+      .flex('1'),
   );
 });
 

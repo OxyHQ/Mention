@@ -2,14 +2,11 @@ import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import type React from 'react';
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Search } from '@oxy.so/bloom/search';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import VideoPlayer from '@/components/common/VideoPlayer';
@@ -19,6 +16,18 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { createLogger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  Icon,
+  RawText,
+  Search as LSearch,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('GifPickerSheet');
 
@@ -146,63 +155,87 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
     );
   };
 
-  return (
-    <View className="flex-1 bg-background">
-      <PageHeader
-        title={t('compose.gif.title')}
-        safeArea={false}
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+  return toElement(
+    VStack(
+      Header(t('compose.gif.title'))
+        .safeArea(false)
+        .toolbar(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      VStack(
+        LSearch([searchQuery, setSearchQuery])
+          .label(t('compose.gif.searchPlaceholder'))
+          .onClearText(() => setSearchQuery(''))
+          .autocapitalize('none')
+          .autocorrect(false),
+      )
+        .margin('horizontal', 'lg')
+        .margin('top', 'md')
+        .margin('bottom', 'sm'),
+      Embed(
+        loading ? (
+          toElement(
+            VStack(
+              Embed(<MediaGridSkeleton />),
+              RawText(t('compose.gif.loading'))
+                .margin('top', 'md')
+                .font('14')
+                .leading('20px')
+                .foreground('muted'),
+            )
+              .padding('vertical', '48')
+              .flex('1')
+              .justify('center')
+              .align('center'),
+          )
+        ) : search.isError ? (
+          toElement(
+            VStack(
+              RawText(t('compose.gif.loadFailed')).foreground('muted').role('alert'),
+              LButton(LText(t('common.retry'))).onPress(() => void search.refetch()),
+            )
+              .padding('vertical', '48')
+              .flex('1')
+              .align('center')
+              .justify('center')
+              .spacing('md'),
+          )
+        ) : gifs.length === 0 ? (
+          toElement(
+            VStack(
+              Icon(RiImageLine).size('64').foreground('muted'),
+              RawText(t('compose.gif.empty'))
+                .margin('top', 'lg')
+                .font('16')
+                .leading('normal')
+                .foreground('muted'),
+            )
+              .padding('vertical', '48')
+              .flex('1')
+              .justify('center')
+              .align('center'),
+          )
+        ) : (
+          <FlatList
+            data={gifs}
+            renderItem={renderGifItem}
+            keyExtractor={(item) => String(item.id)}
+            numColumns={numColumns}
+            contentContainerStyle={{ padding: 0 }}
+            columnWrapperStyle={styles.gifRow}
+            showsVerticalScrollIndicator={false}
           />
-        }
-      />
-
-      <View className="mx-4 mt-3 mb-2">
-        <Search
-          label={t('compose.gif.searchPlaceholder')}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onClearText={() => setSearchQuery('')}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-
-      {loading ? (
-        <View className="flex-1 justify-center items-center py-12">
-          <MediaGridSkeleton />
-          <Text className="mt-3 text-sm text-muted-foreground">{t('compose.gif.loading')}</Text>
-        </View>
-      ) : search.isError ? (
-        <View className="flex-1 items-center justify-center py-12 gap-3">
-          <Text accessibilityRole="alert" className="text-muted-foreground">
-            {t('compose.gif.loadFailed')}
-          </Text>
-          <Button onPress={() => void search.refetch()}>{t('common.retry')}</Button>
-        </View>
-      ) : gifs.length === 0 ? (
-        <View className="flex-1 justify-center items-center py-12">
-          <RiImageLine width={64} height={64} fill={theme.colors.textSecondary} />
-          <Text className="mt-4 text-base text-muted-foreground">{t('compose.gif.empty')}</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={gifs}
-          renderItem={renderGifItem}
-          keyExtractor={(item) => String(item.id)}
-          numColumns={numColumns}
-          contentContainerStyle={{ padding: 0 }}
-          columnWrapperStyle={styles.gifRow}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-    </View>
+        ),
+      ),
+    )
+      .background('background')
+      .flex('1'),
   );
 };
 

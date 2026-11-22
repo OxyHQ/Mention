@@ -9,6 +9,16 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { formatTimeInput } from '@/utils/dateUtils';
 
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+
 export type ScheduleOption = {
   key: string;
   label: string;
@@ -105,9 +115,14 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text className="text-xl font-semibold text-foreground mb-4">
-          {t('compose.schedule.title', { defaultValue: 'Schedule post' })}
-        </Text>
+        {toElement(
+          RawText(t('compose.schedule.title', { defaultValue: 'Schedule post' }))
+            .font('xl')
+            .leading('28px')
+            .weight('semibold')
+            .foreground('foreground')
+            .margin('bottom', 'lg'),
+        )}
 
         {scheduledAt && (
           <Card
@@ -116,106 +131,149 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
             radius="radius-16"
             className="flex-row items-center py-3 px-3.5 mb-4.5"
           >
-            <View className="flex-1">
-              <Text className="text-[13px] text-muted-foreground mb-1">
-                {t('compose.schedule.current', { defaultValue: 'Currently scheduled' })}
-              </Text>
-              <Text className="text-base font-medium text-foreground">
-                {formatLabel(scheduledAt)}
-              </Text>
-            </View>
-            <Button
-              appearance="subtle"
-              tone="danger"
-              size="sm"
-              onPress={handleClear}
-              testID="scheduleSheetClear"
-            >
-              {t('compose.schedule.clear', { defaultValue: 'Clear' })}
-            </Button>
+            {toElement(
+              VStack(
+                RawText(t('compose.schedule.current', { defaultValue: 'Currently scheduled' }))
+                  .font('sm')
+                  .foreground('muted')
+                  .margin('bottom', 'xs'),
+                RawText(formatLabel(scheduledAt))
+                  .font('16')
+                  .leading('normal')
+                  .weight('medium')
+                  .foreground('foreground'),
+              ).flex('1'),
+            )}
+            {toElement(
+              LButton(LText(t('compose.schedule.clear', { defaultValue: 'Clear' })))
+                .style('subtle')
+                .tint('danger')
+                .size('sm')
+                .onPress(handleClear)
+                .testID('scheduleSheetClear'),
+            )}
           </Card>
         )}
 
-        <Text className="text-xs uppercase tracking-wide text-muted-foreground mb-2.5">
-          {t('compose.schedule.quickPick', { defaultValue: 'Quick picks' })}
-        </Text>
+        {toElement(
+          RawText(t('compose.schedule.quickPick', { defaultValue: 'Quick picks' }))
+            .font('xs')
+            .leading('16px')
+            .textCase('uppercase')
+            .tracking('wide')
+            .foreground('muted')
+            .margin('bottom', '10'),
+        )}
 
-        <View className="flex-row flex-wrap gap-2.5 mb-5">
-          {options.map((option) => (
-            <Card
-              key={option.key}
-              appearance="outline"
-              border="hairline"
-              elevation="none"
-              radius="radius-16"
-              style={styles.optionButton}
-              onPress={() => handleOptionPress(option)}
-              accessibilityLabel={`${option.label}, ${formatLabel(option.date)}`}
-            >
-              <Text className="text-[15px] font-semibold text-foreground mb-1.5 text-left">
-                {option.label}
-              </Text>
-              <Text
-                className="text-[11px] text-muted-foreground text-left"
-                style={{ lineHeight: 14 }}
+        {toElement(
+          HStack(
+            Embed(
+              options.map((option) => (
+                <Card
+                  key={option.key}
+                  appearance="outline"
+                  border="hairline"
+                  elevation="none"
+                  radius="radius-16"
+                  style={styles.optionButton}
+                  onPress={() => handleOptionPress(option)}
+                  accessibilityLabel={`${option.label}, ${formatLabel(option.date)}`}
+                >
+                  {toElement(
+                    RawText(option.label)
+                      .font('md')
+                      .weight('semibold')
+                      .foreground('foreground')
+                      .margin('bottom', '6')
+                      .textAlign('left'),
+                  )}
+                  <Text
+                    className="text-[11px] text-muted-foreground text-left"
+                    style={{ lineHeight: 14 }}
+                  >
+                    {formatLabel(option.date)}
+                  </Text>
+                </Card>
+              )),
+            ),
+          )
+            .wrap()
+            .spacing('10')
+            .margin('bottom', 'xl'),
+        )}
+
+        {toElement(
+          RawText(t('compose.schedule.pickCustom', { defaultValue: 'Pick custom time' }))
+            .font('xs')
+            .leading('16px')
+            .textCase('uppercase')
+            .tracking('wide')
+            .foreground('muted')
+            .margin('bottom', '10'),
+        )}
+
+        {toElement(
+          HStack(
+            Embed(
+              <Field
+                label={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
+                style={styles.dateField}
               >
-                {formatLabel(option.date)}
-              </Text>
-            </Card>
-          ))}
-        </View>
-
-        <Text className="text-xs uppercase tracking-wide text-muted-foreground mb-2.5">
-          {t('compose.schedule.pickCustom', { defaultValue: 'Pick custom time' })}
-        </Text>
-
-        <View className="flex-row mb-5 gap-3">
-          <Field
-            label={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
-            style={styles.dateField}
-          >
-            <DatePicker
-              value={customDate}
-              onChange={setCustomDate}
-              minDate={today}
-              accessibilityLabel={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
-              testID="scheduleSheetDatePicker"
-            />
-          </Field>
-          <Field
-            label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
-            style={styles.timeField}
-          >
-            <TimeField
-              value={customTime}
-              onChange={setCustomTime}
-              testID="scheduleSheetTimeField"
-            />
-          </Field>
-        </View>
+                <DatePicker
+                  value={customDate}
+                  onChange={setCustomDate}
+                  minDate={today}
+                  accessibilityLabel={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
+                  testID="scheduleSheetDatePicker"
+                />
+              </Field>,
+            ),
+            Embed(
+              <Field
+                label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
+                style={styles.timeField}
+              >
+                <TimeField
+                  value={customTime}
+                  onChange={setCustomTime}
+                  testID="scheduleSheetTimeField"
+                />
+              </Field>,
+            ),
+          )
+            .margin('bottom', 'xl')
+            .spacing('md'),
+        )}
       </ScrollView>
-
-      <View className="flex-row gap-3 py-3">
-        <Button
-          appearance="outline"
-          tone="neutral"
-          size="lg"
-          style={styles.footerButton}
-          onPress={handleClose}
-          testID="scheduleSheetClose"
-        >
-          {t('compose.schedule.cancel', { defaultValue: 'Close' })}
-        </Button>
-        <Button
-          tone="action"
-          size="lg"
-          style={styles.footerButton}
-          onPress={handleCustomApply}
-          testID="scheduleSheetApply"
-        >
-          {t('compose.schedule.apply', { defaultValue: 'Schedule' })}
-        </Button>
-      </View>
+      {toElement(
+        HStack(
+          Embed(
+            <Button
+              appearance="outline"
+              tone="neutral"
+              size="lg"
+              style={styles.footerButton}
+              onPress={handleClose}
+              testID="scheduleSheetClose"
+            >
+              {t('compose.schedule.cancel', { defaultValue: 'Close' })}
+            </Button>,
+          ),
+          Embed(
+            <Button
+              tone="action"
+              size="lg"
+              style={styles.footerButton}
+              onPress={handleCustomApply}
+              testID="scheduleSheetApply"
+            >
+              {t('compose.schedule.apply', { defaultValue: 'Schedule' })}
+            </Button>,
+          ),
+        )
+          .padding('vertical', 'md')
+          .spacing('md'),
+      )}
     </View>
   );
 };

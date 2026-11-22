@@ -4,11 +4,9 @@ import { useRouter } from '@/lib/navigation/router';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { HydratedPost } from '@mention/shared-types';
 import type { Draft } from '@/hooks/useDrafts';
 import { useScheduledPosts } from '@/hooks/useScheduledPosts';
@@ -18,6 +16,16 @@ import ScheduledPostsList from './ScheduledPostsList';
 import ScheduledPostPreview from './ScheduledPostPreview';
 import ServerDraftPreview from './ServerDraftPreview';
 import DraftPreview from './DraftPreview';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('UnpublishedSheet');
 
@@ -241,41 +249,47 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
 
   return (
     <View className="flex-1 max-h-[600px] bg-background">
-      <PageHeader
-        title={t('compose.unpublished', { defaultValue: 'Unpublished' })}
-        safeArea={false}
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            onPress={onClose}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          />
-        }
-      />
-
-      {switchingDraft && <Text accessibilityRole="alert">{t('common.saving')}</Text>}
+      {toElement(
+        Header(t('compose.unpublished', { defaultValue: 'Unpublished' }))
+          .safeArea(false)
+          .toolbar(
+            LButton(Icon(RiCloseLine))
+              .shape('circle')
+              .style('subtle')
+              .tint('neutral')
+              .onPress(onClose)
+              .label(t('common.close', { defaultValue: 'Close' })),
+          )
+          .inPage(),
+      )}
+      {switchingDraft && toElement(RawText(t('common.saving')).role('alert'))}
       <View
         pointerEvents={switchingDraft ? 'none' : 'auto'}
         accessibilityElementsHidden={switchingDraft}
         importantForAccessibility={switchingDraft ? 'no-hide-descendants' : 'auto'}
         style={{ flex: 1 }}
       >
-        <View className="flex-row border-b border-border" accessibilityRole="tablist">
-          <TabButton
-            label={t('compose.drafts')}
-            isActive={activeTab === 'drafts'}
-            onPress={showDrafts}
-          />
-          <TabButton
-            label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
-            count={scheduledPosts.length}
-            isActive={activeTab === 'scheduled'}
-            onPress={showScheduled}
-          />
-        </View>
+        {toElement(
+          HStack(
+            Embed(
+              <TabButton
+                label={t('compose.drafts')}
+                isActive={activeTab === 'drafts'}
+                onPress={showDrafts}
+              />,
+            ),
+            Embed(
+              <TabButton
+                label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
+                count={scheduledPosts.length}
+                isActive={activeTab === 'scheduled'}
+                onPress={showScheduled}
+              />,
+            ),
+          )
+            .border('border', 'thin', 'bottom')
+            .role('tablist'),
+        )}
 
         {activeTab === 'drafts' ? (
           <DraftsList
