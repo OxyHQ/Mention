@@ -32,6 +32,7 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 jest.mock('@oxy.so/bloom/typography', () => ({
+  ...jest.requireActual('@oxy.so/bloom/typography'),
   Title: ({ children }: { children: ReactNode }) => children,
   Text: ({ children }: { children: ReactNode }) => children,
   Muted: ({ children }: { children: ReactNode }) => children,

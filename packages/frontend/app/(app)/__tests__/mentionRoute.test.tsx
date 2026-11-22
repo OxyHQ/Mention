@@ -1,6 +1,8 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import TestRenderer, { act } from 'react-test-renderer';
 import MentionRoute from '../mention';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 let mockUri: string | undefined;
 const mockResolve = jest.fn();
@@ -22,6 +24,7 @@ jest.mock('@/lib/navigation/router', () => ({
   Redirect: 'Redirect',
 }));
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: ({ username }: { username: string }) => username || null,
 }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
@@ -34,7 +37,9 @@ jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) =>
 let renderer: TestRenderer.ReactTestRenderer;
 function render() {
   act(() => {
-    renderer = TestRenderer.create(<MentionRoute />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{<MentionRoute />}</BloomThemeProvider>,
+    );
   });
   return renderer.root;
 }

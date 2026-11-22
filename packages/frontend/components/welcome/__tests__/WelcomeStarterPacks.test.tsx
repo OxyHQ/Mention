@@ -52,6 +52,7 @@ jest.mock('@oxy.so/bloom/grid', () => ({
   ResponsiveGrid: ({ children }: { children?: ReactNode }) => children,
 }));
 jest.mock('@oxy.so/bloom/typography', () => ({
+  ...jest.requireActual('@oxy.so/bloom/typography'),
   Muted: ({ children }: { children?: ReactNode }) => children,
 }));
 jest.mock('@oxy.so/bloom/button', () => ({

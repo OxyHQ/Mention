@@ -72,6 +72,8 @@ jest.mock('@/components/AppSplashScreen', () => ({
 // Reanimated's real entry pulls in the worklets native module, which has no host
 // here; a minimal stub.
 jest.mock('react-native-reanimated', () => ({
+  // Reanimated's own exports stay (the language's motion reads its easings).
+  ...jest.requireActual('react-native-reanimated'),
   useSharedValue: (initial: number) => ({ value: initial }),
   useAnimatedReaction: () => {},
   // `TabPagerProvider` settles the bar's highlight onto whatever tab the route

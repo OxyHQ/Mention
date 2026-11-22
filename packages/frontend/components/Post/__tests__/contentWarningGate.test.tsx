@@ -2,6 +2,8 @@ import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import ContentWarning from '../ContentWarning';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * A content warning is a gate: closed, it states the warning and offers to show
@@ -15,9 +17,13 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
-jest.mock('@oxy.so/bloom/icons', () => ({ RiAlertLine: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
+  RiAlertLine: () => null,
+}));
 
 const texts = (tree: TestRenderer.ReactTestRenderer) =>
   tree.root.findAllByType(Text).map((node) => [node.props.children].flat().join(''));
@@ -26,7 +32,9 @@ function render(revealed: boolean, onToggle = jest.fn()) {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <ContentWarning text="Spoilers" revealed={revealed} onToggle={onToggle} />,
+      <BloomThemeProvider fonts={false}>
+        {<ContentWarning text="Spoilers" revealed={revealed} onToggle={onToggle} />}
+      </BloomThemeProvider>,
     );
   });
   return tree;

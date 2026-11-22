@@ -103,6 +103,7 @@ const mockAuth = {
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     isDark: false,
     colors: {
@@ -152,13 +153,19 @@ jest.mock('@oxy.so/bloom/text-field', () => {
   const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
   return {
     TextField: Passthrough,
+    // Bloom's input takes its setter as either prop; the language's binding
+    // hands it `onValueChange`.
     TextFieldInput: ({
       value,
       onChangeText,
+      onValueChange,
     }: {
       value?: string;
       onChangeText?: (text: string) => void;
-    }) => <TextInput testID="text-input" value={value} onChangeText={onChangeText} />,
+      onValueChange?: (text: string) => void;
+    }) => (
+      <TextInput testID="text-input" value={value} onChangeText={onValueChange ?? onChangeText} />
+    ),
   };
 });
 
@@ -293,6 +300,8 @@ import {
   usePostInteractionsBinding,
   usePostInteractions,
 } from '@/components/Feed/postInteractions';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /** The minimum of a post the save command reads: its id and the viewer's flag. */
 function rowPost(id: string, isSaved: boolean): HydratedPost {
@@ -341,9 +350,13 @@ async function openSavedScreen(client: QueryClient): Promise<TestRenderer.ReactT
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <SavedPostsScreen />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        {
+          <QueryClientProvider client={client}>
+            <SavedPostsScreen />
+          </QueryClientProvider>
+        }
+      </BloomThemeProvider>,
     );
   });
   await settle(client);
@@ -398,11 +411,15 @@ async function savePostFromFeed(client: QueryClient, postId: string): Promise<vo
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <SignedInFeed>
-          <FeedRow />
-        </SignedInFeed>
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        {
+          <QueryClientProvider client={client}>
+            <SignedInFeed>
+              <FeedRow />
+            </SignedInFeed>
+          </QueryClientProvider>
+        }
+      </BloomThemeProvider>,
     );
   });
 
@@ -501,11 +518,15 @@ describe('saved screen revalidation after a save', () => {
     let feedRenderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       feedRenderer = TestRenderer.create(
-        <QueryClientProvider client={client}>
-          <SignedInFeed>
-            <FeedRow />
-          </SignedInFeed>
-        </QueryClientProvider>,
+        <BloomThemeProvider fonts={false}>
+          {
+            <QueryClientProvider client={client}>
+              <SignedInFeed>
+                <FeedRow />
+              </SignedInFeed>
+            </QueryClientProvider>
+          }
+        </BloomThemeProvider>,
       );
     });
     await act(async () => {
