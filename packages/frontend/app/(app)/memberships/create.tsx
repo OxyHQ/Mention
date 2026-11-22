@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Button } from '@oxy.so/bloom/button';
 import { useRouter } from '@/lib/navigation/router';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { membershipsService } from '@/services/membershipsService';
@@ -73,31 +72,25 @@ export default screen(function CreateMembershipScreen() {
       ),
     ).foreground('muted'),
     RawText(t('memberships.owner', 'Community owner')).weight('semibold').foreground('foreground'),
-    Embed(
-      <Button
-        appearance={!owner || owner === user?.id ? 'solid' : 'outline'}
-        onPress={() => setOwner(null)}
-      >
-        {t('memberships.myAccount', 'My account')}
-      </Button>,
-    ),
-    Embed(
-      accounts.data
-        ?.filter(
-          (account) =>
-            account.accountId !== user?.id &&
-            ['organization', 'project', 'channel'].includes(account.kind),
+    LButton(LText(t('memberships.myAccount', 'My account')))
+      .style(!owner || owner === user?.id ? 'solid' : 'outline')
+      .onPress(() => setOwner(null)),
+    accounts.data
+      ?.filter(
+        (account) =>
+          account.accountId !== user?.id &&
+          ['organization', 'project', 'channel'].includes(account.kind),
+      )
+      .map((account) =>
+        LButton(
+          LText(
+            displayNameOrHandle(account.account.name?.displayName, account.account.username ?? ''),
+          ),
         )
-        .map((account) => (
-          <Button
-            key={account.accountId}
-            appearance={owner === account.accountId ? 'solid' : 'outline'}
-            onPress={() => setOwner(account.accountId)}
-          >
-            {displayNameOrHandle(account.account.name?.displayName, account.account.username ?? '')}
-          </Button>
-        )),
-    ),
+          .style(owner === account.accountId ? 'solid' : 'outline')
+          .onPress(() => setOwner(account.accountId))
+          .id(account.accountId),
+      ),
     LTextField([name, setName], t('memberships.name', 'Community name')).maxLength(120),
     LTextField([slug, setSlug], t('memberships.slug', 'Community handle'))
       .autocapitalize('none')

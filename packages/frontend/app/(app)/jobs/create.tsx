@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
@@ -21,6 +20,7 @@ import { LazyJobFormFields } from '@/components/sharedRouteScreens';
 
 import {
   Avatar as LAvatar,
+  Button as LButton,
   Card as LCard,
   Dialog as LDialog,
   Embed,
@@ -30,6 +30,7 @@ import {
   RawText,
   Row,
   ScrollView,
+  Text as LText,
   toElement,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
@@ -247,32 +248,22 @@ export default screen(function CreateJobScreen() {
           ),
           Embed(<LazyJobFormFields form={form} />),
           /* Submit */ HStack(
-            Embed(
-              <Button
-                appearance="subtle"
-                tone="neutral"
-                size="lg"
-                style={{ flex: 1 }}
-                loading={createMutation.isPending && !publishingIntent}
-                disabled={!canSubmitBase || createMutation.isPending}
-                onPress={() => submit(false)}
-              >
-                {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
-              </Button>,
-            ),
-            Embed(
-              <Button
-                appearance="solid"
-                tone="accent"
-                size="lg"
-                style={{ flex: 1 }}
-                loading={createMutation.isPending && publishingIntent}
-                disabled={!canPublish || createMutation.isPending}
-                onPress={() => submit(true)}
-              >
-                {t('jobs.create.publish', { defaultValue: 'Publish' })}
-              </Button>,
-            ),
+            LButton(LText(t('jobs.create.saveDraft', { defaultValue: 'Save draft' })))
+              .style('subtle')
+              .tint('neutral')
+              .size('lg')
+              .grow()
+              .loading(createMutation.isPending && !publishingIntent)
+              .disabled(!canSubmitBase || createMutation.isPending)
+              .onPress(() => submit(false)),
+            LButton(LText(t('jobs.create.publish', { defaultValue: 'Publish' })))
+              .style('solid')
+              .tint('accent')
+              .size('lg')
+              .grow()
+              .loading(createMutation.isPending && publishingIntent)
+              .disabled(!canPublish || createMutation.isPending)
+              .onPress(() => submit(true)),
           )
             .spacing('md')
             .margin('top', '2xl'),

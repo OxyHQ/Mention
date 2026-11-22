@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Field } from '@oxy.so/bloom/field';
 import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { TagField } from '@oxy.so/bloom/tag-field';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import type {
   MentionJobEmploymentType,
   MentionJobSalaryInterval,
@@ -118,11 +117,9 @@ export function JobFormFields({ form }: { form: JobForm }) {
           'lg',
         ),
       )}
-      <Field
-        label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-        style={{ marginTop: 16 }}
-      >
-        {toElement(
+      {toElement(
+        LField(
+          t('jobs.create.workplaceType', { defaultValue: 'Workplace type' }),
           Segmented(
             [
               workplaceType || 'unset',
@@ -132,8 +129,8 @@ export function JobFormFields({ form }: { form: JobForm }) {
             Option('unset', t('jobs.create.notSpecified', { defaultValue: 'Not specified' })),
             MENTION_JOB_WORKPLACE_TYPES.map((value) => Option(value, WORKPLACE_LABELS[value])),
           ).label(t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })),
-        )}
-      </Field>
+        ).margin('top', 'lg'),
+      )}
       {/* Employment type — a chip row rather than a SegmentedControl: six
           values would cram into an unreadable pill row on a phone width. */}
       <Field
@@ -196,13 +193,18 @@ export function JobFormFields({ form }: { form: JobForm }) {
         )}
       </Field>
       {/* Skills — Enter or a comma commits a skill; each chip removes itself. */}
-      <Field label={t('jobs.create.skills', { defaultValue: 'Skills' })} style={{ marginTop: 16 }}>
-        <TagField
-          value={skills}
-          onChange={handleSkillsChange}
-          placeholder={t('jobs.create.addSkill', { defaultValue: 'Add a skill' })}
-        />
-      </Field>
+      {toElement(
+        LField(
+          t('jobs.create.skills', { defaultValue: 'Skills' }),
+          Embed(
+            <TagField
+              value={skills}
+              onChange={handleSkillsChange}
+              placeholder={t('jobs.create.addSkill', { defaultValue: 'Add a skill' })}
+            />,
+          ),
+        ).margin('top', 'lg'),
+      )}
       {toElement(
         VStack(
           LField(
@@ -221,18 +223,14 @@ export function JobFormFields({ form }: { form: JobForm }) {
           ),
           applicationMode === 'external'
             ? VStack(
-                Embed(
-                  <TextField isInvalid={!externalApplyUrl.trim()}>
-                    <TextFieldInput
-                      label={t('jobs.create.externalApplyUrl', { defaultValue: 'Application URL' })}
-                      value={externalApplyUrl}
-                      onChangeText={setExternalApplyUrl}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardType="url"
-                    />
-                  </TextField>,
-                ),
+                LTextField(
+                  [externalApplyUrl, setExternalApplyUrl],
+                  t('jobs.create.externalApplyUrl', { defaultValue: 'Application URL' }),
+                )
+                  .invalid(!externalApplyUrl.trim())
+                  .autocapitalize('none')
+                  .autocorrect(false)
+                  .keyboard('url'),
               ).margin('top', 'sm')
             : RawText(
                 t('jobs.create.applyViaMentionHint', {

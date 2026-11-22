@@ -3,13 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
-import { Field } from '@oxy.so/bloom/field';
-import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { useScreenBack } from '@oxy.so/bloom/screen';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -25,6 +21,8 @@ import {
   Field as LField,
   HStack,
   Header,
+  InputGroup,
+  InputGroupAddon,
   RawText,
   ScrollView,
   Text as LText,
@@ -298,30 +296,20 @@ export default Lscreen(function JobApplyScreen() {
         </Card>,
       ),
       HStack(
-        Embed(
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            size="lg"
-            style={{ flex: 1 }}
-            onPress={() => setStep('edit')}
-            disabled={submitMutation.isPending}
-          >
-            {t('jobs.apply.backToEdit', { defaultValue: 'Edit' })}
-          </Button>,
-        ),
-        Embed(
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="lg"
-            style={{ flex: 1 }}
-            loading={submitMutation.isPending}
-            onPress={() => submitMutation.mutate()}
-          >
-            {t('jobs.apply.submit', { defaultValue: 'Submit application' })}
-          </Button>,
-        ),
+        LButton(LText(t('jobs.apply.backToEdit', { defaultValue: 'Edit' })))
+          .style('subtle')
+          .tint('neutral')
+          .size('lg')
+          .grow()
+          .onPress(() => setStep('edit'))
+          .disabled(submitMutation.isPending),
+        LButton(LText(t('jobs.apply.submit', { defaultValue: 'Submit application' })))
+          .style('solid')
+          .tint('accent')
+          .size('lg')
+          .grow()
+          .loading(submitMutation.isPending)
+          .onPress(() => submitMutation.mutate()),
       )
         .spacing('md')
         .margin('top', '2xl'),
@@ -379,29 +367,26 @@ export default Lscreen(function JobApplyScreen() {
               which TagField's caret does not take, and a comma is legal in a URL. */ VStack(
       LField(
         t('jobs.apply.portfolio', { defaultValue: 'Portfolio links (optional)' }),
-        Embed(
-          <InputGroup>
-            <TextFieldInput
-              label={t('jobs.apply.addLink', { defaultValue: 'Add a link' })}
-              value={portfolioLinkDraft}
-              onChangeText={setPortfolioLinkDraft}
-              onSubmitEditing={addPortfolioLink}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              returnKeyType="done"
-            />
-            <InputGroupAddon divider noPadding>
-              {toElement(
-                LButton(LText(t('common.add', { defaultValue: 'Add' })))
-                  .style('plain')
-                  .tint('neutral')
-                  .size('sm')
-                  .onPress(addPortfolioLink)
-                  .disabled(!portfolioLinkDraft.trim()),
-              )}
-            </InputGroupAddon>
-          </InputGroup>,
+        InputGroup(
+          LTextField(
+            [portfolioLinkDraft, setPortfolioLinkDraft],
+            t('jobs.apply.addLink', { defaultValue: 'Add a link' }),
+          )
+            .onSubmit(addPortfolioLink)
+            .autocapitalize('none')
+            .autocorrect(false)
+            .keyboard('url')
+            .submitLabel('done'),
+          InputGroupAddon(
+            LButton(LText(t('common.add', { defaultValue: 'Add' })))
+              .style('plain')
+              .tint('neutral')
+              .size('sm')
+              .onPress(addPortfolioLink)
+              .disabled(!portfolioLinkDraft.trim()),
+          )
+            .divider()
+            .flush(),
         ),
       ),
       portfolioLinks.length > 0
@@ -419,47 +404,40 @@ export default Lscreen(function JobApplyScreen() {
             .margin('top', 'sm')
         : null,
     ).margin('top', 'lg'),
-    Embed(
-      <Field
-        label={t('jobs.apply.resume', { defaultValue: 'Resume (optional)' })}
-        style={{ marginTop: 16 }}
-      >
-        {resumeFileName ? (
-          <Card
-            appearance="outline"
-            radius="radius-16"
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-            }}
-          >
-            {toElement(
-              RawText(resumeFileName).foreground('foreground').font('14').flex('1').lines(1),
-            )}
-            {toElement(
-              LButton(LText(t('common.remove', { defaultValue: 'Remove' })))
-                .style('plain')
-                .tint('neutral')
-                .size('sm')
-                .onPress(removeResume),
-            )}
-          </Card>
-        ) : (
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            size="md"
-            onPress={openResumePicker}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            {t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })}
-          </Button>
-        )}
-      </Field>,
-    ),
+    LField(
+      t('jobs.apply.resume', { defaultValue: 'Resume (optional)' }),
+      resumeFileName
+        ? Embed(
+            <Card
+              appearance="outline"
+              radius="radius-16"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+              }}
+            >
+              {toElement(
+                RawText(resumeFileName).foreground('foreground').font('14').flex('1').lines(1),
+              )}
+              {toElement(
+                LButton(LText(t('common.remove', { defaultValue: 'Remove' })))
+                  .style('plain')
+                  .tint('neutral')
+                  .size('sm')
+                  .onPress(removeResume),
+              )}
+            </Card>,
+          )
+        : LButton(LText(t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })))
+            .style('subtle')
+            .tint('neutral')
+            .size('md')
+            .alignSelf('start')
+            .onPress(openResumePicker),
+    ).margin('top', 'lg'),
     VStack(
       LButton(LText(t('jobs.apply.review', { defaultValue: 'Review and submit' })))
         .style('solid')

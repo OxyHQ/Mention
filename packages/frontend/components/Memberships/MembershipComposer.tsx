@@ -1,7 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import type { CreateMembershipContentRequest, MembershipTier } from '@mention/shared-types';
 import { membershipsService } from '@/services/membershipsService';
 import { getErrorMessage } from '@/utils/apiError';
@@ -131,17 +130,12 @@ export function MembershipComposer({
           .foreground('foreground'),
         manager && !parentContentId
           ? HStack(
-              Embed(
-                (['discussion', 'post', 'article', 'poll'] as const).map((value) => (
-                  <Button
-                    key={value}
-                    size="sm"
-                    appearance={kind === value ? 'solid' : 'outline'}
-                    onPress={() => setKind(value)}
-                  >
-                    {labels[value]}
-                  </Button>
-                )),
+              (['discussion', 'post', 'article', 'poll'] as const).map((value) =>
+                LButton(LText(labels[value]))
+                  .size('sm')
+                  .style(kind === value ? 'solid' : 'outline')
+                  .onPress(() => setKind(value))
+                  .id(value),
               ),
             )
               .wrap()
@@ -181,30 +175,20 @@ export function MembershipComposer({
         manager && !parentContentId
           ? VStack(
               RawText(t('memberships.tiers', 'Membership tiers')).foreground('muted'),
-              Embed(
-                <Button
-                  appearance={requiredTierIds.length === 0 ? 'solid' : 'outline'}
-                  onPress={() => setRequiredTierIds([])}
-                >
-                  {t('explore.tabs.all')}
-                </Button>,
-              ),
-              Embed(
-                tiers.map((tier) => (
-                  <Button
-                    key={tier.id}
-                    appearance={requiredTierIds.includes(tier.id) ? 'solid' : 'outline'}
-                    onPress={() =>
-                      setRequiredTierIds((current) =>
-                        current.includes(tier.id)
-                          ? current.filter((id) => id !== tier.id)
-                          : [...current, tier.id],
-                      )
-                    }
-                  >
-                    {tier.name}
-                  </Button>
-                )),
+              LButton(LText(t('explore.tabs.all')))
+                .style(requiredTierIds.length === 0 ? 'solid' : 'outline')
+                .onPress(() => setRequiredTierIds([])),
+              tiers.map((tier) =>
+                LButton(LText(tier.name))
+                  .style(requiredTierIds.includes(tier.id) ? 'solid' : 'outline')
+                  .onPress(() =>
+                    setRequiredTierIds((current) =>
+                      current.includes(tier.id)
+                        ? current.filter((id) => id !== tier.id)
+                        : [...current, tier.id],
+                    ),
+                  )
+                  .id(tier.id),
               ),
             ).spacing('sm')
           : null,

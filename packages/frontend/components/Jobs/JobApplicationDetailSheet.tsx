@@ -4,7 +4,6 @@ import { ScrollView, type ViewStyle } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Button } from '@oxy.so/bloom/button';
 import { useColorTokens } from '@oxy.so/bloom/theme';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
@@ -17,6 +16,7 @@ import { formatTimeAgo } from '@/utils/dateUtils';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
 import {
+  Button as LButton,
   Chip as LChip,
   Embed,
   HStack,
@@ -220,17 +220,12 @@ const JobApplicationDetailSheet = ({
       {application.resumeFileId
         ? toElement(
             VStack(
-              Embed(
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  size="sm"
-                  onPress={openResume}
-                  style={{ alignSelf: 'flex-start' }}
-                >
-                  {t('jobs.applications.viewResume', { defaultValue: 'View resume' })}
-                </Button>,
-              ),
+              LButton(LText(t('jobs.applications.viewResume', { defaultValue: 'View resume' })))
+                .style('subtle')
+                .tint('neutral')
+                .size('sm')
+                .alignSelf('start')
+                .onPress(openResume),
             ).margin('bottom', 'md'),
           )
         : null}
@@ -334,19 +329,15 @@ const JobApplicationDetailSheet = ({
               />
             </TextField>,
           ),
-          Embed(
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              size="sm"
-              style={{ alignSelf: 'flex-end', marginTop: 8 }}
-              loading={addNoteMutation.isPending}
-              disabled={!noteDraft.trim()}
-              onPress={submitNote}
-            >
-              {t('common.add', { defaultValue: 'Add' })}
-            </Button>,
-          ),
+          LButton(LText(t('common.add', { defaultValue: 'Add' })))
+            .style('subtle')
+            .tint('neutral')
+            .size('sm')
+            .alignSelf('end')
+            .margin('top', 'sm')
+            .loading(addNoteMutation.isPending)
+            .disabled(!noteDraft.trim())
+            .onPress(submitNote),
         )
           .padding('top', 'md')
           .border('border', 'thin', 'top'),

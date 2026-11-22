@@ -2,7 +2,6 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Button } from '@oxy.so/bloom/button';
 import { Field } from '@oxy.so/bloom/field';
 import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { toast } from '@oxy.so/bloom/toast';
@@ -25,6 +24,7 @@ import JobDiscoveryResultCard, {
 import { EmptyState } from '@/components/common/EmptyState';
 
 import {
+  Button as LButton,
   Chip as LChip,
   Embed,
   Field as LField,
@@ -312,19 +312,18 @@ export default Lscreen(function JobsDiscoveryScreen() {
         [draft.location, handleLocationChange],
         t('jobs.discovery.location', { defaultValue: 'Location' }),
       ),
-      Embed(
-        <Button
-          size="sm"
-          onPress={() => setShowMoreFilters((v) => !v)}
-          style={{ alignSelf: 'flex-start' }}
-          tone="accent"
-          appearance="plain"
-        >
-          {showMoreFilters
+      LButton(
+        Text(
+          showMoreFilters
             ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
-            : t('jobs.discovery.moreFilters', { defaultValue: 'More filters' })}
-        </Button>,
-      ),
+            : t('jobs.discovery.moreFilters', { defaultValue: 'More filters' }),
+        ),
+      )
+        .style('plain')
+        .tint('accent')
+        .size('sm')
+        .alignSelf('start')
+        .onPress(() => setShowMoreFilters((v) => !v)),
       showMoreFilters
         ? VStack(
             Embed(

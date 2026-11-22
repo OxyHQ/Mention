@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import {
   MEMBERSHIP_BENEFITS,
   type MembershipTier,
@@ -12,7 +11,6 @@ import { getErrorMessage } from '@/utils/apiError';
 import {
   Button as LButton,
   Card as LCard,
-  Embed,
   HStack,
   RawText,
   Text as LText,
@@ -84,23 +82,18 @@ export function MembershipTierEditor({
           .label(t('memberships.description', 'Description'))
           .maxLength(5000)
           .rows(3),
-        Embed(
-          MEMBERSHIP_BENEFITS.map((benefit) => (
-            <Button
-              key={benefit}
-              size="sm"
-              appearance={benefits.includes(benefit) ? 'solid' : 'outline'}
-              onPress={() =>
-                setBenefits((current) =>
-                  current.includes(benefit)
-                    ? current.filter((value) => value !== benefit)
-                    : [...current, benefit],
-                )
-              }
-            >
-              {labels[benefit]}
-            </Button>
-          )),
+        MEMBERSHIP_BENEFITS.map((benefit) =>
+          LButton(LText(labels[benefit]))
+            .size('sm')
+            .style(benefits.includes(benefit) ? 'solid' : 'outline')
+            .onPress(() =>
+              setBenefits((current) =>
+                current.includes(benefit)
+                  ? current.filter((value) => value !== benefit)
+                  : [...current, benefit],
+              ),
+            )
+            .id(benefit),
         ),
         !tier || tier.kind === 'paid'
           ? RawText(

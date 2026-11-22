@@ -7,7 +7,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
@@ -286,31 +285,21 @@ export default screen(function JobDetailScreen() {
         ).margin('top', 'lg')
       : null,
     HStack(
-      Embed(
-        job.applicationMode === 'external' ? (
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="lg"
-            style={{ flex: 1 }}
-            onPress={applyExternally}
-            disabled={!job.externalApplyUrl}
-          >
-            {t('jobs.detail.apply', { defaultValue: 'Apply' })}
-          </Button>
-        ) : (
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="lg"
-            style={{ flex: 1 }}
-            disabled={!isPublished}
-            onPress={() => router.push(`/jobs/${job.id}/apply`)}
-          >
-            {t('jobs.detail.applyOnMention', { defaultValue: 'Apply on Mention' })}
-          </Button>
-        ),
-      ),
+      job.applicationMode === 'external'
+        ? LButton(LText(t('jobs.detail.apply', { defaultValue: 'Apply' })))
+            .style('solid')
+            .tint('accent')
+            .size('lg')
+            .grow()
+            .onPress(applyExternally)
+            .disabled(!job.externalApplyUrl)
+        : LButton(LText(t('jobs.detail.applyOnMention', { defaultValue: 'Apply on Mention' })))
+            .style('solid')
+            .tint('accent')
+            .size('lg')
+            .grow()
+            .disabled(!isPublished)
+            .onPress(() => router.push(`/jobs/${job.id}/apply`)),
       LButton(LText(t('jobs.detail.share', { defaultValue: 'Share' })))
         .style('subtle')
         .tint('neutral')

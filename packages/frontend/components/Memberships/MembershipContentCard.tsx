@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import type { MembershipContent, MembershipBenefit } from '@mention/shared-types';
 import { membershipsService } from '@/services/membershipsService';
 import { getErrorMessage } from '@/utils/apiError';
@@ -66,23 +65,18 @@ export function MembershipContentCard({
         RawText(content.body).selectable().foreground('foreground'),
         content.poll
           ? VStack(
-              Embed(
-                content.poll.options.map((option) => (
-                  <Button
-                    key={option.id}
-                    appearance={content.poll?.selectedOptionId === option.id ? 'solid' : 'outline'}
-                    disabled={
-                      pending ||
+              content.poll.options.map((option) =>
+                LButton(LText(`${option.text} · ${option.votes}`))
+                  .style(content.poll?.selectedOptionId === option.id ? 'solid' : 'outline')
+                  .disabled(
+                    pending ||
                       !benefits.includes('polls_vote') ||
-                      Date.parse(content.poll?.endsAt ?? '') <= Date.now()
-                    }
-                    onPress={() => {
-                      void action(() => membershipsService.vote(content.id, option.id));
-                    }}
-                  >
-                    {`${option.text} · ${option.votes}`}
-                  </Button>
-                )),
+                      Date.parse(content.poll?.endsAt ?? '') <= Date.now(),
+                  )
+                  .onPress(() => {
+                    void action(() => membershipsService.vote(content.id, option.id));
+                  })
+                  .id(option.id),
               ),
               RawText(
                 t('memberships.pollEnds', 'Closes {{date}}', {
