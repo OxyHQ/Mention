@@ -1,6 +1,6 @@
 import { useScrollOffset } from '@oxy.so/bloom/layout';
 import { memo, useCallback } from 'react';
-import { View } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import Animated, {
   useDerivedValue,
@@ -17,6 +17,7 @@ import { useLiveUser } from '@/stores/livePresenceStore';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { Button } from '@oxy.so/bloom/button';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
@@ -58,6 +59,8 @@ const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
 const goSettings = () => requestSettings('/settings');
 const openEditProfile = () => requestSettings('/settings/edit-profile');
 
+/** The live avatar's frame is a circle at any size: `rounded-full`, the largest radius. */
+const LIVE_AVATAR_FRAME: ViewStyle = { borderRadius: Number.MAX_SAFE_INTEGER };
 export const ProfileHeader = memo(function ProfileHeader({
   username,
   avatarUri,
@@ -80,6 +83,7 @@ export const ProfileHeader = memo(function ProfileHeader({
   // surface the summary sits on — not the theme background, which the profile
   // is not painted in.
   const surfaceFill = useSurfaceFill();
+  const colorTokens = useColorTokens();
   const canPoke = !isFederated;
   const {
     poked,
@@ -136,9 +140,13 @@ export const ProfileHeader = memo(function ProfileHeader({
         Embed(
           isProfileLive ? (
             <Animated.View
-              className="bg-muted rounded-full"
               style={[
-                { borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill },
+                LIVE_AVATAR_FRAME,
+                {
+                  backgroundColor: colorTokens.muted,
+                  borderWidth: PROFILE_AVATAR_RING,
+                  borderColor: surfaceFill,
+                },
                 liveAvatarCollapseStyle,
               ]}
             >
@@ -156,7 +164,6 @@ export const ProfileHeader = memo(function ProfileHeader({
               account={account}
               source={avatarUri}
               size={90 - PROFILE_AVATAR_RING * 2}
-              className="bg-muted"
               style={{
                 width: 90,
                 height: 90,

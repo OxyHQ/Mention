@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Image, type ImageProps } from 'expo-image';
+import { Image, type ImageProps, type ImageStyle } from 'expo-image';
 import { Dialog, useDialogControl, useDialogFrame } from '@oxy.so/bloom/dialog';
-import { Button } from '@oxy.so/bloom/button';
-import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+
+/** The step art's slot: the sheet's width, 168pt tall, the same at every step. */
+const ART_STYLE: ImageStyle = { width: '100%', height: 168 };
 
 type SheetStep = 0 | 1 | 2;
 
@@ -225,7 +235,7 @@ function FediverseInfoSteps({
             <Image
               aria-hidden
               source={STEP_KEYS[step].art}
-              className="w-full h-[168px]"
+              style={ART_STYLE}
               contentFit="contain"
               alt=""
             />,
@@ -277,32 +287,22 @@ function FediverseInfoSteps({
           which puts the free pixels exactly where the overflow risk is. `shrink`
           lets the secondary give way first if even that is not enough.
 
-          These are Bloom Buttons as they come — a variant and a layout class,
+          These are Bloom Buttons as they come — a variant and a layout modifier,
           no wrapper element. */}
       {toElement(
         HStack(
-          Embed(
-            <Button
-              appearance="plain"
-              tone="neutral"
-              size="lg"
-              className="shrink"
-              onPress={onSecondary}
-            >
-              {secondaryLabel}
-            </Button>,
-          ),
-          Embed(
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              className="flex-1"
-              onPress={onPrimary}
-            >
-              {primaryLabel}
-            </Button>,
-          ),
+          LButton(LText(secondaryLabel))
+            .style('plain')
+            .tint('neutral')
+            .size('lg')
+            .shrink('normal')
+            .onPress(onSecondary),
+          LButton(LText(primaryLabel))
+            .style('solid')
+            .tint('accent')
+            .size('lg')
+            .flex('1')
+            .onPress(onPrimary),
         )
           .align('center')
           .spacing('md'),

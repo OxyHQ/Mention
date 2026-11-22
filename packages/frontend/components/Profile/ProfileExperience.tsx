@@ -1,11 +1,12 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { experienceService } from '@/services/experienceService';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import { Link } from '@/lib/navigation/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { Experience } from '@clarity.surf/sdk/experience';
 import { organizationDirectoryQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -50,6 +51,11 @@ function CompanyLogo({
   );
 }
 
+/** A role's company line (16/24) and a group's company heading (18/28 semibold), as their classes drew them. */
+const RAIL_STYLE: ViewStyle = { width: 48, alignItems: 'center' };
+const COMPANY_LINE_STYLE: TextStyle = { fontSize: 16, lineHeight: 24, marginTop: 2 };
+const COMPANY_HEADING_STYLE: TextStyle = { fontSize: 18, lineHeight: 28, fontWeight: '600' };
+
 function CompanyName({
   company,
   name,
@@ -77,6 +83,7 @@ export function ProfileExperience({
   const { user, isAuthenticated, canUsePrivateApi, oxyServices } = useAuth();
   const queryClient = useQueryClient();
   const supervision = useSupervisionState();
+  const colorTokens = useColorTokens();
   const [editing, setEditing] = useState<Experience | 'new' | null>(null);
   const canEdit = isOwnProfile && Boolean(profileId && user?.id === profileId) && canUsePrivateApi;
   const queryKey = viewerQueryKeys.profileExperience(
@@ -152,33 +159,34 @@ export function ProfileExperience({
   function role(entry: Experience, grouped: boolean, last: boolean) {
     return toElement(
       HStack(
-        Embed(
-          grouped ? (
-            <View
-              className="w-12 items-center"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              {toElement(
-                VStack()
-                  .frame({ height: '10', width: '10' })
-                  .background('muted')
-                  .corner('infinite')
-                  .margin('top', 'sm'),
-              )}
-              {!last
-                ? toElement(
-                    VStack()
-                      .frame({ width: '2xs' })
-                      .background('border')
-                      .flex('1')
-                      .margin('top', 'sm')
-                      .margin('bottom', 'xs'),
-                  )
-                : null}
-            </View>
-          ) : null,
-        ),
+        // A View: the rail is hidden from assistive technology, which no modifier says.
+        grouped
+          ? Embed((render) => (
+              <View
+                style={RAIL_STYLE}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {render(
+                  VStack()
+                    .frame({ height: '10', width: '10' })
+                    .background('muted')
+                    .corner('infinite')
+                    .margin('top', 'sm'),
+                )}
+                {!last
+                  ? render(
+                      VStack()
+                        .frame({ width: '2xs' })
+                        .background('border')
+                        .flex('1')
+                        .margin('top', 'sm')
+                        .margin('bottom', 'xs'),
+                    )
+                  : null}
+              </View>
+            ))
+          : null,
         VStack(
           HStack(
             RawText(entry.title)
@@ -198,24 +206,23 @@ export function ProfileExperience({
           )
             .align('start')
             .spacing('sm'),
+          // React Native's Text: a company's name may be a router Link, which no text run holds.
           !grouped || entry.employmentType
-            ? RawText(
-                !grouped ? (
-                  <CompanyName
-                    showDetails={!supervision.supervised}
-                    company={companyFor(entry.employerOxyAccountId)}
-                    name={companyName(entry.employerOxyAccountId)}
-                  />
-                ) : null,
-                !grouped && entry.employmentType ? ' · ' : '',
-                entry.employmentType
-                  ? t(`profile.experience.employment.${entry.employmentType}`)
-                  : '',
+            ? Embed(
+                <Text style={[COMPANY_LINE_STYLE, { color: colorTokens.foreground }]}>
+                  {!grouped ? (
+                    <CompanyName
+                      showDetails={!supervision.supervised}
+                      company={companyFor(entry.employerOxyAccountId)}
+                      name={companyName(entry.employerOxyAccountId)}
+                    />
+                  ) : null}
+                  {!grouped && entry.employmentType ? ' · ' : ''}
+                  {entry.employmentType
+                    ? t(`profile.experience.employment.${entry.employmentType}`)
+                    : ''}
+                </Text>,
               )
-                .foreground('foreground')
-                .font('16')
-                .leading('normal')
-                .margin('top', '2xs')
             : null,
           RawText(dates(entry))
             .foreground('muted')
@@ -331,17 +338,15 @@ export function ProfileExperience({
                   group.entries.length === 1
                     ? VStack(Embed(role(group.entries[0], false, true))).flex('1')
                     : VStack(
-                        RawText(
-                          <CompanyName
-                            showDetails={!supervision.supervised}
-                            company={companyFor(group.employerOxyAccountId)}
-                            name={companyName(group.employerOxyAccountId)}
-                          />,
-                        )
-                          .foreground('foreground')
-                          .font('18')
-                          .leading('28px')
-                          .weight('semibold'),
+                        Embed(
+                          <Text style={[COMPANY_HEADING_STYLE, { color: colorTokens.foreground }]}>
+                            <CompanyName
+                              showDetails={!supervision.supervised}
+                              company={companyFor(group.employerOxyAccountId)}
+                              name={companyName(group.employerOxyAccountId)}
+                            />
+                          </Text>,
+                        ),
                         RawText(duration(group.startDate, group.endDate))
                           .foreground('foreground')
                           .font('16')
