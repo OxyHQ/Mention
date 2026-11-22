@@ -1,7 +1,7 @@
 import { commerceService } from '@/services/commerceService';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { Button as LanguageButton, Embed, Icon } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 import {
@@ -542,14 +542,17 @@ const PostDetailScreen = screen(function PostDetailScreen({
               value={continuationsExpanded ? 'continuations' : undefined}
               onValueChange={(value) => setCollapsedThreadId(value ? null : id)}
             >
-              <AccordionItem value="continuations" className="border-0">
-                <AccordionTrigger className="px-3 py-3" textStyle={{ fontSize: 13 }}>
+              <AccordionItem value="continuations" style={continuationStyles.item}>
+                <AccordionTrigger
+                  style={continuationStyles.trigger}
+                  textStyle={continuationStyles.triggerText}
+                >
                   {t('post.threadContinuation', {
                     defaultValue: 'Thread continuation ({{count}})',
                     count: continuations.length,
                   })}
                 </AccordionTrigger>
-                <AccordionContent contentClassName="p-0">
+                <AccordionContent contentStyle={continuationStyles.content}>
                   {continuations.map((continuation, index) => {
                     const isLast = index === continuations.length - 1;
                     return (
@@ -705,3 +708,13 @@ const PostDetailScreen = screen(function PostDetailScreen({
 });
 
 export default PostDetailScreen;
+
+// The thread's continuation section: no rule of its own, the post's side
+// padding on its trigger, and its posts edge to edge. The accordion node takes
+// no style for its item, trigger or body, so the section keeps Bloom's JSX.
+const continuationStyles = StyleSheet.create({
+  item: { borderWidth: 0 },
+  trigger: { paddingHorizontal: 12, paddingVertical: 12 },
+  triggerText: { fontSize: 13 },
+  content: { padding: 0 },
+});

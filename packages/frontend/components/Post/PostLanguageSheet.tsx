@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { languageLabel, translateTargets, type PostLanguageOption } from '@/utils/postLanguages';
 
@@ -29,9 +29,24 @@ interface Props {
  * serving it costs a cache read or a model call. A reader is never shown a
  * shorter menu because a cache is cold.
  */
+// A language row: a touchable that dims under the finger (the language's press
+// variant has no timed opacity), on the surface fill.
+const useOptionStyles = createTokenStyles((t) => ({
+  option: {
+    backgroundColor: t.surface,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+}));
+
 const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) => {
   const { t } = useTranslation();
-  const theme = useTheme();
+  const styles = useOptionStyles();
 
   return toElement(
     VStack(
@@ -45,7 +60,7 @@ const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) =>
         options.map((option) => (
           <TouchableOpacity
             key={option.tag}
-            className="bg-surface mb-1 flex-row items-center justify-between rounded-2xl px-3.5 py-3"
+            style={styles.option}
             activeOpacity={0.7}
             onPress={() => onSelect(option.tag)}
           >
@@ -80,7 +95,7 @@ const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) =>
         translateTargets(options).map((language) => (
           <TouchableOpacity
             key={language.tag}
-            className="bg-surface mb-1 flex-row items-center justify-between rounded-2xl px-3.5 py-3"
+            style={styles.option}
             activeOpacity={0.7}
             onPress={() => onSelect(language.tag)}
           >
