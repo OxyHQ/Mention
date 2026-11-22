@@ -2,8 +2,9 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, RefreshControl, type ViewStyle } from 'react-native';
+import { StyleSheet, TouchableOpacity, RefreshControl, type ViewStyle } from 'react-native';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -41,6 +42,7 @@ import {
   Avatar as LAvatar,
   Button as LButton,
   Embed,
+  HStack,
   Header,
   Icon,
   RawText,
@@ -106,6 +108,20 @@ const feedRowBody: ViewStyle = {
   gap: 12,
 };
 
+/**
+ * A directory row: its body, then the pin control when the viewer can edit,
+ * over a hairline rule.
+ */
+function feedRow(body: ReactElement, pin: ReactElement | null) {
+  return toElement(
+    HStack(Embed(body), pin ? Embed(pin) : null)
+      .align('center')
+      .spacing('md')
+      .padding('vertical', 'md')
+      .border('border', 'hairline', 'bottom'),
+  );
+}
+
 // Pin toggle button shared by preset + custom rows.
 const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }) => {
   const theme = useTheme();
@@ -146,42 +162,36 @@ const PresetRow = ({
 }) => {
   const theme = useTheme();
   const PresetIcon = PRESET_ICONS[preset.id] ?? RiSparklingLine;
-  return (
-    <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
-      <TouchableOpacity
-        style={feedRowBody}
-        onPress={onOpen}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={t(preset.labelKey)}
-      >
-        {toElement(
-          VStack(Embed(<PresetIcon width={20} height={20} fill={theme.colors.primary} />))
-            .frame({ width: '36', height: '36' })
-            .background('mutedFill')
-            .corner('infinite')
-            .align('center')
-            .justify('center'),
-        )}
-        {toElement(
-          VStack(
-            RawText(t(preset.labelKey))
-              .font('md')
-              .weight('semibold')
-              .foreground('foreground')
-              .lines(1),
-            RawText(t(preset.descriptionKey))
-              .font('sm')
-              .leading('18px')
-              .foreground('muted')
-              .lines(2),
-          )
-            .flex('1')
-            .spacing('2xs'),
-        )}
-      </TouchableOpacity>
-      {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
-    </View>
+  return feedRow(
+    <TouchableOpacity
+      style={feedRowBody}
+      onPress={onOpen}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={t(preset.labelKey)}
+    >
+      {toElement(
+        VStack(Embed(<PresetIcon width={20} height={20} fill={theme.colors.primary} />))
+          .frame({ width: '36', height: '36' })
+          .background('mutedFill')
+          .corner('infinite')
+          .align('center')
+          .justify('center'),
+      )}
+      {toElement(
+        VStack(
+          RawText(t(preset.labelKey))
+            .font('md')
+            .weight('semibold')
+            .foreground('foreground')
+            .lines(1),
+          RawText(t(preset.descriptionKey)).font('sm').leading('18px').foreground('muted').lines(2),
+        )
+          .flex('1')
+          .spacing('2xs'),
+      )}
+    </TouchableOpacity>,
+    canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null,
   );
 };
 
@@ -213,39 +223,36 @@ const TrendFeedRow = ({
   onOpen: () => void;
   onTogglePin: () => void;
 }) => {
-  const theme = useTheme();
-  return (
-    <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
-      <TouchableOpacity
-        style={feedRowBody}
-        onPress={onOpen}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={trend.displayName}
-      >
-        {toElement(
-          VStack(Icon(RiLineChartLine).size('md').foreground('primary'))
-            .frame({ width: '36', height: '36' })
-            .background('mutedFill')
-            .corner('infinite')
-            .align('center')
-            .justify('center'),
-        )}
-        {toElement(
-          VStack(
-            RawText(trend.displayName)
-              .font('md')
-              .weight('semibold')
-              .foreground('foreground')
-              .lines(1),
-            RawText(subtitle).font('sm').leading('18px').foreground('muted').lines(1),
-          )
-            .flex('1')
-            .spacing('2xs'),
-        )}
-      </TouchableOpacity>
-      {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
-    </View>
+  return feedRow(
+    <TouchableOpacity
+      style={feedRowBody}
+      onPress={onOpen}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={trend.displayName}
+    >
+      {toElement(
+        VStack(Icon(RiLineChartLine).size('md').foreground('primary'))
+          .frame({ width: '36', height: '36' })
+          .background('mutedFill')
+          .corner('infinite')
+          .align('center')
+          .justify('center'),
+      )}
+      {toElement(
+        VStack(
+          RawText(trend.displayName)
+            .font('md')
+            .weight('semibold')
+            .foreground('foreground')
+            .lines(1),
+          RawText(subtitle).font('sm').leading('18px').foreground('muted').lines(1),
+        )
+          .flex('1')
+          .spacing('2xs'),
+      )}
+    </TouchableOpacity>,
+    canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null,
   );
 };
 
@@ -264,51 +271,48 @@ const FeedRow = ({
   onOpen: () => void;
   onTogglePin: () => void;
 }) => {
-  const theme = useTheme();
   const memberCount = (item.memberOxyUserIds || []).length;
 
-  return (
-    <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
-      <TouchableOpacity
-        style={feedRowBody}
-        onPress={onOpen}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={item.title || 'Untitled Feed'}
-      >
-        {toElement(LAvatar(item.avatar || undefined, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))}
-        {toElement(
-          VStack(
-            RawText(item.title || 'Untitled Feed')
-              .font('md')
-              .weight('semibold')
-              .foreground('foreground')
-              .lines(1),
-            RawText(
-              item.owner ? `@${item.owner.username || item.owner.handle}` : '',
-              memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : '',
-              typeof item.likeCount === 'number' && item.likeCount > 0
-                ? ` · ${formatCompactNumber(item.likeCount)} likes`
-                : '',
-            )
-              .font('sm')
-              .foreground('muted')
-              .lines(1),
-            item.description
-              ? RawText(item.description)
-                  .font('sm')
-                  .leading('18px')
-                  .margin('top', '2xs')
-                  .foreground('muted')
-                  .lines(2)
-              : null,
+  return feedRow(
+    <TouchableOpacity
+      style={feedRowBody}
+      onPress={onOpen}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={item.title || 'Untitled Feed'}
+    >
+      {toElement(LAvatar(item.avatar || undefined, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))}
+      {toElement(
+        VStack(
+          RawText(item.title || 'Untitled Feed')
+            .font('md')
+            .weight('semibold')
+            .foreground('foreground')
+            .lines(1),
+          RawText(
+            item.owner ? `@${item.owner.username || item.owner.handle}` : '',
+            memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : '',
+            typeof item.likeCount === 'number' && item.likeCount > 0
+              ? ` · ${formatCompactNumber(item.likeCount)} likes`
+              : '',
           )
-            .flex('1')
-            .spacing('2xs'),
-        )}
-      </TouchableOpacity>
-      {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
-    </View>
+            .font('sm')
+            .foreground('muted')
+            .lines(1),
+          item.description
+            ? RawText(item.description)
+                .font('sm')
+                .leading('18px')
+                .margin('top', '2xs')
+                .foreground('muted')
+                .lines(2)
+            : null,
+        )
+          .flex('1')
+          .spacing('2xs'),
+      )}
+    </TouchableOpacity>,
+    canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null,
   );
 };
 
@@ -641,13 +645,6 @@ const FeedsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
-  },
-  feedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
   },
   pinBtn: {
     width: 28,

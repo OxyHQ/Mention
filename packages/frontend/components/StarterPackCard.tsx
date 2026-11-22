@@ -173,15 +173,17 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
                         // for opening the pack.
                         hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
                       >
-                        <Text
-                          variant="body-regular"
-                          style={[styles.byline, { color: theme.colors.textSecondary }]}
-                          numberOfLines={1}
-                        >
-                          {isOwner
-                            ? 'Starter pack by you'
-                            : `Starter pack by @${pack.creator.username}`}
-                        </Text>
+                        {toElement(
+                          LText(
+                            isOwner
+                              ? 'Starter pack by you'
+                              : `Starter pack by @${pack.creator.username}`,
+                          )
+                            .font('body')
+                            .leading('18px')
+                            .foreground('muted')
+                            .lines(1),
+                        )}
                       </TouchableOpacity>
                     </ProfileHoverCard>
                   ),
@@ -200,25 +202,30 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
             : null}
 
           {/* Stats */}
-          <Text
-            variant="body-2-medium"
-            style={[styles.statLine, { color: theme.colors.textSecondary }]}
-          >
-            {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
-            {pack.useCount > 0
-              ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
-              : ''}
-          </Text>
+          {toElement(
+            LText(
+              pack.memberCount,
+              ' ',
+              pack.memberCount === 1 ? 'account' : 'accounts',
+              pack.useCount > 0
+                ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
+                : '',
+            )
+              .font('body-2')
+              .weight('medium')
+              .leading('24px')
+              .foreground('muted'),
+          )}
 
           {/* Joined count — only shown when >= 50, matching Bluesky */}
-          {pack.useCount >= 50 && (
-            <Text
-              variant="body-2-semibold"
-              style={[styles.statLine, { color: theme.colors.textSecondary }]}
-            >
-              {formatCompactNumber(pack.useCount)} users have joined!
-            </Text>
-          )}
+          {pack.useCount >= 50 &&
+            toElement(
+              LText(formatCompactNumber(pack.useCount), ' users have joined!')
+                .font('body-2')
+                .weight('semibold')
+                .leading('24px')
+                .foreground('muted'),
+            )}
 
           {footer}
         </Card>,
@@ -296,12 +303,6 @@ const styles = StyleSheet.create({
   },
   title: {
     lineHeight: 20,
-  },
-  byline: {
-    lineHeight: 18,
-  },
-  statLine: {
-    lineHeight: 24,
   },
   // Skeleton styles
   skeletonAvatarRow: {

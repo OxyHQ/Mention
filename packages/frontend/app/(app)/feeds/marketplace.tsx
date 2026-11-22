@@ -383,9 +383,9 @@ function FeedMarketplaceScreen() {
               })}
             </ScrollView>,
           ),
-          Embed(
-            <View style={[styles.sortRow, { borderBottomColor: theme.colors.border }]}>
-              {SORT_OPTIONS_CONFIG.map((opt) => {
+          HStack(
+            Embed(
+              SORT_OPTIONS_CONFIG.map((opt) => {
                 const active = opt.id === sortBy;
                 return (
                   <TouchableOpacity
@@ -406,9 +406,11 @@ function FeedMarketplaceScreen() {
                     )}
                   </TouchableOpacity>
                 );
-              })}
-            </View>,
-          ),
+              }),
+            ),
+          )
+            .margin('top', 'md')
+            .border('border', 'thin', 'bottom'),
         ),
       ),
     [
@@ -555,11 +557,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-  },
-  sortRow: {
-    flexDirection: 'row',
-    marginTop: 12,
-    borderBottomWidth: 1,
   },
   sortIndicator: {
     position: 'absolute',

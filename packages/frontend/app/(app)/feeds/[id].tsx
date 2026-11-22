@@ -12,7 +12,7 @@ import { RiPushpinFill } from '@oxy.so/bloom/icons/RiPushpinFill';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
@@ -29,16 +29,12 @@ import { Rating, RatingInput } from '@oxy.so/bloom/rating';
 import { EmptyState } from '@/components/common/EmptyState';
 import { toast } from '@oxy.so/bloom/toast';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import {
-  Dialog,
-  useDialogControl,
-  type DialogAction,
-  type DialogControlProps,
-} from '@oxy.so/bloom/dialog';
+import type { DialogAction } from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
 import {
   Avatar as LAvatar,
   Button as LButton,
+  Dialog,
   Divider as LDivider,
   Embed,
   HStack,
@@ -48,6 +44,7 @@ import {
   VStack,
   defineTokens,
   toElement,
+  view,
 } from '@oxy.so/bloom-language';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -103,7 +100,6 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   onOpenInfo: () => void;
 }) {
   const theme = useTheme();
-  const colors = useColorTokens();
   const { t } = useTranslation();
   const back = useScreenBack();
   const creatorHandle = profileHandle(feed.owner);
@@ -124,13 +120,13 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
         >
           {({ pressed }) => (
             <>
-              <View
-                style={[
-                  headerStyles.pressHighlight,
-                  { backgroundColor: colors.muted },
-                  pressed && { opacity: 1 },
-                ]}
-              />
+              {toElement(
+                VStack()
+                  .position({ top: 'none', bottom: 'none', left: 'none', right: 'none' })
+                  .background('mutedFill')
+                  .corner('sm')
+                  .opacity(pressed ? 'opaque' : 'transparent'),
+              )}
               <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
               {toElement(
                 VStack(
@@ -206,7 +202,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 });
 
 // Feed info dialog content matching Bluesky's DialogInner
-const FeedInfoContent = React.memo(function FeedInfoContent({
+const FeedInfoContent = view(function FeedInfoContent({
   feed,
   subscriberCount,
   isSubscribed,
@@ -235,110 +231,106 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
   const { t } = useTranslation();
   const creatorHandle = profileHandle(feed.owner);
 
-  return toElement(
-    VStack(
-      /* Avatar + title + share */ HStack(
-        LAvatar(feed.coverImage, { variant: MEDIA_VARIANT_AVATAR }).size(
-          feedTokens.avatarSize.info,
-        ),
-        VStack(
-          RawText(feed.title)
-            .font('24')
-            .weight('bold')
-            .leading('close')
-            .foreground('foreground')
-            .lines(2),
-          creatorHandle
-            ? RawText(
-                'By',
-                ' ',
-                RawText(creatorHandle)
-                  .underline()
-                  .foreground('muted')
-                  .role('link')
-                  .onPress(() => {
-                    onClose();
-                    router.push(`/${creatorHandle}`);
-                  }),
-              )
-                .font('14')
-                .leading('relaxed')
+  return VStack(
+    /* Avatar + title + share */ HStack(
+      LAvatar(feed.coverImage, { variant: MEDIA_VARIANT_AVATAR }).size(feedTokens.avatarSize.info),
+      VStack(
+        RawText(feed.title)
+          .font('24')
+          .weight('bold')
+          .leading('close')
+          .foreground('foreground')
+          .lines(2),
+        creatorHandle
+          ? RawText(
+              'By',
+              ' ',
+              RawText(creatorHandle)
+                .underline()
                 .foreground('muted')
-            : null,
-        )
-          .flex('1')
-          .spacing('2xs'),
-        LButton(Icon(RiShare2Line))
-          .style('subtle')
-          .tint('neutral')
-          .shape('circle')
-          .onPress(onShare)
-          .label(t('videos.share', { defaultValue: 'Share' })),
+                .role('link')
+                .onPress(() => {
+                  onClose();
+                  router.push(`/${creatorHandle}`);
+                }),
+            )
+              .font('14')
+              .leading('relaxed')
+              .foreground('muted')
+          : null,
       )
-        .align('center')
-        .spacing('14'),
-      /* Description */ feed.description
-        ? RawText(feed.description).font('16').leading('relaxed').foreground('foreground')
-        : null,
-      /* Subscriber tally — the same `FeedLike` records the subscribe pill writes. */ subscriberCount >
-        0
-        ? RawText(t('feeds.subscriberCount', { count: subscriberCount }))
-            .font('14')
-            .leading('20px')
-            .foreground('muted')
-        : null,
-      /* Action buttons */ HStack(
-        Embed(
-          <FeedSubscribeButton
-            isSubscribed={isSubscribed}
-            isSubscribing={isSubscribing}
-            onPress={onToggleSubscribe}
-          />,
-        ),
-        LButton(
-          Icon(isPinned ? RiPushpinFill : RiPushpinLine),
-          RawText(isPinned ? 'Unpin feed' : 'Pin feed'),
-        )
-          .style(isPinned ? 'solid' : 'subtle')
-          .tint(isPinned ? 'accent' : 'neutral')
-          .flex('1')
-          .onPress(onTogglePin),
-      )
-        .padding('top', 'xs')
-        .spacing('10'),
-      /* Owner-only edit */ isOwner
-        ? LButton(Icon(RiEditBoxLine), RawText('Edit feed'))
-            .style('subtle')
-            .tint('neutral')
-            .onPress(() => {
-              onClose();
-              onEdit();
-            })
-        : null,
-      /* Divider + report */ LDivider(),
-      HStack(
-        RawText('Something wrong? Let us know.')
+        .flex('1')
+        .spacing('2xs'),
+      LButton(Icon(RiShare2Line))
+        .style('subtle')
+        .tint('neutral')
+        .shape('circle')
+        .onPress(onShare)
+        .label(t('videos.share', { defaultValue: 'Share' })),
+    )
+      .align('center')
+      .spacing('14'),
+    /* Description */ feed.description
+      ? RawText(feed.description).font('16').leading('relaxed').foreground('foreground')
+      : null,
+    /* Subscriber tally — the same `FeedLike` records the subscribe pill writes. */ subscriberCount >
+      0
+      ? RawText(t('feeds.subscriberCount', { count: subscriberCount }))
           .font('14')
           .leading('20px')
-          .italic()
-          .foreground('muted'),
-        LButton(RawText('Report feed'))
+          .foreground('muted')
+      : null,
+    /* Action buttons */ HStack(
+      Embed(
+        <FeedSubscribeButton
+          isSubscribed={isSubscribed}
+          isSubscribing={isSubscribing}
+          onPress={onToggleSubscribe}
+        />,
+      ),
+      LButton(
+        Icon(isPinned ? RiPushpinFill : RiPushpinLine),
+        RawText(isPinned ? 'Unpin feed' : 'Pin feed'),
+      )
+        .style(isPinned ? 'solid' : 'subtle')
+        .tint(isPinned ? 'accent' : 'neutral')
+        .flex('1')
+        .onPress(onTogglePin),
+    )
+      .padding('top', 'xs')
+      .spacing('10'),
+    /* Owner-only edit */ isOwner
+      ? LButton(Icon(RiEditBoxLine), RawText('Edit feed'))
           .style('subtle')
           .tint('neutral')
-          .size('sm')
           .onPress(() => {
-            toast('Report submitted', { type: 'info' });
             onClose();
-          }),
-      )
-        .align('center')
-        .justify('between'),
+            onEdit();
+          })
+      : null,
+    /* Divider + report */ LDivider(),
+    HStack(
+      RawText('Something wrong? Let us know.')
+        .font('14')
+        .leading('20px')
+        .italic()
+        .foreground('muted'),
+      LButton(RawText('Report feed'))
+        .style('subtle')
+        .tint('neutral')
+        .size('sm')
+        .onPress(() => {
+          toast('Report submitted', { type: 'info' });
+          onClose();
+        }),
     )
-      .padding('horizontal', 'xl')
-      .padding('bottom', '3xl')
-      .padding('top', 'sm')
-      .spacing('lg'),
-  );
+      .align('center')
+      .justify('between'),
+  )
+    .padding('horizontal', 'xl')
+    .padding('bottom', '3xl')
+    .padding('top', 'sm')
+    .spacing('lg');
 });
 
 // Profiles tab
@@ -358,41 +350,42 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Feed
 
 // Topics tab
 const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string[] }) {
-  const theme = useTheme();
-
   if (keywords.length === 0) {
     return <EmptyState title="No topics yet" sticker="feedPageEmpty" />;
   }
 
-  return (
-    <View style={styles.topicsList}>
-      {keywords.map((keyword) => (
-        <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
-          {toElement(
-            VStack(Icon(RiHashtag).size('18').foreground('muted'))
-              .frame({ width: '4xl', height: '4xl' })
-              .background('mutedFill')
-              .corner('infinite')
-              .align('center')
-              .justify('center'),
-          )}
-          {toElement(
-            RawText(keyword).font('16').leading('normal').weight('medium').foreground('foreground'),
-          )}
-        </View>
-      ))}
-    </View>
+  return toElement(
+    VStack(
+      keywords.map((keyword) =>
+        HStack(
+          VStack(Icon(RiHashtag).size('18').foreground('muted'))
+            .frame({ width: '4xl', height: '4xl' })
+            .background('mutedFill')
+            .corner('infinite')
+            .align('center')
+            .justify('center'),
+          RawText(keyword).font('16').leading('normal').weight('medium').foreground('foreground'),
+        )
+          .align('center')
+          .spacing('14')
+          .padding('vertical', '14')
+          .border('border', 'hairline', 'bottom')
+          .id(keyword),
+      ),
+    ).padding('lg'),
   );
 });
 
-// Write-review dialog. Opened and closed through `control`; the draft resets
-// whenever it finishes closing (cancel, a drag down or a submit).
+// Write-review dialog, shown while `open` holds; dismissing it (cancel, a drag
+// down) calls `onOpenChange(false)`.
 const WriteReviewDialog = React.memo(function WriteReviewDialog({
-  control,
+  open,
+  onOpenChange,
   onSubmit,
   submitting,
 }: {
-  control: DialogControlProps;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSubmit: (rating: number, text: string) => void;
   submitting: boolean;
 }) {
@@ -400,10 +393,17 @@ const WriteReviewDialog = React.memo(function WriteReviewDialog({
   const [rating, setRating] = useState<number | null>(null);
   const [text, setText] = useState('');
 
-  const handleClosed = useCallback(() => {
-    setRating(null);
-    setText('');
-  }, []);
+  // Each opening starts a fresh draft. It is cleared as the dialog opens, not as
+  // it closes: a close (`onOpenChange(false)`, or the submit closing it) starts
+  // the exit, and the closing dialog keeps showing its draft until it is gone.
+  const [draftFor, setDraftFor] = useState(open);
+  if (draftFor !== open) {
+    setDraftFor(open);
+    if (open) {
+      setRating(null);
+      setText('');
+    }
+  }
 
   const actions = useMemo<DialogAction[]>(
     () => [
@@ -421,29 +421,25 @@ const WriteReviewDialog = React.memo(function WriteReviewDialog({
     [rating, text, submitting, onSubmit],
   );
 
-  return (
-    <Dialog
-      control={control}
-      onClose={handleClosed}
-      label="Write a Review"
-      title="Write a Review"
-      placement={{ base: 'bottom', md: 'center' }}
-      actions={actions}
-    >
-      {toElement(
+  return toElement(
+    Dialog(
+      VStack(
         VStack(
-          VStack(
-            Embed(<RatingInput value={rating} onChange={setRating} accessibilityLabel="Rating" />),
-          )
-            .padding('vertical', 'xs')
-            .align('center'),
-          TextEditor([text, setText])
-            .placeholder(t('feeds.detail.reviewPlaceholder'))
-            .maxLength(500)
-            .rows(4),
-        ).spacing('lg'),
-      )}
-    </Dialog>
+          Embed(<RatingInput value={rating} onChange={setRating} accessibilityLabel="Rating" />),
+        )
+          .padding('vertical', 'xs')
+          .align('center'),
+        TextEditor([text, setText])
+          .placeholder(t('feeds.detail.reviewPlaceholder'))
+          .maxLength(500)
+          .rows(4),
+      ).spacing('lg'),
+    )
+      .label('Write a Review')
+      .title('Write a Review')
+      .presentAt('bottom', { md: 'center' })
+      .buttons(actions)
+      .presented([open, onOpenChange]),
   );
 });
 
@@ -451,7 +447,7 @@ const WriteReviewDialog = React.memo(function WriteReviewDialog({
 const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const reviewDialog = useDialogControl();
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const reviewsQueryKey = useMemo(() => publicQueryKeys.customFeedReviews(feedId), [feedId]);
 
@@ -476,7 +472,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         reviewText: input.reviewText.trim() || undefined,
       }),
     onSuccess: () => {
-      reviewDialog.close();
+      setReviewOpen(false);
       toast('Review submitted', { type: 'success' });
       void queryClient.invalidateQueries({ queryKey: reviewsQueryKey });
     },
@@ -513,7 +509,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         // Its class's margin reached the outline button on native only: on the web
         // the outline button's own margin won over the class.
         .when('native', (v) => v.margin('bottom', 'sm'))
-        .onPress(() => reviewDialog.open()),
+        .onPress(() => setReviewOpen(true)),
       reviews.length === 0
         ? Embed(
             <EmptyState
@@ -539,49 +535,44 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
                 })
               : '';
 
-            return Embed(
-              <View style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}>
-                {toElement(
+            return VStack(
+              HStack(
+                LAvatar(review.reviewer?.avatar ?? undefined, {
+                  variant: MEDIA_VARIANT_AVATAR,
+                }).size('lg'),
+                VStack(
+                  RawText(reviewerName)
+                    .font('md')
+                    .weight('semibold')
+                    .foreground('foreground')
+                    .lines(1),
                   HStack(
-                    LAvatar(review.reviewer?.avatar ?? undefined, {
-                      variant: MEDIA_VARIANT_AVATAR,
-                    }).size('lg'),
-                    VStack(
-                      RawText(reviewerName)
-                        .font('md')
-                        .weight('semibold')
-                        .foreground('foreground')
-                        .lines(1),
-                      HStack(
-                        Embed(
-                          <Rating
-                            variant="stars"
-                            size="sm"
-                            value={review.rating || 0}
-                            starColor={theme.colors.primary}
-                          />,
-                        ),
-                        date ? RawText(date).font('xs').leading('16px').foreground('muted') : null,
-                      )
-                        .align('center')
-                        .spacing('sm'),
-                    )
-                      .flex('1')
-                      .spacing('3'),
+                    Embed(
+                      <Rating
+                        variant="stars"
+                        size="sm"
+                        value={review.rating || 0}
+                        starColor={theme.colors.primary}
+                      />,
+                    ),
+                    date ? RawText(date).font('xs').leading('16px').foreground('muted') : null,
                   )
-                    .align('start')
-                    .spacing('10'),
-                )}
-                {review.reviewText
-                  ? toElement(
-                      RawText(review.reviewText)
-                        .font('14')
-                        .leading('20px')
-                        .foreground('foreground'),
-                    )
-                  : null}
-              </View>,
-            ).id(reviewId);
+                    .align('center')
+                    .spacing('sm'),
+                )
+                  .flex('1')
+                  .spacing('3'),
+              )
+                .align('start')
+                .spacing('10'),
+              review.reviewText
+                ? RawText(review.reviewText).font('14').leading('20px').foreground('foreground')
+                : null,
+            )
+              .padding('vertical', 'lg')
+              .spacing('sm')
+              .border('border', 'hairline', 'bottom')
+              .id(reviewId);
           }),
       hasNextPage
         ? LButton(RawText('Load more reviews'))
@@ -593,7 +584,8 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         : null,
       Embed(
         <WriteReviewDialog
-          control={reviewDialog}
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
           onSubmit={handleSubmitReview}
           submitting={isSubmitting}
         />,
@@ -646,8 +638,9 @@ function CustomFeedTimelineScreen() {
     [t],
   );
 
-  const infoDialog = useDialogControl();
-  const { open: openInfoSheet, close: closeInfoSheet } = infoDialog;
+  const [infoOpen, setInfoOpen] = useState(false);
+  const openInfoSheet = useCallback(() => setInfoOpen(true), []);
+  const closeInfoSheet = useCallback(() => setInfoOpen(false), []);
 
   const onTogglePin = useCallback(() => {
     if (isFeedPinned(pinKey)) unpin(pinKey);
@@ -797,28 +790,29 @@ function CustomFeedTimelineScreen() {
       )}
 
       {/* Feed info */}
-      {feed && (
-        <Dialog
-          control={infoDialog}
-          label={feed.title}
-          placement={{ base: 'bottom', md: 'center' }}
-          contentPadding={0}
-        >
-          <FeedInfoContent
-            feed={feed}
-            subscriberCount={subscriberCount}
-            isSubscribed={isSubscribed}
-            isSubscribing={isSubscribing}
-            isPinned={isPinned}
-            isOwner={isOwner}
-            onToggleSubscribe={onToggleSubscribe}
-            onTogglePin={onTogglePin}
-            onEdit={onEdit}
-            onShare={onShare}
-            onClose={closeInfoSheet}
-          />
-        </Dialog>
-      )}
+      {feed
+        ? toElement(
+            Dialog(
+              FeedInfoContent({
+                feed,
+                subscriberCount,
+                isSubscribed,
+                isSubscribing,
+                isPinned,
+                isOwner,
+                onToggleSubscribe,
+                onTogglePin,
+                onEdit,
+                onShare,
+                onClose: closeInfoSheet,
+              }),
+            )
+              .label(feed.title)
+              .presentAt('bottom', { md: 'center' })
+              .padding('none')
+              .presented([infoOpen, setInfoOpen]),
+          )
+        : null}
     </Screen>
   );
 }
@@ -837,36 +831,10 @@ const headerTitleStyle: ViewStyle = {
   paddingHorizontal: 4,
 };
 
-const headerStyles = StyleSheet.create({
-  pressHighlight: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: 8,
-    opacity: 0,
-  },
-});
-
 const styles = StyleSheet.create({
   profilesList: {
     padding: 16,
     gap: 4,
-  },
-  topicsList: {
-    padding: 16,
-  },
-  topicRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-});
-
-const reviewStyles = StyleSheet.create({
-  reviewCard: {
-    paddingVertical: 16,
-    gap: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });
 
