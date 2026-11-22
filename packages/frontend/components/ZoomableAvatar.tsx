@@ -1,6 +1,13 @@
 import type React from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle, type ViewInstance } from 'react-native';
+import {
+  Platform,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+  type ViewInstance,
+} from 'react-native';
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { hasAccountAvatarCharacter } from '@/components/ui/use-account-avatar-motion';
@@ -11,6 +18,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useImageResolver } from '@oxy.so/bloom/image-resolver';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import type {
   MeasuredRect,
   ZoomableMediaGalleryHandle,
@@ -32,7 +40,6 @@ interface ZoomableAvatarProps {
   /** Avatar content diameter; an outer frame supplied in style may include a ring. */
   size?: number;
   style?: StyleProp<ViewStyle>;
-  className?: string;
   /**
    * Scroll-collapse driver, 0 (expanded) → 1 (fully collapsed). The avatar
    * scales toward `collapseMinScale` and shifts down by `collapseTranslateY` as
@@ -61,12 +68,12 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   account,
   size = 40,
   style,
-  className,
   collapseProgress,
   collapseMinScale = 1,
   collapseTranslateY = 0,
 }) => {
   const { oxyServices } = useAuth();
+  const colorTokens = useColorTokens();
   const hasCharacter = hasAccountAvatarCharacter(account);
   const [imageFailure, setImageFailure] = useState<{
     source: AvatarProps['source'];
@@ -164,10 +171,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           Embed(
             <View ref={wrapperRef} collapsable={false}>
               <Animated.View
-                className={`web:[user-select:none] web:[-webkit-user-drag:none] web:cursor-pointer${className ? ` ${className}` : ''}`}
                 style={[
                   styles.avatar,
                   { width: size, height: size, borderRadius: size / 2 },
+                  WEB_INTERACTION,
+                  { backgroundColor: colorTokens.muted },
                   style,
                   collapseStyle,
                   hasCharacter && { overflow: 'visible' },
@@ -202,10 +210,14 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   );
 };
 
+/** The web's interaction hints: no text selection, no image drag, a pointer. */
+const WEB_INTERACTION =
+  Platform.OS === 'web'
+    ? ({ userSelect: 'none', WebkitUserDrag: 'none', cursor: 'pointer' } as const)
+    : undefined;
+
 const styles = StyleSheet.create({
   avatar: {
-    // Web interaction hints (`user-select`, `-webkit-user-drag`, `cursor`) ride
-    // on the NativeWind classes above, not an inline web-only style object.
     position: 'relative',
     overflow: 'hidden',
     justifyContent: 'center',

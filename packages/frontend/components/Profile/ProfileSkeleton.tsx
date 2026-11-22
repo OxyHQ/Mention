@@ -1,9 +1,10 @@
 import { memo } from 'react';
-import { View } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
 import {
@@ -44,6 +45,21 @@ const STAT_CHIP_WIDTHS = [96, 104, 78, 84, 90];
 const TAB_CHIP_WIDTHS = [42, 54, 50, 58, 44, 56];
 const FEED_ROW_COUNT = 4;
 
+// The rows' boxes, as their classes drew them (plain objects: they are inline, as the classes were).
+const FULL_WIDTH: ViewStyle = { width: '100%' };
+/** The meta row: wraps, 16pt between items, 4pt between lines, 12pt under it. */
+const META_ROW: ViewStyle = {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  marginBottom: 12,
+  columnGap: 16,
+  rowGap: 4,
+};
+/** The stats row: wraps, 16pt between items, 8pt between lines. */
+const STATS_ROW: ViewStyle = { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 8 };
+/** The tab strip: a row over a bottom hairline. */
+const TAB_BAR: ViewStyle = { flexDirection: 'row', borderBottomWidth: 1 };
+
 // A CHANNEL's anatomy, which is a different shape rather than a smaller one: no
 // banner to overlap, a CENTRED masthead (avatar, then name, then handle, then
 // the follow control), four stats (no replies — a channel can author none) and
@@ -74,12 +90,13 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   const insets = useContentSafeAreaInsets();
   // The avatar ring is the colour of the surface under it, as on the loaded profile.
   const surfaceFill = useSurfaceFill();
+  const colorTokens = useColorTokens();
   // Mirrors the loaded profile: the same opaque blocks, in the same colour as
   // the column they land in (see ProfileContent / ProfileTabBarRow).
 
   if (variant === 'channel') {
     return (
-      <Skeleton.Region className="w-full">
+      <Skeleton.Region style={FULL_WIDTH}>
         <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
           {toElement(
             VStack(
@@ -127,13 +144,13 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
                 .margin('bottom', 'md')
                 .spacing('sm'),
               Embed(
-                <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
+                <View style={META_ROW}>
                   <Skeleton.Box width={110} height={15} borderRadius={6} />
                   <Skeleton.Box width={150} height={15} borderRadius={6} />
                 </View>,
               ),
               Embed(
-                <View className="flex-row flex-wrap gap-x-4 gap-y-2">
+                <View style={STATS_ROW}>
                   {CHANNEL_STAT_CHIP_WIDTHS.map((width, index) => (
                     <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
                   ))}
@@ -177,7 +194,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   }
 
   return (
-    <Skeleton.Region className="w-full">
+    <Skeleton.Region style={FULL_WIDTH}>
       {/* Banner and profile info block — the loaded profile's `CoverHeader`,
           with ProfileContent's padding. The band is dampened (`blend`) so the
           avatar placeholder reads clearly over it. */}
@@ -236,13 +253,13 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
         )}
 
         {/* Meta row (location · joined). */}
-        <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
+        <View style={META_ROW}>
           <Skeleton.Box width={110} height={15} borderRadius={6} />
           <Skeleton.Box width={150} height={15} borderRadius={6} />
         </View>
 
         {/* Stats row (following / followers / posts / boosts / replies). */}
-        <View className="flex-row flex-wrap gap-x-4 gap-y-2">
+        <View style={STATS_ROW}>
           {STAT_CHIP_WIDTHS.map((width, index) => (
             <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
           ))}
@@ -250,7 +267,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
       </CoverHeader>
       {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
           min-60 cells) with an active-indicator hint under the first tab. */}
-      <View className="border-b border-border flex-row" style={{ backgroundColor: surfaceFill }}>
+      <View style={[TAB_BAR, { borderColor: colorTokens.border, backgroundColor: surfaceFill }]}>
         {TAB_CHIP_WIDTHS.map((width, index) =>
           toElement(
             VStack(

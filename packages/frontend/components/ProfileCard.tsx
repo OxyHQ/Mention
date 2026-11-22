@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, type TextStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@/components/FollowButton';
@@ -8,13 +8,13 @@ import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { getNormalizedUserHandle, type AccountKind } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { cn } from '@/lib/utils';
 
 import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
@@ -30,6 +30,9 @@ const IDENTITY_TEXT_STYLES = StyleSheet.create({
   handle: { fontSize: 14, lineHeight: 18 },
   column: { gap: 2 },
 });
+
+/** The meta line, 14/18 as its classes drew it; its ink is the muted token. */
+const META_STYLE: TextStyle = { fontSize: 14, lineHeight: 18 };
 
 const IDENTITY_STYLE = {
   name: IDENTITY_TEXT_STYLES.name,
@@ -184,71 +187,90 @@ export function ProfileCard({
   size = 'md',
 }: ProfileCardProps) {
   const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
+  const colorTokens = useColorTokens();
 
-  return (
-    <View className={cn('w-full', showDivider && 'border-b border-border')}>
-      <ListItem
-        person={{ name: nameLabel || handle, subtitle: handle || undefined }}
-        onPress={press}
-        leading={toElement(
-          VStack(
-            Embed(
-              <AccountAvatar
-                account={resolved}
-                source={resolved.avatar || undefined}
-                size={size === 'sm' ? 36 : 44}
-                variant={MEDIA_VARIANT_AVATAR}
-                verified={resolved.verified}
-                placeholderColor={getUserPlaceholderColor(resolved)}
-              />,
-            ),
-          ).allowsHitTesting(false),
-        )}
-        content={toElement(
-          VStack(
-            /* Identity line via the shared UserName: the name + verified /
+  return toElement(
+    VStack(
+      Embed((render) => (
+        <ListItem
+          person={{ name: nameLabel || handle, subtitle: handle || undefined }}
+          onPress={press}
+          leading={render(
+            VStack(
+              Embed(
+                <AccountAvatar
+                  account={resolved}
+                  source={resolved.avatar || undefined}
+                  size={size === 'sm' ? 36 : 44}
+                  variant={MEDIA_VARIANT_AVATAR}
+                  verified={resolved.verified}
+                  placeholderColor={getUserPlaceholderColor(resolved)}
+                />,
+              ),
+            ).allowsHitTesting(false),
+          )}
+          content={render(
+            VStack(
+              /* Identity line via the shared UserName: the name + verified /
                         federated / agent / automated markers and the muted @handle line,
                         consistent with every other user surface. */ Embed(
-              <UserName
-                name={nameLabel}
-                handle={handle || undefined}
-                verified={resolved.verified}
-                isFederated={resolved.isFederated}
-                kind={resolved.kind}
-                isAgent={resolved.isAgent}
-                isAutomated={resolved.isAutomated}
-                style={IDENTITY_STYLE}
-              />,
-            ),
-            meta ? LText(meta).font('14').leading('18px').foreground('muted').lines(1) : null,
-            resolved.description
-              ? LText(resolved.description).font('14').leading('20px').foreground('muted').lines(2)
-              : null,
-          )
-            .flex('1')
-            .spacing('2xs')
-            .allowsHitTesting(false),
-        )}
-        trailing={toElement(
-          HStack(
-            Embed(
-              showFollowButton && (
-                <FollowButton
-                  userId={resolved.id}
-                  username={handle || undefined}
-                  size="sm"
-                  initiallyFollowing={initiallyFollowing}
-                  onFollowChange={onFollowChange}
-                />
+                <UserName
+                  name={nameLabel}
+                  handle={handle || undefined}
+                  verified={resolved.verified}
+                  isFederated={resolved.isFederated}
+                  kind={resolved.kind}
+                  isAgent={resolved.isAgent}
+                  isAutomated={resolved.isAutomated}
+                  style={IDENTITY_STYLE}
+                />,
               ),
-            ),
-            Embed(accessory),
-          )
-            .align('center')
-            .spacing('md'),
-        )}
-      />
-    </View>
+              // Bloom's Text as JSX: a meta line may be an element (a poke's time and count), which no text run holds.
+              meta
+                ? Embed(
+                    <Text
+                      style={[META_STYLE, { color: colorTokens.mutedForeground }]}
+                      numberOfLines={1}
+                    >
+                      {meta}
+                    </Text>,
+                  )
+                : null,
+              resolved.description
+                ? LText(resolved.description)
+                    .font('14')
+                    .leading('20px')
+                    .foreground('muted')
+                    .lines(2)
+                : null,
+            )
+              .flex('1')
+              .spacing('2xs')
+              .allowsHitTesting(false),
+          )}
+          trailing={render(
+            HStack(
+              Embed(
+                showFollowButton && (
+                  <FollowButton
+                    userId={resolved.id}
+                    username={handle || undefined}
+                    size="sm"
+                    initiallyFollowing={initiallyFollowing}
+                    onFollowChange={onFollowChange}
+                  />
+                ),
+              ),
+              Embed(accessory),
+            )
+              .align('center')
+              .spacing('md'),
+          )}
+        />
+      )),
+    )
+      .frame({ width: 'full' })
+      .when(showDivider, (v) => v.border('border', 'thin', 'bottom')),
   );
 }
 
@@ -272,21 +294,23 @@ function ProfileCardSkeleton({
   showDivider = true,
   size = 'md',
 }: ProfileCardSkeletonProps) {
-  return (
-    <View
-      className={cn(
-        'w-full flex-row items-center gap-3 py-2',
-        showDivider && 'border-b border-border',
-      )}
-      style={{ paddingHorizontal: 12 }}
-    >
-      <Skeleton.Circle size={size === 'sm' ? 36 : 44} />
-      <Skeleton.Col style={{ flex: 1, gap: 6 }}>
-        <Skeleton.Text style={{ width: 140, fontSize: 16, lineHeight: 20 }} />
-        <Skeleton.Text style={{ width: 100, fontSize: 14, lineHeight: 18 }} />
-      </Skeleton.Col>
-      {showFollowButton && <Skeleton.Pill size={32} style={{ width: 80 }} />}
-    </View>
+  return toElement(
+    HStack(
+      Embed(<Skeleton.Circle size={size === 'sm' ? 36 : 44} />),
+      Embed(
+        <Skeleton.Col style={{ flex: 1, gap: 6 }}>
+          <Skeleton.Text style={{ width: 140, fontSize: 16, lineHeight: 20 }} />
+          <Skeleton.Text style={{ width: 100, fontSize: 14, lineHeight: 18 }} />
+        </Skeleton.Col>,
+      ),
+      showFollowButton ? Embed(<Skeleton.Pill size={32} style={{ width: 80 }} />) : null,
+    )
+      .padding('vertical', 'sm')
+      .padding('horizontal', 'md')
+      .frame({ width: 'full' })
+      .when(showDivider, (v) => v.border('border', 'thin', 'bottom'))
+      .align('center')
+      .spacing('md'),
   );
 }
 

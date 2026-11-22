@@ -243,7 +243,6 @@ function AccountInfoContent({
             account={profileData}
             source={avatarUri}
             size={ABOUT_AVATAR_SIZE}
-            className="bg-muted"
             style={{
               width: ABOUT_AVATAR_SIZE,
               height: ABOUT_AVATAR_SIZE,
@@ -289,18 +288,18 @@ function AccountInfoContent({
               why that one and not another appears under the name. */ categories.length > 0
         ? LGroupedSection(
             Embed(
-              categories.map((category, index) =>
-                toElement(
-                  LGroupedSectionItem(category.label)
-                    .leadingView(Embed(<RowIcon icon={RiHashtag} />))
-                    .value(
-                      index === 0
-                        ? t('accountCategories.primary', { defaultValue: 'Primary' })
-                        : undefined,
-                    ),
+              categories.map((category, index) => {
+                const row = LGroupedSectionItem(category.label).leadingView(
+                  Embed(<RowIcon icon={RiHashtag} />),
+                );
+                // Only the first row has a value: it is the primary.
+                return toElement(
+                  index === 0
+                    ? row.value(t('accountCategories.primary', { defaultValue: 'Primary' }))
+                    : row,
                   category.id,
-                ),
-              ),
+                );
+              }),
             ),
           ).title(t('accountCategories.title', { defaultValue: 'Categories' }))
         : null,
@@ -357,7 +356,8 @@ function AccountInfoContent({
                   toElement(
                     LGroupedSectionItem(t('profile.about.website', { defaultValue: 'Website' }))
                       .leadingView(Embed(<RowIcon icon={RiLinkM} />))
-                      .value(website?.replace(/^https?:\/\//i, ''))
+                      // The URL without its scheme: the website as written, less any http(s)://.
+                      .value(websiteUrl.replace(/^https?:\/\//i, ''))
                       .onPress(() => openExternalLink(websiteUrl)),
                   ),
               ),

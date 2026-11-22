@@ -84,7 +84,6 @@ export const ChannelHeader = memo(function ChannelHeader({
           shareUrl={galleryShareUrl ?? null}
           source={avatarUri}
           size={CHANNEL_AVATAR_SIZE - CHANNEL_AVATAR_RING * 2}
-          className="bg-muted"
           style={{
             borderWidth: CHANNEL_AVATAR_RING,
             borderColor: surfaceFill,
