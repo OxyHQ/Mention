@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
@@ -10,8 +10,8 @@ import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { useSurfaceFill, tokens } from '@oxy.so/bloom/styles';
-import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { hoverGroupProps, SubtleHover } from '@oxy.so/bloom/subtle-hover';
+import { createTokenStyles, tokenAlpha, useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { queryKeys as sdkQueryKeys } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -43,11 +43,18 @@ import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurface
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
 import { readerKeys, useReaderFlag } from '@/stores/readerStateStore';
-import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
 import { useStorePost } from '@/hooks/useStorePost';
 
-import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('NotificationItem');
 
@@ -59,11 +66,10 @@ type GroupedActor = GroupedNotification['actors'][number];
 // mr-3) are expressed as NativeWind classes below so the row reads like a post.
 const AVATAR_SIZE = POST_ITEM_SPACING.AVATAR_SIZE;
 
-const BADGE_ICON_SIZE = 12;
-// The action badge FILL is themed (`theme.colors[colorToken]`); this white glyph
+// The action badge FILL is themed (the descriptor's colour role); this white glyph
 // sits on top of that saturated fill for contrast across every preset/mode. A
 // named constant, not a stray magic hex.
-const BADGE_GLYPH_COLOR = '#ffffff';
+const badgeTokens = defineTokens({ color: { glyph: '#ffffff' } });
 
 const STACK_AVATAR_SIZE = 24;
 // Compact media chip on the trailing edge of a row whose post carries an image.
@@ -276,28 +282,34 @@ const NotificationPreview: React.FC<{ text: string }> = ({ text }) =>
       )
     : null;
 
+// The strip's overlap, and its "+N" count in a 9pt type no type step has.
+const useStripStyles = createTokenStyles((t) => ({
+  overlap: { marginLeft: -8 },
+  extra: { color: t.primaryForeground, fontSize: 9, fontWeight: '700' },
+}));
+
 /** Collapsed stacked-avatar strip (up to 3 + "+N") for grouped rows. */
 const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = ({
   actors,
   totalActors,
 }) => {
+  const stripStyles = useStripStyles();
   const shown = actors.slice(0, COLLAPSED_STRIP_LIMIT);
   const extra = totalActors - shown.length;
   return toElement(
     HStack(
       Embed(
         shown.map((actor, index) => (
-          // `zIndex` is the only per-item dynamic value (stack order) — everything
-          // else is NativeWind. The -8px overlap for every avatar after the first
-          // is `-ml-2`.
+          // `zIndex` is the only per-item dynamic value (stack order), so the slot
+          // keeps React Native's view. Every avatar after the first overlaps the
+          // one before by 8px.
           <View
             // Position, not identity: an actor with no id shares `undefined` with
             // every other, and two such actors in one strip would collide on the
             // key. The strip is a fixed slice of a stable array, so the index IS
             // the stable identity here.
             key={actor.id ?? `slot-${index}`}
-            className={cn(index > 0 && '-ml-2')}
-            style={{ zIndex: shown.length - index }}
+            style={[index > 0 && stripStyles.overlap, { zIndex: shown.length - index }]}
           >
             {toElement(
               VStack(
@@ -318,9 +330,7 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
       ),
       extra > 0
         ? VStack(
-            VStack(
-              Embed(<Text className="text-primary-foreground text-[9px] font-bold">+{extra}</Text>),
-            )
+            VStack(Embed(<Text style={stripStyles.extra}>+{extra}</Text>))
               .frame({ width: '28', height: '28' })
               .background('primary')
               .border('background', 'thick')
@@ -358,6 +368,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const { t } = useTranslation();
   const locale = useBloomLocale();
   const theme = useTheme();
+  const rowTokens = useRowTokens();
   const surfaceFill = useSurfaceFill();
   const queryClient = useQueryClient();
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
@@ -454,7 +465,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const collabDeclined =
     collabViewerState?.viewerRole === 'collaborator' && !collabInvitePending && !collabAccepted;
 
-  const badgeColor = theme.colors[descriptor.colorToken];
   const timeLabel = formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' });
   const actionText = descriptor.actionPhrase(t);
 
@@ -751,18 +761,15 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                       style={{ container: { flexShrink: 0 } }}
                     />,
                   ),
-                  Embed(
-                    showHandleLine ? (
-                      <Text
-                        className="text-muted-foreground text-[15px] leading-5"
-                        style={{ flexShrink: 10, minWidth: 0 }}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {` @${resolvedPrimary.handle}`}
-                      </Text>
-                    ) : null,
-                  ),
+                  showHandleLine
+                    ? RawText(` @${resolvedPrimary.handle}`)
+                        .foreground('muted')
+                        .font('md')
+                        .leading('20px')
+                        .frame({ minWidth: 'none' })
+                        .shrink('first')
+                        .lines(1)
+                    : null,
                   Embed(
                     isSingleActor ? (
                       <AccountBadge
@@ -815,16 +822,16 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
           variant={MEDIA_VARIANT_AVATAR}
         />
       </ProfileHoverCard>
-      <View
-        className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
-        style={{ backgroundColor: badgeColor }}
-      >
-        <descriptor.icon
-          width={BADGE_ICON_SIZE}
-          height={BADGE_ICON_SIZE}
-          fill={BADGE_GLYPH_COLOR}
-        />
-      </View>
+      {toElement(
+        VStack(Icon(descriptor.icon).size('xs').foreground(badgeTokens.color.glyph))
+          .position({ bottom: '-2xs', right: '-2xs' })
+          .frame({ width: 'xl', height: 'xl' })
+          .background(descriptor.colorToken)
+          .border('background', 'thick')
+          .corner('infinite')
+          .align('center')
+          .justify('center'),
+      )}
     </>
   );
 
@@ -840,15 +847,12 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const rowContent = (
     <>
       <SubtleHover />
-      <View className="px-3" pointerEvents={separateGestures ? 'box-none' : undefined}>
-        <View
-          className="flex-row items-start justify-between"
-          pointerEvents={separateGestures ? 'box-none' : undefined}
-        >
+      <View style={rowStyles.inset} pointerEvents={separateGestures ? 'box-none' : undefined}>
+        <View style={rowStyles.columns} pointerEvents={separateGestures ? 'box-none' : undefined}>
           {/* Avatar column: avatar + themed action-badge overlay. */}
           {separateGestures ? (
             <Pressable
-              className="relative mr-3"
+              style={rowStyles.avatarColumn}
               onPress={handlePress}
               onLongPress={handleLongPress}
               accessible={false}
@@ -864,10 +868,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
           {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
               plus the muted action phrase and the text preview. */}
-          <View className="flex-1 gap-1" pointerEvents={separateGestures ? 'box-none' : undefined}>
+          <View style={rowStyles.content} pointerEvents={separateGestures ? 'box-none' : undefined}>
             {separateGestures ? (
               <Pressable
-                className="gap-1"
+                style={rowStyles.mainContent}
                 onPress={handlePress}
                 onLongPress={handleLongPress}
                 accessible={false}
@@ -958,7 +962,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                   HStack(
                     Embed(
                       <Button
-                        className="flex-1"
+                        style={rowStyles.inviteButton}
                         onPress={openAcceptSheet}
                         disabled={actionLoading}
                         stopPropagation
@@ -970,7 +974,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                       <Button
                         appearance="subtle"
                         tone="neutral"
-                        className="flex-1"
+                        style={rowStyles.inviteButton}
                         stopPropagation
                         onPress={() => {
                           const intent = captureIntent();
@@ -987,35 +991,37 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 )
               : null}
 
-            {isCollabInvite && collabAccepted ? (
-              <View
-                className="flex-row items-center gap-1.5 mt-1"
-                pointerEvents={separateGestures ? 'none' : undefined}
-              >
-                {toElement(Icon(RiCheckboxCircleFill).size('sm').foreground('success'))}
-                {toElement(
-                  RawText(t('collab.youAccepted', { defaultValue: 'You accepted' }))
-                    .foreground('muted')
-                    .font('md')
-                    .leading('20px'),
-                )}
-              </View>
-            ) : null}
+            {isCollabInvite && collabAccepted
+              ? toElement(
+                  HStack(
+                    Icon(RiCheckboxCircleFill).size('sm').foreground('success'),
+                    RawText(t('collab.youAccepted', { defaultValue: 'You accepted' }))
+                      .foreground('muted')
+                      .font('md')
+                      .leading('20px'),
+                  )
+                    .align('center')
+                    .spacing('6')
+                    .margin('top', 'xs')
+                    .when(separateGestures, (v) => v.allowsHitTesting(false)),
+                )
+              : null}
 
-            {isCollabInvite && collabDeclined ? (
-              <View
-                className="flex-row items-center gap-1.5 mt-1"
-                pointerEvents={separateGestures ? 'none' : undefined}
-              >
-                {toElement(Icon(RiCloseCircleLine).size('sm').foreground('muted'))}
-                {toElement(
-                  RawText(t('collab.youDeclined', { defaultValue: 'You declined' }))
-                    .foreground('muted')
-                    .font('md')
-                    .leading('20px'),
-                )}
-              </View>
-            ) : null}
+            {isCollabInvite && collabDeclined
+              ? toElement(
+                  HStack(
+                    Icon(RiCloseCircleLine).size('sm').foreground('muted'),
+                    RawText(t('collab.youDeclined', { defaultValue: 'You declined' }))
+                      .foreground('muted')
+                      .font('md')
+                      .leading('20px'),
+                  )
+                    .align('center')
+                    .spacing('6')
+                    .margin('top', 'xs')
+                    .when(separateGestures, (v) => v.allowsHitTesting(false)),
+                )
+              : null}
           </View>
 
           {/* Trailing media chip — a compact square still of the post's first
@@ -1024,8 +1030,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
           {thumbnailUrl ? (
             <Image
               source={{ uri: thumbnailUrl }}
-              className="bg-muted self-center ml-3 rounded-lg"
-              style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
+              style={[rowTokens.thumbnail, rowStyles.thumbnail]}
               contentFit="cover"
               transition={150}
               cachePolicy="memory-disk"
@@ -1034,21 +1039,26 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               pointerEvents={separateGestures ? 'none' : undefined}
             />
           ) : null}
-          {hasUnread ? (
-            <View
-              className="w-2 h-2 rounded-full bg-primary self-center ml-2"
-              pointerEvents={separateGestures ? 'none' : undefined}
-            />
-          ) : null}
+          {hasUnread
+            ? toElement(
+                VStack()
+                  .frame({ width: 'sm', height: 'sm' })
+                  .background('primary')
+                  .corner('infinite')
+                  .alignSelf('center')
+                  .margin('left', 'sm')
+                  .when(separateGestures, (v) => v.allowsHitTesting(false)),
+              )
+            : null}
         </View>
       </View>
     </>
   );
-  const rowClass = cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5');
-  const rowStyle = hasUnread ? undefined : { backgroundColor: surfaceFill };
+  // The row is the hover group its SubtleHover wash answers.
+  const rowStyle = [rowTokens.row, hasUnread ? rowTokens.unread : { backgroundColor: surfaceFill }];
   if (separateGestures) {
     return (
-      <View className={rowClass} style={rowStyle}>
+      <View style={rowStyle} {...hoverGroupProps}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={handlePress}
@@ -1062,8 +1072,8 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   }
   return (
     <Pressable
-      className={rowClass}
       style={rowStyle}
+      {...hoverGroupProps}
       onPress={handlePress}
       onLongPress={handleLongPress}
       accessibilityRole="button"
@@ -1073,6 +1083,34 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     </Pressable>
   );
 };
+
+// The row's frame: full width, a hairline below, and the subtle primary tint of
+// an unread row (a read row takes the fill of the column it sits in). The
+// trailing still's fill, place and corner are the web's alone: expo-image hands
+// a class to its web container only.
+const useRowTokens = createTokenStyles((t) => ({
+  row: { width: '100%', borderBottomWidth: 1, borderColor: t.border, paddingVertical: 12 },
+  unread: { backgroundColor: tokenAlpha(t.primary, 0.05) },
+  thumbnail: Platform.select({
+    web: { backgroundColor: t.muted, alignSelf: 'center', marginLeft: 12, borderRadius: 16 },
+    default: {},
+  }),
+}));
+
+// The row's inner layout, as React Native views: each passes touches through
+// to the row's own press layer when the row separates its gestures.
+const rowStyles = StyleSheet.create({
+  inset: { paddingHorizontal: 12 },
+  columns: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  avatarColumn: { position: 'relative', marginRight: 12 },
+  content: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', gap: 4 },
+  mainContent: { gap: 4 },
+  thumbnail: { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE },
+  // The invite's two buttons share the row equally.
+  inviteButton: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+});
+
+
 
 // Memoized: a realtime patch to one notification (or a parent re-render) must not
 // re-render every row — the parent passes a stable `item` and a memoized

@@ -1,5 +1,3 @@
-import type { Theme } from '@oxy.so/bloom/theme';
-
 import type { BloomIconComponent } from '@oxy.so/bloom';
 import { RiAtLine } from '@oxy.so/bloom/icons/RiAtLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
@@ -15,7 +13,8 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
 
 /** A Bloom theme color token — resolved at render time as `theme.colors[token]`. */
-type ColorToken = keyof Theme['colors'];
+/** The roles an action badge fills with (each a theme colour and a language role). */
+type BadgeRole = 'primary' | 'success' | 'warning';
 
 /** The i18next `t` signature used to build localized notification strings. */
 export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
@@ -34,8 +33,8 @@ export type TranslateFn = (key: string, options?: Record<string, unknown>) => st
 export interface NotificationDescriptor {
   /** Bloom glyph shown inside the small action badge overlaid on the avatar. */
   icon: BloomIconComponent;
-  /** Semantic color token for the action badge fill. */
-  colorToken: ColorToken;
+  /** The action badge's fill: a theme colour role the language paints. */
+  colorToken: BadgeRole;
   /** Whether this type has an associated post whose text is previewed inline. */
   hasPreview: boolean;
   /**
