@@ -1,14 +1,13 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
-import { View, TouchableOpacity, ScrollView } from 'react-native';
+import { Platform, TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useRouter } from '@/lib/navigation/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackCollection } from '@/services/starterPacksService';
@@ -22,11 +21,29 @@ import {
   HStack,
   Icon,
   RawText,
+  SpinnerIcon,
   VStack,
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
+
+// Tailwind's `rounded-full` as NativeWind drew it on a TouchableOpacity, which the
+// language has no node for (its press fades the row's opacity).
+const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+const touchables = {
+  create: { borderRadius: PILL_RADIUS, paddingHorizontal: 20, paddingVertical: 10 },
+  // Tailwind's `flex-1`: grow, shrink and a 0% basis.
+  rowLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+  newRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+} satisfies Record<string, ViewStyle>;
 
 const logger = createLogger('AddToStarterPackSheet');
 
@@ -81,7 +98,7 @@ export function AddToStarterPackSheet({
   onClose,
 }: AddToStarterPackSheetProps) {
   const router = useRouter();
-  const theme = useTheme();
+  const colors = useColorTokens();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user, canUsePrivateApi } = useAuth();
@@ -266,7 +283,7 @@ export function AddToStarterPackSheet({
               Embed(
                 <TouchableOpacity
                   onPress={goCreate}
-                  className="bg-primary rounded-full px-5 py-2.5"
+                  style={[touchables.create, { backgroundColor: colors.primary }]}
                 >
                   {toElement(
                     RawText(t('starterPacks.create', { defaultValue: 'Create starter pack' }))
@@ -294,15 +311,20 @@ export function AddToStarterPackSheet({
                           toggle twice. The box carries the accessible name; the label
                           area is only a bigger touch target for the same toggle. */ Embed(
                     <TouchableOpacity
-                      className="flex-row items-center gap-3 flex-1"
+                      style={touchables.rowLabel}
                       onPress={() => toggle(row)}
                       disabled={row.pending}
                       activeOpacity={0.7}
                       accessible={false}
                     >
-                      <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
-                        {toElement(Icon(RiRocket2Line).size('18').foreground('foreground'))}
-                      </View>
+                      {toElement(
+                        VStack(Icon(RiRocket2Line).size('18').foreground('foreground'))
+                          .frame({ width: '36', height: '36' })
+                          .background('mutedFill')
+                          .corner('lg')
+                          .align('center')
+                          .justify('center'),
+                      )}
                       {toElement(
                         RawText(row.name)
                           .foreground('foreground')
@@ -313,17 +335,11 @@ export function AddToStarterPackSheet({
                       )}
                     </TouchableOpacity>,
                   ),
-                  Embed(
-                    row.pending ? (
-                      <SpinnerIcon size={18} className="text-primary" />
-                    ) : (
-                      toElement(
-                        LCheckbox([row.hasUser, () => toggle(row)])
-                          .size('lg')
-                          .label(row.name),
-                      )
-                    ),
-                  ),
+                  row.pending
+                    ? SpinnerIcon().size('18').tint('primary')
+                    : LCheckbox([row.hasUser, () => toggle(row)])
+                        .size('lg')
+                        .label(row.name),
                 )
                   .padding('vertical', 'md')
                   .border('border', 'thin', 'bottom')
@@ -334,14 +350,19 @@ export function AddToStarterPackSheet({
             )}
 
             <TouchableOpacity
-              className="flex-row items-center gap-3 py-3.5"
+              style={touchables.newRow}
               onPress={goCreate}
               activeOpacity={0.7}
               accessibilityRole="button"
             >
-              <View className="w-9 h-9 rounded-lg items-center justify-center bg-primary">
-                {toElement(Icon(RiAddLine).size('md').foreground(appColors.color.hexfff))}
-              </View>
+              {toElement(
+                VStack(Icon(RiAddLine).size('md').foreground(appColors.color.hexfff))
+                  .frame({ width: '36', height: '36' })
+                  .background('primary')
+                  .corner('lg')
+                  .align('center')
+                  .justify('center'),
+              )}
               {toElement(
                 RawText(t('starterPacks.addTo.newPack', { defaultValue: 'New starter pack' }))
                   .foreground('primary')
