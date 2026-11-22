@@ -11,7 +11,7 @@ import {
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
 import { useViewableNear } from '@oxy.so/bloom/video-playback';
@@ -68,19 +68,30 @@ const MIN_WIDTH = 100;
 const SINGLE_MEDIA_FALLBACK_ASPECT_RATIO = MEDIA_CARD_WIDTH / MEDIA_CARD_HEIGHT;
 
 /**
- * Layout of a media cell, as NativeWind classes. A cell ALONE in the row is as
- * wide as the row and never taller than {@link SINGLE_MEDIA_MAX_HEIGHT}; a cell
- * BESIDE other items takes the row's one height (200, or 264 in a tall row) and
- * is never narrower than a tap target. The classes are literal strings because
- * NativeWind compiles them at build time.
+ * Layout of a media cell. A cell ALONE in the row is as wide as the row and
+ * never taller than {@link SINGLE_MEDIA_MAX_HEIGHT}; a cell BESIDE other items
+ * takes the row's one height (200, or 264 in a tall row) and is never narrower
+ * than a tap target. Built once, so a cell's style keeps its identity.
  */
-function mediaBoxClass(single: boolean, tallRow: boolean): string {
-  if (single) return 'w-full max-h-[420px]';
-  return tallRow ? 'self-start h-[264px] min-w-[100px]' : 'self-start h-[200px] min-w-[100px]';
+const mediaBoxes = StyleSheet.create({
+  single: { width: '100%', maxHeight: SINGLE_MEDIA_MAX_HEIGHT },
+  row: { alignSelf: 'flex-start', height: 200, minWidth: MIN_WIDTH },
+  tallRow: { alignSelf: 'flex-start', height: 264, minWidth: MIN_WIDTH },
+});
+
+function mediaBox(single: boolean, tallRow: boolean): ViewStyle {
+  if (single) return mediaBoxes.single;
+  return tallRow ? mediaBoxes.tallRow : mediaBoxes.row;
 }
 
+// A video or gif card: the muted fill behind the player, clipped to a 15pt
+// corner (no corner token has it), over the theme's tokens.
+const useCardStyles = createTokenStyles((t) => ({
+  card: { backgroundColor: t.muted, borderRadius: 15, overflow: 'hidden' },
+}));
+
 /**
- * The one thing no class can hold: this media's own ratio, which arrives with
+ * The one thing no static style can hold: this media's own ratio, which arrives with
  * its record. Layout turns it into the missing side — the height of a cell alone
  * in the row, the width of a cell beside others — in the same pass that places
  * it, so the first frame is the final one and nothing is measured.
@@ -125,7 +136,7 @@ function useMediaCardStyle(
   recordAspectRatio?: number,
   tallRow = false,
 ): {
-  cardClass: string;
+  cardBox: ViewStyle;
   cardStyle: ViewStyle;
   onAspectRatio: (ratio: number) => void;
 } {
@@ -149,7 +160,7 @@ function useMediaCardStyle(
   // 100% of it) and a video with no stored dimensions rendered as nothing.
   const aspectRatio = recordAspectRatio ?? learnedAspectRatio ?? SINGLE_MEDIA_FALLBACK_ASPECT_RATIO;
   return {
-    cardClass: mediaBoxClass(hasSingleMedia, tallRow),
+    cardBox: mediaBox(hasSingleMedia, tallRow),
     cardStyle: mediaBoxStyle(hasSingleMedia, aspectRatio),
     onAspectRatio,
   };
@@ -262,16 +273,14 @@ const PostAttachmentVideoShell: React.FC<
   flightHostId,
 }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardClass, cardStyle, onAspectRatio } = useMediaCardStyle(
+  const { cardBox, cardStyle, onAspectRatio } = useMediaCardStyle(
     Boolean(hasSingleMedia),
     recordRatio,
     tallRow,
   );
+  const cardStyles = useCardStyles();
   return (
-    <View
-      className={`bg-muted rounded-[15px] overflow-hidden ${cardClass}`}
-      style={[webGrabCursorStyle, cardStyle]}
-    >
+    <View style={[cardStyles.card, cardBox, webGrabCursorStyle, cardStyle]}>
       <VideoPlayer
         src={src}
         fallbackSrc={fallbackSrc}
@@ -333,16 +342,14 @@ const PostAttachmentGif: React.FC<{
   overlay?: React.ReactNode;
 }> = ({ src, aspectRatio, width, height, postId, hasSingleMedia, tallRow, overlay }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardClass, cardStyle, onAspectRatio } = useMediaCardStyle(
+  const { cardBox, cardStyle, onAspectRatio } = useMediaCardStyle(
     Boolean(hasSingleMedia),
     recordRatio,
     tallRow,
   );
+  const cardStyles = useCardStyles();
   return (
-    <View
-      className={`bg-muted rounded-[15px] overflow-hidden ${cardClass}`}
-      style={[webGrabCursorStyle, cardStyle]}
-    >
+    <View style={[cardStyles.card, cardBox, webGrabCursorStyle, cardStyle]}>
       <VideoPlayer
         src={src}
         style={styles.videoFill}
@@ -449,9 +456,9 @@ const PostAttachmentImage: React.FC<{
     });
   }, [onPress]);
 
-  // Sized by layout: `mediaBoxClass` + this image's ratio (see `mediaBoxStyle`).
+  // Sized by layout: `mediaBox` + this image's ratio (see `mediaBoxStyle`).
   const single = Boolean(hasSingleMedia);
-  const boxClass = mediaBoxClass(single, tallRow);
+  const box = mediaBox(single, tallRow);
   const boxStyle = mediaBoxStyle(single, aspectRatio ?? SINGLE_MEDIA_FALLBACK_ASPECT_RATIO);
   const containerStyles: ViewStyle[] = [
     styles.itemContainer,
@@ -494,7 +501,7 @@ const PostAttachmentImage: React.FC<{
   // The outermost element carries the size, so the press target and the rect
   // the gallery flies from are exactly the image — never a wider wrapper.
   const imageContent = (
-    <View className={onPress ? undefined : boxClass} style={onPress ? styles.fullSize : boxStyle}>
+    <View style={onPress ? styles.fullSize : [box, boxStyle]}>
       {lazyImage}
       {hasAlt &&
         toElement(
@@ -522,8 +529,7 @@ const PostAttachmentImage: React.FC<{
       accessibilityRole="imagebutton"
       accessibilityLabel={hasAlt ? alt : 'Open image'}
       collapsable={false}
-      className={boxClass}
-      style={boxStyle}
+      style={[box, boxStyle]}
     >
       {imageContent}
     </Pressable>

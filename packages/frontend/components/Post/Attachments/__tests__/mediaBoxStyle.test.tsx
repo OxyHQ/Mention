@@ -13,7 +13,10 @@ jest.mock('@oxy.so/bloom/media-inset-border', () => ({ MediaInsetBorder: () => n
 jest.mock('@oxy.so/bloom/media-flight', () => ({
   useMediaFlight: () => ({ registerAnchor: jest.fn(), measureAnchor: jest.fn(), flyTo: jest.fn() }),
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ colors: {} }),
+}));
 jest.mock('@oxy.so/bloom/icons', () => ({ RiEyeOffLine: () => null }));
 jest.mock('@oxy.so/bloom/image-aspect-ratio-cache', () => ({
   getAspectRatio: () => undefined,

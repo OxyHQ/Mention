@@ -2,11 +2,27 @@ import { useRef } from 'react';
 import { Linking, Text, View, type DimensionValue, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getHomiioCaseUrl } from '@mention/shared-types/homiio';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { homiioCases } from '@/lib/references/homiioCases';
 
 import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
+// The card keeps its React Native view: its ref is the viewability target, which
+// a language stack does not hand out. Its loading line keeps React Native's Text
+// for `accessibilityLiveRegion`, which the language has no modifier for.
+const useStyles = createTokenStyles((t) => ({
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: t.border,
+    backgroundColor: t.card,
+    padding: 16,
+    overflow: 'hidden',
+  },
+  status: { color: t.mutedForeground },
+}));
 
 /** Every state occupies the same box. The public SDK has no exact address field. */
 export function HomiioCaseCard({
@@ -20,18 +36,14 @@ export function HomiioCaseCard({
   width?: DimensionValue;
   height?: number;
 }) {
+  const styles = useStyles();
   const { t } = useTranslation();
   const cardRef = useRef<ViewInstance>(null);
   const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
   const state = useVisibleReference(homiioCases, caseId, visible);
   const value = state.status === 'ready' ? state.value : undefined;
   return (
-    <View
-      ref={cardRef}
-      testID="homiio-case-card"
-      style={{ width, height }}
-      className="rounded-2xl border border-border bg-card p-4 overflow-hidden"
-    >
+    <View ref={cardRef} testID="homiio-case-card" style={[styles.card, { width, height }]}>
       {toElement(RawText('Homiio').foreground('muted').font('14').leading('20px'))}
       {value
         ? toElement(
@@ -59,7 +71,7 @@ export function HomiioCaseCard({
         : toElement(
             VStack(
               Embed(
-                <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
+                <Text accessibilityLiveRegion="polite" style={styles.status}>
                   {state.status === 'loading'
                     ? t('homiio.loading', { defaultValue: 'Loading Homiio case…' })
                     : t('homiio.unavailable', { defaultValue: 'This Homiio case is unavailable' })}

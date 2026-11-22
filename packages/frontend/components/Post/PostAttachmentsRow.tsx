@@ -571,9 +571,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     const isSingleItem = items.length === 1;
     const rowHeight = items.some((item) => item.type === 'poll') ? TALL_ROW_HEIGHT : ROW_HEIGHT;
     const isTallRow = rowHeight === TALL_ROW_HEIGHT;
-    // The same two heights as classes, for the cells that take their size from
-    // layout. Literal strings: NativeWind compiles them at build time.
-    const rowCellClass = isTallRow ? 'h-[264px]' : 'h-[200px]';
+    // The cells that take their size from layout: each kind's fixed width at the
+    // row's height, styles built once at module scope so a cell keeps its style's
+    // identity across renders.
+    const cells = isTallRow ? TALL_CELLS : CELLS;
 
     const { measureAnchor, flyTo } = useMediaFlight();
 
@@ -930,7 +931,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             title={article?.title?.trim()}
             body={article?.body?.trim()}
             onPress={onArticlePress || undefined}
-            className={isSingleItem ? 'w-full' : `w-[200px] ${rowCellClass}`}
+            style={isSingleItem ? FULL_CELL : cells.article}
           />
         );
       }
@@ -946,7 +947,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
                 ? () => router.push(`/events/${encodeURIComponent(postId)}`)
                 : onEventPress || undefined
             }
-            className={isSingleItem ? 'w-full' : `w-[240px] ${rowCellClass}`}
+            style={isSingleItem ? FULL_CELL : cells.event}
           />
         );
       }
@@ -960,7 +961,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             topic={room?.topic}
             host={room?.host}
             onPress={onRoomPress || undefined}
-            className={isSingleItem ? undefined : `w-[260px] ${rowCellClass}`}
+            style={isSingleItem ? undefined : cells.room}
           />
         );
       }
@@ -1029,7 +1030,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             siteName={item.siteName}
             author={item.author}
             coverFill={!isSingleItem}
-            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+            style={isSingleItem ? FULL_CELL : cells.card}
           />
         );
       }
@@ -1040,7 +1041,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             referenceId={item.referenceId}
             postId={postId}
             height={rowHeight}
-            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+            style={isSingleItem ? FULL_CELL : cells.card}
           />
         );
       }
@@ -1050,7 +1051,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           <JobCard
             key={`job-${postId ?? ''}-${idx}`}
             job={job}
-            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+            style={isSingleItem ? FULL_CELL : cells.card}
           />
         );
       }
@@ -1060,7 +1061,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             key={`poll-${postId ?? ''}-${idx}`}
             pollId={pollId}
             pollData={pollData ?? undefined}
-            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+            style={isSingleItem ? FULL_CELL : cells.card}
           />
         );
       }
@@ -1117,7 +1118,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         {items.length === 1 && (
           // Claims the touch that no child did, as the carousel's ScrollView did, so
           // a tap on an attachment's padding never falls through to open the post.
-          <View className="pr-3" style={gutterStyle} onStartShouldSetResponder={() => true}>
+          <View style={[styles.gutter, gutterStyle]} onStartShouldSetResponder={() => true}>
             {renderItem(items[0], 0)}
           </View>
         )}
@@ -1142,7 +1143,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           </ScrollView>
         )}
         {showNested && nestedPost && renderNestedPost && (
-          <View className={items.length > 0 ? 'pr-3 mt-2' : 'pr-3'} style={gutterStyle}>
+          <View style={[styles.gutter, items.length > 0 && styles.belowItems, gutterStyle]}>
             <PostAttachmentNested
               nestedPost={nestedPost}
               nestingDepth={nestingDepth}
@@ -1201,6 +1202,27 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     gap: 12,
   },
+  gutter: {
+    paddingRight: 12,
+  },
+  belowItems: {
+    marginTop: 8,
+  },
 });
+
+/** A cell alone in the row fills it. */
+const FULL_CELL = StyleSheet.create({ cell: { width: '100%' } }).cell;
+
+/** A cell beside others: its kind's width, at one of the row's two heights. */
+function cellSizes(height: number) {
+  return StyleSheet.create({
+    article: { width: 200, height },
+    event: { width: 240, height },
+    room: { width: 260, height },
+    card: { width: 280, height },
+  });
+}
+const CELLS = cellSizes(ROW_HEIGHT);
+const TALL_CELLS = cellSizes(TALL_ROW_HEIGHT);
 
 export default PostAttachmentsRow;

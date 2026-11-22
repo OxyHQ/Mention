@@ -1,19 +1,17 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import type { Href } from '@/lib/navigation/router';
 import type React from 'react';
 import { useCallback } from 'react';
-import { Pressable } from 'react-native';
-import { cn } from '@/lib/utils';
+import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Badge } from '@oxy.so/bloom/badge';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import type { PostJobContent } from '@mention/shared-types';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
-import { Badge as LBadge, Embed, HStack, RawText, toElement } from '@oxy.so/bloom-language';
+import { Badge as LBadge, Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('JobCard');
 
@@ -48,9 +46,23 @@ interface JobCardProps {
    * apparent status, and there is no second round trip to render the card.
    */
   job: PostJobContent;
-  /** Layout classes: `w-full` alone in the attachments row, width and row height beside others. */
-  className?: string;
+  /** The cell's size: its full width alone in the attachments row, width and row height beside others; 280pt wide by default. */
+  style?: StyleProp<ViewStyle>;
 }
+
+// The card's pressable takes the caller's cell style, which a language stack
+// cannot merge, so it stays React Native's Pressable over the theme's tokens.
+const useStyles = createTokenStyles((t) => ({
+  card: {
+    borderWidth: 1,
+    borderColor: t.border,
+    backgroundColor: t.muted,
+    borderRadius: 14,
+    overflow: 'hidden',
+    padding: 12,
+  },
+  cell: { width: 280 },
+}));
 
 /**
  * Post-attachment card for a Mention-authored job listing. Renders the
@@ -63,7 +75,8 @@ interface JobCardProps {
  * so the handle is resolved on tap via the Oxy SDK's cached `users.get`
  * rather than upfront for every rendered card.
  */
-const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
+const JobCard: React.FC<JobCardProps> = ({ job, style }) => {
+  const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation();
   const { oxyServices } = useAuth();
@@ -106,7 +119,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
   return (
     <Pressable
       onPress={openJob}
-      className={cn('border border-border bg-muted rounded-[14px] overflow-hidden p-3', className)}
+      style={[styles.card, style ?? styles.cell]}
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >
@@ -118,16 +131,12 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
             .weight('semibold')
             .textCase('uppercase')
             .tracking('wide'),
-          Embed(
-            !isPublished ? (
-              <Badge
-                content={STATUS_LABELS[job.status] ?? job.status}
-                color={isNegativeStatus ? 'error' : 'warning'}
-                variant="subtle"
-                size="sm"
-              />
-            ) : null,
-          ),
+          !isPublished
+            ? LBadge(STATUS_LABELS[job.status] ?? job.status)
+                .color(isNegativeStatus ? 'error' : 'warning')
+                .style('subtle')
+                .size('sm')
+            : null,
         )
           .align('center')
           .justify('between')
@@ -141,9 +150,13 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
           .margin('top', 'xs')
           .lines(2),
       )}
-      <Pressable onPress={openEmployer} hitSlop={tokens.hitSlop.md} className="self-start mt-0.5">
-        {toElement(RawText(job.employerName).foreground('primary').font('sm').lines(1))}
-      </Pressable>
+      {toElement(
+        VStack(RawText(job.employerName).foreground('primary').font('sm').lines(1))
+          .onPress(openEmployer)
+          .hitSlop('md')
+          .alignSelf('start')
+          .margin('top', '2xs'),
+      )}
       {metaBadges.length > 0
         ? toElement(
             HStack(

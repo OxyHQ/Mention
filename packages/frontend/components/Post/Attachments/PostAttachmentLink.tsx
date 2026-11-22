@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { type ViewStyle, Platform } from 'react-native';
+import { Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
 import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -14,16 +14,19 @@ interface PostAttachmentLinkProps {
   /** The byline, e.g. `documentByline(document)`. */
   author?: string;
   /**
-   * The card sits in the attachments carousel, whose `className` binds it to the
+   * The card sits in the attachments carousel, whose cell style binds it to the
    * row's height: the cover image then flexes to fill it (`coverFill`) so the
    * link matches the other items. False when the link is alone, keeping the
    * card's intrinsic height.
    */
   coverFill?: boolean;
-  /** Layout classes: `w-full` alone in the row, the card width and row height in the carousel. */
-  className?: string;
-  style?: ViewStyle;
+  /** The cell's size: its full width alone in the row, the card width and row height in the carousel; 280pt wide by default. */
+  style?: StyleProp<ViewStyle>;
 }
+
+const styles = StyleSheet.create({
+  card: { width: 280 },
+});
 
 const webGrabCursorStyle: ViewStyle | null =
   Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
@@ -36,8 +39,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   siteName,
   author,
   coverFill = false,
-  className = 'w-[280px]',
-  style,
+  style = styles.card,
 }) => {
   const imageSources = useMemo(() => linkPreviewImageSources(image), [image]);
   return (
@@ -50,7 +52,6 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       author={author}
       onPress={() => openExternalLink(url)}
       coverFill={coverFill}
-      className={className}
       style={[webGrabCursorStyle, style]}
     />
   );

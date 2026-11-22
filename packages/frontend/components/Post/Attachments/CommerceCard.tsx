@@ -1,26 +1,49 @@
 import { useRef } from 'react';
 import { Image } from 'expo-image';
-import { Linking, Text, View, type ViewInstance } from 'react-native';
+import {
+  Linking,
+  Text,
+  View,
+  type StyleProp,
+  type ViewInstance,
+  type ViewStyle,
+} from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { commerceCards, recordCommerceHandoff } from '@/lib/references/commerceCards';
-import { cn } from '@/lib/utils';
 
 import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
+// The card keeps its React Native view: its ref is the viewability target, which
+// a language stack does not hand out. Its loading line keeps React Native's Text
+// for `accessibilityLiveRegion`, which the language has no modifier for.
+const useStyles = createTokenStyles((t) => ({
+  card: {
+    borderWidth: 1,
+    borderColor: t.border,
+    backgroundColor: t.card,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  status: { color: t.mutedForeground },
+}));
 
 /** Price and availability disappear as soon as current hydration expires or fails. */
 export function CommerceCard({
   referenceId,
   postId,
-  className,
+  style,
   height = 260,
 }: {
   referenceId: string;
   postId?: string;
-  className?: string;
+  /** The cell's size from the row or the composer (its width). */
+  style?: StyleProp<ViewStyle>;
   height?: number;
 }) {
+  const styles = useStyles();
   const { t, i18n } = useTranslation();
   const cardRef = useRef<ViewInstance>(null);
   const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
@@ -30,12 +53,7 @@ export function CommerceCard({
   const collection = value && 'collection' in value ? value.collection : undefined;
   const image = product?.primaryImage ?? collection?.image;
   return (
-    <View
-      ref={cardRef}
-      testID="commerce-card"
-      style={{ height }}
-      className={cn('border border-border bg-card rounded-[14px] overflow-hidden', className)}
-    >
+    <View ref={cardRef} testID="commerce-card" style={[styles.card, style, { height }]}>
       {image ? (
         <Image
           source={{ uri: image.url }}
@@ -98,7 +116,7 @@ export function CommerceCard({
                 )}
               </>
             ) : (
-              <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
+              <Text accessibilityLiveRegion="polite" style={styles.status}>
                 {state.status === 'loading'
                   ? t('commerce.loading', { defaultValue: 'Checking current availability…' })
                   : t('commerce.unavailable', {

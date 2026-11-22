@@ -1,5 +1,6 @@
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import TestRenderer, { act } from 'react-test-renderer';
+import { StyleSheet, type ViewStyle } from 'react-native';
 
 import PostAttachmentsRow from '../PostAttachmentsRow';
 
@@ -8,8 +9,8 @@ import PostAttachmentsRow from '../PostAttachmentsRow';
  *
  * - ONE item takes the full width of the row, whatever it is.
  * - SEVERAL items share ONE height — a strip, not a skyline — so every item is
- *   handed the same row-height class.
- * - Every width comes from layout (classes and the media's own ratio); nothing
+ *   handed the same row-height cell style.
+ * - Every width comes from layout (cell styles and the media's own ratio); nothing
  *   is measured.
  * - A quoted post is not an item: it renders below the row, at full width.
  */
@@ -84,14 +85,16 @@ function render(props: Record<string, unknown>): Captured[] {
 const of = (items: Captured[], kind: string) =>
   items.find((item) => item.kind === kind)?.props ?? {};
 
-/** The height class a carousel cell was given, if any. */
-const heightClass = (props: Record<string, unknown>) =>
-  String(props.className ?? '').match(/\bh-\[\d+px\]/)?.[0];
+/** The cell style a carousel item was given, flattened. */
+const cellOf = (props: Record<string, unknown>): ViewStyle =>
+  StyleSheet.flatten(props.style as ViewStyle) ?? {};
+/** The height a carousel cell was given, if any. */
+const heightOf = (props: Record<string, unknown>) => cellOf(props).height;
 
 describe('one item takes the full width', () => {
   it('a link card fills the row by layout, with no fixed height', () => {
     const link1 = of(render({ documents: [link] }), 'link');
-    expect(link1.className).toBe('w-full');
+    expect(cellOf(link1)).toEqual({ width: '100%' });
     expect(link1.coverFill).toBe(false);
   });
 
@@ -115,7 +118,7 @@ describe('several items share one height', () => {
   it('an image, a link and a podcast take the same row height', () => {
     const row = render({ media: [image], documents: [link], podcast });
     expect(of(row, 'media').tallRow).toBe(false);
-    expect(heightClass(of(row, 'link'))).toBe('h-[200px]');
+    expect(heightOf(of(row, 'link'))).toBe(200);
     expect(of(row, 'podcast').height).toBe(200);
   });
 
@@ -126,8 +129,8 @@ describe('several items share one height', () => {
       pollData: { question: 'Q', options: ['a', 'b'] },
     });
     expect(of(withPoll, 'media').tallRow).toBe(true);
-    expect(heightClass(of(withPoll, 'poll'))).toBe('h-[264px]');
-    expect(heightClass(of(withPoll, 'link'))).toBe('h-[264px]');
+    expect(heightOf(of(withPoll, 'poll'))).toBe(264);
+    expect(heightOf(of(withPoll, 'link'))).toBe(264);
   });
 
   it('an embeddable link is a static card beside other items, a player alone', () => {
@@ -136,15 +139,15 @@ describe('several items share one height', () => {
     const beside = render({ documents: [youtube], media: [image] });
     expect(beside.some((item) => item.kind === 'embed')).toBe(false);
     expect(of(beside, 'link').coverFill).toBe(true);
-    expect(heightClass(of(beside, 'link'))).toBe('h-[200px]');
+    expect(heightOf(of(beside, 'link'))).toBe(200);
   });
 });
 
 describe('a job card follows the same rules', () => {
   it('spans the row alone, and shares the row height beside an image', () => {
     const job = { mentionJobId: 'job-1', title: 'Engineer', status: 'published' };
-    expect(of(render({ job }), 'job').className).toBe('w-full');
-    expect(heightClass(of(render({ job, media: [image] }), 'job'))).toBe('h-[200px]');
+    expect(cellOf(of(render({ job }), 'job'))).toEqual({ width: '100%' });
+    expect(heightOf(of(render({ job, media: [image] }), 'job'))).toBe(200);
   });
 });
 

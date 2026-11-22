@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
 
-import { Embed, Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
-const appColors = defineTokens({ color: { white: 'white' } });
+import { Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+const posterTokens = defineTokens({ color: { white: 'white' } });
 
 interface ExternalEmbedPosterProps {
   /** Thumbnail (link-preview image) shown behind the play button. */
@@ -58,8 +58,10 @@ export function ExternalEmbedPoster({
 
   if (active && !loading) return null;
 
+  // The frame and its scrim are pinned with React Native's `inset`, as the
+  // classes drew them; the language pins a view by its four edges instead.
   return (
-    <View className="absolute inset-0" pointerEvents="box-none">
+    <View style={styles.frame} pointerEvents="box-none">
       {thumb && !thumbErrored ? (
         <Image
           source={thumbSources}
@@ -68,30 +70,42 @@ export function ExternalEmbedPoster({
           onError={() => setThumbErrored(true)}
         />
       ) : null}
-      <View className="absolute inset-0 bg-black/30" />
-      {toElement(
-        VStack(
-          Embed(
-            active ? (
-              <SpinnerIcon size={36} color="white" />
-            ) : (
-              toElement(
-                VStack(Icon(RiPlayFill).size('2xl').foreground(appColors.color.white))
-                  .frame({ height: '64', width: '64' })
-                  .background('black/60')
-                  .corner('infinite')
-                  .align('center')
-                  .justify('center'),
-              )
-            ),
-          ),
-        )
-          .flex('1')
-          .align('center')
-          .justify('center')
-          .onPress(active ? undefined : onPressPlay)
-          .role('button'),
-      )}
+      <View style={styles.scrim} />
+      {/* React Native's Pressable: while the player loads it has no press and
+      stays in the focus order, as it was; the language takes a press-less
+      stack out of it. */}
+      <Pressable
+        onPress={active ? undefined : onPressPlay}
+        accessibilityRole="button"
+        style={styles.play}
+      >
+        {active ? (
+          <SpinnerIcon size={36} color="white" />
+        ) : (
+          toElement(
+            VStack(Icon(RiPlayFill).size('2xl').foreground(posterTokens.color.white))
+              .frame({ height: '64', width: '64' })
+              .background('black/60')
+              .corner('infinite')
+              .align('center')
+              .justify('center'),
+          )
+        )}
+      </Pressable>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  frame: { position: 'absolute', inset: 0 },
+  // Black at 30%, as NativeWind wrote `bg-black/30` (an 8-bit alpha).
+  scrim: { position: 'absolute', inset: 0, backgroundColor: '#0000004d' },
+  // Tailwind's `flex-1 items-center justify-center`.
+  play: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { AspectRatio } from '@oxy.so/bloom/aspect-ratio';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
@@ -11,7 +11,7 @@ import { ExternalEmbedPlayer } from './ExternalEmbedPlayer';
 import { EmbedConsentDialog } from './EmbedConsentDialog';
 import PostAttachmentLink from './PostAttachmentLink';
 
-import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { type Child, Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface PostAttachmentExternalEmbedProps {
   url: string;
@@ -20,8 +20,19 @@ interface PostAttachmentExternalEmbedProps {
   image?: string;
   siteName?: string;
   author?: string;
-  style?: ViewStyle;
 }
+
+/** The embed's card: the row's full width, the card fill and its outline. */
+function embedCard(...children: Child[]) {
+  return VStack(...children)
+    .frame({ width: 'full' })
+    .background('card')
+    .border('border', 'thin')
+    .corner('lg')
+    .clipped();
+}
+
+const linkCardStyle = StyleSheet.create({ fill: { width: '100%' } }).fill;
 
 const GIF_ASPECT_RATIO = 16 / 9;
 
@@ -40,7 +51,6 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   image,
   siteName,
   author,
-  style,
 }) => {
   const params = useMemo(() => parseEmbedPlayerFromUrl(url), [url]);
   const pref = useExternalEmbedsStore((state) => (params ? state.prefs[params.source] : undefined));
@@ -78,8 +88,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         image={image}
         siteName={siteName}
         author={author}
-        className="w-full"
-        style={style}
+        style={linkCardStyle}
       />
     );
   }
@@ -87,51 +96,52 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   // GIFs render inline (proxied through our backend, so they never phone home).
   // `hideDetails` is set for GIFs, so no title/domain footer.
   if (params.isGif) {
-    return (
-      <View
-        style={style}
-        className="w-full overflow-hidden rounded-2xl border border-border bg-card"
-      >
-        <AspectRatio ratio={GIF_ASPECT_RATIO} style={styles.gifWell}>
-          <Image
-            source={{ uri: proxyExternalUrl(params.playerUri) }}
-            style={StyleSheet.absoluteFill}
-            contentFit="contain"
-          />
-        </AspectRatio>
-      </View>
+    return toElement(
+      embedCard(
+        Embed(
+          <AspectRatio ratio={GIF_ASPECT_RATIO} style={styles.gifWell}>
+            <Image
+              source={{ uri: proxyExternalUrl(params.playerUri) }}
+              style={StyleSheet.absoluteFill}
+              contentFit="contain"
+            />
+          </AspectRatio>,
+        ),
+      ),
     );
   }
 
-  return (
-    <View style={style} className="w-full overflow-hidden rounded-2xl border border-border bg-card">
-      <EmbedConsentDialog control={consentControl} source={params.source} onAccept={onAccept} />
-      <ExternalEmbedPlayer
-        params={params}
-        thumb={image}
-        active={active}
-        onPressPlay={onPressPlay}
-        onDeactivate={onDeactivate}
-      />
-      {!params.hideDetails
-        ? toElement(
-            VStack(
-              title
-                ? RawText(title)
-                    .font('md')
-                    .weight('semibold')
-                    .leading('easy')
-                    .foreground('foreground')
-                    .lines(2)
-                : null,
-              RawText(domain).font('xs').leading('16px').foreground('muted').lines(1),
-            )
-              .padding('horizontal', 'md')
-              .padding('vertical', 'sm')
-              .spacing('xs'),
+  return toElement(
+    embedCard(
+      Embed(
+        <EmbedConsentDialog control={consentControl} source={params.source} onAccept={onAccept} />,
+      ),
+      Embed(
+        <ExternalEmbedPlayer
+          params={params}
+          thumb={image}
+          active={active}
+          onPressPlay={onPressPlay}
+          onDeactivate={onDeactivate}
+        />,
+      ),
+      params.hideDetails
+        ? null
+        : VStack(
+            title
+              ? RawText(title)
+                  .font('md')
+                  .weight('semibold')
+                  .leading('easy')
+                  .foreground('foreground')
+                  .lines(2)
+              : null,
+            RawText(domain).font('xs').leading('16px').foreground('muted').lines(1),
           )
-        : null}
-    </View>
+            .padding('horizontal', 'md')
+            .padding('vertical', 'sm')
+            .spacing('xs'),
+    ),
   );
 };
 

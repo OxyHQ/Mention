@@ -1,6 +1,6 @@
 import type React from 'react';
 import { TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
-import { cn } from '@/lib/utils';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 import { RawText, toElement } from '@oxy.so/bloom-language';
 
@@ -8,27 +8,38 @@ interface PostAttachmentArticleProps {
   title?: string;
   body?: string;
   onPress?: () => void;
+  /** The cell's size from the row; a 200pt-wide card by default. */
   style?: StyleProp<ViewStyle>;
-  className?: string;
 }
+
+// A touchable card (its press dims it): the language's press variant has no
+// timed opacity, so the touchable keeps its own style.
+const useStyles = createTokenStyles((t) => ({
+  card: {
+    width: 200,
+    minHeight: 140,
+    borderWidth: 1,
+    borderColor: t.border,
+    backgroundColor: t.card,
+    borderRadius: 14,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+}));
 
 const PostAttachmentArticle: React.FC<PostAttachmentArticleProps> = ({
   title,
   body,
   onPress,
   style,
-  className,
 }) => {
+  const styles = useStyles();
   const trimmedTitle = title?.trim();
   const trimmedBody = body?.trim();
 
   return (
     <TouchableOpacity
-      className={cn(
-        'w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] p-4 justify-between',
-        className,
-      )}
-      style={style}
+      style={[styles.card, style]}
       activeOpacity={0.85}
       onPress={onPress}
       disabled={!onPress}

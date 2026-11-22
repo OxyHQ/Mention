@@ -39,6 +39,7 @@ jest.mock('@/stores/videoPlayerRegistry', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { backgroundSecondary: '#eee' } }),
 }));
 
@@ -62,23 +63,22 @@ function renderCell(type: (typeof CELL_KINDS)[number], props: Record<string, unk
 }
 
 /** The card view is the parent of the mocked video surface. */
-function cardOf(renderer: TestRenderer.ReactTestRenderer): { className: string; style: ViewStyle } {
+function cardOf(renderer: TestRenderer.ReactTestRenderer): ViewStyle {
   const surface = renderer.root.findByProps({ testID: 'video-surface' });
   let node = surface.parent;
   while (node && node.type !== View) node = node.parent;
-  return {
-    className: String(node!.props.className ?? ''),
-    style: StyleSheet.flatten(node!.props.style) ?? {},
-  };
+  return StyleSheet.flatten(node!.props.style) ?? {};
 }
 
 /**
  * A native `VideoView` has no intrinsic size, so the card must resolve BOTH
- * sides by layout: one side from a class (`w-full` alone, the row height beside
- * others) and the other from the ratio.
+ * sides by layout: one side from the cell's style (the full width alone, the row
+ * height beside others) and the other from the ratio.
  */
-function expectDefiniteBox({ className, style }: { className: string; style: ViewStyle }) {
-  expect(className).toMatch(/\bw-full\b|\bh-\[\d+px\]/);
+function expectDefiniteBox(style: ViewStyle) {
+  expect(style.width === '100%' || (typeof style.height === 'number' && style.height > 0)).toBe(
+    true,
+  );
   expect(style.aspectRatio as number).toBeGreaterThan(0);
 }
 
@@ -115,7 +115,7 @@ describe.each(['ios', 'web'] as const)('a lone video with NO stored dimensions (
 
   it('gets a definite, non-zero box — never a height-less one', () => {
     const card = cardOf(renderCell('video', { hasSingleMedia: true }));
-    expect(card.className).toMatch(/\bw-full\b/);
-    expect(card.style.aspectRatio as number).toBeGreaterThan(0);
+    expect(card.width).toBe('100%');
+    expect(card.aspectRatio as number).toBeGreaterThan(0);
   });
 });

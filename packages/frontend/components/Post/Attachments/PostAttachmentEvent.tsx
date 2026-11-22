@@ -1,7 +1,6 @@
 import React from 'react';
-import { Text, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
-import { cn } from '@/lib/utils';
 
 import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
@@ -10,10 +9,17 @@ interface PostAttachmentEventProps {
   date: string; // ISO date string or Date object
   location?: string;
   onPress?: () => void;
+  /** The cell's size from the row (its full width when the event is alone). */
   style?: StyleProp<ViewStyle>;
-  /** Layout classes from the row (e.g. `w-full` when the event is alone). */
-  className?: string;
 }
+
+// The card lays its date block and details out in a row, which the language's
+// Card (a container with no stack layout) does not take: it keeps Bloom's Card.
+const styles = StyleSheet.create({
+  card: { width: 200, minHeight: 140, flexDirection: 'row' },
+  // A 28pt day: no type step or numeric font token has that size.
+  day: { fontSize: 28, fontWeight: '700', color: '#fff', lineHeight: 32 },
+});
 
 const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   name,
@@ -21,7 +27,6 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   location,
   onPress,
   style,
-  className,
 }) => {
   // Parse date and format
   const eventDate = React.useMemo(() => {
@@ -48,19 +53,13 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   return (
     // Bloom's `Card` owns the surface (border, card fill, corner, clip) and,
     // given `onPress`, the press dip; without one it is a plain, inert view.
-    <Card
-      radius="radius-16"
-      className={cn('w-[200px] min-h-[140px] flex-row', className)}
-      style={style}
-      onPress={onPress}
-      appearance="outline"
-    >
+    <Card radius="radius-16" style={[styles.card, style]} onPress={onPress} appearance="outline">
       {toElement(
         VStack(
           Embed(
             day !== null && (
               <>
-                <Text className="text-[28px] font-bold text-white leading-[32px]">{day}</Text>
+                <Text style={styles.day}>{day}</Text>
                 {month &&
                   toElement(
                     RawText(month)
