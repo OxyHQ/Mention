@@ -37,6 +37,8 @@ import { SuggestedStarterPacksInterstitial } from '../SuggestedStarterPacksInter
 import { SuggestedUsersInterstitial } from '../SuggestedUsersInterstitial';
 import { TrendingTopicsInterstitial } from '../TrendingTopicsInterstitial';
 import { resetReaderState } from '@/stores/readerStateStore';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * Render + telemetry tests for the four feed recommendation bands.
@@ -274,6 +276,7 @@ interface HandleUser {
 }
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user?: HandleUser | null): string | null => {
     const username = (user?.username ?? user?.handle ?? '').trim().replace(/^@/, '');
     if (username.length === 0) return null;
@@ -363,6 +366,7 @@ jest.mock('@oxy.so/bloom/card', () => {
 jest.mock('@oxy.so/bloom/icon-circle', () => ({ IconCircle: () => null }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { primary: '#0000ff' } }),
 }));
 
@@ -373,26 +377,30 @@ jest.mock('@oxy.so/bloom/loading', () => {
 
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  // The stand-in's other exports stay (the language reads Bloom's font families).
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text };
 });
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
-jest.mock('@oxy.so/bloom/typography', () => {
-  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
-});
-
 jest.mock('@oxy.so/bloom/button', () => {
+  const React = require('react');
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  // A button inside the group is one of the carousel's controls. The group
+  // marks its buttons through context, so a button the Bloom language draws
+  // inside it (not a direct child element) is marked too.
+  const InGroup = React.createContext(undefined);
+  const Button = React.forwardRef((props: Record<string, unknown>, ref: unknown) =>
+    React.createElement(TouchableOpacity, {
+      testID: React.useContext(InGroup),
+      ...props,
+      ref,
+    }),
+  );
   return {
-    Button: Object.assign(TouchableOpacity, {
-      Group: ({ children }: { children?: React.ReactNode }) => {
-        const React = require('react');
-        return React.Children.map(children, (child: React.ReactElement) =>
-          React.cloneElement(child, { testID: 'carousel-control' }),
-        );
-      },
+    Button: Object.assign(Button, {
+      Group: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement(InGroup.Provider, { value: 'carousel-control' }, children),
     }),
   };
 });
@@ -596,6 +604,11 @@ async function flush(): Promise<void> {
 }
 
 /** Render a band and let the fetch it kicks off settle. */
+/** What the band drew: the hosts inside the theme provider's own root view. */
+function drawn(renderer: TestRenderer.ReactTestRenderer) {
+  return (renderer.toJSON() as TestRenderer.ReactTestRendererJSON).children;
+}
+
 async function renderBand(element: React.ReactElement): Promise<TestRenderer.ReactTestRenderer> {
   // `gcTime: 0` on BOTH caches: a mutation's default 5-minute garbage-collection
   // timer would outlive the test and keep jest's event loop open.
@@ -610,7 +623,9 @@ async function renderBand(element: React.ReactElement): Promise<TestRenderer.Rea
   let renderer: TestRenderer.ReactTestRenderer | null = null;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>{element}</QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        {<QueryClientProvider client={client}>{element}</QueryClientProvider>}
+      </BloomThemeProvider>,
     );
   });
   await flush();
@@ -714,8 +729,11 @@ function seeMoreHeaderButtons(renderer: TestRenderer.ReactTestRenderer): ReactTe
  */
 function seeMoreCards(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   const label = mockTranslate('feed.interstitial.seeMore');
-  return pressables(renderer).filter(
+  // Host nodes: the card is a language stack (a press-scale host), not a
+  // touchable, and one host per control keeps the count exact.
+  return renderer.root.findAll(
     (node) =>
+      typeof node.type === 'string' &&
       node.props.testID !== 'carousel-control' &&
       node.props.accessibilityRole === 'button' &&
       node.props.accessibilityLabel === label,
@@ -847,7 +865,7 @@ describe('SuggestedUsersInterstitial', () => {
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders nothing below the minimum of 4', async () => {
@@ -855,7 +873,7 @@ describe('SuggestedUsersInterstitial', () => {
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('holds the same minimum of 4 on every screen size', async () => {
@@ -864,11 +882,11 @@ describe('SuggestedUsersInterstitial', () => {
     mockRecommendations = users(3);
     mockIsDesktop = false;
     expect(
-      (await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON(),
+      drawn(await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)),
     ).toBeNull();
     mockIsDesktop = true;
     expect(
-      (await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON(),
+      drawn(await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)),
     ).toBeNull();
 
     mockRecommendations = users(4);
@@ -998,7 +1016,7 @@ describe('SuggestedUsersInterstitial', () => {
     press(dismissButton(renderer, 'Person 2'));
 
     // 3 left: below the minimum. Not an empty band, not a lone header — nothing.
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('dismisses from the mobile carousel too, and closes the band below the minimum', async () => {
@@ -1012,7 +1030,7 @@ describe('SuggestedUsersInterstitial', () => {
     press(dismissButton(renderer, 'Person 3'));
 
     // 3 left — below the minimum of 4 the carousel needs to be worth a swipe.
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('names a nameless account by @handle, a handle-less one "Unknown user" — and never links the latter', async () => {
@@ -1040,7 +1058,7 @@ describe('SuggestedFeedsInterstitial', () => {
 
     const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders nothing below the minimum', async () => {
@@ -1048,7 +1066,7 @@ describe('SuggestedFeedsInterstitial', () => {
 
     const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders the header and every suggested feed once it has enough', async () => {
@@ -1120,7 +1138,7 @@ describe('SuggestedFeedsInterstitial', () => {
 
     // 3 feeds, below the minimum of 4. The band disappears rather than shrink to
     // a stub.
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('subscribes to the feed the viewer pressed — and only that one', async () => {
@@ -1155,7 +1173,7 @@ describe('SuggestedFeedsInterstitial', () => {
     try {
       const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
-      expect(renderer.toJSON()).toBeNull();
+      expect(drawn(renderer)).toBeNull();
       expect(mockGetMarketplace).not.toHaveBeenCalled();
     } finally {
       mockAuth.canUsePrivateApi = previous.canUsePrivateApi;
@@ -1174,7 +1192,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
       <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
     );
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders nothing below the minimum', async () => {
@@ -1184,7 +1202,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
       <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
     );
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders the header and every suggested pack once it has enough', async () => {
@@ -1291,7 +1309,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
     press(dismissButton(renderer, 'Pack 4'));
 
     // 3 packs left, below the minimum of 4: the band disappears entirely.
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 });
 
@@ -1325,7 +1343,7 @@ describe('SimilarAccountsInterstitial', () => {
       <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
     );
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders nothing below the minimum', async () => {
@@ -1335,7 +1353,7 @@ describe('SimilarAccountsInterstitial', () => {
       <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
     );
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders nothing — and asks for nobody — with no subject to be similar to', async () => {
@@ -1347,7 +1365,7 @@ describe('SimilarAccountsInterstitial', () => {
 
     // A card with no subject must not guess one (e.g. fall back to the viewer's
     // own recommendations): without a subject there is nothing to be similar to.
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
     expect(mockGetSimilarProfiles).not.toHaveBeenCalled();
   });
 
@@ -1424,7 +1442,7 @@ describe('SimilarAccountsInterstitial', () => {
     press(dismissButton(renderer, 'Similar 1'));
 
     // 3 left, below the minimum of 4: the band disappears entirely.
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 });
 
@@ -1448,7 +1466,7 @@ describe('TrendingTopicsInterstitial', () => {
 
     const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders nothing below the minimum of 4', async () => {
@@ -1456,7 +1474,7 @@ describe('TrendingTopicsInterstitial', () => {
 
     const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('takes a polling lease so a feed-only session still fills the store', async () => {

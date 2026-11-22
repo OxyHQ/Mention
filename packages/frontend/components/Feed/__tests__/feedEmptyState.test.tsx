@@ -11,6 +11,8 @@ jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'
 
 import TestRenderer, { act } from 'react-test-renderer';
 import { FeedEmptyState } from '../FeedEmptyState';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
@@ -23,6 +25,7 @@ jest.mock('react-i18next', () => ({
 jest.mock('expo-image', () => ({ Image: 'Image' }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: {} }),
 }));
 
@@ -45,14 +48,18 @@ function render(props: Partial<React.ComponentProps<typeof FeedEmptyState>>) {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <FeedEmptyState
-        isLoading={false}
-        error={null}
-        hasItems={false}
-        type="for_you"
-        onRetry={async () => {}}
-        {...props}
-      />,
+      <BloomThemeProvider fonts={false}>
+        {
+          <FeedEmptyState
+            isLoading={false}
+            error={null}
+            hasItems={false}
+            type="for_you"
+            onRetry={async () => {}}
+            {...props}
+          />
+        }
+      </BloomThemeProvider>,
     );
   });
   return tree;
