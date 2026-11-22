@@ -37,11 +37,27 @@ jest.mock('@/lib/navigation/router', () => ({
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }),
 }));
-jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
-jest.mock('@oxy.so/bloom/card', () => ({ Card: 'Card' }));
-jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: 'PageHeader' }));
-jest.mock('@oxy.so/bloom/text-field', () => ({ TextField: 'TextField', TextFieldInput: 'Input' }));
-jest.mock('@oxy.so/bloom/textarea', () => ({ Textarea: 'Textarea' }));
+jest.mock('@oxy.so/bloom/button', () => ({
+  ...jest.requireActual('@oxy.so/bloom/button'),
+  Button: 'Button',
+}));
+jest.mock('@oxy.so/bloom/card', () => ({
+  ...jest.requireActual('@oxy.so/bloom/card'),
+  Card: 'Card',
+}));
+jest.mock('@oxy.so/bloom/page-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/page-header'),
+  PageHeader: 'PageHeader',
+}));
+jest.mock('@oxy.so/bloom/text-field', () => ({
+  ...jest.requireActual('@oxy.so/bloom/text-field'),
+  TextField: 'TextField',
+  TextFieldInput: 'Input',
+}));
+jest.mock('@oxy.so/bloom/textarea', () => ({
+  ...jest.requireActual('@oxy.so/bloom/textarea'),
+  Textarea: 'Textarea',
+}));
 jest.mock('@/components/loading/ContentSkeleton', () => ({ ListSkeleton: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: 'EmptyState' }));
 jest.mock('@/components/common/SignInRequired', () => ({ SignInRequired: () => null }));
@@ -62,6 +78,14 @@ jest.mock('@/components/Memberships/MembershipContentCard', () => ({
 jest.mock('@/utils/alerts', () => ({ confirmDestructive: async () => true }));
 import Screen from '../../../app/(app)/memberships/[id]';
 import { membershipKeys } from '../membershipQueries';
+import { isNode } from '@oxy.so/bloom-language';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { isValidElement, type ReactElement } from 'react';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: ReactElement): ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const active: MembershipLandingResponse = {
   community: {
@@ -102,7 +126,13 @@ const render = () => (
     <Screen />
   </QueryClientProvider>
 );
-const text = () => JSON.stringify(tree?.toJSON());
+// A string stand-in's props are serialized whole. An element among them is read as its
+// props (its type may be a context, which refers to itself), and a Bloom language node
+// (a view handed to Bloom as a prop) as a marker: it is data with a back reference.
+const text = () =>
+  JSON.stringify(tree?.toJSON(), (_key, value) =>
+    isNode(value) ? '[language node]' : isValidElement(value) ? value.props : value,
+  );
 beforeEach(() => {
   jest.useRealTimers();
   jest.clearAllMocks();
@@ -125,7 +155,7 @@ afterEach(() => {
 });
 async function mount() {
   await act(async () => {
-    tree = TestRenderer.create(render());
+    tree = TestRenderer.create(themed(render()));
   });
   await settle();
   await settle();
@@ -167,7 +197,7 @@ it('hides the previous viewer body immediately on account change and denies the 
   const reads = mockService.content.mock.calls.length;
   mockService.landing.mockResolvedValue({ ...active, membership: null });
   mockViewer = 'viewer-b';
-  act(() => tree?.update(render()));
+  act(() => tree?.update(themed(render())));
   expect(text()).not.toContain('PRIVATE BODY A');
   await settle();
   expect(mockService.content).toHaveBeenCalledTimes(reads);
@@ -240,11 +270,11 @@ it('hides retained private content when unfocused and rechecks entitlement on re
   expect(text()).toContain('PRIVATE BODY A');
   const reads = mockService.content.mock.calls.length;
   mockFocused = false;
-  act(() => tree?.update(render()));
+  act(() => tree?.update(themed(render())));
   expect(text()).not.toContain('PRIVATE BODY A');
   mockService.landing.mockResolvedValue({ ...active, membership: null });
   mockFocused = true;
-  act(() => tree?.update(render()));
+  act(() => tree?.update(themed(render())));
   expect(text()).not.toContain('PRIVATE BODY A');
   await settle();
   await settle();

@@ -1,4 +1,4 @@
-import TestRenderer, { act } from 'react-test-renderer';
+import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { Button } from '@oxy.so/bloom/button';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -36,15 +36,35 @@ jest.mock('expo-file-system', () => ({
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
 }));
-jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
-jest.mock('@oxy.so/bloom/card', () => ({ Card: 'Card' }));
-jest.mock('@oxy.so/bloom/text-field', () => ({ TextField: 'TextField', TextFieldInput: 'Input' }));
-jest.mock('@oxy.so/bloom/textarea', () => ({ Textarea: 'Textarea' }));
+jest.mock('@oxy.so/bloom/button', () => ({
+  ...jest.requireActual('@oxy.so/bloom/button'),
+  Button: 'Button',
+}));
+jest.mock('@oxy.so/bloom/card', () => ({
+  ...jest.requireActual('@oxy.so/bloom/card'),
+  Card: 'Card',
+}));
+jest.mock('@oxy.so/bloom/text-field', () => ({
+  ...jest.requireActual('@oxy.so/bloom/text-field'),
+  TextField: 'TextField',
+  TextFieldInput: 'Input',
+}));
+jest.mock('@oxy.so/bloom/textarea', () => ({
+  ...jest.requireActual('@oxy.so/bloom/textarea'),
+  Textarea: 'Textarea',
+}));
 jest.mock('@/utils/alerts', () => ({ confirmDestructive: async () => true }));
 import { Linking } from 'react-native';
 import { MembershipComposer } from '../MembershipComposer';
 import { MembershipTierEditor } from '../MembershipTierEditor';
 import { MembershipContentCard } from '../MembershipContentCard';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import type React from 'react';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 let tree: TestRenderer.ReactTestRenderer | undefined;
 const changed = jest.fn(async () => {});
@@ -73,19 +93,23 @@ async function press(label: string) {
     button(label).props.onPress();
   });
 }
+/** A Bloom input's change: `onValueChange` as the language hands it, or `onChangeText` from JSX. */
+function changeOf(node: ReactTestInstance): (text: string) => void {
+  return node.props.onValueChange ?? node.props.onChangeText;
+}
 function input(label: string, value: string) {
   const node = root()
     .findAllByType(TextFieldInput)
     .find((entry) => entry.props.label === label);
   if (!node) throw new Error(`Input missing: ${label}`);
-  act(() => node.props.onChangeText(value));
+  act(() => changeOf(node)(value));
 }
 function area(label: string, value: string) {
   const node = root()
     .findAllByType(Textarea)
     .find((entry) => entry.props.accessibilityLabel === label);
   if (!node) throw new Error(`Textarea missing: ${label}`);
-  act(() => node.props.onChangeText(value));
+  act(() => changeOf(node)(value));
 }
 beforeEach(() => {
   jest.clearAllMocks();
@@ -100,7 +124,9 @@ afterEach(() => {
 it('publishes a protected poll with an explicit public teaser and tier policy', async () => {
   act(() => {
     tree = TestRenderer.create(
-      <MembershipComposer communityId="community" manager tiers={[tier]} onCreated={changed} />,
+      themed(
+        <MembershipComposer communityId="community" manager tiers={[tier]} onCreated={changed} />,
+      ),
     );
   });
   await press('Poll');
@@ -131,13 +157,15 @@ it('publishes a protected poll with an explicit public teaser and tier policy', 
 it('keeps a member reply in its parent and never offers operator publication controls', async () => {
   act(() => {
     tree = TestRenderer.create(
-      <MembershipComposer
-        communityId="community"
-        manager={false}
-        parentContentId="parent"
-        tiers={[]}
-        onCreated={changed}
-      />,
+      themed(
+        <MembershipComposer
+          communityId="community"
+          manager={false}
+          parentContentId="parent"
+          tiers={[]}
+          onCreated={changed}
+        />,
+      ),
     );
   });
   expect(
@@ -169,7 +197,9 @@ it('uploads selected bytes privately, lets the author discard a draft, and does 
   mockApi.upload.mockResolvedValue({ id: 'media', size: 2, mime: 'image/png' });
   act(() => {
     tree = TestRenderer.create(
-      <MembershipComposer communityId="community" manager tiers={[tier]} onCreated={changed} />,
+      themed(
+        <MembershipComposer communityId="community" manager tiers={[tier]} onCreated={changed} />,
+      ),
     );
   });
   await press('Attach a private file');
@@ -197,7 +227,7 @@ it('uploads selected bytes privately, lets the author discard a draft, and does 
 it('edits tier benefits explicitly and retires a free tier without creating a payment', async () => {
   act(() => {
     tree = TestRenderer.create(
-      <MembershipTierEditor communityId="community" tier={tier} onChange={changed} />,
+      themed(<MembershipTierEditor communityId="community" tier={tier} onChange={changed} />),
     );
   });
   input('Tier name', 'Readers');
@@ -216,7 +246,9 @@ it('edits tier benefits explicitly and retires a free tier without creating a pa
 });
 it('creates only a paid draft and exposes an error without inventing an activation path', async () => {
   act(() => {
-    tree = TestRenderer.create(<MembershipTierEditor communityId="community" onChange={changed} />);
+    tree = TestRenderer.create(
+      themed(<MembershipTierEditor communityId="community" onChange={changed} />),
+    );
   });
   input('Tier name', 'Supporters');
   area('Description', 'Planned');
@@ -261,14 +293,16 @@ it('uses private endpoints for voting, downloads and moderation, without retaini
   mockApi.download.mockResolvedValue({ url: 'https://files.test/signed', expiresIn: 300 });
   act(() => {
     tree = TestRenderer.create(
-      <MembershipContentCard
-        content={content}
-        viewerId="manager"
-        manager
-        benefits={tier.benefits}
-        onChange={changed}
-        onThread={thread}
-      />,
+      themed(
+        <MembershipContentCard
+          content={content}
+          viewerId="manager"
+          manager
+          benefits={tier.benefits}
+          onChange={changed}
+          onThread={thread}
+        />,
+      ),
     );
   });
   await press('A · 0');
@@ -290,13 +324,15 @@ it('uses private endpoints for voting, downloads and moderation, without retaini
 it('disables ungranted poll and download actions and surfaces denial without opening a URL', async () => {
   act(() => {
     tree = TestRenderer.create(
-      <MembershipContentCard
-        content={content}
-        viewerId="member"
-        manager={false}
-        benefits={['content_read']}
-        onChange={changed}
-      />,
+      themed(
+        <MembershipContentCard
+          content={content}
+          viewerId="member"
+          manager={false}
+          benefits={['content_read']}
+          onChange={changed}
+        />,
+      ),
     );
   });
   expect(button('A · 0').props.disabled).toBe(true);

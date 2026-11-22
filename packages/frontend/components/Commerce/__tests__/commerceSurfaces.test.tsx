@@ -1,4 +1,4 @@
-import { Linking, View } from 'react-native';
+import { Linking, View, AccessibilityInfo } from 'react-native';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import type { MercariaCollection, MercariaProductSummary } from '@mercaria.co/sdk';
 import TestRenderer, { act } from 'react-test-renderer';
@@ -8,6 +8,13 @@ import { waitUntil } from '@/test-support/waitUntil';
 import { ProfileShop } from '../ProfileShop';
 import { StorefrontSettings } from '../StorefrontSettings';
 import { commerceService } from '@/services/commerceService';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import type React from 'react';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 jest.mock('@/services/commerceService', () => ({
   commerceService: {
@@ -23,8 +30,12 @@ jest.mock('@/services/commerceService', () => ({
   },
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: { id: 'viewer' } }) }));
-jest.mock('@oxy.so/bloom/screen', () => ({ useScreenVisible: () => true }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
+  useScreenVisible: () => true,
+}));
 jest.mock('@oxy.so/bloom/hooks', () => ({
+  ...jest.requireActual('@oxy.so/bloom/hooks'),
   useContainerWidth: () => ({ width: 600, onLayout: jest.fn() }),
 }));
 let mockListMounts = 0;
@@ -48,7 +59,9 @@ jest.mock('@oxy.so/bloom/list', () => {
       <View testID="shop-virtual-list" {...props} getData={() => data}>
         <MountProbe />
         {data.map((item, index) => (
-          <View key={item.key}>{props.renderItem({ item, index })}</View>
+          <View key={item.key} testID={`row-${item.key}`}>
+            {props.renderItem({ item, index })}
+          </View>
         ))}
       </View>
     ),
@@ -82,9 +95,16 @@ jest.mock('@oxy.so/bloom/switch', () => {
 jest.mock('@oxy.so/bloom/search', () => {
   const { TextInput } = jest.requireActual('react-native');
   return {
-    Search: ({ label, ...props }: { label: string }) => (
-      <TextInput accessibilityLabel={label} {...props} />
-    ),
+    // Bloom's Search takes its change as `onValueChange` (as the language hands it);
+    // the stand-in answers it through the TextInput's own prop.
+    Search: ({
+      label,
+      onValueChange,
+      ...props
+    }: {
+      label: string;
+      onValueChange?: (text: string) => void;
+    }) => <TextInput {...props} accessibilityLabel={label} onChangeText={onValueChange} />,
   };
 });
 jest.mock('@/components/Post/Attachments/CommerceCard', () => {
@@ -125,7 +145,7 @@ const screen = () => JSON.stringify(renderer.toJSON());
 function render(content: ReactNode) {
   act(() => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>{content}</QueryClientProvider>,
+      themed(<QueryClientProvider client={client}>{content}</QueryClientProvider>),
     );
   });
 }
@@ -138,6 +158,13 @@ function button(label: string) {
 }
 beforeEach(() => {
   jest.resetAllMocks();
+  // Bloom's theme provider follows the system's accessibility settings through
+  // React Native's mocked queries, which the reset above leaves answering nothing.
+  jest.mocked(AccessibilityInfo.isReduceTransparencyEnabled).mockResolvedValue(false);
+  jest.mocked(AccessibilityInfo.isDarkerSystemColorsEnabled).mockResolvedValue(false);
+  jest.mocked(AccessibilityInfo.isHighTextContrastEnabled).mockResolvedValue(false);
+  jest.mocked(AccessibilityInfo.isReduceMotionEnabled).mockResolvedValue(false);
+  jest.mocked(AccessibilityInfo.addEventListener).mockReturnValue({ remove: () => {} });
   mockListMounts = 0;
   client = new QueryClient({
     defaultOptions: {
@@ -214,9 +241,11 @@ it('does not expose one account’s shop while a different account loads', async
   service.storefront.mockImplementation(() => new Promise(() => {}));
   act(() =>
     renderer.update(
-      <QueryClientProvider client={client}>
-        <ProfileShop accountId="account-b" />
-      </QueryClientProvider>,
+      themed(
+        <QueryClientProvider client={client}>
+          <ProfileShop accountId="account-b" />
+        </QueryClientProvider>,
+      ),
     ),
   );
   expect(screen()).not.toContain('Shop A');
@@ -511,9 +540,11 @@ it('keeps seller shelf order and independent pages in one retained list, abortin
   service.featuredCollectionProducts.mockImplementation(() => new Promise(() => {}));
   act(() =>
     renderer.update(
-      <QueryClientProvider client={client}>
-        <ProfileShop accountId="account-b" />
-      </QueryClientProvider>,
+      themed(
+        <QueryClientProvider client={client}>
+          <ProfileShop accountId="account-b" />
+        </QueryClientProvider>,
+      ),
     ),
   );
   expect(cardKeys()).toEqual([]);
@@ -634,9 +665,14 @@ it.each(['products', 'collections', 'featured'] as const)(
     const rows = () =>
       renderer.root.findByProps({ testID: 'shop-virtual-list' }).props.getData() as {
         key: string;
-        element?: React.ReactElement<{ onPress: () => void }>;
       }[];
-    const more = () => rows().find((row) => row.key === rowKey)?.element;
+    // The row's control as the list draws it (the row's element is a language view).
+    const more = () =>
+      rows().some((row) => row.key === rowKey)
+        ? renderer.root
+            .findByProps({ testID: `row-${rowKey}` })
+            .findAll((node) => typeof node.props.onPress === 'function')[0]
+        : undefined;
     const request =
       catalog === 'products'
         ? service.storeProducts
