@@ -269,7 +269,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           .font('md')
           .leading('close')
           .shrink('never')
-          .when('web', (v) => v.noWrap()),
+          .noWrap(),
       )
     : null;
   // Collaborative posts (owner + accepted collaborators) render each author's

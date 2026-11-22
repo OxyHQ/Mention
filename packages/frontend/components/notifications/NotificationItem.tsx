@@ -783,7 +783,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 .font('md')
                 .leading('20px')
                 .shrink('never')
-                .when('web', (v) => v.noWrap())
+                .noWrap()
             : null,
         )
           .align('end')
