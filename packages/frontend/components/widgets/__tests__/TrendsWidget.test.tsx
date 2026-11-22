@@ -1,5 +1,6 @@
 import { Profiler } from 'react';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 import { TrendsWidget } from '../TrendsWidget';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { api } from '@/utils/api';
@@ -14,10 +15,14 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('@/utils/api', () => ({ api: { get: jest.fn() } }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#777' } }),
 }));
 jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: 'skeleton-box' }));
-jest.mock('@oxy.so/bloom/typography', () => ({ Text: 'text' }));
+jest.mock('@oxy.so/bloom/typography', () => ({
+  ...jest.requireActual('@oxy.so/bloom/typography'),
+  Text: 'text',
+}));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: 'button' }));
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@/hooks/useTrendNavigation', () => ({
@@ -59,9 +64,11 @@ function screen() {
 function mount() {
   act(() => {
     renderer = TestRenderer.create(
-      <Profiler id="trends" onRender={() => commits++}>
-        <TrendsWidget />
-      </Profiler>,
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
+        <Profiler id="trends" onRender={() => commits++}>
+          <TrendsWidget />
+        </Profiler>
+      </BloomProvider>,
     );
   });
 }
@@ -121,7 +128,7 @@ it('retains loading, changes and hidden trends while skipping an unchanged refre
   expect(JSON.stringify(screen().toJSON())).toContain('Updated summary');
   expect(api.get).toHaveBeenCalledTimes(3);
   act(() => useTrendsStore.getState().hideTrend('hashtag:fixture'));
-  expect(screen().toJSON()).toBeNull();
+  expect(screen().root.findByType(TrendsWidget).children).toHaveLength(0);
 });
 
 it('settles an initial error and retains visible trends on a later error', async () => {
@@ -131,7 +138,7 @@ it('settles an initial error and retains visible trends on a later error', async
     await Promise.resolve();
   });
   expect(useTrendsStore.getState().error).toBe('offline');
-  expect(screen().toJSON()).toBeNull();
+  expect(screen().root.findByType(TrendsWidget).children).toHaveLength(0);
   jest.mocked(api.get).mockResolvedValueOnce(trendResponse('Recovered'));
   await act(async () => {
     await useTrendsStore.getState().fetchTrends();
